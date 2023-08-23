@@ -16,7 +16,9 @@ limitations under the License.
 
 package services
 
-import "github.com/gravitational/teleport/api/types"
+import (
+	"github.com/gravitational/teleport/api/types"
+)
 
 // Services collects all services
 type Services interface {
@@ -41,6 +43,11 @@ type Services interface {
 	WindowsDesktops
 	SAMLIdPServiceProviders
 	UserGroups
+	Integrations
+
+	OktaClient() Okta
+	AccessListClient() AccessLists
+	UserLoginStateClient() UserLoginStates
 }
 
 // RotationGetter returns the rotation state.

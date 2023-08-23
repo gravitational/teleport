@@ -25,19 +25,22 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// HeadlessAuthenticationUserStubID is the ID of a headless authentication stub.
+const HeadlessAuthenticationUserStubID = "stub"
+
 // ValidateHeadlessAuthentication verifies that the headless authentication has
-// all of the required fields set. headless authentication stubs created with
-// CreateHeadlessAuthenticationStub will not pass this validation.
+// all of the required fields set. Headless authentication stubs will not pass
+// this validation.
 func ValidateHeadlessAuthentication(h *types.HeadlessAuthentication) error {
 	if err := h.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
 	switch {
+	case h.State.IsUnspecified():
+		return trace.BadParameter("headless authentication resource state must be specified")
 	case h.Version != types.V1:
 		return trace.BadParameter("unsupported headless authentication resource version %q, current supported version is %s", h.Version, types.V1)
-	case h.User == "":
-		return trace.BadParameter("headless authentication resource must have non-empty user")
 	case h.PublicKey == nil:
 		return trace.BadParameter("headless authentication resource must have non-empty publicKey")
 	case h.Metadata.Name != NewHeadlessAuthenticationID(h.PublicKey):

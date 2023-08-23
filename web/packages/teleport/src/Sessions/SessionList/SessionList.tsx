@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import Table, { Cell } from 'design/DataTable';
-import Icon, * as Icons from 'design/Icon/Icon';
+import * as Icons from 'design/Icon';
 import React from 'react';
 import styled from 'styled-components';
 
@@ -24,7 +24,7 @@ import { Participant, Session, SessionKind } from 'teleport/services/session';
 import { SessionJoinBtn } from './SessionJoinBtn';
 
 export default function SessionList(props: Props) {
-  const { sessions, pageSize = 100 } = props;
+  const { sessions, pageSize = 100, showActiveSessionsCTA } = props;
 
   return (
     <StyledTable
@@ -59,7 +59,8 @@ export default function SessionList(props: Props) {
         },
         {
           altKey: 'join-btn',
-          render: renderJoinCell,
+          render: session =>
+            renderJoinCell({ ...session, showActiveSessionsCTA }),
         },
       ]}
       emptyText="No Active Sessions Found"
@@ -84,32 +85,35 @@ export default function SessionList(props: Props) {
 }
 
 const kinds: {
-  [key in SessionKind]: { icon: React.ReactNode; joinable: boolean };
+  [key in SessionKind]: { icon: (any) => JSX.Element; joinable: boolean };
 } = {
   ssh: { icon: Icons.Cli, joinable: true },
   k8s: { icon: Icons.Kubernetes, joinable: false },
   desktop: { icon: Icons.Desktop, joinable: false },
-  app: { icon: Icons.NewTab, joinable: false },
+  app: { icon: Icons.Application, joinable: false },
   db: { icon: Icons.Database, joinable: false },
 };
 
 const renderIconCell = (kind: SessionKind) => {
   const { icon } = kinds[kind];
+  let Icon = icon;
   return (
     <Cell>
-      <Icon p={1} mr={3} fontSize={3} as={icon} />
+      <Icon p={1} mr={3} size="large" />
     </Cell>
   );
 };
 
+type renderJoinCellProps = Session & { showActiveSessionsCTA: boolean };
 const renderJoinCell = ({
   sid,
   clusterId,
   kind,
   participantModes,
-}: Session) => {
+  showActiveSessionsCTA,
+}: renderJoinCellProps) => {
   const { joinable } = kinds[kind];
-  if (!joinable || participantModes.length === 0) {
+  if (!joinable) {
     return <Cell align="right" height="26px" />;
   }
 
@@ -119,6 +123,7 @@ const renderJoinCell = ({
         sid={sid}
         clusterId={clusterId}
         participantModes={participantModes}
+        showCTA={showActiveSessionsCTA}
       />
     </Cell>
   );
@@ -132,6 +137,7 @@ function renderUsersCell({ parties }: Session) {
 type Props = {
   sessions: Session[];
   pageSize?: number;
+  showActiveSessionsCTA: boolean;
 };
 
 function participantMatcher(

@@ -31,6 +31,27 @@ export const createAppConfigSchema = (platform: Platform) => {
 
   // `keymap.` prefix is used in `initUi.ts` in a predicate function.
   return z.object({
+    theme: z
+      .enum(['light', 'dark', 'system'])
+      .default('system')
+      .describe('Color theme for the app.'),
+    /**
+     * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
+     * in a styled component or used in CSS, as it may inject malicious CSS code.
+     * Before using it, sanitize it with `CSS.escape` or pass it as a `style` prop.
+     * Read more https://frontarm.com/james-k-nelson/how-can-i-use-css-in-js-securely/.
+     */
+    'terminal.fontFamily': z
+      .string()
+      .default(defaultTerminalFont)
+      .describe('Font family for the terminal.'),
+    'terminal.fontSize': z
+      .number()
+      .int()
+      .min(1)
+      .max(256)
+      .default(15)
+      .describe('Font size for the terminal.'),
     'usageReporting.enabled': z
       .boolean()
       .default(false)
@@ -68,6 +89,9 @@ export const createAppConfigSchema = (platform: Platform) => {
     'keymap.newTab': shortcutSchema
       .default(defaultKeymap['newTab'])
       .describe(getShortcutDesc('open a new tab')),
+    'keymap.newTerminalTab': shortcutSchema
+      .default(defaultKeymap['newTerminalTab'])
+      .describe(getShortcutDesc('open a new terminal tab')),
     'keymap.previousTab': shortcutSchema
       .default(defaultKeymap['previousTab'])
       .describe(getShortcutDesc('go to the previous tab')),
@@ -76,33 +100,26 @@ export const createAppConfigSchema = (platform: Platform) => {
       .describe(getShortcutDesc('go to the next tab')),
     'keymap.openConnections': shortcutSchema
       .default(defaultKeymap['openConnections'])
-      .describe(getShortcutDesc('open the connection panel')),
+      .describe(getShortcutDesc('open the connection list')),
     'keymap.openClusters': shortcutSchema
       .default(defaultKeymap['openClusters'])
-      .describe(getShortcutDesc('open the clusters panel')),
+      .describe(getShortcutDesc('open the cluster selector')),
     'keymap.openProfiles': shortcutSchema
       .default(defaultKeymap['openProfiles'])
-      .describe(getShortcutDesc('open the profiles panel')),
-    'keymap.openQuickInput': shortcutSchema
-      .default(defaultKeymap['openQuickInput'])
-      .describe(getShortcutDesc('open the command bar')),
-    /**
-     * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
-     * in a styled component or used in CSS, as it may inject malicious CSS code.
-     * Before using it, sanitize it with `CSS.escape` or pass it as a `style` prop.
-     * Read more https://frontarm.com/james-k-nelson/how-can-i-use-css-in-js-securely/.
-     */
-    'terminal.fontFamily': z
-      .string()
-      .default(defaultTerminalFont)
-      .describe('Font family for the terminal.'),
-    'terminal.fontSize': z
-      .number()
-      .int()
-      .min(1)
-      .max(256)
-      .default(15)
-      .describe('Font size for the terminal.'),
+      .describe(getShortcutDesc('open the profile selector')),
+    'keymap.openSearchBar': shortcutSchema
+      .default(defaultKeymap['openSearchBar'])
+      .describe(getShortcutDesc('open the search bar')),
+    'feature.connectMyComputer': z
+      .boolean()
+      .default(false)
+      .describe('Enables sharing the computer.'),
+    'headless.skipConfirm': z
+      .boolean()
+      .default(false)
+      .describe(
+        'Skips the confirmation prompt for headless login approval and instead prompts for WebAuthn immediately.'
+      ),
   });
 };
 
@@ -118,14 +135,17 @@ export type KeyboardShortcutAction =
   | 'tab9'
   | 'closeTab'
   | 'newTab'
+  | 'newTerminalTab'
   | 'previousTab'
   | 'nextTab'
-  | 'openQuickInput'
+  | 'openSearchBar'
   | 'openConnections'
   | 'openClusters'
   | 'openProfiles';
 
-const getDefaultKeymap = (platform: Platform) => {
+const getDefaultKeymap = (
+  platform: Platform
+): Record<KeyboardShortcutAction, string> => {
   switch (platform) {
     case 'win32':
       return {
@@ -140,9 +160,10 @@ const getDefaultKeymap = (platform: Platform) => {
         tab9: 'Ctrl+9',
         closeTab: 'Ctrl+W',
         newTab: 'Ctrl+T',
+        newTerminalTab: 'Ctrl+Shift+T',
         previousTab: 'Ctrl+Shift+Tab',
         nextTab: 'Ctrl+Tab',
-        openQuickInput: 'Ctrl+K',
+        openSearchBar: 'Ctrl+K',
         openConnections: 'Ctrl+P',
         openClusters: 'Ctrl+E',
         openProfiles: 'Ctrl+I',
@@ -160,9 +181,10 @@ const getDefaultKeymap = (platform: Platform) => {
         tab9: 'Alt+9',
         closeTab: 'Ctrl+W',
         newTab: 'Ctrl+T',
+        newTerminalTab: 'Ctrl+Shift+T',
         previousTab: 'Ctrl+Shift+Tab',
         nextTab: 'Ctrl+Tab',
-        openQuickInput: 'Ctrl+K',
+        openSearchBar: 'Ctrl+K',
         openConnections: 'Ctrl+P',
         openClusters: 'Ctrl+E',
         openProfiles: 'Ctrl+I',
@@ -180,9 +202,10 @@ const getDefaultKeymap = (platform: Platform) => {
         tab9: 'Command+9',
         closeTab: 'Command+W',
         newTab: 'Command+T',
+        newTerminalTab: 'Shift+Command+T',
         previousTab: 'Control+Shift+Tab',
         nextTab: 'Control+Tab',
-        openQuickInput: 'Command+K',
+        openSearchBar: 'Command+K',
         openConnections: 'Command+P',
         openClusters: 'Command+E',
         openProfiles: 'Command+I',
@@ -193,11 +216,11 @@ const getDefaultKeymap = (platform: Platform) => {
 function getDefaultTerminalFont(platform: Platform) {
   switch (platform) {
     case 'win32':
-      return "'Consolas', 'Courier New', monospace";
+      return 'Consolas, monospace';
     case 'linux':
-      return "'Droid Sans Mono', 'Courier New', monospace, 'Droid Sans Fallback'";
+      return "'Droid Sans Mono', monospace";
     case 'darwin':
-      return "Menlo, Monaco, 'Courier New', monospace";
+      return 'Menlo, Monaco, monospace';
   }
 }
 

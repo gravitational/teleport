@@ -21,8 +21,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -49,16 +51,17 @@ func TestDefaultConfig(t *testing.T) {
 
 	// crypto settings
 	require.Equal(t, config.CipherSuites, utils.DefaultCipherSuites())
-	// Unfortunately the below algos don't have exported constants in
+	// Unfortunately, the below algos don't have exported constants in
 	// golang.org/x/crypto/ssh for us to use.
-	require.Equal(t, config.Ciphers, []string{
+	require.ElementsMatch(t, config.Ciphers, []string{
 		"aes128-gcm@openssh.com",
+		"aes256-gcm@openssh.com",
 		"chacha20-poly1305@openssh.com",
 		"aes128-ctr",
 		"aes192-ctr",
 		"aes256-ctr",
 	})
-	require.Equal(t, config.KEXAlgorithms, []string{
+	require.ElementsMatch(t, config.KEXAlgorithms, []string{
 		"curve25519-sha256",
 		"curve25519-sha256@libssh.org",
 		"ecdh-sha2-nistp256",
@@ -66,9 +69,11 @@ func TestDefaultConfig(t *testing.T) {
 		"ecdh-sha2-nistp521",
 		"diffie-hellman-group14-sha256",
 	})
-	require.Equal(t, config.MACAlgorithms, []string{
+	require.ElementsMatch(t, config.MACAlgorithms, []string{
 		"hmac-sha2-256-etm@openssh.com",
+		"hmac-sha2-512-etm@openssh.com",
 		"hmac-sha2-256",
+		"hmac-sha2-512",
 	})
 
 	// auth section
@@ -303,6 +308,34 @@ func TestCheckDatabase(t *testing.T) {
 			outErr: true,
 		},
 		{
+			desc: "SQL Server missing LDAP Cert",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					Domain:      "test-domain",
+					SPN:         "test-spn",
+					KDCHostName: "test-domain",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "SQL Server missing KDC Hostname",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					Domain:   "test-domain",
+					SPN:      "test-spn",
+					LDAPCert: "random-content",
+				},
+			},
+			outErr: true,
+		},
+		{
 			desc: "MySQL with server version",
 			inDatabase: Database{
 				Name:     "mysql-foo",
@@ -447,23 +480,23 @@ func TestHostLabelMatching(t *testing.T) {
 
 func TestValidateConfig(t *testing.T) {
 	tests := []struct {
-		desc   string
-		config *Config
-		err    string
+		desc    string
+		config  *Config
+		wantErr string
 	}{
 		{
 			desc: "invalid version",
 			config: &Config{
 				Version: "v1.1",
 			},
-			err: fmt.Sprintf("version must be one of %s", strings.Join(defaults.TeleportConfigVersions, ", ")),
+			wantErr: fmt.Sprintf("version must be one of %s", strings.Join(defaults.TeleportConfigVersions, ", ")),
 		},
 		{
 			desc: "no service enabled",
 			config: &Config{
 				Version: defaults.TeleportConfigVersionV2,
 			},
-			err: "config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service or discovery_service",
+			wantErr: "config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service ",
 		},
 		{
 			desc: "no auth_servers or proxy_server specified",
@@ -473,7 +506,7 @@ func TestValidateConfig(t *testing.T) {
 					Enabled: true,
 				},
 			},
-			err: "config: auth_server or proxy_server is required",
+			wantErr: "config: auth_server or proxy_server is required",
 		},
 		{
 			desc: "no auth_servers specified",
@@ -483,7 +516,7 @@ func TestValidateConfig(t *testing.T) {
 					Enabled: true,
 				},
 			},
-			err: "config: auth_servers is required",
+			wantErr: "config: auth_servers is required",
 		},
 		{
 			desc: "specifying proxy_server with the wrong config version",
@@ -494,7 +527,7 @@ func TestValidateConfig(t *testing.T) {
 				},
 				ProxyServer: *utils.MustParseAddr("0.0.0.0"),
 			},
-			err: "config: proxy_server is supported from config version v3 onwards",
+			wantErr: "config: proxy_server is supported from config version v3 onwards",
 		},
 		{
 			desc: "specifying auth_server when app_service is enabled",
@@ -506,7 +539,7 @@ func TestValidateConfig(t *testing.T) {
 				DataDir:     "/",
 				authServers: []utils.NetAddr{*utils.MustParseAddr("0.0.0.0")},
 			},
-			err: "config: when app_service is enabled, proxy_server must be specified instead of auth_server",
+			wantErr: "config: when app_service is enabled, proxy_server must be specified instead of auth_server",
 		},
 		{
 			desc: "specifying auth_server when db_service is enabled",
@@ -518,18 +551,142 @@ func TestValidateConfig(t *testing.T) {
 				DataDir:     "/",
 				authServers: []utils.NetAddr{*utils.MustParseAddr("0.0.0.0")},
 			},
-			err: "config: when db_service is enabled, proxy_server must be specified instead of auth_server",
+			wantErr: "config: when db_service is enabled, proxy_server must be specified instead of auth_server",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			err := ValidateConfig(test.config)
-			if test.err == "" {
+			if test.wantErr == "" {
 				require.NoError(t, err)
 			} else {
-				require.EqualError(t, err, test.err)
+				require.ErrorContains(t, err, test.wantErr)
 			}
+		})
+	}
+}
+
+func TestVerifyEnabledService(t *testing.T) {
+	tests := []struct {
+		desc             string
+		config           *Config
+		errAssertionFunc require.ErrorAssertionFunc
+	}{
+		{
+			desc:             "auth enabled",
+			config:           &Config{Auth: AuthConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "ssh enabled",
+			config:           &Config{SSH: SSHConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "proxy enabled",
+			config:           &Config{Proxy: ProxyConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "kube enabled",
+			config:           &Config{Kube: KubeConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "apps enabled",
+			config:           &Config{Apps: AppsConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "databases enabled",
+			config:           &Config{Databases: DatabasesConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "windows desktop enabled",
+			config:           &Config{WindowsDesktop: WindowsDesktopConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "discovery enabled",
+			config:           &Config{Discovery: DiscoveryConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "okta enabled",
+			config:           &Config{Okta: OktaConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc: "jamf enabled",
+			config: &Config{
+				Jamf: JamfConfig{
+					Spec: &types.JamfSpecV1{
+						Enabled:     true,
+						ApiEndpoint: "https://example.jamfcloud.com",
+						Username:    "llama",
+						Password:    "supersecret!!1!ONE",
+					},
+				},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:   "nothing enabled",
+			config: &Config{},
+			errAssertionFunc: func(t require.TestingT, err error, _ ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "err is not a BadParameter error: %T", err)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			test.errAssertionFunc(t, verifyEnabledService(test.config))
+		})
+	}
+}
+
+func TestWebPublicAddr(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   ProxyConfig
+		expected string
+	}{
+		{
+			name:     "no public address specified",
+			expected: "https://<proxyhost>:3080",
+		},
+		{
+			name: "default port",
+			config: ProxyConfig{
+				PublicAddrs: []utils.NetAddr{
+					{Addr: "0.0.0.0", AddrNetwork: "tcp"},
+				},
+			},
+			expected: "https://0.0.0.0:3080",
+		},
+		{
+			name: "non-default port",
+			config: ProxyConfig{
+				PublicAddrs: []utils.NetAddr{
+					{Addr: "0.0.0.0:443", AddrNetwork: "tcp"},
+				},
+			},
+			expected: "https://0.0.0.0:443",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, err := test.config.WebPublicAddr()
+			require.NoError(t, err)
+
+			require.Equal(t, test.expected, out)
 		})
 	}
 }

@@ -1,11 +1,11 @@
 ---
 title: Desktop Access Directory Sharing
-description: Teleport Desktop Access Directory Sharing lets you easily send files to a remote desktop.
+description: Teleport desktop Directory Sharing lets you easily send files to a remote desktop.
 ---
 
-Directory Sharing is a feature of Teleport Desktop Access that makes it easy to
-move files between a local machine and a remote desktop—and apply changes to
-those files—without compromising security.
+Directory Sharing is a Teleport feature of that makes it easy to move files
+between a local machine and a remote desktop—and apply changes to those
+files—without compromising security.
 
 During a remote desktop session, you can select a folder on your local
 workstation to share with the remote desktop. Changes to the folder on either
@@ -22,9 +22,12 @@ after the session ends.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- Teleport Desktop Access with at least one remote desktop registered in your
-  cluster. If you have not yet configured Desktop Access, read [Getting Started
-  with Desktop Access](./getting-started.mdx) before beginning this guide.
+{/*lint ignore messaging to ignore the page title linked here*/}
+- The Teleport Desktop Service with at least one remote desktop registered in
+  your cluster. If you have not yet configured Desktop Access, read [Getting
+  Started with Desktop Access](./getting-started.mdx) before beginning this
+  guide.
+
 - A browser on your local machine that supports the File System Access API,
   which Teleport uses for Directory Sharing. We support the latest versions of
   Chromium-based browsers like Google Chrome, Brave, and Microsoft Edge.
@@ -36,7 +39,7 @@ after the session ends.
   You can see a full compatibility table in the [Mozilla Developer Network
   documentation](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API#browser_compatibility).
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Share a directory
 
@@ -49,17 +52,27 @@ and click "Share Directory":
 
 ![The "Share Desktop" button](../../img/desktop-access/share.png)
 
-<Notice type="warning">
-For security reasons the web browser's filesystem access API prohibits you from sharing certain directories,
-including the standard locations for commonly used user directories such as "Desktop"
-and "Documents", as well as critical directories more typically used by the operating
-system itself.
+### Limitations on directories you can share
 
-For a full list of the blocked user directories, see [here](https://wicg.github.io/file-system-access/#enumdef-wellknowndirectory).
+#### Prohibited directories
+
+For security reasons the web browser's filesystem access API prohibits you from
+sharing certain directories, including the standard locations for commonly used
+user directories such as "Desktop" and "Documents", as well as critical
+directories more typically used by the operating system itself.
+
+For a full list of the blocked user directories, see the [File System Access
+Specification](https://wicg.github.io/file-system-access/#enumdef-wellknowndirectory).
 
 Subdirectories *within* these blocked user directories may still be shared.
 
-</Notice>
+#### Long directory names
+
+Based on testing, we have determined that directory sharing leads to unexpected
+errors if you share directories whose names (including all path segments) have
+640 characters or more.
+
+### After you share a directory
 
 When you first share a directory, your browser will prompt you to allow it to
 make changes in the directory, and you will need to grant these permissions to
@@ -166,11 +179,11 @@ $ tctl create -f role.yaml
 Directory Sharing is a powerful tool for editing files on remote desktops, and
 you'll want to make sure you have a comprehensive audit trail so you can conduct
 a post-incident retrospective or investigate unintended usage. Learn how to set
-up [session recording for Desktop Access](./reference/sessions.mdx).
+up [session recording for desktop access](./reference/sessions.mdx).
 
-Aside from Directory Sharing, Desktop Access also enables you to share the
-contents of your clipboard with a remote desktop. Learn how to use [Clipboard
-Sharing](./reference/clipboard.mdx).
+Aside from Directory Sharing, the Teleport Desktop Service also enables you to
+share the contents of your clipboard with a remote desktop. Learn how to use
+[Clipboard Sharing](./reference/clipboard.mdx).
 
 ### How Directory Sharing works
 

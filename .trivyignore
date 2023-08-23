@@ -1,0 +1,23 @@
+# Dockerfiles and Kubernetes YAMLs don't support inline ignores with Trivy, so
+# we have to set a global ignore for these for now.
+AVD-DS-0002
+AVD-KSV-0109
+AVD-KSV-0110
+DS001
+DS013
+DS026
+KSV001
+KSV003
+KSV009
+KSV011
+KSV012
+KSV013
+KSV014
+KSV015
+KSV016
+KSV018
+KSV020
+KSV021
+KSV030
+KSV047
+KSV106

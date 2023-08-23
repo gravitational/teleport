@@ -26,14 +26,22 @@ import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
 import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
 import apiServer from 'gen-proto-js/teleport/lib/teleterm/v1/server_pb';
 import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
+import apiLabel from 'gen-proto-js/teleport/lib/teleterm/v1/label_pb';
 import apiService, {
   FileTransferDirection,
+  HeadlessAuthenticationState,
 } from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
 import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
 import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
 import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
 
 import * as uri from 'teleterm/ui/uri';
+
+// We want to reexport both the type and the value of UserType. Because it's in a namespace, we have
+// to alias it first to do the reexport.
+// https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
+import UserType = apiCluster.LoggedInUser.UserType;
+export { UserType };
 
 export interface Kube extends apiKube.Kube.AsObject {
   uri: uri.KubeUri;
@@ -45,8 +53,26 @@ export interface Server extends apiServer.Server.AsObject {
 
 export interface Gateway extends apiGateway.Gateway.AsObject {
   uri: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.KubeUri;
+  // The type of gatewayCliCommand was repeated here just to refer to the type with the JSDoc.
+  gatewayCliCommand: GatewayCLICommand;
 }
+
+/**
+ * GatewayCLICommand follows the API of os.exec.Cmd from Go.
+ * https://pkg.go.dev/os/exec#Cmd
+ *
+ * @property {string} path - The absolute path to the CLI client of a gateway if the client is
+ * in PATH. Otherwise, the name of the program we were trying to find.
+ * @property {string[]} argsList - A list containing the name of the program as the first element
+ * and the actual args as the other elements.
+ * @property {string[]} envList – A list of env vars that need to be set for the command
+ * invocation. The elements of the list are in the format of NAME=value.
+ * @property {string} preview - A string showing how the invocation of the command would look like
+ * if the user was to invoke it manually from the terminal. Should not be actually used to execute
+ * anything in the shell.
+ */
+export type GatewayCLICommand = apiGateway.GatewayCLICommand.AsObject;
 
 export type AccessRequest = apiAccessRequest.AccessRequest.AsObject;
 export type ResourceId = apiAccessRequest.ResourceID.AsObject;
@@ -144,8 +170,8 @@ export type LoginPasswordlessRequest =
 export type TshClient = {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
-  getKubes: (params: ServerSideParams) => Promise<GetKubesResponse>;
-  getDatabases: (params: ServerSideParams) => Promise<GetDatabasesResponse>;
+  getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
+  getDatabases: (params: GetResourcesParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: uri.DatabaseUri) => Promise<string[]>;
   assumeRole: (
     clusterUri: uri.RootClusterUri,
@@ -155,7 +181,7 @@ export type TshClient = {
   getRequestableRoles: (
     params: GetRequestableRolesParams
   ) => Promise<GetRequestableRolesResponse>;
-  getServers: (params: ServerSideParams) => Promise<GetServersResponse>;
+  getServers: (params: GetResourcesParams) => Promise<GetServersResponse>;
   getAccessRequests: (
     clusterUri: uri.RootClusterUri
   ) => Promise<AccessRequest[]>;
@@ -210,6 +236,22 @@ export type TshClient = {
     abortSignal?: TshAbortSignal
   ) => FileTransferListeners;
   reportUsageEvent: (event: ReportUsageEventRequest) => Promise<void>;
+
+  createConnectMyComputerRole: (
+    rootClusterUri: uri.RootClusterUri
+  ) => Promise<CreateConnectMyComputerRoleResponse>;
+  createConnectMyComputerNodeToken: (
+    clusterUri: uri.RootClusterUri
+  ) => Promise<CreateConnectMyComputerNodeTokenResponse>;
+  deleteConnectMyComputerToken: (
+    clusterUri: uri.RootClusterUri,
+    token: string
+  ) => Promise<void>;
+
+  updateHeadlessAuthenticationState: (
+    params: UpdateHeadlessAuthenticationStateParams,
+    abortSignal?: TshAbortSignal
+  ) => Promise<void>;
 };
 
 export type TshAbortController = {
@@ -242,23 +284,30 @@ export interface LoginPasswordlessParams extends LoginParamsBase {
 }
 
 export type CreateGatewayParams = {
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.KubeUri;
   port?: string;
   user: string;
   subresource_name?: string;
 };
 
-export type ServerSideParams = {
+export type GetResourcesParams = {
   clusterUri: uri.ClusterUri;
+  // sort is a required field because it has direct implications on performance of ListResources.
+  sort: SortType | null;
+  // limit cannot be omitted and must be greater than zero, otherwise ListResources is going to
+  // return an error.
+  limit: number;
   // search is used for regular search.
   search?: string;
   searchAsRoles?: string;
-  sort?: SortType;
   startKey?: string;
-  limit?: number;
   // query is used for advanced search.
   query?: string;
 };
+
+// Compatibility type to make sure teleport.e doesn't break.
+// TODO(ravicious): Remove after teleterm.e is updated to use GetResourcesParams.
+export type ServerSideParams = GetResourcesParams;
 
 export type ReviewAccessRequestParams = {
   state: RequestState;
@@ -288,5 +337,21 @@ export type AssumedRequest = {
 
 export { FileTransferDirection };
 
+export type Label = apiLabel.Label.AsObject;
+
+export type CreateConnectMyComputerRoleResponse =
+  apiService.CreateConnectMyComputerRoleResponse.AsObject;
+
+export type CreateConnectMyComputerNodeTokenResponse =
+  apiService.CreateConnectMyComputerNodeTokenResponse.AsObject;
+
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;
+
+export type UpdateHeadlessAuthenticationStateParams = {
+  rootClusterUri: uri.RootClusterUri;
+  headlessAuthenticationId: string;
+  state: apiService.HeadlessAuthenticationState;
+};
+
+export { HeadlessAuthenticationState };

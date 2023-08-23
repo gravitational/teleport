@@ -25,6 +25,7 @@ import { ConfigService } from 'teleterm/services/config';
 import Logger from 'teleterm/logger';
 import { staticConfig } from 'teleterm/staticConfig';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { DocumentOrigin } from 'teleterm/ui/services/workspacesService';
 
 type PrehogEventReq = Omit<
   ReportUsageEventRequest['prehogReq'],
@@ -70,7 +71,8 @@ export class UsageService {
 
   captureProtocolUse(
     uri: ClusterOrResourceUri,
-    protocol: 'ssh' | 'kube' | 'db'
+    protocol: 'ssh' | 'kube' | 'db',
+    origin: DocumentOrigin
   ): void {
     const clusterProperties = this.getClusterProperties(uri);
     if (!clusterProperties) {
@@ -84,6 +86,7 @@ export class UsageService {
         clusterName: clusterProperties.clusterName,
         userName: clusterProperties.userName,
         protocol,
+        origin,
       },
     });
   }
@@ -164,6 +167,44 @@ export class UsageService {
     this.reportNonAnonymizedEvent({
       userJobRoleUpdate: {
         jobRole,
+      },
+    });
+  }
+
+  captureConnectMyComputerSetup(
+    uri: ClusterOrResourceUri,
+    properties: { success: true } | { success: false; failedStep: string }
+  ): void {
+    const clusterProperties = this.getClusterProperties(uri);
+    if (!clusterProperties) {
+      this.logger.warn(
+        `Missing cluster data for ${uri}, skipping connectMyComputerSetup event`
+      );
+      return;
+    }
+    this.reportEvent(clusterProperties.authClusterId, {
+      connectMyComputerSetup: {
+        clusterName: clusterProperties.clusterName,
+        userName: clusterProperties.userName,
+        success: properties.success,
+        failedStep:
+          (properties.success === false && properties.failedStep) || undefined,
+      },
+    });
+  }
+
+  captureConnectMyComputerAgentStart(uri: ClusterOrResourceUri): void {
+    const clusterProperties = this.getClusterProperties(uri);
+    if (!clusterProperties) {
+      this.logger.warn(
+        `Missing cluster data for ${uri}, skipping connectMyComputerAgentStart event`
+      );
+      return;
+    }
+    this.reportEvent(clusterProperties.authClusterId, {
+      connectMyComputerAgentStart: {
+        clusterName: clusterProperties.clusterName,
+        userName: clusterProperties.userName,
       },
     });
   }

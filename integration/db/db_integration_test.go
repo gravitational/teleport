@@ -66,6 +66,7 @@ func TestDatabaseAccess(t *testing.T) {
 		WithRootConfig(func(config *servicecfg.Config) {
 			config.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
+			config.Proxy.MySQLServerVersion = "8.0.1"
 		}),
 	)
 	pack.WaitForLeaf(t)
@@ -461,6 +462,9 @@ func (p *DatabasePack) testMySQLRootCluster(t *testing.T) {
 	require.Equal(t, wantRootQueryCount, p.Root.mysql.QueryCount())
 	require.Equal(t, wantLeafQueryCount, p.Leaf.mysql.QueryCount())
 
+	// Check if default Proxy MYSQL Engine Version was overridden the proxy settings.
+	require.Equal(t, "8.0.1", client.GetServerVersion())
+
 	// Disconnect.
 	err = client.Close()
 	require.NoError(t, err)
@@ -623,6 +627,9 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 		idleTimeout = time.Minute
 	)
 
+	rootAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
+	leafAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
+
 	mkMySQLLeafDBClient := func(t *testing.T) *client.Conn {
 		// Connect to the database service in leaf cluster via root cluster.
 		client, err := mysql.MakeTestClient(common.TestClientConfig{
@@ -659,7 +666,6 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 			role, err := rootAuthServer.GetRole(context.Background(), rootRole.GetName())
 			assert.NoError(t, err)
 			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
-
 		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
 
 		client := mkMySQLLeafDBClient(t)
@@ -681,7 +687,6 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 			role, err := leafAuthServer.GetRole(context.Background(), leafRole.GetName())
 			assert.NoError(t, err)
 			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
-
 		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
 
 		client := mkMySQLLeafDBClient(t)
@@ -788,14 +793,23 @@ func init() {
 // database agent when multiple agents are serving the same database and one
 // of them is down in a root cluster.
 func (p *DatabasePack) testHARootCluster(t *testing.T) {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: p.Root.PostgresService.Name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      p.Root.postgresAddr,
+		},
+	)
+	require.NoError(t, err)
 	// Insert a database server entry not backed by an actual running agent
 	// to simulate a scenario when an agent is down but the resource hasn't
 	// expired from the backend yet.
 	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: p.Root.PostgresService.Name,
 	}, types.DatabaseServerSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      p.Root.postgresAddr,
+		Database: database,
 		// To make sure unhealthy server is always picked in tests first, make
 		// sure its host ID always compares as "smaller" as the tests sort
 		// agents.
@@ -842,14 +856,23 @@ func (p *DatabasePack) testHARootCluster(t *testing.T) {
 // database agent when multiple agents are serving the same database and one
 // of them is down in a leaf cluster.
 func (p *DatabasePack) testHALeafCluster(t *testing.T) {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: p.Leaf.PostgresService.Name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      p.Leaf.postgresAddr,
+		},
+	)
+	require.NoError(t, err)
 	// Insert a database server entry not backed by an actual running agent
 	// to simulate a scenario when an agent is down but the resource hasn't
 	// expired from the backend yet.
 	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: p.Leaf.PostgresService.Name,
 	}, types.DatabaseServerSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      p.Leaf.postgresAddr,
+		Database: database,
 		// To make sure unhealthy server is always picked in tests first, make
 		// sure its host ID always compares as "smaller" as the tests sort
 		// agents.

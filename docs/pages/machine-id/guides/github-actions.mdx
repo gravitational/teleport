@@ -27,9 +27,8 @@ Actions runners as well as GitHub Enterprise Server.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
-
-- A node that is a part of the Teleport cluster with [Server Access](https://goteleport.com/docs/server-access/introduction/).
+- (!docs/pages/includes/tctl.mdx!)
+- A node that is a part of the Teleport cluster with [Server Access](../../server-access/introduction.mdx).
 - Your user should have the privileges to create token resources.
 - A GitHub repository with GitHub Actions enabled. This guide uses the example `gravitational/example`
 repo, however this value should be replaced with your own unique repo.
@@ -40,17 +39,17 @@ repo, however this value should be replaced with your own unique repo.
 
 ## Step 2/3. Create your Machine ID bot
 
-With the join token for GitHub Actions created, the next step is to create the Machine ID bot,
-and ensure that it is configured to use the newly created token.
+With the join token created, the next step is to create the Machine ID bot that
+the token will grant access to.
 
-The Machine ID bot created in this example will be used to access a specific node on the cluster
-via `tsh ssh`, and will therefore require a role that can access the cluster as needed. This example
-configuration will apply the `access` role, however care should be taken to either create or apply
-a role according to the principle of least privilege in production environments. Additionally, it
-should have explicit access to the cluster using a username created specifically for the bot user alone.
+In this example, the bot is given the preset `access` role. In a production
+environment, the principle of least privilege should be applied and you should
+create a role that grants the bot access to the precise resources that will be
+needed in your CI/CD workflow.
 
-Enter the following command from your workstation with `tsh` access, replacing the `username` value with
-a Linux user on the host that you want your GitHub Actions flow to be able to connect to:
+From your workstation enter the following command, replacing the`username`
+value with a Linux user on the host that you want your GitHub Actions flow to
+be able to connect to:
 
 ```code
 $ tctl bots add github-demo --roles=access --token=github-token --logins=username

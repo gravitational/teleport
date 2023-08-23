@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -75,7 +76,7 @@ func TestProxyKubeHandler(t *testing.T) {
 	t.Parallel()
 	const (
 		kubernetesHandlerResponse = "kubernetes handler response"
-		kubeSNI                   = "kube.localhost"
+		kubeSNI                   = constants.KubeTeleportProxyALPNPrefix + "localhost"
 	)
 	suite := NewSuite(t)
 
@@ -191,7 +192,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		conn := NewPingConn(baseConn)
+		conn := pingconn.NewTLS(baseConn)
 		tlsConn := tls.Client(conn, &tls.Config{
 			Certificates: []tls.Certificate{
 				clientCert,
@@ -457,7 +458,8 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 				"unknown-protocol1",
 				"unknown-protocol2",
 				"unknown-protocol3",
-				string(common.ProtocolProxySSH)},
+				string(common.ProtocolProxySSH),
+			},
 			ServerName:          "localhost",
 			wantProtocolHandler: string(common.ProtocolProxySSH),
 		},
@@ -470,24 +472,6 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 			ClientNextProtos:    nil,
 			ServerName:          "localhost",
 			wantProtocolHandler: string(common.ProtocolHTTP),
-		},
-		// DELETE IN 14.0 After deprecation of KubeSNIPrefix routing prefix.
-		{
-			name:             "kube ServerName prefix should route to kube handler",
-			ClientNextProtos: nil,
-			ServerName:       fmt.Sprintf("%s%s", constants.KubeSNIPrefix, "localhost"),
-			handlers: []HandlerDecs{
-				makeHandler(common.ProtocolHTTP),
-			},
-			kubeHandler: HandlerDecs{
-				Handler: func(ctx context.Context, conn net.Conn) error {
-					defer conn.Close()
-					_, err := fmt.Fprint(conn, "kube")
-					require.NoError(t, err)
-					return nil
-				},
-			},
-			wantProtocolHandler: "kube",
 		},
 		{
 			name:             "kube KubeTeleportProxyALPNPrefix prefix should route to kube handler",
@@ -643,8 +627,9 @@ func TestProxyPingConnections(t *testing.T) {
 		return nil
 	}
 
+	// MatchByProtocol should match the corresponding Ping protocols.
 	suite.router.Add(HandlerDecs{
-		MatchFunc: MatchByProtocolWithPing(common.ProtocolsWithPingSupport...),
+		MatchFunc: MatchByProtocol(common.ProtocolsWithPingSupport...),
 		Handler:   handlerFunc,
 	})
 	suite.router.AddDBTLSHandler(handlerFunc)
@@ -660,11 +645,17 @@ func TestProxyPingConnections(t *testing.T) {
 
 			localProxyConfig := LocalProxyConfig{
 				RemoteProxyAddr:    suite.GetServerAddress(),
-				Protocols:          []common.Protocol{common.ProtocolWithPing(protocol), protocol},
+				Protocols:          []common.Protocol{common.ProtocolWithPing(protocol)},
 				Listener:           localProxyListener,
 				SNI:                "localhost",
 				ParentContext:      context.Background(),
 				InsecureSkipVerify: true,
+				verifyUpstreamConnection: func(state tls.ConnectionState) error {
+					if state.NegotiatedProtocol != string(common.ProtocolWithPing(protocol)) {
+						return fmt.Errorf("expected negotiated protocol %q but got %q", common.ProtocolWithPing(protocol), state.NegotiatedProtocol)
+					}
+					return nil
+				},
 			}
 			mustStartLocalProxy(t, localProxyConfig)
 

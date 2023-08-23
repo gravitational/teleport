@@ -14,18 +14,22 @@ run-name: Skip Unit Tests (Go) - ${{ github.run_id }} - @${{ github.actor }}
 on:
   pull_request:
     paths-ignore:
+      - '.github/workflows/unit-tests-code.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
   merge_group:
     paths-ignore:
+      - '.github/workflows/unit-tests-code.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
 
 jobs:
   test:

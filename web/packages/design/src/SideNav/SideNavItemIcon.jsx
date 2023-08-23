@@ -16,12 +16,9 @@ limitations under the License.
 
 import styled from 'styled-components';
 
-import Icon from '../Icon';
-
-import theme from './../theme';
 import SideNavItem from './SideNavItem';
 
-const SideNavItemIcon = styled(Icon)`
+const SideNavItemIcon = styled.svg`
   ${SideNavItem}:active &,
   ${SideNavItem}.active & {
     opacity: 1;
@@ -38,7 +35,6 @@ const SideNavItemIcon = styled(Icon)`
 SideNavItemIcon.displayName = 'SideNavItemIcon';
 SideNavItemIcon.defaultProps = {
   fontSize: 4,
-  theme: theme,
   mr: 3,
   ml: -6,
 };

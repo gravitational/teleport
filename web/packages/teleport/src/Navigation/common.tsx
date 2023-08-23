@@ -28,11 +28,19 @@ export const Icon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+  svg {
+    height: 24px;
+    width: 24px;
+  }
 `;
 
 export const SmallIcon = styled(Icon)`
   flex: 0 0 14px;
   margin-right: 10px;
+  svg {
+    height: 18px;
+    width: 18px;
+  }
 `;
 
 interface LinkContentProps {
@@ -40,7 +48,7 @@ interface LinkContentProps {
 }
 
 const padding = {
-  [NavigationItemSize.Small]: '7px 30px',
+  [NavigationItemSize.Small]: '7px 0px 7px 30px',
   [NavigationItemSize.Indented]: '7px 30px 7px 67px',
   [NavigationItemSize.Large]: '16px 30px',
 };
@@ -57,7 +65,7 @@ export const LinkContent = styled.div<LinkContentProps>`
 export const commonNavigationItemStyles = css`
   display: flex;
   position: relative;
-  color: white;
+  color: ${props => props.theme.colors.text.main};
   text-decoration: none;
   user-select: none;
   font-size: 14px;
@@ -67,6 +75,6 @@ export const commonNavigationItemStyles = css`
   will-change: transform;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;

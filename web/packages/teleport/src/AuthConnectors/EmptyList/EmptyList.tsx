@@ -15,34 +15,33 @@ limitations under the License.
 */
 
 import React from 'react';
+import { useTheme } from 'styled-components';
 import { Text, Box, Flex, ButtonPrimary, Card } from 'design';
-import * as Icons from 'design/Icon';
+import { GitHubIcon } from 'design/SVGIcon';
 
 import { State as ResourceState } from 'teleport/components/useResources';
 
 export default function EmptyList({ onCreate }: Props) {
+  const theme = useTheme();
   return (
-    <Card maxWidth="700px" p={6} as={Flex} alignItems="center">
-      <Icons.Github
-        style={{ textAlign: 'center' }}
-        fontSize="150px"
-        color="primary.lighter"
-        mr={5}
-      />
+    <Card maxWidth="700px" p={4} as={Flex} alignItems="center">
+      <Box mr={5}>
+        <GitHubIcon size={128} fill={theme.colors.spotBackground[1]} />
+      </Box>
       <Box>
         <Text typography="h6" mb={3} caps>
-          Create Your First Github Connector
+          Create Your First GitHub Connector
         </Text>
         <Text typography="subtitle1" mb={3}>
-          Authentication connectors allow Teleport to authenticate users via an
-          external identity source such as Okta, Active Directory, GitHub, etc.
-          This authentication method is frequently called single sign-on (SSO).
+          Auth connectors allow Teleport to authenticate users via an external
+          identity source such as Okta, Active Directory, GitHub, etc. This
+          authentication method is commonly known as single sign-on (SSO).
         </Text>
         <Text typography="subtitle1">
           Open Source Teleport supports only GitHub connectors. Please{' '}
           <Text
             as="a"
-            color="light"
+            color="text.main"
             href="https://goteleport.com/docs/setup/admin/github-sso/"
             target="_blank"
           >
@@ -51,7 +50,7 @@ export default function EmptyList({ onCreate }: Props) {
           on how to configure a GitHub connector.
         </Text>
         <ButtonPrimary onClick={onCreate} mt={4} width="240px">
-          New Github Connector
+          New GitHub Connector
         </ButtonPrimary>
       </Box>
     </Card>

@@ -39,26 +39,28 @@ const (
 	ConditionTypeValidStructure           = "ValidStructure"
 )
 
+var newResourceCondition = metav1.Condition{
+	Type:    ConditionTypeTeleportResourceOwned,
+	Status:  metav1.ConditionTrue,
+	Reason:  ConditionReasonNewResource,
+	Message: "No existing Teleport resource found with that name. The created resource is owned by the operator.",
+}
+
+type ownedResource interface {
+	GetMetadata() types.Metadata
+}
+
 // isResourceOriginKubernetes reads a teleport resource metadata, searches for the origin label and checks its
 // value is kubernetes.
-func isResourceOriginKubernetes(resource types.Resource) bool {
+func isResourceOriginKubernetes(resource ownedResource) bool {
 	label := resource.GetMetadata().Labels[types.OriginLabel]
 	return label == types.OriginKubernetes
 }
 
 // checkOwnership takes an existing resource and validates the operator owns it.
 // It returns an ownership condition and a boolean representing if the resource is
-// owned by the operator
-func checkOwnership(existingResource types.Resource) (metav1.Condition, bool) {
-	if existingResource == nil {
-		condition := metav1.Condition{
-			Type:    ConditionTypeTeleportResourceOwned,
-			Status:  metav1.ConditionTrue,
-			Reason:  ConditionReasonNewResource,
-			Message: "No existing Teleport resource found with that name. The created resource is owned by the operator.",
-		}
-		return condition, true
-	}
+// owned by the operator. The ownedResource must be non-nil.
+func checkOwnership(existingResource ownedResource) (metav1.Condition, bool) {
 	if !isResourceOriginKubernetes(existingResource) {
 		// Existing Teleport resource does not belong to us, bailing out
 

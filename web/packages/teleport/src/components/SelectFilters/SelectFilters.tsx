@@ -18,7 +18,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 import { components } from 'react-select';
 import { Flex, Text, ButtonBorder, ButtonIcon, Box } from 'design';
-import { Close, Add } from 'design/Icon';
+import { Cross, Add } from 'design/Icon';
 import Select, {
   Option as BaseOption,
   ActionMeta,
@@ -137,7 +137,7 @@ export default function SelectFilters({
           mr={3}
           mb={2}
         >
-          <Add fontSize={4} mr={1} color="rgba(255,255,255,0.24)" />
+          <Add size="small" mr={1} />
           Add Filters
         </AddButton>
         {showSelector && (
@@ -250,15 +250,15 @@ function Label({
   return (
     <StyledLabel onClick={() => onClick(name)}>
       <span title={name}>{name}</span>
-      <ButtonIcon size={0} ml="1" bg="primary.light">
-        <Close />
+      <ButtonIcon size={0} ml="1" bg="levels.surface">
+        <Cross size="small" />
       </ButtonIcon>
     </StyledLabel>
   );
 }
 
 const ActionButton = styled(ButtonBorder)`
-  lineheight: normal;
+  line-height: normal;
   color: #4b4b4b;
   background-color: #fff;
   border: 1px solid #4b4b4b;
@@ -281,14 +281,14 @@ const ActionButton = styled(ButtonBorder)`
 
 const AddButton = styled(ButtonBorder)`
   line-height: normal;
-  background-color: ${props => props.theme.colors.primary.dark};
+  background-color: ${props => props.theme.colors.levels.sunken};
   font-weight: normal;
   border: 1px solid rgba(255, 255, 255, 0.24);
   color: #fff;
 
   &:hover,
   &:focus {
-    background: ${props => props.theme.colors.primary.lighter};
+    background: ${props => props.theme.colors.levels.elevated};
   }
 `;
 
@@ -347,14 +347,14 @@ const StyledLabel = styled.div`
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 4px;
-  color: ${({ theme }) => theme.colors.text.primary};
-  background-color: ${props => props.theme.colors.primary.dark};
+  color: ${({ theme }) => theme.colors.text.main};
+  background-color: ${props => props.theme.colors.levels.sunken};
   font-weight: regular;
   font-size: 12px;
 
   &:hover,
   &:focus {
-    background: ${props => props.theme.colors.primary.lighter};
+    background: ${props => props.theme.colors.levels.elevated};
   }
 
   > span {
@@ -365,7 +365,7 @@ const StyledLabel = styled.div`
   }
 
   button {
-    color: ${({ theme }) => theme.colors.text.primary};
+    color: ${({ theme }) => theme.colors.text.main};
     border-radius: 0;
     font-size: 14px;
     min-width: 10px;

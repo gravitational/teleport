@@ -16,12 +16,16 @@
 #define DIAG_H_
 
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef struct DiagResult {
   bool has_signature;
   bool has_entitlements;
   bool passed_la_policy_test;
   bool passed_secure_enclave_test;
+  int64_t la_error_code;
+  const char *la_error_domain;
+  const char *la_error_description;
 } DiagResult;
 
 // RunDiag runs self-diagnostics to verify if Touch ID is supported.

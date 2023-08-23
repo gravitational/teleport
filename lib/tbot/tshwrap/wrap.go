@@ -167,76 +167,28 @@ func CheckTSHSupported(w *Wrapper) error {
 	return nil
 }
 
-// GetDestination attempts to select an unambiguous destination, either from
+// GetDestinationDirectory attempts to select an unambiguous destination, either from
 // CLI or YAML config. It returns an error if the selected destination is
 // invalid.
-func GetDestination(botConfig *config.BotConfig, cf *config.CLIConf) (*config.DestinationConfig, error) {
-	// Note: this only supports filesystem destinations.
-	if cf.DestinationDir != "" {
-		dest, err := botConfig.GetDestinationByPath(cf.DestinationDir)
-		if err != nil {
-			return nil, trace.Wrap(err, "unable to find destination %s in the "+
-				"configuration; has the configuration file been "+
-				"specified with `-c <path>`?", cf.DestinationDir)
-		}
-
-		return dest, nil
+func GetDestinationDirectory(botConfig *config.BotConfig) (*config.DestinationDirectory, error) {
+	// WARNING:
+	// This code is dependent on some unexpected "behavior" in
+	// config.FromCLIConf() - when users provide --destination-dir then all
+	// outputs configured in the YAML file are overwritten by an identity
+	// output with a directory destination with a path of --destination-dir.
+	// See: https://github.com/gravitational/teleport/issues/27206
+	if len(botConfig.Outputs) == 0 {
+		return nil, trace.BadParameter("either --destination-dir or a config file containing an output must be specified")
+	} else if len(botConfig.Outputs) > 1 {
+		return nil, trace.BadParameter("the config file contains multiple outputs; a --destination-dir must be specified")
 	}
-
-	if len(botConfig.Destinations) == 0 {
-		return nil, trace.BadParameter("either --destination-dir or a config file must be specified")
-	} else if len(botConfig.Destinations) > 1 {
-		return nil, trace.BadParameter("the config file contains multiple destinations; a --destination-dir must be specified")
-	}
-
-	return botConfig.Destinations[0], nil
-}
-
-// GetDestinationPath returns a path to a filesystem destination.
-func GetDestinationPath(destination *config.DestinationConfig) (string, error) {
-	destinationImpl, err := destination.GetDestination()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	destinationDir, ok := destinationImpl.(*config.DestinationDirectory)
+	destination := botConfig.Outputs[0].GetDestination()
+	destinationDir, ok := destination.(*config.DestinationDirectory)
 	if !ok {
-		return "", trace.BadParameter("destination %s must be a directory", destinationImpl)
+		return nil, trace.BadParameter("destination %s must be a directory", destination)
 	}
 
-	return destinationDir.Path, nil
-}
-
-// GetTLSCATemplate returns the TLS CA template for the given destination. It's
-// a required template so this should never fail.
-func GetTLSCATemplate(destination *config.DestinationConfig) (*config.TemplateTLSCAs, error) {
-	tpl := destination.GetConfigByName(config.TemplateTLSCAsName)
-	if tpl == nil {
-		return nil, trace.NotFound("no template with name %s found, this is a bug", config.TemplateTLSCAsName)
-	}
-
-	tlsCAs, ok := tpl.(*config.TemplateTLSCAs)
-	if !ok {
-		return nil, trace.BadParameter("invalid TLS CA template")
-	}
-
-	return tlsCAs, nil
-}
-
-// GetIdentityTemplate returns the identity template for the given destination.
-// This is a required template so it _should_ never fail.
-func GetIdentityTemplate(destination *config.DestinationConfig) (*config.TemplateIdentity, error) {
-	tpl := destination.GetConfigByName(config.TemplateIdentityName)
-	if tpl == nil {
-		return nil, trace.NotFound("no template with name %s found, this is a bug", config.TemplateIdentityName)
-	}
-
-	identity, ok := tpl.(*config.TemplateIdentity)
-	if !ok {
-		return nil, trace.BadParameter("invalid identity template")
-	}
-
-	return identity, nil
+	return destinationDir, nil
 }
 
 // mergeEnv applies the given value to each key inside the specified map.
@@ -248,17 +200,7 @@ func mergeEnv(m map[string]string, value string, keys []string) {
 
 // GetEnvForTSH returns a map of environment variables needed to properly wrap
 // tsh so that it uses our Machine ID certificates where necessary.
-func GetEnvForTSH(destination *config.DestinationConfig) (map[string]string, error) {
-	tlsCAs, err := GetTLSCATemplate(destination)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	destPath, err := GetDestinationPath(destination)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func GetEnvForTSH(destPath string) (map[string]string, error) {
 	// The env var interface does allow us to set specific resource names for
 	// everything but also has generic fallbacks. We'll use the fallbacks for
 	// now but could eventually communicate more info to tsh if desired.
@@ -274,9 +216,9 @@ func GetEnvForTSH(destination *config.DestinationConfig) (map[string]string, err
 
 	// We don't want to provide a fallback for CAs since it would be ambiguous,
 	// so we'll specify them exactly.
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA))] = filepath.Join(destPath, tlsCAs.UserCAPath)
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA))] = filepath.Join(destPath, tlsCAs.HostCAPath)
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA))] = filepath.Join(destPath, tlsCAs.DatabaseCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA))] = filepath.Join(destPath, config.UserCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA))] = filepath.Join(destPath, config.HostCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA))] = filepath.Join(destPath, config.DatabaseCAPath)
 
 	// TODO(timothyb89): Kubernetes support. We don't generate kubeconfigs yet, so we have
 	// nothing to give tsh for now.

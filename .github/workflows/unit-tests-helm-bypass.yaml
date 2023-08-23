@@ -14,9 +14,11 @@ run-name: Skip Unit Tests (Helm) - ${{ github.run_id }} - @${{ github.actor }}
 on:
   pull_request:
     paths-ignore:
+      - '.github/workflows/unit-tests-helm.yaml'
       - 'examples/chart/**'
   merge_group:
     paths-ignore:
+      - '.github/workflows/unit-tests-helm.yaml'
       - 'examples/chart/**'
 
 jobs:

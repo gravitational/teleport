@@ -202,7 +202,7 @@ func TestAuditDynamoDB(t *testing.T) {
 }
 
 func withDynamoDB(name string, opts ...dynamodb.TestServerOption) withDatabaseOption {
-	return func(t *testing.T, _ context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, _ context.Context, testCtx *testContext) types.Database {
 		config := common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -223,7 +223,7 @@ func withDynamoDB(name string, opts ...dynamodb.TestServerOption) withDatabaseOp
 			DynamicLabels: dynamicLabels,
 			AWS: types.AWS{
 				Region:    "us-west-1",
-				AccountID: "12345",
+				AccountID: "123456789012",
 			},
 			TLS: types.DatabaseTLS{
 				// Set CA, otherwise the engine will attempt to download and use the AWS CA.

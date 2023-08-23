@@ -36,7 +36,7 @@ func TestUnmarshal(t *testing.T) {
 "spec": {
   "client_id": "aaa",
   "client_secret": "bbb",
-  "display": "Github",
+  "display": "GitHub",
   "redirect_url": "https://localhost:3080/v1/webapi/github/callback",
   "teams_to_logins": [{
     "organization": "gravitational",
@@ -50,7 +50,7 @@ func TestUnmarshal(t *testing.T) {
 		ClientID:     "aaa",
 		ClientSecret: "bbb",
 		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
-		Display:      "Github",
+		Display:      "GitHub",
 		TeamsToLogins: []types.TeamMapping{
 			{
 				Organization: "gravitational",
@@ -70,7 +70,7 @@ func TestMapClaims(t *testing.T) {
 		ClientID:     "aaa",
 		ClientSecret: "bbb",
 		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
-		Display:      "Github",
+		Display:      "GitHub",
 		TeamsToLogins: []types.TeamMapping{
 			{
 				Organization: "gravitational",

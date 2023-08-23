@@ -1,0 +1,251 @@
+---
+title: Using PuTTY to connect to SSH nodes via Teleport
+description: This reference shows you how to use PuTTY to connect to SSH nodes through Teleport
+---
+
+This guide will show you how to use the Teleport client tool `tsh` to add saved sessions for use
+with [PuTTY](https://www.putty.org/), and then how to use PuTTY as a client to connect to SSH nodes.
+
+You will learn how to:
+
+- Generate saved PuTTY sessions for SSH nodes attached to a Teleport cluster.
+- Log in to an interactive shell using these saved PuTTY sessions.
+
+
+## Prerequisites
+
+- A client machine running Windows 10 or higher. You can only use `tsh` to save PuTTY sessions on Windows.
+
+- The Teleport `tsh.exe` client, version 14.0.0 or higher. To download the `tsh.exe` client, run the following command:
+
+  ```code
+  $ curl.exe -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-windows-amd64-bin.zip
+  ```
+
+  You should then unzip the archive and move `tsh.exe` to your `%PATH%`.
+
+- PuTTY for Windows version 0.78 or higher. You can download the latest version of PuTTY from the [PuTTY download page](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html).
+
+
+## Summary
+
+To add saved sessions to PuTTY:
+
+<Tabs>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
+
+1. Sign into a Teleport cluster using the `tsh login` command:
+
+```bash
+C:\Users\gus>tsh login --proxy=teleport.example.com
+```
+
+This command retrieves your user certificates and saves them in a local file in the `%USERPROFILE%/.tsh` directory.
+
+2. List SSH nodes that the user can connect to inside the cluster:
+
+```bash
+C:\Users\gus>tsh ls
+Node Name                           Address        Labels
+----------------------------------- -------------- ----------------------------
+ip-172-31-30-140                    127.0.0.1:3022 company=acmecorp,env=aws,...
+ip-172-31-34-128.us-east-2.compu... ⟵ Tunnel      access=open,enhanced_reco...
+```
+
+3. Add a saved session for a specific login on a specific node to the Windows registry.
+
+For example, you can add a saved session for the login `ubuntu` on the node `ip-172-31-30-140` to the Windows
+registry by running the following command:
+
+```bash
+C:\Users\gus>tsh puttyconfig ubuntu@ip-172-31-30-140
+Added PuTTY session for ubuntu@ip-172-31-30-140 [proxy:teleport.example.com]
+```
+
+If you don't provide a login to this command, your local Windows username is used instead.
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+1. Sign into a Teleport cluster using the `tsh login` command:
+
+```bash
+C:\Users\gus>tsh login --proxy=mytenant.teleport.sh
+```
+
+This command retrieves your user certificates and saves them in a local file in the `%USERPROFILE%/.tsh` directory.
+
+2. List SSH nodes that the user can connect to inside the cluster:
+
+```
+C:\Users\gus>tsh ls
+Node Name                           Address        Labels
+----------------------------------- -------------- ----------------------------
+ip-172-31-30-140                    ⟵ Tunnel      company=acmecorp,env=aws,...
+ip-172-31-34-128.us-east-2.compu... ⟵ Tunnel      access=open,enhanced_reco...
+```
+
+3. Add a saved session for a specific login on a specific node to the Windows registry.
+
+For example, you can add a saved session for the login `ubuntu` on the node `ip-172-31-30-140` to the Windows
+registry by running the following command:
+
+```bash
+C:\Users\gus>tsh puttyconfig ubuntu@ip-172-31-30-140
+Added PuTTY session for ubuntu@ip-172-31-30-140 [proxy:mytenant.teleport.sh]
+```
+
+If you don't provide a login to this command, your local Windows username is used instead.
+
+</TabItem>
+
+
+</Tabs>
+
+## Use a saved session to connect with PuTTY
+
+1. Start PuTTY to see the saved sessions available for your cluster.
+
+<Figure width="452" height="437" caption="Main PuTTY window">
+![Main PuTTY window](../../img/connect-your-client/putty-window.png)
+</Figure>
+
+2. Double-click a session to connect to the host through Teleport.
+
+<Figure width="661" height="418" caption="PuTTY console">
+![PuTTY console](../../img/connect-your-client/putty-console.png)
+</Figure>
+
+After you connect to the host, Teleport generates an audit log entry for the session's start,
+and appears in the list of "Active Sessions" within Teleport.
+
+You can run `teleport status` inside the session to verify that it is connected through
+the Teleport proxy and to output the session's UUID for tracking purposes.
+If session recording is enabled for your cluster, you can also view a
+recording of the session after you stop the session and disconnect from the host.
+
+
+## Leaf clusters
+
+To list available leaf clusters, run the following command:
+
+```bash
+C:\Users\gus>tsh clusters
+Cluster Name         Status Cluster Type Labels Selected
+-----------------    ------ ------------ ------ --------
+teleport.example.com online root                *
+example.teleport.sh  online leaf
+```
+
+You can access a leaf cluster in a PuTTY session by adding the `--leaf <leaf cluster name>` parameter to the `tsh puttyconfig` command.
+
+For example, if your leaf cluster is named `example.teleport.sh` and your node is called `ip-172-31-34-128.us-east-2.compute.internal`,
+you can add a PuTTY session for the login `ec2-user` using the following command:
+
+```bash
+C:\Users\gus>tsh puttyconfig --leaf example.teleport.sh ec2-user@ip-172-31-34-128.us-east-2.compute.internal
+Added PuTTY session for ec2-user@ip-172-31-34-128.us-east-2.compute.internal [leaf:example.teleport.sh,proxy:teleport.example.com]
+```
+
+
+## Session naming
+
+Sessions are named using the following schema:
+
+Root clusters: `<login>@<hostname> [proxy:<proxy address>]`
+
+Leaf clusters: `<login>@<hostname> [leaf:<leaf cluster name>,proxy:<proxy address>]`
+
+## Frequently asked questions
+
+### Do I need administrator rights on my machine to run `tsh puttyconfig`?
+
+No, `tsh` only makes changes to the `HKEY_CURRENT_USER` registry key.
+
+### Can I add saved PuTTY sessions for all users on a machine?
+
+No, sessions are only added for the current user. You can export the sessions for another user to import using the
+registry export method described below.
+
+### Can I export my saved PuTTY sessions to another machine?
+
+Yes, use the Registry Editor to export the `HKEY_CURRENT_USER\Software\SimonTatham\PuTTY` registry key to a file
+and import this file on another machine. Note that you will need admin rights to run Registry Editor.
+
+### Can I change the font size, window size, or other preference for my saved PuTTY sessions?
+
+After a session has been added, you can make changes to it in the PuTTY UI by clicking the session name in the
+"Saved sessions" list, then clicking **Load**. Make all the necessary changes, then choose the session again and click **Save**.
+
+### If I re-run `tsh puttyconfig` for a given host, will it overwrite any custom changes I've made to the saved session?
+
+Teleport only modifies the configuration parameters that it relies on, like the proxy name, proxy command, hostname, username, and so on.
+Any changes to font size, window size, and other parameters are left untouched.
+
+### Can I use other graphical clients like MobaXterm or SecureCRT?
+
+Only PuTTY support is implemented at present. Most other graphical clients do not fully support the use of both SSH user
+certificates and SSH host certificates for authentication which is a requirement to use Teleport.
+
+Please contact the authors of those clients if you wish to see support for Teleport sessions added.
+
+### Can I use forks of PuTTY like KiTTY or Solar PuTTY?
+
+If the fork uses PuTTY 0.78 or higher as its base, it may work. However, the Teleport team only tests stock versions of PuTTY
+and cannot provide support for forked versions.
+
+### Can I use my saved Teleport PuTTY sessions with WinSCP?
+
+At the time of writing, WinSCP doesn't support validation using host certificates. Because Teleport requires host
+certificate validation, you can't yet use WinSCP to connect to a host through Teleport.
+
+You can track the status of this feature request and vote for it on the WinSCP bug tracker: https://winscp.net/tracker/2145
+
+### Can I use an alternative Teleport authentication method (`tsh login --auth`) with saved sessions?
+
+No, PuTTY calls `tsh proxy ssh` which uses the default authentication method configured for the Teleport cluster.
+
+For more information about Teleport authentication, see [Authentication options](../reference/authentication.mdx).
+
+Advanced users can use the Registry Editor to modify the PuTTY proxy command themselves under the `ProxyTelnetCommand`
+key. Note that if you re-run `tsh puttyconfig` for the given hostname, this command is overwritten.
+
+
+## Troubleshooting
+
+### `proxy: ERROR: access denied to <user> connecting to <proxy>`
+
+You have provided an incorrect login username to the `tsh puttyconfig` command. Re-run the command with a login username
+that your Teleport user/role has permissions to use. Check the logins listed under the `logins` role specification or user trait.
+
+If you can log in successfully with `tsh ssh`, you should be able to use the name login/hostname with `tsh puttyconfig`.
+
+### `proxy: ERROR: ssh: subsystem request failed`
+
+The Teleport proxy is unable to connect to the given host/port provided in the saved session. This may mean that the node is
+offline. Check that the node is visible in `tsh ls` and that you can connect to it with `tsh ssh login@hostname`. If this is
+successful, check the Teleport proxy logs for more detailed errors.
+
+### `Unable to use certificate file "C:\Users\<username>\.tsh\keys\<proxy>\<user>-ssh\<cluster>-cert.pub" (unable to open file)`
+
+You are not logged into Teleport correctly. Run `tsh login --proxy=<proxy hostname>` to get valid certificates before
+trying to start a PuTTY saved session.
+
+Note that if you are using a saved session for a leaf cluster using a root cluster's proxy, you must log into the root cluster
+itself to be able to start a session against the leaf cluster.
+
+### `ERROR: No proxy address specified, missed --proxy flag?`
+
+You do not have valid `tsh` credentials locally. Run `tsh login --proxy=<proxy hostname>` to log in first, or provide the `--proxy`
+parameter when running `tsh puttyconfig`.
+
+
+## Uninstalling tsh
+
+To remove `tsh` and associated user data see
+[Uninstalling Teleport](../management/admin/uninstall-teleport.mdx).
+
+## Further reading
+- [CLI Reference](../reference/cli/tsh.mdx#tsh-puttyconfig).
+
+

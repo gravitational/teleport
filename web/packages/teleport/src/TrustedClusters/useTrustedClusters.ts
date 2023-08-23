@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useEffect, useState, useAttempt } from 'shared/hooks';
+import { useEffect, useState } from 'shared/hooks';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { Resource } from 'teleport/services/resources';
 import useTeleport from 'teleport/useTeleport';
@@ -22,13 +23,18 @@ import useTeleport from 'teleport/useTeleport';
 export default function useTrustedClusters() {
   const teleContext = useTeleport();
   const [items, setItems] = useState<Resource<'trusted_cluster'>[]>([]);
-  const [attempt, attemptActions] = useAttempt({ isProcessing: true });
+  const { attempt, setAttempt, handleError } = useAttempt('');
   const canCreate = teleContext.storeUser.getTrustedClusterAccess().create;
 
   function fetchData() {
-    return teleContext.resourceService.fetchTrustedClusters().then(response => {
-      setItems(response);
-    });
+    setAttempt({ status: 'processing' });
+    teleContext.resourceService
+      .fetchTrustedClusters()
+      .then(response => {
+        setItems(response);
+        setAttempt({ status: 'success' });
+      })
+      .catch(handleError);
   }
 
   function save(name: string, yaml: string, isNew: boolean) {
@@ -49,7 +55,7 @@ export default function useTrustedClusters() {
   }
 
   useEffect(() => {
-    attemptActions.do(() => fetchData());
+    fetchData();
   }, []);
 
   return {
@@ -57,6 +63,6 @@ export default function useTrustedClusters() {
     items,
     save,
     remove,
-    ...attempt,
+    attempt,
   };
 }

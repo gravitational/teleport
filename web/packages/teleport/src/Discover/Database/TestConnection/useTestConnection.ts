@@ -19,7 +19,6 @@ import { useConnectionDiagnostic } from 'teleport/Discover/Shared';
 import { DbMeta } from '../../useDiscover';
 
 import type { AgentStepProps } from '../../types';
-import type { Database } from '../resources';
 import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
 export function useTestConnection(props: AgentStepProps) {
@@ -43,7 +42,7 @@ export function useTestConnection(props: AgentStepProps) {
     );
   }
 
-  const { engine } = props.resourceState as Database;
+  const { engine } = props.resourceSpec.dbMeta;
   return {
     ...connectionDiagnostic,
     testConnection,

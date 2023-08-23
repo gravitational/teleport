@@ -53,15 +53,12 @@ export class PtyCreate extends jspb.Message {
     getCwd(): string;
     setCwd(value: string): PtyCreate;
 
-    hasInitCommand(): boolean;
-    clearInitCommand(): void;
-    getInitCommand(): string | undefined;
-    setInitCommand(value: string): PtyCreate;
-
     hasEnv(): boolean;
     clearEnv(): void;
     getEnv(): google_protobuf_struct_pb.Struct | undefined;
     setEnv(value?: google_protobuf_struct_pb.Struct): PtyCreate;
+    getInitMessage(): string;
+    setInitMessage(value: string): PtyCreate;
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): PtyCreate.AsObject;
@@ -78,8 +75,8 @@ export namespace PtyCreate {
         path: string,
         argsList: Array<string>,
         cwd: string,
-        initCommand?: string,
         env?: google_protobuf_struct_pb.Struct.AsObject,
+        initMessage: string,
     }
 }
 
@@ -150,6 +147,11 @@ export class PtyServerEvent extends jspb.Message {
     getExit(): PtyEventExit | undefined;
     setExit(value?: PtyEventExit): PtyServerEvent;
 
+    hasStartError(): boolean;
+    clearStartError(): void;
+    getStartError(): PtyEventStartError | undefined;
+    setStartError(value?: PtyEventStartError): PtyServerEvent;
+
     getEventCase(): PtyServerEvent.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -168,6 +170,7 @@ export namespace PtyServerEvent {
         data?: PtyEventData.AsObject,
         open?: PtyEventOpen.AsObject,
         exit?: PtyEventExit.AsObject,
+        startError?: PtyEventStartError.AsObject,
     }
 
     export enum EventCase {
@@ -176,6 +179,7 @@ export namespace PtyServerEvent {
         DATA = 2,
         OPEN = 3,
         EXIT = 4,
+        START_ERROR = 5,
     }
 
 }
@@ -286,6 +290,26 @@ export namespace PtyEventExit {
     export type AsObject = {
         exitCode: number,
         signal?: number,
+    }
+}
+
+export class PtyEventStartError extends jspb.Message { 
+    getMessage(): string;
+    setMessage(value: string): PtyEventStartError;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): PtyEventStartError.AsObject;
+    static toObject(includeInstance: boolean, msg: PtyEventStartError): PtyEventStartError.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: PtyEventStartError, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): PtyEventStartError;
+    static deserializeBinaryFromReader(message: PtyEventStartError, reader: jspb.BinaryReader): PtyEventStartError;
+}
+
+export namespace PtyEventStartError {
+    export type AsObject = {
+        message: string,
     }
 }
 

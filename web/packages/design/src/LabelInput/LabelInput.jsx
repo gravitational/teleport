@@ -21,11 +21,11 @@ import { space } from 'design/system';
 
 const LabelInput = styled.label`
   color: ${props =>
-    props.hasError ? props.theme.colors.error.main : props.theme.colors.light};
+    props.hasError
+      ? props.theme.colors.error.main
+      : props.theme.colors.text.main};
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: ${p => p.theme.fontSizes[1]}px;
   width: 100%;
   ${space}
 `;

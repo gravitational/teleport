@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -237,11 +237,11 @@ func TestAuthenticate_passwordless(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		login func(t *testing.T, assertionResp *wanlib.CredentialAssertionResponse)
+		login func(t *testing.T, assertionResp *wantypes.CredentialAssertionResponse)
 	}{
 		{
 			name: "ssh",
-			login: func(t *testing.T, assertionResp *wanlib.CredentialAssertionResponse) {
+			login: func(t *testing.T, assertionResp *wantypes.CredentialAssertionResponse) {
 				ep := clt.Endpoint("webapi", "mfa", "login", "finish")
 				sshResp, err := clt.PostJSON(ctx, ep, &client.AuthenticateSSHUserRequest{
 					WebauthnChallengeResponse: assertionResp, // no username
@@ -256,7 +256,7 @@ func TestAuthenticate_passwordless(t *testing.T) {
 		},
 		{
 			name: "web",
-			login: func(t *testing.T, assertionResp *wanlib.CredentialAssertionResponse) {
+			login: func(t *testing.T, assertionResp *wantypes.CredentialAssertionResponse) {
 				ep := clt.Endpoint("webapi", "mfa", "login", "finishsession")
 				sessionResp, err := clt.PostJSON(ctx, ep, &client.AuthenticateWebUserRequest{
 					WebauthnAssertionResponse: assertionResp, // no username
@@ -305,7 +305,7 @@ func TestAuthenticate_rateLimiting(t *testing.T) {
 	}{
 		{
 			name:  "/webapi/mfa/login/begin",
-			burst: defaults.LimiterPasswordlessBurst,
+			burst: defaults.LimiterBurst,
 			fn: func(clt *client.WebClient) error {
 				ep := clt.Endpoint("webapi", "mfa", "login", "begin")
 				_, err := clt.PostJSON(ctx, ep, &client.MFAChallengeRequest{})

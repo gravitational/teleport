@@ -22,10 +22,13 @@ import (
 
 	"github.com/gravitational/trace"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
+
+const databaseEventPrefix = "db/"
 
 func (s *Server) startDatabaseWatchers() error {
 	if len(s.databaseFetchers) == 0 {
@@ -57,8 +60,11 @@ func (s *Server) startDatabaseWatchers() error {
 	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
-		Fetchers: s.databaseFetchers,
-		Log:      s.Log.WithField("kind", types.KindDatabase),
+		Fetchers:       s.databaseFetchers,
+		Log:            s.Log.WithField("kind", types.KindDatabase),
+		DiscoveryGroup: s.DiscoveryGroup,
+		Interval:       s.PollInterval,
+		Origin:         types.OriginCloud,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -94,7 +100,7 @@ func (s *Server) getCurrentDatabases() types.ResourcesWithLabelsMap {
 		return nil
 	}
 
-	return types.Databases(filterResourcesByOrigin(databases, types.OriginCloud)).AsResources().ToMap()
+	return types.Databases(filterResources(databases, types.OriginCloud, s.DiscoveryGroup)).AsResources().ToMap()
 }
 
 func (s *Server) onDatabaseCreate(ctx context.Context, resource types.ResourceWithLabels) error {
@@ -103,7 +109,35 @@ func (s *Server) onDatabaseCreate(ctx context.Context, resource types.ResourceWi
 		return trace.BadParameter("invalid type received; expected types.Database, received %T", database)
 	}
 	s.Log.Debugf("Creating database %s.", database.GetName())
-	return trace.Wrap(s.AccessPoint.CreateDatabase(ctx, database))
+	err := s.AccessPoint.CreateDatabase(ctx, database)
+	// If the resource already exists, it means that the resource was created
+	// by a previous discovery_service instance that didn't support the discovery
+	// group feature or the discovery group was changed.
+	// In this case, we need to update the resource with the
+	// discovery group label to ensure the user doesn't have to manually delete
+	// the resource.
+	// TODO(tigrato): DELETE on 15.0.0
+	if trace.IsAlreadyExists(err) {
+		return trace.Wrap(s.onDatabaseUpdate(ctx, resource))
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
+		databaseEventPrefix + database.GetName(): {
+			ResourceType:   types.DiscoveredResourceDatabase,
+			ResourceOrigin: types.OriginCloud,
+			CloudProvider:  database.GetCloud(),
+			Database: &usageeventsv1.DiscoveredDatabaseMetadata{
+				DbType:     database.GetType(),
+				DbProtocol: database.GetProtocol(),
+			},
+		},
+	})
+	if err != nil {
+		s.Log.WithError(err).Debug("Error emitting usage event.")
+	}
+	return nil
 }
 
 func (s *Server) onDatabaseUpdate(ctx context.Context, resource types.ResourceWithLabels) error {
@@ -124,11 +158,14 @@ func (s *Server) onDatabaseDelete(ctx context.Context, resource types.ResourceWi
 	return trace.Wrap(s.AccessPoint.DeleteDatabase(ctx, database.GetName()))
 }
 
-func filterResourcesByOrigin[T types.ResourceWithOrigin, S ~[]T](all S, wantOrigin string) (filtered S) {
+func filterResources[T types.ResourceWithLabels, S ~[]T](all S, wantOrigin, wantResourceGroup string) (filtered S) {
 	for _, resource := range all {
-		if resource.Origin() == wantOrigin {
-			filtered = append(filtered, resource)
+		resourceDiscoveryGroup, _ := resource.GetLabel(types.TeleportInternalDiscoveryGroupName)
+		if (wantOrigin != "" && resource.Origin() != wantOrigin) || resourceDiscoveryGroup != wantResourceGroup {
+			continue
 		}
+		filtered = append(filtered, resource)
+
 	}
 	return
 }

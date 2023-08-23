@@ -22,21 +22,24 @@ import {
 import {
   ReloginRequest,
   SendNotificationRequest,
+  SendPendingHeadlessAuthenticationRequest,
 } from 'teleterm/services/tshdEvents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { TerminalsService } from 'teleterm/ui/services/terminals';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
-import { QuickInputService } from 'teleterm/ui/services/quickInput';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
-import { ReloginService } from 'teleterm/services/relogin';
-import { TshdNotificationsService } from 'teleterm/services/tshdNotifications';
+import { ReloginService } from 'teleterm/ui/services/relogin/reloginService';
+import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications/tshdNotificationService';
+import { HeadlessAuthenticationService } from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
+import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
+import { ConfigService } from 'teleterm/services/config';
 import { IAppContext } from 'teleterm/ui/types';
 
 import { CommandLauncher } from './commandLauncher';
@@ -47,7 +50,6 @@ export default class AppContext implements IAppContext {
   notificationsService: NotificationsService;
   terminalsService: TerminalsService;
   keyboardShortcutsService: KeyboardShortcutsService;
-  quickInputService: QuickInputService;
   statePersistenceService: StatePersistenceService;
   workspacesService: WorkspacesService;
   mainProcessClient: MainProcessClient;
@@ -71,16 +73,20 @@ export default class AppContext implements IAppContext {
   subscribeToTshdEvent: SubscribeToTshdEvent;
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
+  headlessAuthenticationService: HeadlessAuthenticationService;
   usageService: UsageService;
+  configService: ConfigService;
+  connectMyComputerService: ConnectMyComputerService;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
     this.subscribeToTshdEvent = config.subscribeToTshdEvent;
     this.mainProcessClient = mainProcessClient;
     this.notificationsService = new NotificationsService();
+    this.configService = this.mainProcessClient.configService;
     this.usageService = new UsageService(
       tshClient,
-      this.mainProcessClient.configService,
+      this.configService,
       this.notificationsService,
       clusterUri => this.clustersService.findCluster(clusterUri),
       mainProcessClient.getRuntimeSettings()
@@ -110,17 +116,10 @@ export default class AppContext implements IAppContext {
 
     this.keyboardShortcutsService = new KeyboardShortcutsService(
       this.mainProcessClient.getRuntimeSettings().platform,
-      this.mainProcessClient.configService
+      this.configService
     );
 
     this.commandLauncher = new CommandLauncher(this);
-
-    this.quickInputService = new QuickInputService(
-      this.commandLauncher,
-      this.clustersService,
-      this.resourcesService,
-      this.workspacesService
-    );
 
     this.connectionTracker = new ConnectionTrackerService(
       this.statePersistenceService,
@@ -136,6 +135,16 @@ export default class AppContext implements IAppContext {
     this.tshdNotificationsService = new TshdNotificationsService(
       this.notificationsService,
       this.clustersService
+    );
+    this.connectMyComputerService = new ConnectMyComputerService(
+      this.mainProcessClient,
+      tshClient
+    );
+    this.headlessAuthenticationService = new HeadlessAuthenticationService(
+      mainProcessClient,
+      this.modalsService,
+      tshClient,
+      this.configService
     );
   }
 
@@ -159,5 +168,15 @@ export default class AppContext implements IAppContext {
         request as SendNotificationRequest
       );
     });
+
+    this.subscribeToTshdEvent(
+      'sendPendingHeadlessAuthentication',
+      ({ request, onCancelled }) => {
+        return this.headlessAuthenticationService.sendPendingHeadlessAuthentication(
+          request as SendPendingHeadlessAuthenticationRequest,
+          onCancelled
+        );
+      }
+    );
   }
 }

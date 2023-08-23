@@ -82,9 +82,9 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 	return nil
 }
 
-// startResourceWatcher starts watching changes to Kube Clusters resources and
+// startKubeClusterResourceWatcher starts watching changes to Kube Clusters resources and
 // registers/unregisters the proxied Kube Cluster accordingly.
-func (s *TLSServer) startResourceWatcher(ctx context.Context) (*services.KubeClusterWatcher, error) {
+func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*services.KubeClusterWatcher, error) {
 	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
 		s.log.Debug("Not initializing Kube Cluster resource watcher.")
 		return nil, nil
@@ -178,13 +178,22 @@ func (m *monitoredKubeClusters) get() types.ResourcesWithLabelsMap {
 	return append(m.static, m.resources...).AsResources().ToMap()
 }
 
+func (s *TLSServer) buildClusterDetailsConfigForCluster(cluster types.KubeCluster) clusterDetailsConfig {
+	return clusterDetailsConfig{
+		cloudClients:     s.CloudClients,
+		cluster:          cluster,
+		log:              s.log,
+		checker:          s.CheckImpersonationPermissions,
+		resourceMatchers: s.ResourceMatchers,
+		clock:            s.Clock,
+		component:        s.KubeServiceType,
+	}
+}
+
 func (s *TLSServer) registerKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
 	clusterDetails, err := newClusterDetails(
 		ctx,
-		s.CloudClients,
-		cluster,
-		s.log,
-		s.CheckImpersonationPermissions,
+		s.buildClusterDetailsConfigForCluster(cluster),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -196,10 +205,7 @@ func (s *TLSServer) registerKubeCluster(ctx context.Context, cluster types.KubeC
 func (s *TLSServer) updateKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
 	clusterDetails, err := newClusterDetails(
 		ctx,
-		s.CloudClients,
-		cluster,
-		s.log,
-		s.CheckImpersonationPermissions,
+		s.buildClusterDetailsConfigForCluster(cluster),
 	)
 	if err != nil {
 		return trace.Wrap(err)

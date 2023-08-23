@@ -237,6 +237,7 @@ func WithLeafConfig(fn func(*servicecfg.Config)) TestOptionFunc {
 }
 
 func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
+	ctx := context.Background()
 	var opts testOptions
 	for _, opt := range options {
 		opt(&opts)
@@ -331,7 +332,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	p.setupUsersAndRoles(t)
 
 	// Update root's certificate authority on leaf to configure role mapping.
-	ca, err := p.Leaf.Cluster.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
+	ca, err := p.Leaf.Cluster.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: p.Root.Cluster.Secrets.SiteName,
 	}, false)
@@ -340,7 +341,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	ca.SetRoleMap(types.RoleMap{
 		{Remote: p.Root.role.GetName(), Local: []string{p.Leaf.role.GetName()}},
 	})
-	err = p.Leaf.Cluster.Process.GetAuthServer().UpsertCertAuthority(ca)
+	err = p.Leaf.Cluster.Process.GetAuthServer().UpsertCertAuthority(ctx, ca)
 	require.NoError(t, err)
 
 	// Start database service and test servers in the clusters

@@ -14,12 +14,9 @@
  * limitations under the License.
  */
 
-import { DiscoverEventResource } from 'teleport/services/userEvent';
-
-import { DatabaseEngine, DatabaseLocation } from '../Database/resources';
+import { ClusterResource } from 'teleport/services/userPreferences/types';
 
 import type { JoinRole } from 'teleport/services/joinToken';
-import type { Database } from '../Database/resources';
 
 export enum ResourceKind {
   Application,
@@ -27,6 +24,8 @@ export enum ResourceKind {
   Desktop,
   Kubernetes,
   Server,
+  SamlApplication,
+  Discovery,
 }
 
 export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
@@ -41,71 +40,26 @@ export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
       return 'Kube';
     case ResourceKind.Server:
       return 'Node';
+    case ResourceKind.Discovery:
+      return 'Discovery';
   }
 }
 
-export function resourceKindToEventResource(
-  kind: ResourceKind,
-  resourceState: any
-): DiscoverEventResource {
+export function resourceKindToPreferredResource(
+  kind: ResourceKind
+): ClusterResource {
   switch (kind) {
-    case ResourceKind.Database:
-      const { engine, location } = resourceState as Database;
-      if (location === DatabaseLocation.AWS) {
-        if (engine === DatabaseEngine.PostgreSQL) {
-          return DiscoverEventResource.DatabasePostgresRds;
-        }
-        if (engine === DatabaseEngine.MySQL) {
-          return DiscoverEventResource.DatabaseMysqlRds;
-        }
-        if (engine === DatabaseEngine.SQLServer) {
-          return DiscoverEventResource.DatabaseSqlServerRds;
-        }
-        if (engine === DatabaseEngine.RedShift) {
-          return DiscoverEventResource.DatabasePostgresRedshift;
-        }
-      }
-
-      if (location === DatabaseLocation.SelfHosted) {
-        if (engine === DatabaseEngine.PostgreSQL) {
-          return DiscoverEventResource.DatabasePostgresSelfHosted;
-        }
-        if (engine === DatabaseEngine.MySQL) {
-          return DiscoverEventResource.DatabaseMysqlSelfHosted;
-        }
-        if (engine === DatabaseEngine.Mongo) {
-          return DiscoverEventResource.DatabaseMongodbSelfHosted;
-        }
-        if (engine === DatabaseEngine.SQLServer) {
-          return DiscoverEventResource.DatabaseSqlServerSelfHosted;
-        }
-        if (engine === DatabaseEngine.Redis) {
-          return DiscoverEventResource.DatabaseRedisSelfHosted;
-        }
-      }
-
-      if (location === DatabaseLocation.GCP) {
-        if (engine === DatabaseEngine.PostgreSQL) {
-          return DiscoverEventResource.DatabasePostgresGcp;
-        }
-        if (engine === DatabaseEngine.MySQL) {
-          return DiscoverEventResource.DatabaseMysqlGcp;
-        }
-        if (engine === DatabaseEngine.SQLServer) {
-          return DiscoverEventResource.DatabaseMysqlGcp;
-        }
-      }
-      console.error(`resource database event not defined for ${resourceState}`);
-      return null;
-    case ResourceKind.Desktop:
-      return DiscoverEventResource.WindowsDesktop;
-    case ResourceKind.Kubernetes:
-      return DiscoverEventResource.Kubernetes;
-    case ResourceKind.Server:
-      return DiscoverEventResource.Server;
     case ResourceKind.Application:
-      return DiscoverEventResource.ApplicationHttp;
-    default:
-      console.error(`resource event not defined for ${resourceState}`);
+      return ClusterResource.RESOURCE_WEB_APPLICATIONS;
+    case ResourceKind.Database:
+      return ClusterResource.RESOURCE_DATABASES;
+    case ResourceKind.Desktop:
+      return ClusterResource.RESOURCE_WINDOWS_DESKTOPS;
+    case ResourceKind.Kubernetes:
+      return ClusterResource.RESOURCE_KUBERNETES;
+    case ResourceKind.Server:
+      return ClusterResource.RESOURCE_SERVER_SSH;
+    case ResourceKind.Discovery:
+      return ClusterResource.RESOURCE_UNSPECIFIED;
   }
 }

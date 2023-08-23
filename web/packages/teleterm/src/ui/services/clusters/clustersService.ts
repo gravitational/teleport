@@ -26,10 +26,10 @@ import * as uri from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
   Cluster,
+  Gateway,
   CreateAccessRequestParams,
   GetRequestableRolesParams,
   ReviewAccessRequestParams,
-  ServerSideParams,
 } from 'teleterm/services/tshd/types';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { UsageService } from 'teleterm/ui/services/usage';
@@ -72,11 +72,27 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return cluster;
   }
 
+  /**
+   * Logs out of the cluster and removes the profile.
+   * Does not remove the cluster from the state, but sets the cluster and its leafs as disconnected.
+   * It needs to be done, because some code can operate on the cluster the intermediate period between logout
+   * and actually removing it from the state.
+   * A code that operates on that intermediate state is in `useClusterLogout.tsx`.
+   * After invoking `logout()`, it looks for the next workspace to switch to. If we hadn't marked the cluster as disconnected,
+   * the method might have returned us the same cluster we wanted to log out of.
+   */
   async logout(clusterUri: uri.RootClusterUri) {
     // TODO(gzdunek): logout and removeCluster should be combined into a single acton in tshd
     await this.client.logout(clusterUri);
-    await this.removeCluster(clusterUri);
-    await this.removeClusterKubeConfigs(clusterUri);
+    await this.client.removeCluster(clusterUri);
+
+    this.setState(draft => {
+      draft.clusters.forEach(cluster => {
+        if (routing.belongsToProfile(clusterUri, cluster.uri)) {
+          cluster.connected = false;
+        }
+      });
+    });
   }
 
   async loginLocal(
@@ -133,10 +149,8 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
    * syncRootCluster is useful in situations where we want to sync the cluster _and_ propagate any
    * errors up.
    */
-  private async syncRootCluster(clusterUri: uri.RootClusterUri) {
+  async syncRootCluster(clusterUri: uri.RootClusterUri) {
     await Promise.all([
-      // syncClusterInfo never fails with a retryable error since it reads data from disk.
-      // syncLeafClusters reaches out to the proxy so it might return a retryable error.
       this.syncClusterInfo(clusterUri),
       this.syncLeafClustersList(clusterUri),
     ]);
@@ -196,6 +210,8 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async getRequestableRoles(params: GetRequestableRolesParams) {
     const cluster = this.state.clusters.get(params.rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. This check should be done earlier in the
+    // UI rather than be repeated in each ClustersService method.
     if (!cluster.connected) {
       return;
     }
@@ -205,6 +221,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   getAssumedRequests(rootClusterUri: uri.RootClusterUri) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster?.connected) {
       return {};
     }
@@ -218,6 +235,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async getAccessRequests(rootClusterUri: uri.RootClusterUri) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -230,6 +248,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     requestId: string
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -242,6 +261,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     dropIds: string[]
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -255,6 +275,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     requestId: string
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -267,6 +288,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     params: ReviewAccessRequestParams
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -281,6 +303,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async createAccessRequest(params: CreateAccessRequestParams) {
     const cluster = this.state.clusters.get(params.rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -293,23 +316,32 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response;
   }
 
-  /**
-   * Removes cluster and its leaf clusters (if any)
-   */
-  async removeCluster(clusterUri: uri.RootClusterUri) {
-    await this.client.removeCluster(clusterUri);
-    const leafClustersUris = this.getClusters()
-      .filter(
-        item =>
-          item.leaf && routing.ensureRootClusterUri(item.uri) === clusterUri
-      )
-      .map(cluster => cluster.uri);
+  /** Removes cluster, its leafs and other resources. */
+  async removeClusterAndResources(clusterUri: uri.RootClusterUri) {
     this.setState(draft => {
-      draft.clusters.delete(clusterUri);
-      leafClustersUris.forEach(leafClusterUri => {
-        draft.clusters.delete(leafClusterUri);
+      draft.clusters.forEach(cluster => {
+        if (routing.belongsToProfile(clusterUri, cluster.uri)) {
+          draft.clusters.delete(cluster.uri);
+        }
       });
     });
+    await this.removeClusterKubeConfigs(clusterUri);
+    await this.removeClusterGateways(clusterUri);
+  }
+
+  // TODO(ravicious): Create a single RPC for this rather than sending a separate request for each
+  // gateway.
+  private async removeClusterGateways(clusterUri: uri.RootClusterUri) {
+    for (const [, gateway] of this.state.gateways) {
+      if (routing.belongsToProfile(clusterUri, gateway.targetUri)) {
+        try {
+          await this.removeGateway(gateway.uri);
+        } catch {
+          // Ignore errors as removeGateway already creates a notification for each error.
+          // Any gateways that we failed to remove will be forcibly closed on tshd exit.
+        }
+      }
+    }
   }
 
   async getAuthSettings(clusterUri: uri.RootClusterUri) {
@@ -320,7 +352,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async createGateway(params: tsh.CreateGatewayParams) {
     const gateway = await this.client.createGateway(params);
-    this.usageService.captureProtocolUse(params.targetUri, 'db');
     this.setState(draft => {
       draft.gateways.set(gateway.uri, gateway);
     });
@@ -345,6 +376,13 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         description: error.message,
       });
       throw error;
+    }
+  }
+
+  async removeKubeGateway(kubeUri: uri.KubeUri) {
+    const gateway = this.findGatewayByConnectionParams(kubeUri, '');
+    if (gateway) {
+      await this.removeGateway(gateway.uri);
     }
   }
 
@@ -393,6 +431,25 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return this.state.gateways.get(gatewayUri);
   }
 
+  findGatewayByConnectionParams(
+    targetUri: uri.DatabaseUri | uri.KubeUri,
+    targetUser: string
+  ) {
+    let found: Gateway;
+
+    for (const [, gateway] of this.state.gateways) {
+      if (
+        gateway.targetUri === targetUri &&
+        gateway.targetUser === targetUser
+      ) {
+        found = gateway;
+        break;
+      }
+    }
+
+    return found;
+  }
+
   /**
    * Returns a root cluster or a leaf cluster to which the given resource belongs to.
    */
@@ -424,16 +481,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   getRootClusters() {
     return this.getClusters().filter(c => !c.leaf);
-  }
-
-  // TODO(ravicious): Use ResourcesService instead.
-  async fetchKubes(params: ServerSideParams) {
-    return await this.client.getKubes(params);
-  }
-
-  // TODO(ravicious): Move to ResourceService.
-  async getDbUsers(dbUri: uri.DatabaseUri): Promise<string[]> {
-    return await this.client.listDatabaseUsers(dbUri);
   }
 
   async removeClusterKubeConfigs(clusterUri: string): Promise<void> {

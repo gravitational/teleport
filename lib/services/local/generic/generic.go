@@ -18,6 +18,7 @@ package generic
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -94,6 +95,22 @@ func NewService[T types.Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 		marshalFunc:   cfg.MarshalFunc,
 		unmarshalFunc: cfg.UnmarshalFunc,
 	}, nil
+}
+
+// WithPrefix will return a service with the given parts appended to the backend prefix.
+func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
+	if len(parts) == 0 {
+		return s
+	}
+
+	return &Service[T]{
+		backend:       s.backend,
+		resourceKind:  s.resourceKind,
+		pageLimit:     s.pageLimit,
+		backendPrefix: strings.Join(append([]string{s.backendPrefix}, parts...), string(backend.Separator)),
+		marshalFunc:   s.marshalFunc,
+		unmarshalFunc: s.unmarshalFunc,
+	}
 }
 
 // GetResources returns a list of all resources.
@@ -286,7 +303,14 @@ func (s *Service[T]) MakeKey(name string) []byte {
 
 // RunWhileLocked will run the given function in a backend lock. This is a wrapper around the backend.RunWhileLocked function.
 func (s *Service[T]) RunWhileLocked(ctx context.Context, lockName string, ttl time.Duration, fn func(context.Context, backend.Backend) error) error {
-	return trace.Wrap(backend.RunWhileLocked(ctx, s.backend, lockName, ttl, func(ctx context.Context) error {
-		return fn(ctx, s.backend)
-	}))
+	return trace.Wrap(backend.RunWhileLocked(ctx,
+		backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				Backend:  s.backend,
+				LockName: lockName,
+				TTL:      ttl,
+			},
+		}, func(ctx context.Context) error {
+			return fn(ctx, s.backend)
+		}))
 }

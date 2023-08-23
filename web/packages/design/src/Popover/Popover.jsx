@@ -484,7 +484,7 @@ Popover.defaultProps = {
 };
 
 export const StyledPopover = styled.div`
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+  box-shadow: ${props => props.theme.boxShadow[1]};
   border-radius: 4px;
   max-width: calc(100% - 32px);
   max-height: calc(100% - 32px);

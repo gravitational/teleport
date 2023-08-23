@@ -26,6 +26,16 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
+// UserType is the user's types that indicates where it was created.
+type UserType string
+
+const (
+	// UserTypeSSO identifies a user that was created from an SSO provider.
+	UserTypeSSO UserType = "sso"
+	// UserTypeLocal identifies a user that was created in Teleport itself and has no connection to an external identity.
+	UserTypeLocal UserType = "local"
+)
+
 // User represents teleport embedded user or external user.
 type User interface {
 	// ResourceWithSecrets provides common resource properties
@@ -83,6 +93,8 @@ type User interface {
 	SetDatabaseUsers(databaseUsers []string)
 	// SetDatabaseNames sets a list of Database Names for user
 	SetDatabaseNames(databaseNames []string)
+	// SetDatabaseRoles sets a list of Database roles for user
+	SetDatabaseRoles(databaseRoles []string)
 	// SetKubeUsers sets a list of Kubernetes Users for user
 	SetKubeUsers(kubeUsers []string)
 	// SetKubeGroups sets a list of Kubernetes Groups for user
@@ -95,14 +107,28 @@ type User interface {
 	SetAzureIdentities(azureIdentities []string)
 	// SetGCPServiceAccounts sets a list of GCP service accounts for the user
 	SetGCPServiceAccounts(accounts []string)
+	// SetHostUserUID sets the UID for host users
+	SetHostUserUID(uid string)
+	// SetHostUserGID sets the GID for host users
+	SetHostUserGID(gid string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
 	SetCreatedBy(CreatedBy)
+	// GetUserType indicates if the User was created by an SSO Provider or locally.
+	GetUserType() UserType
 	// GetTraits gets the trait map for this user used to populate role variables.
 	GetTraits() map[string][]string
 	// SetTraits sets the trait map for this user used to populate role variables.
 	SetTraits(map[string][]string)
+	// GetTrustedDeviceIDs returns the IDs of the user's trusted devices.
+	GetTrustedDeviceIDs() []string
+	// SetTrustedDeviceIDs assigns the IDs of the user's trusted devices.
+	SetTrustedDeviceIDs(ids []string)
+	// IsBot returns true if the user is a bot.
+	IsBot() bool
+	// BotGenerationLabel returns the bot generation label.
+	BotGenerationLabel() string
 }
 
 // NewUser creates new empty user
@@ -209,6 +235,16 @@ func (u *UserV2) SetTraits(traits map[string][]string) {
 	u.Spec.Traits = traits
 }
 
+// GetTrustedDeviceIDs returns the IDs of the user's trusted devices.
+func (u *UserV2) GetTrustedDeviceIDs() []string {
+	return u.Spec.TrustedDeviceIDs
+}
+
+// SetTrustedDeviceIDs assigns the IDs of the user's trusted devices.
+func (u *UserV2) SetTrustedDeviceIDs(ids []string) {
+	u.Spec.TrustedDeviceIDs = ids
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (u *UserV2) setStaticFields() {
 	u.Kind = KindUser
@@ -277,6 +313,11 @@ func (u *UserV2) SetDatabaseNames(databaseNames []string) {
 	u.setTrait(constants.TraitDBNames, databaseNames)
 }
 
+// SetDatabaseRoles sets the DatabaseRoles trait for the user
+func (u *UserV2) SetDatabaseRoles(databaseRoles []string) {
+	u.setTrait(constants.TraitDBRoles, databaseRoles)
+}
+
 // SetKubeUsers sets the KubeUsers trait for the user
 func (u *UserV2) SetKubeUsers(kubeUsers []string) {
 	u.setTrait(constants.TraitKubeUsers, kubeUsers)
@@ -305,6 +346,16 @@ func (u *UserV2) SetAzureIdentities(identities []string) {
 // SetGCPServiceAccounts sets a list of GCP service accounts for the user
 func (u *UserV2) SetGCPServiceAccounts(accounts []string) {
 	u.setTrait(constants.TraitGCPServiceAccounts, accounts)
+}
+
+// SetHostUserUID sets the host user UID
+func (u *UserV2) SetHostUserUID(uid string) {
+	u.setTrait(constants.TraitHostUserUID, []string{uid})
+}
+
+// SetHostUserGID sets the host user GID
+func (u *UserV2) SetHostUserGID(uid string) {
+	u.setTrait(constants.TraitHostUserGID, []string{uid})
 }
 
 // GetStatus returns login status of the user
@@ -404,6 +455,26 @@ func (u UserV2) GetGCPServiceAccounts() []string {
 	return u.getTrait(constants.TraitGCPServiceAccounts)
 }
 
+// GetUserType indicates if the User was created by an SSO Provider or locally.
+func (u UserV2) GetUserType() UserType {
+	if u.GetCreatedBy().Connector == nil {
+		return UserTypeLocal
+	}
+
+	return UserTypeSSO
+}
+
+// IsBot returns true if the user is a bot.
+func (u UserV2) IsBot() bool {
+	_, ok := u.GetMetadata().Labels[BotGenerationLabel]
+	return ok
+}
+
+// BotGenerationLabel returns the bot generation label.
+func (u UserV2) BotGenerationLabel() string {
+	return u.GetMetadata().Labels[BotGenerationLabel]
+}
+
 func (u *UserV2) String() string {
 	return fmt.Sprintf("User(name=%v, roles=%v, identities=%v)", u.Metadata.Name, u.Spec.Roles, u.Spec.OIDCIdentities)
 }
@@ -413,6 +484,7 @@ func (u *UserV2) SetLocked(until time.Time, reason string) {
 	u.Spec.Status.IsLocked = true
 	u.Spec.Status.LockExpires = until
 	u.Spec.Status.LockedMessage = reason
+	u.Spec.Status.LockedTime = time.Now().UTC()
 }
 
 // SetRecoveryAttemptLockExpires sets the lock expiry time for both recovery and login attempt.
@@ -427,6 +499,11 @@ func (u *UserV2) ResetLocks() {
 	u.Spec.Status.LockedMessage = ""
 	u.Spec.Status.LockExpires = time.Time{}
 	u.Spec.Status.RecoveryAttemptLockExpires = time.Time{}
+}
+
+// DeepCopy creates a clone of this user value.
+func (u *UserV2) DeepCopy() User {
+	return utils.CloneProtoMsg(u)
 }
 
 // IsEmpty returns true if there's no info about who created this user

@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/modules"
 )
 
 // WriteContextCloser provides close method with context
@@ -426,16 +425,6 @@ func (p *PortList) PopInt() int {
 	return i
 }
 
-// PopIntSlice returns a slice of values from the list, it panics if not enough
-// ports were allocated
-func (p *PortList) PopIntSlice(num int) []int {
-	ports := make([]int, num)
-	for i := range ports {
-		ports[i] = p.PopInt()
-	}
-	return ports
-}
-
 // PortStartingNumber is a starting port number for tests
 const PortStartingNumber = 20000
 
@@ -514,11 +503,6 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return id, nil
-}
-
-// PrintVersion prints human readable version
-func PrintVersion() {
-	modules.GetModules().PrintVersion()
 }
 
 // StringSliceSubset returns true if b is a subset of a.

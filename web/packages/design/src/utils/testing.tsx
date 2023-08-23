@@ -29,12 +29,12 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter as Router } from 'react-router-dom';
 
 import ThemeProvider from 'design/ThemeProvider';
-import theme from 'design/theme';
+import { darkTheme } from 'design/theme';
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
 
 function Providers({ children }: { children: React.ReactElement }) {
-  return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
+  return <ThemeProvider theme={darkTheme}>{children}</ThemeProvider>;
 }
 
 function render(ui: React.ReactElement<any>, options?: RenderOptions) {
@@ -54,7 +54,7 @@ export {
   act,
   screen,
   fireEvent,
-  theme,
+  darkTheme as theme,
   render,
   prettyDOM,
   waitFor,

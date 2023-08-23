@@ -18,7 +18,9 @@ package services
 
 import (
 	"context"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -36,8 +38,8 @@ import (
 // resourceCollector is a generic interface for maintaining an up-to-date view
 // of a resource set being monitored. Used in conjunction with resourceWatcher.
 type resourceCollector interface {
-	// resourceKind specifies the resource kind to watch.
-	resourceKind() string
+	// resourceKinds specifies the resource kind to watch.
+	resourceKinds() []types.WatchKind
 	// getResourcesAndUpdateCurrent is called when the resources should be
 	// (re-)fetched directly.
 	getResourcesAndUpdateCurrent(context.Context) error
@@ -68,6 +70,8 @@ type ResourceWatcherConfig struct {
 	MaxStaleness time.Duration
 	// ResetC is a channel to notify of internal watcher reset (used in tests).
 	ResetC chan time.Duration
+	// QueueSize is an optional queue size
+	QueueSize int
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
@@ -107,7 +111,7 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cfg.Log = cfg.Log.WithField("resource-kind", collector.resourceKind())
+	cfg.Log = cfg.Log.WithField("resource-kind", collector.resourceKinds())
 	ctx, cancel := context.WithCancel(ctx)
 	p := &resourceWatcher{
 		ResourceWatcherConfig: cfg,
@@ -116,7 +120,7 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 		cancel:                cancel,
 		retry:                 retry,
 		LoopC:                 make(chan struct{}),
-		StaleC:                make(chan struct{}, 1),
+		StaleC:                make(chan struct{}),
 	}
 	go p.runWatchLoop()
 	return p, nil
@@ -181,9 +185,13 @@ func (p *resourceWatcher) WaitInitialization() error {
 		case <-p.collector.initializationChan():
 			return nil
 		case <-t.C:
-			p.Log.Debugf("ResourceWatcher %s is not yet initialized.", p.collector.resourceKind())
+			p.Log.Debugf("ResourceWatcher %s is not yet initialized.", p.collector.resourceKinds())
 		case <-p.ctx.Done():
-			return trace.BadParameter("ResourceWatcher %s failed to initialize.", p.collector.resourceKind())
+			var kindStrings []string
+			for _, kind := range p.collector.resourceKinds() {
+				kindStrings = append(kindStrings, kind.Kind)
+			}
+			return trace.BadParameter("ResourceWatcher %s failed to initialize.", strings.Join(kindStrings, ", "))
 		}
 	}
 }
@@ -241,6 +249,11 @@ func (p *resourceWatcher) runWatchLoop() {
 		case <-p.ctx.Done():
 			p.Log.Debug("Closed, returning from watch loop.")
 			return
+		case <-p.StaleC:
+			// Used for testing that the watch routine is waiting for the
+			// next restart attempt. We don't want to wait for the full
+			// retry period in tests so we trigger the restart immediately.
+			p.Log.Debug("Stale view, continue watch loop.")
 		}
 		if err != nil {
 			p.Log.Warningf("Restart watch on error: %v.", err)
@@ -251,11 +264,16 @@ func (p *resourceWatcher) runWatchLoop() {
 // watch monitors new resource updates, maintains a local view and broadcasts
 // notifications to connected agents.
 func (p *resourceWatcher) watch() error {
-	watcher, err := p.Client.NewWatcher(p.ctx, types.Watch{
+	watch := types.Watch{
 		Name:            p.Component,
 		MetricComponent: p.Component,
-		Kinds:           []types.WatchKind{{Kind: p.collector.resourceKind()}},
-	})
+		Kinds:           p.collector.resourceKinds(),
+	}
+
+	if p.QueueSize > 0 {
+		watch.QueueSize = p.QueueSize
+	}
+	watcher, err := p.Client.NewWatcher(p.ctx, watch)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -280,6 +298,8 @@ func (p *resourceWatcher) watch() error {
 		return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 	case <-p.ctx.Done():
 		return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
+	case <-p.StaleC:
+		return trace.ConnectionProblem(nil, "stale view")
 	case event := <-watcher.Events():
 		if event.Type != types.OpInit {
 			return trace.BadParameter("expected init event, got %v instead", event.Type)
@@ -302,6 +322,8 @@ func (p *resourceWatcher) watch() error {
 			p.collector.processEventAndUpdateCurrent(p.ctx, event)
 		case p.LoopC <- struct{}{}:
 			// Used in tests to detect the watch loop is running.
+		case <-p.StaleC:
+			return trace.ConnectionProblem(nil, "stale view")
 		}
 	}
 }
@@ -379,9 +401,9 @@ func (p *proxyCollector) GetCurrent() []types.Server {
 	return serverMapValues(p.current)
 }
 
-// resourceKind specifies the resource kind to watch.
-func (p *proxyCollector) resourceKind() string {
-	return types.KindProxy
+// resourceKinds specifies the resource kind to watch.
+func (p *proxyCollector) resourceKinds() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindProxy}}
 }
 
 // getResourcesAndUpdateCurrent is called when the resources should be
@@ -521,7 +543,7 @@ func NewLockWatcher(ctx context.Context, cfg LockWatcherConfig) (*LockWatcher, e
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
-	collector.fanout.SetInit()
+	collector.fanout.SetInit(collector.resourceKinds())
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -549,6 +571,14 @@ type lockCollector struct {
 	// initializationC is used to check whether the initial sync has completed
 	initializationC chan struct{}
 	once            sync.Once
+}
+
+// IsStale is used to check whether the lock watcher is stale.
+// Used in tests.
+func (p *lockCollector) IsStale() bool {
+	p.currentRW.RLock()
+	defer p.currentRW.RUnlock()
+	return p.isStale
 }
 
 // Subscribe is used to subscribe to the lock updates.
@@ -610,9 +640,9 @@ func (p *lockCollector) GetCurrent() []types.Lock {
 	return lockMapValues(p.current)
 }
 
-// resourceKind specifies the resource kind to watch.
-func (p *lockCollector) resourceKind() string {
-	return types.KindLock
+// resourceKinds specifies the resource kind to watch.
+func (p *lockCollector) resourceKinds() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindLock}}
 }
 
 // initializationChan is used to check that the cache has done its initial
@@ -786,9 +816,9 @@ type databaseCollector struct {
 	once            sync.Once
 }
 
-// resourceKind specifies the resource kind to watch.
-func (p *databaseCollector) resourceKind() string {
-	return types.KindDatabase
+// resourceKinds specifies the resource kind to watch.
+func (p *databaseCollector) resourceKinds() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindDatabase}}
 }
 
 // isInitialized is used to check that the cache has done its initial
@@ -926,9 +956,9 @@ type appCollector struct {
 	once            sync.Once
 }
 
-// resourceKind specifies the resource kind to watch.
-func (p *appCollector) resourceKind() string {
-	return types.KindApp
+// resourceKinds specifies the resource kind to watch.
+func (p *appCollector) resourceKinds() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindApp}}
 }
 
 // isInitialized is used to check that the cache has done its initial
@@ -1016,7 +1046,7 @@ type KubeClusterWatcherConfig struct {
 	// ResourceWatcherConfig is the resource watcher configuration.
 	ResourceWatcherConfig
 	// KubernetesGetter is responsible for fetching kube_cluster resources.
-	KubernetesGetter
+	KubernetesClusterGetter
 	// KubeClustersC receives up-to-date list of all kube_cluster resources.
 	KubeClustersC chan types.KubeClusters
 }
@@ -1026,12 +1056,12 @@ func (cfg *KubeClusterWatcherConfig) CheckAndSetDefaults() error {
 	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if cfg.KubernetesGetter == nil {
-		getter, ok := cfg.Client.(KubernetesGetter)
+	if cfg.KubernetesClusterGetter == nil {
+		getter, ok := cfg.Client.(KubernetesClusterGetter)
 		if !ok {
 			return trace.BadParameter("missing parameter KubernetesGetter and Client not usable as KubernetesGetter")
 		}
-		cfg.KubernetesGetter = getter
+		cfg.KubernetesClusterGetter = getter
 	}
 	if cfg.KubeClustersC == nil {
 		cfg.KubeClustersC = make(chan types.KubeClusters)
@@ -1080,14 +1110,14 @@ func (k *kubeCollector) initializationChan() <-chan struct{} {
 	return k.initializationC
 }
 
-// resourceKind specifies the resource kind to watch.
-func (k *kubeCollector) resourceKind() string {
-	return types.KindKubernetesCluster
+// resourceKinds specifies the resource kind to watch.
+func (k *kubeCollector) resourceKinds() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindKubernetesCluster}}
 }
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
 func (k *kubeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	clusters, err := k.KubernetesGetter.GetKubernetesClusters(ctx)
+	clusters, err := k.KubernetesClusterGetter.GetKubernetesClusters(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1155,6 +1185,240 @@ func (k *kubeCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 
 func (*kubeCollector) notifyStale() {}
 
+// KubeServerWatcherConfig is an KubeServerWatcher configuration.
+type KubeServerWatcherConfig struct {
+	// ResourceWatcherConfig is the resource watcher configuration.
+	ResourceWatcherConfig
+	// KubernetesServerGetter is responsible for fetching kube_server resources.
+	KubernetesServerGetter
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *KubeServerWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.KubernetesServerGetter == nil {
+		getter, ok := cfg.Client.(KubernetesServerGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter KubernetesServerGetter and Client not usable as KubernetesServerGetter")
+		}
+		cfg.KubernetesServerGetter = getter
+	}
+	return nil
+}
+
+// NewKubeServerWatcher returns a new instance of KubeServerWatcher.
+func NewKubeServerWatcher(ctx context.Context, cfg KubeServerWatcherConfig) (*KubeServerWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		Context: ctx,
+		TTL:     3 * time.Second,
+		Clock:   cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &kubeServerCollector{
+		KubeServerWatcherConfig: cfg,
+		initializationC:         make(chan struct{}),
+		cache:                   cache,
+	}
+	// start the collector as staled.
+	collector.stale.Store(true)
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &KubeServerWatcher{watcher, collector}, nil
+}
+
+// KubeServerWatcher is built on top of resourceWatcher to monitor kube_server resources.
+type KubeServerWatcher struct {
+	*resourceWatcher
+	*kubeServerCollector
+}
+
+// GetKubeServersByClusterName returns a list of kubernetes servers for the specified cluster.
+func (k *KubeServerWatcher) GetKubeServersByClusterName(ctx context.Context, clusterName string) ([]types.KubeServer, error) {
+	k.refreshStaleKubeServers(ctx)
+
+	k.lock.RLock()
+	defer k.lock.RUnlock()
+	var servers []types.KubeServer
+	for _, server := range k.current {
+		if server.GetCluster().GetName() == clusterName {
+			servers = append(servers, server.Copy())
+		}
+	}
+	if len(servers) == 0 {
+		return nil, trace.NotFound("no kubernetes servers found for cluster %q", clusterName)
+	}
+
+	return servers, nil
+}
+
+// GetKubernetesServers returns a list of kubernetes servers for all clusters.
+func (k *KubeServerWatcher) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
+	k.refreshStaleKubeServers(ctx)
+
+	k.lock.RLock()
+	defer k.lock.RUnlock()
+	servers := make([]types.KubeServer, 0, len(k.current))
+	for _, server := range k.current {
+		servers = append(servers, server.Copy())
+	}
+	return servers, nil
+}
+
+// kubeServerCollector accompanies resourceWatcher when monitoring kube_server resources.
+type kubeServerCollector struct {
+	// KubeServerWatcherConfig is the watcher configuration.
+	KubeServerWatcherConfig
+	// current holds a map of the currently known kube_server resources.
+	current map[kubeServersKey]types.KubeServer
+	// lock protects the "current" map.
+	lock sync.RWMutex
+	// initializationC is used to check whether the initial sync has completed
+	initializationC chan struct{}
+	once            sync.Once
+	// stale is used to indicate that the watcher is stale and needs to be
+	// refreshed.
+	stale atomic.Bool
+	// cache is a helper for temporarily storing the results of GetKubernetesServers.
+	// It's used to limit the amount of calls to the backend.
+	cache *utils.FnCache
+}
+
+// kubeServersKey is used to uniquely identify a kube_server resource.
+type kubeServersKey struct {
+	hostID       string
+	resourceName string
+}
+
+// isInitialized is used to check that the cache has done its initial
+// sync
+func (k *kubeServerCollector) initializationChan() <-chan struct{} {
+	return k.initializationC
+}
+
+// resourceKinds specifies the resource kind to watch.
+func (k *kubeServerCollector) resourceKinds() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindKubeServer}}
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (k *kubeServerCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	newCurrent, err := k.getResources(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	k.lock.Lock()
+	k.current = newCurrent
+	k.lock.Unlock()
+
+	k.stale.Store(false)
+
+	k.defineCollectorAsInitialized()
+	return nil
+}
+
+// getResourcesAndUpdateCurrent gets the list of current resources.
+func (k *kubeServerCollector) getResources(ctx context.Context) (map[kubeServersKey]types.KubeServer, error) {
+	servers, err := k.KubernetesServerGetter.GetKubernetesServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	current := make(map[kubeServersKey]types.KubeServer, len(servers))
+	for _, server := range servers {
+		key := kubeServersKey{
+			hostID:       server.GetHostID(),
+			resourceName: server.GetName(),
+		}
+		current[key] = server
+	}
+	return current, nil
+}
+
+func (k *kubeServerCollector) defineCollectorAsInitialized() {
+	k.once.Do(func() {
+		// mark watcher as initialized.
+		close(k.initializationC)
+	})
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (k *kubeServerCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindKubeServer {
+		k.Log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+
+	server, ok := event.Resource.(types.KubeServer)
+	if !ok {
+		k.Log.Warnf("Unexpected resource type %T.", event.Resource)
+		return
+	}
+
+	k.lock.Lock()
+	defer k.lock.Unlock()
+
+	switch event.Type {
+	case types.OpDelete:
+		key := kubeServersKey{
+			// On delete events, the server description is populated with the host ID.
+			hostID:       server.GetMetadata().Description,
+			resourceName: server.GetName(),
+		}
+		delete(k.current, key)
+	case types.OpPut:
+		key := kubeServersKey{
+			hostID:       server.GetHostID(),
+			resourceName: server.GetName(),
+		}
+		k.current[key] = server
+	default:
+		k.Log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (k *kubeServerCollector) notifyStale() {
+	k.stale.Store(true)
+}
+
+// refreshStaleKubeServers attempts to reload kube servers from the cache if
+// the collector is stale. This ensures that no matter the health of
+// the collector callers will be returned the most up to date node
+// set as possible.
+func (k *kubeServerCollector) refreshStaleKubeServers(ctx context.Context) error {
+	if !k.stale.Load() {
+		return nil
+	}
+
+	_, err := utils.FnCacheGet(ctx, k.cache, "kube_servers", func(ctx context.Context) (any, error) {
+		current, err := k.getResources(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// There is a chance that the watcher reinitialized while
+		// getting kube servers happened above. Check if we are still stale
+		if k.stale.CompareAndSwap(true, false) {
+			k.lock.Lock()
+			k.current = current
+			k.lock.Unlock()
+		}
+
+		return nil, nil
+	})
+
+	return trace.Wrap(err)
+}
+
 // CertAuthorityWatcherConfig is a CertAuthorityWatcher configuration.
 type CertAuthorityWatcherConfig struct {
 	// ResourceWatcherConfig is the resource watcher configuration.
@@ -1198,7 +1462,7 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
-	collector.fanout.SetInit()
+	collector.fanout.SetInit(collector.resourceKinds())
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1232,7 +1496,7 @@ func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityF
 	watch := types.Watch{
 		Kinds: []types.WatchKind{
 			{
-				Kind:   c.resourceKind(),
+				Kind:   types.KindCertAuthority,
 				Filter: filter.IntoMap(),
 			},
 		},
@@ -1252,9 +1516,9 @@ func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityF
 	return sub, nil
 }
 
-// resourceKind specifies the resource kind to watch.
-func (c *caCollector) resourceKind() string {
-	return types.KindCertAuthority
+// resourceKinds specifies the resource kind to watch.
+func (c *caCollector) resourceKinds() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindCertAuthority}}
 }
 
 // isInitialized is used to check that the cache has done its initial
@@ -1444,8 +1708,6 @@ type Node interface {
 	GetNamespace() string
 	// GetCmdLabels gets command labels
 	GetCmdLabels() map[string]types.CommandLabel
-	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
-	GetPublicAddr() string
 	// GetRotation gets the state of certificate authority rotation.
 	GetRotation() types.Rotation
 	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
@@ -1517,9 +1779,9 @@ func (n *nodeCollector) NodeCount() int {
 	return len(n.current)
 }
 
-// resourceKind specifies the resource kind to watch.
-func (n *nodeCollector) resourceKind() string {
-	return types.KindNode
+// resourceKinds specifies the resource kind to watch.
+func (n *nodeCollector) resourceKinds() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindNode}}
 }
 
 // getResourcesAndUpdateCurrent is called when the resources should be
@@ -1669,9 +1931,9 @@ type accessRequestCollector struct {
 	once            sync.Once
 }
 
-// resourceKind specifies the resource kind to watch.
-func (p *accessRequestCollector) resourceKind() string {
-	return types.KindAccessRequest
+// resourceKinds specifies the resource kind to watch.
+func (p *accessRequestCollector) resourceKinds() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindAccessRequest}}
 }
 
 // isInitialized is used to check that the cache has done its initial
@@ -1745,3 +2007,182 @@ func (p *accessRequestCollector) processEventAndUpdateCurrent(ctx context.Contex
 }
 
 func (*accessRequestCollector) notifyStale() {}
+
+// OktaAssignmentWatcherConfig is a OktaAssignmentWatcher configuration.
+type OktaAssignmentWatcherConfig struct {
+	// RWCfg is the resource watcher configuration.
+	RWCfg ResourceWatcherConfig
+	// OktaAssignments is responsible for fetching Okta assignments.
+	OktaAssignments OktaAssignmentsGetter
+	// PageSize is the number of Okta assignments to list at a time.
+	PageSize int
+	// OktaAssignmentsC receives up-to-date list of all Okta assignment resources.
+	OktaAssignmentsC chan types.OktaAssignments
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *OktaAssignmentWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.RWCfg.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.OktaAssignments == nil {
+		assignments, ok := cfg.RWCfg.Client.(OktaAssignmentsGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter OktaAssignments and Client not usable as OktaAssignments")
+		}
+		cfg.OktaAssignments = assignments
+	}
+	if cfg.OktaAssignmentsC == nil {
+		cfg.OktaAssignmentsC = make(chan types.OktaAssignments)
+	}
+	return nil
+}
+
+// NewOktaAssignmentWatcher returns a new instance of OktaAssignmentWatcher. The context here will be used to
+// exit early from the resource watcher if needed.
+func NewOktaAssignmentWatcher(ctx context.Context, cfg OktaAssignmentWatcherConfig) (*OktaAssignmentWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &oktaAssignmentCollector{
+		log:             cfg.RWCfg.Log,
+		cfg:             cfg,
+		initializationC: make(chan struct{}),
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.RWCfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &OktaAssignmentWatcher{
+		resourceWatcher: watcher,
+		collector:       collector,
+	}, nil
+}
+
+// OktaAssignmentWatcher is built on top of resourceWatcher to monitor Okta assignment resources.
+type OktaAssignmentWatcher struct {
+	resourceWatcher *resourceWatcher
+	collector       *oktaAssignmentCollector
+}
+
+// CollectorChan is the channel that collects the Okta assignments.
+func (o *OktaAssignmentWatcher) CollectorChan() chan types.OktaAssignments {
+	return o.collector.cfg.OktaAssignmentsC
+}
+
+// Close closes the underlying resource watcher
+func (o *OktaAssignmentWatcher) Close() {
+	o.resourceWatcher.Close()
+}
+
+// Done returns the channel that signals watcher closer.
+func (o *OktaAssignmentWatcher) Done() <-chan struct{} {
+	return o.resourceWatcher.Done()
+}
+
+// oktaAssignmentCollector accompanies resourceWatcher when monitoring Okta assignment resources.
+type oktaAssignmentCollector struct {
+	log logrus.FieldLogger
+	// OktaAssignmentWatcherConfig is the watcher configuration.
+	cfg OktaAssignmentWatcherConfig
+	// mu guards "current"
+	mu sync.RWMutex
+	// current holds a map of the currently known Okta assignment resources.
+	current map[string]types.OktaAssignment
+	// initializationC is used to check that the watcher has been initialized properly.
+	initializationC chan struct{}
+	once            sync.Once
+}
+
+// resourceKinds specifies the resource kind to watch.
+func (*oktaAssignmentCollector) resourceKinds() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindOktaAssignment}}
+}
+
+// initializationChan is used to check if the initial state sync has been completed.
+func (c *oktaAssignmentCollector) initializationChan() <-chan struct{} {
+	return c.initializationC
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (c *oktaAssignmentCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	var oktaAssignments []types.OktaAssignment
+	var nextToken string
+	for {
+		var oktaAssignmentsPage []types.OktaAssignment
+		var err error
+		oktaAssignmentsPage, nextToken, err = c.cfg.OktaAssignments.ListOktaAssignments(ctx, c.cfg.PageSize, nextToken)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		oktaAssignments = append(oktaAssignments, oktaAssignmentsPage...)
+		if nextToken == "" {
+			break
+		}
+	}
+
+	newCurrent := make(map[string]types.OktaAssignment, len(oktaAssignments))
+	for _, oktaAssignment := range oktaAssignments {
+		newCurrent[oktaAssignment.GetName()] = oktaAssignment
+	}
+	c.mu.Lock()
+	c.current = newCurrent
+	c.defineCollectorAsInitialized()
+	c.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case c.cfg.OktaAssignmentsC <- oktaAssignments:
+	}
+
+	return nil
+}
+
+func (c *oktaAssignmentCollector) defineCollectorAsInitialized() {
+	c.once.Do(func() {
+		close(c.initializationC)
+	})
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (c *oktaAssignmentCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindOktaAssignment {
+		c.log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+	switch event.Type {
+	case types.OpDelete:
+		c.mu.Lock()
+		delete(c.current, event.Resource.GetName())
+		resources := resourcesToSlice(c.current)
+		c.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+		case c.cfg.OktaAssignmentsC <- resources:
+		}
+	case types.OpPut:
+		oktaAssignment, ok := event.Resource.(types.OktaAssignment)
+		if !ok {
+			c.log.Warnf("Unexpected resource type %T.", event.Resource)
+			return
+		}
+		c.mu.Lock()
+		c.current[oktaAssignment.GetName()] = oktaAssignment
+		resources := resourcesToSlice(c.current)
+		c.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+		case c.cfg.OktaAssignmentsC <- resources:
+		}
+
+	default:
+		c.log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (*oktaAssignmentCollector) notifyStale() {}

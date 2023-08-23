@@ -58,7 +58,7 @@ type ClientDatabaseConnectionTester interface {
 	client.ALPNAuthClient
 
 	services.ConnectionsDiagnostic
-	apiclient.ListResourcesClient
+	apiclient.GetResourcesClient
 }
 
 // DatabaseConnectionTesterConfig defines the config fields for DatabaseConnectionTester.
@@ -226,17 +226,12 @@ func (s *DatabaseConnectionTester) runALPNTunnel(ctx context.Context, req TestCo
 
 func (s *DatabaseConnectionTester) getDatabaseServers(ctx context.Context, databaseName string) ([]types.DatabaseServer, error) {
 	// Lookup the Database Server that's proxying the requested Database.
-	listResourcesResponse, err := s.cfg.UserClient.ListResources(ctx, proto.ListResourcesRequest{
+	page, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, s.cfg.UserClient, &proto.ListResourcesRequest{
 		PredicateExpression: fmt.Sprintf(`name == "%s"`, databaseName),
 		ResourceType:        types.KindDatabaseServer,
 		Limit:               defaults.MaxIterationLimit,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	databaseServers, err := types.ResourcesWithLabels(listResourcesResponse.Resources).AsDatabaseServers()
-	return databaseServers, trace.Wrap(err)
+	return page.Resources, trace.Wrap(err)
 }
 
 func checkDatabaseLogin(protocol, databaseUser, databaseName string) error {
@@ -424,6 +419,8 @@ func getDatabaseConnTester(protocol string) (databasePinger, error) {
 		return &database.PostgresPinger{}, nil
 	case defaults.ProtocolMySQL:
 		return &database.MySQLPinger{}, nil
+	case defaults.ProtocolSQLServer:
+		return &database.SQLServerPinger{}, nil
 	}
 	return nil, trace.NotImplemented("database protocol %q is not supported yet for testing connection", protocol)
 }

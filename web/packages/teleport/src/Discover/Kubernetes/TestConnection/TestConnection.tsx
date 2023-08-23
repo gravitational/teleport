@@ -30,7 +30,7 @@ import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import {
   ActionButtons,
   HeaderSubtitle,
-  HeaderWithBackBtn,
+  Header,
   ConnectionDiagnosticResult,
 } from '../../Shared';
 
@@ -97,9 +97,7 @@ export function TestConnection({
               onClose={cancelMfaDialog}
             />
           )}
-          <HeaderWithBackBtn onPrev={prevStep}>
-            Test Connection
-          </HeaderWithBackBtn>
+          <Header>Test Connection</Header>
           <HeaderSubtitle>
             Optionally verify that you can successfully connect to the
             Kubernetes cluster you just added.
@@ -127,7 +125,7 @@ export function TestConnection({
             </Text>
             <Box width="500px">
               <FieldSelect
-                label="Kubernetes groups"
+                label="Kubernetes Groups"
                 placeholder={
                   groupOpts.length === 0
                     ? 'No groups defined'
@@ -146,7 +144,7 @@ export function TestConnection({
             </Box>
             <Box width="500px">
               <FieldSelect
-                label={'Kubernetes user'}
+                label={'Kubernetes User'}
                 labelTip={
                   userOpts.length === 0
                     ? 'Defaulted to your teleport username'
@@ -196,7 +194,11 @@ export function TestConnection({
               <TextSelectCopy mt="1" text="kubectl get pods" />
             </Box>
           </StyledBox>
-          <ActionButtons onProceed={nextStep} lastStep={true} />
+          <ActionButtons
+            onProceed={nextStep}
+            lastStep={true}
+            onPrev={prevStep}
+          />
         </Box>
       )}
     </Validation>
@@ -205,7 +207,7 @@ export function TestConnection({
 
 const StyledBox = styled(Box)`
   max-width: 800px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 8px;
   padding: 20px;
 `;

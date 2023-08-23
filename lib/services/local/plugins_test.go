@@ -29,7 +29,6 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
@@ -44,7 +43,7 @@ func TestPluginsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { mem.Close() })
 
-	service := NewPluginsService(func() backend.Backend { return mem })
+	service := NewPluginsService(mem)
 
 	// Define two plugins
 	plugin1 := types.NewPluginV1(types.Metadata{Name: "p1"}, types.PluginSpecV1{
@@ -110,6 +109,15 @@ func TestPluginsCRUD(t *testing.T) {
 	))
 	require.Empty(t, cmp.Diff(status, cluster.GetStatus()))
 
+	// Test if plugin types exist.
+	exists, err := service.HasPluginType(ctx, types.PluginTypeOkta)
+	require.NoError(t, err)
+	require.False(t, exists)
+
+	exists, err = service.HasPluginType(ctx, types.PluginTypeSlack)
+	require.NoError(t, err)
+	require.True(t, exists)
+
 	// Delete a plugin.
 	err = service.DeletePlugin(ctx, plugin1.GetName())
 	require.NoError(t, err)
@@ -143,7 +151,7 @@ func TestListPlugins(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { mem.Close() })
 
-	service := NewPluginsService(func() backend.Backend { return mem })
+	service := NewPluginsService(mem)
 
 	var insertedPlugins []types.Plugin
 	for i := 0; i < numPlugins; i++ {

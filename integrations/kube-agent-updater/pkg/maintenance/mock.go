@@ -19,7 +19,7 @@ package maintenance
 import (
 	"context"
 
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // TriggerMock is a fake Trigger that return a static answer. This is used
@@ -35,11 +35,11 @@ func (m TriggerMock) Name() string {
 }
 
 // CanStart returns the statically defined maintenance approval result.
-func (m TriggerMock) CanStart(_ context.Context, _ v1.Object) (bool, error) {
+func (m TriggerMock) CanStart(_ context.Context, _ client.Object) (bool, error) {
 	return m.canStart, nil
 }
 
-// Default returns the default behaviour if the trigger fails. This cannot
+// Default returns the default behavior if the trigger fails. This cannot
 // happen for a TriggerMock and is here solely to implement the Trigger
 // interface.
 func (m TriggerMock) Default() bool {

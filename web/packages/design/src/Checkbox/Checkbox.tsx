@@ -17,13 +17,14 @@
 import styled from 'styled-components';
 
 import { Flex } from 'design';
+import { space } from 'design/system';
 
 export const CheckboxWrapper = styled(Flex)`
   padding: 8px;
   margin-bottom: 4px;
   width: 300px;
   align-items: center;
-  border: 1px solid ${props => props.theme.colors.primary.light};
+  border: 1px solid ${props => props.theme.colors.spotBackground[1]};
   border-radius: 8px;
 
   &.disabled {
@@ -34,9 +35,11 @@ export const CheckboxWrapper = styled(Flex)`
 
 export const CheckboxInput = styled.input`
   margin-right: 10px;
-  accent-color: ${props => props.theme.colors.secondary.main};
+  accent-color: ${props => props.theme.colors.brand};
 
   &:hover {
     cursor: pointer;
   }
+
+  ${space}
 `;

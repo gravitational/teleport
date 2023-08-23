@@ -20,6 +20,14 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 )
 
+// discoverServiceDeploy defines fields for enum string values
+// that describes how a service (agent) got deployed.
+// This struct is only considered for the event 'tp.ui.discover.deployService'
+type discoverServiceDeploy struct {
+	Method string `json:"method,omitempty"`
+	Type   string `json:"type,omitempty"`
+}
+
 // DiscoverEventData contains the required properties to create a Discover UsageEvent.
 type DiscoverEventData struct {
 	// ID is a unique ID per wizard session
@@ -33,6 +41,13 @@ type DiscoverEventData struct {
 	// AutoDiscoverResourcesCount is the number of auto-discovered resources in the Auto Discovering resources screen.
 	// This value is only considered for the 'tp.ui.discover.autoDiscoveredResources'.
 	AutoDiscoverResourcesCount int `json:"autoDiscoverResourcesCount,omitempty"`
+
+	// SelectedResourcesCount is the number of resources that a user has selected
+	// eg: number of RDS databases selected in the RDS enrollment screen for the
+	// event tp.ui.discover.database.enroll.rds
+	SelectedResourcesCount int `json:"selectedResourcesCount,omitempty"`
+
+	ServiceDeploy discoverServiceDeploy `json:"serviceDeploy,omitempty"`
 
 	// StepStatus is the Wizard step status result.
 	// Its possible values are the usageevents.DiscoverStepStatus proto enum values.
@@ -91,12 +106,41 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*usageeventsv1.Usage
 			},
 		}}, nil
 
-	case uiDiscoverDeployServiceEvent:
-		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
-			UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{
+	case uiDiscoverIntegrationAWSOIDCConnectEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverIntegrationAwsOidcConnectEvent{
+			UiDiscoverIntegrationAwsOidcConnectEvent: &usageeventsv1.UIDiscoverIntegrationAWSOIDCConnectEvent{
 				Metadata: metadata,
 				Resource: resource,
 				Status:   status,
+			},
+		}}, nil
+
+	case uiDiscoverDatabaseRDSEnrollEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseRdsEnrollEvent{
+			UiDiscoverDatabaseRdsEnrollEvent: &usageeventsv1.UIDiscoverDatabaseRDSEnrollEvent{
+				Metadata:               metadata,
+				Resource:               resource,
+				Status:                 status,
+				SelectedResourcesCount: int64(d.SelectedResourcesCount),
+			},
+		}}, nil
+
+	case uiDiscoverDeployServiceEvent:
+		deployMethodEnum, ok := usageeventsv1.UIDiscoverDeployServiceEvent_DeployMethod_value[d.ServiceDeploy.Method]
+		if !ok {
+			return nil, trace.BadParameter("invalid service deploy method %s", d.ServiceDeploy.Method)
+		}
+		deployTypeEnum, ok := usageeventsv1.UIDiscoverDeployServiceEvent_DeployType_value[d.ServiceDeploy.Type]
+		if !ok {
+			return nil, trace.BadParameter("invalid service deploy type %s", d.ServiceDeploy.Type)
+		}
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
+			UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{
+				Metadata:     metadata,
+				Resource:     resource,
+				Status:       status,
+				DeployMethod: usageeventsv1.UIDiscoverDeployServiceEvent_DeployMethod(deployMethodEnum),
+				DeployType:   usageeventsv1.UIDiscoverDeployServiceEvent_DeployType(deployTypeEnum),
 			},
 		}}, nil
 

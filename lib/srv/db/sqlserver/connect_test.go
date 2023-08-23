@@ -18,13 +18,13 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -48,7 +48,7 @@ func TestConnectorSelection(t *testing.T) {
 
 	connector := &connector{DBAuth: &mockDBAuth{}}
 
-	for _, tt := range []struct {
+	for i, tt := range []struct {
 		desc         string
 		databaseSpec types.DatabaseSpecV3
 		errAssertion require.ErrorAssertionFunc
@@ -97,10 +97,28 @@ func TestConnectorSelection(t *testing.T) {
 				require.Contains(t, err.Error(), "unable to open tcp connection with host")
 			},
 		},
+		{
+			desc: "RDS Proxied database",
+			databaseSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "proxy-sqlserver.proxy-000000000000.us-east-1.rds.amazonaws.com:1433",
+				AWS: types.AWS{
+					RDSProxy: types.RDSProxy{
+						Name: "proxy-sqlserver",
+					},
+				},
+			},
+			// RDS proxies cannot be accessed outside their VPC. So, this test
+			// case should not resolve their host.
+			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "no such host")
+			},
+		},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
 			database, err := types.NewDatabaseV3(types.Metadata{
-				Name: uuid.NewString(),
+				Name: fmt.Sprintf("db-%v", i),
 			}, tt.databaseSpec)
 			require.NoError(t, err)
 
@@ -203,7 +221,7 @@ func (m *mockAuth) GetClusterName(opts ...services.MarshalOption) (types.Cluster
 }
 
 func (m *mockAuth) GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	return &proto.DatabaseCertResponse{Cert: []byte(mockCA)}, nil
+	return &proto.DatabaseCertResponse{Cert: []byte(mockCA), CACerts: [][]byte{[]byte(mockCA)}}, nil
 }
 
 func TestConnectorKInitClient(t *testing.T) {
@@ -216,16 +234,13 @@ func TestConnectorKInitClient(t *testing.T) {
 		DBAuth:                &mockDBAuth{},
 		AuthClient:            &mockAuth{},
 		kinitCommandGenerator: &staticCache{t: t, pass: true},
-		caFunc: func(ctx context.Context, clusterName string) ([]byte, error) {
-			return []byte(mockCA), nil
-		},
 	}
 
 	krbConfPath := filepath.Join(dir, "krb5.conf")
 	err := os.WriteFile(krbConfPath, []byte(krb5Conf), 0664)
 	require.NoError(t, err)
 
-	for _, tt := range []struct {
+	for i, tt := range []struct {
 		desc         string
 		databaseSpec types.DatabaseSpecV3
 		errAssertion require.ErrorAssertionFunc
@@ -286,7 +301,7 @@ func TestConnectorKInitClient(t *testing.T) {
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
 			database, err := types.NewDatabaseV3(types.Metadata{
-				Name: uuid.NewString(),
+				Name: fmt.Sprintf("db-%v", i),
 			}, tt.databaseSpec)
 			require.NoError(t, err)
 

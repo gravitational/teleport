@@ -17,15 +17,20 @@
 import { useState, useEffect, useMemo } from 'react';
 import { SortType } from 'design/DataTable/types';
 import { useAsync } from 'shared/hooks/useAsync';
-import { AgentFilter, AgentLabel } from 'teleport/services/agents';
+import {
+  ResourceFilter as WeakAgentFilter,
+  ResourceLabel,
+} from 'teleport/services/agents';
 
-import { ServerSideParams } from 'teleterm/services/tshd/types';
+import { GetResourcesParams } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { useClusterContext } from '../clusterContext';
 
-function addAgentLabelToQuery(filter: AgentFilter, label: AgentLabel) {
+type AgentFilter = WeakAgentFilter & { sort: SortType };
+
+function addAgentLabelToQuery(filter: AgentFilter, label: ResourceLabel) {
   const queryParts = [];
 
   // Add existing query
@@ -49,7 +54,7 @@ const limit = 15;
 
 export function useServerSideResources<Agent>(
   defaultSort: SortType,
-  fetchFunction: (params: ServerSideParams) => Promise<FetchResponse<Agent>>
+  fetchFunction: (params: GetResourcesParams) => Promise<FetchResponse<Agent>>
 ) {
   const ctx = useAppContext();
   const { clusterUri } = useClusterContext();
@@ -133,7 +138,7 @@ export function useServerSideResources<Agent>(
     updateAgentFilter({ ...agentFilter, search: '', query });
   }
 
-  function onAgentLabelClick(label: AgentLabel) {
+  function onAgentLabelClick(label: ResourceLabel) {
     const query = addAgentLabelToQuery(agentFilter, label);
     updateAgentFilter({ ...agentFilter, search: '', query });
   }

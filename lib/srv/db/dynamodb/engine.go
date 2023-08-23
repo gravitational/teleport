@@ -35,9 +35,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -57,9 +59,6 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 // Engine handles connections from DynamoDB clients coming from Teleport
 // proxy over reverse tunnel.
 type Engine struct {
-	// signingSvc will be used by the engine to provide the AWS sigv4 authorization header
-	// required by AWS for request validation: https://docs.aws.amazon.com/general/latest/gr/signing-elements.html
-	signingSvc *libaws.SigningService
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
 	// clientConn is a client connection.
@@ -79,19 +78,6 @@ var _ common.Engine = (*Engine)(nil)
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.clientConn = clientConn
 	e.sessionCtx = sessionCtx
-	awsSession, err := e.CloudClients.GetAWSSession(sessionCtx.Database.GetAWS().Region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	svc, err := libaws.NewSigningService(libaws.SigningServiceConfig{
-		Clock:                 e.Clock,
-		Session:               awsSession,
-		GetSigningCredentials: e.GetSigningCredsFn,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	e.signingSvc = svc
 	return nil
 }
 
@@ -143,6 +129,7 @@ func (e *Engine) SendError(err error) {
 // HandleConnection authorizes the incoming client connection, connects to the
 // target DynamoDB server and starts proxying requests between client/server.
 func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error {
+	observe := common.GetConnectionSetupTimeObserver(e.sessionCtx.Database)
 	err := e.checkAccess(ctx, e.sessionCtx)
 	e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
 	if err != nil {
@@ -150,14 +137,34 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 	}
 	defer e.Audit.OnSessionEnd(e.Context, e.sessionCtx)
 
+	meta := e.sessionCtx.Database.GetAWS()
+	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
+		Clock:                 e.Clock,
+		Session:               awsSession,
+		GetSigningCredentials: e.GetSigningCredsFn,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	clientConnReader := bufio.NewReader(e.clientConn)
+
+	observe()
+
+	msgFromClient := common.GetMessagesFromClientMetric(e.sessionCtx.Database)
+	msgFromServer := common.GetMessagesFromServerMetric(e.sessionCtx.Database)
+
 	for {
 		req, err := http.ReadRequest(clientConnReader)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := e.process(ctx, req); err != nil {
+		if err := e.process(ctx, req, signer, msgFromClient, msgFromServer); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -165,21 +172,23 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 
 // process reads request from connected dynamodb client, processes the requests/responses and sends data back
 // to the client.
-func (e *Engine) process(ctx context.Context, req *http.Request) (err error) {
+func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.SigningService, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) (err error) {
+	msgFromClient.Inc()
+
 	if req.Body != nil {
 		// make sure we close the incoming request's body. ignore any close error.
 		defer req.Body.Close()
 	}
 
-	var responseStatusCode uint32
 	re, err := e.resolveEndpoint(req)
 	if err != nil {
 		// special error case where we couldn't resolve the endpoint, just emit using the configured URI.
-		e.emitAuditEvent(req, e.sessionCtx.Database.GetURI(), responseStatusCode, err)
+		e.emitAuditEvent(req, e.sessionCtx.Database.GetURI(), 0, err)
 		return trace.Wrap(err)
 	}
 
 	// emit an audit event regardless of failure, but using the resolved endpoint.
+	var responseStatusCode uint32
 	defer func() {
 		e.emitAuditEvent(req, re.URL, responseStatusCode, err)
 	}()
@@ -199,16 +208,23 @@ func (e *Engine) process(ctx context.Context, req *http.Request) (err error) {
 		return trace.Wrap(err)
 	}
 
-	roleArn := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser, re.SigningRegion, e.sessionCtx.Database.GetAWS().AccountID)
-	signedReq, err := e.signingSvc.SignRequest(e.Context, outReq,
-		&libaws.SigningCtx{
-			SigningName:   re.SigningName,
-			SigningRegion: re.SigningRegion,
-			Expiry:        e.sessionCtx.Identity.Expires,
-			SessionName:   e.sessionCtx.Identity.Username,
-			AWSRoleArn:    roleArn,
-			AWSExternalID: e.sessionCtx.Database.GetAWS().ExternalID,
-		})
+	meta := e.sessionCtx.Database.GetAWS()
+	roleArn, err := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser,
+		re.SigningRegion, meta.AccountID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	signingCtx := &libaws.SigningCtx{
+		SigningName:   re.SigningName,
+		SigningRegion: re.SigningRegion,
+		Expiry:        e.sessionCtx.Identity.Expires,
+		SessionName:   e.sessionCtx.Identity.Username,
+		AWSRoleArn:    roleArn,
+	}
+	if meta.AssumeRoleARN == "" {
+		signingCtx.AWSExternalID = meta.ExternalID
+	}
+	signedReq, err := signer.SignRequest(e.Context, outReq, signingCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -222,6 +238,8 @@ func (e *Engine) process(ctx context.Context, req *http.Request) (err error) {
 	}
 	defer resp.Body.Close()
 	responseStatusCode = uint32(resp.StatusCode)
+
+	msgFromServer.Inc()
 
 	return trace.Wrap(e.sendResponse(resp))
 }

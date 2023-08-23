@@ -36,6 +36,11 @@ import (
 // (most probably it was already locked by someone else), another try might succeed.
 var ErrUnsuccessfulLockTry = errors.New("could not acquire lock on the file at this time")
 
+const (
+	// FSLockRetryDelay is a delay between attempts to acquire lock.
+	FSLockRetryDelay = 10 * time.Millisecond
+)
+
 // OpenFileWithFlagsFunc defines a function used to open files providing options.
 type OpenFileWithFlagsFunc func(name string, flag int, perm os.FileMode) (*os.File, error)
 
@@ -58,8 +63,8 @@ func EnsureLocalPath(customPath string, defaultLocalDir, defaultLocalPath string
 	_, err := StatDir(baseDir)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			if err := MkdirAll(baseDir, teleport.PrivateDirMode); err != nil {
-				return "", trace.Wrap(err)
+			if err := os.MkdirAll(baseDir, teleport.PrivateDirMode); err != nil {
+				return "", trace.ConvertSystemError(err)
 			}
 		} else {
 			return "", trace.Wrap(err)
@@ -68,29 +73,11 @@ func EnsureLocalPath(customPath string, defaultLocalDir, defaultLocalPath string
 	return customPath, nil
 }
 
-// MkdirAll creates directory and subdirectories
-func MkdirAll(targetDirectory string, mode os.FileMode) error {
-	err := os.MkdirAll(targetDirectory, mode)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	return nil
-}
-
 // IsDir is a helper function to quickly check if a given path is a valid directory
 func IsDir(path string) bool {
 	fi, err := os.Stat(path)
 	if err == nil {
 		return fi.IsDir()
-	}
-	return false
-}
-
-// IsFile is a convenience helper to check if the given path is a regular file
-func IsFile(path string) bool {
-	fi, err := os.Stat(path)
-	if err == nil {
-		return fi.Mode().IsRegular()
 	}
 	return false
 }
@@ -178,7 +165,7 @@ func FSTryWriteLockTimeout(ctx context.Context, filePath string, timeout time.Du
 	fileLock := flock.New(getPlatformLockFilePath(filePath))
 	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if _, err := fileLock.TryLockContext(timedCtx, 10*time.Millisecond); err != nil {
+	if _, err := fileLock.TryLockContext(timedCtx, FSLockRetryDelay); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -206,7 +193,7 @@ func FSTryReadLockTimeout(ctx context.Context, filePath string, timeout time.Dur
 	fileLock := flock.New(getPlatformLockFilePath(filePath))
 	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if _, err := fileLock.TryRLockContext(timedCtx, 10*time.Millisecond); err != nil {
+	if _, err := fileLock.TryRLockContext(timedCtx, FSLockRetryDelay); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -253,4 +240,15 @@ func overwriteFile(filePath string) (err error) {
 
 	_, err = io.CopyN(f, rand.Reader, size)
 	return trace.Wrap(err)
+}
+
+// RemoveFileIfExist removes file if exits.
+func RemoveFileIfExist(filePath string) error {
+	if !FileExists(filePath) {
+		return nil
+	}
+	if err := os.Remove(filePath); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }

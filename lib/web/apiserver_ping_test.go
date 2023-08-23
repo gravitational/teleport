@@ -117,8 +117,9 @@ func TestPing(t *testing.T) {
 					RPID: "example.com",
 				},
 			},
-			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
+			assertResp: func(_ types.AuthPreference, resp *webclient.PingResponse) {
 				assert.True(t, resp.Auth.DeviceTrustDisabled, "Auth.DeviceTrustDisabled")
+				assert.True(t, resp.Auth.DeviceTrust.Disabled, "Auth.DeviceTrust.Disabled")
 			},
 		},
 		{
@@ -134,8 +135,29 @@ func TestPing(t *testing.T) {
 					Mode: constants.DeviceTrustModeOptional,
 				},
 			},
-			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
+			assertResp: func(_ types.AuthPreference, resp *webclient.PingResponse) {
 				assert.False(t, resp.Auth.DeviceTrustDisabled, "Auth.DeviceTrustDisabled")
+				assert.False(t, resp.Auth.DeviceTrust.Disabled, "Auth.DeviceTrust.Disabled")
+			},
+		},
+		{
+			name:      "OK device trust auto-enroll",
+			buildType: modules.BuildEnterprise,
+			spec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				Webauthn: &types.Webauthn{
+					RPID: "example.com",
+				},
+				DeviceTrust: &types.DeviceTrust{
+					Mode:       constants.DeviceTrustModeOptional,
+					AutoEnroll: true,
+				},
+			},
+			assertResp: func(_ types.AuthPreference, resp *webclient.PingResponse) {
+				assert.False(t, resp.Auth.DeviceTrustDisabled, "Auth.DeviceTrustDisabled")
+				assert.False(t, resp.Auth.DeviceTrust.Disabled, "Auth.DeviceTrust.Disabled")
+				assert.True(t, resp.Auth.DeviceTrust.AutoEnroll, "Auth.DeviceTrust.AutoEnroll")
 			},
 		},
 	}
@@ -177,4 +199,37 @@ func TestPing_multiProxyAddr(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, resp.Body.Close())
 	}
+}
+
+// TestPing_minimalAPI tests that pinging the minimal web API works correctly.
+func TestPing_minimalAPI(t *testing.T) {
+	env := newWebPack(t, 1, func(cfg *proxyConfig) {
+		cfg.minimalHandler = true
+	})
+	proxy := env.proxies[0]
+	tests := []struct {
+		name string
+		host string
+	}{
+		{
+			name: "Default ping",
+			host: proxy.handler.handler.cfg.ProxyPublicAddrs[0].Host(),
+		},
+		{
+			// This test ensures that the API doesn't try to launch an application.
+			name: "Ping with alternate host",
+			host: "example.com",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, proxy.newClient(t).Endpoint("webapi", "ping"), nil)
+			require.NoError(t, err)
+			req.Host = tc.host
+			resp, err := client.NewInsecureWebClient().Do(req)
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+		})
+	}
+
 }

@@ -17,7 +17,6 @@ limitations under the License.
 package db
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -28,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestRedshiftFetcher(t *testing.T) {
@@ -38,12 +38,7 @@ func TestRedshiftFetcher(t *testing.T) {
 	redshiftUse1Unavailable, _ := makeRedshiftCluster(t, "us-east-1", "qa", withRedshiftStatus("paused"))
 	redshiftUse1UnknownStatus, redshiftDatabaseUnknownStatus := makeRedshiftCluster(t, "us-east-1", "test", withRedshiftStatus("status-does-not-exist"))
 
-	tests := []struct {
-		name          string
-		inputClients  cloud.AWSClients
-		inputLabels   map[string]string
-		wantDatabases types.Databases
-	}{
+	tests := []awsFetcherTest{
 		{
 			name: "fetch all",
 			inputClients: &cloud.TestCloudClients{
@@ -51,7 +46,7 @@ func TestRedshiftFetcher(t *testing.T) {
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Dev},
 				},
 			},
-			inputLabels:   wildcardLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRedshift, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{redshiftDatabaseUse1Prod, redshiftDatabaseUse1Dev},
 		},
 		{
@@ -61,7 +56,7 @@ func TestRedshiftFetcher(t *testing.T) {
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Dev},
 				},
 			},
-			inputLabels:   envProdLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRedshift, "us-east-1", envProdLabels),
 			wantDatabases: types.Databases{redshiftDatabaseUse1Prod},
 		},
 		{
@@ -71,42 +66,19 @@ func TestRedshiftFetcher(t *testing.T) {
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Unavailable, redshiftUse1UnknownStatus},
 				},
 			},
-			inputLabels:   wildcardLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRedshift, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{redshiftDatabaseUse1Prod, redshiftDatabaseUnknownStatus},
 		},
 	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			fetchers := mustMakeAWSFetchersForMatcher(t, test.inputClients, services.AWSMatcherRedshift, "us-east-2", toTypeLabels(test.inputLabels))
-			require.ElementsMatch(t, test.wantDatabases, mustGetDatabases(t, fetchers))
-		})
-	}
+	testAWSFetchers(t, tests...)
 }
 
 func makeRedshiftCluster(t *testing.T, region, env string, opts ...func(*redshift.Cluster)) (*redshift.Cluster, types.Database) {
-	cluster := &redshift.Cluster{
-		ClusterIdentifier:   aws.String(env),
-		ClusterNamespaceArn: aws.String(fmt.Sprintf("arn:aws:redshift:%s:123456789012:namespace:%s", region, env)),
-		ClusterStatus:       aws.String("available"),
-		Endpoint: &redshift.Endpoint{
-			Address: aws.String("localhost"),
-			Port:    aws.Int64(5439),
-		},
-		Tags: []*redshift.Tag{{
-			Key:   aws.String("env"),
-			Value: aws.String(env),
-		}},
-	}
-	for _, opt := range opts {
-		opt(cluster)
-	}
+	cluster := mocks.RedshiftCluster(env, region, map[string]string{"env": env}, opts...)
 
 	database, err := services.NewDatabaseFromRedshiftCluster(cluster)
 	require.NoError(t, err)
+	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRedshift)
 	return cluster, database
 }
 

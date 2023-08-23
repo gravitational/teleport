@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"crypto/rsa"
-	"crypto/sha256"
 	"crypto/x509/pkix"
 	"time"
 
@@ -60,27 +59,6 @@ type RotateRequest struct {
 	Schedule *types.RotationSchedule `json:"schedule"`
 }
 
-// Types returns cert authority types requested to be rotated.
-func (r *RotateRequest) Types() []types.CertAuthType {
-	switch r.Type {
-	case types.CertAuthTypeAll:
-		return types.CertAuthTypes[:]
-	case types.HostCA:
-		return []types.CertAuthType{types.HostCA}
-	case types.DatabaseCA:
-		return []types.CertAuthType{types.DatabaseCA}
-	case types.UserCA:
-		return []types.CertAuthType{types.UserCA}
-	case types.OpenSSHCA:
-		return []types.CertAuthType{types.OpenSSHCA}
-	case types.JWTSigner:
-		return []types.CertAuthType{types.JWTSigner}
-	case types.SAMLIDPCA:
-		return []types.CertAuthType{types.SAMLIDPCA}
-	}
-	return nil
-}
-
 // CheckAndSetDefaults checks and sets default values.
 func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	if r.TargetPhase == "" {
@@ -92,9 +70,8 @@ func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	if r.Mode == "" {
 		r.Mode = types.RotationModeManual
 	}
-	// types.CertAuthTypeAll is valid too but will be deprecated in a future release.
-	// See: https://github.com/gravitational/teleport/issues/17493
-	if err := r.Type.Check(); err != nil && r.Type != types.CertAuthTypeAll {
+
+	if err := r.Type.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 	if r.GracePeriod == nil {
@@ -214,43 +191,37 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req RotateRequest) err
 		return trace.Wrap(err)
 	}
 
-	caTypes := req.Types()
-	allCerts, err := a.getAllCertificatesForRotation(ctx, clusterName.GetClusterName())
+	existing, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       req.Type,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	caTypes = findDuplicatedCertificates(caTypes, allCerts)
-
-	for _, caType := range caTypes {
-		existing, found := allCerts[caType]
-		if !found {
-			return trace.BadParameter("CAs list doesn't contain %q certificate", caType)
-		}
-
-		rotated, err := a.processRotationRequest(ctx, rotationReq{
-			ca:          existing,
-			clock:       a.clock,
-			targetPhase: req.TargetPhase,
-			schedule:    *req.Schedule,
-			gracePeriod: *req.GracePeriod,
-			mode:        req.Mode,
-			privateKey:  a.privateKey,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := a.CompareAndSwapCertAuthority(rotated, existing); err != nil {
-			return trace.Wrap(err)
-		}
-		rotation := rotated.GetRotation()
-		switch rotation.State {
-		case types.RotationStateInProgress:
-			log.WithFields(logrus.Fields{"type": caType}).Infof("Updated rotation state, set current phase to: %q.", rotation.Phase)
-		case types.RotationStateStandby:
-			log.WithFields(logrus.Fields{"type": caType}).Infof("Updated and completed rotation.")
-		}
+	rotated, err := a.processRotationRequest(ctx, rotationReq{
+		ca:          existing,
+		clock:       a.clock,
+		targetPhase: req.TargetPhase,
+		schedule:    *req.Schedule,
+		gracePeriod: *req.GracePeriod,
+		mode:        req.Mode,
+		privateKey:  a.privateKey,
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	if err := a.CompareAndSwapCertAuthority(rotated, existing); err != nil {
+		return trace.Wrap(err)
+	}
+	rotation := rotated.GetRotation()
+	switch rotation.State {
+	case types.RotationStateInProgress:
+		log.WithFields(logrus.Fields{"type": req.Type}).Infof("Updated rotation state, set current phase to: %q.", rotation.Phase)
+	case types.RotationStateStandby:
+		log.WithFields(logrus.Fields{"type": req.Type}).Infof("Updated and completed rotation.")
+	}
+
 	return nil
 }
 
@@ -404,100 +375,6 @@ func (a *Server) autoRotate(ctx context.Context, ca types.CertAuthority) error {
 	}
 	logger.Infof("Cert authority rotation request is completed")
 	return nil
-}
-
-type CertAuthorityMap = map[types.CertAuthType]types.CertAuthority
-
-// getAllCertificatesForRotation returns all certificates authorities including
-// private keys from the backend, bypassing the cache.
-func (a *Server) getAllCertificatesForRotation(ctx context.Context, clusterName string) (CertAuthorityMap, error) {
-	certs := make(CertAuthorityMap)
-
-	for _, caType := range types.CertAuthTypes {
-		ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       caType,
-			DomainName: clusterName,
-		}, true)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		certs[caType] = ca
-	}
-
-	return certs, nil
-}
-
-// findDuplicatedCertificates checks if any CA provided as caTypes has a duplicate in allCerts. List of all duplicates
-// is returned as a result. If no duplicates are found, then caTypes is returned in unmodified form.
-func findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAuthorityMap) []types.CertAuthType {
-	if len(caTypes) == len(allCerts) {
-		// requested rotation of all certs, no point of looking for duplicates.
-		return caTypes
-	}
-
-	// create a set to prevent duplicates.
-	rotateMap := make(map[types.CertAuthType]struct{})
-	certsThumbs := make(map[[32]byte][]types.CertAuthType)
-
-	for certType, allCert := range allCerts {
-		for _, cert := range allCert.GetActiveKeys().TLS {
-			s := sha256.Sum256(cert.Key)
-			certsThumbs[s] = append(certsThumbs[s], certType)
-		}
-		for _, cert := range allCert.GetAdditionalTrustedKeys().TLS {
-			s := sha256.Sum256(cert.Key)
-			certsThumbs[s] = append(certsThumbs[s], certType)
-		}
-		for _, cert := range allCert.GetActiveKeys().SSH {
-			s := sha256.Sum256(cert.PrivateKey)
-			certsThumbs[s] = append(certsThumbs[s], certType)
-		}
-		for _, cert := range allCert.GetAdditionalTrustedKeys().SSH {
-			s := sha256.Sum256(cert.PrivateKey)
-			certsThumbs[s] = append(certsThumbs[s], certType)
-		}
-	}
-
-	for _, certsThumb := range certsThumbs {
-		if len(certsThumb) == 1 {
-			// key is unique.
-			continue
-		}
-
-		// key has duplicates, check if the rotation request contains that CA type.
-		for _, caType := range caTypes {
-			for _, certType := range certsThumb {
-				if caType == certType {
-					// copy original CA type and all duplicates as we need to rotate all of them.
-					for _, ct := range certsThumb {
-						rotateMap[ct] = struct{}{}
-					}
-				}
-			}
-		}
-	}
-
-	if len(rotateMap) == 0 {
-		// no duplicates found.
-		return caTypes
-	}
-
-	// Copy unique keys from the request as those won't be in rotateMap at that point.
-	for _, caType := range caTypes {
-		rotateMap[caType] = struct{}{}
-	}
-
-	// copy all set elements to an array.
-	toRotate := make([]types.CertAuthType, 0, len(rotateMap))
-
-	for key := range rotateMap {
-		toRotate = append(toRotate, key)
-	}
-
-	log.Warnf("Found duplicated CAs. Rotating %v", toRotate)
-
-	return toRotate
 }
 
 // processRotationRequest processes rotation request based on the target and

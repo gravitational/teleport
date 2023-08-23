@@ -26,8 +26,6 @@ import (
 func TestGetBenchmark(t *testing.T) {
 	initial := &Config{
 		Rate:                0,
-		Command:             []string{"ls"},
-		Interactive:         false,
 		MinimumWindow:       time.Second * 30,
 		MinimumMeasurements: 1000,
 	}
@@ -53,8 +51,6 @@ func TestGetBenchmark(t *testing.T) {
 func TestGetBenchmarkNotEvenMultiple(t *testing.T) {
 	initial := &Config{
 		Rate:                0,
-		Command:             []string{"ls"},
-		Interactive:         false,
 		MinimumWindow:       time.Second * 30,
 		MinimumMeasurements: 1000,
 	}

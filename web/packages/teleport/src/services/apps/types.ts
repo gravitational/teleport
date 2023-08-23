@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-import { AgentLabel } from 'teleport/services/agents';
+import { ResourceLabel } from 'teleport/services/agents';
 
 export interface App {
+  kind: 'app';
   id: string;
   name: string;
   description: string;
   uri: string;
   publicAddr: string;
-  labels: AgentLabel[];
+  labels: ResourceLabel[];
   clusterId: string;
   launchUrl: string;
   fqdn: string;
@@ -32,9 +33,20 @@ export interface App {
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;
+  friendlyName?: string;
+  userGroups: UserGroupAndDescription[];
+  // samlApp is whether the application is a SAML Application (Service Provider).
+  samlApp: boolean;
+  // samlAppSsoUrl is the URL that triggers IdP-initiated SSO for SAML Application;
+  samlAppSsoUrl?: string;
 }
 
 export type AwsRole = {
   arn: string;
   display: string;
+};
+
+export type UserGroupAndDescription = {
+  name: string;
+  description: string;
 };

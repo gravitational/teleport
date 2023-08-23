@@ -19,8 +19,6 @@ import styled from 'styled-components';
 
 import { space, color, alignSelf } from 'design/system';
 
-import Icon from '../Icon';
-
 const sizeMap = {
   0: {
     fontSize: '12px',
@@ -49,19 +47,22 @@ const fromProps = props => {
   const { theme } = props;
   return {
     '&:disabled': {
-      color: theme.colors.action.disabled,
+      color: theme.colors.text.disabled,
       cursor: 'default',
     },
     '&:hover:enabled, &:focus:enabled': {
-      background: theme.colors.action.hover,
+      background: theme.colors.spotBackground[1],
+    },
+    '&:active:enabled': {
+      background: theme.colors.spotBackground[2],
     },
   };
 };
 
 const ButtonIcon = props => {
-  const { children, setRef, ...rest } = props;
+  const { children, setRef, css, ...rest } = props;
   return (
-    <StyledButtonIcon ref={setRef} {...rest}>
+    <StyledButtonIcon ref={setRef} css={css} {...rest}>
       {children}
     </StyledButtonIcon>
   );
@@ -83,12 +84,8 @@ const StyledButtonIcon = styled.button`
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
 
-  ${Icon} {
-    color: inherit;
-  }
-
   &:disabled {
-    color: ${({ theme }) => theme.colors.action.disabled};
+    color: ${({ theme }) => theme.colors.text.disabled};
   }
 
   ${fromProps}

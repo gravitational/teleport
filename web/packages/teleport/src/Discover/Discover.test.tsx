@@ -20,93 +20,190 @@ import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 
-import { Acl, makeUserContext } from 'teleport/services/user';
-import TeleportContext from 'teleport/teleportContext';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { Discover } from 'teleport/Discover/Discover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { fullAcl } from 'teleport/mocks/contexts';
+import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import { getOSSFeatures } from 'teleport/features';
 import cfg from 'teleport/config';
+import {
+  APPLICATIONS,
+  KUBERNETES,
+  SERVERS,
+  WINDOWS_DESKTOPS,
+} from 'teleport/Discover/SelectResource/resources';
+import {
+  DATABASES,
+  DATABASES_UNGUIDED,
+  DATABASES_UNGUIDED_DOC,
+} from 'teleport/Discover/SelectResource/databases';
 
-const crypto = require('crypto');
+import { ClusterResource } from 'teleport/services/userPreferences/types';
 
-// eslint-disable-next-line jest/require-hook
-Object.defineProperty(globalThis, 'crypto', {
-  value: {
-    randomUUID: () => crypto.randomUUID(),
-  },
-});
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
+import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 
-const userContextJson = {
-  authType: 'sso',
-  userName: 'Sam',
-  accessCapabilities: {
-    suggestedReviewers: ['george_washington@gmail.com', 'chad'],
-    requestableRoles: ['dev-a', 'dev-b', 'dev-c', 'dev-d'],
-  },
-  cluster: {
-    name: 'aws',
-    lastConnected: '2020-09-26T17:30:23.512876876Z',
-    status: 'online',
-    nodeCount: 1,
-    publicURL: 'localhost',
-    authVersion: '4.4.0-dev',
-    proxyVersion: '4.4.0-dev',
-  },
+import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+
+import { ResourceKind } from './Shared';
+
+type createProps = {
+  initialEntry?: string;
+  preferredResource?: ClusterResource;
 };
 
-describe('discover', () => {
-  function create(initialEntry: string, userAcl: Acl) {
-    const ctx = new TeleportContext();
+const create = ({ initialEntry = '', preferredResource }: createProps) => {
+  const defaultPref = makeDefaultUserPreferences();
+  mockUserContextProviderWith(
+    makeTestUserContext({
+      preferences: {
+        ...defaultPref,
+        onboard: {
+          preferredResources: preferredResource ? [preferredResource] : [],
+        },
+      },
+    })
+  );
 
-    ctx.storeUser.state = makeUserContext({
-      ...userContextJson,
-      userAcl,
-    });
+  const userAcl = getAcl();
+  const ctx = createTeleportContext({ customAcl: userAcl });
 
-    return render(
-      <MemoryRouter
-        initialEntries={[
-          { pathname: cfg.routes.discover, state: { entity: initialEntry } },
-        ]}
-      >
-        <TeleportContextProvider ctx={ctx}>
-          <FeaturesContextProvider value={getOSSFeatures()}>
-            <Discover />
-          </FeaturesContextProvider>
-        </TeleportContextProvider>
-      </MemoryRouter>
-    );
-  }
+  return render(
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: initialEntry } },
+      ]}
+    >
+      <TeleportContextProvider ctx={ctx}>
+        <FeaturesContextProvider value={getOSSFeatures()}>
+          <Discover />
+        </FeaturesContextProvider>
+      </TeleportContextProvider>
+    </MemoryRouter>
+  );
+};
 
-  describe('server', () => {
-    test('shows the server view when the location state is server', () => {
-      create('server', {
-        ...fullAcl,
-      });
+test('displays all resources by default', () => {
+  create({});
 
-      expect(
-        screen.getByText(
-          /Teleport officially supports the following operating systems/
-        )
-      ).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
-    });
+  expect(screen.getAllByTestId(ResourceKind.Server)).toHaveLength(
+    SERVERS.length
+  );
+  expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
+    WINDOWS_DESKTOPS.length
+  );
+  expect(screen.getAllByTestId(ResourceKind.Database)).toHaveLength(
+    DATABASES.length + DATABASES_UNGUIDED.length + DATABASES_UNGUIDED_DOC.length
+  );
+  expect(screen.getAllByTestId(ResourceKind.Application)).toHaveLength(
+    APPLICATIONS.length
+  );
+  expect(screen.getAllByTestId(ResourceKind.Kubernetes)).toHaveLength(
+    KUBERNETES.length
+  );
+});
+
+test('location state applies filter/search', () => {
+  create({
+    initialEntry: 'desktop',
+    preferredResource: ClusterResource.RESOURCE_WEB_APPLICATIONS,
   });
 
-  describe('desktop', () => {
-    test('shows the desktop view when the location state is desktop', () => {
-      create('desktop', {
-        ...fullAcl,
-      });
+  expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
+    WINDOWS_DESKTOPS.length
+  );
 
-      expect(
-        screen.getByText(
-          /Teleport Desktop Access currently only supports Windows Desktops managed by Active Directory/
-        )
-      ).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
-    });
+  expect(
+    screen.queryByTestId(ResourceKind.Application)
+  ).not.toBeInTheDocument();
+  expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
+  expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
+  expect(screen.queryByTestId(ResourceKind.Kubernetes)).not.toBeInTheDocument();
+});
+
+describe('location state', () => {
+  test('displays servers when the location state is server', () => {
+    create({ initialEntry: 'server' });
+
+    expect(screen.getAllByTestId(ResourceKind.Server)).toHaveLength(
+      SERVERS.length
+    );
+
+    // we assert three databases for servers because the naming convention includes "server"
+    expect(screen.queryAllByTestId(ResourceKind.Database)).toHaveLength(3);
+
+    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(ResourceKind.Application)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(ResourceKind.Kubernetes)
+    ).not.toBeInTheDocument();
+  });
+
+  test('displays desktops when the location state is desktop', () => {
+    create({ initialEntry: 'desktop' });
+
+    expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
+      WINDOWS_DESKTOPS.length
+    );
+
+    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(ResourceKind.Application)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(ResourceKind.Kubernetes)
+    ).not.toBeInTheDocument();
+  });
+
+  test('displays apps when the location state is application', () => {
+    create({ initialEntry: 'application' });
+
+    expect(screen.getAllByTestId(ResourceKind.Application)).toHaveLength(
+      APPLICATIONS.length
+    );
+
+    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(ResourceKind.Kubernetes)
+    ).not.toBeInTheDocument();
+  });
+
+  test('displays databases when the location state is database', () => {
+    create({ initialEntry: 'database' });
+
+    expect(screen.getAllByTestId(ResourceKind.Database)).toHaveLength(
+      DATABASES.length +
+        DATABASES_UNGUIDED.length +
+        DATABASES_UNGUIDED_DOC.length
+    );
+
+    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(ResourceKind.Application)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(ResourceKind.Kubernetes)
+    ).not.toBeInTheDocument();
+  });
+
+  test('displays kube resources when the location state is kubernetes', () => {
+    create({ initialEntry: 'kubernetes' });
+
+    expect(screen.getAllByTestId(ResourceKind.Kubernetes)).toHaveLength(
+      KUBERNETES.length
+    );
+
+    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(ResourceKind.Application)
+    ).not.toBeInTheDocument();
   });
 });

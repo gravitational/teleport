@@ -21,12 +21,20 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/auth/touchid"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	"github.com/gravitational/teleport/lib/auth/webauthnwin"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
+
+// ErrUsingNonRegisteredDevice is returned from Login when the user attempts to
+// authenticate with a non-registered security key.
+// The error message is meant to be displayed to end-users, thus it breaks the
+// usual Go error conventions (capitalized sentences, punctuation).
+var ErrUsingNonRegisteredDevice = errors.New("You are using a security key that is not registered with Teleport. Try a different security key.")
 
 // AuthenticatorAttachment allows callers to choose a specific attachment.
 type AuthenticatorAttachment int
@@ -111,8 +119,15 @@ type LoginOpts struct {
 // authentication and connected devices.
 func Login(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *wantypes.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
+	ctx, span := tracing.NewTracer("mfa").Start(
+		ctx,
+		"webauthncli/Login",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	// origin vs RPID sanity check.
 	// Doesn't necessarily means a failure, but it's likely to be one.
 	switch {
@@ -131,10 +146,10 @@ func Login(
 		user = opts.User
 	}
 
-	if webauthnwin.IsAvailable() {
+	if wanwin.IsAvailable() {
 		log.Debug("WebAuthnWin: Using windows webauthn for credential assertion")
-		return webauthnwin.Login(ctx, origin, assertion, &webauthnwin.LoginOpts{
-			AuthenticatorAttachment: webauthnwin.AuthenticatorAttachment(attachment),
+		return wanwin.Login(ctx, origin, assertion, &wanwin.LoginOpts{
+			AuthenticatorAttachment: wanwin.AuthenticatorAttachment(attachment),
 		})
 	}
 
@@ -159,7 +174,7 @@ func Login(
 
 func crossPlatformLogin(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *wantypes.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	if isLibfido2Enabled() {
 		log.Debug("FIDO2: Using libfido2 for assertion")
@@ -183,14 +198,14 @@ func crossPlatformLogin(
 	return resp, "" /* credentialUser */, err
 }
 
-func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
+func platformLogin(origin, user string, assertion *wantypes.CredentialAssertion, prompt LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
 	resp, credentialUser, err := touchid.AttemptLogin(origin, user, assertion, ToTouchIDCredentialPicker(prompt))
 	if err != nil {
 		return nil, "", err
 	}
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+			Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 		},
 	}, credentialUser, nil
 }
@@ -219,10 +234,10 @@ type RegisterPrompt interface {
 // type of authentication and connected devices.
 func Register(
 	ctx context.Context,
-	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
-	if webauthnwin.IsAvailable() {
+	origin string, cc *wantypes.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
+	if wanwin.IsAvailable() {
 		log.Debug("WebAuthnWin: Using windows webauthn for credential creation")
-		return webauthnwin.Register(ctx, origin, cc)
+		return wanwin.Register(ctx, origin, cc)
 	}
 
 	if isLibfido2Enabled() {
@@ -252,5 +267,5 @@ func HasPlatformSupport() bool {
 // IsFIDO2Available returns true if FIDO2 is implemented either via native
 // libfido2 library or Windows WebAuthn API.
 func IsFIDO2Available() bool {
-	return isLibfido2Enabled() || webauthnwin.IsAvailable()
+	return isLibfido2Enabled() || wanwin.IsAvailable()
 }

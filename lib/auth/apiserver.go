@@ -31,7 +31,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -65,6 +64,9 @@ func (a *APIConfig) CheckAndSetDefaults() error {
 	if a.KeepAliveCount == 0 {
 		a.KeepAliveCount = apidefaults.KeepAliveCountMax
 	}
+	if a.Authorizer == nil {
+		return trace.BadParameter("authorizer is missing")
+	}
 	return nil
 }
 
@@ -87,12 +89,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))
 
-	srv.POST("/:version/authorities/:type", srv.WithAuth(srv.upsertCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate", srv.WithAuth(srv.rotateCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate/external", srv.WithAuth(srv.rotateExternalCertAuthority))
-	srv.DELETE("/:version/authorities/:type/:domain", srv.WithAuth(srv.deleteCertAuthority))
-	srv.GET("/:version/authorities/:type/:domain", srv.WithAuth(srv.getCertAuthority))
-	srv.GET("/:version/authorities/:type", srv.WithAuth(srv.getCertAuthorities))
 
 	// Generating certificates for user and host authorities
 	srv.POST("/:version/ca/host/certs", srv.WithAuth(srv.generateHostCert))
@@ -100,7 +98,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Operations on users
 	srv.GET("/:version/users", srv.WithAuth(srv.getUsers))
 	srv.GET("/:version/users/:user", srv.WithAuth(srv.getUser))
-	srv.DELETE("/:version/users/:user", srv.WithAuth(srv.deleteUser)) // DELETE IN: 5.2 REST method is replaced by grpc method with context.
 
 	// Passwords and sessions
 	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
@@ -184,27 +181,11 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 type HandlerWithAuthFunc func(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error)
 
 func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
-	const accessDeniedMsg = "auth API: access denied "
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		// HTTPS server expects auth context to be set by the auth middleware
 		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
-			switch {
-			// propagate connection problem error so we can differentiate
-			// between connection failed and access denied
-			case trace.IsConnectionProblem(err):
-				return nil, trace.ConnectionProblem(err, "[07] failed to connect to the database")
-			case trace.IsAccessDenied(err):
-				// don't print stack trace, just log the warning
-				log.Warn(err)
-			case keys.IsPrivateKeyPolicyError(err):
-				// private key policy errors should be returned to the client
-				// unaltered so that they know to reauthenticate with a valid key.
-				return nil, trace.Unwrap(err)
-			default:
-				log.Warn(trace.DebugReport(err))
-			}
-			return nil, trace.AccessDenied(accessDeniedMsg + "[00]")
+			return nil, authz.ConvertAuthorizerError(r.Context(), log, err)
 		}
 		auth := &ServerWithRoles{
 			authServer: s.AuthServer,
@@ -264,11 +245,11 @@ func (s *APIServer) upsertServer(auth services.Presence, role types.SystemRole, 
 		}
 		return handle, nil
 	case types.RoleAuth:
-		if err := auth.UpsertAuthServer(server); err != nil {
+		if err := auth.UpsertAuthServer(r.Context(), server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.RoleProxy:
-		if err := auth.UpsertProxy(server); err != nil {
+		if err := auth.UpsertProxy(r.Context(), server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
@@ -318,7 +299,7 @@ func (s *APIServer) deleteProxy(auth ClientI, w http.ResponseWriter, r *http.Req
 	if name == "" {
 		return nil, trace.BadParameter("missing proxy name")
 	}
-	err := auth.DeleteProxy(name)
+	err := auth.DeleteProxy(r.Context(), name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -565,15 +546,6 @@ func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Reques
 	return out, nil
 }
 
-// DELETE IN: 5.2 REST method is replaced by grpc method with context.
-func (s *APIServer) deleteUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user := p.ByName("user")
-	if err := auth.DeleteUser(r.Context(), user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("user %q deleted", user)), nil
-}
-
 type generateHostCertReq struct {
 	Key         []byte            `json:"key"`
 	HostID      string            `json:"hostname"`
@@ -630,32 +602,6 @@ func (s *APIServer) rotateCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	return message("ok"), nil
 }
 
-type upsertCertAuthorityRawReq struct {
-	CA  json.RawMessage `json:"ca"`
-	TTL time.Duration   `json:"ttl"`
-}
-
-func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertCertAuthorityRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ca, err := services.UnmarshalCertAuthority(req.CA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if req.TTL != 0 {
-		ca.SetExpiry(s.Now().UTC().Add(req.TTL))
-	}
-	if err = services.ValidateCertAuthority(ca); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.UpsertCertAuthority(ca); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
 type rotateExternalCertAuthorityRawReq struct {
 	CA json.RawMessage `json:"ca"`
 }
@@ -673,55 +619,6 @@ func (s *APIServer) rotateExternalCertAuthority(auth ClientI, w http.ResponseWri
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
-}
-
-func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certs, err := auth.GetCertAuthorities(r.Context(), types.CertAuthType(p.ByName("type")), loadKeys)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	items := make([]json.RawMessage, len(certs))
-	for i, cert := range certs {
-		data, err := services.MarshalCertAuthority(cert, services.WithVersion(version), services.PreserveResourceID())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		items[i] = data
-	}
-	return items, nil
-}
-
-// Deprecated: Use teleport.v1.trust.TrustService.GetCertAuthority instead.
-// DELETE IN 14.0.0
-func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	id := types.CertAuthID{
-		Type:       types.CertAuthType(p.ByName("type")),
-		DomainName: p.ByName("domain"),
-	}
-	ca, err := auth.GetCertAuthority(r.Context(), id, loadKeys)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rawMessage(services.MarshalCertAuthority(ca, services.WithVersion(version), services.PreserveResourceID()))
-}
-
-func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	id := types.CertAuthID{
-		DomainName: p.ByName("domain"),
-		Type:       types.CertAuthType(p.ByName("type")),
-	}
-	if err := auth.DeleteCertAuthority(id); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("cert '%v' deleted", id)), nil
 }
 
 // validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback
@@ -830,7 +727,13 @@ func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Re
 	}
 
 	eventTypes := query[events.EventType]
-	eventsList, _, err := auth.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, types.EventOrderDescending, "")
+	eventsList, _, err := auth.SearchEvents(r.Context(), events.SearchEventsRequest{
+		From:       from,
+		To:         to,
+		EventTypes: eventTypes,
+		Limit:      limit,
+		Order:      types.EventOrderDescending,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -870,7 +773,12 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 		}
 	}
 	// only pull back start and end events to build list of completed sessions
-	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, types.EventOrderDescending, "", nil, "")
+	eventsList, _, err := auth.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
+		From:  from,
+		To:    to,
+		Limit: limit,
+		Order: types.EventOrderDescending,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1193,7 +1101,7 @@ func (s *APIServer) getRemoteCluster(auth ClientI, w http.ResponseWriter, r *htt
 
 // deleteRemoteCluster deletes remote cluster by name
 func (s *APIServer) deleteRemoteCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteRemoteCluster(p.ByName("cluster"))
+	err := auth.DeleteRemoteCluster(r.Context(), p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

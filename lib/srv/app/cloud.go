@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws/credentials/ssocreds"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
@@ -37,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tlsca"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // Cloud provides cloud provider access related methods such as generating
@@ -63,7 +63,7 @@ func (r *AWSSigninRequest) CheckAndSetDefaults() error {
 	if r.Identity == nil {
 		return trace.BadParameter("missing Identity")
 	}
-	_, err := arn.Parse(r.Identity.RouteToApp.AWSRoleARN)
+	_, err := awsutils.ParseRoleARN(r.Identity.RouteToApp.AWSRoleARN)
 	if err != nil {
 		return trace.Wrap(err)
 	}

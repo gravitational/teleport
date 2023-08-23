@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -57,9 +58,11 @@ type makeRequest func(url string, provider client.ConfigProvider, awsHost string
 func s3Request(url string, provider client.ConfigProvider, awsHost string) error {
 	return s3RequestWithTransport(url, provider, nil)
 }
+
 func s3RequestByAssumedRole(url string, provider client.ConfigProvider, awsHost string) error {
 	return s3RequestWithTransport(url, provider, &requestByAssumedRoleTransport{xForwardedHost: awsHost})
 }
+
 func s3RequestWithTransport(url string, provider client.ConfigProvider, transport http.RoundTripper) error {
 	s3Client := s3.New(provider, &aws.Config{
 		Endpoint:   &url,
@@ -76,9 +79,11 @@ func s3RequestWithTransport(url string, provider client.ConfigProvider, transpor
 func dynamoRequest(url string, provider client.ConfigProvider, awsHost string) error {
 	return dynamoRequestWithTransport(url, provider, nil)
 }
+
 func dynamoRequestByAssumedRole(url string, provider client.ConfigProvider, awsHost string) error {
 	return dynamoRequestWithTransport(url, provider, &requestByAssumedRoleTransport{xForwardedHost: awsHost})
 }
+
 func dynamoRequestWithTransport(url string, provider client.ConfigProvider, transport http.RoundTripper) error {
 	dynamoClient := dynamodb.New(provider, &aws.Config{
 		Endpoint:   &url,
@@ -385,9 +390,9 @@ func TestAWSSignerHandler(t *testing.T) {
 
 			// Validate audit event.
 			if err == nil {
-				require.Len(t, suite.emitter.C(), 1)
+				require.Len(t, suite.recorder.C(), 1)
 
-				event := <-suite.emitter.C()
+				event := <-suite.recorder.C()
 				switch appSessionEvent := event.(type) {
 				case *events.AppSessionDynamoDBRequest:
 					_, ok := tc.wantEventType.(*events.AppSessionDynamoDBRequest)
@@ -410,7 +415,7 @@ func TestAWSSignerHandler(t *testing.T) {
 					require.FailNow(t, "wrong event type", "unexpected event type: wanted %T but got %T", tc.wantEventType, appSessionEvent)
 				}
 			} else {
-				require.Len(t, suite.emitter.C(), 0)
+				require.Len(t, suite.recorder.C(), 0)
 			}
 		})
 	}
@@ -467,9 +472,11 @@ func mustNewRequest(t *testing.T, method, url string, body io.Reader) *http.Requ
 
 const assumedRoleKeyID = "assumedRoleKeyID"
 
-var staticAWSCredentialsForAssumedRole = credentials.NewStaticCredentials(assumedRoleKeyID, "assumedRoleKeySecret", "")
-var staticAWSCredentials = credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION")
-var staticAWSCredentialsForClient = credentials.NewStaticCredentials("fakeClientKeyID", "fakeClientSecret", "")
+var (
+	staticAWSCredentialsForAssumedRole = credentials.NewStaticCredentials(assumedRoleKeyID, "assumedRoleKeySecret", "")
+	staticAWSCredentials               = credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION")
+	staticAWSCredentialsForClient      = credentials.NewStaticCredentials("fakeClientKeyID", "fakeClientSecret", "")
+)
 
 func getStaticAWSCredentials(client.ConfigProvider, time.Time, string, string, string) *credentials.Credentials {
 	return staticAWSCredentials
@@ -479,11 +486,11 @@ type suite struct {
 	*httptest.Server
 	identity *tlsca.Identity
 	app      types.Application
-	emitter  *eventstest.ChannelEmitter
+	recorder *eventstest.ChannelRecorder
 }
 
 func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Application, clock clockwork.Clock) *suite {
-	emitter := eventstest.NewChannelEmitter(1)
+	recorder := eventstest.NewChannelRecorder(1)
 	identity := tlsca.Identity{
 		Username: "user",
 		Expires:  clock.Now().Add(time.Hour),
@@ -505,7 +512,8 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 	require.NoError(t, err)
 
 	audit, err := common.NewAudit(common.AuditConfig{
-		Emitter: emitter,
+		Emitter:  libevents.NewDiscardEmitter(),
+		Recorder: libevents.WithNoOpPreparer(recorder),
 	})
 	require.NoError(t, err)
 	signerHandler, err := NewAWSSignerHandler(context.Background(),
@@ -543,7 +551,7 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 		Server:   server,
 		identity: &identity,
 		app:      app,
-		emitter:  emitter,
+		recorder: recorder,
 	}
 }
 

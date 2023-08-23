@@ -84,8 +84,8 @@ func (s *softwareKeyStore) deleteKey(_ context.Context, _ []byte) error {
 
 // DeleteUnusedKeys deletes all keys from the KeyStore if they are:
 // 1. Labeled by this KeyStore when they were created
-// 2. Not included in the argument usedKeys
+// 2. Not included in the argument activeKeys
 // This is a no-op for rawKeyStore.
-func (s *softwareKeyStore) DeleteUnusedKeys(ctx context.Context, usedKeys [][]byte) error {
+func (s *softwareKeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	return nil
 }

@@ -17,7 +17,6 @@ package db
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -85,14 +84,8 @@ func TestDatabaseServiceHeartbeat(t *testing.T) {
 
 	// List Database Services
 	listDBServicesEndpoint := strings.Join([]string{"sites", "$site", "databaseservices"}, "/")
-	resp, err := webPack.DoRequest(http.MethodGet, listDBServicesEndpoint, nil)
-	require.NoError(t, err)
-
-	respBody, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+	respStatusCode, respBody := webPack.DoRequest(t, http.MethodGet, listDBServicesEndpoint, nil)
+	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	var listResp listDatabaseServicesResp
 	require.NoError(t, json.Unmarshal(respBody, &listResp))

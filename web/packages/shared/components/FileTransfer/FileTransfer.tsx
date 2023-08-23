@@ -17,17 +17,17 @@
 import React from 'react';
 
 import { useFileTransferContext } from './FileTransferContextProvider';
-import { useFilesStore } from './useFilesStore';
 import {
   FileTransferDialogDirection,
   FileTransferListeners,
   FileTransferStateless,
 } from './FileTransferStateless';
+import { FileTransferContainer } from './FileTransferContainer';
 
 interface FileTransferProps {
-  backgroundColor?: string;
   transferHandlers: TransferHandlers;
-
+  // errorText is any general error that isn't related to a specific transfer
+  errorText?: string;
   /**
    * `beforeClose` is called when an attempt to close the dialog was made
    * and there is a file transfer in progress.
@@ -36,6 +36,8 @@ interface FileTransferProps {
   beforeClose?(): Promise<boolean> | boolean;
 
   afterClose?(): void;
+
+  FileTransferRequestsComponent?: JSX.Element;
 }
 
 /**
@@ -75,27 +77,28 @@ export function FileTransfer(props: FileTransferProps) {
     }
   }
 
-  if (!openedDialog) {
-    return null;
-  }
-
   return (
-    <FileTransferDialog
-      openedDialog={openedDialog}
-      backgroundColor={props.backgroundColor}
-      transferHandlers={props.transferHandlers}
-      onCloseDialog={handleCloseDialog}
-    />
+    <FileTransferContainer>
+      {props.FileTransferRequestsComponent}
+      {openedDialog && (
+        <FileTransferDialog
+          errorText={props.errorText}
+          openedDialog={openedDialog}
+          transferHandlers={props.transferHandlers}
+          onCloseDialog={handleCloseDialog}
+        />
+      )}
+    </FileTransferContainer>
   );
 }
 
 export function FileTransferDialog(
-  props: Pick<FileTransferProps, 'transferHandlers' | 'backgroundColor'> & {
+  props: Pick<FileTransferProps, 'transferHandlers' | 'errorText'> & {
     openedDialog: FileTransferDialogDirection;
     onCloseDialog(isAnyTransferInProgress: boolean): void;
   }
 ) {
-  const filesStore = useFilesStore();
+  const { filesStore } = useFileTransferContext();
 
   function handleAddDownload(sourcePath: string): void {
     filesStore.start({
@@ -123,10 +126,10 @@ export function FileTransferDialog(
 
   return (
     <FileTransferStateless
+      errorText={props.errorText}
       openedDialog={props.openedDialog}
       files={filesStore.files}
       onCancel={filesStore.cancel}
-      backgroundColor={props.backgroundColor}
       onClose={handleClose}
       onAddUpload={handleAddUpload}
       onAddDownload={handleAddDownload}

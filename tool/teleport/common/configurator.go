@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/configurators/configuratorbuilder"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
@@ -40,6 +41,9 @@ var awsDatabaseTypes = []string{
 	types.DatabaseTypeRedshiftServerless,
 	types.DatabaseTypeElastiCache,
 	types.DatabaseTypeMemoryDB,
+	types.DatabaseTypeAWSKeyspaces,
+	types.DatabaseTypeDynamoDB,
+	types.DatabaseTypeOpenSearch,
 }
 
 type installSystemdFlags struct {
@@ -112,25 +116,51 @@ func onDumpDatabaseConfig(flags createDatabaseConfigFlags) error {
 type configureDiscoveryBootstrapFlags struct {
 	config  configurators.BootstrapFlags
 	confirm bool
+
+	databaseServiceRole       string
+	databaseServicePolicyName string
+}
+
+func makeDatabaseServiceBootstrapFlagsWithDiscoveryServiceConfig(flags configureDiscoveryBootstrapFlags) configurators.BootstrapFlags {
+	config := flags.config
+	config.Service = configurators.DatabaseServiceByDiscoveryServiceConfig
+	config.AttachToUser = ""
+	config.AttachToRole = flags.databaseServiceRole
+	config.PolicyName = flags.databaseServicePolicyName
+	return config
 }
 
 // onConfigureDiscoveryBootstrap subcommand that bootstraps configuration for
 // discovery  agents.
 func onConfigureDiscoveryBootstrap(flags configureDiscoveryBootstrapFlags) error {
+	fmt.Printf("Reading configuration at %q...\n", flags.config.ConfigPath)
+
 	ctx := context.TODO()
 	configurators, err := configuratorbuilder.BuildConfigurators(flags.config)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Reading configuration at %q...\n\n", flags.config.ConfigPath)
+	// If database service role is specified while bootstrap discovery service,
+	// generate configurator actions for database service using the discovery
+	// service config.
+	if flags.config.Service.IsDiscovery() && flags.databaseServiceRole != "" {
+		config := makeDatabaseServiceBootstrapFlagsWithDiscoveryServiceConfig(flags)
+		dbConfigurators, err := configuratorbuilder.BuildConfigurators(config)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		configurators = append(configurators, dbConfigurators...)
+	}
+
 	if len(configurators) == 0 {
 		fmt.Println("The agent doesn't require any extra configuration.")
 		return nil
 	}
 
 	for _, configurator := range configurators {
-		fmt.Println(configurator.Name())
+		fmt.Println()
+		fmt.Println(configurator.Description())
 		printDiscoveryConfiguratorActions(configurator.Actions())
 	}
 
@@ -173,17 +203,23 @@ type configureDatabaseAWSFlags struct {
 	user string
 	// policyName name of the generated policy.
 	policyName string
+	// assumesRoles comma-separated list of external AWS IAM role ARNs that the policy
+	// will include in sts:AssumeRole statement.
+	assumesRoles string
 }
 
 func (f *configureDatabaseAWSFlags) CheckAndSetDefaults() error {
-	if f.types == "" {
-		return trace.BadParameter("at least one --types should be provided: %s", strings.Join(awsDatabaseTypes, ","))
+	if f.types == "" && f.assumesRoles == "" {
+		return trace.BadParameter("at least one of --assumes-roles or --types should be provided. Valid --types: %s",
+			strings.Join(awsDatabaseTypes, ","))
 	}
 
-	f.typesList = strings.Split(f.types, ",")
-	for _, dbType := range f.typesList {
-		if !slices.Contains(awsDatabaseTypes, dbType) {
-			return trace.BadParameter("--types %q not supported. supported types are: %s", dbType, strings.Join(awsDatabaseTypes, ", "))
+	if f.types != "" {
+		f.typesList = strings.Split(f.types, ",")
+		for _, dbType := range f.typesList {
+			if !slices.Contains(awsDatabaseTypes, dbType) {
+				return trace.BadParameter("--types %q not supported. supported types are: %s", dbType, strings.Join(awsDatabaseTypes, ", "))
+			}
 		}
 	}
 
@@ -208,12 +244,12 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configu
 		return nil, trace.Wrap(err)
 	}
 
-	fileConfig := &config.FileConfig{}
 	configuratorFlags := configurators.BootstrapFlags{
-		Manual:       manual,
-		PolicyName:   flags.policyName,
-		AttachToUser: flags.user,
-		AttachToRole: flags.role,
+		Manual:            manual,
+		PolicyName:        flags.policyName,
+		AttachToUser:      flags.user,
+		AttachToRole:      flags.role,
+		ForceAssumesRoles: flags.assumesRoles,
 	}
 
 	for _, dbType := range flags.typesList {
@@ -230,12 +266,18 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configu
 			configuratorFlags.ForceElastiCachePermissions = true
 		case types.DatabaseTypeMemoryDB:
 			configuratorFlags.ForceMemoryDBPermissions = true
+		case types.DatabaseTypeAWSKeyspaces:
+			configuratorFlags.ForceAWSKeyspacesPermissions = true
+		case types.DatabaseTypeDynamoDB:
+			configuratorFlags.ForceDynamoDBPermissions = true
+		case types.DatabaseTypeOpenSearch:
+			configuratorFlags.ForceOpenSearchPermissions = true
 		}
 	}
 
 	configurator, err := awsconfigurators.NewAWSConfigurator(awsconfigurators.ConfiguratorConfig{
-		Flags:      configuratorFlags,
-		FileConfig: fileConfig,
+		Flags:         configuratorFlags,
+		ServiceConfig: &servicecfg.Config{},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -292,6 +334,12 @@ func onConfigureDatabasesAWSCreate(flags configureDatabaseAWSCreateFlags) error 
 		return trace.Wrap(err)
 	}
 
+	// Check if configurator actions is empty.
+	if configurator.IsEmpty() {
+		fmt.Println("The agent doesn't require any extra configuration.")
+		return nil
+	}
+
 	actions := configurator.Actions()
 	printDiscoveryConfiguratorActions(actions)
 	fmt.Print("\n")
@@ -305,12 +353,6 @@ func onConfigureDatabasesAWSCreate(flags configureDatabaseAWSCreateFlags) error 
 		if !confirmed {
 			return nil
 		}
-	}
-
-	// Check if configurator actions is empty.
-	if configurator.IsEmpty() {
-		fmt.Println("The agent doesn't require any extra configuration.")
-		return nil
 	}
 
 	err = executeDiscoveryConfiguratorActions(ctx, configurator.Name(), actions)

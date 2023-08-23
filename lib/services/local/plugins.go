@@ -31,16 +31,12 @@ const pluginsPrefix = "plugins"
 
 // PluginsService manages plugin instances in the backend.
 type PluginsService struct {
-	getBackend func() backend.Backend
+	backend backend.Backend
 }
 
 // NewPluginsService constructs a new PluginsService
-func NewPluginsService(getBackend func() backend.Backend) *PluginsService {
-	return &PluginsService{getBackend: getBackend}
-}
-
-func (s *PluginsService) backend() backend.Backend {
-	return s.getBackend()
+func NewPluginsService(backend backend.Backend) *PluginsService {
+	return &PluginsService{backend: backend}
 }
 
 // CreatePlugin implements services.Plugins
@@ -55,7 +51,7 @@ func (s *PluginsService) CreatePlugin(ctx context.Context, plugin types.Plugin) 
 		Expires: plugin.Expiry(),
 		ID:      plugin.GetResourceID(),
 	}
-	_, err = s.backend().Create(ctx, item)
+	_, err = s.backend.Create(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -65,7 +61,7 @@ func (s *PluginsService) CreatePlugin(ctx context.Context, plugin types.Plugin) 
 
 // DeletePlugin implements service.Plugins
 func (s *PluginsService) DeletePlugin(ctx context.Context, name string) error {
-	err := s.backend().Delete(ctx, backend.Key(pluginsPrefix, name))
+	err := s.backend.Delete(ctx, backend.Key(pluginsPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("plugin %q doesn't exist", name)
@@ -78,7 +74,7 @@ func (s *PluginsService) DeletePlugin(ctx context.Context, name string) error {
 // DeleteAllPlugins implements service.Plugins
 func (s *PluginsService) DeleteAllPlugins(ctx context.Context) error {
 	startKey := backend.Key(pluginsPrefix, "")
-	err := s.backend().DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+	err := s.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -87,7 +83,7 @@ func (s *PluginsService) DeleteAllPlugins(ctx context.Context) error {
 
 // GetPlugin implements services.Plugins
 func (s *PluginsService) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
-	item, err := s.backend().Get(ctx, backend.Key(pluginsPrefix, name))
+	item, err := s.backend.Get(ctx, backend.Key(pluginsPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("plugin %q doesn't exist", name)
@@ -136,7 +132,7 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 
 	startKeyBytes := backend.Key(pluginsPrefix, startKey)
 	endKey := backend.RangeEnd(backend.Key(pluginsPrefix, ""))
-	result, err := s.backend().GetRange(ctx, startKeyBytes, endKey, maxLimit)
+	result, err := s.backend.GetRange(ctx, startKeyBytes, endKey, maxLimit)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -162,6 +158,22 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 	return plugins, nextKey, nil
 }
 
+// HasPluginType will return true if a plugin of the given type is registered.
+func (s *PluginsService) HasPluginType(ctx context.Context, pluginType types.PluginType) (bool, error) {
+	plugins, err := s.GetPlugins(ctx, false)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	for _, plugin := range plugins {
+		if plugin.GetType() == pluginType {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // SetPluginCredentials implements services.Plugins
 func (s *PluginsService) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
 	return s.updateAndSwap(ctx, name, func(p types.Plugin) error {
@@ -178,7 +190,7 @@ func (s *PluginsService) SetPluginStatus(ctx context.Context, name string, statu
 
 func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify func(types.Plugin) error) error {
 	key := backend.Key(pluginsPrefix, name)
-	item, err := s.backend().Get(ctx, key)
+	item, err := s.backend.Get(ctx, key)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("plugin %q doesn't exist", name)
@@ -204,7 +216,7 @@ func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify 
 		return trace.Wrap(err)
 	}
 
-	_, err = s.backend().CompareAndSwap(ctx, *item, backend.Item{
+	_, err = s.backend.CompareAndSwap(ctx, *item, backend.Item{
 		Key:     backend.Key(pluginsPrefix, plugin.GetName()),
 		Value:   value,
 		Expires: plugin.Expiry(),

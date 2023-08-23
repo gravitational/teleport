@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
@@ -115,8 +116,14 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	}
 	a := req.Process.GetAuthServer()
 	sshPub := ssh.MarshalAuthorizedKey(priv.SSHPublicKey())
-	sshCert, x509Cert, err := a.GenerateUserTestCerts(
-		sshPub, req.Username, ttl, constants.CertificateFormatStandard, req.RouteToCluster, req.SourceIP)
+	sshCert, x509Cert, err := a.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+		Key:            sshPub,
+		Username:       req.Username,
+		TTL:            ttl,
+		Compatibility:  constants.CertificateFormatStandard,
+		RouteToCluster: req.RouteToCluster,
+		PinnedIP:       req.SourceIP,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

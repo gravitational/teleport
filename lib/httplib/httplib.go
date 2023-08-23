@@ -97,6 +97,14 @@ func MakeTracingHandler(h http.Handler, component string) http.Handler {
 	return otelhttp.NewHandler(http.HandlerFunc(handler), component, otelhttp.WithSpanNameFormatter(tracehttp.HandlerFormatter))
 }
 
+// MakeTracingMiddleware returns an HTTP middleware that makes tracing
+// handlers.
+func MakeTracingMiddleware(component string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return MakeTracingHandler(next, component)
+	}
+}
+
 // MakeHandlerWithErrorWriter returns a httprouter.Handle from the HandlerFunc,
 // and sends all errors to ErrorWriter.
 func MakeHandlerWithErrorWriter(fn HandlerFunc, errWriter ErrorWriter) httprouter.Handle {
@@ -139,15 +147,18 @@ func MakeStdHandlerWithErrorWriter(fn StdHandlerFunc, errWriter ErrorWriter) htt
 
 // WithCSRFProtection ensures that request to unauthenticated API is checked against CSRF attacks
 func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
-	hanlderFn := MakeHandler(fn)
+	handlerFn := MakeHandler(fn)
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		err := csrf.VerifyHTTPHeader(r)
-		if err != nil {
-			log.Warningf("unable to validate CSRF token %v", err)
-			trace.WriteError(w, trace.AccessDenied("access denied"))
-			return
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			errHeader := csrf.VerifyHTTPHeader(r)
+			errForm := csrf.VerifyFormField(r)
+			if errForm != nil && errHeader != nil {
+				log.Warningf("unable to validate CSRF token: %v, %v", errHeader, errForm)
+				trace.WriteError(w, trace.AccessDenied("access denied"))
+				return
+			}
 		}
-		hanlderFn(w, r, p)
+		handlerFn(w, r, p)
 	}
 }
 

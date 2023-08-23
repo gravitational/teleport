@@ -17,4 +17,16 @@ limitations under the License.
 export interface SVGIconProps {
   fill?: string;
   size?: number;
+  height?: number;
+  width?: number;
+  p?: number;
+  m?: number;
+  mr?: number;
+  ml?: number;
+  mb?: number;
+  mt?: number;
+  role?: string;
+  title?: string;
+  style?: React.CSSProperties;
+  onClick?: () => void;
 }

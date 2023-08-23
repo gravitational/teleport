@@ -15,27 +15,40 @@
 package testenv
 
 import (
+	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
+	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 
+// FakeEnrollmentToken is a "free", never spent enrollment token.
+const FakeEnrollmentToken = "29d73573-1682-42a1-b28f-c0e42a29942f"
+
 type storedDevice struct {
-	pb  *devicepb.Device
-	pub *ecdsa.PublicKey
+	pb          *devicepb.Device
+	pub         *ecdsa.PublicKey
+	enrollToken string // stored separately from the device
 }
 
 type fakeDeviceService struct {
 	devicepb.UnimplementedDeviceTrustServiceServer
 
+	autoCreateDevice bool
+
+	// mu guards devices.
+	// As a rule of thumb we lock entire methods, so we can work with pointers to
+	// the contents of devices without worry.
 	mu      sync.Mutex
 	devices []storedDevice
 }
@@ -44,12 +57,129 @@ func newFakeDeviceService() *fakeDeviceService {
 	return &fakeDeviceService{}
 }
 
+func (s *fakeDeviceService) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRequest) (*devicepb.Device, error) {
+	dev := req.Device
+	switch {
+	case dev == nil:
+		return nil, trace.BadParameter("device required")
+	case dev.OsType == devicepb.OSType_OS_TYPE_UNSPECIFIED:
+		return nil, trace.BadParameter("device OS type required")
+	case dev.AssetTag == "":
+		return nil, trace.BadParameter("device asset tag required")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Do some superficial checks.
+	// We don't deeply validate devices or check for ID collisions for brevity.
+	for _, sd := range s.devices {
+		if sd.pb.OsType == dev.OsType && sd.pb.AssetTag == dev.AssetTag {
+			return nil, trace.AlreadyExists("device already registered")
+		}
+	}
+
+	// Take a copy and ignore most fields, except what we need for testing.
+	now := timestamppb.Now()
+	created := &devicepb.Device{
+		ApiVersion:   "v1",
+		Id:           uuid.NewString(),
+		OsType:       dev.OsType,
+		AssetTag:     dev.AssetTag,
+		CreateTime:   now,
+		UpdateTime:   now,
+		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+	}
+
+	// Prepare enroll token, if requested.
+	var enrollToken string
+	if req.CreateEnrollToken {
+		enrollToken = uuid.NewString()
+	}
+
+	// "Store" device.
+	s.devices = append(s.devices, storedDevice{
+		pb:          created,
+		enrollToken: enrollToken,
+	})
+
+	resp := created
+	if enrollToken != "" {
+		resp = proto.Clone(created).(*devicepb.Device)
+		resp.EnrollToken = &devicepb.DeviceEnrollToken{
+			Token: enrollToken,
+		}
+	}
+	return resp, nil
+}
+
+func (s *fakeDeviceService) FindDevices(ctx context.Context, req *devicepb.FindDevicesRequest) (*devicepb.FindDevicesResponse, error) {
+	if req.IdOrTag == "" {
+		return nil, trace.BadParameter("param id_or_tag required")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var devs []*devicepb.Device
+	for _, sd := range s.devices {
+		if sd.pb.Id == req.IdOrTag || sd.pb.AssetTag == req.IdOrTag {
+			devs = append(devs, sd.pb)
+		}
+	}
+
+	return &devicepb.FindDevicesResponse{
+		Devices: devs,
+	}, nil
+}
+
+// CreateDeviceEnrollToken implements the creation of fake device enrollment
+// tokens.
+//
+// ID-based creation requires a previously-created device and stores the new
+// token.
+//
+// Auto-enrollment is completely fake, it doesn't require the device to exist.
+// Always returns [FakeEnrollmentToken].
+func (s *fakeDeviceService) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.CreateDeviceEnrollTokenRequest) (*devicepb.DeviceEnrollToken, error) {
+	if req.DeviceId != "" {
+		return s.createEnrollTokenID(ctx, req.DeviceId)
+	}
+
+	// Auto-enrollment path.
+	if err := validateCollectedData(req.DeviceData); err != nil {
+		return nil, trace.AccessDenied(err.Error())
+	}
+
+	return &devicepb.DeviceEnrollToken{
+		Token: FakeEnrollmentToken,
+	}, nil
+}
+
+func (s *fakeDeviceService) createEnrollTokenID(ctx context.Context, deviceID string) (*devicepb.DeviceEnrollToken, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	sd, err := s.findDeviceByID(deviceID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create and store token for posterior verification.
+	enrollToken := uuid.NewString()
+	sd.enrollToken = enrollToken
+
+	return &devicepb.DeviceEnrollToken{
+		Token: enrollToken,
+	}, nil
+}
+
 // EnrollDevice implements a fake, server-side device enrollment ceremony.
 //
-// As long as all required fields are non-nil and the challenge signature
-// matches, the fake server lets any device be enrolled. Unlike a proper
-// DeviceTrustService implementation, it's not necessary to call CreateDevice or
-// acquire an enrollment token from the server.
+// If the service was created using [WithAutoCreateDevice], the device is
+// automatically created. The enrollment token must either match
+// [FakeEnrollmentToken] or be created via a successful
+// [CreateDeviceEnrollToken] call.
 func (s *fakeDeviceService) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceServer) error {
 	req, err := stream.Recv()
 	if err != nil {
@@ -67,45 +197,151 @@ func (s *fakeDeviceService) EnrollDevice(stream devicepb.DeviceTrustService_Enro
 	if err := validateCollectedData(initReq.DeviceData); err != nil {
 		return trace.Wrap(err)
 	}
+	cd := initReq.DeviceData
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Find or auto-create device.
+	sd, err := s.findDeviceByOSTag(cd.OsType, cd.SerialNumber)
+	switch {
+	case s.autoCreateDevice && trace.IsNotFound(err):
+		// Auto-created device.
+		now := timestamppb.Now()
+		dev := &devicepb.Device{
+			ApiVersion:   "v1",
+			Id:           uuid.NewString(),
+			OsType:       cd.OsType,
+			AssetTag:     cd.SerialNumber,
+			CreateTime:   now,
+			UpdateTime:   now,
+			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+		}
+		s.devices = append(s.devices, storedDevice{
+			pb: dev,
+		})
+		sd = &s.devices[len(s.devices)-1]
+	case err != nil:
+		return err
+	}
+
+	// Spend enrollment token.
+	if err := s.spendEnrollmentToken(sd, initReq.Token); err != nil {
+		return err
+	}
 
 	// OS-specific enrollment.
-	if initReq.DeviceData.OsType != devicepb.OSType_OS_TYPE_MACOS {
+	var cred *devicepb.DeviceCredential
+	var pub *ecdsa.PublicKey
+	switch initReq.DeviceData.OsType {
+	case devicepb.OSType_OS_TYPE_MACOS:
+		cred, pub, err = enrollMacOS(stream, initReq)
+		// err handled below
+	case devicepb.OSType_OS_TYPE_WINDOWS:
+		cred, err = enrollTPM(stream, initReq)
+		// err handled below
+	default:
 		return trace.BadParameter("os not supported")
 	}
-	cred, pub, err := enrollMacOS(stream, initReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Prepare device.
-	cd := initReq.DeviceData
-	now := timestamppb.Now()
-	dev := &devicepb.Device{
-		ApiVersion:   "v1",
-		Id:           uuid.NewString(),
-		OsType:       cd.OsType,
-		AssetTag:     cd.SerialNumber,
-		CreateTime:   now,
-		UpdateTime:   now,
-		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
-		Credential:   cred,
-	}
-	s.mu.Lock()
-	s.devices = append(s.devices, storedDevice{
-		pb:  dev,
-		pub: pub,
-	})
-	s.mu.Unlock()
+	// Save enrollment information.
+	sd.pb.UpdateTime = timestamppb.Now()
+	sd.pb.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED
+	sd.pb.Credential = cred
+	sd.pub = pub
 
 	// Success.
 	err = stream.Send(&devicepb.EnrollDeviceResponse{
 		Payload: &devicepb.EnrollDeviceResponse_Success{
 			Success: &devicepb.EnrollDeviceSuccess{
-				Device: dev,
+				Device: sd.pb,
 			},
 		},
 	})
 	return trace.Wrap(err)
+}
+
+func (s *fakeDeviceService) spendEnrollmentToken(sd *storedDevice, token string) error {
+	if token == FakeEnrollmentToken {
+		sd.enrollToken = "" // Clear just in case.
+		return nil
+	}
+
+	if sd.enrollToken != token {
+		return trace.AccessDenied("invalid device enrollment token")
+	}
+
+	// "Spend" token.
+	sd.enrollToken = ""
+	return nil
+}
+
+func randomBytes() ([]byte, error) {
+	buf := make([]byte, 32)
+	_, err := rand.Read(buf)
+	return buf, err
+}
+
+func enrollTPM(stream devicepb.DeviceTrustService_EnrollDeviceServer, initReq *devicepb.EnrollDeviceInit) (*devicepb.DeviceCredential, error) {
+	switch {
+	case initReq.Tpm == nil:
+		return nil, trace.BadParameter("init req missing tpm message")
+	case !bytes.Equal(validEKKey, initReq.Tpm.GetEkKey()):
+		return nil, trace.BadParameter("ek key in init req did not match expected")
+	case !proto.Equal(initReq.Tpm.AttestationParameters, validAttestationParameters):
+		return nil, trace.BadParameter("init req tpm message attestation parameters mismatch")
+	}
+
+	secret, err := randomBytes()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	credentialBlob, err := randomBytes()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	expectSolution := append(secret, credentialBlob...)
+	nonce, err := randomBytes()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := stream.Send(&devicepb.EnrollDeviceResponse{
+		Payload: &devicepb.EnrollDeviceResponse_TpmChallenge{
+			TpmChallenge: &devicepb.TPMEnrollChallenge{
+				EncryptedCredential: &devicepb.TPMEncryptedCredential{
+					CredentialBlob: credentialBlob,
+					Secret:         secret,
+				},
+				AttestationNonce: nonce,
+			},
+		},
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	chalResp := resp.GetTpmChallengeResponse()
+	switch {
+	case chalResp == nil:
+		return nil, trace.BadParameter("challenge response required")
+	case !bytes.Equal(expectSolution, chalResp.Solution):
+		return nil, trace.BadParameter("activate credential solution in challenge response did not match expected")
+	case chalResp.PlatformParameters == nil:
+		return nil, trace.BadParameter("missing platform parameters in challenge response")
+	case !bytes.Equal(nonce, chalResp.PlatformParameters.EventLog):
+		return nil, trace.BadParameter("nonce in challenge response did not match expected")
+	}
+
+	return &devicepb.DeviceCredential{
+		Id:                    initReq.CredentialId,
+		DeviceAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB,
+	}, nil
 }
 
 func enrollMacOS(stream devicepb.DeviceTrustService_EnrollDeviceServer, initReq *devicepb.EnrollDeviceInit) (*devicepb.DeviceCredential, *ecdsa.PublicKey, error) {
@@ -184,39 +420,24 @@ func (s *fakeDeviceService) AuthenticateDevice(stream devicepb.DeviceTrustServic
 	if err := validateCollectedData(initReq.DeviceData); err != nil {
 		return trace.Wrap(err)
 	}
-	dev, err := s.findMatchingDevice(initReq.DeviceData, initReq.CredentialId)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dev, err := s.findDeviceByCredential(initReq.DeviceData, initReq.CredentialId)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// 2. Challenge.
-	chal, err := newChallenge()
+	switch dev.pb.OsType {
+	case devicepb.OSType_OS_TYPE_MACOS:
+		err = authenticateDeviceMacOS(dev, stream)
+	case devicepb.OSType_OS_TYPE_WINDOWS:
+		err = authenticateDeviceTPM(stream)
+	default:
+		err = fmt.Errorf("unrecognized os type %q", dev.pb.OsType)
+	}
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := stream.Send(&devicepb.AuthenticateDeviceResponse{
-		Payload: &devicepb.AuthenticateDeviceResponse_Challenge{
-			Challenge: &devicepb.AuthenticateDeviceChallenge{
-				Challenge: chal,
-			},
-		},
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-	req, err = stream.Recv()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// 3. Challenge response.
-	chalResp := req.GetChallengeResponse()
-	switch {
-	case chalResp == nil:
-		return trace.BadParameter("challenge response required")
-	case len(chalResp.Signature) == 0:
-		return trace.BadParameter("signature required")
-	}
-	if err := verifyChallenge(chal, chalResp.Signature, dev.pub); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -231,19 +452,100 @@ func (s *fakeDeviceService) AuthenticateDevice(stream devicepb.DeviceTrustServic
 	return trace.Wrap(err)
 }
 
-func (s *fakeDeviceService) findMatchingDevice(cd *devicepb.DeviceCollectedData, credentialID string) (*storedDevice, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, stored := range s.devices {
-		if cd.OsType != stored.pb.OsType || cd.SerialNumber != stored.pb.AssetTag {
-			continue
-		}
-		if stored.pb.Credential.Id != credentialID {
-			return nil, trace.BadParameter("unknown credential for device")
-		}
-		return &stored, nil
+func authenticateDeviceMacOS(dev *storedDevice, stream devicepb.DeviceTrustService_AuthenticateDeviceServer) error {
+	// 2. Challenge.
+	chal, err := newChallenge()
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	return nil, trace.NotFound("device %v/%q not enrolled", cd.OsType, cd.SerialNumber)
+	if err := stream.Send(&devicepb.AuthenticateDeviceResponse{
+		Payload: &devicepb.AuthenticateDeviceResponse_Challenge{
+			Challenge: &devicepb.AuthenticateDeviceChallenge{
+				Challenge: chal,
+			},
+		},
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+	req, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// 3. Challenge response.
+	chalResp := req.GetChallengeResponse()
+	switch {
+	case chalResp == nil:
+		return trace.BadParameter("challenge response required")
+	case len(chalResp.Signature) == 0:
+		return trace.BadParameter("signature required")
+	}
+	return trace.Wrap(verifyChallenge(chal, chalResp.Signature, dev.pub))
+}
+
+func authenticateDeviceTPM(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) error {
+	// Produce a nonce we can send in the challenge that we expect to see in
+	// the EventLog field of the challenge response.
+	nonce, err := randomBytes()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := stream.Send(&devicepb.AuthenticateDeviceResponse{
+		Payload: &devicepb.AuthenticateDeviceResponse_TpmChallenge{
+			TpmChallenge: &devicepb.TPMAuthenticateDeviceChallenge{
+				AttestationNonce: nonce,
+			},
+		},
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	resp, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	chalResp := resp.GetTpmChallengeResponse()
+	switch {
+	case chalResp == nil:
+		return trace.BadParameter("challenge response required")
+	case chalResp.PlatformParameters == nil:
+		return trace.BadParameter("missing platform parameters in challenge response")
+	case !bytes.Equal(nonce, chalResp.PlatformParameters.EventLog):
+		return trace.BadParameter("nonce in challenge response did not match expected")
+	}
+	return nil
+}
+
+func (s *fakeDeviceService) findDeviceByID(deviceID string) (*storedDevice, error) {
+	return s.findDeviceByPredicate(func(sd *storedDevice) bool {
+		return sd.pb.Id == deviceID
+	})
+}
+
+func (s *fakeDeviceService) findDeviceByOSTag(osType devicepb.OSType, assetTag string) (*storedDevice, error) {
+	return s.findDeviceByPredicate(func(sd *storedDevice) bool {
+		return sd.pb.OsType == osType && sd.pb.AssetTag == assetTag
+	})
+}
+
+func (s *fakeDeviceService) findDeviceByCredential(cd *devicepb.DeviceCollectedData, credentialID string) (*storedDevice, error) {
+	sd, err := s.findDeviceByOSTag(cd.OsType, cd.SerialNumber)
+	if err != nil {
+		return nil, err
+	}
+	if sd.pb.Credential.Id != credentialID {
+		return nil, trace.BadParameter("unknown credential for device")
+	}
+	return sd, nil
+}
+
+func (s *fakeDeviceService) findDeviceByPredicate(fn func(*storedDevice) bool) (*storedDevice, error) {
+	for i, stored := range s.devices {
+		if fn(&stored) {
+			return &s.devices[i], nil
+		}
+	}
+	return nil, trace.NotFound("device not found")
 }
 
 func validateCollectedData(cd *devicepb.DeviceCollectedData) error {

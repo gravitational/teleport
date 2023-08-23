@@ -103,6 +103,11 @@ type License interface {
 	// generate licenses that support older versions of Teleport
 	SetSupportsResourceAccessRequests(Bool)
 
+	// GetSupportsFeatureHiding returns feature hiding support flag.
+	GetSupportsFeatureHiding() Bool
+	// GetSupportsFeatureHiding sets feature hiding support flag.
+	SetSupportsFeatureHiding(Bool)
+
 	// GetTrial returns the trial flag.
 	//  Note: This is not applicable to Cloud licenses
 	GetTrial() Bool
@@ -116,7 +121,19 @@ type License interface {
 	// GetAccountID returns Account ID.
 	//  Note: This is not applicable to all Cloud licenses
 	GetAccountID() string
+
+	// GetFeatureSource returns where the features should be loaded from.
+	GetFeatureSource() FeatureSource
 }
+
+// FeatureSource defines where the list of features enabled
+// by the license is.
+type FeatureSource string
+
+const (
+	FeatureSourceLicense FeatureSource = "license"
+	FeatureSourceCloud   FeatureSource = "cloud"
+)
 
 // NewLicense is a convenience method to create LicenseV3.
 func NewLicense(name string, spec LicenseSpecV3) (License, error) {
@@ -258,6 +275,9 @@ func (c *LicenseV3) setStaticFields() {
 // CheckAndSetDefaults verifies the constraints for License.
 func (c *LicenseV3) CheckAndSetDefaults() error {
 	c.setStaticFields()
+	if c.Spec.FeatureSource == "" {
+		c.Spec.FeatureSource = FeatureSourceLicense
+	}
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -367,6 +387,16 @@ func (c *LicenseV3) SetSupportsResourceAccessRequests(value Bool) {
 	c.Spec.SupportsResourceAccessRequests = value
 }
 
+// GetSupportsFeatureHiding returns feature hiding requests support flag
+func (c *LicenseV3) GetSupportsFeatureHiding() Bool {
+	return c.Spec.SupportsFeatureHiding
+}
+
+// SetSupportsFeatureHiding sets feature hiding requests support flag
+func (c *LicenseV3) SetSupportsFeatureHiding(value Bool) {
+	c.Spec.SupportsFeatureHiding = value
+}
+
 // GetTrial returns the trial flag
 func (c *LicenseV3) GetTrial() Bool {
 	return c.Spec.Trial
@@ -401,6 +431,9 @@ func (c *LicenseV3) String() string {
 	if c.GetSupportsDesktopAccess() {
 		features = append(features, "supports desktop access")
 	}
+	if c.GetSupportsFeatureHiding() {
+		features = append(features, "supports feature hiding")
+	}
 	if c.GetCloud() {
 		features = append(features, "is hosted by Gravitational")
 	}
@@ -414,6 +447,16 @@ func (c *LicenseV3) String() string {
 		return ""
 	}
 	return strings.Join(features, ",")
+}
+
+// GetFeatureSource returns the source Teleport should use to read the features
+func (c *LicenseV3) GetFeatureSource() FeatureSource {
+	// defaults to License for backward compatibility
+	if c.Spec.FeatureSource == "" {
+		return FeatureSourceLicense
+	}
+
+	return c.Spec.FeatureSource
 }
 
 // LicenseSpecV3 is the actual data we care about for LicenseV3. When changing
@@ -448,6 +491,10 @@ type LicenseSpecV3 struct {
 	SupportsMachineID Bool `json:"machine_id,omitempty"`
 	// SupportsResourceAccessRequests turns resource access request support on or off
 	SupportsResourceAccessRequests Bool `json:"resource_access_requests,omitempty"`
+	// SupportsFeatureHiding turns feature hiding support on or off
+	SupportsFeatureHiding Bool `json:"feature_hiding,omitempty"`
 	// Trial is true for trial licenses
 	Trial Bool `json:"trial,omitempty"`
+	// FeatureSource is the source of the set of enabled feature
+	FeatureSource FeatureSource `json:"feature_source"`
 }

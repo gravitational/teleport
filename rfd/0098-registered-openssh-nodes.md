@@ -1,6 +1,6 @@
 ---
 authors: Andrew LeFevre (andrew.lefevre@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 98 - Registered OpenSSH Nodes

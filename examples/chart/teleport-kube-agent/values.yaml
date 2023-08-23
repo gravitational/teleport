@@ -8,7 +8,7 @@ authToken: ""
 
 # Address of the teleport proxy with port (usually :3080).
 proxyAddr: ""
-# Comma-separated list of roles to enable (any of: kube,db,app)
+# Comma-separated list of roles to enable (any of: kube,db,app,discovery)
 roles: "kube"
 
 ################################################################
@@ -100,10 +100,29 @@ databases: []
 databaseResources: []
 
 ################################################################
+# Values that must be provided for Kubernetes Discovery
+################################################################
+
+# kubernetesDiscovery controls configuration for discovery service if it's enabled.
+# discovery service is enabled when the agent `roles` contains "discovery".
+# Default value will try to discovery all apps, use needs to override it to limit
+# scope of the discovered apps.
+kubernetesDiscovery:
+  - types: ["app"]
+    namespaces: ["*"]
+    labels:
+      "*": "*"
+
+################################################################
 # Values that you may need to change.
 ################################################################
 
-# Version of teleport image, if different from appVersion in Chart.yaml.
+# Version of teleport image, if different from chart version in Chart.yaml.
+# DANGER: `teleportVersionOverride` MUST NOT be used to control the Teleport version.
+# This chart is designed to run a specific teleport version (see Chart.yaml).
+# You will face compatibility issues trying to run a different Teleport version with it.
+#
+# If you want to run Teleport version X, you should use `helm --version X` instead.
 teleportVersionOverride: ""
 
 # Optional CA pins of the auth server. This enables a more secure way of
@@ -135,6 +154,19 @@ tls:
   # Create the secret with `kubectl create secret generic --from-file=ca.pem=/path/to/root-ca.pem`
   # The filename inside the secret is important - it _must_ be ca.pem
   existingCASecretName: ""
+
+updater:
+  enabled: false
+  # `updater.versionServer` is the URL of the version server the agent fetches
+  # the target version from. The complete version endpoint is built by
+  # concatenating `versionServer` and `releaseChannel`.
+  versionServer: "https://updates.releases.teleport.dev/v1/"
+  # Release channel the agent subscribes to.
+  releaseChannel: "stable/cloud"
+  image: public.ecr.aws/gravitational/teleport-kube-agent-updater
+  serviceAccount:
+    # service account name defaults to "<kube agent sa name>-updater"
+    name: ""
 
 # If set, will use an existing volume mounted via extraVolumes
 # as the Teleport data directory.
@@ -183,14 +215,31 @@ storage:
   storageClassName: ""
   requests: 128Mi
 
+# Settings for configuring an cluster admin role binding.
+# This is useful for granting cluster admin permissions to a Kubernetes Group
+# other than the default "system:masters" group.
+# GKE Autopilot clusters forbid using the "system:masters" group for impersonation
+# and require a custom group to be used instead.
+adminClusterRoleBinding:
+  create: false
+  name: "cluster-admin"
+
 ################################################################
 # Values that you shouldn't need to change.
 ################################################################
 
 # Container image for the cluster.
-image: public.ecr.aws/gravitational/teleport
+# Since version 13, hardened distroless images are used by default.
+# You can use the deprecated debian-based images by setting the value to
+# `public.ecr.aws/gravitational/teleport`. Those images will be
+# removed with teleport 14.
+image: public.ecr.aws/gravitational/teleport-distroless
 # Enterprise version of the image
-enterpriseImage: public.ecr.aws/gravitational/teleport-ent
+# Since version 13, hardened distroless images are used by default.
+# You can use the deprecated debian-based images by setting the value to
+# `public.ecr.aws/gravitational/teleport-ent`. Those images will be
+# removed with teleport 14.
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
 # Optional array of imagePullSecrets, to use when pulling from a private registry
 imagePullSecrets: []
 # - name: myRegistryKeySecretName
@@ -224,7 +273,18 @@ rbac:
   create: true
 
 # Name of the Secret to store the teleport join token.
-secretName: teleport-kube-agent-join-token
+# DEPRECATED Use joinTokenSecret.name instead
+secretName: ""
+
+# Manages the join token secret creation and its name.
+joinTokenSecret:
+  # create controls whether the Helm chart should create and manage the join token
+  # secret.
+  # If false, the chart assumes that the secret with the configured name already exists at the
+  # installation namespace.
+  create: true
+  # Name of the Secret to store the teleport join token.
+  name: teleport-kube-agent-join-token
 
 # Teleport logging configuration
 log:
@@ -308,6 +368,8 @@ annotations:
   deployment: {}
   # Annotations for each Pod in the Deployment
   pod: {}
+  # Annotations for the Secret (has no effect when `joinTokenSecret.create` is false)
+  secret: {}
   # Annotations for the ServiceAccount object
   serviceAccount: {}
 
@@ -328,6 +390,17 @@ extraVolumes: []
 extraVolumeMounts: []
 # - name: myvolume
 #   mountPath: /path/on/host
+
+# Pod Host aliases (see https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/)
+hostAliases: []
+# - ip: "127.0.0.1"
+#   hostnames:
+#     - "foo.local"
+#     - "bar.local"
+# - ip: "10.1.2.3"
+#   hostnames:
+#     - "foo.remote"
+#     - "bar.remote"
 
 # Allow the imagePullPolicy to be overridden
 imagePullPolicy: IfNotPresent
@@ -356,7 +429,7 @@ initSecurityContext:
   runAsNonRoot: true
   runAsUser: 9807
 
-# Security context to add to the container
+# Security context to add to other containers
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:

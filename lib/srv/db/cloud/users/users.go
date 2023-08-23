@@ -50,7 +50,11 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing UpdateMeta")
 	}
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Clients = cloudClients
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -202,6 +206,10 @@ func (u *Users) setupAllDatabasesAndRotatePassowrds(ctx context.Context, allData
 // rotate user passwords.
 func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases types.Databases, updateMeta bool) {
 	for _, database := range databases {
+		// Reset cache in case the same database name is now used for a
+		// different database server.
+		u.lookup.removeIfURIChanged(database)
+
 		fetcher, found := u.fetchersByType[database.GetType()]
 		if !found {
 			continue

@@ -18,8 +18,10 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Text, Box, Flex, Link } from 'design';
 import { Danger } from 'design/Alert';
-import { InfoFilled } from 'design/Icon';
+import { Info } from 'design/Icon';
 import TextEditor from 'shared/components/TextEditor';
+import { FieldTextArea } from 'shared/components/FieldTextArea';
+import Validation from 'shared/components/Validation';
 
 import useTeleport from 'teleport/useTeleport';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
@@ -27,7 +29,7 @@ import { Tabs } from 'teleport/components/Tabs';
 
 import { HeaderSubtitle, ActionButtons, Mark, Header } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
-import { DatabaseEngine } from '../resources';
+import { DatabaseEngine } from '../../SelectResource';
 
 import { useMutualTls, State } from './useMutualTls';
 
@@ -69,6 +71,7 @@ export function MutualTlsView({
           <Flex minHeight="195px" mt={3}>
             <TextEditor
               readOnly={true}
+              bg="levels.deep"
               data={[{ content: dbCU, type: 'yaml' }]}
             />
           </Flex>
@@ -87,7 +90,7 @@ export function MutualTlsView({
           </Box>
           <StyledBox mb={6}>
             <Flex mb={2}>
-              <InfoFilled fontSize={18} mr={1} mt="2px" />
+              <Info size="medium" mr={1} />
               <Text bold>After Running the Command</Text>
             </Flex>
             <DbEngineInstructions dbEngine={dbEngine} />
@@ -99,19 +102,21 @@ export function MutualTlsView({
               signed by a third-party CA. Adding a copy allows Teleport to trust
               it.
             </Text>
-            <Box
-              mt={2}
-              height="100px"
-              width="800px"
-              as="textarea"
-              p={2}
-              borderRadius={2}
-              placeholder="Copy and paste your CA certificate"
-              value={caCert}
-              onChange={e => setCaCert(e.target.value)}
-              autoFocus
-              style={{ outline: 'none' }}
-            />
+            <Validation>
+              <FieldTextArea
+                mt={2}
+                placeholder="Copy and paste your CA certificate"
+                value={caCert}
+                onChange={e => setCaCert(e.target.value)}
+                resizable={true}
+                autoFocus
+                textAreaCss={`
+                font-size: 14px;
+                height: 100px;
+                width: 800px;
+                `}
+              />
+            </Validation>
           </Box>
         </>
       )}
@@ -124,7 +129,7 @@ export function MutualTlsView({
 }
 
 function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
-  if (dbEngine === DatabaseEngine.PostgreSQL) {
+  if (dbEngine === DatabaseEngine.Postgres) {
     return (
       <Box>
         <Text mb={1}>
@@ -154,7 +159,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
     );
   }
 
-  if (dbEngine === DatabaseEngine.Mongo) {
+  if (dbEngine === DatabaseEngine.MongoDb) {
     return (
       <Box>
         <Text mb={3}>
@@ -212,7 +217,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
     );
   }
 
-  if (dbEngine === DatabaseEngine.MySQL) {
+  if (dbEngine === DatabaseEngine.MySql) {
     return (
       <Box>
         <Text mb={3}>
@@ -290,7 +295,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
 
 const StyledBox = styled(Box)`
   max-width: 800px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 8px;
   padding: 20px;
 `;

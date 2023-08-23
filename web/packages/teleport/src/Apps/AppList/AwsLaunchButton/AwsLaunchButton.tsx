@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { ButtonBorder, Text } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
-import { CarrotDown } from 'design/Icon';
+import { ChevronDown } from 'design/Icon';
 
 import cfg from 'teleport/config';
 import { AwsRole } from 'teleport/services/apps';
@@ -51,7 +51,7 @@ export default class AwsLaunchButton extends React.Component<Props> {
           onClick={this.onOpen}
         >
           LAUNCH
-          <CarrotDown ml={1} fontSize={2} color="text.secondary" />
+          <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           menuListCss={() => ({
@@ -117,7 +117,15 @@ function RoleItemList({
 
   return (
     <>
-      <Text px="2" fontSize="11px" mb="2" color="grey.400" bg="subtle">
+      <Text
+        px="2"
+        fontSize="11px"
+        mb="2"
+        css={`
+          color: ${props => props.theme.colors.text.main};
+          background: ${props => props.theme.colors.spotBackground[2]};
+        `}
+      >
         Select IAM Role
       </Text>
       {awsRoleItems.length ? (
@@ -140,12 +148,13 @@ type Props = {
 
 const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
-  color: ${theme.colors.grey[400]};
+  color: ${theme.colors.text.slightlyMuted};
   font-size: 12px;
-  border-bottom: 1px solid ${theme.colors.subtle};
+  border-bottom: 1px solid ${theme.colors.spotBackground[0]};
   min-height: 32px;
   &:hover {
-    color: ${theme.colors.link};
+    background: ${theme.colors.spotBackground[0]};
+    color: ${theme.colors.text.main};
   }
 
   :last-child {

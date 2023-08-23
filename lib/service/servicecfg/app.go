@@ -101,7 +101,7 @@ func (a *App) CheckAndSetDefaults() error {
 	// are invalid subdomains because for trusted clusters the name is used to
 	// construct the domain that the application will be available at.
 	if errs := validation.IsDNS1035Label(a.Name); len(errs) > 0 {
-		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://goteleport.com/teleport/docs/application-access/#application-name", a.Name)
+		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", a.Name)
 	}
 	// Parse and validate URL.
 	if _, err := url.Parse(a.URI); err != nil {
@@ -148,6 +148,8 @@ type Rewrite struct {
 	Redirect []string
 	// Headers is a list of extra headers to inject in the request.
 	Headers []Header
+	// JWTClaims configures whether roles/traits are included in the JWT token.
+	JWTClaims string
 }
 
 // Header represents a single http header passed over to the proxied application.

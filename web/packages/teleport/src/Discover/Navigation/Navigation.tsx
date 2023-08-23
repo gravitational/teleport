@@ -19,13 +19,16 @@ import styled from 'styled-components';
 
 import { Flex } from 'design';
 
-import { Resource, View } from '../flow';
+import { View } from '../flow';
 
 import { StepList } from './StepList';
+import { StepItem } from './StepItem';
+
+import type { ResourceSpec } from '../SelectResource';
 
 interface NavigationProps {
   currentStep: number;
-  selectedResource: Resource;
+  selectedResource: ResourceSpec;
   views: View[];
 }
 
@@ -38,6 +41,12 @@ export function Navigation(props: NavigationProps) {
   if (props.views) {
     content = (
       <Flex mt="10px" mb="45px">
+        {/*
+          This initial StepItem is to render the first "bullet"
+          in this nav, which is the selected resource's icon
+          and name.
+        */}
+        <StepItem selectedResource={props.selectedResource} />
         <StepList views={props.views} currentStep={props.currentStep} />
       </Flex>
     );

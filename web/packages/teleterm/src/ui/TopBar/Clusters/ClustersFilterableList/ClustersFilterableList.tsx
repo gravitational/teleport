@@ -53,7 +53,7 @@ export function ClustersFilterableList(props: ClustersFilterableListProps) {
           )}
         />
       ) : (
-        <Text color="text.placeholder">No Clusters</Text>
+        <Text color="text.muted">No Clusters</Text>
       )}
     </Box>
   );

@@ -1,0 +1,90 @@
+---
+title: GitLab CI
+description: Reference for GitLab joining
+---
+
+This document acts a reference for GitLab CI and Machine ID. You will find
+links to in-depth guides as well as a full description of the configuration
+options available when using the GitLab join method.
+
+## Guides
+
+You can read step-by-step guides on using Machine ID and GitHub Actions:
+
+- [Using Machine ID with GitLab](../guides/gitlab.mdx): How to
+  use Machine ID to SSH into Teleport nodes from GitLab CI.
+
+## GitLab join token
+
+A GitLab join token contains allow rules that describe which pipelines can
+use that token in order to join the Teleport cluster. A rule can contain
+multiple fields, and any pipeline that matches all of the fields within a
+single rule is granted access.
+
+The following constraints exist:
+- `sub`: a string uniquely identifying the CI run's source. It follows the
+  following format:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  # name identifies the token. When configuring a bot or node to join using this
+  # token, this name should be specified.
+  name: gitlab-demo
+spec:
+  # The Bot role indicates that this token grants access to a bot user, rather
+  # than allowing a node to join.
+  roles: [Bot]
+  # join_method for GitLab joining will always be "gitlab".
+  join_method: gitlab
+
+  # bot_name specifies the name of the bot that this token will grant access to
+  # when it is used.
+  bot_name: gitlab-demo
+
+  gitlab:
+    # domain should be the domain of your GitLab instance. If you are using
+    # GitLab's cloud hosted offering, omit this field entirely.
+    domain: gitlab.example.com
+    # allow is an array of rule configurations for what GitLab CI jobs should be
+    # allowed to join. All options configured within one allow entry
+    # must be satisfied for the GitLab CI run to be allowed to join. Where
+    # multiple allow entries are specified, any job which satisfies all of the
+    # options within a single entry will be allowed to join.
+    #
+    # An allow entry must include at least one of:
+    # - project_path
+    # - namespace_path
+    # - sub
+    # This ensures that GitLab CI runs in other GitLab user's projects are not
+    # able to access your Teleport cluster.
+    allow:
+        # project_path restricts joins to jobs that originate within the
+        # specified project.
+      - project_path: my-user/my-project
+        # namespace_path restricts joins to any run within project that exists
+        # within the specified namespace. A namespace will either be a username
+        # or the name of a group.
+        namespace_path: my-user
+        # pipeline_source restricts joins to jobs triggered by certain criteria,
+        # e.g triggered through the web interface.
+        pipeline_source: web
+        # environment restricts joins to jobs that are associated with the
+        # specified environment
+        environment: production
+        # ref_type restricts joins to jobs that were triggered by a specific
+        # type of git reference. Either `branch` or `tag`.
+        ref_type: branch
+        # ref restricts joins to jobs that were triggered by a specific git
+        # reference. Combine this with `ref_type` to create allow rules that
+        # can only be triggered by a specific branch or tag.
+        ref: main
+        # sub is a single string that concatenates the project_path, ref_type
+        # and ref. This can be used to restrict joins using a single string,
+        # whilst also describing a specific project and git ref.
+        #
+        # It is better to use the individual fields, as it is easy to mis-format
+        # the sub string.
+        sub: project_path:my-user/my-project:ref_type:branch:ref:main
+```

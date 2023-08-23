@@ -399,7 +399,7 @@ func (h *Heartbeat) announce() error {
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
-			err := h.Announcer.UpsertProxy(proxy)
+			err := h.Announcer.UpsertProxy(h.cancelCtx, proxy)
 			if err != nil {
 				// try next announce using keep alive period,
 				// that happens more frequently
@@ -416,7 +416,7 @@ func (h *Heartbeat) announce() error {
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
-			err := h.Announcer.UpsertAuthServer(auth)
+			err := h.Announcer.UpsertAuthServer(h.cancelCtx, auth)
 			if err != nil {
 				h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
 				h.setState(HeartbeatStateAnnounceWait)
@@ -454,18 +454,13 @@ func (h *Heartbeat) announce() error {
 			)
 
 			switch current := h.current.(type) {
-			case types.Server:
-				keepAlive, err = h.Announcer.UpsertKubeServiceV2(h.cancelCtx, current)
-				if err != nil {
-					return trace.Wrap(err)
-				}
 			case types.KubeServer:
 				keepAlive, err = h.Announcer.UpsertKubernetesServer(h.cancelCtx, current)
 				if err != nil {
 					return trace.Wrap(err)
 				}
 			default:
-				return trace.BadParameter("expected types.KubeServer or types.Server, got %#v", h.current)
+				return trace.BadParameter("expected types.KubeServer, got %#v", h.current)
 			}
 
 			h.notifySend()
@@ -551,10 +546,7 @@ func (h *Heartbeat) announce() error {
 			if !ok {
 				return trace.BadParameter("expected types.WindowsDesktop, got %#v", h.current)
 			}
-			err := h.Announcer.CreateWindowsDesktop(h.cancelCtx, desktop)
-			if trace.IsAlreadyExists(err) {
-				err = h.Announcer.UpdateWindowsDesktop(h.cancelCtx, desktop)
-			}
+			err := h.Announcer.UpsertWindowsDesktop(h.cancelCtx, desktop)
 			if err != nil {
 				h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
 				h.setState(HeartbeatStateAnnounceWait)

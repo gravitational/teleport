@@ -18,7 +18,14 @@ import React from 'react';
 
 import { render } from 'design/utils/testing';
 
-import { SupportOSS, SupportCloud, SupportEnterprise } from './Support.story';
+import cfg from 'teleport/config';
+
+import {
+  SupportOSS,
+  SupportCloud,
+  SupportEnterprise,
+  SupportWithCTA,
+} from './Support.story';
 
 test('support OSS', () => {
   const { container } = render(<SupportOSS />);
@@ -32,5 +39,11 @@ test('support Cloud', () => {
 
 test('support Enterprise', () => {
   const { container } = render(<SupportEnterprise />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('support Enterprise with CTA', () => {
+  cfg.isUsageBasedBilling = true;
+  const { container } = render(<SupportWithCTA />);
   expect(container.firstChild).toMatchSnapshot();
 });

@@ -25,7 +25,6 @@ import Button, {
 } from './Button';
 import ButtonIcon from './ButtonIcon';
 import ButtonLink from './ButtonLink';
-import ButtonOutlined from './ButtonOutlined';
 import Card from './Card';
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
 import DocumentTitle from './DocumentTitle';
@@ -45,6 +44,7 @@ import Menu, { MenuItem, MenuItemIcon } from './Menu';
 import { Pill } from './Pill';
 import Popover from './Popover';
 import { TextArea } from './TextArea';
+import { ResourceIcon } from './ResourceIcon';
 
 import type { TextAreaProps } from './TextArea';
 
@@ -56,7 +56,6 @@ export {
   ButtonIcon,
   ButtonLink,
   ButtonBorder,
-  ButtonOutlined,
   ButtonPrimary,
   ButtonSecondary,
   ButtonWarning,
@@ -75,6 +74,7 @@ export {
   Pill,
   Popover,
   Image,
+  ResourceIcon,
   SideNav,
   SideNavItem,
   StepSlider,

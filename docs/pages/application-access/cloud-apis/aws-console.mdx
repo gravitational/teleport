@@ -1,6 +1,6 @@
 ---
 title: Access AWS With Teleport Application Access
-description: How to access AWS with Teleport Application Access.
+description: How to access AWS with Teleport application access.
 videoBanner: GVcy_rffxQw
 ---
 
@@ -17,14 +17,16 @@ This guide will explain how to:
 
 ## Prerequisites
 
-- A running Teleport cluster, either self hosted or in Teleport Cloud.
-- A host running the `teleport` daemon with Application Access enabled. Follow
-  the [Getting Started](../getting-started.mdx) or
-  [Connecting Apps](../guides/connecting-apps.mdx) guides to get it running.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- An AWS EC2 or other instance you can assign an IAM role where
+  you will run the Teleport Application Service. The instance
+  must be running a Linux distribution.
 - IAM permissions in the AWS account you want to connect.
-- AWS EC2 or other instance where you can assign a IAM Security Role for the Teleport Agent.
-- `aws` command line interface (CLI) tool in PATH. [Installing or updating the latest version of the AWS CLI
-](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
+- `aws` command line interface (CLI) tool in PATH. [Installing or updating the
+  latest version of the AWS CLI
+  ](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
 
 <Admonition type="note">
 If using Teleport deployed in AWS EKS, you cannot use Helm chart
@@ -62,11 +64,9 @@ Enter a role name and press create role.
 
 ![Create Role Step 3](../../../img/application-access/create-role-example-readonly-3.png)
 
-
 ### Repeat for Power User
 
 Follow the same steps and select `PowerUserAccess` IAM Policy to create a `ExamplePowerUser` role.
-
 
 ## Step 2/9. Update IAM role trust relationships
 
@@ -128,7 +128,7 @@ You can make the policy more strict by providing specific IAM role resource
 ARNs in the Resource field instead of using a wildcard.
 </Admonition>
 
-Attach this policy to the IAM role/user your Teleport application service agent
+Attach this policy to the IAM role/user your Teleport Application Service agent
 is using.
 
 ![AWS Attach Security Role](../../../img/application-access/attach-security-role.png)
@@ -162,37 +162,47 @@ Templates](../../access-controls/guides/role-templates.mdx) for details.
 
 ## Step 5/9. Register AWS console application in Teleport
 
-### Configure the Application Service
+(!docs/pages/includes/application-access/app-service-join-token.mdx!)
 
-Add the AWS management console to your Application Service configuration by
-editing `/etc/teleport.yaml` on the host that runs the Application Service:
+### Install the Teleport Application Service
+
+Run the following commands on the host where you will install the Teleport
+Application Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Configure the Teleport Application Service
+
+On the host where you will run the Teleport Application Service, create a file
+at `/etc/teleport.yaml` with the following content:
 
 ```yaml
 version: v3
 teleport:
-  # Data directory for the Application Proxy service. If running on the same
-  # node as Auth/Proxy service, make sure to use different data directories.
-  data_dir: /var/lib/teleport-app
-  # Instructs the service to load the auth token from the specified file
-  # during initial registration with the cluster.
-  auth_token: /var/lib/teleport-app/token
-  # Proxy address to connect to. Note that it has to be the proxy address
-  # because the app service always connects to the cluster over a reverse
-  # tunnel.
-  proxy_server: teleport.example.com:3080
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "teleport.example.com:443"
+auth_service:
+  enabled: off
+proxy_service:
+  enabled: off
+ssh_service:
+  enabled: off
 app_service:
   enabled: "yes"
   apps:
   - name: "awsconsole"
   # The public AWS Console is used after authenticating the user from Teleport
     uri: "https://console.aws.amazon.com/ec2/v2/home"
-auth_service:
-  enabled: "no"
-ssh_service:
-  enabled: "no"
-proxy_service:
-  enabled: "no"
 ```
+
+Edit `/etc/teleport.yaml` to replace `teleport.example.com:443` with the host
+and port of your Teleport Proxy Service or Teleport Cloud tenant, e.g.,
+`mytenant.teleport.sh:443`.
+
+The `app_service` field configures the Teleport Application Service. Each item
+within `app_service.apps` is an application configuration. 
 
 Note that the URI must start with one of the following values in order to be
 recognized as an AWS console:

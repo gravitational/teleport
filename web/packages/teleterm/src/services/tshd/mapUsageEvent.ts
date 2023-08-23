@@ -65,7 +65,8 @@ function mapPrehogBody(
     const reqEvent = new prehogApi.ConnectProtocolUseEvent()
       .setClusterName(event.clusterName)
       .setUserName(event.userName)
-      .setProtocol(event.protocol);
+      .setProtocol(event.protocol)
+      .setOrigin(event.origin);
 
     return req.setProtocolUse(reqEvent);
   }
@@ -102,6 +103,24 @@ function mapPrehogBody(
       .setIsUpload(event.isUpload);
 
     return req.setFileTransferRun(reqEvent);
+  }
+  if (plainReq.connectMyComputerSetup) {
+    const event = plainReq.connectMyComputerSetup;
+    const reqEvent = new prehogApi.ConnectConnectMyComputerSetup()
+      .setClusterName(event.clusterName)
+      .setUserName(event.userName)
+      .setSuccess(event.success)
+      .setFailedStep(event.failedStep);
+
+    return req.setConnectMyComputerSetup(reqEvent);
+  }
+  if (plainReq.connectMyComputerAgentStart) {
+    const event = plainReq.connectMyComputerAgentStart;
+    const reqEvent = new prehogApi.ConnectConnectMyComputerAgentStart()
+      .setClusterName(event.clusterName)
+      .setUserName(event.userName);
+
+    return req.setConnectMyComputerAgentStart(reqEvent);
   }
 
   throw new Error(`Unrecognized event: ${JSON.stringify(plainReq)}`);

@@ -35,6 +35,7 @@ matches snapshot for acme-off.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -69,6 +70,7 @@ matches snapshot for acme-on.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -103,6 +105,7 @@ matches snapshot for acme-uri-staging.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -138,6 +141,7 @@ matches snapshot for auth-connector-name.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -170,6 +174,7 @@ matches snapshot for auth-disable-local.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -205,6 +210,7 @@ matches snapshot for auth-locking-mode.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -240,6 +246,7 @@ matches snapshot for auth-passwordless.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -274,6 +281,7 @@ matches snapshot for auth-type-legacy.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -308,6 +316,7 @@ matches snapshot for auth-type.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -346,6 +355,7 @@ matches snapshot for auth-webauthn-legacy.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -384,6 +394,7 @@ matches snapshot for auth-webauthn.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -418,6 +429,7 @@ matches snapshot for aws-dynamodb-autoscaling.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -433,6 +445,7 @@ matches snapshot for aws-dynamodb-autoscaling.yaml:
           - dynamodb://test-dynamodb-auditlog-table
           audit_sessions_uri: s3://test-s3-session-storage-bucket
           auto_scaling: true
+          billing_mode: provisioned
           continuous_backups: false
           read_max_capacity: 100
           read_min_capacity: 5
@@ -469,6 +482,7 @@ matches snapshot for aws-ha-acme.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -514,6 +528,7 @@ matches snapshot for aws-ha-antiaffinity.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -559,6 +574,7 @@ matches snapshot for aws-ha-log.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -605,6 +621,7 @@ matches snapshot for aws-ha.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -650,6 +667,7 @@ matches snapshot for aws.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -669,6 +687,92 @@ matches snapshot for aws.yaml:
           region: us-west-2
           table_name: test-dynamodb-backend-table
           type: dynamodb
+      version: v3
+matches snapshot for azure.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            rp_id: test-azure-cluster
+        cluster_name: test-azure-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-azure-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - postgresql://teleport@mypostgresinstance.postgres.database.azure.com/teleport_audit?sslmode=verify-full#auth_mode=azure
+          - stdout://
+          audit_sessions_uri: azblob://mystorageaccount.blob.core.windows.net
+          auth_mode: azure
+          conn_string: postgresql://teleport@mypostgresinstance.postgres.database.azure.com/teleport_backend?sslmode=verify-full&pool_max_conns=100
+          type: postgresql
+      version: v3
+matches snapshot for azure.yaml without pool_max_conn:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            rp_id: test-azure-cluster
+        cluster_name: test-azure-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-azure-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - postgresql://teleport@mypostgresinstance.postgres.database.azure.com/teleport_audit?sslmode=verify-full#auth_mode=azure
+          - stdout://
+          audit_sessions_uri: azblob://mystorageaccount.blob.core.windows.net
+          auth_mode: azure
+          conn_string: postgresql://teleport@mypostgresinstance.postgres.database.azure.com/teleport_backend?sslmode=verify-full
+          type: postgresql
       version: v3
 matches snapshot for existing-tls-secret-with-ca.yaml:
   1: |
@@ -693,6 +797,7 @@ matches snapshot for existing-tls-secret-with-ca.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -727,6 +832,7 @@ matches snapshot for existing-tls-secret.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -763,6 +869,7 @@ matches snapshot for gcp-ha-acme.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -807,6 +914,7 @@ matches snapshot for gcp-ha-antiaffinity.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -851,6 +959,7 @@ matches snapshot for gcp-ha-log.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -896,6 +1005,7 @@ matches snapshot for gcp.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -938,6 +1048,7 @@ matches snapshot for initcontainers.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -972,6 +1083,7 @@ matches snapshot for kube-cluster-name.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1006,6 +1118,7 @@ matches snapshot for log-basic.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1040,6 +1153,7 @@ matches snapshot for log-extra.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1074,6 +1188,7 @@ matches snapshot for log-legacy.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1108,6 +1223,7 @@ matches snapshot for priority-class-name.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1142,6 +1258,7 @@ matches snapshot for proxy-listener-mode-multiplex.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1176,6 +1293,7 @@ matches snapshot for proxy-listener-mode-separate.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1210,6 +1328,7 @@ matches snapshot for public-addresses.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1244,6 +1363,7 @@ matches snapshot for separate-mongo-listener.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1278,6 +1398,7 @@ matches snapshot for separate-postgres-listener.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1312,6 +1433,7 @@ matches snapshot for service.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1347,6 +1469,7 @@ matches snapshot for session-recording.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1383,6 +1506,7 @@ matches snapshot for standalone-customsize.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1419,6 +1543,7 @@ matches snapshot for standalone-existingpvc.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1453,6 +1578,7 @@ matches snapshot for tolerations.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1499,6 +1625,7 @@ matches snapshot for version-override.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:
@@ -1533,6 +1660,7 @@ matches snapshot for volumes.yaml:
       ssh_service:
         enabled: false
       teleport:
+        auth_server: 127.0.0.1:3025
         log:
           format:
             extra_fields:

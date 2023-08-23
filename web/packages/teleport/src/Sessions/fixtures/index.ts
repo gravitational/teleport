@@ -34,6 +34,7 @@ export const sessions: Session[] = [
     clusterId: 'im-a-cluster-name',
     resourceName: 'minikube',
     participantModes: ['observer', 'moderator', 'peer'],
+    moderated: false,
   },
   {
     kind: 'ssh',
@@ -52,6 +53,45 @@ export const sessions: Session[] = [
     addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
     clusterId: 'im-a-cluster-name',
     participantModes: ['observer', 'moderator'],
+    moderated: false,
+  },
+  {
+    kind: 'ssh',
+    sid: 'b204924e-6b74-5d92-89ea-d95043a969f1',
+    namespace: 'default',
+    parties: [
+      {
+        user: 'lisa3',
+      },
+    ],
+    login: 'root',
+    created: new Date('2022-07-11T14:36:14.491402068Z'),
+    durationText: '5 seconds',
+    serverId: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
+    resourceName: 'im-a-nodename-2',
+    addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
+    clusterId: 'im-a-cluster-name',
+    participantModes: ['observer', 'moderator', 'peer'],
+    moderated: false,
+  },
+  {
+    kind: 'ssh',
+    sid: '8830cfe5-369e-5485-9c3d-19cc50e6f548',
+    namespace: 'default',
+    parties: [
+      {
+        user: 'lisa2',
+      },
+    ],
+    login: 'root',
+    created: new Date('2022-07-11T14:36:14.491402068Z'),
+    durationText: '5 seconds',
+    serverId: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
+    resourceName: 'im-a-nodename-3',
+    addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
+    clusterId: 'im-a-cluster-name',
+    participantModes: ['observer'],
+    moderated: false,
   },
   {
     kind: 'desktop',
@@ -70,6 +110,7 @@ export const sessions: Session[] = [
     addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
     clusterId: 'im-a-cluster-name',
     participantModes: ['observer', 'moderator', 'peer'],
+    moderated: false,
   },
   {
     kind: 'db',
@@ -88,6 +129,7 @@ export const sessions: Session[] = [
     addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
     clusterId: 'im-a-cluster-name',
     participantModes: ['observer'],
+    moderated: false,
   },
   {
     kind: 'app',
@@ -106,5 +148,6 @@ export const sessions: Session[] = [
     addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
     clusterId: 'im-a-cluster-name',
     participantModes: ['observer', 'moderator', 'peer'],
+    moderated: false,
   },
 ];

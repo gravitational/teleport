@@ -1,6 +1,6 @@
 ---
 title: Desktop Access Audit Events Reference
-description: Audit events reference for Teleport Desktop Access.
+description: Audit events reference for Teleport desktop access.
 ---
 
 ## windows.desktop.session.start (TDP00I/W)
@@ -181,9 +181,13 @@ Emitted when Teleport starts sharing a directory on a local machine to the remot
 
 ## desktop.directory.read (TDP05I/W)
 
-Emitted when Teleport reads data from a file on the local machine and sends it to a program on the remote desktop.
-In order to avoid capturing sensitive data, the event only records the offset from the start of the file from which
-the read began and the number of bytes that were sent.
+This event is part of the directory sharing feature, and is emitted when
+Teleport reads data from a file on the user's local machine and sends it
+to the remote Windows desktop.
+
+In order to avoid capturing sensitive data, the event only records the offset
+from the start of the file from which the read began and the number of bytes
+that were sent.
 
 ```json
 {
@@ -209,9 +213,13 @@ the read began and the number of bytes that were sent.
 
 ## desktop.directory.write (TDP06I/W)
 
-Emitted when Teleport writes data from the remote desktop to a file on the local machine.
-In order to avoid capturing sensitive data, the event only records the offset from the start
-of the file from which the write began and the number of bytes that were written.
+This event is part of the directory sharing feature, and is emitted when
+Teleport reads writes from the remote desktop to a file on the user's local
+machine.
+
+In order to avoid capturing sensitive data, the event only records the offset
+from the start of the file from which the write began and the number of bytes
+that were written.
 
 ```json
 {

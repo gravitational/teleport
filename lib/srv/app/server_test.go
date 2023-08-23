@@ -38,23 +38,26 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/forward"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/square/go-jose.v2/jwt"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
-	libsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -83,9 +86,14 @@ type Suite struct {
 	clientCertificate     tls.Certificate
 	awsConsoleCertificate tls.Certificate
 
+	appFoo *types.AppV3
+	appAWS *types.AppV3
+
 	user       types.User
 	role       types.Role
 	serverPort string
+
+	login string
 }
 
 func (s *Suite) TearDown(t *testing.T) {
@@ -113,7 +121,7 @@ type suiteConfig struct {
 	OnReconcile func(types.Apps)
 	// Apps are the apps to configure.
 	Apps types.Apps
-	// ServerStreamer is the auth server audit events streamer.
+	// ServerStreamer is the auth server session events streamer.
 	ServerStreamer events.Streamer
 	// ValidateRequest is a function that will validate the request received by the application.
 	ValidateRequest func(*Suite, *http.Request)
@@ -125,6 +133,16 @@ type suiteConfig struct {
 	AppLabels map[string]string
 	// RoleAppLabels are the labels set to allow for the user role.
 	RoleAppLabels types.Labels
+	// Rewrite configures the rewrite rules for the app.
+	Rewrite *types.Rewrite
+	// Login is used to specify "login" trait in the jwt token
+	Login string
+}
+
+type fakeConnMonitor struct{}
+
+func (f fakeConnMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error) {
+	return ctx, conn, nil
 }
 
 func SetUpSuite(t *testing.T) *Suite {
@@ -137,6 +155,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
 	s.hostUUID = uuid.New().String()
+	s.login = config.Login
 
 	var err error
 	// Create Auth Server.
@@ -188,7 +207,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				AppLabels:   roleAppLabels,
-				AWSRoleARNs: []string{"readonly"},
+				AWSRoleARNs: []string{"arn:aws:iam::123456789012:role/readonly"},
 			},
 		},
 	}
@@ -245,7 +264,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	// Create apps that will be used for each test.
-	appFoo, err := types.NewAppV3(types.Metadata{
+	s.appFoo, err = types.NewAppV3(types.Metadata{
 		Name:   "foo",
 		Labels: appLabels,
 	}, types.AppSpecV3{
@@ -253,9 +272,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		PublicAddr:         "foo.example.com",
 		InsecureSkipVerify: true,
 		DynamicLabels:      types.LabelsToV2(dynamicLabels),
+		Rewrite:            config.Rewrite,
 	})
 	require.NoError(t, err)
-	appAWS, err := types.NewAppV3(types.Metadata{
+	s.appAWS, err = types.NewAppV3(types.Metadata{
 		Name:   "awsconsole",
 		Labels: staticLabels,
 	}, types.AppSpecV3{
@@ -282,7 +302,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.clientCertificate = s.generateCertificate(t, s.user, "foo.example.com", "")
 
 	// Generate certificate for AWS console application.
-	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "readonly")
+	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "arn:aws:iam::123456789012:role/readonly")
 
 	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -302,32 +322,30 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		lockWatcher.Close()
 	})
 
-	apps := types.Apps{appFoo, appAWS}
+	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy()}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
 	}
 
-	discard := events.NewDiscardEmitter()
-
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:            s.clock,
-		DataDir:          s.dataDir,
-		AccessPoint:      s.authClient,
-		AuthClient:       s.authClient,
-		TLSConfig:        tlsConfig,
-		CipherSuites:     utils.DefaultCipherSuites(),
-		HostID:           s.hostUUID,
-		Hostname:         "test",
-		Authorizer:       authorizer,
-		GetRotation:      testRotationGetter,
-		Apps:             apps,
-		OnHeartbeat:      func(err error) {},
-		Cloud:            &testCloud{},
-		ResourceMatchers: config.ResourceMatchers,
-		OnReconcile:      config.OnReconcile,
-		LockWatcher:      lockWatcher,
-		Emitter:          discard,
-		CloudLabels:      config.CloudImporter,
+		Clock:             s.clock,
+		DataDir:           s.dataDir,
+		AccessPoint:       s.authClient,
+		AuthClient:        s.authClient,
+		TLSConfig:         tlsConfig,
+		CipherSuites:      utils.DefaultCipherSuites(),
+		HostID:            s.hostUUID,
+		Hostname:          "test",
+		Authorizer:        authorizer,
+		GetRotation:       testRotationGetter,
+		Apps:              apps,
+		OnHeartbeat:       func(err error) {},
+		Cloud:             &testCloud{},
+		ResourceMatchers:  config.ResourceMatchers,
+		OnReconcile:       config.OnReconcile,
+		Emitter:           s.authClient,
+		CloudLabels:       config.CloudImporter,
+		ConnectionMonitor: fakeConnMonitor{},
 	})
 	require.NoError(t, err)
 
@@ -355,6 +373,7 @@ func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, A
 		TTL:         1 * time.Hour,
 		PublicAddr:  publicAddr,
 		ClusterName: "root.example.com",
+		LoginTrait:  s.login,
 	}
 	if AWSRoleARN != "" {
 		req.AWSRoleARN = AWSRoleARN
@@ -378,31 +397,18 @@ func TestStart(t *testing.T) {
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
-	appFoo, err := types.NewAppV3(types.Metadata{
-		Name:   "foo",
-		Labels: staticLabels,
-	}, types.AppSpecV3{
-		URI:                s.testhttp.URL,
-		PublicAddr:         "foo.example.com",
-		InsecureSkipVerify: true,
-		DynamicLabels: map[string]types.CommandLabelV2{
-			dynamicLabelName: {
-				Period:  dynamicLabelPeriod,
-				Command: dynamicLabelCommand,
-				Result:  "4",
-			},
+	appFoo := s.appFoo.Copy()
+	appAWS := s.appAWS.Copy()
+
+	appFoo.SetDynamicLabels(map[string]types.CommandLabel{
+		dynamicLabelName: &types.CommandLabelV2{
+			Period:  dynamicLabelPeriod,
+			Command: dynamicLabelCommand,
+			Result:  "4",
 		},
 	})
-	require.NoError(t, err)
+
 	serverFoo, err := types.NewAppServerV3FromApp(appFoo, "test", s.hostUUID)
-	require.NoError(t, err)
-	appAWS, err := types.NewAppV3(types.Metadata{
-		Name:   "awsconsole",
-		Labels: staticLabels,
-	}, types.AppSpecV3{
-		URI:        constants.AWSConsoleURL,
-		PublicAddr: "aws.example.com",
-	})
 	require.NoError(t, err)
 	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
 	require.NoError(t, err)
@@ -590,7 +596,9 @@ func TestAppWithUpdatedLabels(t *testing.T) {
 				require.NoError(t, test.cloudLabels.Sync(context.Background()))
 			}
 
-			updatedApp := s.appServer.appWithUpdatedLabels(test.app)
+			s.appServer.mu.RLock()
+			updatedApp := s.appServer.appWithUpdatedLabelsLocked(test.app)
+			s.appServer.mu.RUnlock()
 
 			for key, value := range test.expectedDynamicLabels {
 				require.Equal(t, value, updatedApp.GetDynamicLabels()[key].GetResult())
@@ -651,7 +659,7 @@ func TestHandleConnection(t *testing.T) {
 	s := SetUpSuiteWithConfig(t, suiteConfig{
 		ValidateRequest: func(_ *Suite, r *http.Request) {
 			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
-			require.Equal(t, "443", r.Header.Get(forward.XForwardedPort))
+			require.Equal(t, "443", r.Header.Get(reverseproxy.XForwardedPort))
 		},
 	})
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
@@ -668,9 +676,9 @@ func TestHandleConnectionWS(t *testing.T) {
 	s := SetUpSuiteWithConfig(t, suiteConfig{
 		ValidateRequest: func(s *Suite, r *http.Request) {
 			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
-			// Websockets will pass on the server port at this level due to the
-			// websocket transport header rewriter delegate.
-			require.Equal(t, s.serverPort, r.Header.Get(forward.XForwardedPort))
+			// The port is not rewritten for WebSocket requests because it uses
+			// the same port as the original request.
+			require.Equal(t, "443", r.Header.Get(reverseproxy.XForwardedPort))
 		},
 	})
 
@@ -714,6 +722,76 @@ func TestHandleConnectionHTTP2WS(t *testing.T) {
 		require.Equal(t, websocket.TextMessage, messageType)
 		require.Equal(t, s.message, message)
 	})
+}
+
+func TestRewriteJWT(t *testing.T) {
+	login := uuid.New().String()
+	for _, tc := range []struct {
+		name           string
+		expectedRoles  []string
+		expectedTraits wrappers.Traits
+		jwtRewrite     string
+	}{
+		{
+			name:          "test default behavior",
+			expectedRoles: []string{"foo"},
+			expectedTraits: wrappers.Traits{
+				"logins": []string{login},
+			},
+			jwtRewrite: "",
+		},
+		{
+			name:          "test roles-and-traits behavior",
+			expectedRoles: []string{"foo"},
+			expectedTraits: wrappers.Traits{
+				"logins": []string{login},
+			},
+			jwtRewrite: types.JWTClaimsRewriteRolesAndTraits,
+		},
+		{
+			name:           "test roles behavior",
+			expectedRoles:  []string{"foo"},
+			expectedTraits: wrappers.Traits{},
+			jwtRewrite:     types.JWTClaimsRewriteRoles,
+		},
+		{
+			name:           "test none behavior",
+			expectedRoles:  nil,
+			expectedTraits: wrappers.Traits{},
+			jwtRewrite:     types.JWTClaimsRewriteNone,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := SetUpSuiteWithConfig(t,
+				suiteConfig{
+					Rewrite: &types.Rewrite{
+						JWTClaims: tc.jwtRewrite,
+						Headers: []*types.Header{
+							{Name: "TestHeader", Value: "{{internal.jwt}}"},
+						},
+					},
+					ValidateRequest: func(s *Suite, r *http.Request) {
+						token, err := jwt.ParseSigned(r.Header.Get("TestHeader"))
+						require.NoError(t, err)
+
+						claims := libjwt.Claims{}
+						err = token.UnsafeClaimsWithoutVerification(&claims)
+						require.NoError(t, err)
+
+						require.Equal(t, tc.expectedTraits, claims.Traits)
+						require.Equal(t, tc.expectedRoles, claims.Roles)
+					},
+					Login: login,
+				})
+			s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+				require.Equal(t, resp.StatusCode, http.StatusOK)
+				buf, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, strings.TrimSpace(string(buf)), s.message)
+			})
+		})
+	}
+
 }
 
 // TestAuthorize verifies that only authorized requests are handled.
@@ -867,8 +945,9 @@ func TestRequestAuditEvents(t *testing.T) {
 	var requestEventsReceived atomic.Uint64
 	var chunkEventsReceived atomic.Uint64
 	serverStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
-		Inner: events.NewDiscardEmitter(),
-		OnEmitAuditEvent: func(_ context.Context, _ libsession.ID, event apievents.AuditEvent) error {
+		Inner: events.NewDiscardStreamer(),
+		OnRecordEvent: func(_ context.Context, _ session.ID, pe apievents.PreparedSessionEvent) error {
+			event := pe.GetAuditEvent()
 			switch event.GetType() {
 			case events.AppSessionChunkEvent:
 				chunkEventsReceived.Add(1)
@@ -941,7 +1020,14 @@ func TestRequestAuditEvents(t *testing.T) {
 		}, 500*time.Millisecond, 50*time.Millisecond, "app.session.request event not generated")
 	})
 
-	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.AppSessionChunkEvent}, 10, types.EventOrderDescending, "")
+	ctx := context.Background()
+	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       time.Time{},
+		To:         time.Now().Add(time.Minute),
+		EventTypes: []string{events.AppSessionChunkEvent},
+		Limit:      10,
+		Order:      types.EventOrderDescending,
+	})
 	require.NoError(t, err)
 	require.Len(t, searchEvents, 1)
 

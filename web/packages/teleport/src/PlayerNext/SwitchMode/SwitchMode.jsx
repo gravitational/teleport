@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import PropTypes from 'prop-types';
 import styled from 'styled-components';
-import Icon, { ListView, AddUsers, CardViewSmall } from 'design/Icon';
+import { ListView, AddUsers, CardViewSmall } from 'design/Icon';
 import { Flex, ButtonSecondary } from 'design';
 
 export const ModeEnum = {
@@ -89,10 +89,10 @@ const StyledButton = styled.button`
   padding: 0;
   width: 38px;
 
-  ${Icon} {
+  svg {
     font-size: 14px;
     color: ${({ theme, active }) => {
-      return active ? theme.colors.primary.dark : '';
+      return active ? theme.colors.levels.sunken : '';
     }};
   }
 
@@ -108,7 +108,7 @@ const StyledButton = styled.button`
     border-top-right-radius: 0px;
     border-right: 1px solid;
     border-left: 1px solid;
-    border-color: ${({ theme }) => theme.colors.primary.main};
+    border-color: ${({ theme }) => theme.colors.levels.surface};
   }
 
   :nth-child(3) {

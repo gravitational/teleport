@@ -1,0 +1,19 @@
+```mermaid
+flowchart LR
+subgraph teleport["Teleport cluster"]
+  direction LR
+  auth["Auth Service"]
+  proxy["Proxy Service"]
+end
+api[{{ api }} API]
+
+subgraph private["Private network"]
+  subgraph plugin[{{ api }} plugin]
+    id["Teleport identity file"]
+  end 
+  plugin<-- "{{ action }}\n(via reverse tunnel)"-->proxy
+end 
+proxy<-- Forward gRPC traffic -->auth
+plugin-- "{{ messages }}" -->api
+```
+

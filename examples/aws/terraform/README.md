@@ -1,6 +1,6 @@
 # Teleport AWS Terraform
 
-This section of the Teleport Github repo contains AWS Terraform definitions for two Teleport cluster configurations.
+This section of the Teleport GitHub repo contains AWS Terraform definitions for two Teleport cluster configurations.
 
 - A simple starter Teleport cluster to, quickly and cost-effectively, demo or POC Teleport on a single node (auth, proxy, and node processes running on one t3.nano ec2 instance).
 - A production worthy high-availability auto-scaling Teleport Cluster. This cluster makes use of several AWS technologies, provisioned and configured using Terraform.

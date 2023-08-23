@@ -29,23 +29,26 @@ import {
   LoginPasswordlessParams,
   LoginSsoParams,
   ReviewAccessRequestParams,
-  ServerSideParams,
+  GetResourcesParams,
   TshAbortController,
   TshAbortSignal,
   TshClient,
   GetRequestableRolesResponse,
+  CreateConnectMyComputerRoleResponse,
+  CreateConnectMyComputerNodeTokenResponse,
+  UpdateHeadlessAuthenticationStateParams,
 } from '../types';
 
 export class MockTshClient implements TshClient {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: string) => Promise<Cluster[]>;
-  getKubes: (params: ServerSideParams) => Promise<GetKubesResponse>;
-  getDatabases: (params: ServerSideParams) => Promise<GetDatabasesResponse>;
+  getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
+  getDatabases: (params: GetResourcesParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: string) => Promise<string[]>;
   getRequestableRoles: (
     params: GetRequestableRolesParams
   ) => Promise<GetRequestableRolesResponse>;
-  getServers: (params: ServerSideParams) => Promise<GetServersResponse>;
+  getServers: (params: GetResourcesParams) => Promise<GetServersResponse>;
   assumeRole: (
     clusterUri: string,
     requestIds: string[],
@@ -81,7 +84,7 @@ export class MockTshClient implements TshClient {
 
   getCluster: (clusterUri: string) => Promise<Cluster>;
   getAuthSettings: (clusterUri: string) => Promise<AuthSettings>;
-  removeCluster: (clusterUri: string) => Promise<undefined>;
+  removeCluster = () => Promise.resolve();
   loginLocal: (
     params: LoginLocalParams,
     abortSignal?: TshAbortSignal
@@ -94,19 +97,15 @@ export class MockTshClient implements TshClient {
     params: LoginPasswordlessParams,
     abortSignal?: TshAbortSignal
   ) => Promise<undefined>;
-  logout: (clusterUri: string) => Promise<undefined>;
+  logout = () => Promise.resolve();
   transferFile: () => undefined;
   reportUsageEvent: () => undefined;
-}
 
-export const gateway: Gateway = {
-  uri: '/gateways/gateway1',
-  targetName: 'postgres',
-  targetUri: '/clusters/teleport-local/dbs/postgres',
-  targetUser: 'alice',
-  targetSubresourceName: '',
-  localAddress: 'localhost',
-  localPort: '59116',
-  protocol: 'postgres',
-  cliCommand: 'psql postgres://alice@localhost:59116',
-};
+  createConnectMyComputerRole: () => Promise<CreateConnectMyComputerRoleResponse>;
+  createConnectMyComputerNodeToken: () => Promise<CreateConnectMyComputerNodeTokenResponse>;
+  deleteConnectMyComputerToken: () => Promise<void>;
+
+  updateHeadlessAuthenticationState: (
+    params: UpdateHeadlessAuthenticationStateParams
+  ) => Promise<void>;
+}

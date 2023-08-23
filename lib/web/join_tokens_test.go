@@ -20,12 +20,16 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -353,7 +357,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 	m := &mockedNodeAPIGetter{
 		mockGetProxyServers: func() ([]types.Server, error) {
 			var s types.ServerV2
-			s.SetPublicAddr("test-host:12345678")
+			s.SetPublicAddrs([]string{"test-host:12345678"})
 
 			return []types.Server{&s}, nil
 		},
@@ -469,7 +473,7 @@ func TestGetAppJoinScript(t *testing.T) {
 		},
 		mockGetProxyServers: func() ([]types.Server, error) {
 			var s types.ServerV2
-			s.SetPublicAddr("test-host:12345678")
+			s.SetPublicAddrs([]string{"test-host:12345678"})
 
 			return []types.Server{&s}, nil
 		},
@@ -648,7 +652,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 	m := &mockedNodeAPIGetter{
 		mockGetProxyServers: func() ([]types.Server, error) {
 			var s types.ServerV2
-			s.SetPublicAddr("test-host:12345678")
+			s.SetPublicAddrs([]string{"test-host:12345678"})
 
 			return []types.Server{&s}, nil
 		},
@@ -755,7 +759,6 @@ db_service:
 			}
 
 			if test.extraAssertions != nil {
-				t.Log(script)
 				test.extraAssertions(script)
 			}
 		})
@@ -866,14 +869,17 @@ func TestIsSameRuleSet(t *testing.T) {
 	}
 }
 
-func TestJoinScriptEnterprise(t *testing.T) {
+func TestJoinScript(t *testing.T) {
 	validToken := "f18da1c9f6630a51e8daf121e7451daa"
 
 	m := &mockedNodeAPIGetter{
 		mockGetProxyServers: func() ([]types.Server, error) {
 			return []types.Server{
 				&types.ServerV2{
-					Spec: types.ServerSpecV2{PublicAddr: "test-host:12345678"},
+					Spec: types.ServerSpecV2{
+						PublicAddrs: []string{"test-host:12345678"},
+						Version:     teleport.Version,
+					},
 				},
 			}, nil
 		},
@@ -890,32 +896,128 @@ func TestJoinScriptEnterprise(t *testing.T) {
 		},
 	}
 
-	getGravitationalTeleportLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/\${TELEPORT_PACKAGE_NAME}[-_]v?\${TELEPORT_VERSION}`)
+	t.Run("direct download links", func(t *testing.T) {
+		getGravitationalTeleportLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/\${TELEPORT_PACKAGE_NAME}[-_]v?\${TELEPORT_VERSION}`)
 
-	// Using the OSS Version, all the links must contain only teleport as package name.
-	script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
-	require.NoError(t, err)
+		t.Run("oss", func(t *testing.T) {
+			// Using the OSS Version, all the links must contain only teleport as package name.
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
+			require.NoError(t, err)
 
-	matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
-	require.ElementsMatch(t, matches, []string{
-		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
-		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
-		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
+			matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
+			require.ElementsMatch(t, matches, []string{
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
+			})
+			require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport'")
+			require.Contains(t, script, "TELEPORT_ARCHIVE_PATH='teleport'")
+		})
+
+		t.Run("ent", func(t *testing.T) {
+			// Using the Enterprise Version, the package name must be teleport-ent
+			modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
+			require.NoError(t, err)
+
+			matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
+			require.ElementsMatch(t, matches, []string{
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
+			})
+			require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport-ent'")
+			require.Contains(t, script, "TELEPORT_ARCHIVE_PATH='teleport-ent'")
+		})
 	})
-	require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport'")
 
-	// Using the Enterprise Version, the package name must be teleport-ent
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
-	script, err = getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
-	require.NoError(t, err)
+	t.Run("using repo", func(t *testing.T) {
+		t.Run("installUpdater is true", func(t *testing.T) {
+			currentStableCloudVersion := "v99.1.1"
 
-	matches = getGravitationalTeleportLinkRegex.FindAllString(script, -1)
-	require.ElementsMatch(t, matches, []string{
-		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
-		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
-		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
+			httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, r.URL.Path, "/v1/stable/cloud/version")
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(currentStableCloudVersion))
+			}))
+			defer httpTestServer.Close()
+
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true, automaticUpgradesVersionBaseURL: httpTestServer.URL}, m)
+			require.NoError(t, err)
+
+			// list of packages must include the updater
+			require.Contains(t, script, ""+
+				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
+				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
+				"    # Disabling the warning above because expression is templated.\n"+
+				"    # shellcheck disable=SC2050\n"+
+				"    if is_using_systemd && [[ \"true\" == \"true\" ]]; then\n"+
+				"        # Teleport Updater requires systemd.\n"+
+				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
+				"    fi\n",
+			)
+			// Repo channel is stable/cloud
+			require.Contains(t, script, "REPO_CHANNEL='stable/cloud'")
+			// TELEPORT_VERSION is the one provided by https://updates.releases.teleport.dev/v1/stable/cloud/version
+			require.Contains(t, script, "TELEPORT_VERSION='99.1.1'")
+		})
+		t.Run("installUpdater is false", func(t *testing.T) {
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: false}, m)
+			require.NoError(t, err)
+			require.Contains(t, script, ""+
+				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
+				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
+				"    # Disabling the warning above because expression is templated.\n"+
+				"    # shellcheck disable=SC2050\n"+
+				"    if is_using_systemd && [[ \"false\" == \"true\" ]]; then\n"+
+				"        # Teleport Updater requires systemd.\n"+
+				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
+				"    fi\n",
+			)
+			// Default based on current version is used instead
+			require.Contains(t, script, "REPO_CHANNEL=''")
+			// Current version must be used
+			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", teleport.Version))
+		})
 	})
-	require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport-ent'")
+}
+
+func TestAutomaticUpgrades(t *testing.T) {
+	t.Run("cloud and automatic upgrades enabled", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestFeatures: modules.Features{
+				Cloud:             true,
+				AutomaticUpgrades: true,
+			},
+		})
+
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
+		require.True(t, got)
+	})
+	t.Run("cloud but automatic upgrades disabled", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestFeatures: modules.Features{
+				Cloud:             true,
+				AutomaticUpgrades: false,
+			},
+		})
+
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
+		require.False(t, got)
+	})
+
+	t.Run("automatic upgrades enabled but is not cloud", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Cloud:             false,
+				AutomaticUpgrades: true,
+			},
+		})
+
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
+		require.False(t, got)
+	})
 }
 
 func TestIsSameAzureRuleSet(t *testing.T) {

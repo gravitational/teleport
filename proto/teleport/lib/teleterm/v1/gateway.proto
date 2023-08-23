@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.v1;
 
-option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1";
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
 // Gateway is Teleterm's name for a connection to a resource like a database or a web app
 // established through our ALPN proxy.
@@ -41,14 +41,30 @@ message Gateway {
   string local_port = 6;
   // protocol is the gateway protocol
   string protocol = 7;
-  // cli_command is a command that the user can execute to connect to the resource within a CLI,
-  // if the given resource has a CLI client.
-  //
-  // Instead of generating those commands in in the frontend code, the tsh daemon returns them.
-  // This means that the Database Access team can add support for a new protocol and Teleterm will
-  // support it right away without any changes to Teleterm's code.
-  string cli_command = 8;
+  reserved 8;
+  reserved "cli_command";
   // target_subresource_name points at a subresource of the remote resource, for example a
   // database name on a database server.
   string target_subresource_name = 9;
+  // gateway_cli_client represents a command that the user can execute to connect to the resource
+  // through the gateway.
+  //
+  // Instead of generating those commands in in the frontend code, they are returned from the tsh
+  // daemon. This means that the Database Access team can add support for a new protocol and
+  // Connect will support it right away with no extra changes.
+  GatewayCLICommand gateway_cli_command = 10;
+}
+
+// GatewayCLICommand represents a command that the user can execute to connect to the gateway
+// resource. It is a direct translation of os.exec.Cmd.
+message GatewayCLICommand {
+  string path = 1;
+  repeated string args = 2;
+  repeated string env = 3;
+  // preview is used to show the user what command will be executed before they decide to run it.
+  // It's like os.exec.Cmd.String with two exceptions:
+  //
+  // 1) It is prepended with Cmd.Env.
+  // 2) The command name is relative and not absolute.
+  string preview = 4;
 }

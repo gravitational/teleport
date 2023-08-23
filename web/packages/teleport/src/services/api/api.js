@@ -30,6 +30,25 @@ const api = {
     });
   },
 
+  postFormData(url, formData) {
+    if (formData instanceof FormData) {
+      return api.fetchJson(url, {
+        body: formData,
+        method: 'POST',
+        // Overrides the default header from `requestOptions`.
+        headers: {
+          Accept: 'application/json',
+          // Let the browser infer the content-type for FormData types
+          // to set the correct boundary:
+          // 1) https://developer.mozilla.org/en-US/docs/Web/API/FormData/Using_FormData_Objects#sending_files_using_a_formdata_object
+          // 2) https://stackoverflow.com/a/64653976
+        },
+      });
+    }
+
+    throw new Error('data for body is not a type of FormData');
+  },
+
   delete(url, data) {
     return api.fetchJson(url, {
       body: JSON.stringify(data),

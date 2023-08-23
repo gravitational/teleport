@@ -21,10 +21,10 @@ import { useAsync } from 'shared/hooks/useAsync';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
+import * as tshdGateway from 'teleterm/services/tshd/gateway';
 
-export default function useGateway(doc: types.DocumentGateway) {
+export function useDocumentGateway(doc: types.DocumentGateway) {
   const ctx = useAppContext();
   const { documentsService: workspaceDocumentsService } = useWorkspaceContext();
   // The port to show as default in the input field in case creating a gateway fails.
@@ -37,10 +37,6 @@ export default function useGateway(doc: types.DocumentGateway) {
   const defaultPort = doc.port || '';
   const gateway = ctx.clustersService.findGateway(doc.gatewayUri);
   const connected = !!gateway;
-  const rootCluster = ctx.clustersService.findRootClusterByResource(
-    doc.targetUri
-  );
-  const cluster = ctx.clustersService.findClusterByResource(doc.targetUri);
 
   const [connectAttempt, createGateway] = useAsync(async (port: string) => {
     const gw = await retryWithRelogin(ctx, doc.targetUri, () =>
@@ -62,10 +58,12 @@ export default function useGateway(doc: types.DocumentGateway) {
       // same port number.
       port: gw.localPort,
     });
+    ctx.usageService.captureProtocolUse(doc.targetUri, 'db', doc.origin);
   });
 
   const [disconnectAttempt, disconnect] = useAsync(async () => {
     await ctx.clustersService.removeGateway(doc.gatewayUri);
+    workspaceDocumentsService.close(doc.uri);
   });
 
   const [changeDbNameAttempt, changeDbName] = useAsync(async (name: string) => {
@@ -92,45 +90,32 @@ export default function useGateway(doc: types.DocumentGateway) {
     });
   });
 
-  const reconnect = (port: string) => {
-    if (rootCluster.connected) {
-      createGateway(port);
-      return;
-    }
-
-    ctx.commandLauncher.executeCommand('cluster-connect', {
-      clusterUri: rootCluster.uri,
-      onSuccess: () => createGateway(doc.port),
-    });
-  };
-
   const runCliCommand = () => {
-    const { rootClusterId, leafClusterId } = routing.parseClusterUri(
-      cluster.uri
-    ).params;
-    workspaceDocumentsService.openNewTerminal({
-      initCommand: gateway.cliCommand,
-      rootClusterId,
-      leafClusterId,
+    const command = tshdGateway.getCliCommandArgv0(gateway.gatewayCliCommand);
+    const title = `${command} · ${doc.targetUser}@${doc.targetName}`;
+
+    const cliDoc = workspaceDocumentsService.createGatewayCliDocument({
+      title,
+      targetUri: doc.targetUri,
+      targetUser: doc.targetUser,
+      targetName: doc.targetName,
+      targetProtocol: gateway.protocol,
     });
+    workspaceDocumentsService.add(cliDoc);
+    workspaceDocumentsService.setLocation(cliDoc.uri);
   };
-
-  useEffect(() => {
-    if (disconnectAttempt.status === 'success') {
-      workspaceDocumentsService.close(doc.uri);
-    }
-  }, [disconnectAttempt.status]);
-
-  const shouldCreateGateway =
-    rootCluster.connected && !connected && connectAttempt.status === '';
 
   useEffect(
-    function createGatewayOnDocumentOpen() {
-      if (shouldCreateGateway) {
+    function createGatewayOnMount() {
+      // Since the user can close DocumentGateway without shutting down the gateway, it's possible
+      // to open DocumentGateway while the gateway is already running. In that scenario, we must
+      // not attempt to create a gateway.
+      if (!gateway && connectAttempt.status === '') {
         createGateway(doc.port);
       }
     },
-    [shouldCreateGateway]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   return {
@@ -138,8 +123,10 @@ export default function useGateway(doc: types.DocumentGateway) {
     defaultPort,
     disconnect,
     connected,
-    reconnect,
+    reconnect: createGateway,
     connectAttempt,
+    // TODO(ravicious): Show disconnectAttempt errors in UI.
+    disconnectAttempt,
     runCliCommand,
     changeDbName,
     changeDbNameAttempt,

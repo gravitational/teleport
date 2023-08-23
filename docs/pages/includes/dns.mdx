@@ -1,13 +1,13 @@
 Set up two `A` DNS records: `tele.example.com` for all traffic and
-`*.tele.example.com` for web apps using Application Access. We are assuming
+`*.tele.example.com` for web apps using application access. We are assuming
 that your domain name is `example.com`. Use your own subdomain instead of
 `tele`.
 
-<Details opened={false} title="Why are we using wildcard subdomains for Application Access?">
+<Details title="Why are we using wildcard subdomains for application access?">
 (!docs/pages/includes/dns-app-access.mdx!)
 </Details>
 
-<Details title="DNS instructions for cloud providers" opened={false}>
+<Details title="DNS instructions for cloud providers">
 
 Execute the following commands on the host where you are running the Teleport Proxy
 Service:
@@ -52,7 +52,6 @@ Service:
     $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
     ```
   </TabItem>
-
 
 </Tabs>
 

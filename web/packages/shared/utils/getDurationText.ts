@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { pluralize } from 'teleport/lib/util';
+import { pluralize } from './text';
 
 export function getDurationText(hrs: number, mins: number, secs: number) {
   if (!hrs && !mins) {

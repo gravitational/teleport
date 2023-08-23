@@ -39,6 +39,12 @@ rules:
   - teleportoidcconnectors/status
   - teleportsamlconnectors
   - teleportsamlconnectors/status
+  - teleportloginrules
+  - teleportloginrules/status
+  - teleportprovisiontokens
+  - teleportprovisiontokens/status
+  - teleportoktaimportrules
+  - teleportoktaimportrules/status
   verbs:
   - get
   - list

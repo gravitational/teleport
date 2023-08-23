@@ -1,25 +1,29 @@
 ---
 title: Database Access with Redshift Serverless on AWS
-description: How to configure Teleport Database Access with AWS Redshift Serverless.
+description: How to configure Teleport database access with AWS Redshift Serverless.
 ---
+
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS Redshift Serverless" dbConfigure="AWS Redshift Serverless database with IAM authentication" dbName="AWS Redshift Serverless" !)
 
 This guide will help you to:
 
 - Set up Teleport to access your AWS Redshift Serverless workgroups.
 - Connect to your databases through Teleport.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Redshift Self-Hosted](../../../img/database-access/guides/redshift_selfhosted_serverless.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access Redshift Cloud](../../../img/database-access/guides/redshift_cloud_serverless.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
-- A pre-existing Teleport `(=teleport.version=)` cluster. If you don't already
-  have Teleport running, see [How to Choose a Teleport Edition](../../choose-an-edition/introduction.mdx)
-  to learn more about your options, and how to set up Teleport.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - AWS account with a Redshift Serverless configuration and permissions to create
   and attach IAM policies.
 - Command-line client `psql` installed and added to your system's `PATH` environment variable.
@@ -190,6 +194,8 @@ role 'redshift-serverless-access' has been created
 
 (!docs/pages/includes/database-access/token.mdx!)
 
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
+
 Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
@@ -275,27 +281,7 @@ for more information.
 
 ### Start the Database service
 
-Run the following command on the Database Service node, depending on how you
-installed Teleport:
-
-<Tabs>
-<TabItem label="Package Manager">
-
-```code
-$ sudo systemctl start teleport
-```
-
-</TabItem>
-<TabItem label="TAR archive">
-
-```code
-$ sudo teleport install systemd --output=/etc/systemd/system/teleport.service;
-$ sudo systemctl enable teleport
-$ sudo systemctl start teleport
-```
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 The Database Service will discover all Redshift databases according to the
 configuration and register them in the cluster. The Database Service will also
@@ -319,7 +305,7 @@ my-redshift Redshift cluster in us-east-1  ...
 
 <Admonition type="note" title="Note">
 
-You can override the database name by applying the `teleport.dev/database_name`
+You can override the database name by applying the `TeleportDatabaseName`
 AWS tag to the resource. The value of the tag will be used as the database name.
 
 </Admonition>
@@ -359,7 +345,7 @@ prior to logging in as this new IAM role to avoid or resolve user permission iss
    CREATE USER "IAMR:teleport-redshift-serverless-access" WITH PASSWORD DISABLE;
    ```
 
-2. Grant this user appropriate in-database permissions. For example:
+1. Grant this user appropriate in-database permissions. For example:
 
    ```sql
    GRANT SELECT ON TABLE users  TO "IAMR:teleport-redshift-serverless-access";
@@ -374,3 +360,4 @@ prior to logging in as this new IAM role to avoid or resolve user permission iss
 - Learn how to [restrict access](../rbac.mdx) to certain users and databases.
 - View the [High Availability (HA)](../guides/ha.mdx) guide.
 - Take a look at the YAML configuration [reference](../reference/configuration.mdx).
+

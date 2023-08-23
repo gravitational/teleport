@@ -31,14 +31,14 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 type sitesGetter interface {
-	GetSites() ([]reversetunnel.RemoteSite, error)
+	GetSites() ([]reversetunnelclient.RemoteSite, error)
 }
 
 // NewAuthProxyDialerService create new instance of AuthProxyDialerService.
@@ -169,7 +169,7 @@ func (s *AuthProxyDialerService) dialRemoteAuthServer(ctx context.Context, clust
 		if site.GetName() != clusterName {
 			continue
 		}
-		conn, err := site.DialAuthServer(reversetunnel.DialParams{From: clientSrcAddr, OriginalClientDstAddr: clientDstAddr})
+		conn, err := site.DialAuthServer(reversetunnelclient.DialParams{From: clientSrcAddr, OriginalClientDstAddr: clientDstAddr})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

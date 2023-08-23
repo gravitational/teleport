@@ -41,9 +41,9 @@ export function Banner({
   onClose,
 }: Props) {
   const icon = {
-    info: <Info mr={3} fontSize="3" role="icon" />,
-    warning: <Info mr={3} fontSize="3" role="icon" />,
-    danger: <Warning mr={3} fontSize="3" role="icon" />,
+    info: <Info mr={3} size="medium" role="icon" />,
+    warning: <Info mr={3} size="medium" role="icon" />,
+    danger: <Warning mr={3} size="medium" role="icon" />,
   }[severity];
 
   const isValidTeleportLink = (link: string) => {
@@ -55,15 +55,24 @@ export function Banner({
     }
   };
 
+  let backgroundColor;
+  if (severity === 'danger') {
+    backgroundColor = 'error.main';
+  } else if (severity === 'warning') {
+    backgroundColor = 'warning.main';
+  } else {
+    backgroundColor = 'info';
+  }
+
   return (
-    <Box bg={severity} p={1} pl={2}>
+    <Box bg={backgroundColor} p={1} pl={2}>
       <Flex alignItems="center">
         {icon}
         {isValidTeleportLink(link) ? (
           <Link
             href={link}
             target="_blank"
-            color="light"
+            color="text.primaryInverse"
             style={{ fontWeight: 'bold' }}
             onClick={() =>
               userEventService.captureUserEvent({
@@ -82,7 +91,7 @@ export function Banner({
             onClose(id);
           }}
         >
-          <Cross />
+          <Cross size="medium" />
         </CloseButton>
       </Flex>
     </Box>

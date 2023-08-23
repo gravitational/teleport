@@ -19,15 +19,26 @@ package usagereporter
 import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 const (
-	// tcpSessionType is the session_type in tp.session.start for TCP
+	// TCPSessionType is the session_type in tp.session.start for TCP
 	// Application Access.
-	tcpSessionType = "app_tcp"
-	// portSessionType is the session_type in tp.session.start for SSH port
+	TCPSessionType = "app_tcp"
+	// PortSessionType is the session_type in tp.session.start for SSH or Kube
+	// port forwarding.
+	//
+	// Deprecated: used in older versions to mean either SSH or Kube. Use
+	// PortSSHSessionType or PortKubeSessionType instead.
+	PortSessionType = "ssh_port"
+	// PortSSHSessionType is the session_type in tp.session.start for SSH port
 	// forwarding.
-	portSessionType = "ssh_port"
+	PortSSHSessionType = "ssh_port_v2"
+	// PortKubeSessionType is the session_type in tp.session.start for Kube port
+	// forwarding.
+	PortKubeSessionType = "k8s_port"
 )
 
 func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
@@ -38,12 +49,18 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			return nil
 		}
 
+		var deviceID string
+		if e.TrustedDevice != nil {
+			deviceID = e.TrustedDevice.DeviceId
+		}
+
 		// Note: we can have different behavior based on event code (local vs
 		// SSO) if desired, but we currently only care about connector type /
 		// method
 		return &UserLoginEvent{
 			UserName:      e.User,
 			ConnectorType: e.Method,
+			DeviceId:      deviceID,
 		}
 
 	case *apievents.SessionStart:
@@ -58,19 +75,28 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			SessionType: string(sessionType),
 		}
 	case *apievents.PortForward:
+		sessionType := PortSSHSessionType
+		if e.ConnectionMetadata.Protocol == events.EventProtocolKube {
+			sessionType = PortKubeSessionType
+		}
 		return &SessionStartEvent{
 			UserName:    e.User,
-			SessionType: portSessionType,
+			SessionType: sessionType,
 		}
 	case *apievents.DatabaseSessionStart:
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(types.DatabaseSessionKind),
+			Database: &prehogv1a.SessionStartDatabaseMetadata{
+				DbType:     e.DatabaseType,
+				DbProtocol: e.DatabaseProtocol,
+				DbOrigin:   e.DatabaseOrigin,
+			},
 		}
 	case *apievents.AppSessionStart:
 		sessionType := string(types.AppSessionKind)
 		if types.IsAppTCP(e.AppURI) {
-			sessionType = tcpSessionType
+			sessionType = TCPSessionType
 		}
 		return &SessionStartEvent{
 			UserName:    e.User,
@@ -110,6 +136,32 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SFTPEvent{
 			UserName: e.User,
 			Action:   int32(e.Action),
+		}
+
+	case *apievents.BotJoin:
+		// Only count successful joins.
+		if !e.Success {
+			return nil
+		}
+		return &BotJoinEvent{
+			BotName:       e.BotName,
+			JoinMethod:    e.Method,
+			JoinTokenName: e.TokenName,
+		}
+
+	case *apievents.DeviceEvent2:
+		// Only count successful device authentication.
+		if !e.Success {
+			return nil
+		}
+
+		switch e.Metadata.GetType() {
+		case events.DeviceAuthenticateEvent:
+			return &DeviceAuthenticateEvent{
+				DeviceId:     e.Device.DeviceId,
+				UserName:     e.User,
+				DeviceOsType: e.Device.OsType.String(),
+			}
 		}
 	}
 

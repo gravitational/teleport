@@ -17,6 +17,7 @@
 import React from 'react';
 
 import { Prompt } from 'react-router-dom';
+import { Box } from 'design';
 
 import { FeatureBox } from 'teleport/components/Layout';
 
@@ -24,6 +25,7 @@ import { Navigation } from 'teleport/Discover/Navigation/Navigation';
 import { SelectResource } from 'teleport/Discover/SelectResource';
 import cfg from 'teleport/config';
 
+import { EViewConfigs } from './types';
 import { findViewAtIndex } from './flow';
 
 import { DiscoverProvider, useDiscover } from './useDiscover';
@@ -31,61 +33,72 @@ import { DiscoverProvider, useDiscover } from './useDiscover';
 function DiscoverContent() {
   const {
     currentStep,
-    selectedResource,
+    viewConfig,
     onSelectResource,
-    views,
+    indexedViews,
     ...agentProps
   } = useDiscover();
 
   let content;
-  // we reserve step 0 for "Select Resource Type", that is present in all resource configs
-  if (currentStep > 0) {
-    const view = findViewAtIndex(views, currentStep);
+  const hasSelectedResource = Boolean(viewConfig);
+  if (hasSelectedResource) {
+    const view = findViewAtIndex(indexedViews, currentStep);
 
     const Component = view.component;
 
     content = <Component {...agentProps} />;
 
-    if (selectedResource.wrapper) {
-      content = selectedResource.wrapper(content);
+    if (viewConfig.wrapper) {
+      content = viewConfig.wrapper(content);
     }
   } else {
     content = (
-      <SelectResource
-        selectedResourceKind={selectedResource.kind}
-        onSelect={kind => onSelectResource(kind)}
-        onNext={() => agentProps.nextStep()}
-        resourceState={agentProps.resourceState}
-      />
+      <SelectResource onSelect={resource => onSelectResource(resource)} />
     );
   }
 
   return (
     <>
       <FeatureBox>
-        <Navigation
-          currentStep={currentStep}
-          selectedResource={selectedResource}
-          views={views}
-        />
-        {content}
+        {hasSelectedResource && (
+          <Navigation
+            currentStep={currentStep}
+            views={indexedViews}
+            selectedResource={agentProps.resourceSpec}
+          />
+        )}
+        <Box>{content}</Box>
       </FeatureBox>
 
-      <Prompt
-        message={nextLocation => {
-          if (nextLocation.pathname === cfg.routes.discover) return true;
-          return 'Are you sure you want to exit the "Enroll New Resource” workflow? You’ll have to start from the beginning next time.';
-        }}
-        when={selectedResource.shouldPrompt(currentStep)}
-      />
+      {hasSelectedResource && (
+        <Prompt
+          message={nextLocation => {
+            if (nextLocation.pathname === cfg.routes.discover) return true;
+            return 'Are you sure you want to exit the "Enroll New Resource” workflow? You’ll have to start from the beginning next time.';
+          }}
+          when={
+            viewConfig.shouldPrompt
+              ? viewConfig.shouldPrompt(currentStep, agentProps.resourceSpec)
+              : true
+          }
+        />
+      )}
     </>
   );
 }
 
-export function Discover() {
+export function DiscoverComponent({ eViewConfigs = [] }: Props) {
   return (
-    <DiscoverProvider>
+    <DiscoverProvider eViewConfigs={eViewConfigs}>
       <DiscoverContent />
     </DiscoverProvider>
   );
 }
+
+export function Discover() {
+  return <DiscoverComponent />;
+}
+
+type Props = {
+  eViewConfigs?: EViewConfigs;
+};

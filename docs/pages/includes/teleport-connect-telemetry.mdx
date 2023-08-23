@@ -16,6 +16,6 @@ On login, we also collect some device-related data:
 Additionally, we ask for a job role (answer is optional).
 
 The full list of events and collected data is defined as [protocol buffer messages in the Teleport source](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/proto/prehog/v1alpha/connect.proto).
-We do not track the details of those events but merely that the given event took place. Each event includes
-the cluster name and user name anonymized with HMAC with the internal cluster ID as the key – it’s impossible for us
-to resolve that anonymized token back to a particular cluster or user.
+We do not track the details of those events but merely that the given event took place. Each event includes the cluster
+name and user name anonymized with HMAC using the cluster's internal random UUID as the key. It is infeasible to
+associate this back to a specific cluster or user without access to the cluster's internal datastore.

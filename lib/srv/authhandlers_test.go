@@ -40,7 +40,7 @@ type mockCAGetter struct {
 	cas map[types.CertAuthType]types.CertAuthority
 }
 
-func (m mockCAGetter) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (m mockCAGetter) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
 	ca, ok := m.cas[caType]
 	if !ok {
 		return nil, trace.NotFound("CA not found")
@@ -187,7 +187,7 @@ func TestRBAC(t *testing.T) {
 			config := &AuthHandlerConfig{
 				Server:       server,
 				Component:    tt.component,
-				Emitter:      &eventstest.MockEmitter{},
+				Emitter:      &eventstest.MockRecorderEmitter{},
 				AccessPoint:  accessPoint,
 				TargetServer: target,
 			}

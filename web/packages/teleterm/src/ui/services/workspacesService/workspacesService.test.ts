@@ -15,6 +15,7 @@
  */
 
 import { RootClusterUri } from 'teleterm/ui/uri';
+import { makeLoggedInUser } from 'teleterm/services/tshd/testHelpers';
 
 import { ClustersService } from '../clusters';
 import { StatePersistenceService } from '../statePersistence';
@@ -48,14 +49,7 @@ describe('restoring workspace', () => {
           leaf: false,
           proxyHost: 'test:3030',
           authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-          loggedInUser: {
-            activeRequestsList: [],
-            name: 'Alice',
-            rolesList: [],
-            sshLoginsList: [],
-            requestableRolesList: [],
-            suggestedReviewersList: [],
-          },
+          loggedInUser: makeLoggedInUser(),
         },
       ],
     };
@@ -119,6 +113,7 @@ describe('restoring workspace', () => {
             node: {},
             role: {},
             windows_desktop: {},
+            user_group: {},
           },
           isBarCollapsed: false,
         },
@@ -129,6 +124,7 @@ describe('restoring workspace', () => {
           documents: testWorkspace.documents,
           location: testWorkspace.location,
         },
+        connectMyComputer: undefined,
       },
     });
   });
@@ -152,12 +148,14 @@ describe('restoring workspace', () => {
             node: {},
             role: {},
             windows_desktop: {},
+            user_group: {},
           },
         },
         localClusterUri: testClusterUri,
         documents: [clusterDocument],
         location: clusterDocument.uri,
         previous: undefined,
+        connectMyComputer: undefined,
       },
     });
   });

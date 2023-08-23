@@ -22,7 +22,8 @@ const Server = styled.div`
   height: 16px;
   padding: 0 7px;
   box-sizing: border-box;
-  background: #f5e6fe;
+  background: ${({ theme }) =>
+    theme.name === 'light' ? '#6c6c6c' : '#f2e9f7'};
   margin-bottom: 8px;
   border-radius: 5px;
   display: flex;
@@ -111,7 +112,8 @@ const ServerLines = styled.div`
 const ServerLine = styled.div`
   height: 3px;
   border-radius: 5px;
-  background: rgba(0, 0, 0, 0.4);
+  background: ${({ theme }) =>
+    theme.name === 'light' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)'};
   margin-left: 5px;
   overflow: hidden;
 `;

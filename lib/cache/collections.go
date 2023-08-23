@@ -27,15 +27,20 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // collection is responsible for managing collection
 // of resources updates
 type collection interface {
-	// fetch fetches resources and returns a function which
-	// will apply said resources to the cache.  fetch *must*
-	// not mutate cache state outside of the apply function.
-	fetch(ctx context.Context) (apply func(ctx context.Context) error, err error)
+	// fetch fetches resources and returns a function which will apply said resources to the cache.
+	// fetch *must* not mutate cache state outside of the apply function.
+	// The provided cacheOK flag indicates whether this collection will be included in the cache generation that is
+	// being prepared. If cacheOK is false, fetch shouldn't fetch any resources, but the apply function that it
+	// returns must still delete resources from the backend.
+	fetch(ctx context.Context, cacheOK bool) (apply func(ctx context.Context) error, err error)
 	// processEvent processes event
 	processEvent(ctx context.Context, e types.Event) error
 	// watchKind returns a watch
@@ -43,15 +48,15 @@ type collection interface {
 	watchKind() types.WatchKind
 }
 
-// executor[R] is a specific way to run the collector operations that we need
-// for the genericCollector for a generic resource type R.
-type executor[R types.Resource] interface {
+// executor[T, R] is a specific way to run the collector operations that we need
+// for the genericCollector for a generic resource type T and its reader type R.
+type executor[T types.Resource, R any] interface {
 	// getAll returns all of the target resources from the auth server.
 	// For singleton objects, this should be a size-1 slice.
-	getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]R, error)
+	getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]T, error)
 
 	// upsert will create or update a target resource in the cache.
-	upsert(ctx context.Context, cache *Cache, value R) error
+	upsert(ctx context.Context, cache *Cache, value T) error
 
 	// deleteAll will delete all target resources of the type in the cache.
 	deleteAll(ctx context.Context, cache *Cache) error
@@ -62,29 +67,46 @@ type executor[R types.Resource] interface {
 
 	// isSingleton will return true if the target resource is a singleton.
 	isSingleton() bool
+
+	// getReader returns the appropriate reader type R based on the health status of the cache.
+	// Reader type R provides getter methods related to the collection, e.g. GetNodes(), GetRoles().
+	// Note that cacheOK set to true means that cache is overall healthy and the collection was confirmed as supported.
+	getReader(c *Cache, cacheOK bool) R
 }
 
-type genericCollection[R types.Resource, E executor[R]] struct {
+// noReader is returned by getReader for resources which aren't directly used by the cache, and therefore have no associated reader.
+type noReader struct{}
+
+// genericCollection is a generic collection implementation for resource type T with collection-specific logic
+// encapsulated in executor type E. Type R provides getter methods related to the collection, e.g. GetNodes(),
+// GetRoles().
+type genericCollection[T types.Resource, R any, E executor[T, R]] struct {
 	cache *Cache
 	watch types.WatchKind
 	exec  E
 }
 
 // fetch implements collection
-func (g *genericCollection[_, _]) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+func (g *genericCollection[T, R, _]) fetch(ctx context.Context, cacheOK bool) (apply func(ctx context.Context) error, err error) {
 	// Singleton objects will only get deleted or updated, not both
 	deleteSingleton := false
-	resources, err := g.exec.getAll(ctx, g.cache, g.watch.LoadSecrets)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+
+	var resources []T
+	if cacheOK {
+		resources, err = g.exec.getAll(ctx, g.cache, g.watch.LoadSecrets)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			deleteSingleton = true
 		}
-		deleteSingleton = true
 	}
+
 	return func(ctx context.Context) error {
 		// Always perform the delete if this is not a singleton, otherwise
-		// only perform the delete if the singleton wasn't found.
-		if !g.exec.isSingleton() || deleteSingleton {
+		// only perform the delete if the singleton wasn't found
+		// or the resource kind isn't cached in the current generation.
+		if !g.exec.isSingleton() || deleteSingleton || !cacheOK {
 			if err := g.exec.deleteAll(ctx, g.cache); err != nil {
 				if !trace.IsNotFound(err) {
 					return trace.Wrap(err)
@@ -93,7 +115,8 @@ func (g *genericCollection[_, _]) fetch(ctx context.Context) (apply func(ctx con
 		}
 		// If this is a singleton and we performed a deletion, return here
 		// because we only want to update or delete a singleton, not both.
-		if g.exec.isSingleton() && deleteSingleton {
+		// Also don't continue if the resource kind isn't cached in the current generation.
+		if g.exec.isSingleton() && deleteSingleton || !cacheOK {
 			return nil
 		}
 		for _, resource := range resources {
@@ -106,7 +129,7 @@ func (g *genericCollection[_, _]) fetch(ctx context.Context) (apply func(ctx con
 }
 
 // processEvent implements collection
-func (g *genericCollection[R, _]) processEvent(ctx context.Context, event types.Event) error {
+func (g *genericCollection[T, R, _]) processEvent(ctx context.Context, event types.Event) error {
 	switch event.Type {
 	case types.OpDelete:
 		if err := g.exec.delete(ctx, g.cache, event.Resource); err != nil {
@@ -116,7 +139,7 @@ func (g *genericCollection[R, _]) processEvent(ctx context.Context, event types.
 			}
 		}
 	case types.OpPut:
-		resource, ok := event.Resource.(R)
+		resource, ok := event.Resource.(T)
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
@@ -130,15 +153,74 @@ func (g *genericCollection[R, _]) processEvent(ctx context.Context, event types.
 }
 
 // watchKind implements collection
-func (g *genericCollection[_, _]) watchKind() types.WatchKind {
+func (g *genericCollection[T, R, _]) watchKind() types.WatchKind {
 	return g.watch
 }
 
-var _ collection = (*genericCollection[types.Resource, executor[types.Resource]])(nil)
+var _ collection = (*genericCollection[types.Resource, any, executor[types.Resource, any]])(nil)
 
-// setupCollections returns a mapping of collections
-func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]collection, error) {
-	collections := make(map[resourceKind]collection, len(watches))
+// genericCollection obtains the reader object from the executor based on the provided health status of the cache.
+// Note that cacheOK set to true means that cache is overall healthy and the collection was confirmed as supported.
+func (c *genericCollection[T, R, _]) getReader(cacheOK bool) R {
+	return c.exec.getReader(c.cache, cacheOK)
+}
+
+var _ collectionReader[any] = (*genericCollection[types.Resource, any, executor[types.Resource, any]])(nil)
+
+// cacheCollections is a registry of resource collections used by Cache.
+type cacheCollections struct {
+	// byKind is a map of registered collections by resource Kind/SubKind
+	byKind map[resourceKind]collection
+
+	accessLists              collectionReader[services.AccessListsGetter]
+	accessListMembers        collectionReader[services.AccessListMembersGetter]
+	apps                     collectionReader[services.AppGetter]
+	nodes                    collectionReader[nodeGetter]
+	tunnelConnections        collectionReader[tunnelConnectionGetter]
+	appSessions              collectionReader[appSessionGetter]
+	appServers               collectionReader[appServerGetter]
+	authPreferences          collectionReader[authPreferenceGetter]
+	authServers              collectionReader[authServerGetter]
+	certAuthorities          collectionReader[services.AuthorityGetter]
+	clusterAuditConfigs      collectionReader[clusterAuditConfigGetter]
+	clusterNames             collectionReader[clusterNameGetter]
+	clusterNetworkingConfigs collectionReader[clusterNetworkingConfigGetter]
+	databases                collectionReader[services.DatabaseGetter]
+	databaseServers          collectionReader[databaseServerGetter]
+	installers               collectionReader[installerGetter]
+	integrations             collectionReader[services.IntegrationsGetter]
+	kubeClusters             collectionReader[kubernetesClusterGetter]
+	kubeServers              collectionReader[kubeServerGetter]
+	locks                    collectionReader[services.LockGetter]
+	namespaces               collectionReader[namespaceGetter]
+	networkRestrictions      collectionReader[networkRestrictionGetter]
+	oktaAssignments          collectionReader[oktaAssignmentGetter]
+	oktaImportRules          collectionReader[oktaImportRuleGetter]
+	proxies                  collectionReader[services.ProxyGetter]
+	remoteClusters           collectionReader[remoteClusterGetter]
+	reverseTunnels           collectionReader[reverseTunnelGetter]
+	roles                    collectionReader[roleGetter]
+	samlIdPServiceProviders  collectionReader[samlIdPServiceProviderGetter]
+	samlIdPSessions          collectionReader[samlIdPSessionGetter]
+	sessionRecordingConfigs  collectionReader[sessionRecordingConfigGetter]
+	snowflakeSessions        collectionReader[snowflakeSessionGetter]
+	staticTokens             collectionReader[staticTokensGetter]
+	tokens                   collectionReader[tokenGetter]
+	uiConfigs                collectionReader[uiConfigGetter]
+	users                    collectionReader[userGetter]
+	userGroups               collectionReader[userGroupGetter]
+	userLoginStates          collectionReader[services.UserLoginStatesGetter]
+	webSessions              collectionReader[webSessionGetter]
+	webTokens                collectionReader[webTokenGetter]
+	windowsDesktops          collectionReader[windowsDesktopsGetter]
+	windowsDesktopServices   collectionReader[windowsDesktopServiceGetter]
+}
+
+// setupCollections returns a registry of collections.
+func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, error) {
+	collections := &cacheCollections{
+		byKind: make(map[resourceKind]collection, len(watches)),
+	}
 	for _, watch := range watches {
 		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
@@ -148,153 +230,255 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 			}
 			var filter types.CertAuthorityFilter
 			filter.FromMap(watch.Filter)
-			collections[resourceKind] = &genericCollection[types.CertAuthority, certAuthorityExecutor]{
+
+			collections.certAuthorities = &genericCollection[types.CertAuthority, services.AuthorityGetter, certAuthorityExecutor]{
 				cache: c,
+				exec:  certAuthorityExecutor{filter: filter},
 				watch: watch,
-				exec:  certAuthorityExecutor{filter: filter}}
+			}
+			collections.byKind[resourceKind] = collections.certAuthorities
 		case types.KindStaticTokens:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &genericCollection[types.StaticTokens, staticTokensExecutor]{cache: c, watch: watch}
+			collections.staticTokens = &genericCollection[types.StaticTokens, staticTokensGetter, staticTokensExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.staticTokens
 		case types.KindToken:
 			if c.Provisioner == nil {
 				return nil, trace.BadParameter("missing parameter Provisioner")
 			}
-			collections[resourceKind] = &genericCollection[types.ProvisionToken, provisionTokenExecutor]{cache: c, watch: watch}
+			collections.tokens = &genericCollection[types.ProvisionToken, tokenGetter, provisionTokenExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.tokens
 		case types.KindClusterName:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &genericCollection[types.ClusterName, clusterNameExecutor]{cache: c, watch: watch}
+			collections.clusterNames = &genericCollection[types.ClusterName, clusterNameGetter, clusterNameExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.clusterNames
 		case types.KindClusterAuditConfig:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &genericCollection[types.ClusterAuditConfig, clusterAuditConfigExecutor]{cache: c, watch: watch}
+			collections.clusterAuditConfigs = &genericCollection[types.ClusterAuditConfig, clusterAuditConfigGetter, clusterAuditConfigExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.clusterAuditConfigs
 		case types.KindClusterNetworkingConfig:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &genericCollection[types.ClusterNetworkingConfig, clusterNetworkingConfigExecutor]{cache: c, watch: watch}
+			collections.clusterNetworkingConfigs = &genericCollection[types.ClusterNetworkingConfig, clusterNetworkingConfigGetter, clusterNetworkingConfigExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.clusterNetworkingConfigs
 		case types.KindClusterAuthPreference:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &genericCollection[types.AuthPreference, authPreferenceExecutor]{cache: c, watch: watch}
+			collections.authPreferences = &genericCollection[types.AuthPreference, authPreferenceGetter, authPreferenceExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.authPreferences
 		case types.KindSessionRecordingConfig:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &genericCollection[types.SessionRecordingConfig, sessionRecordingConfigExecutor]{cache: c, watch: watch}
+			collections.sessionRecordingConfigs = &genericCollection[types.SessionRecordingConfig, sessionRecordingConfigGetter, sessionRecordingConfigExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.sessionRecordingConfigs
 		case types.KindInstaller:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &genericCollection[types.Installer, installerConfigExecutor]{cache: c, watch: watch}
+			collections.installers = &genericCollection[types.Installer, installerGetter, installerConfigExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.installers
 		case types.KindUIConfig:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[resourceKind] = &genericCollection[types.UIConfig, uiConfigExecutor]{cache: c, watch: watch}
+			collections.uiConfigs = &genericCollection[types.UIConfig, uiConfigGetter, uiConfigExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.uiConfigs
 		case types.KindUser:
 			if c.Users == nil {
 				return nil, trace.BadParameter("missing parameter Users")
 			}
-			collections[resourceKind] = &genericCollection[types.User, userExecutor]{cache: c, watch: watch}
+			collections.users = &genericCollection[types.User, userGetter, userExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.users
 		case types.KindRole:
 			if c.Access == nil {
 				return nil, trace.BadParameter("missing parameter Access")
 			}
-			collections[resourceKind] = &genericCollection[types.Role, roleExecutor]{cache: c, watch: watch}
+			collections.roles = &genericCollection[types.Role, roleGetter, roleExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.roles
 		case types.KindNamespace:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &genericCollection[*types.Namespace, namespaceExecutor]{cache: c, watch: watch}
+			collections.namespaces = &genericCollection[*types.Namespace, namespaceGetter, namespaceExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.namespaces
 		case types.KindNode:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &genericCollection[types.Server, nodeExecutor]{cache: c, watch: watch}
+			collections.nodes = &genericCollection[types.Server, nodeGetter, nodeExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.nodes
 		case types.KindProxy:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &genericCollection[types.Server, proxyExecutor]{cache: c, watch: watch}
+			collections.proxies = &genericCollection[types.Server, services.ProxyGetter, proxyExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.proxies
 		case types.KindAuthServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &genericCollection[types.Server, authServerExecutor]{cache: c, watch: watch}
+			collections.authServers = &genericCollection[types.Server, authServerGetter, authServerExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.authServers
 		case types.KindReverseTunnel:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &genericCollection[types.ReverseTunnel, reverseTunnelExecutor]{cache: c, watch: watch}
+			collections.reverseTunnels = &genericCollection[types.ReverseTunnel, reverseTunnelGetter, reverseTunnelExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.reverseTunnels
 		case types.KindTunnelConnection:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &genericCollection[types.TunnelConnection, tunnelConnectionExecutor]{cache: c, watch: watch}
+			collections.tunnelConnections = &genericCollection[types.TunnelConnection, tunnelConnectionGetter, tunnelConnectionExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.tunnelConnections
 		case types.KindRemoteCluster:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &genericCollection[types.RemoteCluster, remoteClusterExecutor]{cache: c, watch: watch}
+			collections.remoteClusters = &genericCollection[types.RemoteCluster, remoteClusterGetter, remoteClusterExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.remoteClusters
 		case types.KindAccessRequest:
 			if c.DynamicAccess == nil {
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
 			}
-			collections[resourceKind] = &genericCollection[types.AccessRequest, accessRequestExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = &genericCollection[types.AccessRequest, noReader, accessRequestExecutor]{cache: c, watch: watch}
 		case types.KindAppServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &genericCollection[types.AppServer, appServerExecutor]{cache: c, watch: watch}
+			collections.appServers = &genericCollection[types.AppServer, appServerGetter, appServerExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.appServers
 		case types.KindWebSession:
 			switch watch.SubKind {
 			case types.KindAppSession:
 				if c.AppSession == nil {
 					return nil, trace.BadParameter("missing parameter AppSession")
 				}
-				collections[resourceKind] = &genericCollection[types.WebSession, appSessionExecutor]{cache: c, watch: watch}
+				collections.appSessions = &genericCollection[types.WebSession, appSessionGetter, appSessionExecutor]{
+					cache: c,
+					watch: watch,
+				}
+				collections.byKind[resourceKind] = collections.appSessions
 			case types.KindSnowflakeSession:
 				if c.SnowflakeSession == nil {
 					return nil, trace.BadParameter("missing parameter SnowflakeSession")
 				}
-				collections[resourceKind] = &genericCollection[types.WebSession, snowflakeSessionExecutor]{cache: c, watch: watch}
+				collections.snowflakeSessions = &genericCollection[types.WebSession, snowflakeSessionGetter, snowflakeSessionExecutor]{
+					cache: c,
+					watch: watch,
+				}
+				collections.byKind[resourceKind] = collections.snowflakeSessions
 			case types.KindSAMLIdPSession:
 				if c.SAMLIdPSession == nil {
 					return nil, trace.BadParameter("missing parameter SAMLIdPSession")
 				}
-				collections[resourceKind] = &genericCollection[types.WebSession, samlIdPSessionExecutor]{cache: c, watch: watch}
+				collections.samlIdPSessions = &genericCollection[types.WebSession, samlIdPSessionGetter, samlIdPSessionExecutor]{
+					cache: c,
+					watch: watch,
+				}
+				collections.byKind[resourceKind] = collections.samlIdPSessions
 			case types.KindWebSession:
 				if c.WebSession == nil {
 					return nil, trace.BadParameter("missing parameter WebSession")
 				}
-				collections[resourceKind] = &genericCollection[types.WebSession, webSessionExecutor]{cache: c, watch: watch}
+				collections.webSessions = &genericCollection[types.WebSession, webSessionGetter, webSessionExecutor]{
+					cache: c,
+					watch: watch,
+				}
+				collections.byKind[resourceKind] = collections.webSessions
 			}
 		case types.KindWebToken:
 			if c.WebToken == nil {
 				return nil, trace.BadParameter("missing parameter WebToken")
 			}
-			collections[resourceKind] = &genericCollection[types.WebToken, webTokenExecutor]{cache: c, watch: watch}
-		case types.KindKubeService:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
+			collections.webTokens = &genericCollection[types.WebToken, webTokenGetter, webTokenExecutor]{
+				cache: c,
+				watch: watch,
 			}
-			collections[resourceKind] = &genericCollection[types.Server, kubeServiceExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.webTokens
 		case types.KindKubeServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &genericCollection[types.KubeServer, kubeServerExecutor]{cache: c, watch: watch}
+			collections.kubeServers = &genericCollection[types.KubeServer, kubeServerGetter, kubeServerExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.kubeServers
 		case types.KindDatabaseServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &genericCollection[types.DatabaseServer, databaseServerExecutor]{cache: c, watch: watch}
+			collections.databaseServers = &genericCollection[types.DatabaseServer, databaseServerGetter, databaseServerExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.databaseServers
 		case types.KindDatabaseService:
 			if c.DatabaseServices == nil {
 				return nil, trace.BadParameter("missing parameter DatabaseServices")
@@ -302,52 +486,136 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &genericCollection[types.DatabaseService, databaseServiceExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = &genericCollection[types.DatabaseService, noReader, databaseServiceExecutor]{cache: c, watch: watch}
 		case types.KindApp:
 			if c.Apps == nil {
 				return nil, trace.BadParameter("missing parameter Apps")
 			}
-			collections[resourceKind] = &genericCollection[types.Application, appExecutor]{cache: c, watch: watch}
+			collections.apps = &genericCollection[types.Application, services.AppGetter, appExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.apps
 		case types.KindDatabase:
 			if c.Databases == nil {
 				return nil, trace.BadParameter("missing parameter Databases")
 			}
-			collections[resourceKind] = &genericCollection[types.Database, databaseExecutor]{cache: c, watch: watch}
+			collections.databases = &genericCollection[types.Database, services.DatabaseGetter, databaseExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.databases
 		case types.KindKubernetesCluster:
 			if c.Kubernetes == nil {
 				return nil, trace.BadParameter("missing parameter Kubernetes")
 			}
-			collections[resourceKind] = &genericCollection[types.KubeCluster, kubeClusterExecutor]{cache: c, watch: watch}
+			collections.kubeClusters = &genericCollection[types.KubeCluster, kubernetesClusterGetter, kubeClusterExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.kubeClusters
 		case types.KindNetworkRestrictions:
 			if c.Restrictions == nil {
 				return nil, trace.BadParameter("missing parameter Restrictions")
 			}
-			collections[resourceKind] = &genericCollection[types.NetworkRestrictions, networkRestrictionsExecutor]{cache: c, watch: watch}
+			collections.networkRestrictions = &genericCollection[types.NetworkRestrictions, networkRestrictionGetter, networkRestrictionsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.networkRestrictions
 		case types.KindLock:
 			if c.Access == nil {
 				return nil, trace.BadParameter("missing parameter Access")
 			}
-			collections[resourceKind] = &genericCollection[types.Lock, lockExecutor]{cache: c, watch: watch}
+			collections.locks = &genericCollection[types.Lock, services.LockGetter, lockExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.locks
 		case types.KindWindowsDesktopService:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &genericCollection[types.WindowsDesktopService, windowsDesktopServicesExecutor]{cache: c, watch: watch}
+			collections.windowsDesktopServices = &genericCollection[types.WindowsDesktopService, windowsDesktopServiceGetter, windowsDesktopServicesExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.windowsDesktopServices
 		case types.KindWindowsDesktop:
 			if c.WindowsDesktops == nil {
 				return nil, trace.BadParameter("missing parameter WindowsDesktops")
 			}
-			collections[resourceKind] = &genericCollection[types.WindowsDesktop, windowsDesktopsExecutor]{cache: c, watch: watch}
+			collections.windowsDesktops = &genericCollection[types.WindowsDesktop, windowsDesktopsGetter, windowsDesktopsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.windowsDesktops
 		case types.KindSAMLIdPServiceProvider:
 			if c.SAMLIdPServiceProviders == nil {
 				return nil, trace.BadParameter("missing parameter SAMLIdPServiceProviders")
 			}
-			collections[resourceKind] = &genericCollection[types.SAMLIdPServiceProvider, samlIdPServiceProvidersExecutor]{cache: c, watch: watch}
+			collections.samlIdPServiceProviders = &genericCollection[types.SAMLIdPServiceProvider, samlIdPServiceProviderGetter, samlIdPServiceProvidersExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.samlIdPServiceProviders
 		case types.KindUserGroup:
 			if c.UserGroups == nil {
 				return nil, trace.BadParameter("missing parameter UserGroups")
 			}
-			collections[resourceKind] = &genericCollection[types.UserGroup, userGroupsExecutor]{cache: c, watch: watch}
+			collections.userGroups = &genericCollection[types.UserGroup, userGroupGetter, userGroupsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.userGroups
+		case types.KindOktaImportRule:
+			if c.Okta == nil {
+				return nil, trace.BadParameter("missing parameter Okta")
+			}
+			collections.oktaImportRules = &genericCollection[types.OktaImportRule, oktaImportRuleGetter, oktaImportRulesExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.oktaImportRules
+		case types.KindOktaAssignment:
+			if c.Okta == nil {
+				return nil, trace.BadParameter("missing parameter Okta")
+			}
+			collections.oktaAssignments = &genericCollection[types.OktaAssignment, oktaAssignmentGetter, oktaAssignmentsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.oktaAssignments
+		case types.KindIntegration:
+			if c.Integrations == nil {
+				return nil, trace.BadParameter("missing parameter Integrations")
+			}
+			collections.integrations = &genericCollection[types.Integration, services.IntegrationsGetter, integrationsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.integrations
+		case types.KindHeadlessAuthentication:
+			// For headless authentications, we need only process events. We don't need to keep the cache up to date.
+			collections.byKind[resourceKind] = &genericCollection[*types.HeadlessAuthentication, noReader, noopExecutor]{cache: c, watch: watch}
+		case types.KindAccessList:
+			if c.AccessLists == nil {
+				return nil, trace.BadParameter("missing parameter AccessLists")
+			}
+			collections.accessLists = &genericCollection[*accesslist.AccessList, services.AccessListsGetter, accessListsExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.accessLists
+		case types.KindUserLoginState:
+			if c.UserLoginStates == nil {
+				return nil, trace.BadParameter("missing parameter UserLoginStates")
+			}
+			collections.userLoginStates = &genericCollection[*userloginstate.UserLoginState, services.UserLoginStatesGetter, userLoginStateExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.userLoginStates
+		case types.KindAccessListMember:
+			if c.AccessLists == nil {
+				return nil, trace.BadParameter("missing parameter AccessLists")
+			}
+			collections.accessListMembers = &genericCollection[*accesslist.AccessListMember, services.AccessListMembersGetter, accessListMembersExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.accessLists
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -363,12 +631,10 @@ func resourceKindFromWatchKind(wk types.WatchKind) resourceKind {
 		return resourceKind{
 			kind:    wk.Kind,
 			subkind: wk.SubKind,
-			version: wk.Version,
 		}
 	}
 	return resourceKind{
-		kind:    wk.Kind,
-		version: wk.Version,
+		kind: wk.Kind,
 	}
 }
 
@@ -381,15 +647,6 @@ func resourceKindFromResource(res types.Resource) resourceKind {
 			kind:    res.GetKind(),
 			subkind: res.GetSubKind(),
 		}
-	case types.KindAppServer:
-		// DELETE IN 9.0.
-		switch res.GetVersion() {
-		case types.V2:
-			return resourceKind{
-				kind:    res.GetKind(),
-				version: res.GetVersion(),
-			}
-		}
 	}
 	return resourceKind{
 		kind: res.GetKind(),
@@ -399,7 +656,6 @@ func resourceKindFromResource(res types.Resource) resourceKind {
 type resourceKind struct {
 	kind    string
 	subkind string
-	version string
 }
 
 func (r resourceKind) String() string {
@@ -429,7 +685,11 @@ func (accessRequestExecutor) delete(ctx context.Context, cache *Cache, resource 
 
 func (accessRequestExecutor) isSingleton() bool { return false }
 
-var _ executor[types.AccessRequest] = accessRequestExecutor{}
+func (accessRequestExecutor) getReader(_ *Cache, _ bool) noReader {
+	return noReader{}
+}
+
+var _ executor[types.AccessRequest, noReader] = accessRequestExecutor{}
 
 type tunnelConnectionExecutor struct{}
 
@@ -451,7 +711,19 @@ func (tunnelConnectionExecutor) delete(ctx context.Context, cache *Cache, resour
 
 func (tunnelConnectionExecutor) isSingleton() bool { return false }
 
-var _ executor[types.TunnelConnection] = tunnelConnectionExecutor{}
+func (tunnelConnectionExecutor) getReader(cache *Cache, cacheOK bool) tunnelConnectionGetter {
+	if cacheOK {
+		return cache.presenceCache
+	}
+	return cache.Config.Presence
+}
+
+type tunnelConnectionGetter interface {
+	GetAllTunnelConnections(opts ...services.MarshalOption) (conns []types.TunnelConnection, err error)
+	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+}
+
+var _ executor[types.TunnelConnection, tunnelConnectionGetter] = tunnelConnectionExecutor{}
 
 type remoteClusterExecutor struct{}
 
@@ -460,7 +732,7 @@ func (remoteClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecre
 }
 
 func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.RemoteCluster) error {
-	err := cache.presenceCache.DeleteRemoteCluster(resource.GetName())
+	err := cache.presenceCache.DeleteRemoteCluster(ctx, resource.GetName())
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			cache.Logger.WithError(err).Warnf("Failed to delete remote cluster %v.", resource.GetName())
@@ -475,12 +747,24 @@ func (remoteClusterExecutor) deleteAll(ctx context.Context, cache *Cache) error 
 }
 
 func (remoteClusterExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteRemoteCluster(resource.GetName())
+	return cache.presenceCache.DeleteRemoteCluster(ctx, resource.GetName())
 }
 
 func (remoteClusterExecutor) isSingleton() bool { return false }
 
-var _ executor[types.RemoteCluster] = remoteClusterExecutor{}
+func (remoteClusterExecutor) getReader(cache *Cache, cacheOK bool) remoteClusterGetter {
+	if cacheOK {
+		return cache.presenceCache
+	}
+	return cache.Config.Presence
+}
+
+type remoteClusterGetter interface {
+	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
+	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
+}
+
+var _ executor[types.RemoteCluster, remoteClusterGetter] = remoteClusterExecutor{}
 
 type reverseTunnelExecutor struct{}
 
@@ -502,7 +786,18 @@ func (reverseTunnelExecutor) delete(ctx context.Context, cache *Cache, resource 
 
 func (reverseTunnelExecutor) isSingleton() bool { return false }
 
-var _ executor[types.ReverseTunnel] = reverseTunnelExecutor{}
+func (reverseTunnelExecutor) getReader(cache *Cache, cacheOK bool) reverseTunnelGetter {
+	if cacheOK {
+		return cache.presenceCache
+	}
+	return cache.Config.Presence
+}
+
+type reverseTunnelGetter interface {
+	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
+}
+
+var _ executor[types.ReverseTunnel, reverseTunnelGetter] = reverseTunnelExecutor{}
 
 type proxyExecutor struct{}
 
@@ -511,7 +806,7 @@ func (proxyExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool)
 }
 
 func (proxyExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	return cache.presenceCache.UpsertProxy(resource)
+	return cache.presenceCache.UpsertProxy(ctx, resource)
 }
 
 func (proxyExecutor) deleteAll(ctx context.Context, cache *Cache) error {
@@ -519,12 +814,19 @@ func (proxyExecutor) deleteAll(ctx context.Context, cache *Cache) error {
 }
 
 func (proxyExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteProxy(resource.GetName())
+	return cache.presenceCache.DeleteProxy(ctx, resource.GetName())
 }
 
 func (proxyExecutor) isSingleton() bool { return false }
 
-var _ executor[types.Server] = proxyExecutor{}
+func (proxyExecutor) getReader(cache *Cache, cacheOK bool) services.ProxyGetter {
+	if cacheOK {
+		return cache.presenceCache
+	}
+	return cache.Config.Presence
+}
+
+var _ executor[types.Server, services.ProxyGetter] = proxyExecutor{}
 
 type authServerExecutor struct{}
 
@@ -533,7 +835,7 @@ func (authServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets 
 }
 
 func (authServerExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	return cache.presenceCache.UpsertAuthServer(resource)
+	return cache.presenceCache.UpsertAuthServer(ctx, resource)
 }
 
 func (authServerExecutor) deleteAll(ctx context.Context, cache *Cache) error {
@@ -546,7 +848,18 @@ func (authServerExecutor) delete(ctx context.Context, cache *Cache, resource typ
 
 func (authServerExecutor) isSingleton() bool { return false }
 
-var _ executor[types.Server] = authServerExecutor{}
+func (authServerExecutor) getReader(cache *Cache, cacheOK bool) authServerGetter {
+	if cacheOK {
+		return cache.presenceCache
+	}
+	return cache.Config.Presence
+}
+
+type authServerGetter interface {
+	GetAuthServers() ([]types.Server, error)
+}
+
+var _ executor[types.Server, authServerGetter] = authServerExecutor{}
 
 type nodeExecutor struct{}
 
@@ -569,7 +882,19 @@ func (nodeExecutor) delete(ctx context.Context, cache *Cache, resource types.Res
 
 func (nodeExecutor) isSingleton() bool { return false }
 
-var _ executor[types.Server] = nodeExecutor{}
+func (nodeExecutor) getReader(cache *Cache, cacheOK bool) nodeGetter {
+	if cacheOK {
+		return cache.presenceCache
+	}
+	return cache.Config.Presence
+}
+
+type nodeGetter interface {
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+}
+
+var _ executor[types.Server, nodeGetter] = nodeExecutor{}
 
 type namespaceExecutor struct{}
 
@@ -580,8 +905,9 @@ func (namespaceExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets b
 	}
 
 	derefNamespaces := make([]*types.Namespace, len(namespaces))
-	for i, namespace := range namespaces {
-		derefNamespaces[i] = &namespace
+	for i := range namespaces {
+		ns := namespaces[i]
+		derefNamespaces[i] = &ns
 	}
 	return derefNamespaces, nil
 }
@@ -600,7 +926,19 @@ func (namespaceExecutor) delete(ctx context.Context, cache *Cache, resource type
 
 func (namespaceExecutor) isSingleton() bool { return false }
 
-var _ executor[*types.Namespace] = namespaceExecutor{}
+func (namespaceExecutor) getReader(cache *Cache, cacheOK bool) namespaceGetter {
+	if cacheOK {
+		return cache.presenceCache
+	}
+	return cache.Config.Presence
+}
+
+type namespaceGetter interface {
+	GetNamespaces() ([]types.Namespace, error)
+	GetNamespace(name string) (*types.Namespace, error)
+}
+
+var _ executor[*types.Namespace, namespaceGetter] = namespaceExecutor{}
 
 type certAuthorityExecutor struct {
 	// extracted from watch.Filter, to avoid rebuilding on every event
@@ -609,7 +947,7 @@ type certAuthorityExecutor struct {
 
 // delete implements executor[types.CertAuthority]
 func (certAuthorityExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	err := cache.trustCache.DeleteCertAuthority(types.CertAuthID{
+	err := cache.trustCache.DeleteCertAuthority(ctx, types.CertAuthID{
 		Type:       types.CertAuthType(resource.GetSubKind()),
 		DomainName: resource.GetName(),
 	})
@@ -661,12 +999,19 @@ func (e certAuthorityExecutor) upsert(ctx context.Context, cache *Cache, value t
 		return nil
 	}
 
-	return cache.trustCache.UpsertCertAuthority(value)
+	return cache.trustCache.UpsertCertAuthority(ctx, value)
 }
 
 func (certAuthorityExecutor) isSingleton() bool { return false }
 
-var _ executor[types.CertAuthority] = certAuthorityExecutor{}
+func (certAuthorityExecutor) getReader(cache *Cache, cacheOK bool) services.AuthorityGetter {
+	if cacheOK {
+		return cache.trustCache
+	}
+	return cache.Config.Trust
+}
+
+var _ executor[types.CertAuthority, services.AuthorityGetter] = certAuthorityExecutor{}
 
 type staticTokensExecutor struct{}
 
@@ -692,7 +1037,18 @@ func (staticTokensExecutor) delete(ctx context.Context, cache *Cache, resource t
 
 func (staticTokensExecutor) isSingleton() bool { return true }
 
-var _ executor[types.StaticTokens] = staticTokensExecutor{}
+func (staticTokensExecutor) getReader(cache *Cache, cacheOK bool) staticTokensGetter {
+	if cacheOK {
+		return cache.clusterConfigCache
+	}
+	return cache.Config.ClusterConfig
+}
+
+type staticTokensGetter interface {
+	GetStaticTokens() (types.StaticTokens, error)
+}
+
+var _ executor[types.StaticTokens, staticTokensGetter] = staticTokensExecutor{}
 
 type provisionTokenExecutor struct{}
 
@@ -714,7 +1070,19 @@ func (provisionTokenExecutor) delete(ctx context.Context, cache *Cache, resource
 
 func (provisionTokenExecutor) isSingleton() bool { return false }
 
-var _ executor[types.ProvisionToken] = provisionTokenExecutor{}
+func (provisionTokenExecutor) getReader(cache *Cache, cacheOK bool) tokenGetter {
+	if cacheOK {
+		return cache.provisionerCache
+	}
+	return cache.Config.Provisioner
+}
+
+type tokenGetter interface {
+	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
+	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
+}
+
+var _ executor[types.ProvisionToken, tokenGetter] = provisionTokenExecutor{}
 
 type clusterNameExecutor struct{}
 
@@ -737,7 +1105,18 @@ func (clusterNameExecutor) delete(ctx context.Context, cache *Cache, resource ty
 
 func (clusterNameExecutor) isSingleton() bool { return true }
 
-var _ executor[types.ClusterName] = clusterNameExecutor{}
+func (clusterNameExecutor) getReader(cache *Cache, cacheOK bool) clusterNameGetter {
+	if cacheOK {
+		return cache.clusterConfigCache
+	}
+	return cache.Config.ClusterConfig
+}
+
+type clusterNameGetter interface {
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+}
+
+var _ executor[types.ClusterName, clusterNameGetter] = clusterNameExecutor{}
 
 type userExecutor struct{}
 
@@ -759,7 +1138,19 @@ func (userExecutor) delete(ctx context.Context, cache *Cache, resource types.Res
 
 func (userExecutor) isSingleton() bool { return false }
 
-var _ executor[types.User] = userExecutor{}
+func (userExecutor) getReader(cache *Cache, cacheOK bool) userGetter {
+	if cacheOK {
+		return cache.usersCache
+	}
+	return cache.Config.Users
+}
+
+type userGetter interface {
+	GetUser(user string, withSecrets bool) (types.User, error)
+	GetUsers(withSecrets bool) ([]types.User, error)
+}
+
+var _ executor[types.User, userGetter] = userExecutor{}
 
 type roleExecutor struct{}
 
@@ -781,7 +1172,19 @@ func (roleExecutor) delete(ctx context.Context, cache *Cache, resource types.Res
 
 func (roleExecutor) isSingleton() bool { return false }
 
-var _ executor[types.Role] = roleExecutor{}
+func (roleExecutor) getReader(cache *Cache, cacheOK bool) roleGetter {
+	if cacheOK {
+		return cache.accessCache
+	}
+	return cache.Config.Access
+}
+
+type roleGetter interface {
+	GetRoles(ctx context.Context) ([]types.Role, error)
+	GetRole(ctx context.Context, name string) (types.Role, error)
+}
+
+var _ executor[types.Role, roleGetter] = roleExecutor{}
 
 type databaseServerExecutor struct{}
 
@@ -807,7 +1210,18 @@ func (databaseServerExecutor) delete(ctx context.Context, cache *Cache, resource
 
 func (databaseServerExecutor) isSingleton() bool { return false }
 
-var _ executor[types.DatabaseServer] = databaseServerExecutor{}
+func (databaseServerExecutor) getReader(cache *Cache, cacheOK bool) databaseServerGetter {
+	if cacheOK {
+		return cache.presenceCache
+	}
+	return cache.Config.Presence
+}
+
+type databaseServerGetter interface {
+	GetDatabaseServers(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error)
+}
+
+var _ executor[types.DatabaseServer, databaseServerGetter] = databaseServerExecutor{}
 
 type databaseServiceExecutor struct{}
 
@@ -844,7 +1258,11 @@ func (databaseServiceExecutor) delete(ctx context.Context, cache *Cache, resourc
 
 func (databaseServiceExecutor) isSingleton() bool { return false }
 
-var _ executor[types.DatabaseService] = databaseServiceExecutor{}
+func (databaseServiceExecutor) getReader(_ *Cache, _ bool) noReader {
+	return noReader{}
+}
+
+var _ executor[types.DatabaseService, noReader] = databaseServiceExecutor{}
 
 type databaseExecutor struct{}
 
@@ -873,7 +1291,14 @@ func (databaseExecutor) delete(ctx context.Context, cache *Cache, resource types
 
 func (databaseExecutor) isSingleton() bool { return false }
 
-var _ executor[types.Database] = databaseExecutor{}
+func (databaseExecutor) getReader(cache *Cache, cacheOK bool) services.DatabaseGetter {
+	if cacheOK {
+		return cache.databasesCache
+	}
+	return cache.Config.Databases
+}
+
+var _ executor[types.Database, services.DatabaseGetter] = databaseExecutor{}
 
 type appExecutor struct{}
 
@@ -900,9 +1325,16 @@ func (appExecutor) delete(ctx context.Context, cache *Cache, resource types.Reso
 	return cache.appsCache.DeleteApp(ctx, resource.GetName())
 }
 
+func (appExecutor) getReader(cache *Cache, cacheOK bool) services.AppGetter {
+	if cacheOK {
+		return cache.appsCache
+	}
+	return cache.Apps
+}
+
 func (appExecutor) isSingleton() bool { return false }
 
-var _ executor[types.Application] = appExecutor{}
+var _ executor[types.Application, services.AppGetter] = appExecutor{}
 
 type appServerExecutor struct{}
 
@@ -928,7 +1360,18 @@ func (appServerExecutor) delete(ctx context.Context, cache *Cache, resource type
 
 func (appServerExecutor) isSingleton() bool { return false }
 
-var _ executor[types.AppServer] = appServerExecutor{}
+func (appServerExecutor) getReader(cache *Cache, cacheOK bool) appServerGetter {
+	if cacheOK {
+		return cache.presenceCache
+	}
+	return cache.Config.Presence
+}
+
+type appServerGetter interface {
+	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
+}
+
+var _ executor[types.AppServer, appServerGetter] = appServerExecutor{}
 
 type appSessionExecutor struct{}
 
@@ -969,7 +1412,18 @@ func (appSessionExecutor) delete(ctx context.Context, cache *Cache, resource typ
 
 func (appSessionExecutor) isSingleton() bool { return false }
 
-var _ executor[types.WebSession] = appSessionExecutor{}
+func (appSessionExecutor) getReader(cache *Cache, cacheOK bool) appSessionGetter {
+	if cacheOK {
+		return cache.appSessionCache
+	}
+	return cache.Config.AppSession
+}
+
+type appSessionGetter interface {
+	GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error)
+}
+
+var _ executor[types.WebSession, appSessionGetter] = appSessionExecutor{}
 
 type snowflakeSessionExecutor struct{}
 
@@ -993,7 +1447,18 @@ func (snowflakeSessionExecutor) delete(ctx context.Context, cache *Cache, resour
 
 func (snowflakeSessionExecutor) isSingleton() bool { return false }
 
-var _ executor[types.WebSession] = snowflakeSessionExecutor{}
+func (snowflakeSessionExecutor) getReader(cache *Cache, cacheOK bool) snowflakeSessionGetter {
+	if cacheOK {
+		return cache.snowflakeSessionCache
+	}
+	return cache.Config.SnowflakeSession
+}
+
+type snowflakeSessionGetter interface {
+	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
+}
+
+var _ executor[types.WebSession, snowflakeSessionGetter] = snowflakeSessionExecutor{}
 
 //nolint:revive // Because we want this to be IdP.
 type samlIdPSessionExecutor struct{}
@@ -1035,7 +1500,18 @@ func (samlIdPSessionExecutor) delete(ctx context.Context, cache *Cache, resource
 
 func (samlIdPSessionExecutor) isSingleton() bool { return false }
 
-var _ executor[types.WebSession] = samlIdPSessionExecutor{}
+func (samlIdPSessionExecutor) getReader(cache *Cache, cacheOK bool) samlIdPSessionGetter {
+	if cacheOK {
+		return cache.samlIdPSessionCache
+	}
+	return cache.Config.SAMLIdPSession
+}
+
+type samlIdPSessionGetter interface {
+	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
+}
+
+var _ executor[types.WebSession, samlIdPSessionGetter] = samlIdPSessionExecutor{}
 
 type webSessionExecutor struct{}
 
@@ -1059,7 +1535,18 @@ func (webSessionExecutor) delete(ctx context.Context, cache *Cache, resource typ
 
 func (webSessionExecutor) isSingleton() bool { return false }
 
-var _ executor[types.WebSession] = webSessionExecutor{}
+func (webSessionExecutor) getReader(cache *Cache, cacheOK bool) webSessionGetter {
+	if cacheOK {
+		return cache.webSessionCache
+	}
+	return cache.Config.WebSession
+}
+
+type webSessionGetter interface {
+	Get(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error)
+}
+
+var _ executor[types.WebSession, webSessionGetter] = webSessionExecutor{}
 
 type webTokenExecutor struct{}
 
@@ -1083,31 +1570,18 @@ func (webTokenExecutor) delete(ctx context.Context, cache *Cache, resource types
 
 func (webTokenExecutor) isSingleton() bool { return false }
 
-var _ executor[types.WebToken] = webTokenExecutor{}
-
-// DELETE in 13.0
-type kubeServiceExecutor struct{}
-
-func (kubeServiceExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Server, error) {
-	return cache.Presence.GetKubeServices(ctx)
+func (webTokenExecutor) getReader(cache *Cache, cacheOK bool) webTokenGetter {
+	if cacheOK {
+		return cache.webTokenCache
+	}
+	return cache.Config.WebToken
 }
 
-func (kubeServiceExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	_, err := cache.presenceCache.UpsertKubeServiceV2(ctx, resource)
-	return trace.Wrap(err)
+type webTokenGetter interface {
+	Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 }
 
-func (kubeServiceExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllKubeServices(ctx)
-}
-
-func (kubeServiceExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteKubeService(ctx, resource.GetName())
-}
-
-func (kubeServiceExecutor) isSingleton() bool { return false }
-
-var _ executor[types.Server] = kubeServiceExecutor{}
+var _ executor[types.WebToken, webTokenGetter] = webTokenExecutor{}
 
 type kubeServerExecutor struct{}
 
@@ -1134,7 +1608,18 @@ func (kubeServerExecutor) delete(ctx context.Context, cache *Cache, resource typ
 
 func (kubeServerExecutor) isSingleton() bool { return false }
 
-var _ executor[types.KubeServer] = kubeServerExecutor{}
+func (kubeServerExecutor) getReader(cache *Cache, cacheOK bool) kubeServerGetter {
+	if cacheOK {
+		return cache.presenceCache
+	}
+	return cache.Config.Presence
+}
+
+type kubeServerGetter interface {
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+}
+
+var _ executor[types.KubeServer, kubeServerGetter] = kubeServerExecutor{}
 
 type authPreferenceExecutor struct{}
 
@@ -1160,7 +1645,18 @@ func (authPreferenceExecutor) delete(ctx context.Context, cache *Cache, resource
 
 func (authPreferenceExecutor) isSingleton() bool { return true }
 
-var _ executor[types.AuthPreference] = authPreferenceExecutor{}
+func (authPreferenceExecutor) getReader(cache *Cache, cacheOK bool) authPreferenceGetter {
+	if cacheOK {
+		return cache.clusterConfigCache
+	}
+	return cache.Config.ClusterConfig
+}
+
+type authPreferenceGetter interface {
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+}
+
+var _ executor[types.AuthPreference, authPreferenceGetter] = authPreferenceExecutor{}
 
 type clusterAuditConfigExecutor struct{}
 
@@ -1186,7 +1682,18 @@ func (clusterAuditConfigExecutor) delete(ctx context.Context, cache *Cache, reso
 
 func (clusterAuditConfigExecutor) isSingleton() bool { return true }
 
-var _ executor[types.ClusterAuditConfig] = clusterAuditConfigExecutor{}
+func (clusterAuditConfigExecutor) getReader(cache *Cache, cacheOK bool) clusterAuditConfigGetter {
+	if cacheOK {
+		return cache.clusterConfigCache
+	}
+	return cache.Config.ClusterConfig
+}
+
+type clusterAuditConfigGetter interface {
+	GetClusterAuditConfig(context.Context, ...services.MarshalOption) (types.ClusterAuditConfig, error)
+}
+
+var _ executor[types.ClusterAuditConfig, clusterAuditConfigGetter] = clusterAuditConfigExecutor{}
 
 type clusterNetworkingConfigExecutor struct{}
 
@@ -1212,7 +1719,18 @@ func (clusterNetworkingConfigExecutor) delete(ctx context.Context, cache *Cache,
 
 func (clusterNetworkingConfigExecutor) isSingleton() bool { return true }
 
-var _ executor[types.ClusterNetworkingConfig] = clusterNetworkingConfigExecutor{}
+func (clusterNetworkingConfigExecutor) getReader(cache *Cache, cacheOK bool) clusterNetworkingConfigGetter {
+	if cacheOK {
+		return cache.clusterConfigCache
+	}
+	return cache.Config.ClusterConfig
+}
+
+type clusterNetworkingConfigGetter interface {
+	GetClusterNetworkingConfig(context.Context, ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+}
+
+var _ executor[types.ClusterNetworkingConfig, clusterNetworkingConfigGetter] = clusterNetworkingConfigExecutor{}
 
 type uiConfigExecutor struct{}
 
@@ -1238,7 +1756,18 @@ func (uiConfigExecutor) delete(ctx context.Context, cache *Cache, resource types
 
 func (uiConfigExecutor) isSingleton() bool { return true }
 
-var _ executor[types.UIConfig] = uiConfigExecutor{}
+func (uiConfigExecutor) getReader(cache *Cache, cacheOK bool) uiConfigGetter {
+	if cacheOK {
+		return cache.clusterConfigCache
+	}
+	return cache.Config.ClusterConfig
+}
+
+type uiConfigGetter interface {
+	GetUIConfig(context.Context) (types.UIConfig, error)
+}
+
+var _ executor[types.UIConfig, uiConfigGetter] = uiConfigExecutor{}
 
 type sessionRecordingConfigExecutor struct{}
 
@@ -1264,7 +1793,18 @@ func (sessionRecordingConfigExecutor) delete(ctx context.Context, cache *Cache, 
 
 func (sessionRecordingConfigExecutor) isSingleton() bool { return true }
 
-var _ executor[types.SessionRecordingConfig] = sessionRecordingConfigExecutor{}
+func (sessionRecordingConfigExecutor) getReader(cache *Cache, cacheOK bool) sessionRecordingConfigGetter {
+	if cacheOK {
+		return cache.clusterConfigCache
+	}
+	return cache.Config.ClusterConfig
+}
+
+type sessionRecordingConfigGetter interface {
+	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+}
+
+var _ executor[types.SessionRecordingConfig, sessionRecordingConfigGetter] = sessionRecordingConfigExecutor{}
 
 type installerConfigExecutor struct{}
 
@@ -1286,7 +1826,19 @@ func (installerConfigExecutor) delete(ctx context.Context, cache *Cache, resourc
 
 func (installerConfigExecutor) isSingleton() bool { return false }
 
-var _ executor[types.Installer] = installerConfigExecutor{}
+func (installerConfigExecutor) getReader(cache *Cache, cacheOK bool) installerGetter {
+	if cacheOK {
+		return cache.clusterConfigCache
+	}
+	return cache.Config.ClusterConfig
+}
+
+type installerGetter interface {
+	GetInstallers(context.Context) ([]types.Installer, error)
+	GetInstaller(ctx context.Context, name string) (types.Installer, error)
+}
+
+var _ executor[types.Installer, installerGetter] = installerConfigExecutor{}
 
 type networkRestrictionsExecutor struct{}
 
@@ -1312,7 +1864,18 @@ func (networkRestrictionsExecutor) delete(ctx context.Context, cache *Cache, res
 
 func (networkRestrictionsExecutor) isSingleton() bool { return true }
 
-var _ executor[types.NetworkRestrictions] = networkRestrictionsExecutor{}
+func (networkRestrictionsExecutor) getReader(cache *Cache, cacheOK bool) networkRestrictionGetter {
+	if cacheOK {
+		return cache.restrictionsCache
+	}
+	return cache.Config.Restrictions
+}
+
+type networkRestrictionGetter interface {
+	GetNetworkRestrictions(context.Context) (types.NetworkRestrictions, error)
+}
+
+var _ executor[types.NetworkRestrictions, networkRestrictionGetter] = networkRestrictionsExecutor{}
 
 type lockExecutor struct{}
 
@@ -1321,7 +1884,7 @@ func (lockExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) 
 }
 
 func (lockExecutor) upsert(ctx context.Context, cache *Cache, resource types.Lock) error {
-	return cache.Access.UpsertLock(ctx, resource)
+	return cache.accessCache.UpsertLock(ctx, resource)
 }
 
 func (lockExecutor) deleteAll(ctx context.Context, cache *Cache) error {
@@ -1334,7 +1897,14 @@ func (lockExecutor) delete(ctx context.Context, cache *Cache, resource types.Res
 
 func (lockExecutor) isSingleton() bool { return false }
 
-var _ executor[types.Lock] = lockExecutor{}
+func (lockExecutor) getReader(cache *Cache, cacheOK bool) services.LockGetter {
+	if cacheOK {
+		return cache.accessCache
+	}
+	return cache.Config.Access
+}
+
+var _ executor[types.Lock, services.LockGetter] = lockExecutor{}
 
 type windowsDesktopServicesExecutor struct{}
 
@@ -1357,7 +1927,31 @@ func (windowsDesktopServicesExecutor) delete(ctx context.Context, cache *Cache, 
 
 func (windowsDesktopServicesExecutor) isSingleton() bool { return false }
 
-var _ executor[types.WindowsDesktopService] = windowsDesktopServicesExecutor{}
+func (windowsDesktopServicesExecutor) getReader(cache *Cache, cacheOK bool) windowsDesktopServiceGetter {
+	if cacheOK {
+		return windowsDesktopServiceAggregate{
+			Presence:        cache.presenceCache,
+			WindowsDesktops: cache.windowsDesktopsCache,
+		}
+	}
+	return windowsDesktopServiceAggregate{
+		Presence:        cache.Config.Presence,
+		WindowsDesktops: cache.Config.WindowsDesktops,
+	}
+}
+
+type windowsDesktopServiceAggregate struct {
+	services.Presence
+	services.WindowsDesktops
+}
+
+type windowsDesktopServiceGetter interface {
+	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
+	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
+}
+
+var _ executor[types.WindowsDesktopService, windowsDesktopServiceGetter] = windowsDesktopServicesExecutor{}
 
 type windowsDesktopsExecutor struct{}
 
@@ -1382,7 +1976,19 @@ func (windowsDesktopsExecutor) delete(ctx context.Context, cache *Cache, resourc
 
 func (windowsDesktopsExecutor) isSingleton() bool { return false }
 
-var _ executor[types.WindowsDesktop] = windowsDesktopsExecutor{}
+func (windowsDesktopsExecutor) getReader(cache *Cache, cacheOK bool) windowsDesktopsGetter {
+	if cacheOK {
+		return cache.windowsDesktopsCache
+	}
+	return cache.Config.WindowsDesktops
+}
+
+type windowsDesktopsGetter interface {
+	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
+}
+
+var _ executor[types.WindowsDesktop, windowsDesktopsGetter] = windowsDesktopsExecutor{}
 
 type kubeClusterExecutor struct{}
 
@@ -1411,7 +2017,19 @@ func (kubeClusterExecutor) delete(ctx context.Context, cache *Cache, resource ty
 
 func (kubeClusterExecutor) isSingleton() bool { return false }
 
-var _ executor[types.KubeCluster] = kubeClusterExecutor{}
+func (kubeClusterExecutor) getReader(cache *Cache, cacheOK bool) kubernetesClusterGetter {
+	if cacheOK {
+		return cache.kubernetesCache
+	}
+	return cache.Config.Kubernetes
+}
+
+type kubernetesClusterGetter interface {
+	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
+}
+
+var _ executor[types.KubeCluster, kubernetesClusterGetter] = kubeClusterExecutor{}
 
 //nolint:revive // Because we want this to be IdP.
 type samlIdPServiceProvidersExecutor struct{}
@@ -1457,7 +2075,19 @@ func (samlIdPServiceProvidersExecutor) delete(ctx context.Context, cache *Cache,
 
 func (samlIdPServiceProvidersExecutor) isSingleton() bool { return false }
 
-var _ executor[types.SAMLIdPServiceProvider] = samlIdPServiceProvidersExecutor{}
+func (samlIdPServiceProvidersExecutor) getReader(cache *Cache, cacheOK bool) samlIdPServiceProviderGetter {
+	if cacheOK {
+		return cache.samlIdPServiceProvidersCache
+	}
+	return cache.Config.SAMLIdPServiceProviders
+}
+
+type samlIdPServiceProviderGetter interface {
+	ListSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
+	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
+}
+
+var _ executor[types.SAMLIdPServiceProvider, samlIdPServiceProviderGetter] = samlIdPServiceProvidersExecutor{}
 
 type userGroupsExecutor struct{}
 
@@ -1502,4 +2132,374 @@ func (userGroupsExecutor) delete(ctx context.Context, cache *Cache, resource typ
 
 func (userGroupsExecutor) isSingleton() bool { return false }
 
-var _ executor[types.UserGroup] = userGroupsExecutor{}
+func (userGroupsExecutor) getReader(cache *Cache, cacheOK bool) userGroupGetter {
+	if cacheOK {
+		return cache.userGroupsCache
+	}
+	return cache.Config.UserGroups
+}
+
+type userGroupGetter interface {
+	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
+}
+
+var _ executor[types.UserGroup, userGroupGetter] = userGroupsExecutor{}
+
+type oktaImportRulesExecutor struct{}
+
+func (oktaImportRulesExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.OktaImportRule, error) {
+	var (
+		startKey  string
+		resources []types.OktaImportRule
+	)
+	for {
+		var importRules []types.OktaImportRule
+		var err error
+		importRules, startKey, err = cache.Okta.ListOktaImportRules(ctx, 0, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, importRules...)
+
+		if startKey == "" {
+			break
+		}
+	}
+
+	return resources, nil
+}
+
+func (oktaImportRulesExecutor) upsert(ctx context.Context, cache *Cache, resource types.OktaImportRule) error {
+	_, err := cache.oktaCache.CreateOktaImportRule(ctx, resource)
+	if trace.IsAlreadyExists(err) {
+		_, err = cache.oktaCache.UpdateOktaImportRule(ctx, resource)
+	}
+	return trace.Wrap(err)
+}
+
+func (oktaImportRulesExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.oktaCache.DeleteAllOktaImportRules(ctx)
+}
+
+func (oktaImportRulesExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.oktaCache.DeleteOktaImportRule(ctx, resource.GetName())
+}
+
+func (oktaImportRulesExecutor) isSingleton() bool { return false }
+
+func (oktaImportRulesExecutor) getReader(cache *Cache, cacheOK bool) oktaImportRuleGetter {
+	if cacheOK {
+		return cache.oktaCache
+	}
+	return cache.Config.Okta
+}
+
+type oktaImportRuleGetter interface {
+	ListOktaImportRules(context.Context, int, string) ([]types.OktaImportRule, string, error)
+	GetOktaImportRule(ctx context.Context, name string) (types.OktaImportRule, error)
+}
+
+var _ executor[types.OktaImportRule, oktaImportRuleGetter] = oktaImportRulesExecutor{}
+
+type oktaAssignmentsExecutor struct{}
+
+func (oktaAssignmentsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.OktaAssignment, error) {
+	var (
+		startKey  string
+		resources []types.OktaAssignment
+	)
+	for {
+		var assignments []types.OktaAssignment
+		var err error
+		assignments, startKey, err = cache.Okta.ListOktaAssignments(ctx, 0, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, assignments...)
+
+		if startKey == "" {
+			break
+		}
+	}
+
+	return resources, nil
+}
+
+func (oktaAssignmentsExecutor) upsert(ctx context.Context, cache *Cache, resource types.OktaAssignment) error {
+	_, err := cache.oktaCache.CreateOktaAssignment(ctx, resource)
+	if trace.IsAlreadyExists(err) {
+		_, err = cache.oktaCache.UpdateOktaAssignment(ctx, resource)
+	}
+	return trace.Wrap(err)
+}
+
+func (oktaAssignmentsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.oktaCache.DeleteAllOktaAssignments(ctx)
+}
+
+func (oktaAssignmentsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.oktaCache.DeleteOktaAssignment(ctx, resource.GetName())
+}
+
+func (oktaAssignmentsExecutor) isSingleton() bool { return false }
+
+func (oktaAssignmentsExecutor) getReader(cache *Cache, cacheOK bool) oktaAssignmentGetter {
+	if cacheOK {
+		return cache.oktaCache
+	}
+	return cache.Config.Okta
+}
+
+type oktaAssignmentGetter interface {
+	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
+	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
+}
+
+var _ executor[types.OktaAssignment, oktaAssignmentGetter] = oktaAssignmentsExecutor{}
+
+// collectionReader extends the collection interface, adding routing capabilities.
+type collectionReader[R any] interface {
+	collection
+
+	// getReader returns the appropriate reader type T based on the health status of the cache.
+	// Reader type R provides getter methods related to the collection, e.g. GetNodes(), GetRoles().
+	// Note that cacheOK set to true means that cache is overall healthy and the collection was confirmed as supported.
+	getReader(cacheOK bool) R
+}
+
+type resourceGetter interface {
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
+type integrationsExecutor struct{}
+
+func (integrationsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Integration, error) {
+	var (
+		startKey  string
+		resources []types.Integration
+	)
+	for {
+		var igs []types.Integration
+		var err error
+		igs, startKey, err = cache.Integrations.ListIntegrations(ctx, 0, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, igs...)
+
+		if startKey == "" {
+			break
+		}
+	}
+
+	return resources, nil
+}
+
+func (integrationsExecutor) upsert(ctx context.Context, cache *Cache, resource types.Integration) error {
+	_, err := cache.integrationsCache.CreateIntegration(ctx, resource)
+	if trace.IsAlreadyExists(err) {
+		_, err = cache.integrationsCache.UpdateIntegration(ctx, resource)
+	}
+	return trace.Wrap(err)
+}
+
+func (integrationsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.integrationsCache.DeleteAllIntegrations(ctx)
+}
+
+func (integrationsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.integrationsCache.DeleteIntegration(ctx, resource.GetName())
+}
+
+func (integrationsExecutor) isSingleton() bool { return false }
+
+func (integrationsExecutor) getReader(cache *Cache, cacheOK bool) services.IntegrationsGetter {
+	if cacheOK {
+		return cache.integrationsCache
+	}
+	return cache.Config.Integrations
+}
+
+var _ executor[types.Integration, services.IntegrationsGetter] = integrationsExecutor{}
+
+type accessListsExecutor struct{}
+
+func (accessListsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessList, error) {
+	var accessLists []*accesslist.AccessList
+	var nextToken string
+	for {
+		var page []*accesslist.AccessList
+		var err error
+
+		page, nextToken, err = cache.AccessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		accessLists = append(accessLists, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return accessLists, nil
+}
+
+func (accessListsExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessList) error {
+	_, err := cache.accessListsCache.UpsertAccessList(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (accessListsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.accessListsCache.DeleteAllAccessLists(ctx)
+}
+
+func (accessListsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.accessListsCache.DeleteAccessList(ctx, resource.GetName())
+}
+
+func (accessListsExecutor) isSingleton() bool { return false }
+
+func (accessListsExecutor) getReader(cache *Cache, cacheOK bool) services.AccessListsGetter {
+	if cacheOK {
+		return cache.accessListsCache
+	}
+	return cache.Config.AccessLists
+}
+
+var _ executor[*accesslist.AccessList, services.AccessListsGetter] = accessListsExecutor{}
+
+// noopExecutor can be used when a resource's events do not need to processed by
+// the cache itself, only passed on to other watchers.
+type noopExecutor struct{}
+
+func (noopExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*types.HeadlessAuthentication, error) {
+	return nil, nil
+}
+
+func (noopExecutor) upsert(ctx context.Context, cache *Cache, resource *types.HeadlessAuthentication) error {
+	return nil
+}
+
+func (noopExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return nil
+}
+
+func (noopExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return nil
+}
+
+func (noopExecutor) isSingleton() bool { return false }
+
+func (noopExecutor) getReader(_ *Cache, _ bool) noReader {
+	return noReader{}
+}
+
+var _ executor[*types.HeadlessAuthentication, noReader] = noopExecutor{}
+
+type userLoginStateExecutor struct{}
+
+func (userLoginStateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*userloginstate.UserLoginState, error) {
+	resources, err := cache.UserLoginStates.GetUserLoginStates(ctx)
+	return resources, trace.Wrap(err)
+}
+
+func (userLoginStateExecutor) upsert(ctx context.Context, cache *Cache, resource *userloginstate.UserLoginState) error {
+	_, err := cache.userLoginStateCache.UpsertUserLoginState(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (userLoginStateExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.userLoginStateCache.DeleteAllUserLoginStates(ctx)
+}
+
+func (userLoginStateExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.userLoginStateCache.DeleteUserLoginState(ctx, resource.GetName())
+}
+
+func (userLoginStateExecutor) isSingleton() bool { return false }
+
+func (userLoginStateExecutor) getReader(cache *Cache, cacheOK bool) services.UserLoginStatesGetter {
+	if cacheOK {
+		return cache.userLoginStateCache
+	}
+	return cache.Config.UserLoginStates
+}
+
+var _ executor[*userloginstate.UserLoginState, services.UserLoginStatesGetter] = userLoginStateExecutor{}
+
+type accessListMembersExecutor struct{}
+
+func (accessListMembersExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessListMember, error) {
+	// Get all access lists
+	var accessLists []*accesslist.AccessList
+	var nextToken string
+	for {
+		var page []*accesslist.AccessList
+		var err error
+
+		page, nextToken, err = cache.AccessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		accessLists = append(accessLists, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+
+	// Get the members of each access list.
+	var members []*accesslist.AccessListMember
+	for _, accessList := range accessLists {
+		for {
+			var page []*accesslist.AccessListMember
+			var err error
+
+			page, nextToken, err = cache.AccessLists.ListAccessListMembers(ctx, accessList.GetName(), 0 /* default page size */, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			members = append(members, page...)
+
+			if nextToken == "" {
+				break
+			}
+		}
+	}
+	return members, nil
+}
+
+func (accessListMembersExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessListMember) error {
+	_, err := cache.accessListsCache.UpsertAccessListMember(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (accessListMembersExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.accessListsCache.DeleteAllAccessListMembers(ctx)
+}
+
+func (accessListMembersExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	member, ok := resource.(*accesslist.AccessListMember)
+	if !ok {
+		return trace.BadParameter("expected *accesslist.AccessListMember, got %T", resource)
+	}
+	return cache.accessListsCache.DeleteAccessListMember(ctx, member.Spec.AccessList, member.GetName())
+}
+
+func (accessListMembersExecutor) isSingleton() bool { return false }
+
+func (accessListMembersExecutor) getReader(cache *Cache, cacheOK bool) services.AccessListMembersGetter {
+	if cacheOK {
+		return cache.accessListsCache
+	}
+	return cache.AccessLists
+}
+
+var _ executor[*accesslist.AccessListMember, services.AccessListMembersGetter] = accessListMembersExecutor{}

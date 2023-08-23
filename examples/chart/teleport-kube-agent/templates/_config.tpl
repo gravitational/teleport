@@ -1,18 +1,16 @@
 {{- define "teleport-kube-agent.config" -}}
 {{- $logLevel := (coalesce .Values.logLevel .Values.log.level "INFO") -}}
-{{- if .Values.teleportVersionOverride -}}
-  {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride -}}
-{{- else -}}
-  {{- $_ := set . "teleportVersion" .Chart.Version -}}
-{{- end -}}
-{{- if (ge (semver .teleportVersion).Major 11) }}
+{{- $appRolePresent := contains "app" (.Values.roles | toString) -}}
+{{- $discoveryEnabled := contains "discovery" (.Values.roles | toString) -}}
+{{- $appDiscoveryEnabled := and ($appRolePresent) ($discoveryEnabled) -}}
+{{- if (ge (include "teleport-kube-agent.version" . | semver).Major 11) }}
 version: v3
 {{- end }}
 teleport:
   join_params:
     method: "{{ .Values.joinParams.method }}"
     token_name: "/etc/teleport-secrets/auth-token"
-  {{- if (ge (semver .teleportVersion).Major 11) }}
+  {{- if (ge (include "teleport-kube-agent.version" . | semver).Major 11) }}
   proxy_server: {{ required "proxyAddr is required in chart values" .Values.proxyAddr }}
   {{- else }}
   auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
@@ -38,12 +36,16 @@ kubernetes_service:
   enabled: false
   {{- end }}
 
+{{- if and (or (.Values.apps) (.Values.appResources)) (not ($appRolePresent)) }}
+  {{- fail "app role should be enabled if one of 'apps' or 'appResources' is set, see README" }}
+{{- end }}
+
 app_service:
-  {{- if contains "app" (.Values.roles | toString) }}
+  {{- if $appRolePresent }}
+    {{- if not (or (.Values.apps) (.Values.appResources) ($appDiscoveryEnabled)) }}
+      {{- fail "app service is enabled, but no application source is enabled. You must either statically define apps through `apps`, dynamically through `appResources`, or enable in-cluster discovery." }}
+    {{- end }}
   enabled: true
-  {{- if not (or (.Values.apps) (.Values.appResources)) }}
-    {{- fail "at least one of 'apps' and 'appResources' is required in chart values when app role is enabled, see README" }}
-  {{- end }}
   {{- if .Values.apps }}
     {{- range $app := .Values.apps }}
       {{- if not (hasKey $app "name") }}
@@ -55,11 +57,16 @@ app_service:
     {{- end }}
   apps:
     {{- toYaml .Values.apps | nindent 8 }}
-  {{- end }}
-  {{- if .Values.appResources }}
+    {{- end }}
   resources:
-    {{- toYaml .Values.appResources | nindent 8 }}
-  {{- end }}
+    {{- if .Values.appResources }}
+      {{- toYaml .Values.appResources | nindent 8 }}
+    {{- end }}
+    {{- if $appDiscoveryEnabled }}
+  - labels:
+      "teleport.dev/kubernetes-cluster": "{{ required "kubeClusterName is required in chart values when kube or discovery role is enabled, see README" .Values.kubeClusterName }}"
+      "teleport.dev/origin": "discovery-kubernetes"
+    {{- end }}
   {{- else }}
   enabled: false
   {{- end }}
@@ -108,6 +115,15 @@ db_service:
   resources:
     {{- toYaml .Values.databaseResources | nindent 6 }}
   {{- end }}
+{{- else }}
+  enabled: false
+{{- end }}
+
+discovery_service:
+{{- if $discoveryEnabled }}
+  enabled: true
+  discovery_group: {{ required "kubeClusterName is required in chart values when kube or discovery role is enabled, see README" .Values.kubeClusterName }}
+  kubernetes: {{- toYaml .Values.kubernetesDiscovery | nindent 4 }}
 {{- else }}
   enabled: false
 {{- end }}

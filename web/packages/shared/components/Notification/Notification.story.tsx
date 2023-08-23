@@ -74,7 +74,7 @@ export const Notifications = () => {
             },
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.danger}
+          getColor={theme => theme.colors.error.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -112,7 +112,7 @@ export const Notifications = () => {
             content: 'Multiline error without title. ' + loremIpsum,
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.danger}
+          getColor={theme => theme.colors.error.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -150,7 +150,7 @@ export const Notifications = () => {
             content: 'Error without title',
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.danger}
+          getColor={theme => theme.colors.error.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -207,7 +207,7 @@ export const Notifications = () => {
             },
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.danger}
+          getColor={theme => theme.colors.error.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -238,7 +238,7 @@ export const Notifications = () => {
             },
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.warning}
+          getColor={theme => theme.colors.warning.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -252,7 +252,22 @@ export const Notifications = () => {
             },
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.danger}
+          getColor={theme => theme.colors.error.main}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+      </Flex>
+
+      <Flex flexDirection="column" gap={4}>
+        <Notification
+          item={{
+            id: crypto.randomUUID(),
+            severity: 'info',
+            content:
+              'Unbreakable text. /Users/test/Library/ApplicationSupport/Electron/configuration.json',
+          }}
+          Icon={Info}
+          getColor={theme => theme.colors.info}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -265,6 +280,7 @@ export const AutoRemovable = () => {
   const [showInfo, setShowInfo] = useState(true);
   const [showWarning, setShowWarning] = useState(true);
   const [showError, setShowError] = useState(true);
+
   return (
     <Flex flexDirection="column" gap={4}>
       {showInfo ? (
@@ -311,7 +327,7 @@ export const AutoRemovable = () => {
           }}
           onRemove={() => setShowError(false)}
           Icon={Warning}
-          getColor={theme => theme.colors.danger}
+          getColor={theme => theme.colors.error.main}
           isAutoRemovable={false}
         />
       ) : (

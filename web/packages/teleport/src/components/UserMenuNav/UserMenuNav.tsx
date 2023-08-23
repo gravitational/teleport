@@ -17,14 +17,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
-import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
+import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
 import { Text } from 'design';
-import { LogoutIcon } from 'design/SVGIcon';
 import { NavLink } from 'react-router-dom';
 
 import session from 'teleport/services/websession';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { useTeleport } from 'teleport';
+import { useUser } from 'teleport/User/UserContext';
+import { ThemePreference } from 'teleport/services/userPreferences/types';
 
 interface UserMenuNavProps {
   username: string;
@@ -46,12 +47,12 @@ const UserInfo = styled.div`
   position: relative;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;
 
 const Username = styled(Text)`
-  color: white;
+  color: ${props => props.theme.colors.text.main};
   font-size: 14px;
   font-weight: 400;
   padding-right: 40px;
@@ -59,8 +60,8 @@ const Username = styled(Text)`
 
 const StyledAvatar = styled.div`
   align-items: center;
-  background: #5130c9;
-  color: white;
+  background: ${props => props.theme.colors.brand};
+  color: ${props => props.theme.colors.text.primaryInverse};
   border-radius: 50%;
   display: flex;
   font-size: 14px;
@@ -95,8 +96,8 @@ const Dropdown = styled.div<OpenProps>`
   display: flex;
   flex-direction: column;
   padding: 10px 15px;
-  background: #222c59;
-  box-shadow: 0 2px 4px rgba(12, 12, 14, 0.9);
+  background: ${({ theme }) => theme.colors.levels.elevated};
+  box-shadow: ${({ theme }) => theme.boxShadow[1]};
   border-radius: 5px;
   width: 265px;
   right: 0;
@@ -114,13 +115,17 @@ const Dropdown = styled.div<OpenProps>`
 const DropdownItem = styled.div`
   line-height: 1;
   font-size: 14px;
-  color: white;
+  color: ${props => props.theme.colors.text.main};
   cursor: pointer;
   border-radius: 4px;
   margin-bottom: 5px;
   opacity: ${p => (p.open ? 1 : 0)};
   transition: transform 0.3s ease, opacity 0.7s ease;
   transform: translate3d(${p => (p.open ? 0 : '20px')}, 0, 0);
+
+  &:hover {
+    background: ${props => props.theme.colors.spotBackground[0]};
+  }
 
   &:last-of-type {
     margin-bottom: 0;
@@ -132,12 +137,17 @@ const commonDropdownItemStyles = css`
   align-items: center;
   display: flex;
   padding: 10px 10px;
-  color: white;
+  color: ${props => props.theme.colors.text.main};
   text-decoration: none;
   transition: opacity 0.15s ease-in;
 
   &:hover {
     opacity: 1;
+  }
+
+  svg {
+    height: 18px;
+    width: 18px;
   }
 `;
 
@@ -156,18 +166,30 @@ const DropdownItemIcon = styled.div`
 
 const DropdownDivider = styled.div`
   height: 1px;
-  background: rgba(255, 255, 255, 0.1);
+  background: ${props => props.theme.colors.spotBackground[1]};
   margin: 0 5px 5px 5px;
 `;
 
 export function UserMenuNav({ username }: UserMenuNavProps) {
   const [open, setOpen] = useState(false);
 
+  const { preferences, updatePreferences } = useUser();
+
   const ref = useRef<HTMLDivElement>();
 
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
   const features = useFeatures();
+
+  const onThemeChange = () => {
+    const nextTheme =
+      preferences.theme === ThemePreference.Light
+        ? ThemePreference.Dark
+        : ThemePreference.Light;
+
+    updatePreferences({ theme: nextTheme });
+    setOpen(false);
+  };
 
   const initial =
     username && username.length ? username.trim().charAt(0).toUpperCase() : '';
@@ -226,7 +248,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
         <Username>{username}</Username>
 
         <Arrow open={open}>
-          <ChevronDownIcon />
+          <ChevronDown size="medium" />
         </Arrow>
       </UserInfo>
 
@@ -241,9 +263,24 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
             transitionDelay: `${transitionDelay}ms`,
           }}
         >
+          <DropdownItemButton onClick={onThemeChange}>
+            <DropdownItemIcon>
+              {preferences.theme === ThemePreference.Light ? <Sun /> : <Moon />}
+            </DropdownItemIcon>
+            Switch to{' '}
+            {preferences.theme === ThemePreference.Dark ? 'Light' : 'Dark'}{' '}
+            Theme
+          </DropdownItemButton>
+        </DropdownItem>
+        <DropdownItem
+          open={open}
+          style={{
+            transitionDelay: `${transitionDelay}ms`,
+          }}
+        >
           <DropdownItemButton onClick={() => session.logout()}>
             <DropdownItemIcon>
-              <LogoutIcon size={16} />
+              <LogoutIcon />
             </DropdownItemIcon>
             Logout
           </DropdownItemButton>

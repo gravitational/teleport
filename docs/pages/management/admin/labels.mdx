@@ -37,8 +37,7 @@ region.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
-
+- (!docs/pages/includes/tctl.mdx!)
 - A host where you will run a Teleport Node. In this guide, we will apply labels
   to this Node.
 
@@ -74,7 +73,7 @@ created with a TTL of five minutes:
 
 ```code
 # Generate a short-lived invitation token for a new node:
-$ tctl nodes add --ttl=5m --roles=node
+$ tctl tokens add --ttl=5m --type=node
 # The invite token: (=presets.tokens.first=)
 
 # You can also list all generated non-expired tokens:
@@ -101,7 +100,8 @@ starting Teleport.
 On the host where you will run your Node, paste the following content into
 `/etc/teleport.yaml` and adjust it for your environment:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```yaml
 version: v3
@@ -126,8 +126,8 @@ ssh_service:
     environment: dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```yaml
 version: v3
@@ -148,7 +148,9 @@ ssh_service:
     environment: dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Next, start Teleport with the invite token you created earlier:
 
@@ -166,7 +168,7 @@ Node Name    Address    Labels
 bdcb47b87ad6 ⟵ Tunnel environment=dev
 ```
 
-<Details title="Don't see your Node?" opened={false}>
+<Details title="Don't see your Node?">
 
 First, check the logs for your Node to ensure the SSH Service is running. Your logs should resemble the following:
 
@@ -182,7 +184,8 @@ your Node.
 
 Run the following command to get the current logins for your user:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 ```code
 $ tsh status
@@ -196,22 +199,39 @@ $ tsh status
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
 ```code
-tsh status
-> Profile URL:        https://mytenant.teleport.sh:443
+$ tsh status
+> Profile URL:        https://teleport.example.com:443
   Logged in as:       myuser
-  Cluster:            mytenant.teleport.sh
-  Roles:              access, editor
+  Cluster:            teleport.example.com
+  Roles:              access, editor, reviewer
   Logins:             -teleport-nologin-d4bc1dad-ce49-4bbe-925d-a67f8d2d6afe
   Kubernetes:         enabled
   Valid until:        2022-04-27 22:26:50 -0400 EDT [valid for 11h40m0s]
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+```code
+tsh status
+> Profile URL:        https://mytenant.teleport.sh:443
+  Logged in as:       myuser
+  Cluster:            mytenant.teleport.sh
+  Roles:              access, editor, reviewer
+  Logins:             -teleport-nologin-d4bc1dad-ce49-4bbe-925d-a67f8d2d6afe
+  Kubernetes:         enabled
+  Valid until:        2022-04-27 22:26:50 -0400 EDT [valid for 11h40m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+</TabItem>
+
+</Tabs>
 
 In this example, `-teleport-nologin-d4bc1dad-ce49-4bbe-925d-a67f8d2d6afe` means
 that no logins have been assigned to the user.
@@ -249,7 +269,7 @@ you run `tsh ls`.
 
 </Details>
 
-<Details title="Hidden labels" opened={false}>
+<Details title="Hidden labels">
 
 If you wish to use labels for RBAC purposes but don't want to see the labels
 in the UI, you can put them in the hidden namespace by prefixing the label's
@@ -265,7 +285,8 @@ Teleport configuration file.
 
 Edit `/etc/teleport.yaml` to define a `commands` array as shown below:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```yaml
 version: v3
@@ -292,8 +313,8 @@ ssh_service:
     period: 1h0m0s
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```yaml
 version: v3
@@ -320,7 +341,9 @@ ssh_service:
     period: 1h0m0s
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Notice that the `command` setting is an array where the first element
 is a valid executable and each subsequent element is an argument.
@@ -372,14 +395,13 @@ ip-192-0-2-0      ⟵ Tunnel arch=x86_64,hostname=ip-172-30-156-233
 
 <Details title="Problems re-joining the Node?">
 
-Try creating another invite token using the `tctl nodes add` command from earlier
+Try creating another invite token using the `tctl tokens add` command from earlier
 and starting your Node again.
 
 If this doesn't work, delete the directory your Node uses to maintain its state,
 `/var/lib/teleport`, and try again.
 
 </Details>
-
 
 ## Next steps: Using labels
 
@@ -391,3 +413,4 @@ For more information, see
 You can also use labels to limit the access that different roles have to
 specific classes of resources. For more information, see
 [Teleport Role Templates](../../access-controls/guides/role-templates.mdx).
+

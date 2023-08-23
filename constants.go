@@ -38,8 +38,8 @@ const (
 	// SSHTeleportUser is the current Teleport user that is logged in.
 	SSHTeleportUser = "SSH_TELEPORT_USER"
 
-	// SSHSessionWebproxyAddr is the address the web proxy.
-	SSHSessionWebproxyAddr = "SSH_SESSION_WEBPROXY_ADDR"
+	// SSHSessionWebProxyAddr is the address the web proxy.
+	SSHSessionWebProxyAddr = "SSH_SESSION_WEBPROXY_ADDR"
 
 	// SSHTeleportClusterName is the name of the cluster this node belongs to.
 	SSHTeleportClusterName = "SSH_TELEPORT_CLUSTER_NAME"
@@ -49,6 +49,9 @@ const (
 
 	// SSHSessionID is the UUID of the current session.
 	SSHSessionID = "SSH_SESSION_ID"
+
+	// EnableNonInteractiveSessionRecording can be used to record non-interactive SSH session.
+	EnableNonInteractiveSessionRecording = "SSH_TELEPORT_RECORD_NON_INTERACTIVE"
 )
 
 const (
@@ -202,6 +205,10 @@ const (
 	// ComponentWeb is a web server
 	ComponentWeb = "web"
 
+	// ComponentUnifiedResource is a cache of resources meant to be listed and displayed
+	// together in the web UI
+	ComponentUnifiedResource = "unified_resource"
+
 	// ComponentWebsocket is websocket server that the web client connects to.
 	ComponentWebsocket = "websocket"
 
@@ -261,6 +268,15 @@ const (
 	// ComponentUsageReporting is the component responsible for reporting usage metrics.
 	ComponentUsageReporting = "usage-reporting"
 
+	// ComponentAthena represents athena clients.
+	ComponentAthena = "athena"
+
+	// ComponentProxySecureGRPC represents secure gRPC server running on Proxy (used for Kube).
+	ComponentProxySecureGRPC = "proxy:secure-grpc"
+
+	// ComponentAssist represents Teleport Assist
+	ComponentAssist = "assist"
+
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -300,7 +316,7 @@ const (
 	// Text means text serialization format
 	Text = "text"
 
-	// PTY is a raw pty session capture format
+	// PTY is a raw PTY session capture format
 	PTY = "pty"
 
 	// Names is for formatting node names in plain text
@@ -311,11 +327,11 @@ const (
 
 	// DirMaskSharedGroup is the mask for a directory accessible
 	// by the owner and group
-	DirMaskSharedGroup = 0770
+	DirMaskSharedGroup = 0o770
 
 	// FileMaskOwnerOnly is the file mask that allows read write access
 	// to owers only
-	FileMaskOwnerOnly = 0600
+	FileMaskOwnerOnly = 0o600
 
 	// On means mode is on
 	On = "on"
@@ -326,8 +342,15 @@ const (
 	// GCSTestURI turns on GCS tests
 	GCSTestURI = "TEST_GCS_URI"
 
+	// AZBlobTestURI specifies the storage account URL to use for Azure Blob
+	// Storage tests.
+	AZBlobTestURI = "TEST_AZBLOB_URI"
+
 	// AWSRunTests turns on tests executed against AWS directly
 	AWSRunTests = "TEST_AWS"
+
+	// AWSRunDBTests turns on tests executed against AWS databases directly.
+	AWSRunDBTests = "TEST_AWS_DB"
 
 	// Region is AWS region parameter
 	Region = "region"
@@ -358,6 +381,14 @@ const (
 
 	// SchemeGCS is used for Google Cloud Storage
 	SchemeGCS = "gs"
+
+	// SchemeAZBlob is the Azure Blob Storage scheme, used as the scheme in the
+	// session storage URI to identify a storage account accessed over https.
+	SchemeAZBlob = "azblob"
+
+	// SchemeAZBlobHTTP is the Azure Blob Storage scheme, used as the scheme in the
+	// session storage URI to identify a storage account accessed over http.
+	SchemeAZBlobHTTP = "azblob-http"
 
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
@@ -462,6 +493,11 @@ const (
 	// CertExtensionDeviceCredentialID is the identifier for the credential used
 	// by the device to authenticate itself.
 	CertExtensionDeviceCredentialID = "teleport-device-credential-id"
+
+	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
+	// from which this certificate is accepted for authentication.
+	// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
+	CertCriticalOptionSourceAddress = "source-address"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -558,6 +594,10 @@ const (
 	// database users for local accounts.
 	TraitInternalDBUsersVariable = "{{internal.db_users}}"
 
+	// TraitInternalDBRolesVariable is the variable used to store allowed
+	// database roles for automatic database user provisioning.
+	TraitInternalDBRolesVariable = "{{internal.db_roles}}"
+
 	// TraitInternalAWSRoleARNs is the variable used to store allowed AWS
 	// role ARNs for local accounts.
 	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
@@ -594,9 +634,50 @@ const (
 	// PresetAuditorRoleName is a name of a preset role that allows
 	// reading cluster events and playing back session records.
 	PresetAuditorRoleName = "auditor"
+
+	// PresetReviewerRoleName is a name of a preset role that allows
+	// for reviewing access requests.
+	PresetReviewerRoleName = "reviewer"
+
+	// PresetRequesterRoleName is a name of a preset role that allows
+	// for requesting access to resources.
+	PresetRequesterRoleName = "requester"
+
+	// PresetGroupAccessRoleName is a name of a preset role that allows
+	// access to all user groups.
+	PresetGroupAccessRoleName = "group-access"
+
+	// PresetDeviceAdminRoleName is the name of the "device-admin" role.
+	// The role is used to administer trusted devices.
+	PresetDeviceAdminRoleName = "device-admin"
+
+	// PresetDeviceEnrollRoleName is the name of the "device-enroll" role.
+	// The role is used to grant device enrollment powers to users.
+	PresetDeviceEnrollRoleName = "device-enroll"
+
+	// PresetRequireTrustedDeviceRoleName is the name of the
+	// "require-trusted-device" role.
+	// The role is used as a basis for requiring trusted device access to
+	// resources.
+	PresetRequireTrustedDeviceRoleName = "require-trusted-device"
+
+	// SystemAutomaticAccessApprovalRoleName names a preset role that may
+	// automatically approve any Role Access Request
+	SystemAutomaticAccessApprovalRoleName = "@teleport-access-approver"
+
+	// ConnectMyComputerRoleNamePrefix is the prefix used for roles prepared for individual users
+	// during the setup of Connect My Computer. The prefix is followed by the name of the cluster
+	// user. See [teleterm.connectmycomputer.RoleSetup].
+	ConnectMyComputerRoleNamePrefix = "connect-my-computer-"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
+
+const (
+	// SystemAccessApproverUserName names a Teleport user that acts as
+	// an Access Request approver for access plugins
+	SystemAccessApproverUserName = "@teleport-access-approval-bot"
+)
 
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string
@@ -619,10 +700,10 @@ const (
 
 const (
 	// SharedDirMode is a mode for a directory shared with group
-	SharedDirMode = 0750
+	SharedDirMode = 0o750
 
 	// PrivateDirMode is a mode for private directories
-	PrivateDirMode = 0700
+	PrivateDirMode = 0o700
 )
 
 const (
@@ -762,6 +843,9 @@ const (
 	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
 	// uses to get the home directory of a remote user.
 	GetHomeDirSubsystem = "gethomedir"
+
+	// SFTPSubsystem is the SFTP SSH subsystem.
+	SFTPSubsystem = "sftp"
 )
 
 // A principal name for use in SSH certificates.
@@ -801,13 +885,20 @@ const UserSingleUseCertTTL = time.Minute
 const StandardHTTPSPort = 443
 
 const (
-	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
-	// call.
-	WebAPIConnUpgrade = "/webapi/connectionupgrade"
-	// WebAPIConnUpgradeHeader is the header used to indicate the requested
-	// connection upgrade types in the connection upgrade API.
-	WebAPIConnUpgradeHeader = "Upgrade"
-	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
-	// the upgraded connection should be handled by the ALPN handler.
-	WebAPIConnUpgradeTypeALPN = "alpn"
+	// KubeSessionDisplayParticipantRequirementsQueryParam is the query parameter used to
+	// indicate that the client wants to display the participant requirements
+	// for the given session.
+	KubeSessionDisplayParticipantRequirementsQueryParam = "displayParticipantRequirements"
+	// KubeSessionReasonQueryParam is the query parameter used to indicate the reason
+	// for the session request.
+	KubeSessionReasonQueryParam = "reason"
+	// KubeSessionInvitedQueryParam is the query parameter used to indicate the users
+	// to invite to the session.
+	KubeSessionInvitedQueryParam = "invite"
+)
+
+const (
+	// KubeLegacyProxySuffix is the suffix used for legacy proxy services when
+	// generating their names Server names.
+	KubeLegacyProxySuffix = "-proxy_service"
 )

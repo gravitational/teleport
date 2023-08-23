@@ -27,11 +27,16 @@ if [ "$1" = "upgrade" ] || [ "$1" = "1" ]; then
   exit 0
 fi
 
+APP="/opt/${sanitizedProductName}"
 BIN=/usr/local/bin
 TSH_SYMLINK_TARGET=$BIN/tsh
 
 # Remove the link to the Electron app binary.
-rm -f "$BIN/${executable}"
+if type update-alternatives >/dev/null 2>&1; then
+  update-alternatives --remove "${executable}" "$APP/${executable}"
+ else
+  rm -f "$BIN/${executable}"
+ fi
 
 # At this point, the app has already been removed from disk. If TSH_SYMLINK_TARGET used to point at
 # tsh bundled with the teleport-connect package, it is a broken symlink now.

@@ -52,8 +52,8 @@ func buildboxPipelineSteps() []step {
 
 	for _, name := range []string{"buildbox", "buildbox-arm", "buildbox-centos7"} {
 		for _, fips := range []bool{false, true} {
-			// FIPS is unsupported on ARM/ARM64
-			if name == "buildbox-arm" && fips {
+			// FIPS is only supported on centos7
+			if fips && name != "buildbox-centos7" {
 				continue
 			}
 			steps = append(steps, buildboxPipelineStep(name, fips))
@@ -69,7 +69,8 @@ func buildboxPipelineStep(buildboxName string, fips bool) step {
 	return step{
 		Name:    "Build and push " + buildboxName,
 		Image:   "docker",
-		Volumes: []volumeRef{volumeRefDocker, volumeRefAwsConfig},
+		Pull:    "if-not-exists",
+		Volumes: []volumeRef{volumeRefAwsConfig, volumeRefDocker, volumeRefDockerConfig},
 		Commands: []string{
 			`apk add --no-cache make aws-cli`,
 			`chown -R $UID:$GID /go`,
@@ -101,7 +102,7 @@ func buildboxPipeline() pipeline {
 	// only on master for now; add the release branch name when forking a new release series.
 	p.Trigger = pushTriggerForBranch("master", "branch/*")
 	p.Workspace = workspace{Path: "/go/src/github.com/gravitational/teleport"}
-	p.Volumes = []volume{volumeDocker, volumeAwsConfig}
+	p.Volumes = []volume{volumeAwsConfig, volumeDocker, volumeDockerConfig}
 	p.Services = []service{
 		dockerService(),
 	}

@@ -31,7 +31,7 @@ export const Typography = () => (
 );
 
 const Specs = () => (
-  <Box bg="primary.light" p={2} textAlign="left">
+  <Box bg="levels.surface" p={2} textAlign="left">
     <Text typography="h2" mb={3}>
       Specs
     </Text>
@@ -158,7 +158,7 @@ const Specs = () => (
 );
 
 const Example = () => (
-  <Box bg="primary.light" p={2} width="600px" mt={5} textAlign="left">
+  <Box bg="levels.surface" p={2} width="600px" mt={5} textAlign="left">
     <Text typography="h2" mb={3}>
       Examples
     </Text>

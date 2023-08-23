@@ -92,9 +92,6 @@ func newTestingUsageReporter(
 
 	go reporter.Run(ctx)
 
-	// Wait for timers to init.
-	clock.BlockUntil(1)
-
 	return reporter, cancel, receiveChan
 }
 
@@ -164,7 +161,6 @@ func TestUsageReporterTimeSubmit(t *testing.T) {
 	// clock.
 	fakeClock.BlockUntil(1)
 	advanceClocks(2*testMaxBatchAge, fakeClock, fakeSubmitClock)
-	fakeSubmitClock.BlockUntil(1)
 
 	select {
 	case e := <-batchChan:
@@ -283,7 +279,6 @@ func TestUsageReporterDiscard(t *testing.T) {
 
 	// Wait the regular submit delay (to ensure submit finishes), as we have
 	// enough events to fill two batches.
-	fakeClock.BlockUntil(1)
 	fakeSubmitClock.BlockUntil(1)
 	advanceClocks(testSubmitDelay, fakeClock, fakeSubmitClock)
 
@@ -407,6 +402,13 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 	for _, event := range prev {
 		require.Equal(t, 0, event.retriesRemaining)
 	}
+	// this will unblock the submission queue goroutine so that we can
+	// gracefully exit it
+	fakeSubmitClock.Advance(testSubmitDelay)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, reporter.GracefulStop(ctx))
 
 	// All events should have been dropped.
 	require.Empty(t, reporter.buf)

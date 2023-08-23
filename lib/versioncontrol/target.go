@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"golang.org/x/mod/semver"
 )
@@ -31,6 +32,10 @@ import (
 // criterea for keys and values in the future.
 var isValidLabel = regexp.MustCompile(`^[a-z0-9\.\-\/]+$`).MatchString
 
+// isValidLabelVal is the same as isValidLabel except that it also permits '|' which is interpreted
+// as a list delmeter for some labels.
+var isValidLabelVal = regexp.MustCompile(`^[a-z0-9\.\-\/|]+$`).MatchString
+
 // IsValidTargetKey checks if a string is a valid installation target key.
 func IsValidTargetKey(key string) bool {
 	return isValidLabel(key)
@@ -38,11 +43,14 @@ func IsValidTargetKey(key string) bool {
 
 // IsValidTargetVal checks if a string is a valid installtion target value.
 func IsValidTargetVal(val string) bool {
-	return isValidLabel(val)
+	return isValidLabelVal(val)
 }
 
 // LabelSecurityPatch indicates that a release is a security patch when set to 'yes'.
 const LabelSecurityPatch = "security-patch"
+
+// LabelSecurityPatchAlts lists alternative versions that provide the same security fixes.
+const LabelSecurityPatchAlts = "security-patch-alts"
 
 // LabelVersion is the only required label for an installation target and must be
 // valid go-style semver.
@@ -53,12 +61,20 @@ type TargetOption func(*targetOptions)
 
 type targetOptions struct {
 	secPatch bool
+	secAlts  []string
 }
 
 // SecurityPatch sets the security-patch=yes label if true.
 func SecurityPatch(sec bool) TargetOption {
 	return func(opts *targetOptions) {
 		opts.secPatch = sec
+	}
+}
+
+// SecurityPatchAlts appends version strings to the security-patch-alts label.
+func SecurityPatchAlts(alts ...string) TargetOption {
+	return func(opts *targetOptions) {
+		opts.secAlts = append(opts.secAlts, alts...)
 	}
 }
 
@@ -85,6 +101,11 @@ func NewTarget(version string, opts ...TargetOption) Target {
 	if options.secPatch {
 		target[LabelSecurityPatch] = "yes"
 	}
+
+	if len(options.secAlts) != 0 {
+		target[LabelSecurityPatchAlts] = strings.Join(options.secAlts, "|")
+	}
+
 	return target
 }
 
@@ -122,6 +143,43 @@ func (t Target) NextMajor() string {
 // SecurityPatch checks for the special label 'security-patch=yes'.
 func (t Target) SecurityPatch() bool {
 	return t[LabelSecurityPatch] == "yes"
+}
+
+// SecurityPatchAltOf performs a bidirectional check to see if this target and another
+// are security patch alternates (i.e. wether or not they provide the same security fix).
+func (t Target) SecurityPatchAltOf(other Target) bool {
+	if !t.Ok() || !other.Ok() {
+		return false
+	}
+
+	var alt bool
+
+	t.iterSecAlts(func(v string) {
+		if semver.Compare(v, other.Version()) == 0 {
+			alt = true
+		}
+	})
+
+	other.iterSecAlts(func(v string) {
+		if semver.Compare(v, t.Version()) == 0 {
+			alt = true
+		}
+	})
+
+	return alt
+}
+
+// iterSecAlts is a helper for iterating the valide values of the
+// security-patch-alts label.
+func (t Target) iterSecAlts(fn func(v string)) {
+	for _, alt := range strings.Split(t[LabelSecurityPatchAlts], "|") {
+		alt = strings.TrimSpace(alt)
+		if !semver.IsValid(alt) {
+			continue
+		}
+
+		fn(alt)
+	}
 }
 
 // Prerelease checks if this target represents a prerelease installation target

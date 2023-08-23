@@ -16,7 +16,6 @@ limitations under the License.
 package db
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -27,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestMemoryDBFetcher(t *testing.T) {
@@ -47,12 +47,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 		aws.StringValue(memorydbUnsupported.ARN): memorydbUnsupportedTags,
 	}
 
-	tests := []struct {
-		name          string
-		inputClients  cloud.AWSClients
-		inputLabels   map[string]string
-		wantDatabases types.Databases
-	}{
+	tests := []awsFetcherTest{
 		{
 			name: "fetch all",
 			inputClients: &cloud.TestCloudClients{
@@ -61,7 +56,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 					TagsByARN: memorydbTagsByARN,
 				},
 			},
-			inputLabels:   wildcardLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{memorydbDatabaseProd, memorydbDatabaseTest},
 		},
 		{
@@ -72,7 +67,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 					TagsByARN: memorydbTagsByARN,
 				},
 			},
-			inputLabels:   envProdLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherMemoryDB, "us-east-1", envProdLabels),
 			wantDatabases: types.Databases{memorydbDatabaseProd},
 		},
 		{
@@ -83,7 +78,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 					TagsByARN: memorydbTagsByARN,
 				},
 			},
-			inputLabels:   wildcardLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{memorydbDatabaseProd},
 		},
 		{
@@ -94,37 +89,15 @@ func TestMemoryDBFetcher(t *testing.T) {
 					TagsByARN: memorydbTagsByARN,
 				},
 			},
-			inputLabels:   wildcardLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{memorydbDatabaseProd},
 		},
 	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			fetchers := mustMakeAWSFetchersForMatcher(t, test.inputClients, services.AWSMatcherMemoryDB, "us-east-2", toTypeLabels(test.inputLabels))
-			require.ElementsMatch(t, test.wantDatabases, mustGetDatabases(t, fetchers))
-		})
-	}
+	testAWSFetchers(t, tests...)
 }
 
 func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*memorydb.Cluster)) (*memorydb.Cluster, types.Database, []*memorydb.Tag) {
-	cluster := &memorydb.Cluster{
-		ARN:        aws.String(fmt.Sprintf("arn:aws:memorydb:%s:123456789012:cluster:%s", region, name)),
-		Name:       aws.String(name),
-		Status:     aws.String("available"),
-		TLSEnabled: aws.Bool(true),
-		ClusterEndpoint: &memorydb.Endpoint{
-			Address: aws.String("memorydb.localhost"),
-			Port:    aws.Int64(6379),
-		},
-	}
-
-	for _, opt := range opts {
-		opt(cluster)
-	}
+	cluster := mocks.MemoryDBCluster(name, region, opts...)
 
 	tags := []*memorydb.Tag{{
 		Key:   aws.String("env"),
@@ -134,5 +107,6 @@ func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*m
 
 	database, err := services.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
 	require.NoError(t, err)
+	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherMemoryDB)
 	return cluster, database, tags
 }

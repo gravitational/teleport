@@ -188,17 +188,9 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	// Get the correct cert TTL based on roles.
 	ttl := roles.AdjustSessionTTL(apidefaults.CertDuration)
 
-	caType := types.UserCA
-	if req.SignWithDatabaseCA {
-		// Field SignWithDatabaseCA was added in Teleport 10 when DatabaseCA was introduced.
-		// Previous Teleport versions used UserCA, and we still need to sign certificates with UserCA
-		// for compatibility reason. Teleport 10+ expects request signed with DatabaseCA.
-		caType = types.DatabaseCA
-	}
-
 	// Generate the TLS certificate.
 	ca, err := s.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
+		Type:       types.DatabaseCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {

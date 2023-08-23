@@ -19,6 +19,7 @@ import { useStore } from 'shared/libs/stores';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import {
   Document,
+  DocumentOrigin,
   isDocumentTshNodeWithLoginHost,
   WorkspacesService,
 } from 'teleterm/ui/services/workspacesService';
@@ -31,10 +32,12 @@ import { TrackedConnectionOperationsFactory } from './trackedConnectionOperation
 import {
   createGatewayConnection,
   createKubeConnection,
+  createGatewayKubeConnection,
   createServerConnection,
   getGatewayConnectionByDocument,
   getKubeConnectionByDocument,
   getServerConnectionByDocument,
+  getGatewayKubeConnectionByDocument,
 } from './trackedConnectionUtils';
 import {
   ExtendedTrackedConnection,
@@ -81,7 +84,10 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     });
   }
 
-  async activateItem(id: string): Promise<void> {
+  async activateItem(
+    id: string,
+    params: { origin: DocumentOrigin }
+  ): Promise<void> {
     const connection = this.state.connections.find(c => c.id === id);
     const { rootClusterUri, activate } =
       this._trackedConnectionOperationsFactory.create(connection);
@@ -89,7 +95,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     if (rootClusterUri !== this._workspacesService.getRootClusterUri()) {
       await this._workspacesService.setActiveWorkspace(rootClusterUri);
     }
-    activate();
+    activate(params);
   }
 
   findConnectionByDocument(document: Document): TrackedConnection {
@@ -105,6 +111,10 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
       case 'doc.gateway':
         return this.state.connections.find(
           getGatewayConnectionByDocument(document)
+        );
+      case 'doc.gateway_kube':
+        return this.state.connections.find(
+          getGatewayKubeConnectionByDocument(document)
         );
     }
   }
@@ -161,10 +171,22 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     this.setState(draft => {
       // assign default "connected" values
       draft.connections.forEach(i => {
-        if (i.kind === 'connection.gateway') {
-          i.connected = !!this._clusterService.findGateway(i.gatewayUri);
-        } else {
-          i.connected = false;
+        switch (i.kind) {
+          case 'connection.gateway': {
+            i.connected = !!this._clusterService.findGateway(i.gatewayUri);
+            break;
+          }
+          case 'connection.kube': {
+            i.connected = !!this._clusterService.findGatewayByConnectionParams(
+              i.kubeUri,
+              ''
+            );
+            break;
+          }
+          default: {
+            i.connected = false;
+            break;
+          }
         }
       });
 
@@ -182,6 +204,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         .filter(
           d =>
             d.kind === 'doc.gateway' ||
+            d.kind === 'doc.gateway_kube' ||
             d.kind === 'doc.terminal_tsh_node' ||
             d.kind === 'doc.terminal_tsh_kube'
         );
@@ -213,6 +236,24 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
               gwConn.connected = !!this._clusterService.findGateway(
                 doc.gatewayUri
               );
+            }
+            break;
+          }
+          // process kube gateway connections
+          case 'doc.gateway_kube': {
+            const kubeConn = draft.connections.find(
+              getGatewayKubeConnectionByDocument(doc)
+            );
+
+            if (kubeConn) {
+              kubeConn.connected =
+                !!this._clusterService.findGatewayByConnectionParams(
+                  doc.targetUri,
+                  ''
+                );
+            } else {
+              const newItem = createGatewayKubeConnection(doc);
+              draft.connections.push(newItem);
             }
             break;
           }

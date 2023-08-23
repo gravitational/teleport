@@ -52,6 +52,10 @@ type AccessRequest interface {
 	// SetAccessExpiry sets the expiration time for the elevated certificate
 	// that will be issued if the Access Request is approved.
 	SetAccessExpiry(time.Time)
+	// GetSessionTLL gets the session TTL for generated certificates.
+	GetSessionTLL() time.Time
+	// SetSessionTLL sets the session TTL for generated certificates.
+	SetSessionTLL(time.Time)
 	// GetRequestReason gets the reason for the request's creation.
 	GetRequestReason() string
 	// SetRequestReason sets the reason for the request's creation.
@@ -98,11 +102,17 @@ type AccessRequest interface {
 	GetLoginHint() string
 	// SetLoginHint sets the requested login hint.
 	SetLoginHint(string)
+	// GetMaxDuration gets the maximum time at which the access should be approved for.
+	GetMaxDuration() time.Time
+	// SetMaxDuration sets the maximum time at which the access should be approved for.
+	SetMaxDuration(time.Time)
 	// GetDryRun returns true if this request should not be created and is only
 	// a dry run to validate request capabilities.
 	GetDryRun() bool
 	// SetDryRun sets the dry run flag on the request.
 	SetDryRun(bool)
+	// Copy returns a copy of the access request resource.
+	Copy() AccessRequest
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -168,7 +178,7 @@ func (r *AccessRequestV3) GetCreationTime() time.Time {
 
 // SetCreationTime sets CreationTime
 func (r *AccessRequestV3) SetCreationTime(t time.Time) {
-	r.Spec.Created = t
+	r.Spec.Created = t.UTC()
 }
 
 // GetAccessExpiry gets AccessExpiry
@@ -178,7 +188,17 @@ func (r *AccessRequestV3) GetAccessExpiry() time.Time {
 
 // SetAccessExpiry sets AccessExpiry
 func (r *AccessRequestV3) SetAccessExpiry(expiry time.Time) {
-	r.Spec.Expires = expiry
+	r.Spec.Expires = expiry.UTC()
+}
+
+// GetSessionTLL gets SessionTLL
+func (r *AccessRequestV3) GetSessionTLL() time.Time {
+	return r.Spec.SessionTTL
+}
+
+// SetSessionTLL sets SessionTLL
+func (r *AccessRequestV3) SetSessionTLL(t time.Time) {
+	r.Spec.SessionTTL = t.UTC()
 }
 
 // GetRequestReason gets RequestReason
@@ -261,7 +281,12 @@ func (r *AccessRequestV3) SetRoleThresholdMapping(rtm map[string]ThresholdIndexS
 
 // SetReviews sets the list of currently applied access reviews.
 func (r *AccessRequestV3) SetReviews(revs []AccessReview) {
-	r.Spec.Reviews = revs
+	utcRevs := make([]AccessReview, len(revs))
+	for i, rev := range revs {
+		utcRevs[i] = rev
+		utcRevs[i].Created = rev.Created.UTC()
+	}
+	r.Spec.Reviews = utcRevs
 }
 
 // GetReviews gets the list of currently applied access reviews.
@@ -363,7 +388,7 @@ func (r *AccessRequestV3) Expiry() time.Time {
 
 // SetExpiry sets Expiry
 func (r *AccessRequestV3) SetExpiry(expiry time.Time) {
-	r.Metadata.SetExpiry(expiry)
+	r.Metadata.SetExpiry(expiry.UTC())
 }
 
 // GetMetadata gets Metadata
@@ -407,9 +432,31 @@ func (r *AccessRequestV3) GetDryRun() bool {
 	return r.Spec.DryRun
 }
 
+// GetMaxDuration gets the maximum time at which the access should be approved for.
+func (r *AccessRequestV3) GetMaxDuration() time.Time {
+	return r.Spec.MaxDuration
+}
+
+// SetMaxDuration sets the maximum time at which the access should be approved for.
+func (r *AccessRequestV3) SetMaxDuration(t time.Time) {
+	r.Spec.MaxDuration = t
+}
+
 // SetDryRun sets the dry run flag on the request.
 func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 	r.Spec.DryRun = dryRun
+}
+
+// Copy returns a copy of the access request resource.
+func (r *AccessRequestV3) Copy() AccessRequest {
+	return utils.CloneProtoMsg(r)
+}
+
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (r *AccessRequestV3) GetLabel(key string) (value string, ok bool) {
+	v, ok := r.Metadata.Labels[key]
+	return v, ok
 }
 
 // GetStaticLabels returns the access request static labels.

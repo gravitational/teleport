@@ -19,9 +19,11 @@ package common
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
+	"os/user"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -30,9 +32,28 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 
+	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
+)
+
+const (
+	methodGet      = "Get"
+	methodPut      = "Put"
+	methodOpen     = "Open"
+	methodSetStat  = "Setstat"
+	methodRename   = "Rename"
+	methodRmdir    = "Rmdir"
+	methodMkdir    = "Mkdir"
+	methodLink     = "Link"
+	methodSymlink  = "Symlink"
+	methodRemove   = "Remove"
+	methodList     = "List"
+	methodStat     = "Stat"
+	methodLstat    = "Lstat"
+	methodReadlink = "Readlink"
 )
 
 type compositeCh struct {
@@ -52,58 +73,473 @@ func (c compositeCh) Close() error {
 	return trace.NewAggregate(c.r.Close(), c.w.Close())
 }
 
+// sftpHandler provides handlers for a SFTP server.
+type sftpHandler struct {
+	logger *log.Entry
+	events chan<- *apievents.SFTP
+}
+
+func newSFTPHandler(logger *log.Entry, events chan<- *apievents.SFTP) *sftpHandler {
+	return &sftpHandler{
+		logger: logger,
+		events: events,
+	}
+}
+
+// OpenFile handles 'open' requests when opening a file for reading
+// and writing is desired.
+func (s *sftpHandler) OpenFile(req *sftp.Request) (_ sftp.WriterAtReaderAt, retErr error) {
+	defer s.sendSFTPEvent(req, retErr)
+
+	if req.Filepath == "" {
+		return nil, os.ErrInvalid
+	}
+
+	return s.openFile(req)
+}
+
+// Fileread handles 'open' requests when opening a file for reading
+// is desired.
+func (s *sftpHandler) Fileread(req *sftp.Request) (_ io.ReaderAt, retErr error) {
+	defer s.sendSFTPEvent(req, retErr)
+
+	if req.Filepath == "" {
+		return nil, os.ErrInvalid
+	}
+	if !req.Pflags().Read {
+		return nil, os.ErrInvalid
+	}
+
+	return s.openFile(req)
+}
+
+// Filewrite handles 'open' requests when opening a file for writing
+// is desired.
+func (s *sftpHandler) Filewrite(req *sftp.Request) (_ io.WriterAt, retErr error) {
+	defer s.sendSFTPEvent(req, retErr)
+
+	if req.Filepath == "" {
+		return nil, os.ErrInvalid
+	}
+	if !req.Pflags().Write {
+		return nil, os.ErrInvalid
+	}
+
+	return s.openFile(req)
+}
+
+func (s *sftpHandler) openFile(req *sftp.Request) (*os.File, error) {
+	var flags int
+	pflags := req.Pflags()
+	if pflags.Append {
+		flags |= os.O_APPEND
+	}
+	if pflags.Creat {
+		flags |= os.O_CREATE
+	}
+	if pflags.Excl {
+		flags |= os.O_EXCL
+	}
+	if pflags.Trunc {
+		flags |= os.O_TRUNC
+	}
+
+	if pflags.Read && pflags.Write {
+		flags |= os.O_RDWR
+	} else if pflags.Read {
+		flags |= os.O_RDONLY
+	} else if pflags.Write {
+		flags |= os.O_WRONLY
+	}
+
+	f, err := os.OpenFile(req.Filepath, flags, defaults.FilePermissions)
+	if err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
+
+// Filecmd handles file modification requests.
+func (s *sftpHandler) Filecmd(req *sftp.Request) (retErr error) {
+	defer func() {
+		if retErr == sftp.ErrSSHFxOpUnsupported {
+			return
+		}
+		s.sendSFTPEvent(req, retErr)
+	}()
+
+	if req.Filepath == "" {
+		return os.ErrInvalid
+	}
+
+	switch req.Method {
+	case methodSetStat:
+		return s.setstat(req)
+	case methodRename:
+		if req.Target == "" {
+			return os.ErrInvalid
+		}
+		return os.Rename(req.Filepath, req.Target)
+	case methodRmdir:
+		fi, err := os.Lstat(req.Filepath)
+		if err != nil {
+			return err
+		}
+		if !fi.IsDir() {
+			return fmt.Errorf("%q is not a directory", req.Filepath)
+		}
+		return os.RemoveAll(req.Filepath)
+	case methodMkdir:
+		return os.MkdirAll(req.Filepath, defaults.DirectoryPermissions)
+	case methodLink:
+		if req.Target == "" {
+			return os.ErrInvalid
+		}
+		return os.Link(req.Target, req.Filepath)
+	case methodSymlink:
+		if req.Target == "" {
+			return os.ErrInvalid
+		}
+		return os.Symlink(req.Target, req.Filepath)
+	case methodRemove:
+		fi, err := os.Lstat(req.Filepath)
+		if err != nil {
+			return err
+		}
+		if fi.IsDir() {
+			return fmt.Errorf("%q is a directory", req.Filepath)
+		}
+		return os.Remove(req.Filepath)
+	default:
+		return sftp.ErrSSHFxOpUnsupported
+	}
+}
+
+func (s *sftpHandler) setstat(req *sftp.Request) error {
+	attrFlags := req.AttrFlags()
+	attrs := req.Attributes()
+
+	if attrFlags.Acmodtime {
+		atime := time.Unix(int64(attrs.Atime), 0)
+		mtime := time.Unix(int64(attrs.Mtime), 0)
+
+		err := os.Chtimes(req.Filepath, atime, mtime)
+		if err != nil {
+			return err
+		}
+	}
+	if attrFlags.Permissions {
+		err := os.Chmod(req.Filepath, attrs.FileMode())
+		if err != nil {
+			return err
+		}
+	}
+	if attrFlags.UidGid {
+		err := os.Chown(req.Filepath, int(attrs.UID), int(attrs.GID))
+		if err != nil {
+			return err
+		}
+	}
+	if attrFlags.Size {
+		err := os.Truncate(req.Filepath, int64(attrs.Size))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// listerAt satisfies [sftp.ListerAt].
+type listerAt []fs.FileInfo
+
+func (l listerAt) ListAt(ls []fs.FileInfo, offset int64) (int, error) {
+	if offset >= int64(len(l)) {
+		return 0, io.EOF
+	}
+	n := copy(ls, l[offset:])
+	if n < len(ls) {
+		return n, io.EOF
+	}
+
+	return n, nil
+}
+
+// fileName satisfies [fs.FileInfo] but only knows a file's name. This
+// is necessary when handling 'readlink' requests in sftpHandler.FileList,
+// as only the file's name is known after a readlink call.
+type fileName string
+
+func (f fileName) Name() string {
+	return string(f)
+}
+
+func (f fileName) Size() int64 {
+	return 0
+}
+
+func (f fileName) Mode() fs.FileMode {
+	return 0
+}
+
+func (f fileName) ModTime() time.Time {
+	return time.Time{}
+}
+
+func (f fileName) IsDir() bool {
+	return false
+}
+
+func (f fileName) Sys() any {
+	return nil
+}
+
+// Filelist handles 'readdir', 'stat' and 'readlink' requests.
+func (s *sftpHandler) Filelist(req *sftp.Request) (_ sftp.ListerAt, retErr error) {
+	defer func() {
+		if req.Method == methodList {
+			s.sendSFTPEvent(req, retErr)
+		}
+	}()
+
+	if req.Filepath == "" {
+		return nil, os.ErrInvalid
+	}
+
+	switch req.Method {
+	case methodList:
+		entries, err := os.ReadDir(req.Filepath)
+		if err != nil {
+			return nil, err
+		}
+		infos := make([]fs.FileInfo, len(entries))
+		for i, entry := range entries {
+			info, err := entry.Info()
+			if err != nil {
+				return nil, err
+			}
+			infos[i] = info
+		}
+		return listerAt(infos), nil
+	case methodStat:
+		fi, err := os.Stat(req.Filepath)
+		if err != nil {
+			return nil, err
+		}
+		return listerAt{fi}, nil
+	case methodReadlink:
+		dst, err := os.Readlink(req.Filepath)
+		if err != nil {
+			return nil, err
+		}
+		return listerAt{fileName(dst)}, nil
+	default:
+		return nil, sftp.ErrSSHFxOpUnsupported
+	}
+}
+
+// Lstat handles 'lstat' requests.
+func (s *sftpHandler) Lstat(req *sftp.Request) (sftp.ListerAt, error) {
+	if req.Filepath == "" {
+		return nil, os.ErrInvalid
+	}
+
+	fi, err := os.Lstat(req.Filepath)
+	if err != nil {
+		return nil, err
+	}
+
+	return listerAt{fi}, nil
+}
+
+func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, reqErr error) {
+	event := &apievents.SFTP{
+		Metadata: apievents.Metadata{
+			Type: events.SFTPEvent,
+			Time: time.Now(),
+		},
+	}
+
+	switch req.Method {
+	case methodOpen, methodGet, methodPut:
+		if reqErr == nil {
+			event.Code = events.SFTPOpenCode
+		} else {
+			event.Code = events.SFTPOpenFailureCode
+		}
+		event.Action = apievents.SFTPAction_OPEN
+	case methodSetStat:
+		if reqErr == nil {
+			event.Code = events.SFTPSetstatCode
+		} else {
+			event.Code = events.SFTPSetstatFailureCode
+		}
+		event.Action = apievents.SFTPAction_SETSTAT
+	case methodList:
+		if reqErr == nil {
+			event.Code = events.SFTPReaddirCode
+		} else {
+			event.Code = events.SFTPReaddirFailureCode
+		}
+		event.Action = apievents.SFTPAction_READDIR
+	case methodRemove:
+		if reqErr == nil {
+			event.Code = events.SFTPRemoveCode
+		} else {
+			event.Code = events.SFTPRemoveFailureCode
+		}
+		event.Action = apievents.SFTPAction_REMOVE
+	case methodMkdir:
+		if reqErr == nil {
+			event.Code = events.SFTPMkdirCode
+		} else {
+			event.Code = events.SFTPMkdirFailureCode
+		}
+		event.Action = apievents.SFTPAction_MKDIR
+	case methodRmdir:
+		if reqErr == nil {
+			event.Code = events.SFTPRmdirCode
+		} else {
+			event.Code = events.SFTPRmdirFailureCode
+		}
+		event.Action = apievents.SFTPAction_RMDIR
+	case methodRename:
+		if reqErr == nil {
+			event.Code = events.SFTPRenameCode
+		} else {
+			event.Code = events.SFTPRenameFailureCode
+		}
+		event.Action = apievents.SFTPAction_RENAME
+	case methodSymlink:
+		if reqErr == nil {
+			event.Code = events.SFTPSymlinkCode
+		} else {
+			event.Code = events.SFTPSymlinkFailureCode
+		}
+		event.Action = apievents.SFTPAction_SYMLINK
+	case methodLink:
+		if reqErr == nil {
+			event.Code = events.SFTPLinkCode
+		} else {
+			event.Code = events.SFTPLinkFailureCode
+		}
+		event.Action = apievents.SFTPAction_LINK
+	default:
+		s.logger.Warnf("Unknown SFTP request %q", req.Method)
+		return
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		s.logger.WithError(err).Warn("Failed to get working dir.")
+	}
+
+	event.WorkingDirectory = wd
+	event.Path = req.Filepath
+	event.TargetPath = req.Target
+	event.Flags = req.Flags
+	if req.Method == methodSetStat {
+		attrFlags := req.AttrFlags()
+		attrs := req.Attributes()
+		event.Attributes = new(apievents.SFTPAttributes)
+
+		if attrFlags.Acmodtime {
+			atime := time.Unix(int64(attrs.Atime), 0)
+			mtime := time.Unix(int64(attrs.Mtime), 0)
+			event.Attributes.AccessTime = &atime
+			event.Attributes.ModificationTime = &mtime
+		}
+		if attrFlags.Permissions {
+			perms := uint32(attrs.FileMode().Perm())
+			event.Attributes.Permissions = &perms
+		}
+		if attrFlags.Size {
+			event.Attributes.FileSize = &attrs.Size
+		}
+		if attrFlags.UidGid {
+			event.Attributes.UID = &attrs.UID
+			event.Attributes.GID = &attrs.GID
+		}
+	}
+	if reqErr != nil {
+		s.logger.Debugf("%s: %v", req.Method, reqErr)
+		// If possible, strip the filename from the error message. The
+		// path will be included in audit events already, no need to
+		// make the error message longer than it needs to be.
+		var pathErr *fs.PathError
+		var linkErr *os.LinkError
+		if errors.As(reqErr, &pathErr) {
+			event.Error = pathErr.Err.Error()
+		} else if errors.As(reqErr, &linkErr) {
+			event.Error = linkErr.Err.Error()
+		} else {
+			event.Error = reqErr.Error()
+		}
+	}
+
+	s.events <- event
+}
+
 func onSFTP() error {
 	chr, err := openFD(3, "chr")
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	defer chr.Close()
 	chw, err := openFD(4, "chw")
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	defer chw.Close()
 	ch := compositeCh{chr, chw}
 	auditFile, err := openFD(5, "audit")
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	defer auditFile.Close()
 
 	// Ensure the parent process will receive log messages from us
-	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
+	l := utils.NewLogger()
+	l.SetOutput(os.Stderr)
+	logger := l.WithField(trace.Component, teleport.ComponentSubsystemSFTP)
 
-	sftpEvents := make(chan *apievents.SFTP, 1)
-	sftpSrv, err := sftp.NewServer(ch, sftp.WithRequestCallback(func(reqPacket sftp.RequestPacket) {
-		event, ok := handleSFTPEvent(reqPacket)
-		if !ok {
-			// We don't care about this type of SFTP request, move on
-			return
-		}
-
-		sftpEvents <- event
-	}))
+	currentUser, err := user.Current()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	_, err = os.Stat(currentUser.HomeDir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sftpEvents := make(chan *apievents.SFTP, 1)
+	h := newSFTPHandler(logger, sftpEvents)
+	handler := sftp.Handlers{
+		FileGet:  h,
+		FilePut:  h,
+		FileCmd:  h,
+		FileList: h,
+	}
+	sftpSrv := sftp.NewRequestServer(ch, handler, sftp.WithStartDirectory(currentUser.HomeDir))
 
 	// Start a goroutine to marshal and send audit events to the parent
 	// process to avoid blocking the SFTP connection on event handling
 	done := make(chan struct{})
 	go func() {
 		var m jsonpb.Marshaler
+		var buf bytes.Buffer
 		for event := range sftpEvents {
-			eventStr, err := m.MarshalToString(event)
-			if err != nil {
-				log.WithError(err).Warn("Failed to marshal SFTP event.")
+			buf.Reset()
+			if err := m.Marshal(&buf, event); err != nil {
+				logger.WithError(err).Warn("Failed to marshal SFTP event.")
 			} else {
 				// Append a NULL byte so the parent process will know where
 				// this event ends
-				eventBytes := []byte(eventStr)
-				eventBytes = append(eventBytes, 0x0)
-				_, err = io.Copy(auditFile, bytes.NewReader(eventBytes))
+				buf.WriteByte(0x0)
+				_, err = io.Copy(auditFile, &buf)
 				if err != nil {
-					log.WithError(err).Warn("Failed to send SFTP event to parent.")
+					logger.WithError(err).Warn("Failed to send SFTP event to parent.")
 				}
 			}
 		}
@@ -139,188 +575,4 @@ func openFD(fd uintptr, name string) (*os.File, error) {
 	}
 
 	return file, nil
-}
-
-func handleSFTPEvent(reqPacket sftp.RequestPacket) (*apievents.SFTP, bool) {
-	event := &apievents.SFTP{
-		Metadata: apievents.Metadata{
-			Type: events.SFTPEvent,
-			Time: time.Now(),
-		},
-	}
-
-	switch reqPacket.Type {
-	case sftp.Open:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPOpenCode
-		} else {
-			event.Code = events.SFTPOpenFailureCode
-		}
-		event.Action = apievents.SFTPAction_OPEN
-	case sftp.Close:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPCloseCode
-		} else {
-			event.Code = events.SFTPCloseFailureCode
-		}
-		event.Action = apievents.SFTPAction_CLOSE
-	case sftp.Read:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPReadCode
-		} else {
-			event.Code = events.SFTPReadFailureCode
-		}
-		event.Action = apievents.SFTPAction_READ
-	case sftp.Write:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPWriteCode
-		} else {
-			event.Code = events.SFTPWriteFailureCode
-		}
-		event.Action = apievents.SFTPAction_WRITE
-	case sftp.Lstat:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPLstatCode
-		} else {
-			event.Code = events.SFTPLstatFailureCode
-		}
-		event.Action = apievents.SFTPAction_LSTAT
-	case sftp.Fstat:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPFstatCode
-		} else {
-			event.Code = events.SFTPFstatFailureCode
-		}
-		event.Action = apievents.SFTPAction_FSTAT
-	case sftp.Setstat:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPSetstatCode
-		} else {
-			event.Code = events.SFTPSetstatFailureCode
-		}
-		event.Action = apievents.SFTPAction_SETSTAT
-	case sftp.Fsetstat:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPFsetstatCode
-		} else {
-			event.Code = events.SFTPFsetstatFailureCode
-		}
-		event.Action = apievents.SFTPAction_FSETSTAT
-	case sftp.Opendir:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPOpendirCode
-		} else {
-			event.Code = events.SFTPOpendirFailureCode
-		}
-		event.Action = apievents.SFTPAction_OPENDIR
-	case sftp.Readdir:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPReaddirCode
-		} else {
-			event.Code = events.SFTPReaddirFailureCode
-		}
-		event.Action = apievents.SFTPAction_READDIR
-	case sftp.Remove:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPRemoveCode
-		} else {
-			event.Code = events.SFTPRemoveFailureCode
-		}
-		event.Action = apievents.SFTPAction_REMOVE
-	case sftp.Mkdir:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPMkdirCode
-		} else {
-			event.Code = events.SFTPMkdirFailureCode
-		}
-		event.Action = apievents.SFTPAction_MKDIR
-	case sftp.Rmdir:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPRmdirCode
-		} else {
-			event.Code = events.SFTPRmdirFailureCode
-		}
-		event.Action = apievents.SFTPAction_RMDIR
-	case sftp.Realpath:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPRealpathCode
-		} else {
-			event.Code = events.SFTPRealpathFailureCode
-		}
-		event.Action = apievents.SFTPAction_REALPATH
-	case sftp.Stat:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPStatCode
-		} else {
-			event.Code = events.SFTPStatFailureCode
-		}
-		event.Action = apievents.SFTPAction_STAT
-	case sftp.Rename:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPRenameCode
-		} else {
-			event.Code = events.SFTPRenameFailureCode
-		}
-		event.Action = apievents.SFTPAction_RENAME
-	case sftp.Readlink:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPReadlinkCode
-		} else {
-			event.Code = events.SFTPReadlinkFailureCode
-		}
-		event.Action = apievents.SFTPAction_READLINK
-	case sftp.Symlink:
-		if reqPacket.Err == nil {
-			event.Code = events.SFTPSymlinkCode
-		} else {
-			event.Code = events.SFTPSymlinkFailureCode
-		}
-		event.Action = apievents.SFTPAction_SYMLINK
-	default:
-		return nil, false
-	}
-
-	wd, err := os.Getwd()
-	if err != nil {
-		log.WithError(err).Warn("Failed to get working dir.")
-	}
-
-	event.WorkingDirectory = wd
-	event.Path = reqPacket.Path
-	event.TargetPath = reqPacket.TargetPath
-	event.Flags = reqPacket.Flags
-	if reqPacket.Attributes != nil {
-		event.Attributes = &apievents.SFTPAttributes{
-			AccessTime:       reqPacket.Attributes.AccessTime,
-			ModificationTime: reqPacket.Attributes.ModificationTime,
-		}
-		if reqPacket.Attributes.Size != nil {
-			event.Attributes.FileSize = reqPacket.Attributes.Size
-		}
-		if reqPacket.Attributes.UID != nil {
-			event.Attributes.UID = reqPacket.Attributes.UID
-		}
-		if reqPacket.Attributes.GID != nil {
-			event.Attributes.GID = reqPacket.Attributes.GID
-		}
-		if reqPacket.Attributes.Permissions != nil {
-			event.Attributes.Permissions = (*uint32)(reqPacket.Attributes.Permissions)
-		}
-	}
-	if reqPacket.Err != nil {
-		// If possible, strip the filename from the error message. The
-		// path will be included in audit events already, no need to
-		// make the error message longer than it needs to be.
-		var pathErr *fs.PathError
-		var linkErr *os.LinkError
-		if errors.As(reqPacket.Err, &pathErr) {
-			event.Error = pathErr.Err.Error()
-		} else if errors.As(reqPacket.Err, &linkErr) {
-			event.Error = linkErr.Err.Error()
-		} else {
-			event.Error = reqPacket.Err.Error()
-		}
-	}
-
-	return event, true
 }

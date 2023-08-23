@@ -1,6 +1,6 @@
 ---
 title: Database Access with AWS Keyspaces (Apache Cassandra)
-description: How to configure Teleport Database Access with AWS Keyspaces (Apache Cassandra)
+description: How to configure Teleport database access with AWS Keyspaces (Apache Cassandra)
 ---
 
 <Details
@@ -10,22 +10,20 @@ description: How to configure Teleport Database Access with AWS Keyspaces (Apach
   scopeOnly={true}
   min="11.0"
 >
-  Database Access for AWS Keyspaces (Apache Cassandra) is available starting from Teleport `v11.0`.
+  Database access for AWS Keyspaces (Apache Cassandra) is available starting from Teleport `v11.0`.
 </Details>
 
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS Keyspaces (Apache Cassandra)" dbConfigure="AWS Keyspaces database with IAM authentication" dbName="AWS Keyspaces" !)
 
-This guide will help you to:
-
-- Install and configure Teleport.
-- Set up Teleport to access AWS Keyspaces (Apache Cassandra).
-- Connect to your database through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Redis Self-Hosted](../../../img/database-access/guides/cassandra_keyspaces_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access Redis Cloud](../../../img/database-access/guides/cassandra_keyspaces_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -34,18 +32,20 @@ This guide will help you to:
 - AWS Account with AWS Keyspaces database and permissions to create and attach IAM policies
 - The `cqlsh` Cassandra client installed and added to your system's `PATH` environment variable.
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database Service.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
+
 Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 Create a configuration for the Teleport Database Service, pointing the
 `--proxy` flag to the address of your Teleport Proxy Service:
@@ -61,8 +61,8 @@ $ teleport db configure create \
   --labels=env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 Create a configuration for the Teleport Database Service, pointing the
 `--proxy` flag to the address of your Teleport Proxy Service:
@@ -78,7 +78,9 @@ $ teleport db configure create \
   --labels=env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 (!docs/pages/includes/aws-credentials.mdx service="the Teleport Database Service"!)
 
@@ -109,7 +111,6 @@ You can choose `AmazonKeyspacesReadOnlyAccess` for read-only access to AWS Keysp
 Enter a role name and press "Create role".
 ![Create Role Step 1](../../../img/database-access/guides/keyspaces/create-role-step3.png)
 
-
 ## Step 4/5. Give Teleport permissions to assume roles
 
 Next, attach the following policy to the IAM role or IAM user the Teleport
@@ -134,13 +135,13 @@ assume the IAM roles:
   ARNs in the "Resource" field instead of using a wildcard.
 </Admonition>
 
-
 ## Step 5/5. Connect
 
 Once the Database Service has joined the cluster, log in to see the available
 databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
   ```code
   $ tsh login --proxy=teleport.example.com --user=alice
@@ -150,8 +151,8 @@ databases:
   # keyspaces             [*]           env=dev
   ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
   ```code
   $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -161,7 +162,9 @@ databases:
   # keyspaces             [*]           env=dev
   ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To connect to a particular database instance using the `KeyspacesReader`  AWS IAM Keyspaces role as a database user:
 ```code
@@ -189,3 +192,4 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+
