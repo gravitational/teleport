@@ -156,7 +156,7 @@ func NewEmbeddingProcessor(cfg *EmbeddingProcessorConfig) *EmbeddingProcessor {
 	}
 }
 
-// resourceStringPair is a helper struct that pairs a reosurce with a data string.
+// resourceStringPair is a helper struct that pairs a resource with a data string.
 type resourceStringPair struct {
 	resource types.Resource
 	data     string
