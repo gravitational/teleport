@@ -2159,7 +2159,7 @@ func TestAccessListMembers(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	accessListName := "test-access-list"
+	const accessListName = "test-access-list"
 
 	p.accessLists.UpsertAccessList(context.Background(), newAccessList(t, accessListName))
 
