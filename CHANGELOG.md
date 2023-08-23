@@ -3,14 +3,15 @@
 ## 13.3.5 (08/22/23)
 
 * Fixed S3 metric name for completed multipart uploads. [#30710](https://github.com/gravitational/teleport/pull/30710)
-* Added `--current-device` capabilities to `tsh`. [#30702](https://github.com/gravitational/teleport/pull/30702)
+* Added the ability for `tsh` to register and enroll the `--current-device`. [#30702](https://github.com/gravitational/teleport/pull/30702)
 * Fixed Review Requests to disallow reviews after request is resolved. [#30690](https://github.com/gravitational/teleport/pull/30690)
-* Fixed Teleport Connect to properly show errors from the remote end. [#30684](https://github.com/gravitational/teleport/pull/30684)
+* Ensure that SSH session errors are reported to the terminal. [#30684](https://github.com/gravitational/teleport/pull/30684)
 * Fixed an issue with `tsh aws ssm start-session`. [#30668](https://github.com/gravitational/teleport/pull/30668)
+* Fixed an issue with the access request failing with `invalid maxDuration`. [teleport.e#2037](https://github.com/gravitational/teleport.e/pull/2037)
 
 ### Security fix
 
-* TODO(jent): Update this when security fix lands
+* Security improvements with possible `medium` severity DoS conditions through protocol level attacks. [#30854](https://github.com/gravitational/teleport/pull/30854)
 
 ## 13.3.4 (08/18/23)
 
