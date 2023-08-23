@@ -411,7 +411,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.bindDefaultEndpoints()
 	}
 
-	// if Web UI is enabled, check the assets dir:
+	// serve the web UI from the embedded filesystem
 	var indexPage *template.Template
 	if cfg.StaticFS != nil {
 		index, err := cfg.StaticFS.Open("/index.html")
@@ -429,6 +429,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
 		}
 
+		h.Handle("GET", "/robots.txt", httplib.MakeHandler(serveRobotsTxt))
 		h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
 	}
 
@@ -4181,4 +4182,15 @@ func isDashboard(features proto.Features) bool {
 	// the presence of recovery codes, which are never enabled
 	// in OSS or self-hosted Teleport.
 	return !features.GetCloud() && features.GetRecoveryCodes()
+}
+
+const robots = `User-agent: *
+Disallow: /`
+
+func serveRobotsTxt(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(robots))
+	return nil, nil
 }
