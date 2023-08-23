@@ -81,6 +81,14 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
     status: 'error',
     message: 'ENOENT',
   };
+
+  jest
+    .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
+    .mockImplementation(
+      // Hang until abort.
+      (rootClusterUri, abortSignal) =>
+        new Promise((resolve, reject) => abortSignal.addEventListener(reject))
+    );
   jest
     .spyOn(appContext.mainProcessClient, 'getAgentState')
     .mockImplementation(() => errorStatus);
@@ -114,7 +122,6 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
   await act(async () => {
     [, error] = await result.current.startAgent();
   });
-  expect(error).toBeInstanceOf(AgentProcessError);
   expect(result.current.currentAction).toStrictEqual({
     kind: 'start',
     attempt: makeErrorAttempt(new AgentProcessError()),
@@ -122,11 +129,18 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
       status: 'error',
       message: 'ENOENT',
     },
+    timeoutLogs: '',
   });
+  expect(error).toBeInstanceOf(AgentProcessError);
 });
 
 test('starting the agent flips the workspace autoStart flag to true', async () => {
   const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+
+  jest
+    .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
+    .mockResolvedValue(makeServer());
+
   const { result } = renderHook(() => useConnectMyComputerContext(), {
     wrapper: ({ children }) => (
       <MockAppContextProvider appContext={appContext}>
@@ -139,7 +153,10 @@ test('starting the agent flips the workspace autoStart flag to true', async () =
     ),
   });
 
-  await act(() => result.current.startAgent());
+  await act(async () => {
+    const [, error] = await result.current.startAgent();
+    expect(error).toBeFalsy();
+  });
 
   expect(
     appContext.workspacesService.getConnectMyComputerAutoStart(rootCluster.uri)

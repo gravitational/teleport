@@ -109,6 +109,7 @@ export type MainProcessClient = {
   }): Promise<boolean>;
   killAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;
   getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
+  getAgentLogs(args: { rootClusterUri: RootClusterUri }): string;
   subscribeToAgentUpdate: SubscribeToAgentUpdate;
 };
 

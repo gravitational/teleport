@@ -247,6 +247,10 @@ export type TshClient = {
     clusterUri: uri.RootClusterUri,
     token: string
   ) => Promise<void>;
+  waitForConnectMyComputerNodeJoin: (
+    rootClusterUri: uri.RootClusterUri,
+    abortSignal: TshAbortSignal
+  ) => Promise<WaitForConnectMyComputerNodeJoinResponse>;
 
   updateHeadlessAuthenticationState: (
     params: UpdateHeadlessAuthenticationStateParams,
@@ -341,9 +345,12 @@ export type Label = apiLabel.Label.AsObject;
 
 export type CreateConnectMyComputerRoleResponse =
   apiService.CreateConnectMyComputerRoleResponse.AsObject;
-
 export type CreateConnectMyComputerNodeTokenResponse =
   apiService.CreateConnectMyComputerNodeTokenResponse.AsObject;
+export type WaitForConnectMyComputerNodeJoinResponse =
+  apiService.WaitForConnectMyComputerNodeJoinResponse.AsObject & {
+    server: Server;
+  };
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;
