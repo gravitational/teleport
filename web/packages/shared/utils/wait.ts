@@ -19,10 +19,10 @@ export function wait(ms: number, abortSignal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(resolve, ms);
     if (abortSignal) {
-      abortSignal.onabort = () => {
+      abortSignal.addEventListener('abort', () => {
         clearTimeout(timeout);
         reject(new DOMException('Wait was aborted.', 'AbortError'));
-      };
+      });
     }
   });
 }
