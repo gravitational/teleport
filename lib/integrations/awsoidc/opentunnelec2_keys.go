@@ -18,40 +18,19 @@ package awsoidc
 
 import (
 	"context"
-	"crypto/ed25519"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/modules"
 )
-
-// generatePrivatePublicKey returns a public and its private key usable for creating an [ssh.Signer].
-func generatePrivatePublicKey() (publicKey any, privateKey any, err error) {
-	if modules.GetModules().IsBoringBinary() {
-		privKey, err := native.GeneratePrivateKey()
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		return privKey.Public(), privKey, nil
-	}
-
-	pubKey, privKey, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return pubKey, privKey, nil
-}
 
 // sendSSHPublicKey creates a new Private Key and uploads the Public to the ec2 instance.
 // This key will be removed by AWS after 60 seconds and can only be used to authenticate the EC2SSHLoginUser.
 // More information: https://docs.aws.amazon.com/ec2-instance-connect/latest/APIReference/API_SendSSHPublicKey.html
 func sendSSHPublicKey(ctx context.Context, clt OpenTunnelEC2Client, req OpenTunnelEC2Request) (ssh.Signer, error) {
-	pubKey, privKey, err := generatePrivatePublicKey()
+	pubKey, privKey, err := native.GenerateEICEKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

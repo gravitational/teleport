@@ -17,6 +17,7 @@ limitations under the License.
 package native
 
 import (
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -50,6 +52,25 @@ func GenerateKeyPair() ([]byte, []byte, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 	return priv.PrivateKeyPEM(), priv.MarshalSSHPublicKey(), nil
+}
+
+// GenerateEICEKey generates a key that can be send to an Amazon EC2 instance using the ec2instanceconnect.SendSSHPublicKey method.
+func GenerateEICEKey() (publicKey any, privateKey any, err error) {
+	if modules.GetModules().IsBoringBinary() {
+		privKey, err := GeneratePrivateKey()
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		return privKey.Public(), privKey, nil
+	}
+
+	pubKey, privKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return pubKey, privKey, nil
 }
 
 // GeneratePrivateKey generates a new RSA private key.

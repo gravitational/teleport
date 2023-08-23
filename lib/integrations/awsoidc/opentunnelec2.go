@@ -322,7 +322,12 @@ type dialEC2InstanceUsingEICERequest struct {
 // dialEC2InstanceUsingEICE dials into an EC2 instance port using an EC2 Instance Connect Endpoint.
 // Returns a net.Conn that transparently proxies the connection to the EC2 instance.
 func dialEC2InstanceUsingEICE(ctx context.Context, req dialEC2InstanceUsingEICERequest) (net.Conn, error) {
-	// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-using-eice.html
+	// There's no official documentation on how to connect to the EC2 Instance Connect Endpoint.
+	// So, we had to rely on the awscli implementation, which you can find here:
+	// https://github.com/aws/aws-cli/blob/f6c820e89d8b566ab54ab9d863754ec4b713fd6a/awscli/customizations/ec2instanceconnect/opentunnel.py
+	//
+	// The lack of documentation means this implementation is a risk, however, by following awscli implementation we are confident that
+	// it will work for the foreseable future (aws will *probably* not break old awscli versions).
 	q := url.Values{}
 	q.Set("instanceConnectEndpointId", req.endpointId)
 	q.Set("maxTunnelDuration", "3600") // 1 hour (max allowed)
