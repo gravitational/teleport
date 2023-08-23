@@ -58,7 +58,8 @@ func TestAccessListUnmarshal(t *testing.T) {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				Frequency:     time.Hour,
+				NextAuditDate: time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
@@ -127,7 +128,8 @@ func TestAccessListMarshal(t *testing.T) {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				Frequency:     time.Hour,
+				NextAuditDate: time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
@@ -472,6 +474,7 @@ spec:
     description: "test user 2"
   audit:
     frequency: "1h"
+    next_audit_date: "2023-02-02T00:00:00Z"
   membership_requires:
     roles:
     - mrole1

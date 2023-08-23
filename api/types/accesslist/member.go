@@ -91,14 +91,6 @@ func (a *AccessListMember) CheckAndSetDefaults() error {
 		return trace.BadParameter("member %s joined is missing", a.Spec.Name)
 	}
 
-	if a.Spec.Expires.IsZero() || a.Spec.Expires.Unix() == 0 {
-		return trace.BadParameter("member %s expires is missing", a.Spec.Name)
-	}
-
-	if a.Spec.Reason == "" {
-		return trace.BadParameter("member %s reason is missing", a.Spec.Name)
-	}
-
 	if a.Spec.AddedBy == "" {
 		return trace.BadParameter("member %s added by is missing", a.Spec.Name)
 	}
