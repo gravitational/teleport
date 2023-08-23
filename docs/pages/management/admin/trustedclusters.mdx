@@ -1,43 +1,53 @@
 ---
-title: Teleport Trusted Clusters
-description: How to configure access and trust between two Teleport Clusters.
+title: Configure Trusted Clusters
+description: Explains how you can configure a trust relationship and manage access between two Teleport clusters.
 h1: Trusted Clusters
 ---
 
-Teleport can partition compute infrastructure into multiple clusters. A cluster
-is a group of resources connected to a Teleport Auth Server. Each cluster
-manages a separate certificate authority (CA) for all users and resources.
+As you learned in [Core Concepts](../../core-concepts.mdx), a Teleport cluster
+consists of the Teleport Auth Service, the Teleport Proxy Service, and the 
+Teleport services that manage access to resources in your infrastructure.
+With Teleport, you can also partition your infrastructure into multiple connected 
+clusters to allow the users of one cluster—the **root cluster**—to connect to resources 
+in another cluster—the **leaf cluster**—while authenticated using a single 
+Teleport Auth Service. 
 
-Trusted Clusters allow the users of one cluster, the **root cluster**, to
-seamlessly connect to resources in another cluster, the **leaf cluster**, while
-remaining authenticated with only a single Auth Service. The leaf cluster can
-run behind a firewall without any ingress ports open.
+After you establish a trust relationship between the root and leaf clusters, the leaf cluster can
+run behind a firewall without any inbound ports open. The leaf cluster creates an outbound reverse 
+SSH tunnel to the root cluster and keeps the tunnel open.
+When a user tries to connect to any resource in the leaf cluster, the connection goes through the 
+reverse tunnel using the root cluster's proxy.
 
-Uses for Trusted Clusters include:
+## Who uses trusted clusters?
+
+Most organizations don't need to configure trusted clusters. In most cases, you can enroll
+resources and add reverse-tunnel proxies without creating a new cluster. Typically, a single 
+Yeleport cluster can scale to hundreds of thousands of connected resources.
+
+However, there are a few specific scenarios where trusted clusters can be paricularly useful.
+For example, if you have a large and widely-distributed infrastructure or must provide access
+to resources for external agencies, contractors, or clients, you might benefit from setting up 
+a trusted cluster. The most common use cases for trusted clusters include:
 
 - Managed service providers (MSP) remotely managing the infrastructure of their clients.
 - Device manufacturers remotely maintaining computing appliances deployed on premises.
 - Large cloud software vendors managing multiple data centers using a common proxy.
 
-Here is an example of an MSP using Trusted Clusters to obtain access to client clusters:
+In the following example, a managed service provider uses three independent clusters to 
+provide access to clients in different regions:
+
+- Cluster `sso.example.com` is the root cluster. This cluster can have its own resources or be 
+used for collecting audit logs and authenticating users.
+- Clusters `us-east-1a` and `us-east-1b` are two independent clusters in different availability zones.
+
 ![MSP Example](../../../img/trusted-clusters/trusted-clusters@1.5x.svg)
+![Trusted clusters](../../img/architecture/trusted-clusters@1.5x.svg)
 
-A leaf cluster always creates an outbound reverse SSH tunnel to the root cluster and keeps the tunnel open.
+This guide explains how to:
 
-<Notice type="tip">
-Individual nodes and proxies can create reverse tunnels to proxy services without creating a new cluster.
-You don't need to set up a trusted cluster just to connect a couple of servers, kubernetes clusters or
-databases behind a firewall. For more information, see how to [join a service to your cluster](../../agents/join-services-to-your-cluster.mdx).
-</Notice>
-
-When a user tries to connect to any resource inside the leaf cluster using the root's proxy
-the connection goes through the reverse tunnel.
-
-This guide will explain how to:
-
-- Add and remove Trusted Clusters using CLI commands.
-- Enable/disable trust between clusters.
+- Add and remove trusted clusters.
 - Establish permission mapping between clusters using Teleport roles.
+- Enable and disable trust between clusters.
 
 ## Prerequisites
 
