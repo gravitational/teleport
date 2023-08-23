@@ -1,5 +1,25 @@
 # Changelog
 
+## 11.3.21 (08/22/23)
+
+* Fixed S3 metric name for completed multipart uploads. [#30712](https://github.com/gravitational/teleport/pull/30712)
+* Fixed Teleport Connect to properly show errors from the remote end. [#30694](https://github.com/gravitational/teleport/pull/30694)
+* Fixed Review Requests to disallow reviews after request is resolved. [#30688](https://github.com/gravitational/teleport/pull/30688)
+* Fixed Discovery service panics on GKE clusters without labels. [#30648](https://github.com/gravitational/teleport/pull/30648)
+* Fixed memory leak using PAM libraries. [#30519](https://github.com/gravitational/teleport/pull/30519)
+* Fixed "user is not managed" error when accessing ElastiCache and MemoryDB. [#30358](https://github.com/gravitational/teleport/pull/30358)
+* Fixed resources being deleted from Firestore on update. [#30289](https://github.com/gravitational/teleport/pull/30289)
+* Updated LDAP desktop discovery to handle slow DNS queries better. [#30465](https://github.com/gravitational/teleport/pull/30465)
+* Updated SAML certificate parsing to allow leading/trailing spaces. [#30452](https://github.com/gravitational/teleport/pull/30452)
+* Improved audit logging support for large SQL Server queries. [#30245](https://github.com/gravitational/teleport/pull/30245)
+* Explicitly mention _registered_ and _new_ device when running `tsh mfa add` on Windows. [#30217](https://github.com/gravitational/teleport/pull/30217)
+* Tighten discovery service permissions. [#29996](https://github.com/gravitational/teleport/pull/29996)
+* helm: Add support for custom annotations in the teleport-kube-agent Secret. [#30840](https://github.com/gravitational/teleport/pull/30840)
+
+### Security fixes
+
+* Security improvements with possible `medium` severity DoS conditions through protocol level attacks. [#30854](https://github.com/gravitational/teleport/pull/30854)
+
 ## 11.3.20 (08/04/23)
 
 * Updated Go to 1.20.7. [#29907](https://github.com/gravitational/teleport/pull/29907)
