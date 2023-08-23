@@ -18,7 +18,6 @@ package ai
 
 import (
 	"context"
-	"io"
 	"strings"
 	"time"
 
@@ -220,17 +219,13 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 		return
 	}
 
-	idx := 0
-	resourceStream := stream.Func(func() (types.Resource, error) {
-		if idx == len(unifiedResources) {
-			return nil, io.EOF
-		}
+	resources := make([]types.Resource, len(unifiedResources))
+	for i, unifiedResource := range unifiedResources {
+		resources[i] = unifiedResource
+		unifiedResources[i] = nil
+	}
 
-		resource := unifiedResources[idx].(types.Resource)
-		unifiedResources[idx] = nil
-		idx = idx + 1
-		return resource, nil
-	})
+	resourceStream := stream.Slice(resources)
 
 	s := streamutils.NewZipStreams(
 		resourceStream,

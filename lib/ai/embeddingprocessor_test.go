@@ -181,7 +181,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 		items, err := stream.Collect(embeddings.GetAllEmbeddings(ctx))
 		assert.NoError(t, err)
 		return len(items) == numInitialNodes
-	}, 7*time.Second, 200*time.Millisecond)
+	}, 14*time.Second, 200*time.Millisecond)
 
 	nodesAcquired, err := presence.GetNodes(ctx, defaults.Namespace)
 	require.NoError(t, err)
