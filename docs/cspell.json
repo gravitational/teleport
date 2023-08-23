@@ -76,6 +76,7 @@
     "Goland",
     "Grafana's",
     "Gtczk",
+    "HKEY",
     "HSTS",
     "Hqlo",
     "IAMR",
@@ -423,6 +424,7 @@
     "healthz",
     "highavailability",
     "highavailabilitycertmanager",
+    "highavailabilitycertmanageraddcommonname",
     "hostcert",
     "hostdb",
     "hostedzone",
@@ -472,7 +474,6 @@
     "kubeconfig",
     "kubeconfigs",
     "kubectl",
-    "portforward",
     "kvno",
     "lastname",
     "ldapsearch",
@@ -610,11 +611,13 @@
     "pkill",
     "pkinit",
     "plugindata",
+    "portforward",
     "postgresqlselfhosted",
     "pprof",
     "preconfigured",
     "prereqs",
     "prioritise",
+    "privateca",
     "privkey",
     "priya",
     "programatically",
@@ -709,8 +712,8 @@
     "strslice",
     "structs",
     "subgroups",
-    "subkind",
     "subgroups",
+    "subkind",
     "sudoer",
     "syscalls",
     "sysvinit",
@@ -738,6 +741,7 @@
     "timechart",
     "tlscacerts",
     "tlscert",
+    "tlsexistingcasecretname",
     "tmpfs",
     "tocless",
     "tokenconfig",
@@ -814,7 +818,5 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": [
-    "hte"
-  ]
+  "flagWords": ["hte"]
 }
