@@ -29,6 +29,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai/model"
+	"github.com/gravitational/teleport/lib/ai/model/output"
+	"github.com/gravitational/teleport/lib/ai/model/tools"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -109,7 +111,7 @@ func TestChat_PromptTokens(t *testing.T) {
 
 			client := NewClientFromConfig(cfg)
 
-			toolContext := model.ToolContext{
+			toolContext := tools.ToolContext{
 				User: "Bob",
 			}
 			chat := client.NewChat(&toolContext)
@@ -158,7 +160,7 @@ func TestChat_Complete(t *testing.T) {
 	cfg.BaseURL = server.URL + "/v1"
 	client := NewClientFromConfig(cfg)
 
-	toolContext := model.ToolContext{
+	toolContext := tools.ToolContext{
 		User: "Bob",
 	}
 	chat := client.NewChat(&toolContext)
@@ -173,8 +175,8 @@ func TestChat_Complete(t *testing.T) {
 		msg, _, err := chat.Complete(ctx, "Show me free disk space", func(aa *model.AgentAction) {})
 		require.NoError(t, err)
 
-		require.IsType(t, &model.StreamingMessage{}, msg)
-		streamingMessage := msg.(*model.StreamingMessage)
+		require.IsType(t, &output.StreamingMessage{}, msg)
+		streamingMessage := msg.(*output.StreamingMessage)
 		require.Equal(t, "Which ", <-streamingMessage.Parts)
 		require.Equal(t, "node do ", <-streamingMessage.Parts)
 		require.Equal(t, "you want ", <-streamingMessage.Parts)
@@ -185,8 +187,8 @@ func TestChat_Complete(t *testing.T) {
 		msg, _, err := chat.Complete(ctx, "localhost", func(aa *model.AgentAction) {})
 		require.NoError(t, err)
 
-		require.IsType(t, &model.CompletionCommand{}, msg)
-		command := msg.(*model.CompletionCommand)
+		require.IsType(t, &output.CompletionCommand{}, msg)
+		command := msg.(*output.CompletionCommand)
 		require.Equal(t, "df -h", command.Command)
 		require.Len(t, command.Nodes, 1)
 		require.Equal(t, "localhost", command.Nodes[0])
@@ -196,8 +198,8 @@ func TestChat_Complete(t *testing.T) {
 		msg, _, err := chat.Complete(ctx, "Now, request access to the resource with kind node, hostname Alpha.local and the Name a35161f0-a2dc-48e7-bdd2-49b81926cab7", func(aa *model.AgentAction) {})
 		require.NoError(t, err)
 
-		require.IsType(t, &model.AccessRequest{}, msg)
-		request := msg.(*model.AccessRequest)
+		require.IsType(t, &output.AccessRequest{}, msg)
+		request := msg.(*output.AccessRequest)
 		require.Empty(t, request.Roles)
 		require.Empty(t, request.SuggestedReviewers)
 		require.Equal(t, "maintenance", request.Reason)
@@ -278,14 +280,14 @@ func generateAccessRequestResponse(t *testing.T) string {
 	actionObj := model.PlanOutput{
 		Action: "Create Access Requests",
 		ActionInput: struct {
-			SuggestedReviewers []string         `json:"suggested_reviewers"`
-			Roles              []string         `json:"roles"`
-			Resources          []model.Resource `json:"resources"`
-			Reason             string           `json:"reason"`
+			SuggestedReviewers []string          `json:"suggested_reviewers"`
+			Roles              []string          `json:"roles"`
+			Resources          []output.Resource `json:"resources"`
+			Reason             string            `json:"reason"`
 		}{
 			nil,
 			nil,
-			[]model.Resource{{Type: types.KindNode, Name: "a35161f0-a2dc-48e7-bdd2-49b81926cab7", FriendlyName: "Alpha.local"}},
+			[]output.Resource{{Type: types.KindNode, Name: "a35161f0-a2dc-48e7-bdd2-49b81926cab7", FriendlyName: "Alpha.local"}},
 			"maintenance",
 		},
 	}
