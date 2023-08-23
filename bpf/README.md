@@ -56,3 +56,14 @@ and revert back before merging the code.
 BPF programs can log messages to the kernel log. To enable logging, you need to set the license to `GPL`. Then you
 can use `bpf_printk` helper to log messages. The messages will be logged to the kernel log. You can get the messages
  from `/sys/kernel/debug/tracing/trace_pipe`. Here is the best explanation that I found so far https://nakryiko.com/posts/bpf-tips-printk/
+
+### Communication between BPF programs and user space
+
+BPF programs can communicate with user space using maps. Maps are key-value stores that can be accessed from both
+BPF programs and user space. BPF programs can only access maps using BPF helpers. User space can access maps using
+`libbpfgo` library. Maps are defined in BPF programs and can be referenced by name from user space code.
+
+Example:
+
+BPF: https://github.com/gravitational/teleport/blob/2fd8f75e38eebf5c6826ef594433e5165c3bfbe1/bpf/enhancedrecording/command.bpf.c#L18
+User space: https://github.com/gravitational/teleport/blob/2fd8f75e38eebf5c6826ef594433e5165c3bfbe1/lib/bpf/common_linux.go#L40-L51
