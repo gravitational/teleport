@@ -635,7 +635,7 @@ func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client auth
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{HostID: wd.GetHostID()})
+	_, err = client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{HostID: wd.GetHostID(), Name: wd.GetName()})
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -655,7 +655,6 @@ func (rc *ResourceCommand) createApp(ctx context.Context, client auth.ClientI, r
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var exists = false
 	if err := client.CreateApp(ctx, app); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !rc.force {
@@ -664,13 +663,12 @@ func (rc *ResourceCommand) createApp(ctx context.Context, client auth.ClientI, r
 			if err := client.UpdateApp(ctx, app); err != nil {
 				return trace.Wrap(err)
 			}
-			exists = true
-			fmt.Printf("app '%s' has been %s\n", app.GetName(), UpsertVerb(exists, rc.IsForced()))
+			fmt.Printf("app '%s' has been %s\n", app.GetName(), UpsertVerb(true, rc.IsForced()))
 			return nil
 		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("app '%s' has been %s\n", app.GetName(), UpsertVerb(exists, rc.IsForced()))
+	fmt.Printf("app '%s' has been %s\n", app.GetName(), UpsertVerb(false, rc.IsForced()))
 	return nil
 }
 
@@ -734,12 +732,12 @@ func (rc *ResourceCommand) createToken(ctx context.Context, client auth.ClientI,
 	}
 	exists := (err == nil)
 	if !rc.IsForced() && exists {
-		return trace.AlreadyExists("token '%s' already exists, use -f flag to override", token.GetName())
+		return trace.AlreadyExists("token '%s' already exists, use -f flag to override", token.GetSafeName())
 	}
 	if err = client.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("token '%s' has been %s\n", token.GetName(), UpsertVerb(exists, rc.IsForced()))
+	fmt.Printf("token '%s' has been %s\n", token.GetSafeName(), UpsertVerb(exists, rc.IsForced()))
 	return nil
 }
 
@@ -936,7 +934,7 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI
 		return trace.Wrap(err)
 	}
 	name := dev.Id
-	_, err = client.DevicesClient().GetDevice(ctx, &devicepb.GetDeviceRequest{DeviceId: dev.GetId()})
+	_, err = client.DevicesClient().GetDevice(ctx, &devicepb.GetDeviceRequest{DeviceId: name})
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
