@@ -328,27 +328,30 @@ by ec2 discovery.
 
 
 ### ECS Fargate Agents
+When Teleport Discover flow is used to connect an RDS, a Teleport agent is automatically provisioned using ECS Fargate. The automatic update
+functionality for regular agents depends on systemd or Kubernetes. Fargate agents run in containers, so that means the existing automatic
+update functionality is not compatible with these agents. We need a separate method of keeping these Fargate agents updated.
 
-When Teleport Discover flow is used to connect an RDS, a Teleport agent is automatically provisioned using ECS Fargate. We need a
-way to keep these agents updated. Teleport will run a separate goroutine that periodically checks for an available update and
-uses the ECS Fargate API to update Teleport agents.
+To keep Farage agents updated, Teleport will run a separate goroutine that checks every 30 minutes for an available update and uses the ECS
+Fargate API to update Teleport agents. This goroutine does not need to be run on all Teleport clusters. It will only be needed if the
+`TELEPORT_AUTOMATIC_UPGRADES` environment variable is enabled. The window when Fargate agents are updated should also coincide with the
+tenant upgrade window.
 
-This goroutine does not need to be run on all Teleport clusters. It will only be needed if the `TELEPORT_AUTOMATIC_UPGRADES` environment
-variable is enabled. The window when Fargate agents are updated should also coincide with the tenant upgrade window.
+The logic flow will look like the same as the core update model:
 
-The logic flow will look like:
-- List all available Fargate agents
-- If no agents are available, do nothing
-- If agents are available, query the current cloud-stable agent version
-- Update all Fargate agents that do not match the current cloud-stable agent version
-
-The goroutine will also need to handle critical updates. Periodically, the goroutine will check the critical version endpoint if a critical
-update is available. If a critical update is available, all Fargate agents will be updated following the same workflow described above. Once
-the critical update is complete, the critical version will need to be stored in memory so that the goroutine does not need to keep listing
-Fargate agents to check if they need to be updated.
+- If there is a critical update, attempt update
+- If an agent is unhealthy, attempt update
+- If within maintenance window, attempt update
 
 To carry out the actual update of a Fargate agent, a new instance will be created with the desired version, then the old instance will be
-shutdown.
+shutdown. The workflow will require the [CreateService](https://docs.aws.amazon.com/sdk-for-go/api/service/ecs/#ECS.CreateService), and
+[DeleteService](https://docs.aws.amazon.com/sdk-for-go/api/service/ecs/#ECS.DeleteService) ECS API calls.
+
+We may be able to utilize the [WaitUntilTasksRunning](https://docs.aws.amazon.com/sdk-for-go/api/service/ecs/#ECS.WaitUntilTasksRunning) and
+[WaitUntilTasksStopped] to handle failover and graceful shutdown. WaitUntilTasksRunning waits on a condition to be met before returning.
+This can be used to wait for a new agent to be healthy, and either fail the update or retry the update if the new agent fails to become
+healthy. WaitUntilTasksStopped does the same thing and waits for a condition to be met before returning. This can be used to wait for the
+existing agent to shutdown before being deleted.
 
 
 ### Documentation Changes
