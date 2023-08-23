@@ -1,5 +1,35 @@
 # Changelog
 
+## 12.4.15 (08/22/23)
+
+* Fixed S3 metric name for completed multipart uploads. [#30697](https://github.com/gravitational/teleport/pull/30697)
+* Fixed Teleport Connect to properly show errors from the remote end. [#30695](https://github.com/gravitational/teleport/pull/30695)
+* Fixed Review Requests to disallow reviews after request is resolved. [#30689](https://github.com/gravitational/teleport/pull/30689)
+* Fixed an issue with `tsh aws ssm start-session`. [#30669](https://github.com/gravitational/teleport/pull/30669)
+* Fixed Discovery service panics on GKE clusters without labels. [#30646](https://github.com/gravitational/teleport/pull/30646)
+* Fixed forwarding of SSH agent in a Cygwin environment. [#30581](https://github.com/gravitational/teleport/pull/30581)
+* Removed legacy AWS "aurora" engine type from discovery. [#30547](https://github.com/gravitational/teleport/pull/30547)
+* Fixed memory leak using PAM libraries. [#30520](https://github.com/gravitational/teleport/pull/30520)
+* Updated LDAP desktop discovery to handle slow DNS queries better. [#30463](https://github.com/gravitational/teleport/pull/30463)
+* Updated SAML certificate parsing to allow leading/trailing spaces. [#30451](https://github.com/gravitational/teleport/pull/30451)
+* Fixed "user is not managed" error when accessing ElastiCache and MemoryDB. [#30354](https://github.com/gravitational/teleport/pull/30354)
+* Show error if users attempt to do `tsh login --headless`. [#30308](https://github.com/gravitational/teleport/pull/30308)
+* Fixed resources being deleted from Firestore on update. [#30288](https://github.com/gravitational/teleport/pull/30288)
+* Fixed desktop access connecting to direct dial nodes. [#30276](https://github.com/gravitational/teleport/pull/30276)
+* Improved audit logging support for large SQL Server queries. [#30244](https://github.com/gravitational/teleport/pull/30244)
+* Fixed infinite retry in generic app access plugin. [#30232](https://github.com/gravitational/teleport/pull/30232)
+* `tsh` and `tctl` commands that output a text-formatted table will now consistently output resource labels as a comma-separated string, sorted by label namespace. Labels starting with `teleport.dev/`, `teleport.hidden/`, and `teleport.internal/` are omitted unless the --verbose flag is used. [#30227](https://github.com/gravitational/teleport/pull/30227) [#30224](https://github.com/gravitational/teleport/pull/30224)
+* Explicitly mention _registered_ and _new_ device when running `tsh mfa add` on Windows. [#30216](https://github.com/gravitational/teleport/pull/30216)
+* helm: Allow setting storage class name for auth component in the `teleport-cluster` chart. [#30144](https://github.com/gravitational/teleport/pull/30144)
+* helm: Use `imagePullSecrets` for pre-deploy test pods in the `teleport-cluster` chart. [#30143](https://github.com/gravitational/teleport/pull/30143)
+* Improved logging of Teleport Connect child processes. [#30026](https://github.com/gravitational/teleport/pull/30026)
+* Added IP pinning support for TLS routing behind ALB mode. [#30004](https://github.com/gravitational/teleport/pull/30004)
+* Tighten discovery service permissions. [#29995](https://github.com/gravitational/teleport/pull/29995)
+
+### Security fix
+
+* Security improvements with possible `medium` severity DoS conditions through protocol level attacks. [#30854](https://github.com/gravitational/teleport/pull/30854)
+
 ## 12.4.14 (08/03/23)
 
 * Updated Go to 1.20.7 [#29906](https://github.com/gravitational/teleport/pull/29906)
