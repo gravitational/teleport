@@ -259,6 +259,7 @@ func TestGatewayCRUD(t *testing.T) {
 				Storage:        storage,
 				GatewayCreator: mockGatewayCreator,
 				KubeconfigsDir: t.TempDir(),
+				AgentsDir:      t.TempDir(),
 			})
 			require.NoError(t, err)
 
@@ -305,6 +306,7 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 		Storage:                         storage,
 		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
 		KubeconfigsDir:                  t.TempDir(),
+		AgentsDir:                       t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -336,6 +338,7 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 		Storage:                         storage,
 		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
 		KubeconfigsDir:                  t.TempDir(),
+		AgentsDir:                       t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -434,6 +437,7 @@ func TestRetryWithRelogin(t *testing.T) {
 					return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 				},
 				KubeconfigsDir: t.TempDir(),
+				AgentsDir:      t.TempDir(),
 			})
 			require.NoError(t, err)
 
@@ -483,6 +487,7 @@ func TestImportantModalSemaphore(t *testing.T) {
 			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 		},
 		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
 	})
 	require.NoError(t, err)
 

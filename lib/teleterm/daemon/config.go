@@ -53,6 +53,8 @@ type Config struct {
 	// KubeconfigsDir is the directory containing kubeconfigs for Kubernetes
 	// Acesss.
 	KubeconfigsDir string
+	// AgentsDir contains agent config files and data directories for Connect My Computer.
+	AgentsDir string
 
 	GatewayCreator GatewayCreator
 	// CreateTshdEventsClientCredsFunc lazily creates creds for the tshd events server ran by the
@@ -78,6 +80,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.KubeconfigsDir == "" {
 		return trace.BadParameter("missing kubeconfigs directory")
+	}
+
+	if c.AgentsDir == "" {
+		return trace.BadParameter("missing agents directory")
 	}
 
 	if c.GatewayCreator == nil {
