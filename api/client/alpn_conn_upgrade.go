@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gobwas/ws"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -210,14 +211,32 @@ func (d *alpnConnUpgradeDialer) upgradeType() string {
 	return constants.WebAPIConnUpgradeTypeALPN
 }
 
-func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, upgradeType string) (net.Conn, error) {
+// TODO consider using a proper websocket client once getting rid of legacy upgrade types.
+func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string) (net.Conn, error) {
 	req, err := http.NewRequest(http.MethodGet, api.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	req.Header.Add(constants.WebAPIConnUpgradeHeader, upgradeType)
-	req.Header.Add(constants.WebAPIConnUpgradeTeleportHeader, upgradeType)
+	// Prefer "websocket".
+	// TODO delete the env var, for testing purpose only.
+	if os.Getenv("TELEPORT_TLS_ROUTING_CONN_UPGRADE_DISABLE_WEBSOCKET") == "true" {
+		logrus.Debugf("===[client] Websocket upgrade disabled.")
+	} else {
+		req.Header.Add(constants.WebAPIConnUpgradeHeader, constants.WebAPIConnUpgradeTypeWebsocket)
+		req.Header.Add(constants.WebAPIConnUpgradeTeleportHeader, constants.WebAPIConnUpgradeTypeWebsocket)
+		req.Header.Set("Sec-Websocket-Protocol", alpnUpgradeType)
+		req.Header.Set("Sec-Websocket-Version", "13")
+		req.Header.Set("Sec-Websocket-Key", "VE9ETw==") // TODO
+	}
+
+	// TODO delete the env var, for testing purpose only.
+	if os.Getenv("TELEPORT_TLS_ROUTING_CONN_UPGRADE_DISABLE_LEGACY") == "true" {
+		logrus.Debugf("===[client] Legacy upgrade disabled.")
+	} else {
+		req.Header.Add(constants.WebAPIConnUpgradeHeader, alpnUpgradeType)
+		req.Header.Add(constants.WebAPIConnUpgradeTeleportHeader, alpnUpgradeType)
+	}
 
 	// Set "Connection" header to meet RFC spec:
 	// https://datatracker.ietf.org/doc/html/rfc2616#section-14.42
@@ -246,15 +265,74 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, upgradeType string) (n
 			return nil, trace.NotImplemented(
 				"connection upgrade call to %q with upgrade type %v failed with status code %v. Please upgrade the server and try again.",
 				constants.WebAPIConnUpgrade,
-				upgradeType,
+				alpnUpgradeType,
 				resp.StatusCode,
 			)
 		}
 		return nil, trace.BadParameter("failed to switch Protocols %v", resp.StatusCode)
 	}
 
-	if upgradeType == constants.WebAPIConnUpgradeTypeALPNPing {
-		return pingconn.New(conn), nil
+	// "Legacy" alpn types.
+	if resp.Header.Get(constants.WebAPIConnUpgradeHeader) == alpnUpgradeType ||
+		resp.Header.Get(constants.WebAPIConnUpgradeTeleportHeader) == alpnUpgradeType {
+		// TODO delete me or convert to trace
+		logrus.Debugf("===[client] Received legacy upgrade. Response headers: %v", resp.Header)
+		if alpnUpgradeType == constants.WebAPIConnUpgradeTypeALPNPing {
+			return pingconn.New(conn), nil
+		}
+		return conn, nil
 	}
-	return conn, nil
+
+	// Websocket.
+	// TODO delete me or convert to trace
+	logrus.Debugf("===[client] Received websocket upgrade. Response headers: %v", resp.Header)
+	if alpnUpgradeType == constants.WebAPIConnUpgradeTypeALPNPing {
+		return pingconn.New(newWebsocketALPNConn(conn)), nil
+	}
+	return newWebsocketALPNConn(conn), nil
+}
+
+// TODO client side
+type websocketALPNConnWrapper struct {
+	net.Conn
+	readBuffer []byte
+}
+
+func newWebsocketALPNConn(conn net.Conn) *websocketALPNConnWrapper {
+	return &websocketALPNConnWrapper{
+		Conn: conn,
+	}
+}
+
+func (c *websocketALPNConnWrapper) Read(b []byte) (int, error) {
+	if len(c.readBuffer) > 0 {
+		n := copy(b, c.readBuffer)
+		c.readBuffer = c.readBuffer[n:]
+		return n, nil
+	}
+
+	for {
+		frame, err := ws.ReadFrame(c.Conn)
+		if err != nil {
+			// TODO delete me or convert to trace
+			logrus.Debugf("===[client] websocket read err: %v", err)
+			// TODO handle ok network errors like "use of closed network connection"
+			return 0, trace.Wrap(err)
+		}
+
+		switch frame.Header.OpCode {
+		case ws.OpClose:
+			return 0, nil
+		case ws.OpBinary:
+			c.readBuffer = frame.Payload
+			return c.Read(b)
+		}
+	}
+}
+
+func (c *websocketALPNConnWrapper) Write(b []byte) (int, error) {
+	frame := ws.NewFrame(ws.OpBinary, true, b)
+	frame.Header.Masked = true
+	return len(b), ws.WriteFrame(c.Conn, frame)
+
 }

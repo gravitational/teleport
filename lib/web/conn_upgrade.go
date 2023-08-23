@@ -23,8 +23,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
@@ -41,9 +43,17 @@ func (h *Handler) selectConnectionUpgrade(r *http.Request) (string, ConnectionHa
 	)
 	for _, upgradeType := range upgrades {
 		switch upgradeType {
+		case constants.WebAPIConnUpgradeTypeWebsocket:
+			// TODO delete me or convert to trace
+			h.log.Debugf("===[server] Received websocket upgrade. Request headers: %v", r.Header)
+			return upgradeType, nil, nil
 		case constants.WebAPIConnUpgradeTypeALPNPing:
+			// TODO delete me or convert to trace
+			h.log.Debugf("===[server] Received legacy upgrade. Request headers: %v", r.Header)
 			return upgradeType, h.upgradeALPNWithPing, nil
 		case constants.WebAPIConnUpgradeTypeALPN:
+			// TODO delete me or convert to trace
+			h.log.Debugf("===[server] Received legacy upgrade. Request headers: %v", r.Header)
 			return upgradeType, h.upgradeALPN, nil
 		}
 	}
@@ -56,6 +66,10 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 	upgradeType, upgradeHandler, err := h.selectConnectionUpgrade(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if upgradeType == constants.WebAPIConnUpgradeTypeWebsocket {
+		return h.upgradeALPNWebsocket(w, r)
 	}
 
 	hj, ok := w.(http.Hijacker)
@@ -80,6 +94,98 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 		h.log.WithError(err).Errorf("Failed to handle %v upgrade request.", upgradeType)
 	}
 	return nil, nil
+}
+
+func (h *Handler) upgradeALPNWebsocket(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+		Subprotocols: []string{
+			constants.WebAPIConnUpgradeTypeALPN,
+			constants.WebAPIConnUpgradeTypeALPNPing,
+		},
+	}
+	wsConn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		h.log.WithError(err).Debug("Failed to upgrade weboscket.")
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO delete me or convert to trace
+	logrus.Debugf("===[server] Websocket upgraded %v.", wsConn.Subprotocol())
+
+	handler := h.upgradeALPN
+	if wsConn.Subprotocol() == constants.WebAPIConnUpgradeTypeALPNPing {
+		handler = h.upgradeALPNWithPing
+	}
+
+	if err := handler(r.Context(), newWebsocketALPNConn(wsConn)); err != nil && !utils.IsOKNetworkError(err) {
+		h.log.WithError(err).Errorf("Failed to handle %v upgrade request.", wsConn.Subprotocol())
+	}
+	return nil, nil
+}
+
+// TODO
+type websocketALPNConnWrapper struct {
+	*websocket.Conn
+	readBuffer []byte
+	readError  error
+}
+
+func newWebsocketALPNConn(wsConn *websocket.Conn) *websocketALPNConnWrapper {
+	return &websocketALPNConnWrapper{
+		Conn: wsConn,
+	}
+}
+
+func convertWebscoketError(err error) error {
+	if utils.IsOKNetworkError(err) || isOKWebsocketCloseError(err) {
+		return nil
+	}
+	return err
+}
+
+func (c *websocketALPNConnWrapper) Read(b []byte) (n int, err error) {
+	// Stop reading if any previous read err.
+	if c.readError != nil {
+		return 0, trace.Wrap(convertWebscoketError(c.readError))
+	}
+
+	if len(c.readBuffer) > 0 {
+		n := copy(b, c.readBuffer)
+		c.readBuffer = c.readBuffer[n:]
+		return n, nil
+	}
+
+	for {
+		messageType, data, err := c.ReadMessage()
+		if err != nil {
+			// TODO delete me or convert to trace
+			logrus.Debugf("===[server] websocket read err: %v", err)
+			c.readError = err
+			return 0, trace.Wrap(convertWebscoketError(c.readError))
+		}
+
+		switch messageType {
+		case websocket.CloseMessage:
+			return 0, nil
+		case websocket.BinaryMessage:
+			c.readBuffer = data
+			return c.Read(b)
+		}
+	}
+}
+func (c *websocketALPNConnWrapper) Write(b []byte) (n int, err error) {
+	// TODO handle pingconn Write to broken pipe.
+	if err := c.Conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
+		return 0, trace.Wrap(convertWebscoketError(err))
+	}
+	return len(b), nil
+}
+func (c *websocketALPNConnWrapper) SetDeadline(t time.Time) error {
+	return trace.NewAggregate(
+		c.Conn.SetReadDeadline(t),
+		c.Conn.SetWriteDeadline(t),
+	)
 }
 
 func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
@@ -165,7 +271,12 @@ func newWaitConn(ctx context.Context, conn net.Conn) *waitConn {
 
 // WaitForClose blocks until the Close() function of this connection is called.
 func (conn *waitConn) WaitForClose() {
-	<-conn.ctx.Done()
+	<-conn.Done()
+}
+
+// Done returns a channel that closes when the connection is closed.
+func (conn *waitConn) Done() <-chan struct{} {
+	return conn.ctx.Done()
 }
 
 // Close implements net.Conn.
