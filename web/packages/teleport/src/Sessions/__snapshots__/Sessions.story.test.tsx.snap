@@ -1274,6 +1274,7 @@ exports[`loaded with CTA 1`] = `
         >
           <span
             class="c6 c7 icon icon-unlock c8"
+            data-testid="locked-icon"
           />
           Join Active Sessions With Teleport Enterprise
         </div>
