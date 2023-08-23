@@ -90,6 +90,7 @@ export class MockTshClient implements types.TshClient {
   createConnectMyComputerNodeToken = () =>
     Promise.resolve({ token: 'abc', labelsList: [] });
   deleteConnectMyComputerToken = () => Promise.resolve();
+  waitForConnectMyComputerNodeJoin: () => Promise<types.WaitForConnectMyComputerNodeJoinResponse>;
 
   updateHeadlessAuthenticationState: (
     params: types.UpdateHeadlessAuthenticationStateParams

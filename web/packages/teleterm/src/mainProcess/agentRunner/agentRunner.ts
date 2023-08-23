@@ -35,6 +35,10 @@ export class AgentRunner {
     {
       process: ChildProcess;
       state: AgentProcessState;
+      /**
+       * logs contains last 10 lines of logs from stderr of the agent.
+       */
+      logs: string;
     }
   >();
 
@@ -81,6 +85,7 @@ export class AgentRunner {
     this.agentProcesses.set(rootClusterUri, {
       process: agentProcess,
       state: { status: 'not-started' },
+      logs: '',
     });
     this.addAgentListeners(rootClusterUri, agentProcess);
     this.setupCleanupDaemon(rootClusterUri, agentProcess);
@@ -90,6 +95,10 @@ export class AgentRunner {
 
   getState(rootClusterUri: RootClusterUri): AgentProcessState | undefined {
     return this.agentProcesses.get(rootClusterUri)?.state;
+  }
+
+  getLogs(rootClusterUri: RootClusterUri): string | undefined {
+    return this.agentProcesses.get(rootClusterUri)?.logs;
   }
 
   async kill(rootClusterUri: RootClusterUri): Promise<void> {
@@ -111,12 +120,15 @@ export class AgentRunner {
     rootClusterUri: RootClusterUri,
     process: ChildProcess
   ): void {
-    // Teleport logs output to stderr.
     let stderrOutput = '';
+    this.agentProcesses.get(rootClusterUri).logs = stderrOutput;
+
+    // Teleport logs output to stderr.
     process.stderr.setEncoding('utf-8');
     process.stderr.on('data', (error: string) => {
       stderrOutput += error;
       stderrOutput = processAgentOutput(stderrOutput);
+      this.agentProcesses.get(rootClusterUri).logs = stderrOutput;
     });
 
     const spawnHandler = () => {

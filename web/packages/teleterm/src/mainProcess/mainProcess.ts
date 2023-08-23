@@ -361,6 +361,18 @@ export default class MainProcess {
       }
     );
 
+    ipcMain.on(
+      'main-process-connect-my-computer-get-agent-logs',
+      (
+        event,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => {
+        event.returnValue = this.agentRunner.getLogs(args.rootClusterUri);
+      }
+    );
+
     subscribeToTerminalContextMenuEvent();
     subscribeToTabContextMenuEvent();
     subscribeToConfigServiceEvents(this.configService);
