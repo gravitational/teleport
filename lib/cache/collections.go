@@ -2350,7 +2350,6 @@ func (accessListsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets
 }
 
 func (accessListsExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessList) error {
-	fmt.Printf("Yes? %+v\n", resource.GetMetadata())
 	_, err := cache.accessListsCache.UpsertAccessList(ctx, resource)
 	return trace.Wrap(err)
 }
@@ -2478,7 +2477,6 @@ func (accessListMembersExecutor) getAll(ctx context.Context, cache *Cache, loadS
 }
 
 func (accessListMembersExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessListMember) error {
-	fmt.Printf("Yes? %+v\n", resource.GetMetadata())
 	_, err := cache.accessListMembersCache.UpsertAccessListMember(ctx, resource)
 	return trace.Wrap(err)
 }

@@ -24,11 +24,10 @@ import (
 // FromHeaderMetadata will convert a *header.Metadata object to this metadata object.
 // TODO: Remove this once we get rid of the old Metadata object.
 func FromHeaderMetadata(metadata header.Metadata) types.Metadata {
-	expires := metadata.Expires
 	return types.Metadata{
 		ID:          metadata.ID,
 		Name:        metadata.Name,
-		Expires:     &expires,
+		Expires:     &metadata.Expires,
 		Description: metadata.Description,
 		Labels:      metadata.Labels,
 	}
