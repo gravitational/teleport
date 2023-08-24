@@ -38,8 +38,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -4400,7 +4398,7 @@ func TestGRPCServer_GenerateToken(t *testing.T) {
 			overrideTokenName: alreadyExistsToken.GetName(),
 			roles:             types.SystemRoles{types.RoleTrustedCluster},
 			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Equal(t, codes.AlreadyExists, status.Code(err))
+				require.True(t, trace.IsAlreadyExists(err))
 			},
 		},
 		{
@@ -4408,7 +4406,7 @@ func TestGRPCServer_GenerateToken(t *testing.T) {
 			identity: TestNop(),
 			roles:    types.SystemRoles{types.RoleNode},
 			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Equal(t, codes.PermissionDenied, status.Code(err))
+				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
 	}
