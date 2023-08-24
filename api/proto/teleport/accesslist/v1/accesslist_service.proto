@@ -33,8 +33,6 @@ service AccessListService {
   rpc UpsertAccessList(UpsertAccessListRequest) returns (AccessList);
   // DeleteAccessList hard deletes the specified access list resource.
   rpc DeleteAccessList(DeleteAccessListRequest) returns (google.protobuf.Empty);
-  // DeleteAccessListMember hard deletes the specified access list member resource.
-  rpc DeleteAccessListMember(DeleteAccessListMemberRequest) returns (google.protobuf.Empty);
   // DeleteAllAccessLists hard deletes all access lists.
   rpc DeleteAllAccessLists(DeleteAllAccessListsRequest) returns (google.protobuf.Empty);
 
@@ -44,6 +42,10 @@ service AccessListService {
   rpc GetAccessListMember(GetAccessListMemberRequest) returns (Member);
   // UpsertAccessListMember creates or updates an access list member resource.
   rpc UpsertAccessListMember(UpsertAccessListMemberRequest) returns (Member);
+  // DeleteAccessListMember hard deletes the specified access list member resource.
+  rpc DeleteAccessListMember(DeleteAccessListMemberRequest) returns (google.protobuf.Empty);
+  // DeleteAllAccessListMembers hard deletes all access list members for an access list.
+  rpc DeleteAllAccessListMembersForAccessList(DeleteAllAccessListMembersForAccessListRequest) returns (google.protobuf.Empty);
   // DeleteAllAccessListMembers hard deletes all access list members for an access list.
   rpc DeleteAllAccessListMembers(DeleteAllAccessListMembersRequest) returns (google.protobuf.Empty);
 }
@@ -102,6 +104,9 @@ message ListAccessListMembersRequest {
 
   // page_token is the page token.
   string page_token = 2;
+
+  // access_list is the name of the access list that the member belongs to.
+  string access_list = 3;
 }
 
 // ListAccessListMembersResponse is the response for getting paginated access list members.
@@ -141,8 +146,14 @@ message DeleteAccessListMemberRequest {
   string member_name = 3;
 }
 
-// DeleteAllAccessListMembersRequest is the request for deleting all members from an access list.
-message DeleteAllAccessListMembersRequest {
+// DeleteAllAccessListMembersForAccessListRequest is the request for deleting all members from an access list.
+message DeleteAllAccessListMembersForAccessListRequest {
   // access_list is the name of access list.
   string access_list = 1;
+}
+
+// DeleteAllAccessListMembersRequest is the request for all access list members in the backend.
+message DeleteAllAccessListMembersRequest {
+  reserved 1;
+  reserved "access_list";
 }

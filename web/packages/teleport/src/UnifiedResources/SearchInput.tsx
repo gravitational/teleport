@@ -95,6 +95,7 @@ const StyledInput = styled.input`
   ${color}
   ${space}
   ${height}
+  color: ${props => props.theme.colors.text.main};
   background: ${props => props.theme.colors.spotBackground[0]};
   padding-right: 184px;
   padding-left: ${props => props.theme.space[5]}px;

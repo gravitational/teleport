@@ -93,7 +93,7 @@ func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p htt
 		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
 	}
 
-	issuer, err := h.issuerFromPublicAddr()
+	issuer, err := awsoidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -247,6 +247,42 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 	return nil, trace.Wrap(err)
 }
 
+// awsOIDCConfigureEICEIAM returns a script that configures the required IAM permissions to enable the usage of EC2 Instance Connect Endpoint
+// to access EC2 instances.
+func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	queryParams := r.URL.Query()
+
+	awsRegion := queryParams.Get("awsRegion")
+	if err := aws.IsValidRegion(awsRegion); err != nil {
+		return nil, trace.BadParameter("invalid awsRegion")
+	}
+
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role")
+	}
+
+	// The script must execute the following command:
+	// teleport integration configure eice-iam
+	argsList := []string{
+		"integration", "configure", "eice-iam",
+		fmt.Sprintf("--aws-region=%s", awsRegion),
+		fmt.Sprintf("--role=%s", role),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs:   strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the browser to complete the EC2 enrollment.",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	fmt.Fprint(w, script)
+
+	return nil, trace.Wrap(err)
+}
+
 // awsOIDCListEC2 returns a list of EC2 Instances using the ListEC2 action of the AWS OIDC Integration.
 func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
@@ -316,6 +352,7 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 	resp, err := awsoidc.ListEC2ICE(ctx,
 		listEC2ICEClient,
 		awsoidc.ListEC2ICERequest{
+			Region:    req.Region,
 			VPCID:     req.VPCID,
 			NextToken: req.NextToken,
 		},

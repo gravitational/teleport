@@ -249,8 +249,7 @@ exports[`empty state for enterprise, can create 1`] = `
               kind="primary"
               width="224px"
             >
-              Add 
-              application
+              Add Resource
             </button>
           </a>
           <a

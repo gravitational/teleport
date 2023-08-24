@@ -45,6 +45,7 @@ const cfg = {
   // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
+  customTheme: '',
 
   configDir: '$HOME/.config',
 
@@ -81,6 +82,7 @@ const cfg = {
   routes: {
     root: '/web',
     discover: '/web/discover',
+    accessRequest: '/web/accessrequest',
     assistBase: '/web/assist/',
     assist: '/web/assist/:conversationId?',
     apps: '/web/cluster/:clusterId/apps',
