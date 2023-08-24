@@ -236,11 +236,12 @@ ui: buildbox
 # Makefile (instead of calling yarn directly as the ui target above does)
 # as that computes a SHA to prevent unnecessary rebuilds. This is used by
 # the CentOS 7 build that does not have a new enough version of node.js
-# to build webassets.
+# to build webassets. Enterprise webassets will only be built if the e
+# submodule is present.
 .PHONY: webassets
-webassets: buildbox
+webassets: buildbox-connect
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
-		/usr/bin/make ensure-webassets ensure-webassets-e
+		/usr/bin/make ensure-webassets $(if $(wildcard ../e/Makefile),ensure-webassets-e)
 
 # grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
@@ -445,6 +446,10 @@ release-centos7: buildbox-centos7 webassets
 #
 # Create a Teleport FIPS package for CentOS 7 using the build container.
 # This only builds and packages enterprise FIPS binaries, no OSS.
+# We depend on webassets to pre-build them in the standard Ubuntu buildbox
+# as the version of node.js on CentOS 7 is too old. The enterprise Makefile
+# does not clean the web assets on the `release` target so there is no need
+# to call release-unix-preserving-webassets like we do for the non-fips release.
 #
 .PHONY:release-centos7-fips
 release-centos7-fips: webassets
