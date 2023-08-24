@@ -224,7 +224,7 @@ func TestAccessListMemberMarshal(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func TestIsOwner(t *testing.T) {
+func TestIsAccessListOwner(t *testing.T) {
 	tests := []struct {
 		name             string
 		identity         tlsca.Identity
@@ -292,11 +292,12 @@ func TestIsOwner(t *testing.T) {
 			t.Parallel()
 
 			accessList := newAccessList(t)
-			test.errAssertionFunc(t, IsOwner(test.identity, accessList))
+			test.errAssertionFunc(t, IsAccessListOwner(test.identity, accessList))
 		})
 	}
 }
 
+// TODO(mdwn): Remove this.
 func TestIsMember(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -392,6 +393,142 @@ func TestIsMember(t *testing.T) {
 	}
 }
 
+// testMembersGetter implements AccessListMembersGetter for testing.
+type testMembersGetter struct {
+	members map[string]map[string]*accesslist.AccessListMember
+}
+
+// ListAccessListMembers returns a paginated list of all access list members.
+func (t *testMembersGetter) ListAccessListMembers(ctx context.Context, accessList string, _ int, _ string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	for _, member := range t.members[accessList] {
+		members = append(members, member)
+	}
+	return members, "", nil
+}
+
+// GetAccessListMember returns the specified access list member resource.
+func (t *testMembersGetter) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
+	members, ok := t.members[accessList]
+	if !ok {
+		return nil, trace.NotFound("not found")
+	}
+
+	member, ok := members[memberName]
+	if !ok {
+		return nil, trace.NotFound("not found")
+	}
+
+	return member, nil
+}
+
+func TestIsAccessListMember(t *testing.T) {
+	tests := []struct {
+		name             string
+		identity         tlsca.Identity
+		memberCtx        context.Context
+		currentTime      time.Time
+		errAssertionFunc require.ErrorAssertionFunc
+	}{
+		{
+			name: "is member",
+			identity: tlsca.Identity{
+				Username: member1,
+				Groups:   []string{"mrole1", "mrole2"},
+				Traits: map[string][]string{
+					"mtrait1": {"mvalue1", "mvalue2"},
+					"mtrait2": {"mvalue3", "mvalue4"},
+				},
+			},
+			currentTime:      time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "is not a member",
+			identity: tlsca.Identity{
+				Username: member3,
+				Groups:   []string{"mrole1", "mrole2"},
+				Traits: map[string][]string{
+					"mtrait1": {"mvalue1", "mvalue2"},
+					"mtrait2": {"mvalue3", "mvalue4"},
+				},
+			},
+			currentTime: time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
+			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name: "is expired member",
+			identity: tlsca.Identity{
+				Username: member1,
+				Groups:   []string{"mrole1", "mrole2"},
+				Traits: map[string][]string{
+					"mtrait1": {"mvalue1", "mvalue2"},
+					"mtrait2": {"mvalue3", "mvalue4"},
+				},
+			},
+			currentTime: time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
+			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name: "is member with missing roles",
+			identity: tlsca.Identity{
+				Username: member1,
+				Groups:   []string{"mrole1"},
+				Traits: map[string][]string{
+					"mtrait1": {"mvalue1", "mvalue2"},
+					"mtrait2": {"mvalue3", "mvalue4"},
+				},
+			},
+			currentTime: time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
+			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name: "is member with missing traits",
+			identity: tlsca.Identity{
+				Username: member1,
+				Groups:   []string{"mrole1", "mrole2"},
+				Traits: map[string][]string{
+					"mtrait1": {"mvalue1"},
+					"mtrait2": {"mvalue3"},
+				},
+			},
+			currentTime: time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
+			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+
+			accessList := newAccessList(t)
+			members := newAccessListMembers(t)
+
+			memberMap := map[string]map[string]*accesslist.AccessListMember{}
+			for _, member := range members {
+				accessListName := member.Spec.AccessList
+				if _, ok := memberMap[accessListName]; !ok {
+					memberMap[accessListName] = map[string]*accesslist.AccessListMember{}
+				}
+				memberMap[accessListName][member.Spec.Name] = member
+			}
+			getter := &testMembersGetter{members: memberMap}
+
+			test.errAssertionFunc(t, IsAccessListMember(ctx, test.identity, clockwork.NewFakeClockAt(test.currentTime), accessList, getter))
+		})
+	}
+}
+
 func newAccessList(t *testing.T) *accesslist.AccessList {
 	t.Helper()
 
@@ -457,6 +594,36 @@ func newAccessList(t *testing.T) *accesslist.AccessList {
 	require.NoError(t, err)
 
 	return accessList
+}
+
+func newAccessListMembers(t *testing.T) []*accesslist.AccessListMember {
+	t.Helper()
+
+	member1, err := accesslist.NewAccessListMember(header.Metadata{
+		Name: member1,
+	}, accesslist.AccessListMemberSpec{
+		AccessList: "test",
+		Name:       member1,
+		Joined:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+		Expires:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Reason:     "because",
+		AddedBy:    ownerUser,
+	})
+	require.NoError(t, err)
+
+	member2, err := accesslist.NewAccessListMember(header.Metadata{
+		Name: member2,
+	}, accesslist.AccessListMemberSpec{
+		AccessList: "test",
+		Name:       member2,
+		Joined:     time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
+		Expires:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		Reason:     "because again",
+		AddedBy:    ownerUser,
+	})
+	require.NoError(t, err)
+
+	return []*accesslist.AccessListMember{member1, member2}
 }
 
 var accessListYAML = `---
