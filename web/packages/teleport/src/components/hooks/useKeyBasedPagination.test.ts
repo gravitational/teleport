@@ -207,7 +207,7 @@ test("doesn't restart if params didn't change on rerender", async () => {
 });
 
 describe("doesn't react to fetch() calls before the previous one finishes", () => {
-  let props, fetchSpy;
+  let props: Props<TestResource>, fetchSpy;
 
   beforeEach(() => {
     props = hookProps();
