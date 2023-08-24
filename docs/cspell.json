@@ -72,6 +72,7 @@
     "Goland",
     "Grafana's",
     "Gtczk",
+    "HKEY",
     "HSTS",
     "Hqlo",
     "IAMR",
@@ -156,6 +157,7 @@
     "SECURITYADMIN",
     "SIEM",
     "SIGINT",
+    "SIGQUIT",
     "SLAVEOF",
     "SLOWLOG",
     "SSUBSCRIBE",
@@ -411,6 +413,7 @@
     "healthz",
     "highavailability",
     "highavailabilitycertmanager",
+    "highavailabilitycertmanageraddcommonname",
     "hostcert",
     "hostdb",
     "hostedzone",
@@ -593,11 +596,13 @@
     "pkill",
     "pkinit",
     "plugindata",
+    "portforward",
     "postgresqlselfhosted",
     "pprof",
     "preconfigured",
     "prereqs",
     "prioritise",
+    "privateca",
     "privkey",
     "priya",
     "programatically",
@@ -680,6 +685,7 @@
     "splunkforwarder",
     "sqlcl",
     "sqlcmd",
+    "sqlcmd",
     "sqlnet",
     "sqlserver",
     "sshcacerts",
@@ -691,6 +697,8 @@
     "storageenabled",
     "strslice",
     "structs",
+    "subgroups",
+    "subkind",
     "subkind",
     "sudoer",
     "syscalls",
@@ -717,6 +725,7 @@
     "timechart",
     "tlscacerts",
     "tlscert",
+    "tlsexistingcasecretname",
     "tmpfs",
     "tocless",
     "tokenconfig",
@@ -790,7 +799,5 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": [
-    "hte"
-  ]
+  "flagWords": ["hte"]
 }
