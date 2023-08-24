@@ -35,6 +35,9 @@ import (
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/model"
+	"github.com/gravitational/teleport/lib/ai/model/output"
+	"github.com/gravitational/teleport/lib/ai/model/tools"
+	"github.com/gravitational/teleport/lib/ai/tokens"
 )
 
 // MessageType is a type of the Assist message.
@@ -126,7 +129,7 @@ type Chat struct {
 }
 
 // NewChat creates a new Assist chat.
-func (a *Assist) NewChat(ctx context.Context, assistService MessageService, toolContext *model.ToolContext,
+func (a *Assist) NewChat(ctx context.Context, assistService MessageService, toolContext *tools.ToolContext,
 	conversationID string,
 ) (*Chat, error) {
 	aichat := a.client.NewChat(toolContext)
@@ -176,7 +179,7 @@ func (a *Assist) GenerateSummary(ctx context.Context, message string) (string, e
 // GenerateCommandSummary summarizes the output of a command executed on one or
 // many nodes. The conversation history is also sent into the prompt in order
 // to gather context and know what information is relevant in the command output.
-func (a *Assist) GenerateCommandSummary(ctx context.Context, messages []*assist.AssistantMessage, output map[string][]byte) (string, *model.TokenCount, error) {
+func (a *Assist) GenerateCommandSummary(ctx context.Context, messages []*assist.AssistantMessage, output map[string][]byte) (string, *tokens.TokenCount, error) {
 	// Create system prompt
 	modelMessages := []openai.ChatCompletionMessage{
 		{Role: openai.ChatMessageRoleSystem, Content: model.PromptSummarizeCommand},
@@ -318,7 +321,7 @@ func (c *Chat) RecordMesssage(ctx context.Context, kind MessageType, payload str
 
 // ProcessComplete processes the completion request and returns the number of tokens used.
 func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, userInput string,
-) (*model.TokenCount, error) {
+) (*tokens.TokenCount, error) {
 	progressUpdates := func(update *model.AgentAction) {
 		payload, err := json.Marshal(update)
 		if err != nil {
@@ -365,7 +368,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 	}
 
 	switch message := message.(type) {
-	case *model.Message:
+	case *output.Message:
 		c.chat.Insert(openai.ChatMessageRoleAssistant, message.Content)
 
 		// write an assistant message to persistent storage
@@ -386,7 +389,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		if err := onMessage(MessageKindAssistantMessage, []byte(message.Content), c.assist.clock.Now().UTC()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case *model.StreamingMessage:
+	case *output.StreamingMessage:
 		var text strings.Builder
 		defer onMessage(MessageKindAssistantPartialFinalize, nil, c.assist.clock.Now().UTC())
 		for part := range message.Parts {
@@ -413,7 +416,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		if err := c.assistService.CreateAssistantMessage(ctx, protoMsg); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case *model.CompletionCommand:
+	case *output.CompletionCommand:
 		payloadJson, err := json.Marshal(message)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -441,7 +444,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		// To take this command summary into account, we note the history might
 		// be stale.
 		c.potentiallyStaleHistory = true
-	case *model.AccessRequest:
+	case *output.AccessRequest:
 		payloadJson, err := json.Marshal(message)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -473,7 +476,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 
 // ProcessComplete processes a user message and returns the assistant's response.
 func (c *LightweightChat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, userInput string,
-) (*model.TokenCount, error) {
+) (*tokens.TokenCount, error) {
 	progressUpdates := func(update *model.AgentAction) {
 		payload, err := json.Marshal(update)
 		if err != nil {
@@ -495,17 +498,17 @@ func (c *LightweightChat) ProcessComplete(ctx context.Context, onMessage onMessa
 	c.chat.Insert(openai.ChatMessageRoleUser, userInput)
 
 	switch message := message.(type) {
-	case *model.Message:
+	case *output.Message:
 		c.chat.Insert(openai.ChatMessageRoleAssistant, message.Content)
 		if err := onMessage(MessageKindAssistantMessage, []byte(message.Content), c.assist.clock.Now().UTC()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case *model.GeneratedCommand:
+	case *output.GeneratedCommand:
 		c.chat.Insert(openai.ChatMessageRoleAssistant, message.Command)
 		if err := onMessage(MessageKindCommand, []byte(message.Command), c.assist.clock.Now().UTC()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case *model.StreamingMessage:
+	case *output.StreamingMessage:
 		if err := func() error {
 			var text strings.Builder
 			defer onMessage(MessageKindAssistantPartialFinalize, nil, c.assist.clock.Now().UTC())

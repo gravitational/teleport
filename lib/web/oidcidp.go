@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/jwt"
 )
 
@@ -36,7 +37,7 @@ const (
 
 // openidConfiguration returns the openid-configuration for setting up the AWS OIDC Integration
 func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ httprouter.Params) (interface{}, error) {
-	issuer, err := h.issuerFromPublicAddr()
+	issuer, err := awsoidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -144,28 +145,4 @@ func (h *Handler) thumbprint(_ http.ResponseWriter, r *http.Request, _ httproute
 
 	// Convert the thumbprint ([]bytes) into their hex representation.
 	return fmt.Sprintf("%x", thumbprint), nil
-}
-
-// issuerFromPublicAddr is the address for the AWS OIDC Provider.
-// It must match exactly what was introduced in AWS IAM console.
-// PublicProxyAddr does not come with the desired format: it misses the protocol and has a port
-// This method adds the `https` protocol and removes the port if it is the default one for https (443)
-func (h *Handler) issuerFromPublicAddr() (string, error) {
-	addr := h.cfg.PublicProxyAddr
-
-	// Add protocol if not present.
-	if !strings.HasPrefix(addr, "https://") {
-		addr = "https://" + addr
-	}
-
-	result, err := url.Parse(addr)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if result.Port() == "443" {
-		// Cut off redundant :443
-		result.Host = result.Hostname()
-	}
-	return result.String(), nil
 }

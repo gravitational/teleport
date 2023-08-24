@@ -94,6 +94,7 @@ const ChatContainer = styled.div`
   transition: ${p => (p.visible ? 'opacity 0.5s ease-in-out' : 'none')};
   transition-delay: 0.2s;
   box-sizing: border-box;
+  visibility: ${p => (p.visible ? 'visible' : 'hidden')};
 `;
 
 const Header = styled.header`

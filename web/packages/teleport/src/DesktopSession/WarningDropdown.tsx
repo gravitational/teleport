@@ -120,7 +120,7 @@ const StyledCard = styled(Card)`
 const StyledNotification = styled(Notification)`
   background: ${({ theme }) => theme.colors.spotBackground[0]};
   ${({ theme }) =>
-    theme.name === 'light' && `border: 1px solid ${theme.colors.text.muted};`}
+    theme.type === 'light' && `border: 1px solid ${theme.colors.text.muted};`}
   box-shadow: none;
 `;
 

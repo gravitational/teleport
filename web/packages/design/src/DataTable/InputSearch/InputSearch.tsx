@@ -68,7 +68,7 @@ const ChildWrapperBackground = styled.div`
   align-items: center;
   justify-content: center;
   background: ${props =>
-    props.theme.name === 'dark'
+    props.theme.type === 'dark'
       ? props.theme.colors.levels.surface
       : props.theme.colors.levels.deep};
   border-radius: 200px;
@@ -110,14 +110,14 @@ function fromTheme(props) {
   return {
     color: props.theme.colors.text.main,
     background:
-      props.theme.name === 'dark'
+      props.theme.type === 'dark'
         ? props.theme.colors.levels.sunken
         : props.theme.colors.levels.deep,
 
     '&:hover, &:focus, &:active': {
       color: props.theme.colors.text.main,
       background:
-        props.theme.name === 'dark'
+        props.theme.type === 'dark'
           ? props.theme.colors.spotBackground[0]
           : props.theme.colors.levels.sunken,
     },
