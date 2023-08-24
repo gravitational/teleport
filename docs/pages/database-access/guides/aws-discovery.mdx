@@ -101,9 +101,9 @@ Adjust the keys under `discovery_service.aws` to match your AWS databases.
 Create an IAM role and attach it to the host that will run the Discovery
 Service.
 
-Teleport can boostrap IAM permissions for the Discovery and Database Service
-based on the `discovery_service` configuration using the `teleport discovery
-bootstrap` command. You can use this command in automatic or manual mode:
+Teleport can bootstrap IAM permissions for the Discovery Service using the
+`teleport discovery bootstrap` command. You can use this command in automatic
+or manual mode:
 
 - In automatic mode, Teleport will attempt to create appropriate IAM policies
   and attach them to the specified IAM roles. This requires IAM permissions to
