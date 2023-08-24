@@ -5,7 +5,7 @@
 # Sync with devbox.json.
 GOLANG_VERSION ?= go1.20.7
 
-NODE_VERSION ?= 16.18.1
+NODE_VERSION ?= 18.17.1
 
 # Run lint-rust check locally before merging code after you bump this.
 RUST_VERSION ?= 1.71.1
