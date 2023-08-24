@@ -12,16 +12,18 @@ limitations under the License.
 */
 
 import React from 'react';
+import { Alert, Box, Flex, Indicator, Link, Text } from 'design';
 
-import { Alert, Box, ButtonPrimary, Flex, Indicator, Link, Text } from 'design';
-
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
+import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import useResources from 'teleport/components/useResources';
+
+import {
+  DesktopDescription,
+  MobileDescription,
+  ResponsiveAddButton,
+  ResponsiveFeatureHeader,
+} from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
 
 import EmptyList from './EmptyList';
 import ConnectorList from './ConnectorList';
@@ -43,6 +45,8 @@ export function AuthConnectors(props: State) {
     resources.status === 'creating'
       ? 'Creating a new github connector'
       : 'Editing github connector';
+  const description =
+    'Auth connectors allow Teleport to authenticate users via an external identity source such as Okta, Active Directory, GitHub, etc. This authentication method is commonly known as single sign-on (SSO).';
 
   function handleOnSave(content: string) {
     const name = resources.item.name;
@@ -52,23 +56,15 @@ export function AuthConnectors(props: State) {
 
   return (
     <FeatureBox>
-      <FeatureHeader
-        css={`
-          @media screen and (max-width: 800px) {
-            flex-direction: column;
-            height: auto;
-            gap: 10px;
-            margin: 0 0 10px 0;
-            padding-bottom: 10px;
-            justify-content: center;
-          }
-        `}
-      >
+      <ResponsiveFeatureHeader>
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
-        <ButtonPrimary width="240px" onClick={() => resources.create('github')}>
+        <MobileDescription typography="subtitle1">
+          {description}
+        </MobileDescription>
+        <ResponsiveAddButton onClick={() => resources.create('github')}>
           New GitHub Connector
-        </ButtonPrimary>
-      </FeatureHeader>
+        </ResponsiveAddButton>
+      </ResponsiveFeatureHeader>
       {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
@@ -88,25 +84,12 @@ export function AuthConnectors(props: State) {
               onEdit={resources.edit}
               onDelete={resources.remove}
             />
-            <Box
-              ml="4"
-              width="240px"
-              color="text.main"
-              style={{ flexShrink: 0 }}
-              css={`
-                @media screen and (max-width: 1000px) {
-                  display: none;
-                } ;
-              `}
-            >
+            <DesktopDescription>
               <Text typography="h6" mb={3} caps>
                 Auth Connectors
               </Text>
               <Text typography="subtitle1" mb={3}>
-                Auth connectors allow Teleport to authenticate users via an
-                external identity source such as Okta, Active Directory, GitHub,
-                etc. This authentication method is commonly known as single
-                sign-on (SSO).
+                {description}
               </Text>
               <Text typography="subtitle1" mb={2}>
                 Please{' '}
@@ -120,7 +103,7 @@ export function AuthConnectors(props: State) {
                 </Link>{' '}
                 on how to configure a GitHub connector.
               </Text>
-            </Box>
+            </DesktopDescription>
           </>
         </Flex>
       )}

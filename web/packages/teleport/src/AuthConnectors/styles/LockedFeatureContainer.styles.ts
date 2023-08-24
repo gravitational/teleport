@@ -14,18 +14,28 @@
  * limitations under the License.
  */
 
-import { Box } from 'design';
 import styled from 'styled-components';
 
-export const LockedFeatureContainer = styled(Box)`
-  position: absolute;
-  min-width: 360px;
-  max-width: 450px;
-  bottom: 0;
-  right: 3rem;
+import { Flex } from 'design';
 
-  @media screen and (max-width: 1766px) {
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+
+export const LockedFeatureContainer = styled(Flex)`
+  flex-wrap: wrap;
+  position: relative;
+  justify-content: center;
+  margin-top: ${p => p.theme.space[4]}px;
+  min-width: 224px;
+`;
+
+export const LockedFeatureButton = styled(ButtonLockedFeature)`
+  position: absolute;
+  width: 80%;
+  right: 10%;
+  bottom: -10px;
+
+  @media screen and (max-width: ${props => props.theme.breakpoints.tablet}px) {
     width: 100%;
-    right: auto;
+    right: 1px;
   } ;
 `;

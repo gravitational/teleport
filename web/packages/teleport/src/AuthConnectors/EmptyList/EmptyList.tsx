@@ -15,74 +15,64 @@ limitations under the License.
 */
 
 import React from 'react';
-import { useTheme } from 'styled-components';
 import { Card, Flex, Text } from 'design';
 import { GitHubIcon } from 'design/SVGIcon';
 import { AuthProviderType } from 'shared/services';
 
 import { ConnectorBox } from 'teleport/AuthConnectors/styles/ConnectorBox.styles';
 
-import { LockedFeatureContainer } from 'teleport/AuthConnectors/styles/LockedFeatureContainer.styles';
+import {
+  LockedFeatureButton,
+  LockedFeatureContainer,
+} from 'teleport/AuthConnectors/styles/LockedFeatureContainer.styles';
 
 import getSsoIcon from 'teleport/AuthConnectors/ssoIcons/getSsoIcon';
 import { State as ResourceState } from 'teleport/components/useResources';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';
 
 export default function EmptyList({ onCreate }: Props) {
-  const theme = useTheme();
   return (
     <Card
       color="text.main"
-      p="5"
+      p={5}
       textAlign="center"
       style={{ boxShadow: 'none' }}
     >
       <Text typography="h3" textAlign="center">
         Select a service provider below
       </Text>
-      <Flex
-        flexWrap="wrap"
-        style={{ position: 'relative' }}
-        justifyContent="center"
-        mt="4"
-        minWidth="224px"
-      >
-        <ConnectorBox as="button" onClick={onCreate}>
-          <Flex width="100%">
-            <Flex height="72px" alignItems="center">
-              <GitHubIcon
-                style={{ textAlign: 'center' }}
-                size={48}
-                fill={theme.colors.main}
-              />
-            </Flex>
-          </Flex>
-
-          <Text
-            typography="body2"
-            mt="4"
-            fontSize="18px"
-            color="text.primary"
-            bold
-          >
-            GitHub
-          </Text>
-          {
-            <Text mt="2" color="text.primary" transform="none">
-              Sign in using your GitHub account
-            </Text>
-          }
-        </ConnectorBox>
-        {renderLockedItem('oidc')}
-        {renderLockedItem('saml')}
+      <Flex flexWrap="wrap" justifyContent="center" mt={4} minWidth="224px">
+        {renderGithubConnector(onCreate)}
         <LockedFeatureContainer>
-          <ButtonLockedFeature event={CtaEvent.CTA_AUTH_CONNECTOR}>
+          {renderLockedItem('oidc')}
+          {renderLockedItem('saml')}
+          <LockedFeatureButton event={CtaEvent.CTA_AUTH_CONNECTOR}>
             Unlock OIDC & SAML with Teleport Enterprise
-          </ButtonLockedFeature>
+          </LockedFeatureButton>
         </LockedFeatureContainer>
       </Flex>
     </Card>
+  );
+}
+
+function renderGithubConnector(onCreate) {
+  return (
+    <ConnectorBox as="button" onClick={onCreate}>
+      <Flex width="100%">
+        <Flex height="72px" alignItems="center">
+          <GitHubIcon style={{ textAlign: 'center' }} size={48} />
+        </Flex>
+      </Flex>
+
+      <Text typography="body2" mt={4} fontSize="18px" color="text.primary" bold>
+        GitHub
+      </Text>
+      {
+        <Text mt={2} color="text.slightlyMuted" transform="none">
+          Sign in using your GitHub account
+        </Text>
+      }
+    </ConnectorBox>
   );
 }
 
@@ -100,11 +90,11 @@ function renderLockedItem(kind: AuthProviderType) {
         />
       </Flex>
 
-      <Text typography="body2" mt="4" fontSize="18px" color="text.primary" bold>
+      <Text typography="body2" mt={4} fontSize={4} color="text.primary" bold>
         {desc}
       </Text>
       {info && (
-        <Text mt="2" color="text.primary" transform="none">
+        <Text mt={2} color="text.primary" transform="none">
           {info}
         </Text>
       )}
