@@ -16,7 +16,7 @@ This document will help you get started.
 We support BPFs only on ARM64 and x86_64 architectures.
 
 1. VM with Ubuntu 20.04+ (or any other Linux distro with the kernel 5.8+ - Docker doesn't work for many BPF features)
-2. Install `clang` and `llvm` (required for compiling BPF code)
+2. Install `clang` (required for compiling BPF code) - `apt install clang` should be enough
 3. Install `libbpf` (required for loading BPF code) - get the required version from our Docker file
 
 You can also use our Dockerfile to build the environment:
@@ -46,6 +46,13 @@ doesn't use semantic versioning, instead the tags have the format
 the second part is the `libbpf` version. Using the wrong version of `libbpf`
 results in a runtime/compilation error.
 
+### libbpf installation
+
+`aquasecurity/libbpfgo` requires `libbpf` to be installed on the system. The most up-to-date installation instructions can be found 
+in our Docker file: https://github.com/gravitational/teleport/blob/2fd8f75e38eebf5c6826ef594433e5165c3bfbe1/build.assets/Dockerfile-centos7#L108-L131
+
+Remember that the library must be installed in `/opt` directory not in `/usr/local` or `/usr`.
+
 ### BPF license
 
 BPF programs are compiled into ELF files. ELF files have a license field that is used to verify that the BPF program
@@ -69,3 +76,20 @@ Example:
 
 * BPF: https://github.com/gravitational/teleport/blob/2fd8f75e38eebf5c6826ef594433e5165c3bfbe1/bpf/enhancedrecording/command.bpf.c#L18
 * User space: https://github.com/gravitational/teleport/blob/2fd8f75e38eebf5c6826ef594433e5165c3bfbe1/lib/bpf/common_linux.go#L40-L51
+
+## BPF in Teleport
+
+Teleport uses BPF to implement enhanced session recording and restricted networking. Both features work only on Linux with
+the kernel 5.8+. Enhanced session recording records all:
+* exec family system calls
+* open family system calls
+* network connections
+
+All events are recorded in the audit log. https://goteleport.com/docs/server-access/guides/bpf-session-recording/
+
+Restricted networking allows you to restrict network access for users.
+It's implemented by using LSM hooks and BPF programs.
+https://goteleport.com/docs/server-access/guides/restricted-session/
+On ubuntu systems LSM hooks are not enabled in some version.
+Here are the instructions on how to enable them https://github.com/gravitational/teleport/issues/8089#issuecomment-924990678
+
