@@ -124,7 +124,7 @@ func GetSingleHeader(headers http.Header, key string) (string, error) {
 	if len(values) > 1 {
 		return "", trace.BadParameter("multiple %q headers", key)
 	} else if len(values) == 0 {
-		return "", trace.Errorf("missing %q headers", key)
+		return "", trace.NotFound("missing %q headers", key)
 	} else {
 		return values[0], nil
 	}
