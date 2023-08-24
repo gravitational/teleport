@@ -48,16 +48,16 @@ type CredentialsGetter interface {
 	Get(ctx context.Context, request GetCredentialsRequest) (*credentials.Credentials, error)
 }
 
-type credentialsGettter struct {
+type credentialsGetter struct {
 }
 
 // NewCredentialsGetter returns a new CredentialsGetter.
 func NewCredentialsGetter() CredentialsGetter {
-	return &credentialsGettter{}
+	return &credentialsGetter{}
 }
 
 // Get obtains STS credentials.
-func (g *credentialsGettter) Get(_ context.Context, request GetCredentialsRequest) (*credentials.Credentials, error) {
+func (g *credentialsGetter) Get(_ context.Context, request GetCredentialsRequest) (*credentials.Credentials, error) {
 	logrus.Debugf("Creating STS session %q for %q.", request.SessionName, request.RoleARN)
 	return stscreds.NewCredentials(request.Provider, request.RoleARN,
 		func(cred *stscreds.AssumeRoleProvider) {
@@ -143,5 +143,8 @@ func NewStaticCredentialsGetter(credentials *credentials.Credentials) Credential
 
 // Get returns the credentials provided to NewStaticCredentialsGetter.
 func (g *staticCredentialsGetter) Get(_ context.Context, _ GetCredentialsRequest) (*credentials.Credentials, error) {
+	if g.credentials == nil {
+		return nil, trace.NotFound("no credentials found")
+	}
 	return g.credentials, nil
 }
