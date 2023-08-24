@@ -166,7 +166,13 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 }
 
 // IsOwner will return true if the user is an owner for the current list.
+// TODO(mdwn): Remove this.
 func IsOwner(identity tlsca.Identity, accessList *accesslist.AccessList) error {
+	return IsAccessListOwner(identity, accessList)
+}
+
+// IsAccessListOwner will return true if the user is an owner for the current list.
+func IsAccessListOwner(identity tlsca.Identity, accessList *accesslist.AccessList) error {
 	isOwner := false
 	for _, owner := range accessList.Spec.Owners {
 		if owner.Name == identity.Username {
@@ -192,6 +198,7 @@ func IsOwner(identity tlsca.Identity, accessList *accesslist.AccessList) error {
 }
 
 // IsMember will return true if the user is a member for the current list.
+// TODO(mdwn): Remove this.
 func IsMember(identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList) error {
 	username := identity.Username
 	for _, member := range accessList.Spec.Members {
@@ -204,6 +211,34 @@ func IsMember(identity tlsca.Identity, clock clockwork.Clock, accessList *access
 	}
 
 	return trace.NotFound("user %s is not a member of the access list", username)
+}
+
+// IsAccessListMember will return true if the user is a member for the current list.
+func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, memberGetter AccessListMembersGetter) error {
+	username := identity.Username
+
+	member, err := memberGetter.GetAccessListMember(ctx, accessList.GetName(), username)
+	if trace.IsNotFound(err) {
+		// The member has not been found, so we know they're not a member of this list.
+		return trace.NotFound("user %s is not a member of the access list", username)
+	} else if err != nil {
+		// Some other error has occurred
+		return trace.Wrap(err)
+	}
+
+	expires := member.Spec.Expires
+	if expires.IsZero() {
+		expires = accessList.Spec.Audit.NextAuditDate
+	}
+
+	if !clock.Now().Before(expires) {
+		return trace.NotFound("user %s's membership has expired in the access list", username)
+	}
+
+	if !userMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
+		return trace.AccessDenied("user %s does not meet membership requirements", username)
+	}
+	return nil
 }
 
 func userMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires) bool {
