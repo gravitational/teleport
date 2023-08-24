@@ -2541,7 +2541,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	}()
 
 	var dbNames, dbUsers []string
-	containsDB := false
+	hasFetchedDBUsersAndNames := false
 
 	unifiedResources := make([]any, 0, len(page.Resources))
 	for _, resource := range page.Resources {
@@ -2553,12 +2553,12 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			}
 			unifiedResources = append(unifiedResources, server)
 		case types.DatabaseServer:
-			if !containsDB {
+			if !hasFetchedDBUsersAndNames {
 				dbNames, dbUsers, err = getDatabaseUsersAndNames(accessChecker)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				containsDB = true
+				hasFetchedDBUsersAndNames = true
 			}
 			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames)
 			unifiedResources = append(unifiedResources, db)
