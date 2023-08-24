@@ -28,6 +28,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/ai/model/output"
+	"github.com/gravitational/teleport/lib/ai/model/tools"
+	"github.com/gravitational/teleport/lib/ai/tokens"
 )
 
 const (
@@ -45,14 +49,14 @@ const (
 )
 
 // NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.
-func NewAgent(toolCtx *ToolContext, tools ...Tool) *Agent {
+func NewAgent(toolCtx *tools.ToolContext, tools ...tools.Tool) *Agent {
 	return &Agent{tools, toolCtx}
 }
 
 // Agent is a model storing static state which defines some properties of the chat model.
 type Agent struct {
-	tools   []Tool
-	toolCtx *ToolContext
+	tools   []tools.Tool
+	toolCtx *tools.ToolContext
 }
 
 // AgentAction is an event type representing the decision to take a single action, typically a tool invocation.
@@ -83,12 +87,12 @@ type executionState struct {
 	humanMessage      openai.ChatCompletionMessage
 	intermediateSteps []AgentAction
 	observations      []string
-	tokenCount        *TokenCount
+	tokenCount        *tokens.TokenCount
 }
 
 // PlanAndExecute runs the agent with a given input until it arrives at a text answer it is satisfied
 // with or until it times out.
-func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHistory []openai.ChatCompletionMessage, humanMessage openai.ChatCompletionMessage, progressUpdates func(*AgentAction)) (any, *TokenCount, error) {
+func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHistory []openai.ChatCompletionMessage, humanMessage openai.ChatCompletionMessage, progressUpdates func(*AgentAction)) (any, *tokens.TokenCount, error) {
 	log.Trace("entering agent think loop")
 	iterations := 0
 	start := time.Now()
@@ -99,7 +103,7 @@ func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHist
 		humanMessage:      humanMessage,
 		intermediateSteps: make([]AgentAction, 0),
 		observations:      make([]string, 0),
-		tokenCount:        NewTokenCount(),
+		tokenCount:        tokens.NewTokenCount(),
 	}
 
 	for {
@@ -156,7 +160,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 	defer log.Trace("agent exiting takeNextStep")
 
 	action, finish, err := a.plan(ctx, state)
-	if err, ok := trace.Unwrap(err).(*invalidOutputError); ok {
+	if output.IsInvalidOutputError(err) {
 		log.Tracef("agent encountered an invalid output error: %v, attempting to recover", err)
 		action := &AgentAction{
 			Action: actionException,
@@ -187,7 +191,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 	// If action is set, the agent is not done and called upon a tool.
 	progressUpdates(action)
 
-	var tool Tool
+	var tool tools.Tool
 	for _, candidate := range a.tools {
 		if candidate.Name() == action.Action {
 			tool = candidate
@@ -208,8 +212,8 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 	// Here we switch on the tool type because even though all tools are presented as equal to the LLM
 	// some are marked special and break the typical tool execution loop; those are handled here instead.
 	switch tool := tool.(type) {
-	case *CommandExecutionTool:
-		completion, err := tool.parseInput(action.Input)
+	case *tools.CommandExecutionTool:
+		completion, err := tool.ParseInput(action.Input)
 		if err != nil {
 			action := &AgentAction{
 				Action: actionException,
@@ -221,8 +225,8 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 
 		log.Tracef("agent decided on command execution, let's translate to an agentFinish")
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
-	case *AccessRequestCreateTool:
-		accessRequest, err := tool.parseInput(action.Input)
+	case *tools.AccessRequestCreateTool:
+		accessRequest, err := tool.ParseInput(action.Input)
 		if err != nil {
 			action := &AgentAction{
 				Action: actionException,
@@ -233,8 +237,8 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		}
 
 		return stepOutput{finish: &agentFinish{output: accessRequest}}, nil
-	case *CommandGenerationTool:
-		input, err := tool.parseInput(action.Input)
+	case *tools.CommandGenerationTool:
+		input, err := tool.ParseInput(action.Input)
 		if err != nil {
 			action := &AgentAction{
 				Action: actionException,
@@ -243,7 +247,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 
 			return stepOutput{action: action, observation: action.Log}, nil
 		}
-		completion := &GeneratedCommand{
+		completion := &output.GeneratedCommand{
 			Command: input.Command,
 		}
 
@@ -261,7 +265,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, *agentFinish, error) {
 	scratchpad := a.constructScratchpad(state.intermediateSteps, state.observations)
 	prompt := a.createPrompt(state.chatHistory, scratchpad, state.humanMessage)
-	promptTokenCount, err := NewPromptTokenCounter(prompt)
+	promptTokenCount, err := tokens.NewPromptTokenCounter(prompt)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -351,30 +355,6 @@ func (a *Agent) constructScratchpad(intermediateSteps []AgentAction, observation
 	return thoughts
 }
 
-// parseJSONFromModel parses a JSON object from the model output and attempts to sanitize contaminant text
-// to avoid triggering self-correction due to some natural language being bundled with the JSON.
-// The output type is generic, and thus the structure of the expected JSON varies depending on T.
-func parseJSONFromModel[T any](text string) (T, error) {
-	cleaned := strings.TrimSpace(text)
-	if strings.Contains(cleaned, "```json") {
-		cleaned = strings.Split(cleaned, "```json")[1]
-	}
-	if strings.Contains(cleaned, "```") {
-		cleaned = strings.Split(cleaned, "```")[0]
-	}
-	cleaned = strings.TrimPrefix(cleaned, "```json")
-	cleaned = strings.TrimPrefix(cleaned, "```")
-	cleaned = strings.TrimSuffix(cleaned, "```")
-	cleaned = strings.TrimSpace(cleaned)
-	var output T
-	err := json.Unmarshal([]byte(cleaned), &output)
-	if err != nil {
-		return output, newInvalidOutputErrorWithParseError(err)
-	}
-
-	return output, nil
-}
-
 // PlanOutput describes the expected JSON output after asking it to plan its next action.
 type PlanOutput struct {
 	Action      string `json:"action"`
@@ -384,14 +364,14 @@ type PlanOutput struct {
 
 // parsePlanningOutput parses the output of the model after asking it to plan its next action
 // and returns the appropriate event type or an error.
-func parsePlanningOutput(deltas <-chan string) (*AgentAction, *agentFinish, TokenCounter, error) {
+func parsePlanningOutput(deltas <-chan string) (*AgentAction, *agentFinish, tokens.TokenCounter, error) {
 	var text string
 	for delta := range deltas {
 		text += delta
 
 		if strings.HasPrefix(text, finalResponseHeader) {
 			parts := make(chan string)
-			streamingTokenCounter, err := NewAsynchronousTokenCounter(text)
+			streamingTokenCounter, err := tokens.NewAsynchronousTokenCounter(text)
 			if err != nil {
 				return nil, nil, nil, trace.Wrap(err)
 			}
@@ -408,21 +388,21 @@ func parsePlanningOutput(deltas <-chan string) (*AgentAction, *agentFinish, Toke
 				}
 			}()
 
-			return nil, &agentFinish{output: &StreamingMessage{Parts: parts}}, streamingTokenCounter, nil
+			return nil, &agentFinish{output: &output.StreamingMessage{Parts: parts}}, streamingTokenCounter, nil
 		}
 	}
 
-	completionTokenCount, err := NewSynchronousTokenCounter(text)
+	completionTokenCount, err := tokens.NewSynchronousTokenCounter(text)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	log.Tracef("received planning output: \"%v\"", text)
 	if outputString, found := strings.CutPrefix(text, finalResponseHeader); found {
-		return nil, &agentFinish{output: &Message{Content: outputString}}, completionTokenCount, nil
+		return nil, &agentFinish{output: &output.Message{Content: outputString}}, completionTokenCount, nil
 	}
 
-	response, err := parseJSONFromModel[PlanOutput](text)
+	response, err := output.ParseJSONFromModel[PlanOutput](text)
 	if err != nil {
 		log.WithError(err).Trace("failed to parse planning output")
 		return nil, nil, nil, trace.Wrap(err)

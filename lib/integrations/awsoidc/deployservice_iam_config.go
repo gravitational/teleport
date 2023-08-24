@@ -324,7 +324,7 @@ func addPolicyToIntegrationRole(ctx context.Context, clt DeployServiceIAMConfigu
 	})
 	if err != nil {
 		if trace.IsNotFound(awslib.ConvertIAMv2Error(err)) {
-			return trace.NotFound("Role %q not found.", req.IntegrationRole)
+			return trace.NotFound("role %q not found.", req.IntegrationRole)
 		}
 		return trace.Wrap(err)
 	}

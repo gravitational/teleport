@@ -32,6 +32,12 @@ export const SupportOSS = () => (
   </ContextProvider>
 );
 
+export const SupportOSSWithCTA = () => (
+  <ContextProvider ctx={ctx}>
+    <Support {...props} showPremiumSupportCTA={true} />
+  </ContextProvider>
+);
+
 export const SupportCloud = () => (
   <ContextProvider ctx={ctx}>
     <Support {...props} isCloud={true} />;
@@ -44,7 +50,7 @@ export const SupportEnterprise = () => (
   </ContextProvider>
 );
 
-export const SupportWithCTA = () => (
+export const SupportEnterpriseWithCTA = () => (
   <ContextProvider ctx={ctx}>
     <Support {...props} isEnterprise={true} showPremiumSupportCTA={true} />
   </ContextProvider>

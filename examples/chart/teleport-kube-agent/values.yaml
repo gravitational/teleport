@@ -368,6 +368,8 @@ annotations:
   deployment: {}
   # Annotations for each Pod in the Deployment
   pod: {}
+  # Annotations for the Secret (has no effect when `joinTokenSecret.create` is false)
+  secret: {}
   # Annotations for the ServiceAccount object
   serviceAccount: {}
 

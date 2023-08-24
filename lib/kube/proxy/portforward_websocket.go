@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/httpstream"
-	"k8s.io/apiserver/pkg/util/wsstream"
+	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"

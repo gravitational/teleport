@@ -422,6 +422,9 @@ func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() er
 
 	case s.Spec.CloudMetadata.AWS.VPCID == "":
 		return trace.BadParameter("missing AWS VPC ID (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.SubnetID == "":
+		return trace.BadParameter("missing AWS Subnet ID (required for %q SubKind)", s.SubKind)
 	}
 
 	return nil

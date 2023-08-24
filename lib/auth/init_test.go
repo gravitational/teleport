@@ -781,6 +781,9 @@ func TestPresets(t *testing.T) {
 			teleport.PresetGroupAccessRoleName,
 			teleport.PresetRequesterRoleName,
 			teleport.PresetReviewerRoleName,
+			teleport.PresetDeviceAdminRoleName,
+			teleport.PresetDeviceEnrollRoleName,
+			teleport.PresetRequireTrustedDeviceRoleName,
 		}, presetRoleNames...)
 
 		enterpriseSystemRoleNames := []string{
