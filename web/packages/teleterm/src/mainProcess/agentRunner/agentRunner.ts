@@ -216,8 +216,13 @@ export class AgentRunner {
     rootClusterUri: RootClusterUri,
     state: AgentProcessState
   ): void {
+    let loggedState = state;
+    if (state.status === 'exited') {
+      const { logs, ...rest } = state; // eslint-disable-line @typescript-eslint/no-unused-vars
+      loggedState = rest;
+    }
     this.logger.info(
-      `Updating agent state ${rootClusterUri}: ${JSON.stringify(state)}`
+      `Updating agent state ${rootClusterUri}: ${JSON.stringify(loggedState)}`
     );
 
     const agent = this.agentProcesses.get(rootClusterUri);
