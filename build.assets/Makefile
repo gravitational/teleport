@@ -593,6 +593,7 @@ build-multiarch:
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg UID=$(shell id -u) \
 		--build-arg GID=$(shell id -g) \
 		--tag $(BUILDBOX) \
