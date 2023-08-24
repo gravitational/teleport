@@ -168,7 +168,6 @@ const emptyStateInfo: EmptyStateInfo = {
   title: 'Add your first resource to Teleport',
   byline:
     'Connect SSH servers, Kubernetes clusters, Windows Desktops, Databases, Web apps and more from our integrations catalog.',
-  resourceType: SearchResource.UNIFIED_RESOURCE,
   readOnly: {
     title: 'No Resources Found',
     resource: 'resources',

@@ -32,7 +32,6 @@ type ResourceType =
   | 'database'
   | 'desktop'
   | 'kubernetes'
-  | 'unified_resource'
   | 'server';
 
 function getAccentImage(resourceType: ResourceType): string {
@@ -109,8 +108,7 @@ export default function Empty(props: Props) {
             to={{
               pathname: `${cfg.routes.root}/discover`,
               state: {
-                entity:
-                  resourceType !== 'unified_resource' ? resourceType : null,
+                entity: resourceType,
               },
             }}
             style={{ textDecoration: 'none' }}
@@ -142,7 +140,7 @@ export default function Empty(props: Props) {
 export type EmptyStateInfo = {
   byline: string;
   docsURL?: string;
-  resourceType: ResourceType;
+  resourceType?: ResourceType;
   readOnly: {
     title: string;
     resource: string;
