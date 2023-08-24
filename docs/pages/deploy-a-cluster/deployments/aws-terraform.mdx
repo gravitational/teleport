@@ -487,7 +487,8 @@ $ ssh -i ${TF_VAR_key_name}.pem -o ProxyCommand="ssh -i ${TF_VAR_key_name}.pem -
 
 4 - Use the `tctl` command to create an admin user for Teleport:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```code
 # From EC2 host
 $ sudo tctl users add teleport-admin --roles=editor,access --logins=root
@@ -497,8 +498,8 @@ $ sudo tctl users add teleport-admin --roles=editor,access --logins=root
 # NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users can access.
 # When the user 'teleport-admin' activates their account, they will be assigned roles [editor, access]
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```code
 # From EC2 host
 $ sudo tctl users add teleport-admin --roles=editor,access,reviewer --logins=root
@@ -508,7 +509,9 @@ $ sudo tctl users add teleport-admin --roles=editor,access,reviewer --logins=roo
 # NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users can access.
 # When the user 'teleport-admin' activates their account, they will be assigned roles [editor, access, reviewer]
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 5 - Click the link to launch the Teleport web UI and finish setting up your user. You will need to scan the QR
 code with an TOTP-compatible app like Google Authenticator or Authy. You will also set a password for the
@@ -524,7 +527,8 @@ You can [download the Teleport package containing the `tsh` client from here](ht
 
 - the client is the same for both OSS and Enterprise versions of Teleport.
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```code
 $ tsh login --proxy=${TF_VAR_route53_domain} --user=teleport-admin
 # Enter password for Teleport user teleport-admin:
@@ -546,8 +550,8 @@ $ tsh ls
 $ tsh ssh root@ip-172-31-11-69-ec2-internal
 # [root@ip-172-31-11-69 ~]#
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```code
 $ tsh login --proxy=${TF_VAR_route53_domain} --user=teleport-admin
 # Enter password for Teleport user teleport-admin:
@@ -569,7 +573,9 @@ $ tsh ls
 $ tsh ssh root@ip-172-31-11-69-ec2-internal
 # [root@ip-172-31-11-69 ~]#
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Restarting/checking Teleport services
 
@@ -899,3 +905,4 @@ $ ./connect.sh node
 ### AWS quotas
 
 (!docs/pages/includes/aws-quotas.mdx!)
+

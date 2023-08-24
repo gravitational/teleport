@@ -7,12 +7,15 @@ If you want to configure Redis Standalone, please read [Database Access with Red
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="Redis cluster" dbConfigure="Redis cluster database with mutual TLS authentication" dbName="Redis cluster" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Redis Cluster Self-Hosted](../../../img/database-access/guides/rediscluster_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud","team"]}>
+</TabItem>
+<TabItem scope={["cloud","team"]} label="Teleport Cloud">
 ![Teleport Database Access Redis Cluster Cloud](../../../img/database-access/guides/rediscluster_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -205,3 +208,4 @@ communicating with Redis Cluster:
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+
