@@ -127,6 +127,10 @@ export class AgentRunner {
 
     const errorHandler = (error: Error) => {
       process.off('spawn', spawnHandler);
+      // close is emitted both when the process ends _and_ after an error on spawn. We have to turn
+      // off closeHandler here to make sure that when the agent fails to spawn, we don't override
+      // the error state with the close state.
+      process.off('close', closeHandler);
 
       this.updateProcessState(rootClusterUri, {
         status: 'error',
@@ -134,18 +138,10 @@ export class AgentRunner {
       });
     };
 
-    const exitHandler = (
+    const closeHandler = (
       code: number | null,
       signal: NodeJS.Signals | null
     ) => {
-      // We don't have to worry about the exit event being emitted after an error event, because
-      // even if that happens, we do want the agent to be updated to the exited state and not remain
-      // in the error state.
-      //
-      // Still, guard against an inverse situation where error would be called after exit. It's
-      // unclear when that would happen, but it doesn't hurt to add this one line.
-      process.off('error', errorHandler);
-
       const exitedSuccessfully = code === 0 || signal === 'SIGTERM';
 
       this.updateProcessState(rootClusterUri, {
@@ -159,7 +155,8 @@ export class AgentRunner {
 
     process.once('spawn', spawnHandler);
     process.once('error', errorHandler);
-    process.once('exit', exitHandler);
+    // Using close instead of exit to ensure stderr has been closed and we captured all logs.
+    process.once('close', closeHandler);
   }
 
   private setupCleanupDaemon(
