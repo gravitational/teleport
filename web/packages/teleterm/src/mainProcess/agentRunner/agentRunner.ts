@@ -17,7 +17,7 @@
 import { spawn, fork, ChildProcess } from 'node:child_process';
 import os from 'node:os';
 
-import stripAnsiStream from 'strip-ansi-stream';
+import stripAnsi from 'strip-ansi';
 
 import Logger from 'teleterm/logger';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -114,9 +114,9 @@ export class AgentRunner {
     // Teleport logs output to stderr.
     let stderrOutput = '';
     process.stderr.setEncoding('utf-8');
-    process.stderr.pipe(stripAnsiStream()).on('data', (error: string) => {
+    process.stderr.on('data', (error: string) => {
       stderrOutput += error;
-      stderrOutput = limitProcessOutputLines(stderrOutput);
+      stderrOutput = processAgentOutput(stderrOutput);
     });
 
     const spawnHandler = () => {
@@ -229,6 +229,12 @@ export class AgentRunner {
   }
 }
 
-function limitProcessOutputLines(output: string): string {
-  return output.split(os.EOL).slice(-MAX_STDERR_LINES).join(os.EOL);
+/**
+ * processAgentOutput limits the output of the agent process to 10 lines and strips ANSI escape
+ * codes.
+ */
+function processAgentOutput(output: string): string {
+  // We specifically don't use strip-ansi-stream here because it chunks the output too heavily,
+  // resulting in cut off logs at the point of process termination or join timeout.
+  return stripAnsi(output).split(os.EOL).slice(-MAX_STDERR_LINES).join(os.EOL);
 }
