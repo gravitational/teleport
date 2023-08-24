@@ -20,13 +20,13 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 
@@ -938,11 +938,10 @@ func (t *TestTLSServer) CloneClient(tt *testing.T, clt *Client) *Client {
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(tt, err)
+
 	tt.Cleanup(func() {
-		assert.NoError(tt, newClient.Close())
+		require.NoError(tt, newClient.Close())
 	})
 	return newClient
 }
