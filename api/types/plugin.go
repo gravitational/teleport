@@ -46,7 +46,7 @@ const (
 	PluginTypePagerDuty = "pagerduty"
 	// PluginTypeMattermost is the PagerDuty access plugin
 	PluginTypeMattermost = "mattermost"
-	// PluginTypeDiscord indicates the Discord plugin
+	// PluginTypeDiscord indicates the Discord access plugin
 	PluginTypeDiscord = "discord"
 )
 
