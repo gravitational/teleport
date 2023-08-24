@@ -72,7 +72,16 @@ func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 		s.Session = ses
 	}
 	if s.CredentialsGetter == nil {
-		s.CredentialsGetter = NewCredentialsGetter()
+		// Use cachedCredentialsGetter by default. cachedCredentialsGetter
+		// caches the credentials for one minute.
+		cachedGetter, err := NewCachedCredentialsGetter(CachedCredentialsGetterConfig{
+			Clock: s.Clock,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s.CredentialsGetter = cachedGetter
 	}
 	return nil
 }

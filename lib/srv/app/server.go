@@ -269,15 +269,8 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		}
 	}()
 
-	awsCredentialsGetter, err := awsutils.NewCachedCredentialsGetter(awsutils.CachedCredentialsGetterConfig{
-		Clock: c.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
-		Clock:             c.Clock,
-		CredentialsGetter: awsCredentialsGetter,
+		Clock: c.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
