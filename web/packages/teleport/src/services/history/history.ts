@@ -34,17 +34,11 @@ const history = {
   },
 
   replace(route = '') {
-    if (!_inst) {
-      this.init();
-    }
     route = this.ensureKnownRoute(route);
     _inst.replace(route);
   },
 
   push(route, withRefresh = false) {
-    if (!_inst) {
-      this.init();
-    }
     route = this.ensureKnownRoute(route);
     if (withRefresh) {
       this._pageRefresh(route);
@@ -58,9 +52,6 @@ const history = {
   },
 
   goToLogin(rememberLocation = false) {
-    if (!_inst) {
-      this.init();
-    }
     let url = cfg.routes.login;
     if (rememberLocation) {
       const { search, pathname } = _inst.location;
