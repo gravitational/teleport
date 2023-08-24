@@ -380,7 +380,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, userState services
 	}
 
 	var currentUserGeneration uint64
-	label := userState.BotGenerationLabel()
+	label := user.BotGenerationLabel()
 	if label != "" {
 		currentUserGeneration, err = strconv.ParseUint(label, 10, 64)
 		if err != nil {
