@@ -780,7 +780,7 @@ func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *OIDCAuthRawResponse
+	var rawResponse OIDCAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -818,7 +818,7 @@ func (c *HTTPClient) ValidateSAMLResponse(ctx context.Context, re string, connec
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *SAMLAuthRawResponse
+	var rawResponse SAMLAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -124,6 +124,7 @@ describe('restoring workspace', () => {
           documents: testWorkspace.documents,
           location: testWorkspace.location,
         },
+        connectMyComputer: undefined,
       },
     });
   });
@@ -154,6 +155,7 @@ describe('restoring workspace', () => {
         documents: [clusterDocument],
         location: clusterDocument.uri,
         previous: undefined,
+        connectMyComputer: undefined,
       },
     });
   });

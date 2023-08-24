@@ -46,11 +46,11 @@ func DecodeCookie(b string) (*Cookie, error) {
 	if err != nil {
 		return nil, err
 	}
-	var c *Cookie
+	var c Cookie
 	if err := json.Unmarshal(bytes, &c); err != nil {
 		return nil, err
 	}
-	return c, nil
+	return &c, nil
 }
 
 // SetCookie encodes the provided user and session id via [EncodeCookie]

@@ -95,7 +95,7 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
             mb={2}
           />
           <ConfigFieldInput
-            label="Database name"
+            label="Database Name"
             defaultValue={gateway.targetSubresourceName}
             onChange={e => handleChangeDbName(e.target.value)}
             spellCheck={false}

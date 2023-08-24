@@ -76,6 +76,8 @@ type Features struct {
 	FeatureHiding bool
 	// AccessRequests holds its namesake feature settings.
 	AccessRequests AccessRequestsFeature
+	// CustomTheme holds the name of WebUI custom theme.
+	CustomTheme string
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -119,6 +121,7 @@ func (f Features) ToProto() *proto.Features {
 		IsUsageBased:            f.IsUsageBasedBilling,
 		Assist:                  f.Assist,
 		FeatureHiding:           f.FeatureHiding,
+		CustomTheme:             f.CustomTheme,
 		DeviceTrust: &proto.DeviceTrustFeature{
 			Enabled:           f.DeviceTrust.Enabled,
 			DevicesUsageLimit: int32(f.DeviceTrust.DevicesUsageLimit),

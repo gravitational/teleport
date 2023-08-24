@@ -445,6 +445,7 @@ func NewAWSNodeFromEC2Instance(instance ec2Types.Instance, awsCloudMetadata *typ
 
 	awsCloudMetadata.InstanceID = aws.ToString(instance.InstanceId)
 	awsCloudMetadata.VPCID = aws.ToString(instance.VpcId)
+	awsCloudMetadata.SubnetID = aws.ToString(instance.SubnetId)
 
 	if aws.ToString(instance.PrivateIpAddress) == "" {
 		return nil, trace.BadParameter("private ip address is required from ec2 instance")

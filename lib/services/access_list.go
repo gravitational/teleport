@@ -32,6 +32,8 @@ var _ AccessLists = (*accesslistclient.Client)(nil)
 
 // AccessListsGetter defines an interface for reading access lists.
 type AccessListsGetter interface {
+	AccessListMembersGetter
+
 	// GetAccessLists returns a list of all access lists.
 	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
 	// ListAccessLists returns a paginated list of access lists.
@@ -43,6 +45,7 @@ type AccessListsGetter interface {
 // AccessLists defines an interface for managing AccessLists.
 type AccessLists interface {
 	AccessListsGetter
+	AccessListMembers
 
 	// UpsertAccessList creates or updates an access list resource.
 	UpsertAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
