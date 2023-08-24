@@ -98,8 +98,8 @@ export class AgentRunner {
       this.logger.warn(`Cannot get an agent to kill for ${rootClusterUri}`);
       return;
     }
+    this.logger.info(`Killing agent for ${rootClusterUri}`);
     await terminateWithTimeout(agent.process);
-    this.logger.info(`Killed agent for ${rootClusterUri}`);
   }
 
   async killAll(): Promise<void> {
