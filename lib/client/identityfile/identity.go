@@ -58,7 +58,7 @@ const (
 	// two different files (in the same directory)
 	FormatOpenSSH Format = "openssh"
 
-	// FormatTLS is a standard TLS format used by common TLS clients (e.g. GRPC) where
+	// FormatTLS is a standard TLS format used by common TLS clients (e.g. gRPC) where
 	// certificate and key are stored in separate files.
 	FormatTLS Format = "tls"
 
