@@ -231,6 +231,64 @@ their Kubernetes cluster appropriately and to ensure that join tokens that
 delegate trust to this cluster are appropriately scoped in privileges to reduce
 the blast radius if their Kubernetes CA were to become compromised.
 
+### Audit Events
+
+The existing audit events for token creation, bot and agent joins cover the
+functionality introduced by this PR - therefore no new audit event needs to be
+added.
+
+However, the bot and agent join audit event for Kubernetes joins will be
+extended to include additional attributes from the Service Account token used
+to join. This is similar to the behaviour we already have implemented for
+GitHub and GitLab joining. This will provide an additional level of insight into
+the join, allowing it to be traced back to the individual pod.
+
+The fields that will be introduced can be seen under `attributes` in this
+example:
+
+```json
+{
+  "attributes": {
+    "raw": {
+      "aud": [
+        "leaf.tele.ottr.sh"
+      ],
+      "exp": 1692026408,
+      "iat": 1692025808,
+      "iss": "https://kubernetes.default.svc.cluster.local",
+      "kubernetes.io": {
+        "namespace": "default",
+        "pod": {
+          "name": "ubuntu",
+          "uid": "f6dd8b5e-cafc-4d92-b5ac-1a124a019d72"
+        },
+        "serviceaccount": {
+          "name": "tbot",
+          "uid": "8b77ea6d-3144-4203-9a8b-36eb5ad65596"
+        }
+      },
+      "nbf": 1692025808,
+      "sub": "system:serviceaccount:default:tbot"
+    },
+    "type": "static_jwks",
+    "username": "system:serviceaccount:default:tbot"
+  },
+  "bot_name": "my-bot",
+  "cluster_name": "leaf.tele.ottr.sh",
+  "code": "TJ001I",
+  "ei": 0,
+  "event": "bot.join",
+  "method": "kubernetes",
+  "success": true,
+  "time": "2023-08-14T15:15:59.91Z",
+  "token_name": "my-bot-kubernetes-token",
+  "uid": "84922598-1ba6-499f-a8cf-0dba96cab1d5"
+}
+```
+
+This will provide a more in-depth audit event that allows the join to be
+traced back to a specific Kubernetes pod.
+
 ## Alternatives
 
 ### Introducing a seperate `kubernetes_remote` join method
