@@ -371,10 +371,10 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 }
 
 // validateGenerationLabel validates and updates a generation label.
-func (s *Server) validateGenerationLabel(ctx context.Context, userState services.UserState, certReq *certRequest, currentIdentityGeneration uint64) error {
+func (s *Server) validateGenerationLabel(ctx context.Context, username string, certReq *certRequest, currentIdentityGeneration uint64) error {
 	// Fetch the user, bypassing the cache. We might otherwise fetch a stale
 	// value in case of a rapid certificate renewal.
-	user, err := s.Services.GetUser(userState.GetName(), false)
+	user, err := s.Services.GetUser(username, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -579,7 +579,7 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 		generation:    generation,
 	}
 
-	if err := s.validateGenerationLabel(ctx, userState, &certReq, 0); err != nil {
+	if err := s.validateGenerationLabel(ctx, userState.GetName(), &certReq, 0); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
