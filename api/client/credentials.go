@@ -414,7 +414,6 @@ type DynamicIdentityFileCreds struct {
 	sshCert       *ssh.Certificate
 	sshKey        crypto.Signer
 	sshKnownHosts []ssh.PublicKey
-	sshUser       string
 
 	// Path is the path to the identity file to load and reload.
 	Path string
@@ -465,12 +464,6 @@ func (d *DynamicIdentityFileCreds) Reload() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// The KeyId is not always a valid principal, so we use the first valid
-	// principal instead.
-	sshUser := sshCert.KeyId
-	if len(sshCert.ValidPrincipals) > 0 {
-		sshUser = sshCert.ValidPrincipals[0]
-	}
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -479,7 +472,6 @@ func (d *DynamicIdentityFileCreds) Reload() error {
 	d.sshCert = sshCert
 	d.sshKey = sshPrivateKey
 	d.sshKnownHosts = knownHosts
-	d.sshUser = sshUser
 	return nil
 }
 
@@ -494,9 +486,6 @@ func (d *DynamicIdentityFileCreds) Dialer(
 
 // TLSConfig returns TLS configuration. Implementing the Credentials interface.
 func (d *DynamicIdentityFileCreds) TLSConfig() (*tls.Config, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
 	// Build a "dynamic" tls.Config which can support a changing cert and root
 	// CA pool.
 	cfg := &tls.Config{
@@ -556,6 +545,7 @@ func (d *DynamicIdentityFileCreds) TLSConfig() (*tls.Config, error) {
 // SSHClientConfig returns SSH configuration, implementing the Credentials
 // interface.
 func (d *DynamicIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+	// This lock is necessary for `d.sshCert` used in `cfg.User`.
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	// Build a "dynamic" ssh config. Based roughly on
@@ -586,7 +576,16 @@ func (d *DynamicIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) 
 			return hostKeyCallback(hostname, remote, key)
 		},
 		Timeout: defaults.DefaultIOTimeout,
-		User:    d.sshUser,
+		User:    userFromSSHCert(d.sshCert),
 	}
 	return cfg, nil
+}
+
+func userFromSSHCert(c *ssh.Certificate) string {
+	// The KeyId is not always a valid principal, so we prefer the first valid
+	// principal.
+	if len(c.ValidPrincipals) > 0 {
+		return c.ValidPrincipals[0]
+	}
+	return c.KeyId
 }
