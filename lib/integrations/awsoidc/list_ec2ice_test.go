@@ -139,7 +139,7 @@ func TestListEC2ICE(t *testing.T) {
 		respCheck     func(*testing.T, *ListEC2ICEResponse)
 	}{
 		{
-			name: "valid for listing instances",
+			name: "valid for listing endpoints",
 			req: ListEC2ICERequest{
 				VPCID:     "vpc-abcd",
 				Region:    "us-east-1",
@@ -162,6 +162,35 @@ func TestListEC2ICE(t *testing.T) {
 					SubnetID:      "subnet-123",
 					StateMessage:  "success message",
 					DashboardLink: "https://us-east-1.console.aws.amazon.com/vpc/home?#InstanceConnectEndpointDetails:instanceConnectEndpointId=ice-name",
+				}
+				require.Empty(t, cmp.Diff(endpoint, ldr.EC2ICEs[0]))
+			},
+			errCheck: noErrorFunc,
+		},
+		{
+			name: "valid but ID needs URL encoding",
+			req: ListEC2ICERequest{
+				VPCID:     "vpc-abcd",
+				Region:    "us-east-1",
+				NextToken: "",
+			},
+			mockEndpoints: []ec2Types.Ec2InstanceConnectEndpoint{{
+				SubnetId:                  aws.String("subnet-123"),
+				InstanceConnectEndpointId: aws.String("ice/123"),
+				State:                     "create-complete",
+				StateMessage:              aws.String("success message"),
+			},
+			},
+			respCheck: func(t *testing.T, ldr *ListEC2ICEResponse) {
+				require.Len(t, ldr.EC2ICEs, 1, "expected 1 endpoint, got %d", len(ldr.EC2ICEs))
+				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
+
+				endpoint := EC2InstanceConnectEndpoint{
+					Name:          "ice/123",
+					State:         "create-complete",
+					SubnetID:      "subnet-123",
+					StateMessage:  "success message",
+					DashboardLink: "https://us-east-1.console.aws.amazon.com/vpc/home?#InstanceConnectEndpointDetails:instanceConnectEndpointId=ice%2F123",
 				}
 				require.Empty(t, cmp.Diff(endpoint, ldr.EC2ICEs[0]))
 			},
