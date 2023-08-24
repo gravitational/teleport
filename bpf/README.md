@@ -5,11 +5,11 @@ This document will help you get started.
 
 #### Before you start here are some useful links:
 
-https://docs.kernel.org/bpf/ - BPF documentation
-https://github.com/aquasecurity/libbpfgo - Go bindings for libbpf
-https://github.com/iovisor/bcc - BPF Compiler Collection (a lot of examples)
-https://github.com/cilium/cilium - BPF-based networking, security, and observability (more examples)
-https://man7.org/linux/man-pages/man7/bpf-helpers.7.html - BPF helpers documentation
+* https://docs.kernel.org/bpf/ - BPF documentation
+* https://github.com/aquasecurity/libbpfgo - Go bindings for libbpf
+* https://github.com/iovisor/bcc - BPF Compiler Collection (a lot of examples)
+* https://github.com/cilium/cilium - BPF-based networking, security, and observability (more examples)
+* https://man7.org/linux/man-pages/man7/bpf-helpers.7.html - BPF helpers documentation
 
 ## Environment setup:
 
@@ -36,13 +36,15 @@ BPF programs are located in `bpf` directory in our repository. They are C like p
 The most important limitation is that you can't use any system calls in BPF programs. You can use only BPF helpers.
 The BPF programs are compiled using `clang` 10+, GCC is not supported. 
 
-User space code is located in `lib/bpf` directory. It's written in Go and uses `libbpfgo` library to load BPF programs into the kernel.
-`libbpfgo` is a Go wrapper around `libbpf` library. It's a low-level library that allows you to load BPF programs into the kernel.
+User space code is located in `lib/bpf` directory. It's written in Go and uses the `aquasecurity/libbpfgo` library to load BPF programs into the kernel.
+`aquasecurity/libbpfgo` is a Go wrapper around the `libbpf` library. It's a low-level library that allows you to load BPF programs into the kernel.
 
-Note: `libbpfgo` is not backward compatible and you need a matching version of `libbpf` library. For that reason
-`libbpfgo` is not using semantic versioning, but tags have the following format `v0.4.5-libbpf-1.0.1`. 
-The first part is the version of `libbpfgo` and the second part is the version of `libbpf` library. 
-Using the wrong version of `libbpfgo` will result in a runtime/compilation error.
+Note: `aquasecurity/libbpfgo` is not backwards compatible, you need to use the
+exact `libbpf` version it requires. For that reason `aquasecurity/libbpfgo`
+doesn't use semantic versioning, instead the tags have the format
+`v0.4.5-libbpf-1.0.1`. The first part is the `aquasecurity/libbpfgo` version,
+the second part is the `libbpf` version. Using the wrong version of `libbpf`
+results in a runtime/compilation error.
 
 ### BPF license
 
@@ -55,15 +57,15 @@ and revert back before merging the code.
 
 BPF programs can log messages to the kernel log. To enable logging, you need to set the license to `GPL`. Then you
 can use `bpf_printk` helper to log messages. The messages will be logged to the kernel log. You can get the messages
- from `/sys/kernel/debug/tracing/trace_pipe`. Here is the best explanation that I found so far https://nakryiko.com/posts/bpf-tips-printk/
+from `/sys/kernel/debug/tracing/trace_pipe`. Here is the best explanation that I found so far https://nakryiko.com/posts/bpf-tips-printk/.
 
 ### Communication between BPF programs and user space
 
 BPF programs can communicate with user space using maps. Maps are key-value stores that can be accessed from both
 BPF programs and user space. BPF programs can only access maps using BPF helpers. User space can access maps using
-`libbpfgo` library. Maps are defined in BPF programs and can be referenced by name from user space code.
+`aquasecurity/libbpfgo` library. Maps are defined in BPF programs and can be referenced by name from user space code.
 
 Example:
 
-BPF: https://github.com/gravitational/teleport/blob/2fd8f75e38eebf5c6826ef594433e5165c3bfbe1/bpf/enhancedrecording/command.bpf.c#L18
-User space: https://github.com/gravitational/teleport/blob/2fd8f75e38eebf5c6826ef594433e5165c3bfbe1/lib/bpf/common_linux.go#L40-L51
+* BPF: https://github.com/gravitational/teleport/blob/2fd8f75e38eebf5c6826ef594433e5165c3bfbe1/bpf/enhancedrecording/command.bpf.c#L18
+* User space: https://github.com/gravitational/teleport/blob/2fd8f75e38eebf5c6826ef594433e5165c3bfbe1/lib/bpf/common_linux.go#L40-L51
