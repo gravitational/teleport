@@ -2957,4 +2957,7 @@ service AuthService {
 
   // UpdateClusterMaintenanceConfig updates the current maintenance window config singleton.
   rpc UpdateClusterMaintenanceConfig(types.ClusterMaintenanceConfigV1) returns (google.protobuf.Empty);
+
+  // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
+  rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
 }
