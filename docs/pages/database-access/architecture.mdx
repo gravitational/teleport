@@ -15,21 +15,24 @@ databases:
 
 In it, we have the following Teleport components:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 - [Teleport Proxy](../architecture/proxy.mdx). A stateless service
   that performs a function of an authentication gateway, serves the Web UI, and
   accepts database (and other) client connections.
   
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 - [Teleport Proxy](../architecture/proxy.mdx). A stateless service that performs
   a function of an authentication gateway, serves the Web UI, and accepts
   database (and other) client connections. This service is accessible at your
   Teleport Cloud tenant URL, e.g., `mytenant.teleport.sh`.
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 - [Teleport Auth Service](../architecture/authentication.mdx). Serves as
   cluster's certificate authority, handles user authentication/authorization
@@ -145,3 +148,4 @@ for a more in-depth description of the feature scope and design.
 
 See [Core Concepts](../core-concepts.mdx) for general Teleport
 architecture principles.
+

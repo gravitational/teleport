@@ -1,5 +1,6 @@
 {{ dbName="test" }}
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 Install the Teleport Kube Agent into your Kubernetes Cluster
 with the Teleport Database Service configuration.
 
@@ -18,8 +19,8 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --version (=teleport.version=)
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 Install the Teleport Kube Agent into your Kubernetes Cluster
 with the Teleport Database Service configuration.
 
@@ -38,4 +39,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --version (=cloud.version=)
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
+

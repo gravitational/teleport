@@ -48,9 +48,7 @@ by executing [`tctl auth rotate`](../../reference/cli/tctl.mdx#tctl-auth-rotate)
     
 </Notice>
 
-On you local machine, retrieve the CA pin of the Auth Service <ScopedBlock
-scope="cloud"> by running the following command on your local
-machine</ScopedBlock>:
+On you local machine, retrieve the CA pin of the Auth Service:
 
 ```code
 $ export CA_PIN=$(tctl status | awk '/CA pin/{print $3}')
@@ -145,7 +143,8 @@ $ export CA_PIN=<Var name="ca-pin" />
 $ export INVITE_TOKEN=<Var name="invite-token" />
 ```
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 Still on the host where you will run your Node, assign the address of your Auth
 Service to an environment variable, including the domain name (or IP address)
@@ -155,8 +154,8 @@ and port:
 $ export ADDR=teleport.example.com:3025
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 Still on the host where you will run your Node, assign the address of your
 Teleport Cloud tenant to an environment variable, including the domain name (or
@@ -166,7 +165,9 @@ IP address) and port `443`:
 $ export ADDR=mytenant.teleport.sh:443
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 <Details title="Alternative: Connect to the Proxy Service via Teleport Node Tunneling" scope={["oss", "enterprise"]} scopeOnly opened={false}>
 
