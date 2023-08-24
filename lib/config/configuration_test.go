@@ -4117,3 +4117,79 @@ func TestApplyKubeConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestGetInstallerProxyAddr(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name              string
+		installParams     *InstallParams
+		fc                *FileConfig
+		expectedProxyAddr string
+	}{
+		{
+			name:              "empty",
+			fc:                &FileConfig{},
+			expectedProxyAddr: "",
+		},
+		{
+			name: "explicit proxy addr",
+			installParams: &InstallParams{
+				PublicProxyAddr: "explicit.example.com",
+			},
+			fc: &FileConfig{
+				Global: Global{
+					ProxyServer: "proxy.example.com",
+				},
+			},
+			expectedProxyAddr: "explicit.example.com",
+		},
+		{
+			name: "proxy server",
+			fc: &FileConfig{
+				Global: Global{
+					ProxyServer: "proxy.example.com",
+				},
+			},
+			expectedProxyAddr: "proxy.example.com",
+		},
+		{
+			name: "local proxy service",
+			fc: &FileConfig{
+				Global: Global{
+					AuthServer: "auth.example.com",
+				},
+				Proxy: Proxy{
+					Service: Service{
+						EnabledFlag: "yes",
+					},
+					PublicAddr: apiutils.Strings{"proxy.example.com"},
+				},
+			},
+			expectedProxyAddr: "proxy.example.com",
+		},
+		{
+			name: "v1/v2 auth servers",
+			fc: &FileConfig{
+				Version: "v2",
+				Global: Global{
+					AuthServers: []string{"proxy.example.com"},
+				},
+			},
+			expectedProxyAddr: "proxy.example.com",
+		},
+		{
+			name: "auth server",
+			fc: &FileConfig{
+				Global: Global{
+					AuthServer: "auth.example.com",
+				},
+			},
+			expectedProxyAddr: "auth.example.com",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expectedProxyAddr, getInstallerProxyAddr(tc.installParams, tc.fc))
+		})
+	}
+}
