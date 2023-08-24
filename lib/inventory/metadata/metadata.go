@@ -313,12 +313,37 @@ func (c *fetchConfig) fetchCloudEnvironment(ctx context.Context) string {
 // the instance is running on AWS.
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
 func (c *fetchConfig) awsHTTPGetSuccess(ctx context.Context) bool {
-	url := "http://169.254.169.254/latest/meta-data/"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	url := "http://169.254.169.254/latest/api/token"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, nil)
 	if err != nil {
 		return false
 	}
 
+	req.Header.Add("X-aws-ec2-metadata-token-ttl-seconds", "300")
+
+	const insecureSkipVerify = false
+	resp, err := c.httpDo(req, insecureSkipVerify)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	imdsToken, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false
+	}
+
+	if resp.StatusCode != http.StatusOK || imdsToken == nil {
+		return false
+	}
+
+	url = "http://169.254.169.254/latest/meta-data/"
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return false
+	}
+
+	req.Header.Add("X-aws-ec2-metadata-token", string(imdsToken))
 	return c.httpReqSuccess(req)
 }
 
