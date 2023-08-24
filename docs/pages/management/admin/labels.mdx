@@ -100,7 +100,8 @@ starting Teleport.
 On the host where you will run your Node, paste the following content into
 `/etc/teleport.yaml` and adjust it for your environment:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```yaml
 version: v3
@@ -125,8 +126,8 @@ ssh_service:
     environment: dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```yaml
 version: v3
@@ -147,7 +148,9 @@ ssh_service:
     environment: dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Next, start Teleport with the invite token you created earlier:
 
@@ -181,7 +184,8 @@ your Node.
 
 Run the following command to get the current logins for your user:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 ```code
 $ tsh status
@@ -195,8 +199,23 @@ $ tsh status
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
+
+```code
+$ tsh status
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       myuser
+  Cluster:            teleport.example.com
+  Roles:              access, editor, reviewer
+  Logins:             -teleport-nologin-d4bc1dad-ce49-4bbe-925d-a67f8d2d6afe
+  Kubernetes:         enabled
+  Valid until:        2022-04-27 22:26:50 -0400 EDT [valid for 11h40m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 tsh status
@@ -210,7 +229,9 @@ tsh status
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 In this example, `-teleport-nologin-d4bc1dad-ce49-4bbe-925d-a67f8d2d6afe` means
 that no logins have been assigned to the user.
@@ -264,7 +285,8 @@ Teleport configuration file.
 
 Edit `/etc/teleport.yaml` to define a `commands` array as shown below:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```yaml
 version: v3
@@ -291,8 +313,8 @@ ssh_service:
     period: 1h0m0s
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```yaml
 version: v3
@@ -319,7 +341,9 @@ ssh_service:
     period: 1h0m0s
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Notice that the `command` setting is an array where the first element
 is a valid executable and each subsequent element is an argument.
@@ -389,3 +413,4 @@ For more information, see
 You can also use labels to limit the access that different roles have to
 specific classes of resources. For more information, see
 [Teleport Role Templates](../../access-controls/guides/role-templates.mdx).
+

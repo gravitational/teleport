@@ -169,7 +169,8 @@ spec:
 You can create a new `db` resource by running the following commands, which
 assume that you have created a YAML file called `db.yaml` with your configuration:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
@@ -180,8 +181,8 @@ $ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl create -f db.yaml
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Log in to your Teleport cluster so you can use tctl from your local machine.
@@ -190,4 +191,7 @@ $ tsh login --proxy=mytenant.teleport.sh --user=myuser
 $ tctl create -f db.yaml
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
+

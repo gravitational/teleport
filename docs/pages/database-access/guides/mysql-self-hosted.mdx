@@ -9,12 +9,15 @@ This guide will help you to:
 - Set up Teleport to access your MySQL or MariaDB database.
 - Connect to your databases through Teleport.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access MySQL Self-Hosted](../../../img/database-access/guides/mysql_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access MySQL Cloud](../../../img/database-access/guides/mysql_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -164,7 +167,8 @@ Install and configure Teleport where you will run the Teleport Database Service:
 Once the Database Service has joined the cluster, log in to see the available
 databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -174,8 +178,8 @@ $ tsh db ls
 # example-mysql Example MySQL env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -185,7 +189,9 @@ $ tsh db ls
 # example-mysql Example MySQL env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Note that you will only be able to see databases your role has access to. See
 the [RBAC](../rbac.mdx) guide for more details.
@@ -216,3 +222,4 @@ $ tsh db logout example-mysql
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
+

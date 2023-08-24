@@ -14,12 +14,14 @@ This guide will help you to:
 - Set up access to SQL Server using Active Directory authentication.
 - Connect to SQL Server through Teleport.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem label="Self-Hosted" scope={["oss", "enterprise"]}>
 ![Teleport Database Access SQL Server Self-Hosted](../../../img/database-access/guides/sqlserver_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem label="Teleport Cloud" scope={["team", "cloud"]}>
 ![Teleport Database Access SQL Server Cloud](../../../img/database-access/guides/sqlserver_cloud.png)
-</ScopedBlock>
+</TabItem>
+</Tabs>
 
 This guide will focus on Amazon RDS for SQL Server using AWS-managed Active
 Directory authentication.
@@ -213,7 +215,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
   Active Directory domain as the SQL Server.
 </Admonition>
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 Configure the Teleport Database Service. Make sure to update `--proxy` to
 point to your Teleport Proxy Service address and `--uri` to the SQL Server
@@ -233,8 +236,8 @@ endpoint.
     --labels=env=dev
   ```
   
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 Configure the Teleport Database Service. Make sure to update `--proxy` to
 point to your Teleport Cloud tenant address and `--uri` to the SQL Server
@@ -254,7 +257,9 @@ endpoint.
     --labels=env=dev
   ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Provide Active Directory parameters:
 
@@ -317,7 +322,8 @@ master> CREATE LOGIN [EXAMPLE\alice] FROM WINDOWS WITH DEFAULT_DATABASE = [maste
 Log in to your Teleport cluster. Your SQL Server database should appear in the
 list of available databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -327,8 +333,8 @@ $ tsh db ls
 # sqlserver                     env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -338,7 +344,9 @@ $ tsh db ls
 # sqlserver                     env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To retrieve credentials for a database and connect to it:
 
@@ -388,3 +396,4 @@ Add the Certificate Authority (CA) `ca_cert_file` into the `tls` section so Tele
 
 - [Manually join a Linux instance](https://docs.aws.amazon.com/directoryservice/latest/admin-guide/join_linux_instance.html) in the AWS documentation.
 - [Introduction to `adutil`](https://docs.microsoft.com/en-us/sql/linux/sql-server-linux-ad-auth-adutil-introduction) in the Microsoft documentation.
+

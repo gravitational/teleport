@@ -19,12 +19,15 @@ This guide will help you to:
 - Set up Teleport to access your self-hosted Cassandra or ScyllaDB.
 - Connect to your database through Teleport.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Cassandra Self-Hosted](../../../img/database-access/guides/cassandra_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access Cassandra Cloud](../../../img/database-access/guides/cassandra_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -142,7 +145,8 @@ Follow the instructions for your database to enable TLS communication with your 
 Once the Database Service has joined the cluster, log in to see the available
 databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
   ```code
   $ tsh login --proxy=teleport.example.com --user=alice
@@ -152,8 +156,8 @@ databases:
   # cassandra Cassandra Example [*]           env=dev
   ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
   ```code
   $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -163,7 +167,9 @@ databases:
   # cassandra Cassandra Example [*]           env=dev
   ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To connect to a particular database instance :
 ```code
@@ -187,3 +193,4 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+
