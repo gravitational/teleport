@@ -139,7 +139,6 @@ require (
 	golang.org/x/time v0.3.0
 	google.golang.org/grpc v1.52.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
-	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/ini.v1 v1.67.0
@@ -336,6 +335,7 @@ require (
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect
 	github.com/spf13/cobra v1.6.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/thales-e-security/pool v0.0.2 // indirect
 	github.com/tiktoken-go/tokenizer v0.1.0
 	github.com/x448/float16 v0.8.4 // indirect

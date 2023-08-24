@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -90,7 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
-	kubegprc "github.com/gravitational/teleport/lib/kube/grpc"
+	kubegrpc "github.com/gravitational/teleport/lib/kube/grpc"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -1855,7 +1856,7 @@ func (process *TeleportProcess) initAuthService() error {
 			ctx := payloadContext(payload, log)
 			log.Info("Shutting down immediately (auth service does not currently support graceful shutdown).")
 			// NOTE: Graceful shutdown of auth.TLSServer is disabled right now, because we don't
-			// have a good model for performing it.  In particular, watchers and other GRPC streams
+			// have a good model for performing it.  In particular, watchers and other gRPC streams
 			// are a problem.  Even if we distinguish between user-created and server-created streams
 			// (as is done with ssh connections), we don't have a way to distinguish "service accounts"
 			// such as access workflow plugins from normal users.  Without this, a graceful shutdown
@@ -3855,11 +3856,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	sshGRPCServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			utils.GRPCServerUnaryErrorInterceptor,
+			interceptors.GRPCServerUnaryErrorInterceptor,
 			otelgrpc.UnaryServerInterceptor(),
 		),
 		grpc.ChainStreamInterceptor(
-			utils.GRPCServerStreamErrorInterceptor,
+			interceptors.GRPCServerStreamErrorInterceptor,
 			otelgrpc.StreamServerInterceptor(),
 		),
 		grpc.Creds(credentials.NewTLS(serverTLSConfig)),
@@ -5354,11 +5355,11 @@ func (process *TeleportProcess) initPublicGRPCServer(
 ) *grpc.Server {
 	server := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			utils.GRPCServerUnaryErrorInterceptor,
+			interceptors.GRPCServerUnaryErrorInterceptor,
 			limiter.UnaryServerInterceptor(),
 		),
 		grpc.ChainStreamInterceptor(
-			utils.GRPCServerStreamErrorInterceptor,
+			interceptors.GRPCServerStreamErrorInterceptor,
 			limiter.StreamServerInterceptor,
 		),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
@@ -5429,7 +5430,7 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 		)),
 	)
 
-	kubeServer, err := kubegprc.New(kubegprc.Config{
+	kubeServer, err := kubegrpc.New(kubegrpc.Config{
 		Signer:      cfg.conn.Client,
 		AccessPoint: cfg.accessPoint,
 		Authz:       authorizer,

@@ -1033,25 +1033,25 @@ buf/installed:
 		exit 1; \
 	fi
 
-# grpc generates GRPC stubs from service definitions.
+# grpc generates gRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc
 grpc:
 	$(MAKE) -C build.assets grpc
 
-# grpc/host generates GRPC stubs.
+# grpc/host generates gRPC stubs.
 # Unlike grpc, this target runs locally.
 .PHONY: grpc/host
 grpc/host: protos/all
 	@build.assets/genproto.sh
 
-# protos-up-to-date checks if the generated GRPC stubs are up to date.
+# protos-up-to-date checks if the generated gRPC stubs are up to date.
 # This target runs in the buildbox container.
 .PHONY: protos-up-to-date
 protos-up-to-date:
 	$(MAKE) -C build.assets protos-up-to-date
 
-# protos-up-to-date/host checks if the generated GRPC stubs are up to date.
+# protos-up-to-date/host checks if the generated gRPC stubs are up to date.
 # Unlike protos-up-to-date, this target runs locally.
 .PHONY: protos-up-to-date/host
 protos-up-to-date/host: must-start-clean/host grpc/host
