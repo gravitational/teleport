@@ -19,6 +19,7 @@ package awsoidc
 import (
 	"context"
 	"fmt"
+	"net/url"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -142,8 +143,10 @@ func ListEC2ICE(ctx context.Context, clt ListEC2ICEClient, req ListEC2ICERequest
 		subnetID := aws.ToString(ice.SubnetId)
 		state := ice.State
 		stateMessage := aws.ToString(ice.StateMessage)
+
+		idURLSafe := url.QueryEscape(name)
 		dashboardLink := fmt.Sprintf("https://%s.console.aws.amazon.com/vpc/home?#InstanceConnectEndpointDetails:instanceConnectEndpointId=%s",
-			req.Region, aws.ToString(ice.InstanceConnectEndpointId),
+			req.Region, idURLSafe,
 		)
 
 		ret.EC2ICEs = append(ret.EC2ICEs, EC2InstanceConnectEndpoint{
