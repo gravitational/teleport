@@ -267,11 +267,10 @@ encoding, where desktop sessions wrap the MFA JSON in a TDP message.
 #### 32 - sync keys
 
 ```
-| message type (32) | caps_lock_state byte |
+| message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
 ```
 
-This message synchronizes the state of keyboard's modifier keys (caps lock)
-and resets the server key state to all keys up.
+This message synchronizes the state of keyboard's modifier keys.
 
 `caps_lock_state` is one of:
 

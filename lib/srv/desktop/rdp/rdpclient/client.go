@@ -445,7 +445,10 @@ func (c *Client) start() {
 				}
 			case tdp.SyncKeys:
 				if errCode := C.client_write_sync_keys(c.rustClient, C.CGOSyncKeys{
-					caps_lock_down: m.CapsLockState == tdp.ButtonPressed,
+					scroll_lock_down: m.ScrollLockState == tdp.ButtonPressed,
+					num_lock_down:    m.NumLockState == tdp.ButtonPressed,
+					caps_lock_down:   m.CapsLockState == tdp.ButtonPressed,
+					kana_lock_down:   m.KanaLockState == tdp.ButtonPressed,
 				}); errCode != C.ErrCodeSuccess {
 					c.cfg.Log.Warningf("SyncKeys: client_write_sync_keys caps_lock_down=%v: %v",
 						m.CapsLockState == tdp.ButtonPressed, errCode)

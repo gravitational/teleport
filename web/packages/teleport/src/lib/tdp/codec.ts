@@ -132,6 +132,13 @@ export type MfaJson = {
   jsonString: string;
 };
 
+// | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+export type SyncKeys = {
+  scrollLockState: ButtonState;
+  numLockState: ButtonState;
+  capsLockState: ButtonState;
+  kanaLockState: ButtonState;
+};
 // | message type (11) | completion_id uint32 | directory_id uint32 | name_length uint32 | name []byte |
 // TODO(isaiah): The discard here is a copy-paste error, but we need to keep it
 // for now in order that the proxy stay compatible with previous versions of the wds.
@@ -521,12 +528,18 @@ export default class Codec {
 
   // encodeSyncKeys synchronizes the state of keyboard's modifier keys (caps lock)
   // and resets the server key state to all keys up.
-  // | message type (32) | caps_lock_state byte |
-  encodeSyncKeys(state: ButtonState): Message {
-    const buffer = new ArrayBuffer(2);
+  // | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+  encodeSyncKeys(syncKeys: SyncKeys): Message {
+    const buffer = new ArrayBuffer(byteLength * 5);
     const view = new DataView(buffer);
-    view.setUint8(0, MessageType.SYNC_KEYS);
-    view.setUint8(1, state);
+    let offset = 0;
+
+    view.setUint8(offset++, MessageType.SYNC_KEYS);
+    view.setUint8(offset++, syncKeys.scrollLockState);
+    view.setUint8(offset++, syncKeys.numLockState);
+    view.setUint8(offset++, syncKeys.capsLockState);
+    view.setUint8(offset++, syncKeys.kanaLockState);
+
     return buffer;
   }
 

@@ -350,15 +350,21 @@ func decodeKeyboardButton(in byteReader) (KeyboardButton, error) {
 	return k, trace.Wrap(err)
 }
 
-// | message type (32) | caps_lock_state byte |
+// | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
 type SyncKeys struct {
-	CapsLockState ButtonState
+	ScrollLockState ButtonState
+	NumLockState    ButtonState
+	CapsLockState   ButtonState
+	KanaLockState   ButtonState
 }
 
 func (k SyncKeys) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSyncKeys))
+	buf.WriteByte(byte(k.ScrollLockState))
+	buf.WriteByte(byte(k.NumLockState))
 	buf.WriteByte(byte(k.CapsLockState))
+	buf.WriteByte(byte(k.KanaLockState))
 	return buf.Bytes(), nil
 }
 

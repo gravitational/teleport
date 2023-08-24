@@ -1472,7 +1472,10 @@ pub unsafe extern "C" fn write_rdp_keyboard(
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct CGOSyncKeys {
+    pub scroll_lock_down: bool,
+    pub num_lock_down: bool,
     pub caps_lock_down: bool,
+    pub kana_lock_down: bool,
 }
 
 /// # Safety
@@ -1492,21 +1495,34 @@ pub unsafe extern "C" fn client_write_sync_keys(
     };
 
     let mut flags = 0u32;
+    if keys.scroll_lock_down {
+        flags |= global::InputSyncFlags::TsSyncScrollLock as u32;
+    }
+    if keys.num_lock_down {
+        flags |= global::InputSyncFlags::TsSyncNumLock as u32;
+    }
     if keys.caps_lock_down {
         // TODO: handle scroll lock + num lock
         flags |= global::InputSyncFlags::TsSyncCapsLock as u32;
     }
-    let res = client
+    if keys.kana_lock_down {
+        flags |= global::InputSyncFlags::TsSyncKanaLock as u32;
+    }
+
+    match client
         .rdp_client
         .lock()
         .unwrap()
-        .write(RdpEvent::Sync(InputSyncEvent { flags }));
-    if let Err(e) = res {
-        error!("failed writing RDP sync keys event: {:?}", e);
-        CGOErrCode::ErrCodeFailure
-    } else {
-        info!("client_write_sync_keys");
-        CGOErrCode::ErrCodeSuccess
+        .write(RdpEvent::Sync(InputSyncEvent { flags }))
+    {
+        Ok(_) => {
+            info!("client_write_sync_keys");
+            CGOErrCode::ErrCodeSuccess
+        }
+        Err(e) => {
+            error!("failed writing RDP sync keys event: {:?}", e);
+            CGOErrCode::ErrCodeFailure
+        }
     }
 }
 

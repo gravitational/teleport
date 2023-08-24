@@ -43,6 +43,7 @@ import type {
   SharedDirectoryCreateResponse,
   SharedDirectoryDeleteResponse,
   FileSystemObject,
+  SyncKeys,
 } from './codec';
 import type { WebauthnAssertionResponse } from 'teleport/services/auth';
 
@@ -491,8 +492,8 @@ export default class Client extends EventEmitterWebAuthnSender {
    * ButtonState.DOWN means caps lock is on.
    * ButtonState.UP means caps lock is off.
    */
-  sendSyncKeys(state: ButtonState) {
-    this.send(this.codec.encodeSyncKeys(state));
+  sendSyncKeys(syncKeys: SyncKeys) {
+    this.send(this.codec.encodeSyncKeys(syncKeys));
   }
 
   sendClipboardData(clipboardData: ClipboardData) {

@@ -21,7 +21,7 @@ import { NotificationItem } from 'shared/components/Notification';
 import { getPlatform } from 'design/theme/utils';
 
 import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
-import { ClipboardData, PngFrame } from 'teleport/lib/tdp/codec';
+import { ClipboardData, PngFrame, SyncKeys } from 'teleport/lib/tdp/codec';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import cfg from 'teleport/config';
 import { Sha256Digest } from 'teleport/lib/util';
@@ -53,7 +53,7 @@ export default function useTdpClientCanvas(props: Props) {
 
   /**
    * Tracks whether the next keydown or keyup event should sync the
-   * local key state to the remote machine.
+   * local toggle key state to the remote machine.
    *
    * Set to true:
    * - On component initialization, so keys are synced before the first keydown/keyup event.
@@ -141,6 +141,23 @@ export default function useTdpClientCanvas(props: Props) {
     setWsConnection('open');
   };
 
+  const getModifierState = (e: KeyboardEvent, keyArg: string): ButtonState => {
+    let state = ButtonState.UP;
+    if (e.getModifierState(keyArg)) {
+      state = ButtonState.DOWN;
+    }
+    return state;
+  };
+
+  const getSyncKeys = (e: KeyboardEvent): SyncKeys => {
+    return {
+      scrollLockState: getModifierState(e, 'ScrollLock'),
+      numLockState: getModifierState(e, 'NumLock'),
+      capsLockState: getModifierState(e, 'CapsLock'),
+      kanaLockState: getModifierState(e, 'KanaMode'),
+    };
+  };
+
   /**
    * Called before every keydown or keyup event.
    *
@@ -149,13 +166,7 @@ export default function useTdpClientCanvas(props: Props) {
    */
   const handleSyncBeforeNextKey = (cli: TdpClient, e: KeyboardEvent) => {
     if (syncBeforeNextKey.current === true) {
-      // Set the current caps lock state based on getModifierState.
-      let state = ButtonState.UP;
-      if (e.getModifierState('CapsLock')) {
-        state = ButtonState.DOWN;
-      }
-
-      cli.sendSyncKeys(state);
+      cli.sendSyncKeys(getSyncKeys(e));
       syncBeforeNextKey.current = false;
     }
   };
@@ -227,19 +238,7 @@ export default function useTdpClientCanvas(props: Props) {
     cli.sendKeyboardInput(e.code, ButtonState.UP);
   };
 
-  const onFocusOut = (cli: TdpClient) => {
-    // When the window loses focus, we want to sync the key state to the remote machine
-    // so that the remote machine doesn't think any keys are still pressed. This is necessary
-    // so that when the user returns to the window, the remote machine doesn't think (for
-    // example) that the alt key is still pressed, and then interpret the next click as an
-    // alt-click.
-    //
-    // We can just send whatever value we want for the caps lock state, since we also set
-    // syncBeforeNextKey.current = true below. This means that, when the user returns to
-    // the window, before the next key press, we will send a sync keys event with the
-    // real caps lock state, and thus the remote machine will have the correct caps lock
-    // setting before anything is typed out.
-    cli.sendSyncKeys(ButtonState.UP);
+  const onFocusOut = () => {
     syncBeforeNextKey.current = true;
   };
 
