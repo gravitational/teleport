@@ -141,6 +141,10 @@ type AWSOIDCDeployServiceRequest struct {
 	// If deploying a Database Service, you should use the SubnetIDs returned by the List Database API call.
 	SubnetIDs []string `json:"subnetIds"`
 
+	// SecurityGroups to apply to the service's network configuration.
+	// If empty, the default security group for the VPC is going to be used.
+	SecurityGroups []string `json:"securityGroups"`
+
 	// ClusterName is the ECS Cluster to be used.
 	// Optional.
 	// Defaults to <teleport-cluster-name>-teleport, eg. acme-teleport
