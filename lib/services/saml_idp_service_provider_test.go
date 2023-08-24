@@ -19,6 +19,7 @@ package services
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -59,6 +60,39 @@ func TestSAMLIdPServiceProviderMarshal(t *testing.T) {
 	actual, err := UnmarshalSAMLIdPServiceProvider(data)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
+}
+
+func TestValidateSAMLIdPServiceProvider(t *testing.T) {
+	cases := []struct {
+		name         string
+		spec         types.SAMLIdPServiceProviderSpecV1
+		errAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid provider",
+			spec: types.SAMLIdPServiceProviderSpecV1{
+				EntityDescriptor: testEntityDescriptor,
+				EntityID:         "IAMShowcase",
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name: "invalid entity id",
+			spec: types.SAMLIdPServiceProviderSpecV1{
+				EntityDescriptor: testEntityDescriptor,
+				EntityID:         uuid.NewString(),
+			},
+			errAssertion: require.Error,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{Name: "sp"}, test.spec)
+			require.NoError(t, err)
+			test.errAssertion(t, ValidateSAMLIdPServiceProvider(sp))
+		})
+	}
 }
 
 var samlIDPServiceProviderYAML = `---

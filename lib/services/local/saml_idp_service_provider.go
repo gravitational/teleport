@@ -20,7 +20,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -72,12 +71,12 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
-	if err != nil {
+	if err := services.ValidateSAMLIdPServiceProvider(sp); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := s.ensureEntityDescriptorMatchesEntityID(sp); err != nil {
+	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -97,12 +96,12 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
-	if err != nil {
+	if err := services.ValidateSAMLIdPServiceProvider(sp); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := s.ensureEntityDescriptorMatchesEntityID(sp); err != nil {
+	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -154,21 +153,6 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 		if nextToken == "" {
 			break
 		}
-	}
-
-	return nil
-}
-
-// ensureEntityDescriptorMatchesEntityID ensures that the entity ID in the entity descriptor is the same as the entity ID
-// in the SAMLIdPServiceProvider object.
-func (s *SAMLIdPServiceProviderService) ensureEntityDescriptorMatchesEntityID(sp types.SAMLIdPServiceProvider) error {
-	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if ed.EntityID != sp.GetEntityID() {
-		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
 	}
 
 	return nil

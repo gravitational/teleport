@@ -19,18 +19,19 @@ package services
 import (
 	"context"
 
+	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// SAMLIdPServiceProviderGetter defines interface for fetching SAMLIdPServiceProvider resources.
+// SAMLIdpServiceProviderGetter defines interface for fetching SAMLIdPServiceProvider resources.
 type SAMLIdpServiceProviderGetter interface {
 	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error)
 }
 
-// SAMLIdPServiceProvider defines an interface for managing SAML IdP service providers.
+// SAMLIdPServiceProviders defines an interface for managing SAML IdP service providers.
 type SAMLIdPServiceProviders interface {
 	SAMLIdpServiceProviderGetter
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
@@ -118,4 +119,19 @@ func GenerateIdPServiceProviderFromFields(name string, entityDescriptor string) 
 		return nil, trace.Wrap(err)
 	}
 	return &s, nil
+}
+
+// ValidateSAMLIdPServiceProvider ensures that the entity ID in the entity descriptor is the same as the entity ID
+// in the [types.SAMLIdPServiceProvider].
+func ValidateSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if ed.EntityID != sp.GetEntityID() {
+		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
+	}
+
+	return nil
 }
