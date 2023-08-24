@@ -279,7 +279,7 @@ func TestRemoteRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// old proxy client is still trusted
-	_, err = testSrv.CloneClient(remoteProxy).GetNodes(ctx, apidefaults.Namespace)
+	_, err = testSrv.CloneClient(t, remoteProxy).GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 }
 
@@ -367,7 +367,7 @@ func TestAutoRotation(t *testing.T) {
 	require.Equal(t, ca.GetRotation().Phase, types.RotationPhaseUpdateClients)
 
 	// old clients should work
-	_, err = testSrv.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
 	// new clients work as well
@@ -387,7 +387,7 @@ func TestAutoRotation(t *testing.T) {
 	require.Equal(t, ca.GetRotation().Phase, types.RotationPhaseUpdateServers)
 
 	// old clients should work
-	_, err = testSrv.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
 	// new clients work as well
@@ -414,11 +414,11 @@ func TestAutoRotation(t *testing.T) {
 	// connection instead of re-using the one from pool
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
-	_, err = testSrv.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
 	require.ErrorContains(t, err, "certificate")
 
 	// new clients work
-	_, err = testSrv.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
+	_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 }
 
@@ -524,7 +524,7 @@ func TestManualRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// old clients should work
-	_, err = testSrv.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
 	// clients reconnect
@@ -537,7 +537,7 @@ func TestManualRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// old clients should work
-	_, err = testSrv.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
 	// new clients work as well
@@ -566,11 +566,11 @@ func TestManualRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// old clients should work
-	_, err = testSrv.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
 	// new clients work as well
-	_, err = testSrv.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
+	_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
 	// complete rotation
@@ -587,11 +587,11 @@ func TestManualRotation(t *testing.T) {
 	// connection instead of re-using the one from pool
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
-	_, err = testSrv.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
 	require.ErrorContains(t, err, "certificate")
 
 	// new clients work
-	_, err = testSrv.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
+	_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 }
 
@@ -660,7 +660,7 @@ func TestRollback(t *testing.T) {
 
 	// new clients work, server still accepts the creds
 	// because new clients should re-register and receive new certs
-	_, err = testSrv.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
+	_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
 	// can't jump to other phases
@@ -681,7 +681,7 @@ func TestRollback(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	grpcClient := testSrv.CloneClient(newProxy)
+	grpcClient := testSrv.CloneClient(t, newProxy)
 	t.Cleanup(func() {
 		require.NoError(t, grpcClient.Close())
 	})
@@ -689,7 +689,7 @@ func TestRollback(t *testing.T) {
 	_, err = grpcClient.GetNodes(ctx, apidefaults.Namespace)
 	require.ErrorContains(t, err, "certificate")
 
-	grpcClientOld := testSrv.CloneClient(proxy)
+	grpcClientOld := testSrv.CloneClient(t, proxy)
 	t.Cleanup(func() {
 		require.NoError(t, grpcClientOld.Close())
 	})

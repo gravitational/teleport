@@ -20,7 +20,9 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"github.com/stretchr/testify/assert"
 	"net"
+	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -918,8 +920,13 @@ func (t *TestTLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, err
 
 // CloneClient uses the same credentials as the passed client
 // but forces the client to be recreated
-func (t *TestTLSServer) CloneClient(clt *Client) *Client {
+func (t *TestTLSServer) CloneClient(tt *testing.T, clt *Client) *Client {
 	tlsConfig := clt.Config()
+	// When cloning a client, we want to make sure that we don't reuse
+	// the same session ticket cache. The session ticket cache should not be
+	// shared between all clients that use the same TLS config.
+	// Reusing the cache will skip the TLS handshake and may introduce a weird
+	// behavior in tests.
 	if !tlsConfig.SessionTicketsDisabled {
 		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(utils.DefaultLRUCapacity)
 	}
@@ -934,6 +941,9 @@ func (t *TestTLSServer) CloneClient(clt *Client) *Client {
 	if err != nil {
 		panic(err)
 	}
+	tt.Cleanup(func() {
+		assert.NoError(tt, newClient.Close())
+	})
 	return newClient
 }
 

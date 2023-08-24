@@ -22,7 +22,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"io"
 	"net"
 	"sync"
@@ -448,24 +447,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		return trace.Wrap(err)
 	}
 
-	const serverConfig = `{
-  "methodConfig": [{
-    "name": [{"service": "proto.AuthService"}],
-    "retryPolicy": {
-      "maxAttempts": 15,
-      "initialBackoff": "0.2s",
-      "maxBackoff": "17s",
-      "backoffMultiplier": 2,
-      "retryableStatusCodes": ["UNAVAILABLE", "DEADLINE_EXCEEDED"]
-    }
-  }]
-}`
-
-	retryOpts := []grpc_retry.CallOption{
-		grpc_retry.WithBackoff(grpc_retry.BackoffExponential(100 * time.Millisecond)),
-		grpc_retry.WithMax(3),
-	}
-
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
@@ -473,15 +454,12 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			otelgrpc.UnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			breaker.UnaryClientInterceptor(cb),
-			grpc_retry.UnaryClientInterceptor(retryOpts...),
 		),
 		grpc.WithChainStreamInterceptor(
 			otelgrpc.StreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 			breaker.StreamClientInterceptor(cb),
-			grpc_retry.StreamClientInterceptor(retryOpts...),
 		),
-		//grpc.WithDefaultServiceConfig(serverConfig),
 	)
 	// Only set transportCredentials if tlsConfig is set. This makes it possible
 	// to explicitly provide grpc.WithTransportCredentials(insecure.NewCredentials())
@@ -489,7 +467,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	if c.tlsConfig != nil {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
 	}
-	// must come last, otherwise provided retryOpts may get clobbered by defaults above
+	// must come last, otherwise provided opts may get clobbered by defaults above
 	dialOpts = append(dialOpts, c.c.DialOpts...)
 
 	conn, err := grpc.DialContext(dialContext, addr, dialOpts...)
