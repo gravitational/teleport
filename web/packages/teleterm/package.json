@@ -31,7 +31,7 @@
     "@types/tar-fs": "^2.0.1",
     "emittery": "^1.0.1",
     "node-pty": "0.11.0-beta29",
-    "strip-ansi-stream": "^2.0.1",
+    "strip-ansi": "^7.1.0",
     "tar-fs": "^3.0.3"
   },
   "devDependencies": {
