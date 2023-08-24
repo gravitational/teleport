@@ -27,6 +27,11 @@ import (
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
+const (
+	// defaultPolicyNameForEICE is the default name for the Inline Policy added to the IntegrationRole.
+	defaultPolicyNameForEICE = "EC2InstanceConnectEndpoint"
+)
+
 // EICEIAMConfigureRequest is a request to configure the required Policies to use the EC2 Instance Connect Endpoint feature.
 type EICEIAMConfigureRequest struct {
 	// Region is the AWS Region.
@@ -52,7 +57,7 @@ func (r *EICEIAMConfigureRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.IntegrationRoleEICEPolicy == "" {
-		r.IntegrationRoleEICEPolicy = "EC2InstanceConnectEndpoint"
+		r.IntegrationRoleEICEPolicy = defaultPolicyNameForEICE
 	}
 
 	return nil
@@ -94,7 +99,7 @@ func NewEICEIAMConfigureClient(ctx context.Context, region string) (EICEIAMConfi
 //   - ec2:DescribeInstanceConnectEndpoints
 //
 // Action: Select one or more SecurityGroups to apply to the EC2 Instance Connect Endpoints (the VPC's default SG is applied if no SG is provided).
-//   - ec2:DescribeInstanceConnectEndpoints
+//   - ec2:DescribeSecurityGroups
 //
 // Action: Create EC2 Instance Connect Endpoint so the user can open a tunnel to the EC2 instance.
 // More info: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/permissions-for-ec2-instance-connect-endpoint.html
@@ -130,7 +135,7 @@ func ConfigureEICEIAM(ctx context.Context, clt EICEIAMConfigureClient, req EICEI
 	})
 	if err != nil {
 		if trace.IsNotFound(awslib.ConvertIAMv2Error(err)) {
-			return trace.NotFound("Role %q not found.", req.IntegrationRole)
+			return trace.NotFound("role %q not found.", req.IntegrationRole)
 		}
 		return trace.Wrap(err)
 	}
