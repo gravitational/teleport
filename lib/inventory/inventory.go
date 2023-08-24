@@ -327,6 +327,9 @@ type UpstreamHandle interface {
 	// Hello gets the cached upstream hello that was used to initialize the stream.
 	Hello() proto.UpstreamInventoryHello
 
+	// AgentMetadata is the service's metadata: OS, glibc version, install methods, ...
+	AgentMetadata() proto.UpstreamInventoryAgentMetadata
+
 	Ping(ctx context.Context, id uint64) (d time.Duration, err error)
 	// HasService is a helper for checking if a given service is associated with this
 	// stream.
@@ -496,6 +499,9 @@ type upstreamHandle struct {
 	client.UpstreamInventoryControlStream
 	hello proto.UpstreamInventoryHello
 
+	agentMDLock   sync.RWMutex
+	agentMetadata proto.UpstreamInventoryAgentMetadata
+
 	ticker *interval.MultiInterval[intervalKey]
 
 	pingC chan pingRequest
@@ -570,6 +576,20 @@ func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, 
 
 func (h *upstreamHandle) Hello() proto.UpstreamInventoryHello {
 	return h.hello
+}
+
+// AgentMetadata returns the Agent's metadata (eg os, glibc version, install methods, teleport version).
+func (h *upstreamHandle) AgentMetadata() proto.UpstreamInventoryAgentMetadata {
+	h.agentMDLock.RLock()
+	defer h.agentMDLock.RUnlock()
+	return h.agentMetadata
+}
+
+// SetAgentMetadata sets the agent metadata for the current handler.
+func (h *upstreamHandle) SetAgentMetadata(agentMD proto.UpstreamInventoryAgentMetadata) {
+	h.agentMDLock.Lock()
+	defer h.agentMDLock.Unlock()
+	h.agentMetadata = agentMD
 }
 
 func (h *upstreamHandle) HasService(service types.SystemRole) bool {
