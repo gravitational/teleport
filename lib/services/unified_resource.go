@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -196,6 +197,7 @@ type ResourceGetter interface {
 	AppServersGetter
 	WindowsDesktopGetter
 	KubernetesServerGetter
+	AccessListsGetter
 	SAMLIdpServiceProviderGetter
 }
 
@@ -246,6 +248,11 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
+	newAccessLists, err := c.getAccessLists(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.tree.Clear(false)
@@ -255,6 +262,7 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources[types.KubeServer](c.tree, newKubes)
 	putResources[types.SAMLIdPServiceProvider](c.tree, newSAMLApps)
 	putResources[types.WindowsDesktop](c.tree, newDesktops)
+	putResources[*accesslist.AccessList](c.tree, newAccessLists)
 	c.stale = false
 	c.defineCollectorAsInitialized()
 	return nil
@@ -364,6 +372,29 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 	}
 
 	return newSAMLApps, nil
+}
+
+// getSAMLApps will get all access lists
+func (c *UnifiedResourceCache) getAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
+	var accessLists []*accesslist.AccessList
+	startKey := ""
+
+	for {
+		resp, nextKey, err := c.ListAccessLists(ctx, apidefaults.DefaultChunkSize, startKey)
+
+		if err != nil {
+			return nil, trace.Wrap(err, "getting access lists for unified resource watcher")
+		}
+		accessLists = append(accessLists, resp...)
+
+		if nextKey == "" {
+			break
+		}
+
+		startKey = nextKey
+	}
+
+	return accessLists, nil
 }
 
 // read applies the supplied closure to either the primary tree or the ttl-based fallback tree depending on

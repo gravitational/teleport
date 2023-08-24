@@ -48,6 +48,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		services.WindowsDesktops
 		services.SAMLIdPServiceProviders
 		types.Events
+		services.AccessListsGetter
 	}
 
 	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
