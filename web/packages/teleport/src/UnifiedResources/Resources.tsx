@@ -162,6 +162,11 @@ export function Resources() {
 const ResourcesContainer = styled(Flex)`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  @media (min-width: 1800px) {
+    max-width: 1800px;
+    grid-template-columns: repeat(4, minmax(400px, 1fr));
+    margin: auto;
+  }
 `;
 
 const emptyStateInfo: EmptyStateInfo = {
