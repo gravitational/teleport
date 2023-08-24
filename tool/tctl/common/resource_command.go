@@ -876,22 +876,23 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.Clie
 		return trace.Wrap(err)
 	}
 	exists := (err == nil)
-	if rc.force {
+	if rc.IsForced() {
 		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
 			LoginRule: rule,
 		})
 		return trail.FromGRPC(err)
 	}
+	if exists && !rc.force{
+		return trace.AlreadyExists("login rule '%s' already exists, use -f flag to override", rule.Metadata.GetName())
+	}
 	_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
 		LoginRule: rule,
 	})
-
 	if err != nil {
-		return trace.AlreadyExists("login rule '%s' already exists, use -f flag to override", rule.Metadata.GetName())
+		return trace.Wrap(err)
 	}
-	fmt.Printf("login rule '%s' has been %s\n", rule.Metadata.Name, UpsertVerb(exists, rc.force))
+	fmt.Printf("login rule '%s' has been %s\n", rule.Metadata.Name, UpsertVerb(exists, rc.IsForced()))
 	return nil
-
 }
 
 func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -1014,7 +1015,6 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client auth.Cl
 	if _, err := client.CreateIntegration(ctx, igV1); err != nil {
 		return trace.Wrap(err)
 	}
-	//fmt.Printf("Integration %q has been created\n", integration.GetName())
 	fmt.Printf("integration '%s' has been %s\n", integration.GetName(), UpsertVerb(exists, rc.force))
 
 	return nil
