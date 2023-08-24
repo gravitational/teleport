@@ -447,6 +447,17 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		return trace.Wrap(err)
 	}
 
+	const serverConfig = `{
+  "methodConfig": [{
+    "retryPolicy": {
+      "maxAttempts": 5,
+      "initialBackoff": "0.2s",
+      "maxBackoff": "7s",
+      "backoffMultiplier": 2,
+      "retryableStatusCodes": ["UNAVAILABLE", "DEADLINE_EXCEEDED"]
+    }
+  }]
+}`
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
@@ -460,6 +471,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			metadata.StreamClientInterceptor,
 			breaker.StreamClientInterceptor(cb),
 		),
+		grpc.WithDefaultServiceConfig(serverConfig),
 	)
 	// Only set transportCredentials if tlsConfig is set. This makes it possible
 	// to explicitly provide grpc.WithTransportCredentials(insecure.NewCredentials())
