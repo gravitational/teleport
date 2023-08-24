@@ -240,7 +240,7 @@ ui: buildbox
 # submodule is present.
 .PHONY: webassets
 webassets: buildbox-connect
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CONNECT) \
 		/usr/bin/make ensure-webassets $(if $(wildcard ../e/Makefile),ensure-webassets-e)
 
 # grpc generates GRPC stubs from inside the buildbox
