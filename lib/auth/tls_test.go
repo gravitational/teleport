@@ -681,12 +681,20 @@ func TestRollback(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	grpcClient := testSrv.CloneClient(newProxy)
+	t.Cleanup(func() {
+		require.NoError(t, grpcClient.Close())
+	})
 	// clients with new creds will no longer work
-	_, err = testSrv.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
+	_, err = grpcClient.GetNodes(ctx, apidefaults.Namespace)
 	require.ErrorContains(t, err, "certificate")
 
+	grpcClientOld := testSrv.CloneClient(proxy)
+	t.Cleanup(func() {
+		require.NoError(t, grpcClientOld.Close())
+	})
 	// clients with old creds will still work
-	_, err = testSrv.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	_, err = grpcClientOld.GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 }
 
