@@ -72,10 +72,11 @@
       "source": "devbox-search",
       "version": "14.0.6"
     },
-    "nodejs@16.18.1": {
-      "last_modified": "2023-01-02T04:31:48Z",
-      "resolved": "github:NixOS/nixpkgs/a4379d2b0deefedc8dba360897557707ea9ee9a7#nodejs-16_x",
-      "version": "16.18.1"
+    "nodejs@18.16.1": {
+      "last_modified": "2023-06-30T04:44:22Z",
+      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#nodejs_18",
+      "source": "devbox-search",
+      "version": "18.16.1"
     },
     "openssl@latest": {
       "last_modified": "2023-07-23T03:35:12Z",
