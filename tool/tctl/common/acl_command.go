@@ -139,8 +139,12 @@ func (c *ACLCommand) Get(ctx context.Context, client auth.ClientI) error {
 
 // UsersAdd will add a user to an access list.
 func (c *ACLCommand) UsersAdd(ctx context.Context, client auth.ClientI) error {
+	_, err := client.AccessListClient().GetAccessList(ctx, c.accessListName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var expires time.Time
-	var err error
 	if c.expires != "" {
 		expires, err = time.Parse(time.RFC3339, c.expires)
 		if err != nil {
@@ -176,7 +180,12 @@ func (c *ACLCommand) UsersAdd(ctx context.Context, client auth.ClientI) error {
 
 // UsersRemove will remove a user to an access list.
 func (c *ACLCommand) UsersRemove(ctx context.Context, client auth.ClientI) error {
-	err := client.AccessListClient().DeleteAccessListMember(ctx, c.accessListName, c.userName)
+	_, err := client.AccessListClient().GetAccessList(ctx, c.accessListName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = client.AccessListClient().DeleteAccessListMember(ctx, c.accessListName, c.userName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -188,6 +197,11 @@ func (c *ACLCommand) UsersRemove(ctx context.Context, client auth.ClientI) error
 
 // UsersList will list the users in an access list.
 func (c *ACLCommand) UsersList(ctx context.Context, client auth.ClientI) error {
+	_, err := client.AccessListClient().GetAccessList(ctx, c.accessListName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	members, nextToken, err := client.AccessListClient().ListAccessListMembers(ctx, c.accessListName, 1, "")
 	if err != nil {
 		return trace.Wrap(err)
