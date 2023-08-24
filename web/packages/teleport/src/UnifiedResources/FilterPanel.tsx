@@ -89,7 +89,7 @@ export function FilterPanel({
   };
 
   return (
-    <Flex justifyContent="space-between" mb={2}>
+    <Flex justifyContent="space-between" mb={3}>
       <Box width="300px">
         <FilterSelect
           isMulti={true}
