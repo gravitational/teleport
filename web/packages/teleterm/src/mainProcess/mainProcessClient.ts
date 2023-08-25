@@ -94,6 +94,14 @@ export default function createMainProcessClient(): MainProcessClient {
         clusterProperties
       );
     },
+    removeAgentDirectory(clusterProperties: {
+      rootClusterUri: RootClusterUri;
+    }) {
+      return ipcRenderer.invoke(
+        'main-process-connect-my-computer-remove-agent-directory',
+        clusterProperties
+      );
+    },
     killAgent(clusterProperties: { rootClusterUri: RootClusterUri }) {
       return ipcRenderer.invoke(
         'main-process-connect-my-computer-kill-agent',
