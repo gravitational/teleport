@@ -522,6 +522,12 @@ func TestProxySSH(t *testing.T) {
 				s.root.Config.Auth.ClusterName.GetClusterName(),
 				s.root.Config.SSH.Addr.Port(defaults.SSHServerListenPort))
 
+			require.Eventually(t, func() bool {
+				nodes, err := s.root.GetAuthServer().GetNodes(ctx, "default")
+				require.NoError(t, err)
+				return len(nodes) != 0
+			}, time.Second*30, time.Millisecond*100)
+
 			runProxySSH := func(proxyRequest string, opts ...CliOption) error {
 				return Run(ctx, []string{
 					"--insecure",
