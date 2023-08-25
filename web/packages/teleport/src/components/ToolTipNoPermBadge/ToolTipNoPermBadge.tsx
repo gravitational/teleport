@@ -16,15 +16,19 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { Text, Popover, Box } from 'design';
+import { Popover, Box } from 'design';
 
 type Props = {
   borderRadius?: number;
+  tooltipText?: TooltipText;
+  sticky?: boolean;
 };
 
 export const ToolTipNoPermBadge: React.FC<Props> = ({
   children,
   borderRadius = 2,
+  tooltipText,
+  sticky = false,
 }) => {
   const [anchorEl, setAnchorEl] = useState();
   const open = Boolean(anchorEl);
@@ -37,13 +41,15 @@ export const ToolTipNoPermBadge: React.FC<Props> = ({
     setAnchorEl(null);
   }
 
+  const popoverPointerEvent = !sticky ? 'none' : 'auto';
+  const tooltip = tooltipText ? tooltipText : TooltipText.LackingPermissions;
   return (
     <>
       <Box
         data-testid="tooltip"
         aria-owns={open ? 'mouse-over-popover' : undefined}
         onMouseEnter={handlePopoverOpen}
-        onMouseLeave={handlePopoverClose}
+        onMouseLeave={!sticky ? handlePopoverClose : undefined}
         borderTopRightRadius={borderRadius}
         borderBottomLeftRadius={borderRadius}
         css={`
@@ -55,10 +61,10 @@ export const ToolTipNoPermBadge: React.FC<Props> = ({
           background-color: ${p => p.theme.colors.error.main};
         `}
       >
-        Lacking Permissions
+        {tooltip}
       </Box>
       <Popover
-        modalCss={() => `pointer-events: none;`}
+        modalCss={() => `pointer-events: ${popoverPointerEvent}`}
         onClose={handlePopoverClose}
         open={open}
         anchorEl={anchorEl}
@@ -71,7 +77,13 @@ export const ToolTipNoPermBadge: React.FC<Props> = ({
           horizontal: 'left',
         }}
       >
-        <StyledOnHover px={3} py={2} data-testid="tooltip-msg">
+        <StyledOnHover
+          px={3}
+          py={2}
+          data-testid="tooltip-msg"
+          modalCss={() => `pointer-events: none`}
+          onMouseLeave={handlePopoverClose}
+        >
           {children}
         </StyledOnHover>
       </Popover>
@@ -79,8 +91,13 @@ export const ToolTipNoPermBadge: React.FC<Props> = ({
   );
 };
 
-const StyledOnHover = styled(Text)`
+const StyledOnHover = styled(Box)`
   background-color: white;
   color: black;
   max-width: 350px;
 `;
+
+export enum TooltipText {
+  LackingPermissions = 'Lacking Permissions',
+  LackingEnterpriseLicense = 'Enterprise Only',
+}
