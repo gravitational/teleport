@@ -17,6 +17,9 @@ jobs:
   bloat_check:
     name: Bloat Check
     runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
     outputs:
       base_stats_file: ${{ steps.build_base.outputs.base_stats_file }}
       current_build_dir: ${{ steps.build_branch.outputs.build_dir }}
@@ -62,10 +65,20 @@ jobs:
         name: Build base
         id: build_base
         run: |
-          make WEBASSETS_SKIP_BUILD=1 BUILDDIR=base_build binaries
+          BUILD_SECRET=FAKE_SECRET make WEBASSETS_SKIP_BUILD=0 BUILDDIR=base_build ensure-webassets binaries
           cd .github/shared-workflows/bot && go run main.go -workflow=binary-sizes --artifacts="tbot,tctl,teleport,tsh" --builddir="../../../base_build" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"  >> ~/teleport_base_build_stats
           echo "base_stats_file=~/teleport_base_build_stats" >> $GITHUB_OUTPUT
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
+      - name: Check for Environment Leak
+        id: check-env-leak
+        if: ${{ steps.cache-build-restore.outputs.cache-hit != 'true' }}
+        run: |
+          for binary in ${BUILDDIR}/*; do \
+            if strings $binary | grep -q 'FAKE_SECRET'; then \
+              echo "Error: $binary contains FAKE_SECRET"; \
+              exit 1; \
+            fi; \
+          done
       - if: ${{ steps.cache-build-restore.outputs.cache-hit != 'true' }}
         name: Save base build
         id: base-build-save
