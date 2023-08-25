@@ -10,6 +10,9 @@ const cfg = {
   oss: ossCfg,
 
   routes: {
+    accessLists: '/web/accesslists/:accessListId?',
+    accessListNew: '/web/accesslists/new',
+
     requests: '/web/requests/:requestId?',
     requestNew: '/web/cluster/:clusterId/requests/new',
 
@@ -40,6 +43,8 @@ const cfg = {
   },
 
   api: {
+    accessListManagementPath: '/v1/enterprise/accesslist/:accessListId?',
+
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
     accessRequestFilterPath: '/v1/enterprise/accessrequest?user=:user?',
     resourceRequestRolesPath:
@@ -100,12 +105,20 @@ const cfg = {
     return generatePath(cfg.routes.invoiceSettings, { clusterId });
   },
 
+  getAccessListManagementRoute(accessListId?: string) {
+    return generatePath(cfg.routes.accessLists, { accessListId });
+  },
+
   getAccessRequestRoute(requestId?: string) {
     return generatePath(cfg.routes.requests, { requestId });
   },
 
   getNewAccessRequestRoute(clusterId: string) {
     return generatePath(cfg.routes.requestNew, { clusterId });
+  },
+
+  getAccessManagementListUrl(accessListId?: string) {
+    return generatePath(cfg.api.accessListManagementPath, { accessListId });
   },
 
   getAccessRequestUrl(requestId?: string) {

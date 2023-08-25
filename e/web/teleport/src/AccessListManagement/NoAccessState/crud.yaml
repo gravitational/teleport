@@ -1,0 +1,13 @@
+kind: role
+spec:
+  allow:
+    rules:
+    - resources:
+      - access_list
+      verbs:
+      # to read an access list:
+      - read
+      - list
+      # to create an access list:
+      - update
+      - create

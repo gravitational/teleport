@@ -15,6 +15,7 @@ import {
   Chart,
   Profile,
   Invoices,
+  UserList,
 } from 'design/Icon';
 
 import { NavTitle } from 'teleport/types';
@@ -53,6 +54,9 @@ const InvoiceSettingsE = lazy(
 );
 
 const DiscoverE = lazy(() => import('e-teleport/Discover'));
+const AccessListManagement = lazy(
+  () => import('e-teleport/AccessListManagement')
+);
 
 // ****************************
 // Resource Features
@@ -263,6 +267,33 @@ class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
   };
 }
 
+class FeatureAccessListManagement implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+  route = {
+    title: 'Manage Access Lists',
+    path: cfg.routes.accessLists,
+    exact: false,
+    component: AccessListManagement,
+  };
+
+  // We will always render this feature regardless of
+  // access rules.
+  hasAccess() {
+    // TODO(lisa): Feature is temporarily turned off until
+    // feature is ready. Manually turn on for dev.
+    return false;
+  }
+
+  navigationItem = {
+    title: NavTitle.AccessLists,
+    icon: <UserList />,
+    getLink() {
+      return cfg.getAccessListManagementRoute(null);
+    },
+  };
+}
+
 class FeatureDeviceTrust implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
@@ -358,6 +389,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     // - Access
     new OSS.FeatureUsers(),
     new OSS.FeatureRoles(),
+    new FeatureAccessListManagement(),
     new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
     new OSS.FeatureLocks(),

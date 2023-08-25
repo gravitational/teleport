@@ -1,0 +1,179 @@
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import styled from 'styled-components';
+import useAttempt from 'shared/hooks/useAttemptNext';
+import { ButtonPrimary, Box, Indicator, Alert, Flex } from 'design';
+import useTeleport from 'teleport/useTeleport';
+import {
+  FeatureBox,
+  FeatureHeader,
+  FeatureHeaderTitle,
+} from 'teleport/components/Layout';
+
+import {
+  accessManagementService,
+  AccessList,
+} from 'e-teleport/services/accessmanagement';
+import cfg from 'e-teleport/config';
+
+import { NoAccessState } from '../NoAccessState';
+
+import { EmptyState } from './EmptyState';
+
+import { AccessCard } from './AccessCard';
+
+export function AccessLists() {
+  const ctx = useTeleport();
+  const perm = ctx.storeUser.getAccessListAccess();
+  const canUpsert = perm.create && perm.edit;
+  const canList = perm.read && perm.list;
+
+  const { attempt, run } = useAttempt(canList ? 'processing' : '');
+
+  const [accesses, setAccesses] = useState<AccessList[]>([]);
+  const [searchValue, setSearchValue] = useState('');
+  const [filteredAccesses, setFilteredAccesses] = useState<AccessList[]>([]);
+
+  useEffect(() => {
+    if (!canList) return;
+
+    run(() =>
+      accessManagementService.fetchAccessLists().then(res => {
+        setAccesses(res);
+        setFilteredAccesses(res);
+      })
+    );
+
+    // Static data fetched on init.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // onSearch currently only searchs through access lists
+  // "title" and "description".
+  // TODO(lisa): Consider separating searching logic from updating state,
+  // making it a pure function, and adding a unit test
+  function onSearch(s: string) {
+    if (!s) {
+      setFilteredAccesses(accesses);
+    }
+    // Split the search string into separate words
+    // so we can search for each category regardless of order.
+    const splitted = s.split(' ').map(s => s.toLowerCase());
+    const foundResources = accesses.filter(r => {
+      const title = r.title.toLowerCase();
+      const titleMatch = splitted.every(s => title.includes(s));
+      if (titleMatch) {
+        return true;
+      }
+
+      const description = r.description.toLowerCase();
+      const descriptionMatch = splitted.every(s => description.includes(s));
+      if (descriptionMatch) {
+        return true;
+      }
+
+      const strRoles = r.grants.roles.join('').toLowerCase();
+      const rolesMatch = splitted.every(s => strRoles.includes(s));
+      if (rolesMatch) {
+        return true;
+      }
+    });
+    setFilteredAccesses(foundResources);
+    setSearchValue(s);
+  }
+
+  let MainContent: React.ReactElement;
+  let showCreateBtn = true;
+  if (!canList) {
+    MainContent = <NoAccessState action="list" />;
+  } else if (attempt.status === 'processing') {
+    MainContent = (
+      <Box textAlign="center" m={10}>
+        <Indicator />
+      </Box>
+    );
+  } else if (attempt.status === 'failed') {
+    MainContent = <Alert children={attempt.statusText} />;
+  } else if (attempt.status === 'success' && accesses.length === 0) {
+    MainContent = <EmptyState />;
+    showCreateBtn = false;
+  } else {
+    MainContent = (
+      <>
+        <Box width="600px" mb={4}>
+          <InputWrapper mb={2}>
+            <StyledInput
+              placeholder="Search by title or description"
+              autoFocus
+              value={searchValue}
+              onChange={e => onSearch(e.target.value)}
+              max={100}
+            />
+          </InputWrapper>
+        </Box>
+        <AccessListContainer>
+          {filteredAccesses.map(a => (
+            <AccessCard accessList={a} key={a.id} />
+          ))}
+        </AccessListContainer>
+      </>
+    );
+  }
+
+  return (
+    <FeatureBox>
+      <FeatureHeader alignItems="center" justifyContent="space-between">
+        <FeatureHeaderTitle>Access Lists</FeatureHeaderTitle>
+        {showCreateBtn && (
+          <ButtonPrimary
+            title={
+              canUpsert
+                ? ''
+                : 'You do not have access to create and update an access list'
+            }
+            disabled={!canUpsert || attempt.status === 'processing'}
+            width="240px"
+            as={Link}
+            to={cfg.routes.accessListNew}
+          >
+            Create New Access List
+          </ButtonPrimary>
+        )}
+      </FeatureHeader>
+      {MainContent}
+    </FeatureBox>
+  );
+}
+
+const AccessListContainer = styled(Flex)`
+  align-items: stretch;
+  align-content: flex-start;
+  gap: 12px;
+  flex: 1 1 0;
+  flex-wrap: wrap;
+`;
+
+const InputWrapper = styled.div`
+  border-radius: ${props => props.theme.radii[5]}px;
+  height: 40px;
+  border: 1px solid ${props => props.theme.colors.spotBackground[2]};
+  &:hover,
+  &:focus,
+  &:active {
+    background: ${props => props.theme.colors.spotBackground[0]};
+  }
+`;
+
+const StyledInput = styled.input`
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+  transition: all 0.2s;
+  color: ${props => props.theme.colors.text.main};
+  background: transparent;
+  margin-right: ${props => props.theme.space[3]}px;
+  margin-bottom: ${props => props.theme.space[2]}px;
+  padding: ${props => props.theme.space[3]}px;
+`;
