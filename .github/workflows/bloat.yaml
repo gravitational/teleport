@@ -65,7 +65,7 @@ jobs:
         name: Build base
         id: build_base
         run: |
-          make full
+          make BUILDDIR=base_build full
           cd .github/shared-workflows/bot && go run main.go -workflow=binary-sizes --artifacts="tbot,tctl,teleport,tsh" --builddir="../../../base_build" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"  >> ~/teleport_base_build_stats
           echo "base_stats_file=~/teleport_base_build_stats" >> $GITHUB_OUTPUT
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
@@ -97,7 +97,7 @@ jobs:
           path: .github/shared-workflows
           ref: tross/skip_items_on_pr
 
-      - name: Build branch for bloat and environment leak test
+      - name: Build Binaries
         id: build_branch
         run: |
           BUILD_SECRET=FAKE_SECRET make full
@@ -110,7 +110,7 @@ jobs:
               exit 1; \
             fi; \
           done
-      - name: Check branch for bloat
+      - name: Check for bloat
         id: check_branch_bloat
         run: |
           current=$(pwd)/build
