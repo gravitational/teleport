@@ -251,6 +251,12 @@ export type TshClient = {
     rootClusterUri: uri.RootClusterUri,
     abortSignal: TshAbortSignal
   ) => Promise<WaitForConnectMyComputerNodeJoinResponse>;
+  deleteConnectMyComputerNode: (
+    clusterUri: uri.RootClusterUri
+  ) => Promise<void>;
+  getConnectMyComputerNodeName: (
+    uri: uri.RootClusterUri
+  ) => Promise<uri.ServerUri>;
 
   updateHeadlessAuthenticationState: (
     params: UpdateHeadlessAuthenticationStateParams,

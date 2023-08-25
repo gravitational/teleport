@@ -78,3 +78,13 @@ func (s *Handler) WaitForConnectMyComputerNodeJoin(ctx context.Context, req *api
 		Server: newAPIServer(server),
 	}, err
 }
+
+func (s *Handler) DeleteConnectMyComputerNode(ctx context.Context, req *api.DeleteConnectMyComputerNodeRequest) (*api.DeleteConnectMyComputerNodeResponse, error) {
+	res, err := s.DaemonService.DeleteConnectMyComputerNode(ctx, req)
+	return res, trace.Wrap(err)
+}
+
+func (s *Handler) GetConnectMyComputerNodeName(ctx context.Context, req *api.GetConnectMyComputerNodeNameRequest) (*api.GetConnectMyComputerNodeNameResponse, error) {
+	res, err := s.DaemonService.GetConnectMyComputerNodeName(req)
+	return res, trace.Wrap(err)
+}

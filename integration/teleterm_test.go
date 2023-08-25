@@ -32,6 +32,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -104,6 +105,11 @@ func TestTeleterm(t *testing.T) {
 	t.Run("WaitForConnectMyComputerNodeJoin", func(t *testing.T) {
 		t.Parallel()
 		testWaitForConnectMyComputerNodeJoin(t, pack, creds)
+	})
+
+	t.Run("DeleteConnectMyComputerNode", func(t *testing.T) {
+		t.Parallel()
+		testDeleteConnectMyComputerNode(t, pack)
 	})
 }
 
@@ -754,6 +760,130 @@ func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.Database
 
 	// Verify that WaitForConnectMyComputerNodeJoin returned with no errors.
 	require.NoError(t, <-waitForNodeJoinErr)
+}
+
+func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	t.Cleanup(cancel)
+
+	authServer := pack.Root.Cluster.Process.GetAuthServer()
+	uuid := uuid.NewString()
+	userName := fmt.Sprintf("user-cmc-%s", uuid)
+
+	// Prepare a role with rules required to call DeleteConnectMyComputerNode.
+	ruleWithAllowRules, err := types.NewRole(fmt.Sprintf("cmc-allow-rules-%v", uuid),
+		types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindNode, services.RW()),
+				},
+			},
+		})
+	require.NoError(t, err)
+	userRoles := []types.Role{ruleWithAllowRules}
+
+	_, err = auth.CreateUser(authServer, userName, userRoles...)
+	require.NoError(t, err)
+
+	// Log in as the new user.
+	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
+		Process:  pack.Root.Cluster.Process,
+		Username: userName,
+	})
+	require.NoError(t, err)
+	tc := mustLogin(t, userName, pack, creds)
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                tc.KeysDir,
+		InsecureSkipVerify: tc.InsecureSkipVerify,
+	})
+	require.NoError(t, err)
+
+	agentsDir := t.TempDir()
+	daemonService, err := daemon.New(daemon.Config{
+		Storage:        storage,
+		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      agentsDir,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		daemonService.Stop()
+	})
+
+	handler, err := handler.New(
+		handler.Config{
+			DaemonService: daemonService,
+		},
+	)
+	require.NoError(t, err)
+
+	profileName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
+	require.NoError(t, err)
+
+	// Start the new node.
+	nodeConfig := newNodeConfig(t, pack.Root.Cluster.Config.Auth.ListenAddr, "token", types.JoinMethodToken)
+	nodeConfig.DataDir = filepath.Join(agentsDir, profileName, "data")
+	nodeConfig.Log = libutils.NewLoggerForTests()
+	nodeSvc, err := service.NewTeleport(nodeConfig)
+	require.NoError(t, err)
+	require.NoError(t, nodeSvc.Start())
+	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
+
+	// watcher waits for the node to be added
+	addWatcher, err := authServer.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{
+			{Kind: types.KindNode},
+		},
+	})
+	require.NoError(t, err)
+	defer addWatcher.Close()
+
+	select {
+	case <-time.After(time.Second * 10):
+		t.Fatalf("Timeout waiting for event.")
+	case event := <-addWatcher.Events():
+		if event.Type != types.OpInit {
+			t.Fatalf("Unexpected event type.")
+		}
+		require.Equal(t, event.Type, types.OpInit)
+	case <-addWatcher.Done():
+		t.Fatal(addWatcher.Error())
+	}
+
+	WaitForResource(t, addWatcher, types.KindNode, nodeConfig.HostUUID)
+
+	// test
+	_, err = handler.DeleteConnectMyComputerNode(ctx, &api.DeleteConnectMyComputerNodeRequest{
+		RootClusterUri: uri.NewClusterURI(profileName).String(),
+	})
+	require.NoError(t, err)
+
+	// watcher waits for the node to be deleted
+	deleteWatcher, err := authServer.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{
+			{Kind: types.KindNode},
+		},
+	})
+	require.NoError(t, err)
+	defer deleteWatcher.Close()
+
+	select {
+	case <-time.After(time.Second * 10):
+		t.Fatalf("Timeout waiting for event.")
+	case event := <-deleteWatcher.Events():
+		if event.Type != types.OpInit {
+			t.Fatalf("Unexpected event type.")
+		}
+		require.Equal(t, event.Type, types.OpInit)
+	case <-deleteWatcher.Done():
+		t.Fatal(deleteWatcher.Error())
+	}
+
+	waitForResourceToBeDeleted(t, deleteWatcher, types.KindNode, nodeConfig.HostUUID)
+
+	_, err = authServer.GetNode(ctx, defaults.Namespace, nodeConfig.HostUUID)
+	// The token should no longer exist.
+	require.True(t, trace.IsNotFound(err))
 }
 
 // mustLogin logs in as the given user by completely skipping the actual login flow and saving valid
