@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	// Load kubeconfig auth plugins for gcp and azure.
@@ -185,9 +186,12 @@ func extractKubeCreds(ctx context.Context, component string, cluster string, cli
 }
 
 // newDirectTransports creates a new http.Transport that will be used to connect to the Kubernetes API server.
-// It is a direct connection, not going through a proxy.
+// It is a direct connection, not going through a Teleport proxy.
+// The transport used respects HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables.
 func newDirectTransports(component string, tlsConfig *tls.Config, transportConfig *transport.Config) (httpTransport, error) {
-	h1Transport, err := wrapTransport(newH1Transport(tlsConfig, nil), transportConfig)
+	h1Transport, err := wrapTransport(
+		utilnet.SetTransportDefaults(newH1Transport(tlsConfig, nil)),
+		transportConfig)
 	if err != nil {
 		return httpTransport{}, trace.Wrap(err)
 	}
@@ -196,6 +200,9 @@ func newDirectTransports(component string, tlsConfig *tls.Config, transportConfi
 	if err != nil {
 		return httpTransport{}, trace.Wrap(err)
 	}
+	// SetTransportDefaults sets the default values for the transport including
+	// support for HTTP_PROXY, HTTPS_PROXY, NO_PROXY, and the default user agent.
+	h2HTTPTransport = utilnet.SetTransportDefaults(h2HTTPTransport)
 	h2Transport, err := wrapTransport(h2HTTPTransport, transportConfig)
 	if err != nil {
 		return httpTransport{}, trace.Wrap(err)

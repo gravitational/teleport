@@ -68,3 +68,7 @@ export { UpgradeIcon } from './Upgrade';
 export { UserIcon } from './User';
 export { UsersIcon } from './Users';
 export { UserSettingsIcon } from './UserSettings';
+export { UserIdBadge } from './UserIdBadge';
+export { UserList } from './UserList';
+export { UsersTriple } from './UsersTriple';
+export { Wrench } from './Wrench';

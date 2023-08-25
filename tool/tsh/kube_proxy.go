@@ -38,7 +38,9 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -171,7 +173,6 @@ func (c *proxyKubeCommand) printTemplate(cf *CLIConf, localProxy *kubeLocalProxy
 
 type kubeLocalProxy struct {
 	tc             *client.TeleportClient
-	profile        *client.ProfileStatus
 	clusters       kubeconfig.LocalProxyClusters
 	kubeConfigPath string
 
@@ -202,12 +203,9 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		return nil, trace.Wrap(err)
 	}
 
-	keyPem, err := utils.ReadPath(profile.KeyPath())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	localClientKey, err := keys.ParsePrivateKey(keyPem)
+	// Generate a new private key for the proxy. The client's existing private key may be
+	// a hardware-backed private key, which cannot be added to the local proxy kube config.
+	localClientKey, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -223,7 +221,6 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 
 	kubeProxy := &kubeLocalProxy{
 		tc:        tc,
-		profile:   profile,
 		clusters:  clusters,
 		clientKey: localClientKey,
 		localCAs:  cas,
@@ -495,12 +492,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client
 			KubernetesCluster: kubeCluster,
 			RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
 		},
-		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return tc.PromptMFAChallenge(ctx, proxyAddr, c,
-				func(opts *client.PromptMFAChallengeOpts) {
-					opts.HintBeforePrompt = hint
-				})
-		},
+		tc.NewMFAPrompt(mfa.WithHintBeforePrompt(hint)),
 		client.WithMFARequired(&mfaRequired),
 	)
 	if err != nil {

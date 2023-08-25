@@ -58,9 +58,6 @@ type Presence interface {
 	// NodesGetter gets nodes
 	NodesGetter
 
-	// NodesStreamGetter gets nodes as a stream
-	NodesStreamGetter
-
 	// DeleteAllNodes deletes all nodes in a namespace.
 	DeleteAllNodes(ctx context.Context, namespace string) error
 
@@ -70,9 +67,6 @@ type Presence interface {
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
-
-	// StreamNodes streams a list of registered servers.
-	StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server]
 
 	// GetAuthServers returns a list of registered servers
 	GetAuthServers() ([]types.Server, error)

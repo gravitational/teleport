@@ -20,7 +20,9 @@ import ReactSelectCreatable from 'react-select/creatable';
 
 const styles = theme => ({
   multiValue: (base, state) => {
-    return state.data.isFixed ? { ...base, backgroundColor: 'gray' } : base;
+    return state.data.isFixed
+      ? { ...base, backgroundColor: `${theme.colors.spotBackground[2]}` }
+      : { ...base, backgroundColor: `${theme.colors.spotBackground[0]}` };
   },
   multiValueLabel: (base, state) => {
     if (state.data.isFixed) {
@@ -31,7 +33,7 @@ const styles = theme => ({
       return { ...base, paddingRight: 6 };
     }
 
-    return { ...base, color: theme.colors.text.primaryInverse };
+    return { ...base, color: theme.colors.text.primary };
   },
   multiValueRemove: (base, state) => {
     return state.data.isFixed || state.isDisabled
@@ -39,11 +41,37 @@ const styles = theme => ({
       : {
           ...base,
           cursor: 'pointer',
-          color: theme.colors.text.primaryInverse,
+          color: theme.colors.text.primary,
         };
   },
   menuList: base => {
-    return { ...base, color: theme.colors.text.primaryInverse };
+    return {
+      ...base,
+      color: theme.colors.text.primary,
+      backgroundColor: theme.colors.spotBackground[0],
+    };
+  },
+
+  control: base => ({
+    ...base,
+    backgroundColor: theme.colors.levels.surface,
+  }),
+
+  input: base => ({
+    ...base,
+    color: theme.colors.text.primary,
+  }),
+
+  menu: base => ({ ...base, backgroundColor: theme.colors.levels.elevated }),
+
+  option: (base, state) => {
+    if (state.isFocused) {
+      return {
+        ...base,
+        backgroundColor: theme.colors.spotBackground[1],
+      };
+    }
+    return base;
   },
 });
 

@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
@@ -46,17 +47,68 @@ const (
 	finalResponseHeader = "<FINAL RESPONSE>"
 )
 
-// NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.
-func NewAgent(assistClient assist.AssistEmbeddingServiceClient, username string) *Agent {
-	return &Agent{
-		tools: []Tool{
-			&commandExecutionTool{},
-			&embeddingRetrievalTool{
-				assistClient: assistClient,
-				currentUser:  username,
-			},
-		},
+// NewExecutionTool creates a new execution tool. The execution tool is responsible for executing commands.
+func NewExecutionTool() Tool {
+	return &commandExecutionTool{}
+}
+
+// NewGenerateTool creates a new generation tool. The generation tool is responsible for generating Bash commands.
+func NewGenerateTool() Tool {
+	return &commandGenerationTool{}
+}
+
+// NewRetrievalTool creates a new retrieval tool. The retrieval tool is responsible for retrieving embeddings.
+func NewRetrievalTool(assistClient assist.AssistEmbeddingServiceClient,
+	nodeClient NodeGetter,
+	userAccessChecker services.AccessChecker,
+	currentUser string,
+) Tool {
+	return &embeddingRetrievalTool{
+		assistClient:      assistClient,
+		currentUser:       currentUser,
+		nodeClient:        nodeClient,
+		userAccessChecker: userAccessChecker,
 	}
+}
+
+// NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.
+func NewAgent(tools ...Tool) (*Agent, error) {
+	if len(tools) == 0 {
+		return nil, trace.BadParameter("at least one tool is required")
+	}
+
+	return &Agent{
+		tools: tools,
+	}, nil
+}
+
+// ToolsConfig contains all the tool configuration and clients the tools
+// can potentially leverage to interact with Teleport. Such clients can be used
+// to list resources or check RBAC rules for example.
+type ToolsConfig struct {
+	// DisableEmbeddingsTool disables the embedding retrieval tool, useful in tests.
+	DisableEmbeddingsTool bool
+	// EmbeddingsClient is required when the embeddings tool is enabled.
+	EmbeddingsClient assist.AssistEmbeddingServiceClient
+	// AccessChecker is required when NodeClient is set
+	AccessChecker services.AccessChecker
+	// NodeClient is optional, when set, the tools might attempt to search for
+	// nodes directly from cache on small clusters.
+	NodeClient *services.NodeWatcher
+}
+
+// CheckAndSetDefaults checks if the ToolsConfig is valid and sets defaults
+// when needed.
+func (a *ToolsConfig) CheckAndSetDefaults() error {
+	if !a.DisableEmbeddingsTool {
+		if a.EmbeddingsClient == nil {
+			return trace.BadParameter("Embeddings client is mandatory when embedding tool is enabled")
+		}
+		if a.NodeClient != nil && a.AccessChecker == nil {
+			return trace.BadParameter("AccessChecker is required when NodeClient is set")
+		}
+	}
+	return nil
 }
 
 // Agent is a model storing static state which defines some properties of the chat model.
@@ -220,6 +272,25 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		}
 
 		log.Tracef("agent decided on command execution, let's translate to an agentFinish")
+		return stepOutput{finish: &agentFinish{output: completion}}, nil
+	}
+
+	if tool, ok := tool.(*commandGenerationTool); ok {
+		input, err := tool.parseInput(action.Input)
+		if err != nil {
+			action := &AgentAction{
+				Action: actionException,
+				Input:  observationPrefix + "Invalid or incomplete response",
+				Log:    thoughtPrefix + err.Error(),
+			}
+
+			return stepOutput{action: action, observation: action.Input}, nil
+		}
+		completion := &GeneratedCommand{
+			Command: input.Command,
+		}
+
+		log.Tracef("agent decided on command generation, let's translate to an agentFinish")
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	}
 

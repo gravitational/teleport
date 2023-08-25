@@ -96,6 +96,72 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	return accessList, nil
 }
 
+// AccessListMembersGetter defines an interface for reading access list members.
+type AccessListMembersGetter interface {
+	// ListAccessListMembers returns a paginated list of all access list members.
+	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// GetAccessListMember returns the specified access list member resource.
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+}
+
+// AccessListMembers defines an interface for managing AccessListMembers.
+type AccessListMembers interface {
+	AccessListMembersGetter
+
+	// UpsertAccessListMember creates or updates an access list member resource.
+	UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
+	// DeleteAccessListMember hard deletes the specified access list member resource.
+	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
+	// DeleteAllAccessListMembers hard deletes all access list members for an access list.
+	DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error
+	// DeleteAllAccessListMembers hard deletes all access list members.
+	DeleteAllAccessListMembers(ctx context.Context) error
+}
+
+// MarshalAccessListMember marshals the access list member resource to JSON.
+func MarshalAccessListMember(member *accesslist.AccessListMember, opts ...MarshalOption) ([]byte, error) {
+	if err := member.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !cfg.PreserveResourceID {
+		copy := *member
+		copy.SetResourceID(0)
+		member = &copy
+	}
+	return utils.FastMarshal(member)
+}
+
+// UnmarshalAccessListMember unmarshals the access list member resource from JSON.
+func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.AccessListMember, error) {
+	if len(data) == 0 {
+		return nil, trace.BadParameter("missing access list member data")
+	}
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var member *accesslist.AccessListMember
+	if err := utils.FastUnmarshal(data, &member); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+	if err := member.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cfg.ID != 0 {
+		member.SetResourceID(cfg.ID)
+	}
+	if !cfg.Expires.IsZero() {
+		member.SetExpiry(cfg.Expires)
+	}
+	return member, nil
+}
+
 // IsOwner will return true if the user is an owner for the current list.
 func IsOwner(identity tlsca.Identity, accessList *accesslist.AccessList) error {
 	isOwner := false

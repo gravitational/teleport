@@ -45,6 +45,7 @@ func TestAccessListUnmarshal(t *testing.T) {
 			Name: "test-access-list",
 		},
 		accesslist.Spec{
+			Title:       "title",
 			Description: "test access list",
 			Owners: []accesslist.Owner{
 				{
@@ -57,7 +58,8 @@ func TestAccessListUnmarshal(t *testing.T) {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				Frequency:     time.Hour,
+				NextAuditDate: time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
@@ -110,9 +112,10 @@ func TestAccessListUnmarshal(t *testing.T) {
 func TestAccessListMarshal(t *testing.T) {
 	expected, err := accesslist.NewAccessList(
 		header.Metadata{
-			Name: "test-rule",
+			Name: "test-access-list",
 		},
 		accesslist.Spec{
+			Title:       "title",
 			Description: "test access list",
 			Owners: []accesslist.Owner{
 				{
@@ -125,7 +128,8 @@ func TestAccessListMarshal(t *testing.T) {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				Frequency:     time.Hour,
+				NextAuditDate: time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
@@ -170,6 +174,52 @@ func TestAccessListMarshal(t *testing.T) {
 	data, err := MarshalAccessList(expected)
 	require.NoError(t, err)
 	actual, err := UnmarshalAccessList(data)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+// TestAccessListMemberUnmarshal verifies an access list member resource can be unmarshaled.
+func TestAccessListMemberUnmarshal(t *testing.T) {
+	expected, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: "test-access-list-member",
+		},
+		accesslist.AccessListMemberSpec{
+			AccessList: "access-list",
+			Name:       "member1",
+			Joined:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			Expires:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			Reason:     "because",
+			AddedBy:    "test-user1",
+		},
+	)
+	require.NoError(t, err)
+	data, err := utils.ToJSON([]byte(accessListMemberYAML))
+	require.NoError(t, err)
+	actual, err := UnmarshalAccessListMember(data)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+// TestAccessListMemberMarshal verifies a marshaled access list member resource can be unmarshaled back.
+func TestAccessListMemberMarshal(t *testing.T) {
+	expected, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: "test-access-list-member",
+		},
+		accesslist.AccessListMemberSpec{
+			AccessList: "access-list",
+			Name:       "member1",
+			Joined:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			Expires:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			Reason:     "because",
+			AddedBy:    "test-user1",
+		},
+	)
+	require.NoError(t, err)
+	data, err := MarshalAccessListMember(expected)
+	require.NoError(t, err)
+	actual, err := UnmarshalAccessListMember(data)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
@@ -350,6 +400,7 @@ func newAccessList(t *testing.T) *accesslist.AccessList {
 			Name: "test",
 		},
 		accesslist.Spec{
+			Title:       "title",
 			Description: "test access list",
 			Owners: []accesslist.Owner{
 				{
@@ -414,6 +465,7 @@ version: v1
 metadata:
   name: test-access-list
 spec:
+  title: "title"
   description: "test access list"  
   owners:
   - name: test-user1
@@ -422,6 +474,7 @@ spec:
     description: "test user 2"
   audit:
     frequency: "1h"
+    next_audit_date: "2023-02-02T00:00:00Z"
   membership_requires:
     roles:
     - mrole1
@@ -466,4 +519,18 @@ spec:
     expires: 2025-01-01T00:00:00Z
     reason: "because again"
     added_by: "test-user2"
+`
+
+var accessListMemberYAML = `---
+kind: access_list_member
+version: v1
+metadata:
+  name: test-access-list-member
+spec:
+  access_list: access-list
+  name: member1
+  joined: 2023-01-01T00:00:00Z
+  expires: 2024-01-01T00:00:00Z
+  reason: "because"
+  added_by: "test-user1"
 `

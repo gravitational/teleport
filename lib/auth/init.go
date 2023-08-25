@@ -44,6 +44,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -236,6 +237,9 @@ type InitConfig struct {
 	// AccessLists is a service that manages access list resources.
 	AccessLists services.AccessLists
 
+	// UserLoginStates is a service that manages user login states.
+	UserLoginState services.UserLoginStates
+
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
@@ -248,7 +252,7 @@ type InitConfig struct {
 	EmbeddingRetriever *ai.SimpleRetriever
 
 	// EmbeddingClient is a client that allows generating embeddings.
-	EmbeddingClient ai.Embedder
+	EmbeddingClient embedding.Embedder
 
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer
@@ -743,6 +747,9 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 		services.NewPresetReviewerRole(),
 		services.NewPresetRequesterRole(),
 		services.NewSystemAutomaticAccessApproverRole(),
+		services.NewPresetDeviceAdminRole(),
+		services.NewPresetDeviceEnrollRole(),
+		services.NewPresetRequireTrustedDeviceRole(),
 	}
 
 	g, gctx := errgroup.WithContext(ctx)

@@ -34,7 +34,8 @@ To manage cluster roles, a Teleport administrator can use the Web UI or the
 command line using [tctl resource commands](../reference/resources.mdx).
 To see the list of roles in a Teleport cluster, an administrator can execute:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
@@ -44,8 +45,8 @@ $ tsh login --user=myuser --proxy=teleport.example.com
 $ tctl get roles
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl.
@@ -53,7 +54,9 @@ $ tsh login --user=myuser --proxy=mytenant.teleport.sh
 $ tctl get roles
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 (!docs/pages/includes/backup-warning.mdx!)
 
@@ -437,3 +440,4 @@ Here is an explanation of the fields used in the `where` and `filter` conditions
 
 Check out our [predicate language](../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
 guide for a more in depth explanation of the language.
+

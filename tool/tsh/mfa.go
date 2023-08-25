@@ -29,20 +29,22 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/touchid"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	"github.com/gravitational/teleport/lib/auth/webauthnwin"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-	"golang.org/x/exp/slices"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
@@ -358,12 +360,10 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		// of finding out whether it is a Windows prompt or not).
 		const registeredMsg = "Using platform authentication for *registered* device, follow the OS dialogs"
 		const newMsg = "Using platform authentication for *new* device, follow the OS dialogs"
-		defer webauthnwin.ResetPromptPlatformMessage()
-		webauthnwin.PromptPlatformMessage = registeredMsg
+		defer wanwin.ResetPromptPlatformMessage()
+		wanwin.PromptPlatformMessage = registeredMsg
 
-		authResp, err := tc.PromptMFAChallenge(ctx, "" /* proxyAddr */, authChallenge, func(opts *client.PromptMFAChallengeOpts) {
-			opts.PromptDevicePrefix = "*registered* "
-		})
+		authResp, err := tc.NewMFAPrompt(mfa.WithPromptDevicePrefix("*registered*"))(ctx, authChallenge)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -383,7 +383,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_NewMFARegisterChallenge", resp.Response)
 		}
 
-		webauthnwin.PromptPlatformMessage = newMsg
+		wanwin.PromptPlatformMessage = newMsg
 		regResp, regCallback, err := promptRegisterChallenge(ctx, tc.WebProxyAddr, c.devType, regChallenge)
 		if err != nil {
 			return trace.Wrap(err)
@@ -441,7 +441,7 @@ func promptRegisterChallenge(ctx context.Context, proxyAddr, devType string, c *
 		if !strings.HasPrefix(proxyAddr, "https://") {
 			origin = "https://" + origin
 		}
-		cc := wanlib.CredentialCreationFromProto(c.GetWebauthn())
+		cc := wantypes.CredentialCreationFromProto(c.GetWebauthn())
 
 		if devType == touchIDDeviceType {
 			return promptTouchIDRegisterChallenge(origin, cc)
@@ -531,7 +531,7 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 	}}, nil
 }
 
-func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, error) {
+func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	log.Debugf("WebAuthn: prompting MFA devices with origin %q", origin)
 
 	prompt := wancli.NewDefaultPrompt(ctx, os.Stdout)
@@ -543,7 +543,7 @@ func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wan
 	return resp, trace.Wrap(err)
 }
 
-func promptTouchIDRegisterChallenge(origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, registerCallback, error) {
+func promptTouchIDRegisterChallenge(origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, registerCallback, error) {
 	log.Debugf("Touch ID: prompting registration with origin %q", origin)
 
 	reg, err := touchid.Register(origin, cc)
@@ -552,7 +552,7 @@ func promptTouchIDRegisterChallenge(origin string, cc *wanlib.CredentialCreation
 	}
 	return &proto.MFARegisterResponse{
 		Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: wanlib.CredentialCreationResponseToProto(reg.CCR),
+			Webauthn: wantypes.CredentialCreationResponseToProto(reg.CCR),
 		},
 	}, reg, nil
 }
@@ -610,7 +610,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		if authChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected DeleteMFADeviceResponse_MFAChallenge", resp.Response)
 		}
-		authResp, err := tc.PromptMFAChallenge(cf.Context, "" /* proxyAddr */, authChallenge, nil /* applyOpts */)
+		authResp, err := tc.PromptMFA(cf.Context, authChallenge)
 		if err != nil {
 			return trace.Wrap(err)
 		}

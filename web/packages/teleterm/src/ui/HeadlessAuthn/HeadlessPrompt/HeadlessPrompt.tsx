@@ -32,7 +32,9 @@ import type * as tsh from 'teleterm/services/tshd/types';
 export type HeadlessPromptProps = {
   cluster: tsh.Cluster;
   clientIp: string;
+  skipConfirm: boolean;
   onApprove(): Promise<void>;
+  abortApproval(): void;
   onReject(): Promise<void>;
   headlessAuthenticationId: string;
   updateHeadlessStateAttempt: Attempt<void>;
@@ -42,13 +44,17 @@ export type HeadlessPromptProps = {
 export function HeadlessPrompt({
   cluster,
   clientIp,
+  skipConfirm,
   onApprove,
+  abortApproval,
   onReject,
   headlessAuthenticationId,
   updateHeadlessStateAttempt,
   onCancel,
 }: HeadlessPromptProps) {
-  const [waitForMfa, setWaitForMfa] = useState(false);
+  // skipConfirm automatically attempts to approve a headless auth attempt,
+  // so let's show waitForMfa from the very beginning in that case.
+  const [waitForMfa, setWaitForMfa] = useState(skipConfirm);
 
   return (
     <DialogConfirmation
@@ -63,8 +69,15 @@ export function HeadlessPrompt({
         <Text typography="h4">
           Headless command on <b>{cluster.name}</b>
         </Text>
-        <ButtonIcon type="button" onClick={onCancel} color="text.slightlyMuted">
-          <Icons.Close fontSize={5} />
+        <ButtonIcon
+          type="button"
+          color="text.slightlyMuted"
+          onClick={() => {
+            abortApproval();
+            onCancel();
+          }}
+        >
+          <Icons.Cross size="medium" />
         </ButtonIcon>
       </DialogHeader>
       {updateHeadlessStateAttempt.status === 'error' && (
@@ -72,51 +85,54 @@ export function HeadlessPrompt({
           {updateHeadlessStateAttempt.statusText}
         </Alerts.Danger>
       )}
-
-      {!waitForMfa && (
-        <>
-          <DialogContent>
-            <Text color="text.slightlyMuted">
-              Someone initiated a headless command from <b>{clientIp}</b>.
-              <br />
-              If it was not you, click Reject and contact your administrator.
-            </Text>
-            <Text color="text.muted" mt={1} fontSize="12px">
-              Request ID: {headlessAuthenticationId}
-            </Text>
-          </DialogContent>
-          <DialogFooter>
-            <ButtonSecondary
-              autoFocus
-              mr={3}
-              type="submit"
-              onClick={e => {
-                e.preventDefault();
-                setWaitForMfa(true);
-                onApprove();
-              }}
-            >
-              Approve
-            </ButtonSecondary>
-            <ButtonSecondary
-              type="button"
-              onClick={e => {
-                e.preventDefault();
-                onReject();
-              }}
-            >
-              Reject
-            </ButtonSecondary>
-          </DialogFooter>
-        </>
-      )}
+      <DialogContent>
+        <Text color="text.slightlyMuted">
+          Someone initiated a headless command from <b>{clientIp}</b>.
+          <br />
+          If it was not you, click Cancel and contact your administrator.
+        </Text>
+        <Text color="text.muted" mt={1} fontSize="12px">
+          Request ID: {headlessAuthenticationId}
+        </Text>
+      </DialogContent>
       {waitForMfa && (
         <DialogContent mb={2}>
           <Text color="text.slightlyMuted">
             Complete MFA verification to approve the Headless Login.
           </Text>
-          <PromptWebauthn prompt={'tap'} onCancel={onCancel} />
+          <PromptWebauthn
+            prompt={'tap'}
+            onCancel={() => {
+              abortApproval();
+              onReject();
+            }}
+          />
         </DialogContent>
+      )}
+      {!waitForMfa && (
+        <DialogFooter>
+          <ButtonSecondary
+            autoFocus
+            mr={3}
+            type="submit"
+            onClick={e => {
+              e.preventDefault();
+              setWaitForMfa(true);
+              onApprove();
+            }}
+          >
+            Approve
+          </ButtonSecondary>
+          <ButtonSecondary
+            type="button"
+            onClick={e => {
+              e.preventDefault();
+              onReject();
+            }}
+          >
+            Cancel
+          </ButtonSecondary>
+        </DialogFooter>
       )}
     </DialogConfirmation>
   );
