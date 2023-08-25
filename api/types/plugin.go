@@ -30,6 +30,8 @@ type PluginType string
 const (
 	// PluginTypeUnknown is returned when no plugin type matches.
 	PluginTypeUnknown PluginType = ""
+	// PluginTypeServicenow is the Servicenow access request plugin
+	PluginTypeServicenow = "servicenow"
 	// PluginTypeSlack is the Slack access request plugin
 	PluginTypeSlack = "slack"
 	// PluginTypeOpenAI is the OpenAI plugin

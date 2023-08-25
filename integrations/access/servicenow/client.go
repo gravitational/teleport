@@ -223,6 +223,24 @@ func (snc *Client) GetOnCall(ctx context.Context, rotaID string) ([]string, erro
 	return emails, nil
 }
 
+// CheckHealth pings servicenow to check if it is reachable.
+func (snc *Client) CheckHealth(ctx context.Context) error {
+	resp, err := snc.client.NewRequest().
+		SetContext(ctx).
+		SetQueryParams(map[string]string{
+			"sysparm_limit": "1",
+		}).
+		Get("/api/now/table/incident")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer resp.RawResponse.Body.Close()
+	if resp.IsError() {
+		return errWrapper(resp.StatusCode(), string(resp.Body()))
+	}
+	return nil
+}
+
 // GetUserEmail returns the email address for the given user ID
 func (snc *Client) GetUserEmail(ctx context.Context, userID string) (string, error) {
 	var result userResult

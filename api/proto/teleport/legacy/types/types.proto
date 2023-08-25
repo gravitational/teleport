@@ -5336,6 +5336,8 @@ message PluginSpecV1 {
     PluginJiraSettings jira = 8;
     // Settings for the Discord plugin
     PluginDiscordSettings discord = 9;
+    // Settings for the ServiceNow plugin
+    PluginServicenowSettings servicenow = 10;
   }
 }
 
@@ -5359,6 +5361,17 @@ message PluginOpsgenieAccessSettings {
   repeated string default_schedules = 4;
   // APIEndpoint is the address of Opsgenie API.
   string api_endpoint = 5;
+}
+
+message PluginServicenowSettings {
+  option (gogoproto.equal) = true;
+
+  // Servicenow API endpoint.
+  string api_endpoint = 1 [(gogoproto.jsontag) = "api_endpoint,omitempty"];
+  // Servicenow API username.
+  string username = 2 [(gogoproto.jsontag) = "username,omitempty"];
+  // Servicenow API password.
+  string password = 3 [(gogoproto.jsontag) = "password,omitempty"];
 }
 
 message PluginPagerDutySettings {

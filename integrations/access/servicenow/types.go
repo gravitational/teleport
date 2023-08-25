@@ -22,8 +22,22 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// PluginData is a data associated with access request that we store in Teleport using UpdatePluginData API.
+type PluginData struct {
+	RequestData
+	ServicenowData
+}
+
+// ServicenowData is the data associated with access request that we store in Teleport using UpdatePluginData API.
+type ServicenowData struct {
+	// IncidentID is the servicenow sys_id of the incident
+	IncidentID string
+}
+
 // Incident represents a servicenow incident.
 type Incident struct {
+	// IncidentID is the sys_id of the incident
+	IncidentID string `json:"sys_id"`
 	// ShortDescription contains a brief summary of the incident.
 	ShortDescription string `json:"short_description"`
 	// Description contains the description of the incident.
@@ -37,6 +51,11 @@ type Incident struct {
 	// WorkNotes contains comments on the progress of the incident.
 	WorkNotes string `json:"work_notes"`
 }
+
+const (
+	ResolutionStateResolved = "6"
+	ResolutionStateClosed   = "7"
+)
 
 // Resolution stores the resolution state and the servicenow close code.
 type Resolution struct {
@@ -78,4 +97,12 @@ type userResult struct {
 		// Email is the email address in servicenow of the requested user.
 		Email string `json:"email"`
 	} `json:"result"`
+}
+
+type AccessResponse struct {
+	Scope            string `json:"scope"`
+	TokenType        string `json:"token_type"`
+	ExpiresInSeconds int    `json:"expires_in"`
+	RefreshToken     string `json:"refresh_token"`
+	AccessToken      string `json:"access_token"`
 }

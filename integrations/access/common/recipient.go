@@ -26,6 +26,8 @@ import (
 const (
 	// RecipientKindSchedule shows a recipient is a schedule.
 	RecipientKindSchedule = "schedule"
+	// RecipientKindRota shows a recipient is a rota.
+	RecipientKindRota = "rota"
 )
 
 // RawRecipientsMap is a mapping of roles to recipient(s).
