@@ -107,7 +107,7 @@ build-enterprise-binaries: buildbox-centos7 webassets
 # This builds Enterprise binaries only.
 #
 .PHONY:build-binaries-fips
-build-binaries-fips: buildbox-centos7-fips
+build-binaries-fips: buildbox-centos7-fips webassets
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes clean full
 
@@ -428,7 +428,7 @@ release-arm64: buildbox-arm
 # CI should not use this target, it should use named Makefile targets like release-amd64-fips.
 #
 .PHONY:release-fips
-release-fips: buildbox-centos7-fips
+release-fips: buildbox-centos7-fips webassets
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=yes
