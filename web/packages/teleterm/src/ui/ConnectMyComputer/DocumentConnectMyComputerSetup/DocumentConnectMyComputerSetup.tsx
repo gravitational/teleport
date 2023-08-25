@@ -32,6 +32,7 @@ import {
 import Logger from 'teleterm/logger';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
 import { RootClusterUri } from 'teleterm/ui/uri';
+import { isAccessDeniedError } from 'teleterm/services/tshd/errors';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
@@ -393,8 +394,4 @@ function StandardError(props: {
       {props.error}
     </Alerts.Danger>
   );
-}
-
-function isAccessDeniedError(error: Error): boolean {
-  return (error.message as string)?.includes('access denied');
 }
