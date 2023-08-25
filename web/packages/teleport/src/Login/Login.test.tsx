@@ -152,3 +152,26 @@ test('show login form after modt acknowledge', async () => {
   fireEvent.click(screen.getByText('Acknowledge'));
   expect(screen.getByPlaceholderText(/username/i)).toBeInTheDocument();
 });
+
+test('skip motd if login initiated from headless auth', async () => {
+  // set global window.location with redirect url.
+  global.window = Object.create(window);
+  const url =
+    'https://teleport.example.com/web/login?redirect_uri=https://teleport.example.com/web/headless/5c5c1f73-ac5c-52ee-bc9e-0353094dcb4a';
+  Object.defineProperty(window, 'location', {
+    value: {
+      href: url,
+    },
+  });
+
+  jest
+    .spyOn(cfg, 'getMotd')
+    .mockImplementation(
+      () => 'Welcome to cluster, your activity will be recorded.'
+    );
+  render(<Login />);
+
+  expect(
+    screen.queryByText('Welcome to cluster, your activity will be recorded.')
+  ).not.toBeInTheDocument();
+});
