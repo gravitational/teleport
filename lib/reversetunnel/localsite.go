@@ -254,16 +254,17 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 	return s.DialTCP(params)
 }
 
-func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, version string, useTunnel, checkVersion bool, srcAddr, dstAddr net.Addr) bool {
+func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, version string, useTunnel, checkVersion, isAgentlessNode bool, srcAddr, dstAddr net.Addr) bool {
 	return !(signer == nil ||
 		useTunnel ||
+		isAgentlessNode ||
 		(checkVersion && utils.CheckVersion(version, utils.MinIPPropagationVersion) != nil) ||
 		srcAddr == nil ||
 		dstAddr == nil)
 }
 
 func (s *localSite) maybeSendSignedPROXYHeader(params DialParams, conn net.Conn, useTunnel, checkVersion bool) error {
-	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, params.TeleportVersion, useTunnel, checkVersion, params.From, params.OriginalClientDstAddr) {
+	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, params.TeleportVersion, useTunnel, checkVersion, params.IsAgentlessNode, params.From, params.OriginalClientDstAddr) {
 		return nil
 	}
 
@@ -336,8 +337,8 @@ func (s *localSite) adviseReconnect(ctx context.Context) {
 }
 
 func (s *localSite) dialAndForward(params DialParams) (_ net.Conn, retErr error) {
-	if params.GetUserAgent == nil && params.AgentlessSigner == nil {
-		return nil, trace.BadParameter("user agent getter and agentless signer both missing")
+	if params.GetUserAgent == nil && !params.IsAgentlessNode {
+		return nil, trace.BadParameter("agentless node require an agent getter")
 	}
 	s.log.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 
@@ -379,6 +380,7 @@ func (s *localSite) dialAndForward(params DialParams) (_ net.Conn, retErr error)
 	serverConfig := forward.ServerConfig{
 		AuthClient:      s.client,
 		UserAgent:       userAgent,
+		IsAgentlessNode: params.IsAgentlessNode,
 		AgentlessSigner: params.AgentlessSigner,
 		TargetConn:      targetConn,
 		SrcAddr:         params.From,
@@ -503,6 +505,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
 		TeleportVersion: params.TeleportVersion,
+		IsAgentlessNode: params.IsAgentlessNode,
 	}
 	if params.To != nil {
 		dreq.Address = params.To.String()

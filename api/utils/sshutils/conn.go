@@ -104,6 +104,9 @@ type DialReq struct {
 	// ClientDstAddr is the original client's destination address, it is used to propagate
 	// correct client point of contact through indirect connections inside teleport
 	ClientDstAddr string `json:"client_dst_addr,omitempty"`
+
+	// IsAgentlessNode specifies whether the target is an agentless node.
+	IsAgentlessNode bool `json:"is_agentless_node,omitempty"`
 }
 
 // CheckAndSetDefaults verifies all the values are valid.

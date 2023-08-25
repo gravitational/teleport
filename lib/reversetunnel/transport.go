@@ -366,7 +366,7 @@ func (p *transport) start() {
 	}
 	var signedHeader []byte
 	isKubeOrAuth := dreq.ConnType == types.KubeTunnel || dreq.Address == RemoteAuthServer
-	if shouldSendSignedPROXYHeader(p.proxySigner, dreq.TeleportVersion, useTunnel, !isKubeOrAuth, clientSrc, clientDst) {
+	if shouldSendSignedPROXYHeader(p.proxySigner, dreq.TeleportVersion, useTunnel, !isKubeOrAuth, dreq.IsAgentlessNode, clientSrc, clientDst) {
 		signedHeader, err = p.proxySigner.SignPROXYHeader(clientSrc, clientDst)
 		if err != nil {
 			errorMessage := fmt.Sprintf("connection rejected - could not create signed PROXY header: %v", err)
