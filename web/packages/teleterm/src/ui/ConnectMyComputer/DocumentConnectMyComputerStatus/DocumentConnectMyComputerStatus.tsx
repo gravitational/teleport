@@ -161,7 +161,7 @@ export function DocumentConnectMyComputerStatus(
           </MenuIcon>
         </Flex>
 
-        <Transition in={!!agentNode} timeout={1_800} mountOnEnter>
+        <Transition in={!!agentNode} timeout={1_800} mountOnEnter unmountOnExit>
           {state => (
             <LabelsContainer gap={1} className={state}>
               {renderLabels(agentNode.labelsList)}
