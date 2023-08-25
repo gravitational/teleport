@@ -23,11 +23,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/msteams/msapi"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
-	"github.com/gravitational/trace"
 )
 
 const (

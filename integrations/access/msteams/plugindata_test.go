@@ -17,8 +17,9 @@ package msteams
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
 var samplePluginData = PluginData{
