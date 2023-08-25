@@ -239,13 +239,13 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
           // TODO(gzdunek) add progress
           return {
             Icon: StyledIndicator,
-            title: 'Verifying agent binary',
+            title: 'Checking agent version',
           };
         }
         case 'error': {
           return {
             Icon: StyledWarning,
-            title: 'Failed to download agent',
+            title: 'Failed to verify agent binary',
             error: currentAction.attempt.statusText,
           };
         }
