@@ -148,7 +148,7 @@ func (c clientCredentials) Dialer(client.Config) (client.ContextDialer, error) {
 }
 
 func (c clientCredentials) TLSConfig() (*tls.Config, error) {
-	return c.id.TLSConfig(utils.DefaultCipherSuites(), false)
+	return c.id.TLSConfig(utils.DefaultCipherSuites())
 }
 
 func (c clientCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {

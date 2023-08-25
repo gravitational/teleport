@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -311,13 +310,10 @@ func proxyServerIsAuth(server utils.NetAddr) bool {
 func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, error) {
 	var certs *proto.Certs
 
-	// Determine if either the local library is set to insecure, or insecure was passed as a parameter.
-	var insecure = params.Insecure || lib.IsInsecureDevMode()
-
 	switch params.JoinMethod {
 	case types.JoinMethodIAM, types.JoinMethodAzure:
 		// IAM and Azure join methods require gRPC client
-		conn, err := proxyJoinServiceConn(params, insecure)
+		conn, err := proxyJoinServiceConn(params, params.Insecure)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -339,7 +335,7 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 		var err error
 		certs, err = params.GetHostCredentials(context.Background(),
 			getHostAddresses(params)[0],
-			insecure,
+			params.Insecure,
 			types.RegisterUsingTokenRequest{
 				Token:                token,
 				HostID:               params.ID.HostUUID,
@@ -499,7 +495,7 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 	// otherwise use the CA on disk to validate the Auth Server.
 	if params.Insecure {
 		tlsConfig.InsecureSkipVerify = true
-		log.Warnf("Running in insecure mode. USE ONLY FOR DEVELOPMENT OR TESTING!")
+		log.Warnf("Running in insecure mode. Do not use this in production!")
 	} else if trace.IsNotFound(err) {
 		tlsConfig.InsecureSkipVerify = true
 

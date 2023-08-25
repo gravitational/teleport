@@ -281,8 +281,8 @@ type BotConfig struct {
 	// renewal.
 	ReloadCh <-chan struct{} `yaml:"-"`
 
-	// Insecure configures the bot to blindly trust the certificates offered by
-	// the auth server.
+	// Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification.
+	// Do not use in production.
 	Insecure bool `yaml:"insecure,omitempty"`
 }
 
