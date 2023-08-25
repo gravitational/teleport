@@ -70,7 +70,8 @@ function newFetchFunc(
       // Give the caller a chance to abort the request.
       await Promise.resolve();
       if (signal.aborted) {
-        throw newAbortError();
+        const err = newAbortError();
+        if (err) throw err;
       }
     }
     return {
@@ -335,7 +336,7 @@ describe.each`
   });
 });
 
-test('forceFetch() spawns another request, even if there is one pending', async () => {
+test('forceFetch spawns another request, even if there is one pending', async () => {
   const props = hookProps();
   const fetchSpy = jest.spyOn(props, 'fetchFunc');
   const { result } = renderHook(() => useKeyBasedPagination(props));
@@ -351,4 +352,38 @@ test('forceFetch() spawns another request, even if there is one pending', async 
   });
   await act(async () => Promise.all([f1, f2]));
   expect(resourceNames(result)).toEqual(['r0', 'r1']);
+});
+
+test("doesn't get confused if aborting a request still results in a successful promise", async () => {
+  // This one is tricky. It turns out that somewhere in our API layer, we
+  // perform some asynchronous operation that disregards the abort signal.
+  // Whether it's because some platform implementation doesn't adhere to the
+  // spec, or whether we miss some detail - all in all, in the principle, looks
+  // like this hook can't really trust the abort signal to be 100% effective.
+  let props = hookProps({
+    // Create a function that will never throw an abort error.
+    fetchFunc: newFetchFunc(1, () => null),
+    filter: { search: 'rabbit' },
+  });
+  const { result, rerender } = renderHook(useKeyBasedPagination, {
+    initialProps: props,
+  });
+  await act(result.current.fetch);
+  expect(resourceNames(result)).toEqual(['rabbit0']);
+
+  let f1, f2;
+  props = { ...props, filter: { search: 'duck' } };
+  rerender(props);
+  act(() => {
+    f1 = result.current.fetch();
+  });
+
+  props = { ...props, filter: { search: 'rabbit' } };
+  rerender(props);
+  act(() => {
+    f2 = result.current.fetch();
+  });
+
+  await act(async () => Promise.all([f1, f2]));
+  expect(resourceNames(result)).toEqual(['rabbit0']);
 });

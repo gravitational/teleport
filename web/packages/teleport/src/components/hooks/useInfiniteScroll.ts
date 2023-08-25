@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 
 /** Calls `callback` whenever the `trigger` element intersects the viewport.
  *
@@ -38,7 +38,7 @@ import { useEffect, useRef } from 'react';
 export function useInfiniteScroll(trigger: Element, callback: () => void) {
   const observer = useRef<IntersectionObserver | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (observer.current) {
       observer.current.disconnect();
     }

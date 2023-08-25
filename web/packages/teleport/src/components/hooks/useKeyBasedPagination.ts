@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import {
@@ -30,6 +30,9 @@ import { UrlResourcesParams } from 'teleport/config';
  * request, the server is expected to return a `startKey` field that denotes the
  * next `startKey` to use for the next request.
  *
+ * The hook maintains an invariant that there's only up to one valid
+ * pending request at all times. Any out-of-order responses are discarded.
+ *
  * This hook is intended to be used in tandem with the `useInfiniteScroll` hook.
  * See its documentation for an example.
  */
@@ -40,15 +43,20 @@ export function useKeyBasedPagination<T>({
   initialFetchSize = 30,
   fetchMoreSize = 20,
 }: Props<T>): State<T> {
-  const abortController = useRef<AbortController | null>(null);
   const { attempt, setAttempt } = useAttempt();
   const [finished, setFinished] = useState(false);
   const [resources, setResources] = useState<T[]>([]);
   const [startKey, setStartKey] = useState(null);
 
+  // Ephemeral state used solely to coordinate fetch calls, doesn't need to
+  // cause rerenders.
+  const abortController = useRef<AbortController | null>(null);
+  const pendingPromise = useRef<Promise<ResourcesResponse<T>> | null>(null);
+
   useEffect(() => {
     abortController.current?.abort();
     abortController.current = null;
+    pendingPromise.current = null;
 
     setAttempt({ status: '', statusText: '' });
     setFinished(false);
@@ -56,13 +64,10 @@ export function useKeyBasedPagination<T>({
     setStartKey(null);
   }, [clusterId, ...resourceFilterToHookDeps(filter)]);
 
-  // This is an additional countermeasure to prevent fetching if `fetch` is
-  // called multiple times per React state reconciliation cycle.
-  let fetchCalled = false;
   const fetch = async (force: boolean) => {
     if (
       finished ||
-      fetchCalled ||
+      (!force && pendingPromise.current) ||
       (!force &&
         (attempt.status === 'processing' || attempt.status === 'failed'))
     ) {
@@ -70,23 +75,41 @@ export function useKeyBasedPagination<T>({
     }
 
     try {
-      fetchCalled = true;
       setAttempt({ status: 'processing' });
-      const limit = resources.length > 0 ? fetchMoreSize : initialFetchSize;
       abortController.current?.abort();
       abortController.current = new AbortController();
-      const res = await fetchFunc(
+      const limit = resources.length > 0 ? fetchMoreSize : initialFetchSize;
+      const newPromise = fetchFunc(
         clusterId,
         {
           ...filter,
           limit,
+          // startKey: startKey,
           startKey,
         },
         abortController.current.signal
       );
+      pendingPromise.current = newPromise;
+
+      const res = await newPromise;
+
+      if (pendingPromise.current !== newPromise) {
+        return;
+      }
+
+      pendingPromise.current = null;
       abortController.current = null;
+      // Note: even though the old resources appear in this call, this _is_ more
+      // correct than a standard practice of using a callback form of
+      // `setState`. This is because, contrary to an "increasing a counter"
+      // analogy, adding given set of resources to the current set of resources
+      // strictly depends on the exact set of resources that were there when
+      // `fetch` was called. This shouldn't make a difference in practice (we
+      // have other ways to mitigate discrepancies here), but better safe than
+      // sorry.
       setResources([...resources, ...res.agents]);
       setStartKey(res.startKey);
+      // startKey = res.startKey;
       if (!res.startKey) {
         setFinished(true);
       }
@@ -98,12 +121,22 @@ export function useKeyBasedPagination<T>({
         return;
       }
       setAttempt({ status: 'failed', statusText: err.message });
+    } finally {
     }
   };
 
+  const callbackDeps = [
+    clusterId,
+    ...resourceFilterToHookDeps(filter),
+    startKey,
+    resources,
+    finished,
+    attempt,
+  ];
+
   return {
-    fetch: () => fetch(false),
-    forceFetch: () => fetch(true),
+    fetch: useCallback(() => fetch(false), callbackDeps),
+    forceFetch: useCallback(() => fetch(true), callbackDeps),
     attempt,
     resources,
     finished,

@@ -60,6 +60,8 @@ export function Resources() {
     fetchFunc: teleCtx.resourceService.fetchUnifiedResources,
     clusterId,
     filter: params,
+    initialFetchSize: 1,
+    fetchMoreSize: 1,
   });
 
   const scrollDetector = useRef(null);
@@ -70,7 +72,7 @@ export function Resources() {
     history.replace(cfg.getNodesRoute(clusterId));
   }
 
-  const retryClicked = () => {
+  const onRetryClicked = () => {
     forceFetch();
   };
 
@@ -81,7 +83,7 @@ export function Resources() {
           <ErrorBoxInternal>
             <Danger>
               {attempt.statusText}
-              <ButtonLink onClick={retryClicked}>Retry</ButtonLink>
+              <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
             </Danger>
           </ErrorBoxInternal>
         </ErrorBox>
@@ -118,17 +120,17 @@ export function Resources() {
       <div ref={scrollDetector} />
       <ListFooter>
         <IndicatorContainer status={attempt.status}>
-          <Indicator size={`${indicatorSize}px`} />
+          <Indicator size={INDICATOR_SIZE} />
         </IndicatorContainer>
         {attempt.status === 'failed' && resources.length > 0 && (
-          <ButtonSecondary onClick={retryClicked}>Load more</ButtonSecondary>
+          <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
         )}
       </ListFooter>
     </FeatureBox>
   );
 }
 
-const indicatorSize = 48; //px
+const INDICATOR_SIZE = '48px';
 
 const ResourcesContainer = styled(Flex)`
   display: grid;
@@ -155,7 +157,7 @@ const ErrorBoxInternal = styled(Box)`
 // keep the same amount of whitespace below the resource list.
 const ListFooter = styled.div`
   margin-top: ${props => props.theme.space[2]}px;
-  min-height: ${indicatorSize}px;
+  min-height: ${INDICATOR_SIZE};
   text-align: center;
 `;
 
