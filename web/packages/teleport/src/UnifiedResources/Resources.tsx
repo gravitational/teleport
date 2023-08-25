@@ -40,6 +40,8 @@ import { ResourceCard } from './ResourceCard';
 import SearchPanel from './SearchPanel';
 import { FilterPanel } from './FilterPanel';
 
+const RESOURCES_MAX_WIDTH = '1800px';
+
 export function Resources() {
   const { isLeafCluster } = useStickyClusterId();
   const enabled = localStorage.areUnifiedResourcesEnabled();
@@ -100,8 +102,20 @@ export function Resources() {
   }
 
   return (
-    <FeatureBox>
-      <FeatureHeader alignItems="center" justifyContent="space-between">
+    <FeatureBox
+      css={`
+        max-width: ${RESOURCES_MAX_WIDTH};
+        margin: auto;
+      `}
+    >
+      <FeatureHeader
+        css={`
+          border-bottom: none;
+        `}
+        mb={1}
+        alignItems="center"
+        justifyContent="space-between"
+      >
         <FeatureHeaderTitle>Resources</FeatureHeaderTitle>
         <Flex alignItems="center">
           <AgentButtonAdd
@@ -162,6 +176,9 @@ export function Resources() {
 const ResourcesContainer = styled(Flex)`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  @media (min-width: ${RESOURCES_MAX_WIDTH}) {
+    grid-template-columns: repeat(4, minmax(400px, 1fr));
+  }
 `;
 
 const emptyStateInfo: EmptyStateInfo = {
