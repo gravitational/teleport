@@ -288,7 +288,7 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
     }
     // Wait before navigating away from the document, so the user has time
     // to notice that all four steps have completed.
-    await wait(500);
+    await wait(750);
     markAgentAsConfigured();
   }, [
     setCreateRoleAttempt,
