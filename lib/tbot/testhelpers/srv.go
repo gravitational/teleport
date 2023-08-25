@@ -37,6 +37,17 @@ import (
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
+type DefaultBotConfigOpts struct {
+	// Makes the bot connect via the Auth Server instead of the Proxy server.
+	PreferAuthServerOverProxyServer bool
+
+	// Makes the bot accept an Insecure auth or proxy server
+	Insecure bool
+
+	// Overwrites the CAPins
+	CAPins []string `default:nil`
+}
+
 // DefaultConfig returns a FileConfig to be used in tests, with random listen
 // addresses that are tied to the listeners returned in the FileDescriptor
 // slice, which should be passed as exported file descriptors to NewTeleport;
@@ -167,7 +178,7 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) *p
 // - Uses a memory storage destination
 // - Does not verify Proxy WebAPI certificates
 func DefaultBotConfig(
-	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, outputs []botconfig.Output, preferAuthServerOverProxyServer bool, insecure bool,
+	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, outputs []botconfig.Output, defaultBotConfigOpts DefaultBotConfigOpts,
 ) *botconfig.BotConfig {
 	t.Helper()
 
@@ -176,7 +187,7 @@ func DefaultBotConfig(
 	require.NoError(t, err)
 
 	var authServer = ""
-	if preferAuthServerOverProxyServer {
+	if defaultBotConfigOpts.PreferAuthServerOverProxyServer {
 		authServer = authCfg.AuthServerAddresses()[0].String()
 	} else {
 		authServer = authCfg.Proxy.WebAddr.String()
@@ -194,7 +205,7 @@ func DefaultBotConfig(
 		Outputs: outputs,
 		// Set Insecure so the bot will trust the Proxy's webapi default signed
 		// certs.
-		Insecure: insecure,
+		Insecure: defaultBotConfigOpts.Insecure,
 	}
 
 	cfg.Onboarding.SetToken(botParams.TokenID)

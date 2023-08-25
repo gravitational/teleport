@@ -218,8 +218,10 @@ func TestBot(t *testing.T) {
 			sshHostOutput,
 			kubeOutput,
 		},
-		true,
-		true,
+		testhelpers.DefaultBotConfigOpts{
+			PreferAuthServerOverProxyServer: true,
+			Insecure:                        true,
+		},
 	)
 	b := New(botConfig, log)
 	require.NoError(t, b.Run(ctx))
@@ -371,7 +373,13 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	// Create bot user and join token
 	botParams := testhelpers.MakeBot(t, rootClient, "test", "access")
 
-	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{}, true, true)
+	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
+		testhelpers.DefaultBotConfigOpts{
+			PreferAuthServerOverProxyServer: true,
+			Insecure:                        true,
+		},
+	)
+
 	// Use a destination directory to ensure locking behaves correctly and
 	// the bot isn't left in a locked state.
 	directoryDest := &config.DestinationDirectory{
@@ -410,7 +418,12 @@ func TestBot_Insecure(t *testing.T) {
 	// Create bot user and join token
 	botParams := testhelpers.MakeBot(t, rootClient, "test", "access")
 
-	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{}, false, true)
+	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
+		testhelpers.DefaultBotConfigOpts{
+			PreferAuthServerOverProxyServer: false,
+			Insecure:                        true,
+		},
+	)
 	// Use a destination directory to ensure locking behaves correctly and
 	// the bot isn't left in a locked state.
 	directoryDest := &config.DestinationDirectory{
@@ -423,4 +436,44 @@ func TestBot_Insecure(t *testing.T) {
 	// Run the bot a first time
 	firstBot := New(botConfig, log)
 	require.NoError(t, firstBot.Run(ctx))
+}
+
+func TestBot_Insecure_ClearCAPins(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	log := utils.NewLoggerForTests()
+
+	// Make a new auth server.
+	fc, fds := testhelpers.DefaultConfig(t)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+
+	// Create bot user and join token
+	botParams := testhelpers.MakeBot(t, rootClient, "test", "access")
+
+	var caPins = []string{"sha256:68517d9f8591d29d0b1fdbd157389db3ef92ea101c4867d45b8719049a6ac8f5"}
+
+	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
+		testhelpers.DefaultBotConfigOpts{
+			PreferAuthServerOverProxyServer: false,
+			Insecure:                        true,
+			CAPins:                          caPins,
+		},
+	)
+
+	// Use a destination directory to ensure locking behaves correctly and
+	// the bot isn't left in a locked state.
+	directoryDest := &config.DestinationDirectory{
+		Path:     t.TempDir(),
+		Symlinks: botfs.SymlinksInsecure,
+		ACLs:     botfs.ACLOff,
+	}
+	botConfig.Storage.Destination = directoryDest
+
+	// Run the bot a first time
+	firstBot := New(botConfig, log)
+	require.NoError(t, firstBot.Run(ctx))
+
+	// The CAPins should have been 'deleted' because of the Insecure mode.
+	require.Empty(t, firstBot.cfg.Onboarding.CAPins)
 }
