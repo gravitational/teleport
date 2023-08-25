@@ -336,7 +336,8 @@ update functionality is not compatible with these agents. We need a separate met
 To keep Farage agents updated, Teleport will run a separate task on the Auth service. The task checks every 30 minutes for an available
 update and uses the ECS Fargate API to update Teleport agents. This task does not need to be run on all Teleport clusters. It will only be
 needed if the `TELEPORT_AUTOMATIC_UPGRADES` environment variable is enabled. The window when Fargate agents are updated should also coincide
-with the maintenance window.
+with the maintenance window. If there is a simple way to identify unhealthy agents, they can be updated outside of the maintenance window,
+but otherwise, the agent will just be updated during the next maintenance window.
 
 The logic flow will look like the same as the core update model:
 
