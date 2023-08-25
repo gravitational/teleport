@@ -277,10 +277,10 @@ func (c *CircularBuffer) removeWatcherWithLock(watcher *BufferWatcher) {
 		c.Warningf("Internal logic error: %v.", trace.DebugReport(trace.BadParameter("empty watcher")))
 		return
 	}
-	c.Debugf("Removing watcher %p via external close.", watcher)
+	c.Debugf("Removing watcher %v (%p) via external close.", watcher.Name, watcher)
 	found := c.watchers.rm(watcher)
 	if !found {
-		c.Debugf("Could not find watcher %v.", watcher)
+		c.Debugf("Could not find watcher %v.", watcher.Name)
 	}
 }
 

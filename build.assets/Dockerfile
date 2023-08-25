@@ -1,3 +1,9 @@
+###################################################################################
+#                                                                                 #
+#      DO NOT USE FOR PRODUCTION BUILD OR ANYTHING OTHER THAN CI TESTING!         #
+#                                                                                 #
+###################################################################################
+
 # This Dockerfile makes the "build box" the container used to:
 # * run test and linters in CI
 # * building other Docker images
@@ -303,16 +309,11 @@ RUN go install github.com/daixiang0/gci@v0.11.0
 RUN go install gotest.tools/gotestsum@v1.10.1
 
 # Install golangci-lint.
-RUN TAG='v1.54.1' && \
-    curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
-    sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
+RUN curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh" | \
+    sh -s -- -b "$(go env GOPATH)/bin"
 
 # Install Buf.
-ARG BUF_VERSION # eg, "1.19.0"
-RUN BIN='/usr/local/bin' && \
-  VERSION="$BUF_VERSION" && \
-  curl -fsSL "https://github.com/bufbuild/buf/releases/download/v$VERSION/buf-$(uname -s)-$(uname -m)" -o "${BIN}/buf" && \
-  chmod +x "$BIN/buf"
+RUN go install github.com/bufbuild/buf/cmd/buf@latest
 
 # Copy BPF libraries.
 ARG LIBBPF_VERSION

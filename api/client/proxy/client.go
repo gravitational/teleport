@@ -38,6 +38,7 @@ import (
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
 // ClientConfig contains configuration needed for a Client
@@ -274,12 +275,14 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 				append(cfg.UnaryInterceptors,
 					otelgrpc.UnaryClientInterceptor(),
 					metadata.UnaryClientInterceptor,
+					interceptors.GRPCClientUnaryErrorInterceptor,
 				)...,
 			),
 			grpc.WithChainStreamInterceptor(
 				append(cfg.StreamInterceptors,
 					otelgrpc.StreamClientInterceptor(),
 					metadata.StreamClientInterceptor,
+					interceptors.GRPCClientStreamErrorInterceptor,
 				)...,
 			),
 		}, cfg.DialOpts...)...,

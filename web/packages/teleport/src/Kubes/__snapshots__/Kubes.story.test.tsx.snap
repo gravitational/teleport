@@ -249,8 +249,7 @@ exports[`empty state 1`] = `
               kind="primary"
               width="224px"
             >
-              Add 
-              kubernetes
+              Add Resource
             </button>
           </a>
           <a

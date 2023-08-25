@@ -40,6 +40,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/authz"
@@ -172,8 +173,8 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 	})
 
 	s := grpc.NewServer(
-		grpc.StreamInterceptor(utils.GRPCServerStreamErrorInterceptor),
-		grpc.UnaryInterceptor(utils.GRPCServerUnaryErrorInterceptor),
+		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
+		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
 	t.Cleanup(func() {
 		s.GracefulStop()
@@ -205,8 +206,8 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 			}, err
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
-		grpc.WithUnaryInterceptor(utils.GRPCClientUnaryErrorInterceptor),
+		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
+		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
