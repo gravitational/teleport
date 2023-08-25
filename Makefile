@@ -700,9 +700,11 @@ test-helm-update-snapshots: helmunit/installed
 test-go: test-go-prepare test-go-unit test-go-libfido2 test-go-touch-id test-go-tsh test-go-chaos
 
 #
-# Runs a test to ensure no environment leak in build, called by CI/CD.
+# Runs a test to ensure no environment variable leak into build binaries.
+# This is typically done as part of the bloat test in CI, but this 
+# target exists for local testing.
 #
-.PHONY: test-env
+.PHONY: test-env-leakage
 test-env:
 	$(eval export BUILD_SECRET=FAKE_SECRET)
 	$(MAKE) full
