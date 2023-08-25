@@ -104,7 +104,6 @@ export class AgentRunner {
   async kill(rootClusterUri: RootClusterUri): Promise<void> {
     const agent = this.agentProcesses.get(rootClusterUri);
     if (!agent) {
-      this.logger.warn(`Cannot get an agent to kill for ${rootClusterUri}`);
       return;
     }
     this.logger.info(`Killing agent for ${rootClusterUri}`);
