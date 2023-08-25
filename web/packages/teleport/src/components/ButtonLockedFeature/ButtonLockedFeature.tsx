@@ -45,7 +45,9 @@ export function ButtonLockedFeature({
   const isUsageBased = cfg.isUsageBasedBilling;
 
   function handleClick() {
-    userEventService.captureCtaEvent(event);
+    if (isEnterprise) {
+      userEventService.captureCtaEvent(event);
+    }
   }
 
   return (
@@ -60,7 +62,7 @@ export function ButtonLockedFeature({
       {...rest}
     >
       <Flex alignItems="center">
-        {!noIcon && <UnlockIcon />}
+        {!noIcon && <UnlockIcon data-testid="locked-icon" />}
         {children}
       </Flex>
     </ButtonPrimary>

@@ -20,15 +20,25 @@ import { render } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 
-import { Loaded, LoadedWithCTA } from './Sessions.story';
+import {
+  Loaded,
+  ActiveSessionsCTA,
+  ModeratedSessionsCTA,
+} from './Sessions.story';
 
 test('loaded', () => {
   const { container } = render(<Loaded />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('loaded with CTA', () => {
+test('active sessions CTA', () => {
   cfg.isUsageBasedBilling = true;
-  const { container } = render(<LoadedWithCTA />);
+  const { container } = render(<ActiveSessionsCTA />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('moderated sessions CTA', () => {
+  cfg.isUsageBasedBilling = true;
+  const { container } = render(<ModeratedSessionsCTA />);
   expect(container.firstChild).toMatchSnapshot();
 });
