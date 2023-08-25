@@ -349,6 +349,9 @@ func TestChat_Complete_AuditQuery(t *testing.T) {
 	chat := client.NewAuditQuery("bob")
 
 	ctx := context.Background()
+	// We insert a message to make the conversation not empty and skip the
+	// greeting message.
+	chat.Insert(openai.ChatMessageRoleUser, "Hello")
 	result, _, err := chat.Complete(ctx, "List users who connected to a server as root", func(action *model.AgentAction) {})
 	require.NoError(t, err)
 

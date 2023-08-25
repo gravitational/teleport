@@ -89,7 +89,6 @@ You MUST RESPOND ONLY with a single table name. If no table can answer the quest
 			Temperature: 0,
 		},
 	)
-
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -157,7 +156,6 @@ Today's date is DATE('%s')`, time.Now().Format("2006-01-02")),
 			Temperature: 0,
 		},
 	)
-
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
