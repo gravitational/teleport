@@ -85,6 +85,7 @@ var _ ClientI = &Client{}
 // functionality that hasn't been ported to the new client yet.
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
 	cfg.DialInBackground = true
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

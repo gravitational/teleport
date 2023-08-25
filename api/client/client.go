@@ -123,8 +123,8 @@ type Client struct {
 // unless LoadProfile is used to fetch Credentials and load a web proxy dialer.
 //
 // See the example below for usage.
-func New(ctx context.Context, cfg Config) (clt *Client, err error) {
-	if err = cfg.CheckAndSetDefaults(); err != nil {
+func New(ctx context.Context, cfg Config) (*Client, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -134,6 +134,7 @@ func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 	if cfg.DialInBackground {
 		return connectInBackground(ctx, cfg)
 	}
+
 	return connect(ctx, cfg)
 }
 
@@ -454,6 +455,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
+			interceptors.RetryWithMFAUnaryInterceptor(c.performMFACeremony),
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
@@ -621,6 +623,9 @@ type Config struct {
 	// PROXYHeaderGetter returns signed PROXY header that is sent to allow Proxy to propagate client's real IP to the
 	// auth server from the Proxy's web server, when we create user's client for the web session.
 	PROXYHeaderGetter PROXYHeaderGetter
+	// PromptAdminRequestMFA is used to prompt the user for MFA on admin requests when needed.
+	// If nil, the client will not prompt for MFA.
+	PromptAdminRequestMFA func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -663,6 +668,7 @@ func (c *Config) CheckAndSetDefaults() error {
 			grpc.WithReturnConnectionError(),
 		)
 	}
+
 	return nil
 }
 
@@ -804,6 +810,7 @@ func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
+
 	return *rsp, nil
 }
 
