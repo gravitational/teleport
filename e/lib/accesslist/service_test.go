@@ -53,7 +53,7 @@ var cmpOpts = []cmp.Option{
 	}),
 }
 
-func TestGetAccessLists(t *testing.T) {
+func TestService_GetAccessLists(t *testing.T) {
 	t.Parallel()
 
 	ctx, ownerCtx, svc, clock := initSvc(t)
@@ -80,14 +80,7 @@ func TestGetAccessLists(t *testing.T) {
 	// a3 will have different ownership requirements.
 	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
-	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a1)})
-	require.NoError(t, err)
-
-	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
-	require.NoError(t, err)
-
-	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a3)})
-	require.NoError(t, err)
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2, a3}, nil)
 
 	// members should always be stripped from getall/list endpoints
 	a1.Spec.Members = []accesslist.Member{}
@@ -116,7 +109,7 @@ func TestGetAccessLists(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a3}, mustFromProtoAll(t, getResp.AccessLists...), cmpOpts...))
 }
 
-func TestListAccessLists(t *testing.T) {
+func TestService_ListAccessLists(t *testing.T) {
 	t.Parallel()
 
 	ctx, ownerCtx, svc, clock := initSvc(t)
@@ -144,20 +137,7 @@ func TestListAccessLists(t *testing.T) {
 	// a3 will have different ownership requirements.
 	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
-	_, err := svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a1)})
-	require.NoError(t, err)
-
-	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
-	require.NoError(t, err)
-
-	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a3)})
-	require.NoError(t, err)
-
-	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a4)})
-	require.NoError(t, err)
-
-	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a5)})
-	require.NoError(t, err)
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2, a3, a4, a5}, nil)
 
 	// members should always be stripped from getall/list endpoints
 	a1.Spec.Members = []accesslist.Member{}
@@ -210,7 +190,7 @@ func listAccessLists(ctx context.Context, t *testing.T, svc *Service, pageSize i
 	return accessLists
 }
 
-func TestUpsertAccessList(t *testing.T) {
+func TestService_UpsertAccessList(t *testing.T) {
 	t.Parallel()
 
 	ctx, ownerCtx, svc, clock := initSvc(t)
@@ -292,7 +272,7 @@ func TestUpsertAccessList(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err))
 }
 
-func TestGetAccessList(t *testing.T) {
+func TestService_GetAccessList(t *testing.T) {
 	t.Parallel()
 
 	ctx, ownerCtx, svc, clock := initSvc(t)
@@ -319,14 +299,7 @@ func TestGetAccessList(t *testing.T) {
 	// a3 will have different ownership requirements.
 	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
-	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a1)})
-	require.NoError(t, err)
-
-	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
-	require.NoError(t, err)
-
-	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a3)})
-	require.NoError(t, err)
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2, a3}, nil)
 
 	get, err := svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
@@ -370,7 +343,7 @@ func TestGetAccessList(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-func TestDeleteAccessList(t *testing.T) {
+func TestService_DeleteAccessList(t *testing.T) {
 	t.Parallel()
 
 	ctx, _, svc, clock := initSvc(t)
@@ -381,8 +354,7 @@ func TestDeleteAccessList(t *testing.T) {
 
 	a1 := newAccessList(t, "1", clock)
 
-	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a1)})
-	require.NoError(t, err)
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1}, nil)
 
 	get, err := svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
@@ -395,7 +367,7 @@ func TestDeleteAccessList(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 }
 
-func TestDeleteAllAccessLists(t *testing.T) {
+func TestService_DeleteAllAccessLists(t *testing.T) {
 	t.Parallel()
 
 	ctx, _, svc, clock := initSvc(t)
@@ -408,14 +380,7 @@ func TestDeleteAllAccessLists(t *testing.T) {
 	a2 := newAccessList(t, "2", clock)
 	a3 := newAccessList(t, "3", clock)
 
-	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a1)})
-	require.NoError(t, err)
-
-	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
-	require.NoError(t, err)
-
-	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a3)})
-	require.NoError(t, err)
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2, a3}, nil)
 
 	// members should always be stripped from getall/list endpoints
 	a1.Spec.Members = []accesslist.Member{}
@@ -551,6 +516,283 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 		}), svc, clock
 }
 
+func TestService_ListAccessListMembers(t *testing.T) {
+	t.Parallel()
+
+	ctx, ownerCtx, svc, clock := initSvc(t)
+
+	a1 := newAccessList(t, "1", clock)
+	a2 := newAccessList(t, "2", clock)
+	a3 := newAccessList(t, "3", clock)
+
+	// a3 will have different ownership requirements.
+	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
+
+	a1m1 := newAccessListMember(t, a1.GetName(), "user1", clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), "user2", clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), "user1", clock)
+	a2m2 := newAccessListMember(t, a2.GetName(), "user2", clock)
+	a3m1 := newAccessListMember(t, a3.GetName(), "user1", clock)
+	a3m2 := newAccessListMember(t, a3.GetName(), "user2", clock)
+
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2, a3m1, a3m2})
+
+	// Admin should be able to list everything
+	members := listAllAccessListMembers(ctx, t, svc, a1.GetName(), 1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessListMember{a1m1, a1m2}, members, cmpOpts...))
+
+	// owner should be able to see members for a2
+	members = listAllAccessListMembers(ownerCtx, t, svc, a2.GetName(), 1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessListMember{a2m1, a2m2}, members, cmpOpts...))
+
+	// owner should not be able to see members for a3
+	_, err := svc.ListAccessListMembers(ownerCtx, &accesslistv1.ListAccessListMembersRequest{
+		PageSize:   0,
+		PageToken:  "",
+		AccessList: a3.GetName(),
+	})
+	require.True(t, trace.IsAccessDenied(err))
+}
+
+func TestService_GetAccessListMember(t *testing.T) {
+	t.Parallel()
+
+	ctx, ownerCtx, svc, clock := initSvc(t)
+
+	a1 := newAccessList(t, "1", clock)
+
+	a1m1 := newAccessListMember(t, a1.GetName(), "user1", clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), "user2", clock)
+
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1}, []*accesslist.AccessListMember{a1m1, a1m2})
+
+	// Admin should be able to get members
+	member, err := svc.GetAccessListMember(ctx, &accesslistv1.GetAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m1.GetName()})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(a1m1, mustFromMemberProto(t, member), cmpOpts...))
+
+	// owner should be able to see members for a1
+	member, err = svc.GetAccessListMember(ownerCtx, &accesslistv1.GetAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m2.GetName()})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(a1m2, mustFromMemberProto(t, member), cmpOpts...))
+}
+
+func TestService_UpsertAccessListMember(t *testing.T) {
+	t.Parallel()
+
+	ctx, ownerCtx, svc, clock := initSvc(t)
+
+	a1 := newAccessList(t, "1", clock)
+
+	_, err := svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a1)})
+	require.NoError(t, err)
+
+	a1m1 := newAccessListMember(t, a1.GetName(), "user1", clock)
+
+	require.Equal(t, a1m1.Spec.AddedBy, testUser)
+
+	got, err := svc.UpsertAccessListMember(ownerCtx, &accesslistv1.UpsertAccessListMemberRequest{Member: conv.ToMemberProto(a1m1)})
+	require.NoError(t, err)
+
+	// Added by should be overridden from "test-user" to "owner-user"
+	want := a1m1
+	want.Spec.AddedBy = ownerUser
+
+	require.Empty(t, cmp.Diff(want, mustFromMemberProto(t, got), cmpOpts...))
+
+	got, err = svc.GetAccessListMember(ctx, &accesslistv1.GetAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m1.GetName()})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(want, mustFromMemberProto(t, got), cmpOpts...))
+
+	// Update from admin should still retain the old added by, reason, and joined
+	oldJoined := a1m1.Spec.Joined
+	want.Spec.Reason = "some new reason"
+	want.Spec.Joined = clock.Now().Add(time.Hour * 24)
+	_, err = svc.UpsertAccessListMember(ctx, &accesslistv1.UpsertAccessListMemberRequest{Member: conv.ToMemberProto(a1m1)})
+	require.NoError(t, err)
+
+	want.Spec.Joined = oldJoined
+	got, err = svc.GetAccessListMember(ctx, &accesslistv1.GetAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m1.GetName()})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(want, mustFromMemberProto(t, got), cmpOpts...))
+}
+
+func TestService_DeleteAccessListMember(t *testing.T) {
+	t.Parallel()
+
+	ctx, ownerCtx, svc, clock := initSvc(t)
+
+	a1 := newAccessList(t, "1", clock)
+
+	a1m1 := newAccessListMember(t, a1.GetName(), "user1", clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), "user2", clock)
+
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1}, []*accesslist.AccessListMember{a1m1, a1m2})
+
+	// Admin should be able to delete members
+	_, err := svc.DeleteAccessListMember(ctx, &accesslistv1.DeleteAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m1.GetName()})
+	require.NoError(t, err)
+
+	members := listAllAccessListMembers(ctx, t, svc, a1.GetName(), 1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessListMember{a1m2}, members, cmpOpts...))
+
+	// owner should be able to delete members
+	_, err = svc.DeleteAccessListMember(ownerCtx, &accesslistv1.DeleteAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m2.GetName()})
+	require.NoError(t, err)
+	members = listAllAccessListMembers(ctx, t, svc, a1.GetName(), 1)
+	require.Empty(t, members)
+}
+
+func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
+	t.Parallel()
+
+	ctx, ownerCtx, svc, clock := initSvc(t)
+
+	a1 := newAccessList(t, "1", clock)
+	a2 := newAccessList(t, "2", clock)
+
+	a1m1 := newAccessListMember(t, a1.GetName(), "user1", clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), "user2", clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), "user1", clock)
+	a2m2 := newAccessListMember(t, a2.GetName(), "user2", clock)
+
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2})
+
+	// Admin should be able to delete members
+	_, err := svc.DeleteAllAccessListMembersForAccessList(ctx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{AccessList: a1.GetName()})
+	require.NoError(t, err)
+
+	members := listAllAccessListMembers(ctx, t, svc, a1.GetName(), 1)
+	require.Empty(t, members)
+
+	// owner should be able to delete members
+	_, err = svc.DeleteAllAccessListMembersForAccessList(ownerCtx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{AccessList: a2.GetName()})
+	require.NoError(t, err)
+
+	members = listAllAccessListMembers(ctx, t, svc, a2.GetName(), 1)
+	require.Empty(t, members)
+}
+
+func TestService_DeleteAllAccessListMembers(t *testing.T) {
+	t.Parallel()
+
+	ctx, ownerCtx, svc, clock := initSvc(t)
+
+	a1 := newAccessList(t, "1", clock)
+	a2 := newAccessList(t, "2", clock)
+
+	a1m1 := newAccessListMember(t, a1.GetName(), "user1", clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), "user2", clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), "user1", clock)
+	a2m2 := newAccessListMember(t, a2.GetName(), "user2", clock)
+
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2})
+
+	// owners can't use this endpoint
+	_, err := svc.DeleteAllAccessListMembers(ownerCtx, &accesslistv1.DeleteAllAccessListMembersRequest{})
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Admin should be able to delete all members
+	_, err = svc.DeleteAllAccessListMembers(ctx, &accesslistv1.DeleteAllAccessListMembersRequest{})
+	require.NoError(t, err)
+
+	members := listAllAccessListMembers(ctx, t, svc, a1.GetName(), 1)
+	require.Empty(t, members)
+
+	members = listAllAccessListMembers(ctx, t, svc, a2.GetName(), 1)
+	require.Empty(t, members)
+}
+
+func TestService_AuthOrIsOwner(t *testing.T) {
+	t.Parallel()
+
+	ctx, ownerCtx, svc, clock := initSvc(t)
+	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
+		"mtrait1": {"mvalue1", "mvalue2"},
+		"mtrait2": {"mvalue3", "mvalue4"},
+	})
+	nonExistentUser := genUserContext(context.Background(), "doesnt-exist", []string{"mrole1", "mrole2"}, map[string][]string{
+		"mtrait1": {"mvalue1", "mvalue2"},
+		"mtrait2": {"mvalue3", "mvalue4"},
+	})
+
+	a1 := newAccessList(t, "1", clock)
+	a2 := newAccessList(t, "2", clock)
+
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2}, nil)
+
+	tests := []struct {
+		name           string
+		ctx            context.Context
+		accessListName string
+		wantErr        require.ErrorAssertionFunc
+	}{
+		{
+			name:           "admin context",
+			ctx:            ctx,
+			accessListName: a1.GetName(),
+			wantErr:        require.NoError,
+		},
+		{
+			name:           "owner context",
+			ctx:            ownerCtx,
+			accessListName: a1.GetName(),
+			wantErr:        require.NoError,
+		},
+		{
+			name:           "member context",
+			ctx:            memberCtx,
+			accessListName: a1.GetName(),
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name:           "non-existent user context",
+			ctx:            nonExistentUser,
+			accessListName: a1.GetName(),
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			test.wantErr(t, svc.authOrIsOwner(test.ctx, test.accessListName, types.VerbRead))
+		})
+	}
+}
+
+func listAllAccessListMembers(ctx context.Context, t *testing.T, service *Service, accessListName string, pageSize int) []*accesslist.AccessListMember {
+	t.Helper()
+
+	var nextToken string
+	var members []*accesslist.AccessListMember
+	for {
+		resp, err := service.ListAccessListMembers(ctx, &accesslistv1.ListAccessListMembersRequest{
+			PageSize:   int32(pageSize),
+			PageToken:  nextToken,
+			AccessList: accessListName,
+		})
+		require.NoError(t, err)
+
+		for _, member := range resp.Members {
+			members = append(members, mustFromMemberProto(t, member))
+		}
+
+		nextToken = resp.NextPageToken
+		if nextToken == "" {
+			break
+		}
+	}
+
+	return members
+}
+
 func genUserContext(ctx context.Context, username string, groups []string, traits map[string][]string) context.Context {
 	return authz.ContextWithUser(ctx, authz.LocalUser{
 		Username: username,
@@ -629,10 +871,40 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 	return accessList
 }
 
+func newAccessListMember(t *testing.T, accessListName, memberName string, clock clockwork.Clock) *accesslist.AccessListMember {
+	t.Helper()
+
+	member, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: memberName,
+		},
+		accesslist.AccessListMemberSpec{
+			AccessList: accessListName,
+			Name:       memberName,
+			Joined:     clock.Now().UTC(),
+			Expires:    clock.Now().UTC().Add(24 * time.Hour),
+			Reason:     "because",
+			AddedBy:    testUser,
+		},
+	)
+	require.NoError(t, err)
+
+	return member
+}
+
 func mustFromProto(t *testing.T, accessList *accesslistv1.AccessList) *accesslist.AccessList {
 	t.Helper()
 
 	out, err := conv.FromProto(accessList)
+	require.NoError(t, err)
+
+	return out
+}
+
+func mustFromMemberProto(t *testing.T, member *accesslistv1.Member) *accesslist.AccessListMember {
+	t.Helper()
+
+	out, err := conv.FromMemberProto(member)
 	require.NoError(t, err)
 
 	return out
@@ -649,4 +921,18 @@ func mustFromProtoAll(t *testing.T, accessLists ...*accesslistv1.AccessList) []*
 	}
 
 	return convertedAccessLists
+}
+
+func createAccessListsAndMembers(t *testing.T, ctx context.Context, service *Service, accessLists []*accesslist.AccessList, members []*accesslist.AccessListMember) {
+	t.Helper()
+
+	for _, al := range accessLists {
+		_, err := service.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(al)})
+		require.NoError(t, err)
+	}
+
+	for _, member := range members {
+		_, err := service.UpsertAccessListMember(ctx, &accesslistv1.UpsertAccessListMemberRequest{Member: conv.ToMemberProto(member)})
+		require.NoError(t, err)
+	}
 }

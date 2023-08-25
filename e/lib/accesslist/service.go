@@ -366,3 +366,154 @@ func (s *Service) DeleteAllAccessLists(ctx context.Context, _ *accesslistv1.Dele
 
 	return &emptypb.Empty{}, nil
 }
+
+// ListAccessListMembers returns a paginated list of all access list members.
+func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (*accesslistv1.ListAccessListMembersResponse, error) {
+	if err := s.authOrIsOwner(ctx, req.AccessList, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	results, nextToken, err := s.accessLists.ListAccessListMembers(ctx, req.AccessList, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	members := make([]*accesslistv1.Member, len(results))
+	for i, r := range results {
+		members[i] = conv.ToMemberProto(r)
+	}
+
+	return &accesslistv1.ListAccessListMembersResponse{
+		Members:       members,
+		NextPageToken: nextToken,
+	}, nil
+}
+
+// GetAccessListMember returns the specified access list member resource.
+func (s *Service) GetAccessListMember(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslistv1.Member, error) {
+	if err := s.authOrIsOwner(ctx, req.AccessList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result, err := s.accessLists.GetAccessListMember(ctx, req.AccessList, req.MemberName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conv.ToMemberProto(result), nil
+}
+
+// UpsertAccessListMember creates or updates an access list member resource.
+func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.UpsertAccessListMemberRequest) (*accesslistv1.Member, error) {
+	if err := s.authOrIsOwner(ctx, req.Member.Spec.AccessList, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	member, err := conv.FromMemberProto(req.Member)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If the user didn't exist before, make sure the current user is recorded as the user that added it.
+	if oldMember, err := s.accessLists.GetAccessListMember(ctx, member.Spec.AccessList, member.GetName()); trace.IsNotFound(err) {
+		user, err := authz.UserFromContext(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		member.Spec.AddedBy = user.GetIdentity().Username
+		member.Spec.Joined = s.clock.Now()
+	} else {
+		// If the user already existed, use the old added by, reason, and joined.
+		member.Spec.AddedBy = oldMember.Spec.AddedBy
+		member.Spec.Joined = oldMember.Spec.Joined
+	}
+
+	result, err := s.accessLists.UpsertAccessListMember(ctx, member)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conv.ToMemberProto(result), nil
+}
+
+// DeleteAccessListMember hard deletes the specified access list member resource.
+func (s *Service) DeleteAccessListMember(ctx context.Context, req *accesslistv1.DeleteAccessListMemberRequest) (*emptypb.Empty, error) {
+	if err := s.authOrIsOwner(ctx, req.AccessList, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err := s.accessLists.DeleteAccessListMember(ctx, req.AccessList, req.MemberName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list (without deleting the access list itself).
+func (s *Service) DeleteAllAccessListMembersForAccessList(ctx context.Context, req *accesslistv1.DeleteAllAccessListMembersForAccessListRequest) (*emptypb.Empty, error) {
+	if err := s.authOrIsOwner(ctx, req.AccessList, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err := s.accessLists.DeleteAllAccessListMembersForAccessList(ctx, req.AccessList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteAllAccessListMembers hard deletes all access list members for all access lists (without deleting the access lists themselves).
+func (s *Service) DeleteAllAccessListMembers(ctx context.Context, req *accesslistv1.DeleteAllAccessListMembersRequest) (*emptypb.Empty, error) {
+	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAccessList, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err := s.accessLists.DeleteAllAccessListMembers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// Check if the user is either authorized for the access list or owns this access list.
+func (s *Service) authOrIsOwner(ctx context.Context, accessListName string, verbs ...string) error {
+	// Make sure the user is authorized within Teleport.
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		s.log.WithError(err).Debug("Failed to authorize user")
+		// Return an opaque error
+		return trace.AccessDenied("access denied")
+	}
+
+	ruleCtx := &services.Context{
+		User: authCtx.User,
+	}
+
+	// Test if the user has RBAC access to access lists. If so, we can exit early.
+	_, authErr := authz.AuthorizeContextWithVerbs(ctx, s.log, authCtx, true, ruleCtx, types.KindAccessList, verbs...)
+	if authErr == nil {
+		return nil
+	}
+
+	// Otherwise, we need to check if the user owns the access list.
+	identity := authCtx.Identity.GetIdentity()
+
+	accessList, err := s.accessLists.GetAccessList(ctx, accessListName)
+	if err != nil {
+		s.log.WithError(err).Debug("Failed to get access list")
+		// Return an opaque error
+		return trace.AccessDenied("access denied")
+	}
+
+	if err := services.IsOwner(identity, accessList); err != nil {
+		s.log.WithError(err).Debug("IsOwner returned error")
+		// Return an opaque error
+		return trace.AccessDenied("access denied")
+	}
+
+	return nil
+}
