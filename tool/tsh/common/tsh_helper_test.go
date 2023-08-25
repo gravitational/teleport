@@ -201,11 +201,16 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	})
 	require.NoError(t, err)
 
+	tunnelAddr := s.root.Config.Proxy.WebAddr.String()
+	if s.root.Config.Auth.NetworkingConfig.GetProxyListenerMode() != types.ProxyListenerMode_Multiplex {
+		tunnelAddr = s.root.Config.Proxy.ReverseTunnelListenAddr.String()
+	}
+
 	tc, err := types.NewTrustedCluster("root-cluster", types.TrustedClusterSpecV2{
 		Enabled:              true,
 		Token:                staticToken,
 		ProxyAddress:         s.root.Config.Proxy.WebAddr.String(),
-		ReverseTunnelAddress: s.root.Config.Proxy.WebAddr.String(),
+		ReverseTunnelAddress: tunnelAddr,
 		RoleMap: []types.RoleMapping{
 			{
 				Remote: "access",
@@ -268,19 +273,11 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 
 	if options.leafCluster || options.leafConfigFunc != nil {
 		s.setupLeafCluster(t, options)
-		// Wait for root/leaf to find each other.
-		if s.root.Config.Auth.NetworkingConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
-			require.Eventually(t, func() bool {
-				rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
-				require.NoError(t, err)
-				return len(rt) == 1
-			}, time.Second*10, time.Second)
-		} else {
-			require.Eventually(t, func() bool {
-				_, err := s.leaf.GetAuthServer().GetReverseTunnel(s.root.Config.Auth.ClusterName.GetClusterName())
-				return err == nil
-			}, time.Second*10, time.Second)
-		}
+		require.Eventually(t, func() bool {
+			rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
+			require.NoError(t, err)
+			return len(rt) == 1
+		}, time.Second*10, time.Second)
 	}
 
 	if options.validationFunc != nil {
