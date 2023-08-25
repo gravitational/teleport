@@ -813,6 +813,8 @@ message AWSInfo {
   // When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection.
   // This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.
   string Integration = 5 [(gogoproto.jsontag) = "integration,omitempty"];
+  // SubnetID is the Subnet ID in use by the instance.
+  string SubnetID = 6 [(gogoproto.jsontag) = "subnet_id,omitempty"];
 }
 
 // CloudMetadata contains info about the cloud instance a server is running

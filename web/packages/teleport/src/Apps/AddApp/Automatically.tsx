@@ -96,7 +96,7 @@ export function Automatically(props: Props) {
               />
               <FieldInput
                 rule={requiredAppUri}
-                label="INTERNAL APPLICATION URL"
+                label="Internal Application URL"
                 width="100%"
                 value={uri}
                 placeholder="https://localhost:4000"

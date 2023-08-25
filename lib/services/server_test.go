@@ -39,6 +39,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 			PrivateDnsName:   aws.String("my-private-dns.compute.aws"),
 			InstanceId:       aws.String("i-123456789abcedf"),
 			VpcId:            aws.String("vpc-abcd"),
+			SubnetId:         aws.String("subnet-123"),
 			PrivateIpAddress: aws.String("172.31.1.1"),
 			Tags: []ec2Types.Tag{
 				{
@@ -88,6 +89,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 							InstanceID:  "i-123456789abcedf",
 							Region:      "us-east-1",
 							VPCID:       "vpc-abcd",
+							SubnetID:    "subnet-123",
 							Integration: "myintegration",
 						},
 					},
@@ -133,6 +135,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 							InstanceID:  "i-123456789abcedf",
 							Region:      "us-east-1",
 							VPCID:       "vpc-abcd",
+							SubnetID:    "subnet-123",
 							Integration: "myintegration",
 						},
 					},

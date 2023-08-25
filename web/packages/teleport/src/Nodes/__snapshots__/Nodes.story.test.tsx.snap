@@ -51,6 +51,7 @@ exports[`empty state 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 224px;
+  text-transform: none;
 }
 
 .c11:hover,
@@ -95,6 +96,7 @@ exports[`empty state 1`] = `
   padding: 0px 24px;
   margin-left: 24px;
   width: 224px;
+  text-transform: none;
 }
 
 .c12:hover,
@@ -249,8 +251,7 @@ exports[`empty state 1`] = `
               kind="primary"
               width="224px"
             >
-              Add 
-              server
+              Add Resource
             </button>
           </a>
           <a
@@ -995,7 +996,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -1049,7 +1050,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -1103,7 +1104,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -1157,7 +1158,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -1211,7 +1212,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -1270,7 +1271,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -1329,7 +1330,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -1446,6 +1447,7 @@ exports[`loaded 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c3:hover,
@@ -2165,7 +2167,7 @@ exports[`loaded 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -2219,7 +2221,7 @@ exports[`loaded 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -2273,7 +2275,7 @@ exports[`loaded 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -2327,7 +2329,7 @@ exports[`loaded 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -2381,7 +2383,7 @@ exports[`loaded 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -2440,7 +2442,7 @@ exports[`loaded 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -2499,7 +2501,7 @@ exports[`loaded 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"

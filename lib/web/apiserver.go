@@ -411,7 +411,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.bindDefaultEndpoints()
 	}
 
-	// if Web UI is enabled, check the assets dir:
+	// serve the web UI from the embedded filesystem
 	var indexPage *template.Template
 	if cfg.StaticFS != nil {
 		index, err := cfg.StaticFS.Open("/index.html")
@@ -429,6 +429,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
 		}
 
+		h.Handle("GET", "/robots.txt", httplib.MakeHandler(serveRobotsTxt))
 		h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
 	}
 
@@ -779,6 +780,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
+	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
 
 	// AWS OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
@@ -1480,6 +1482,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		AutomaticUpgrades:        clusterFeatures.GetAutomaticUpgrades(),
 		AssistEnabled:            assistEnabled,
 		HideInaccessibleFeatures: clusterFeatures.GetFeatureHiding(),
+		CustomTheme:              clusterFeatures.GetCustomTheme(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -2579,9 +2582,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 			unifiedResources = append(unifiedResources, desktop)
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			unifiedResources = append(unifiedResources, kube)
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", resource)
@@ -2800,7 +2800,7 @@ func (h *Handler) siteNodeConnect(
 	if params == "" {
 		return nil, trace.BadParameter("missing params")
 	}
-	var req *TerminalRequest
+	var req TerminalRequest
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2824,13 +2824,13 @@ func (h *Handler) siteNodeConnect(
 	clusterName := site.GetName()
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
-		sessionData, err = h.generateSession(ctx, clt, req, clusterName, sessionCtx)
+		sessionData, err = h.generateSession(ctx, clt, &req, clusterName, sessionCtx)
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		sessionData, tracker, err = h.fetchExistingSession(ctx, clt, req, clusterName)
+		sessionData, tracker, err = h.fetchExistingSession(ctx, clt, &req, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4181,4 +4181,15 @@ func isDashboard(features proto.Features) bool {
 	// the presence of recovery codes, which are never enabled
 	// in OSS or self-hosted Teleport.
 	return !features.GetCloud() && features.GetRecoveryCodes()
+}
+
+const robots = `User-agent: *
+Disallow: /`
+
+func serveRobotsTxt(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(robots))
+	return nil, nil
 }

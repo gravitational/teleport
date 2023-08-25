@@ -209,6 +209,7 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
           // the user may not have permissions to remove the token, but it will expire in a few minutes anyway
           if (isAccessDeniedError(error)) {
             logger.error('Access denied when deleting a token.', error);
+            return;
           }
           throw error;
         }
@@ -331,7 +332,13 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
         `}
       >
         {steps.map(step => (
-          <Flex key={step.name} alignItems="baseline" gap={2}>
+          <Flex
+            key={step.name}
+            alignItems="baseline"
+            gap={2}
+            data-testid={step.name}
+            data-teststatus={step.attempt.status}
+          >
             {step.attempt.status === '' && <CirclePlay />}
             {step.attempt.status === 'processing' && (
               <Spinner

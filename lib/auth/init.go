@@ -747,6 +747,9 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 		services.NewPresetReviewerRole(),
 		services.NewPresetRequesterRole(),
 		services.NewSystemAutomaticAccessApproverRole(),
+		services.NewPresetDeviceAdminRole(),
+		services.NewPresetDeviceEnrollRole(),
+		services.NewPresetRequireTrustedDeviceRole(),
 	}
 
 	g, gctx := errgroup.WithContext(ctx)

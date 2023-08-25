@@ -6388,6 +6388,7 @@ func mustAccessRequest(t *testing.T, user string, state types.RequestState, crea
 	accessRequest.SetCreationTime(created)
 	accessRequest.SetExpiry(expires)
 	accessRequest.SetAccessExpiry(expires)
+	accessRequest.SetMaxDuration(expires)
 	accessRequest.SetSessionTLL(expires)
 	accessRequest.SetThresholds([]types.AccessReviewThreshold{{Name: "default", Approve: 1, Deny: 1}})
 	accessRequest.SetRoleThresholdMapping(map[string]types.ThresholdIndexSets{

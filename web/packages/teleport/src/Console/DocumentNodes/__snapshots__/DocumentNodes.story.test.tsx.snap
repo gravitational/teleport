@@ -173,9 +173,7 @@ exports[`render DocumentNodes 1`] = `
 .c5 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -962,7 +960,7 @@ exports[`render DocumentNodes 1`] = `
                   height="24px"
                   kind="border"
                 >
-                  CONNECT
+                  Connect
                   <span
                     class="c30 icon icon-chevrondown"
                     color="text.slightlyMuted"
@@ -1016,7 +1014,7 @@ exports[`render DocumentNodes 1`] = `
                   height="24px"
                   kind="border"
                 >
-                  CONNECT
+                  Connect
                   <span
                     class="c30 icon icon-chevrondown"
                     color="text.slightlyMuted"
@@ -1075,7 +1073,7 @@ exports[`render DocumentNodes 1`] = `
                   height="24px"
                   kind="border"
                 >
-                  CONNECT
+                  Connect
                   <span
                     class="c30 icon icon-chevrondown"
                     color="text.slightlyMuted"
@@ -1134,7 +1132,7 @@ exports[`render DocumentNodes 1`] = `
                   height="24px"
                   kind="border"
                 >
-                  CONNECT
+                  Connect
                   <span
                     class="c30 icon icon-chevrondown"
                     color="text.slightlyMuted"
@@ -1212,7 +1210,7 @@ exports[`render DocumentNodes 1`] = `
                   height="24px"
                   kind="border"
                 >
-                  CONNECT
+                  Connect
                   <span
                     class="c30 icon icon-chevrondown"
                     color="text.slightlyMuted"

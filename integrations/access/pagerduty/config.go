@@ -31,7 +31,7 @@ type Config struct {
 	Log       logger.Config      `toml:"log"`
 
 	// Teleport is a handle to the client to use when communicating with
-	// the Teleport auth server. The PagerDuty app will create a GRPC-
+	// the Teleport auth server. The PagerDuty app will create a gRPC-
 	// based client on startup if this is not set.
 	Client teleport.Client
 
