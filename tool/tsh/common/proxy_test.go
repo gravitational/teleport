@@ -239,6 +239,7 @@ func TestSSHLoadAllCAs(t *testing.T) {
 			err = Run(context.Background(), []string{
 				"ssh", "-d",
 				"-p", strconv.Itoa(s.leaf.Config.SSH.Addr.Port(0)),
+				"--cluster", s.leaf.Config.Auth.ClusterName.GetClusterName(),
 				s.leaf.Config.SSH.Addr.Host(),
 				"echo", "hello",
 			}, setHomePath(tshHome))
