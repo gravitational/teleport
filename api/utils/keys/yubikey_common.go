@@ -14,11 +14,20 @@ limitations under the License.
 package keys
 
 import (
+	"context"
+
 	"github.com/gravitational/trace"
 )
 
-func GetOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
-	priv, err := getOrGenerateYubiKeyPrivateKey(touchRequired)
+// GetOrGenerateYubiKeyPrivateKey attempt to retrieve a YubiKey private key matching
+// the given hardware key policy from the given slot. If slot is unspecified, the default
+// slot for the given key policy will be used.
+//   - hardware_key: 9a
+//   - hardware_key_touch: 9c
+//   - hardware_key_pin: 9d
+//   - hardware_key_touch_pin: 9e
+func GetOrGenerateYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot string) (*PrivateKey, error) {
+	priv, err := getOrGenerateYubiKeyPrivateKey(ctx, policy, slot)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get a YubiKey private key")
 	}

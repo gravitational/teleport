@@ -387,6 +387,10 @@ func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 		return keys.PrivateKeyPolicyHardwareKey
 	case RequireMFAType_HARDWARE_KEY_TOUCH:
 		return keys.PrivateKeyPolicyHardwareKeyTouch
+	case RequireMFAType_HARDWARE_KEY_PIN:
+		return keys.PrivateKeyPolicyHardwareKeyPIN
+	case RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		return keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
 	default:
 		return keys.PrivateKeyPolicyNone
 	}
@@ -853,7 +857,27 @@ func (d *MFADevice) UnmarshalJSON(buf []byte) error {
 
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.
 func (r RequireMFAType) IsSessionMFARequired() bool {
-	return r == RequireMFAType_SESSION || r == RequireMFAType_SESSION_AND_HARDWARE_KEY
+	// TODO: hardware_key_pin should not require MFA unless for web sessions.
+	return r == RequireMFAType_SESSION || r == RequireMFAType_SESSION_AND_HARDWARE_KEY || r == RequireMFAType_HARDWARE_KEY_PIN
+}
+
+func (r RequireMFAType) IsHardwareKeyRequired() bool {
+	switch r {
+	case RequireMFAType_SESSION_AND_HARDWARE_KEY,
+		RequireMFAType_HARDWARE_KEY_TOUCH,
+		RequireMFAType_HARDWARE_KEY_PIN,
+		RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		return true
+	}
+	return false
+}
+
+func (r RequireMFAType) IsHardwareKeyTouchRequired() bool {
+	switch r {
+	case RequireMFAType_HARDWARE_KEY_TOUCH, RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		return true
+	}
+	return false
 }
 
 // MarshalJSON marshals RequireMFAType to boolean or string.
@@ -900,8 +924,10 @@ func (r *RequireMFAType) UnmarshalJSON(data []byte) error {
 }
 
 const (
-	RequireMFATypeHardwareKeyString      = "hardware_key"
-	RequireMFATypeHardwareKeyTouchString = "hardware_key_touch"
+	RequireMFATypeHardwareKeyString            = "hardware_key"
+	RequireMFATypeHardwareKeyTouchString       = "hardware_key_touch"
+	RequireMFATypeHardwareKeyPINString         = "hardware_key_pin"
+	RequireMFATypeHardwareKeyTouchAndPINString = "hardware_key_touch_and_pin"
 )
 
 // encode RequireMFAType into a string or boolean. This is necessary for
@@ -917,6 +943,10 @@ func (r *RequireMFAType) encode() (interface{}, error) {
 		return RequireMFATypeHardwareKeyString, nil
 	case RequireMFAType_HARDWARE_KEY_TOUCH:
 		return RequireMFATypeHardwareKeyTouchString, nil
+	case RequireMFAType_HARDWARE_KEY_PIN:
+		return RequireMFATypeHardwareKeyPINString, nil
+	case RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		return RequireMFATypeHardwareKeyTouchAndPINString, nil
 	default:
 		return nil, trace.BadParameter("RequireMFAType invalid value %v", *r)
 	}
@@ -933,6 +963,10 @@ func (r *RequireMFAType) decode(val interface{}) error {
 			*r = RequireMFAType_SESSION_AND_HARDWARE_KEY
 		case RequireMFATypeHardwareKeyTouchString:
 			*r = RequireMFAType_HARDWARE_KEY_TOUCH
+		case RequireMFATypeHardwareKeyPINString:
+			*r = RequireMFAType_HARDWARE_KEY_PIN
+		case RequireMFATypeHardwareKeyTouchAndPINString:
+			*r = RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN
 		case "":
 			// default to off
 			*r = RequireMFAType_OFF

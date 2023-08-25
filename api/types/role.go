@@ -886,6 +886,10 @@ func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 		return keys.PrivateKeyPolicyHardwareKey
 	case RequireMFAType_HARDWARE_KEY_TOUCH:
 		return keys.PrivateKeyPolicyHardwareKeyTouch
+	case RequireMFAType_HARDWARE_KEY_PIN:
+		return keys.PrivateKeyPolicyHardwareKeyPIN
+	case RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		return keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
 	default:
 		return keys.PrivateKeyPolicyNone
 	}

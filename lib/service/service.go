@@ -813,8 +813,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		}
 	}
 
-	switch cfg.Auth.Preference.GetRequireMFAType() {
-	case types.RequireMFAType_SESSION_AND_HARDWARE_KEY, types.RequireMFAType_HARDWARE_KEY_TOUCH:
+	if cfg.Auth.Preference.GetRequireMFAType().IsHardwareKeyRequired() {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 		}

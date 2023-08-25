@@ -430,6 +430,9 @@ type Config struct {
 	// PrivateKeyPolicy is a key policy that this client will try to follow during login.
 	PrivateKeyPolicy keys.PrivateKeyPolicy
 
+	// PrivateKeyPIVSlot specifies a specific PIV slot with a pre-generated key to use.
+	PrivateKeyPIVSlot string
+
 	// LoadAllCAs indicates that tsh should load the CAs of all clusters
 	// instead of just the current cluster.
 	LoadAllCAs bool
@@ -584,15 +587,10 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	}
 	log.Debugf("Activating relogin on %v.", fnErr)
 
-	// check if the error is a private key policy error.
-	if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr); err == nil {
-		// The current private key was rejected due to an unmet key policy requirement.
-		fmt.Fprintf(tc.Stderr, "Unmet private key policy %q\n", privateKeyPolicy)
-		fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
-
-		// The current private key was rejected due to an unmet key policy requirement.
-		// Set the private key policy to the expected value and re-login.
-		tc.PrivateKeyPolicy = privateKeyPolicy
+	if privateKeyPolicy, parseErr := keys.ParsePrivateKeyPolicyError(fnErr); parseErr == nil {
+		if err := tc.updatePrivateKeyPolicy(privateKeyPolicy); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if opt.beforeLoginHook != nil {
@@ -3376,7 +3374,13 @@ func (tc *TeleportClient) LoginWeb(ctx context.Context) (*WebClient, types.WebSe
 		return nil, nil, trace.Wrap(err)
 	}
 
-	clt, session, err := tc.webLogin(ctx, webLoginFunc)
+	var clt *WebClient
+	var session types.WebSession
+	_, err = tc.loginWithHardwareKeyRetry(ctx, func(ctx context.Context, priv *keys.PrivateKey) error {
+		clt, session, err = webLoginFunc(ctx, priv)
+		return trace.Wrap(err)
+	})
+
 	return clt, session, trace.Wrap(err)
 }
 
@@ -3747,30 +3751,12 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	)
 	defer span.End()
 
-	priv, err := tc.GetNewLoginKey(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := sshLoginFunc(ctx, priv)
-	if err != nil {
-		// check if the error is a private key policy error, and relogin if it is.
-		if privateKeyPolicy, parseErr := keys.ParsePrivateKeyPolicyError(err); parseErr == nil {
-			// The current private key was rejected due to an unmet key policy requirement.
-			fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", privateKeyPolicy)
-
-			// Set the private key policy to the expected value and re-login.
-			tc.PrivateKeyPolicy = privateKeyPolicy
-			priv, err = tc.GetNewLoginKey(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
-			response, err = sshLoginFunc(ctx, priv)
-		}
-	}
-
+	var response *auth.SSHLoginResponse
+	priv, err := tc.loginWithHardwareKeyRetry(ctx, func(ctx context.Context, priv *keys.PrivateKey) error {
+		var err error
+		response, err = sshLoginFunc(ctx, priv)
+		return trace.Wrap(err)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3809,33 +3795,43 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 // WebLoginFunc is a function which carries out authn with the web server and returns a web session and cookies.
 type WebLoginFunc func(context.Context, *keys.PrivateKey) (*WebClient, types.WebSession, error)
 
-// webLogin uses the given login function to log the client in via the web api.
-func (tc *TeleportClient) webLogin(ctx context.Context, webLoginFunc WebLoginFunc) (*WebClient, types.WebSession, error) {
+func (tc *TeleportClient) loginWithHardwareKeyRetry(ctx context.Context, login func(ctx context.Context, priv *keys.PrivateKey) error) (*keys.PrivateKey, error) {
 	priv, err := tc.GetNewLoginKey(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	clt, session, err := webLoginFunc(ctx, priv)
-	if err != nil {
-		// check if the error is a private key policy error, and relogin if it is.
-		if privateKeyPolicy, parseErr := keys.ParsePrivateKeyPolicyError(err); parseErr == nil {
-			// The current private key was rejected due to an unmet key policy requirement.
-			fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", privateKeyPolicy)
-
-			// Set the private key policy to the expected value and re-login.
-			tc.PrivateKeyPolicy = privateKeyPolicy
-			priv, err = tc.GetNewLoginKey(ctx)
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
+	loginErr := login(ctx, priv)
+	if loginErr != nil {
+		if privateKeyPolicy, parseErr := keys.ParsePrivateKeyPolicyError(loginErr); parseErr == nil {
+			if err := tc.updatePrivateKeyPolicy(privateKeyPolicy); err != nil {
+				return nil, trace.Wrap(err)
 			}
 
-			fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
-			clt, session, err = webLoginFunc(ctx, priv)
+			priv, err = tc.GetNewLoginKey(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			loginErr = login(ctx, priv)
 		}
 	}
 
-	return clt, session, trace.Wrap(err)
+	return priv, trace.Wrap(loginErr)
+}
+
+func (tc *TeleportClient) updatePrivateKeyPolicy(policy keys.PrivateKeyPolicy) error {
+	// The current private key was rejected due to an unmet key policy requirement.
+	fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", policy)
+
+	if tc.PrivateKeyPIVSlot != "" {
+		return trace.BadParameter("Private key in slot %v does not meet the private key policy requirement %v", tc.PrivateKeyPIVSlot, policy)
+	}
+
+	// Set the private key policy to the expected value and re-login.
+	tc.PrivateKeyPolicy = policy
+	fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
+	return nil
 }
 
 // GetNewLoginKey gets a new private key for login.
@@ -3847,22 +3843,24 @@ func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.Privat
 	)
 	defer span.End()
 
-	switch tc.PrivateKeyPolicy {
-	case keys.PrivateKeyPolicyHardwareKey:
-		log.Debugf("Attempting to login with YubiKey private key.")
-		priv, err = keys.GetOrGenerateYubiKeyPrivateKey(false)
-	case keys.PrivateKeyPolicyHardwareKeyTouch:
-		log.Debugf("Attempting to login with YubiKey private key with touch required.")
-		priv, err = keys.GetOrGenerateYubiKeyPrivateKey(true)
-	default:
-		log.Debugf("Attempting to login with a new RSA private key.")
-		priv, err = native.GeneratePrivateKey()
+	if tc.PrivateKeyPIVSlot != "" {
+		log.Debugf("Attempting to login with pre-generated YubiKey private key in PIV slot %v", tc.PrivateKeyPIVSlot)
+		priv, err = keys.GetOrGenerateYubiKeyPrivateKey(ctx, tc.PrivateKeyPolicy, tc.PrivateKeyPIVSlot)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	if err != nil {
-		return nil, trace.Wrap(err)
+	switch tc.PrivateKeyPolicy {
+	case keys.PrivateKeyPolicyNone, "":
+		log.Debugf("Attempting to login with a new RSA private key.")
+		priv, err = native.GeneratePrivateKey()
+	default:
+		log.Debugf("Attempting to login with YubiKey private key.")
+		priv, err = keys.GetOrGenerateYubiKeyPrivateKey(ctx, tc.PrivateKeyPolicy, "" /* slot */)
 	}
-	return priv, nil
+
+	return priv, trace.Wrap(err)
 }
 
 // new SSHLogin generates a new SSHLogin using the given login key.

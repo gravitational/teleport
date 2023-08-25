@@ -32,7 +32,7 @@ type HardwareSigner interface {
 	GetAttestationStatement() (*AttestationStatement, error)
 
 	// GetPrivateKeyPolicy returns the PrivateKeyPolicy supported by this private key.
-	GetPrivateKeyPolicy() PrivateKeyPolicy
+	GetPrivateKeyPolicy() (PrivateKeyPolicy, error)
 }
 
 // GetAttestationStatement returns an AttestationStatement for the given private key.
@@ -47,11 +47,11 @@ func GetAttestationStatement(priv *PrivateKey) (*AttestationStatement, error) {
 }
 
 // GetPrivateKeyPolicy returns the PrivateKeyPolicy that applies to the given private key.
-func GetPrivateKeyPolicy(priv *PrivateKey) PrivateKeyPolicy {
+func GetPrivateKeyPolicy(priv *PrivateKey) (PrivateKeyPolicy, error) {
 	if attestedPriv, ok := priv.Signer.(HardwareSigner); ok {
 		return attestedPriv.GetPrivateKeyPolicy()
 	}
-	return PrivateKeyPolicyNone
+	return PrivateKeyPolicyNone, nil
 }
 
 // AttestationStatement is an attestation statement for a hardware private key

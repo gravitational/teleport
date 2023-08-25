@@ -34,30 +34,55 @@ const (
 	// hardware key to generate and store their private keys securely, and
 	// this key must require touch to be accessed and used.
 	PrivateKeyPolicyHardwareKeyTouch PrivateKeyPolicy = "hardware_key_touch"
+	// PrivateKeyPolicyHardwareKeyPIN means that the client must use a valid
+	// hardware key to generate and store their private keys securely, and
+	// this key must require pin to be accessed and used.
+	PrivateKeyPolicyHardwareKeyPIN PrivateKeyPolicy = "hardware_key_pin"
+	// PrivateKeyPolicyHardwareKeyTouchAndPIN means that the client must use a valid
+	// hardware key to generate and store their private keys securely, and
+	// this key must require touch and pin to be accessed and used.
+	PrivateKeyPolicyHardwareKeyTouchAndPIN PrivateKeyPolicy = "hardware_key_touch_and_pin"
 )
 
 // VerifyPolicy verifies that the given policy meets the requirements of this policy.
 // If not, it will return a private key policy error, which can be parsed to retrieve
 // the unmet policy.
 func (p PrivateKeyPolicy) VerifyPolicy(policy PrivateKeyPolicy) error {
+	if err := policy.validate(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	switch p {
 	case PrivateKeyPolicyNone:
 		return nil
 	case PrivateKeyPolicyHardwareKey:
-		if policy == PrivateKeyPolicyHardwareKey || policy == PrivateKeyPolicyHardwareKeyTouch {
+		if policy != PrivateKeyPolicyNone {
 			return nil
 		}
 	case PrivateKeyPolicyHardwareKeyTouch:
-		if policy == PrivateKeyPolicyHardwareKeyTouch {
+		if policy == PrivateKeyPolicyHardwareKeyTouch || policy == PrivateKeyPolicyHardwareKeyTouchAndPIN {
+			return nil
+		}
+	case PrivateKeyPolicyHardwareKeyPIN:
+		if policy == PrivateKeyPolicyHardwareKeyPIN || policy == PrivateKeyPolicyHardwareKeyTouchAndPIN {
+			return nil
+		}
+	case PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		if policy == PrivateKeyPolicyHardwareKeyTouchAndPIN {
 			return nil
 		}
 	}
+
 	return NewPrivateKeyPolicyError(p)
 }
 
 func (p PrivateKeyPolicy) validate() error {
 	switch p {
-	case PrivateKeyPolicyNone, PrivateKeyPolicyHardwareKey, PrivateKeyPolicyHardwareKeyTouch:
+	case PrivateKeyPolicyNone,
+		PrivateKeyPolicyHardwareKey,
+		PrivateKeyPolicyHardwareKeyTouch,
+		PrivateKeyPolicyHardwareKeyPIN,
+		PrivateKeyPolicyHardwareKeyTouchAndPIN:
 		return nil
 	}
 	return trace.BadParameter("%q is not a valid key policy", p)

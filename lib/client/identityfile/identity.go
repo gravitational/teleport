@@ -763,12 +763,17 @@ func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string)
 		return nil, trace.Wrap(err)
 	}
 
+	privateKeyPolicy, err := keys.GetPrivateKeyPolicy(key.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Save temporary profile into the key store.
 	profile := &profile.Profile{
 		WebProxyAddr:     proxyAddr,
 		SiteName:         key.ClusterName,
 		Username:         key.Username,
-		PrivateKeyPolicy: keys.GetPrivateKeyPolicy(key.PrivateKey),
+		PrivateKeyPolicy: privateKeyPolicy,
 	}
 	if err := clientStore.SaveProfile(profile, true); err != nil {
 		return nil, trace.Wrap(err)

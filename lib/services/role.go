@@ -1195,11 +1195,11 @@ func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
 func (set RoleSet) getMFARequired(clusterRequireMFAType types.RequireMFAType) MFARequired {
 	// per-session MFA is overridden by hardware key PIV touch requirement.
 	// check if the auth pref or any roles have this option.
-	if clusterRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
+	if clusterRequireMFAType.IsHardwareKeyTouchRequired() {
 		return MFARequiredNever
 	}
 	for _, role := range set {
-		if role.GetOptions().RequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
+		if role.GetOptions().RequireMFAType.IsHardwareKeyTouchRequired() {
 			return MFARequiredNever
 		}
 	}
