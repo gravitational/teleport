@@ -22,13 +22,15 @@ import {
   TshAbortSignal,
   TshClient,
 } from 'teleterm/services/tshd/types';
+import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
 
 import type * as uri from 'teleterm/ui/uri';
 
 export class ConnectMyComputerService {
   constructor(
     private mainProcessClient: MainProcessClient,
-    private tshClient: TshClient
+    private tshClient: TshClient,
+    private connectionTrackerService: ConnectionTrackerService
   ) {}
 
   async downloadAgent(): Promise<void> {
@@ -78,6 +80,26 @@ export class ConnectMyComputerService {
     token: string
   ): Promise<void> {
     return this.tshClient.deleteConnectMyComputerToken(rootClusterUri, token);
+  }
+
+  removeConnectMyComputerNode(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<void> {
+    return this.tshClient.deleteConnectMyComputerNode(rootClusterUri);
+  }
+
+  removeAgentDirectory(rootClusterUri: uri.RootClusterUri): Promise<void> {
+    return this.mainProcessClient.removeAgentDirectory({ rootClusterUri });
+  }
+
+  async removeConnections(rootClusterUri: uri.RootClusterUri): Promise<void> {
+    const nodeName = await this.tshClient.getConnectMyComputerNodeName(
+      rootClusterUri
+    );
+    const connections = this.connectionTrackerService
+      .getConnections()
+      .filter(s => s.kind === 'connection.server' && s.serverUri === nodeName);
+    await this.connectionTrackerService.disconnectAndRemove(connections);
   }
 
   async waitForNodeToJoin(

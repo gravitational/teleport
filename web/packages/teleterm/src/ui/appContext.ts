@@ -138,7 +138,8 @@ export default class AppContext implements IAppContext {
     );
     this.connectMyComputerService = new ConnectMyComputerService(
       this.mainProcessClient,
-      tshClient
+      tshClient,
+      this.connectionTracker
     );
     this.headlessAuthenticationService = new HeadlessAuthenticationService(
       mainProcessClient,
