@@ -64,9 +64,7 @@ func (client *Client) NewChat(toolContext *modeltools.ToolContext) *Chat {
 		tools = append(tools, &modeltools.AccessRequestCreateTool{},
 			&modeltools.AccessRequestsListTool{},
 			&modeltools.AccessRequestListRequestableRolesTool{},
-			&modeltools.AccessRequestListRequestableResourcesTool{},
-			&modeltools.AuditQueryGenerationTool{LLM: client.svc},
-		)
+			&modeltools.AccessRequestListRequestableResourcesTool{})
 	}
 
 	return &Chat{
@@ -98,6 +96,20 @@ func (client *Client) NewCommand(username string) *Chat {
 		// Cl100k is used by GPT-3 and GPT-4.
 		tokenizer: codec.NewCl100kBase(),
 		agent:     model.NewAgent(toolContext, &modeltools.CommandGenerationTool{}),
+	}
+}
+
+func (client *Client) NewAuditQuery(username string) *Chat {
+	toolContext := &modeltools.ToolContext{User: username}
+	return &Chat{
+		client: client,
+		messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: model.PromptCharacter(username),
+			},
+		},
+		agent: model.NewAgent(toolContext, &modeltools.AuditQueryGenerationTool{LLM: client.svc}),
 	}
 }
 

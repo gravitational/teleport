@@ -256,6 +256,11 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 	case *tools.AuditQueryGenerationTool:
 		log.Tracef("Tool called with input:'%s'", action.Input)
 		tableName, err := tool.ChooseEventTable(ctx, action.Input, state.tokenCount)
+		// If the query was not answerable by audit logs,
+		// we return to the agent thinking loop and tell that the tool failed
+		if trace.IsNotFound(err) {
+			return stepOutput{action: action, observation: err.Error()}, nil
+		}
 		if err != nil {
 			return stepOutput{}, trace.Wrap(err)
 		}
@@ -267,7 +272,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		}
 		log.Tracef("Tool generated query: %s", query)
 
-		completion := &output.Message{Content: fmt.Sprintf("You must run the query:\n\n```sql\n%s\n```", query)}
+		completion := &output.Message{Content: query}
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	default:
 		runOut, err := tool.Run(ctx, a.toolCtx, action.Input)

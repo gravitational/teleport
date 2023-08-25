@@ -51,6 +51,8 @@ func (t *AuditQueryGenerationTool) Run(_ context.Context, _ *ToolContext, _ stri
 	return "", trace.NotImplemented("not implemented")
 }
 
+// ChooseEventTable lists all supported events and uses the LLM as a zero shot
+// classifier to find which event type can be used to answer the suer query.
 func (t *AuditQueryGenerationTool) ChooseEventTable(ctx context.Context, input string, tc *tokens.TokenCount) (string, error) {
 	tableList, err := eventschema.QueryableEventList()
 	if err != nil {
@@ -62,7 +64,7 @@ func (t *AuditQueryGenerationTool) ChooseEventTable(ctx context.Context, input s
 			Role: openai.ChatMessageRoleSystem,
 			Content: `Your job it to find the correct table to run a query on.
 You will be given a list of tables, and a request from the user.
-You MUST RESPOND ONLY with a single table name. If no table can answer the question, respond 'none'.`,
+You MUST RESPOND ONLY with a single table name. If no table can answer the question, respond 'Cannot answer'.`,
 		},
 		{
 			Role:    openai.ChatMessageRoleUser,
@@ -99,7 +101,10 @@ You MUST RESPOND ONLY with a single table name. If no table can answer the quest
 	}
 	tc.AddCompletionCounter(completionTokens)
 
-	eventType := strings.ToLower(completion)
+	eventType := strings.Trim(strings.TrimSpace(strings.ToLower(completion)), "\"'.")
+	if eventType == "cannot answer" {
+		return "", trace.NotFound("No relevant event type found. The query cannot be answered by audit logs.")
+	}
 	if !eventschema.IsValidEventType(eventType) {
 		return "", trace.CompareFailed("Model response is not a valid event type: '%s'", eventType)
 	}
@@ -108,8 +113,9 @@ You MUST RESPOND ONLY with a single table name. If no table can answer the quest
 
 }
 
+// GenerateQuery takes an event type, fetches its schema, and calls the LLM to
+// generate SQL and answer the user query.
 func (t *AuditQueryGenerationTool) GenerateQuery(ctx context.Context, eventType, input string, tc *tokens.TokenCount) (string, error) {
-	// get query
 	eventSchema, err := eventschema.GetEventSchemaFromType(eventType)
 	if err != nil {
 		return "", trace.Wrap(err)
