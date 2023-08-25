@@ -102,6 +102,13 @@ export class ConnectMyComputerService {
     await this.connectionTrackerService.disconnectAndRemove(connections);
   }
 
+  async killAgentAndRemoveData(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<void> {
+    await this.killAgent(rootClusterUri);
+    await this.mainProcessClient.removeAgentDirectory({ rootClusterUri });
+  }
+
   async waitForNodeToJoin(
     rootClusterUri: uri.RootClusterUri,
     abortSignal: TshAbortSignal
