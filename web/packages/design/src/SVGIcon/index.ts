@@ -23,6 +23,7 @@ export { AuditLogIcon } from './AuditLog';
 export { AuthConnectorsIcon } from './AuthConnectors';
 export { AWSIcon } from './AWS';
 export { BrainIcon } from './Brain';
+export { Calendar } from './Calendar';
 export { ChatIcon } from './Chat';
 export { CheckIcon } from './Check';
 export { ChevronDownIcon } from './ChevronDown';
