@@ -162,6 +162,15 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     });
   }
 
+  async disconnectAndRemove(connections: TrackedConnection[]): Promise<void> {
+    await Promise.all([
+      connections.map(async connection => {
+        await this.disconnectItem(connection.id);
+        await this.removeItem(connection.id);
+      }),
+    ]);
+  }
+
   dispose(): void {
     this._workspacesService.unsubscribe(this._refreshState);
     this._clusterService.unsubscribe(this._refreshState);
