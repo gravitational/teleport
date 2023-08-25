@@ -21,16 +21,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
-
-	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
-)
-
-// TODO(Joerger): Remove these aliases once /e no longer depends on them.
-var (
-	GRPCServerUnaryErrorInterceptor  = interceptors.GRPCServerUnaryErrorInterceptor
-	GRPCClientUnaryErrorInterceptor  = interceptors.GRPCClientUnaryErrorInterceptor
-	GRPCServerStreamErrorInterceptor = interceptors.GRPCServerStreamErrorInterceptor
-	GRPCClientStreamErrorInterceptor = interceptors.GRPCClientStreamErrorInterceptor
 )
 
 // NewGRPCDummyClientConnection returns an implementation of grpc.ClientConnInterface
