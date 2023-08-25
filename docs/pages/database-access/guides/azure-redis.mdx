@@ -50,7 +50,7 @@ Create the Database Service configuration, specifying a region like this:
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
   -o file \
   --proxy=tele.example.com:443 \
   --token=/tmp/token \
@@ -60,7 +60,7 @@ $ teleport db configure create \
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
   -o file \
   --proxy=teleport.example.com:3080 \
   --token=/tmp/token \

@@ -55,7 +55,7 @@ Start the Teleport Database Service, pointing the `--auth-server` flag to the
 address of your Teleport Proxy Service:
 
 ```code
-$ teleport db start \
+$ sudo teleport db start \
   --token=/tmp/token \
   --auth-server=teleport.example.com:443 \
   --name=keyspaces \
@@ -72,7 +72,7 @@ Start the Teleport Database Service, pointing the `--auth-server` flag to the
 address of your Teleport Cloud tenant:
 
 ```code
-$ teleport db start \
+$ sudo teleport db start \
   --token=/tmp/token \
   --auth-server=mytenant.teleport.sh:443 \
   --name=keyspaces \
