@@ -67,6 +67,18 @@ export async function createAgentConfigFile(
   );
 }
 
+export async function removeAgentDirectory(
+  runtimeSettings: RuntimeSettings,
+  rootClusterUri: RootClusterUri
+): Promise<void> {
+  const { agentDirectory } = generateAgentConfigPaths(
+    runtimeSettings,
+    rootClusterUri
+  );
+  // `force` ignores exceptions if path does not exist
+  await rm(agentDirectory, { recursive: true, force: true });
+}
+
 export async function isAgentConfigFileCreated(
   runtimeSettings: RuntimeSettings,
   rootClusterUri: RootClusterUri
@@ -96,6 +108,7 @@ export function generateAgentConfigPaths(
   runtimeSettings: RuntimeSettings,
   rootClusterUri: RootClusterUri
 ): {
+  agentDirectory: string;
   configFile: string;
   dataDirectory: string;
 } {
@@ -112,6 +125,7 @@ export function generateAgentConfigPaths(
   const dataDirectory = path.resolve(agentDirectory, 'data');
 
   return {
+    agentDirectory,
     configFile,
     dataDirectory,
   };

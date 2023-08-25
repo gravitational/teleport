@@ -115,6 +115,10 @@ export class MockMainProcessClient implements MainProcessClient {
   subscribeToAgentUpdate() {
     return { cleanup: () => undefined };
   }
+
+  removeAgentDirectory() {
+    return Promise.resolve();
+  }
 }
 
 export const makeRuntimeSettings = (
