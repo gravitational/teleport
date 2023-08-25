@@ -19,6 +19,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
@@ -27,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // DefaultUser is the default RPC caller, when not using a custom
@@ -190,8 +190,8 @@ func New(opts ...Opt) (*E, error) {
 
 	s := grpc.NewServer(
 		// Options below are similar to auth.GRPCServer.
-		grpc.StreamInterceptor(utils.GRPCServerStreamErrorInterceptor),
-		grpc.UnaryInterceptor(utils.GRPCServerUnaryErrorInterceptor),
+		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
+		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
 	e.closers = append(e.closers, func() error {
 		s.GracefulStop()
@@ -218,8 +218,8 @@ func New(opts ...Opt) (*E, error) {
 			return lis.DialContext(ctx)
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
-		grpc.WithUnaryInterceptor(utils.GRPCClientUnaryErrorInterceptor),
+		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
+		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 	)
 	if err != nil {
 		return nil, err
