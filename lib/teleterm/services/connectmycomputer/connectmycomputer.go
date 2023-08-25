@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -378,7 +379,7 @@ func (n *NodeJoinWait) Run(ctx context.Context, accessAndIdentity AccessAndIdent
 }
 
 func (n *NodeJoinWait) getNodeNameFromHostUUIDFile(ctx context.Context, cluster *clusters.Cluster) (string, error) {
-	dataDir := filepath.Join(n.cfg.AgentsDir, cluster.ProfileName, "data")
+	dataDir := filepath.Join(getAgentDataDir(n.cfg.AgentsDir, cluster.ProfileName), utils.HostUUIDFile)
 
 	// NodeJoinWait gets executed when the agent is booting up, so the host UUID file might not exist
 	// on disk yet. Use a ticker to periodically check for its existence.
@@ -526,4 +527,83 @@ func waitForOpPut(ctx context.Context, watcher types.Watcher, kind string, name 
 			}
 		}
 	}
+}
+
+type NodeDelete struct {
+	cfg *NodeDeleteConfig
+}
+
+// Run grabs the host UUID of an agent from a disk and deletes the node with that name.
+func (n *NodeDelete) Run(ctx context.Context, presence Presence, cluster *clusters.Cluster) error {
+	hostUUID, err := utils.ReadHostUUID(getAgentDataDir(n.cfg.AgentsDir, cluster.ProfileName))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = presence.DeleteNode(ctx, apidefaults.Namespace, hostUUID)
+	return trace.Wrap(err)
+}
+
+func NewNodeDelete(cfg *NodeDeleteConfig) (*NodeDelete, error) {
+	err := cfg.checkAndSetDefaults()
+	if err != nil {
+		return nil, err
+	}
+
+	return &NodeDelete{cfg: cfg}, nil
+}
+
+type NodeDeleteConfig struct {
+	// AgentsDir contains agent config files and data directories for Connect My Computer.
+	AgentsDir string
+}
+
+func (n *NodeDeleteConfig) checkAndSetDefaults() error {
+	if n.AgentsDir == "" {
+		return trace.BadParameter("missing agents dir")
+	}
+
+	return nil
+}
+
+// Presence represents services.Presence methods used by [NodeDelete].
+// During a normal operation, auth.ClientI is passed as this interface.
+type Presence interface {
+	// See services.Presence.GetNode.
+	DeleteNode(ctx context.Context, namespace, name string) error
+}
+
+type NodeName struct {
+	cfg *NodeNameConfig
+}
+
+// Get returns the host UUID of the agent from a disk.
+func (n *NodeName) Get(cluster *clusters.Cluster) (string, error) {
+	hostUUID, err := utils.ReadHostUUID(getAgentDataDir(n.cfg.AgentsDir, cluster.ProfileName))
+	return hostUUID, trace.Wrap(err)
+}
+
+func NewNodeName(cfg *NodeNameConfig) (*NodeName, error) {
+	err := cfg.checkAndSetDefaults()
+	if err != nil {
+		return nil, err
+	}
+
+	return &NodeName{cfg: cfg}, nil
+}
+
+type NodeNameConfig struct {
+	// AgentsDir contains agent config files and data directories for Connect My Computer.
+	AgentsDir string
+}
+
+func (n *NodeNameConfig) checkAndSetDefaults() error {
+	if n.AgentsDir == "" {
+		return trace.BadParameter("missing agents dir")
+	}
+
+	return nil
+}
+
+func getAgentDataDir(agentsDir, profileName string) string {
+	return path.Join(agentsDir, profileName, "data")
 }
