@@ -265,6 +265,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		}
 	} else {
 		if !r.permitUnlistedDialing {
+			r.log.Warnf("Rejecting unlisted dial request. host=%q, port=%q, cluster=%q", host, port, clusterName)
 			return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
 		}
 		if port == "" || port == "0" {
@@ -391,6 +392,7 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 	routeMatcher := apiutils.NewSSHRouteMatcher(host, port, caseInsensitiveRouting)
 
 	matches, err := site.GetNodes(ctx, func(server services.Node) bool {
+		fmt.Printf("---> %+v, hostname=%s\n", server, server.GetHostname())
 		return routeMatcher.RouteToServer(server)
 	})
 	if err != nil {

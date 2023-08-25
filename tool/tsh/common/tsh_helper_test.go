@@ -280,6 +280,7 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 				_, err := s.leaf.GetAuthServer().GetReverseTunnel(s.root.Config.Auth.ClusterName.GetClusterName())
 				return err == nil
 			}, time.Second*10, time.Second)
+
 		}
 	}
 

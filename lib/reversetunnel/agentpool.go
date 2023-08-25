@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -268,8 +269,10 @@ func (p *AgentPool) run() error {
 
 		agent, err := p.connectAgent(p.ctx, p.events)
 		if err != nil {
+			fmt.Printf("---> failed to connect agent: %v\n", err)
 			p.log.WithError(err).Debugf("Failed to connect agent.")
 		} else {
+			fmt.Printf("---> successfully connected agent: %+v\n", agent)
 			p.wg.Add(1)
 			p.active.add(agent)
 			p.updateConnectedProxies()
@@ -304,11 +307,13 @@ func (p *AgentPool) connectAgent(ctx context.Context, events <-chan Agent) (Agen
 
 	agent, err := p.newAgentFunc(ctx, p.tracker, lease)
 	if err != nil {
+		fmt.Printf("---> failed to set up new agent: %v\n", err)
 		return nil, trace.Wrap(err)
 	}
 
 	err = agent.Start(ctx)
 	if err != nil {
+		fmt.Printf("---> failed to start new agent: %v\n", err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -428,8 +433,11 @@ func (p *AgentPool) getStateCallback(agent Agent) AgentStateCallback {
 func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease *track.Lease) (Agent, error) {
 	addr, _, err := p.Resolver(ctx)
 	if err != nil {
+		fmt.Printf("---> Failed to resolve addr for agent dialing: %v\n", err)
 		return nil, trace.Wrap(err)
 	}
+
+	fmt.Printf("---> newAgent(addr=%v)\n", *addr)
 
 	err = p.runtimeConfig.updateRemote(ctx, addr)
 	if err != nil {

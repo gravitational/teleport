@@ -599,6 +599,7 @@ func (s *server) Wait(ctx context.Context) {
 }
 
 func (s *server) Start() error {
+	fmt.Printf("---> Starting reversetunnel server for cluster %q on %v\n", s.ClusterName, s.Listener.Addr())
 	go s.srv.Serve(s.Listener)
 	return nil
 }
@@ -805,6 +806,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 	// The crypto/x/ssh package won't log the returned error for us, do it
 	// manually.
 	defer func() {
+		fmt.Printf("---> keyAuth(%+v, %+v) -> (%+v, %v)\n", conn, key, perm, err)
 		if err != nil {
 			logger.Warnf("Failed to authenticate client, err: %v.", err)
 		}
@@ -1006,6 +1008,13 @@ func (s *server) getRemoteClusters() []*remoteSite {
 func (s *server) GetSite(name string) (reversetunnelclient.RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()
+	fmt.Printf("---> GetSite: target=%q, local=%q, remote=%+v\n", name, s.localSite.GetName(), func() []string {
+		var names []string
+		for _, site := range s.remoteSites {
+			names = append(names, site.GetName())
+		}
+		return names
+	}())
 	if s.localSite.GetName() == name {
 		return s.localSite, nil
 	}

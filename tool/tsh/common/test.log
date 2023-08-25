@@ -1,0 +1,36 @@
+---> GetSite: target="root", local="root", remote=[]
+---> Starting reversetunnel server for cluster "root" on 127.0.0.1:24997
+---> Starting reversetunnel server for cluster "leaf1" on 127.0.0.1:24992
+---> GetSite: target="leaf1", local="leaf1", remote=[]
+---> validateTrustedCluster(&{Token:test-static-token CAs:[CA(name=leaf1, type=host)] TeleportVersion:14.0.0-dev}) -> (&{CAs:[CA(name=root, type=host) CA(name=root, type=user) CA(name=root, type=db) CA(name=root, type=openssh)]}, <nil>)
+---> newAgent(addr={localhost:24997 tcp })
+---> failed to start new agent: ssh: handshake failed: EOF
+---> failed to connect agent: ssh: handshake failed: EOF
+---> newAgent(addr={localhost:24997 tcp })
+---> failed to start new agent: ssh: handshake failed: EOF
+---> failed to connect agent: ssh: handshake failed: EOF
+---> newAgent(addr={localhost:24997 tcp })
+---> failed to start new agent: ssh: handshake failed: EOF
+---> failed to connect agent: ssh: handshake failed: EOF
+---> newAgent(addr={localhost:24997 tcp })
+---> failed to start new agent: ssh: handshake failed: EOF
+---> failed to connect agent: ssh: handshake failed: EOF
+---> newAgent(addr={localhost:24997 tcp })
+---> failed to start new agent: ssh: handshake failed: EOF
+---> failed to connect agent: ssh: handshake failed: EOF
+---> Accept! conn=<nil>, err=accept tcp 127.0.0.1:24993: use of closed network connection
+---> Accept! conn=<nil>, err=listener is closed
+---> Accept! conn=<nil>, err=listener is closed
+---> Accept! conn=<nil>, err=accept tcp 127.0.0.1:24998: use of closed network connection
+---> Accept! conn=<nil>, err=listener is closed
+---> Accept! conn=<nil>, err=listener is closed
+--- FAIL: TestSSHLoadAllCAs (0.00s)
+    --- FAIL: TestSSHLoadAllCAs/TLS_routing_disabled (13.58s)
+        tsh_helper_test.go:273: 
+            	Error Trace:	/home/forrest/support/teleport/tool/tsh/common/tsh_helper_test.go:273
+            	            				/home/forrest/support/teleport/tool/tsh/common/proxy_test.go:232
+            	Error:      	Condition never satisfied
+            	Test:       	TestSSHLoadAllCAs/TLS_routing_disabled
+FAIL
+exit status 1
+FAIL	github.com/gravitational/teleport/tool/tsh/common	13.659s

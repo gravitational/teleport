@@ -212,10 +212,12 @@ func TestSSHLoadAllCAs(t *testing.T) {
 			name: "TLS routing disabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
+					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 					cfg.Auth.LoadAllCAs = true
 				}),
 				withLeafConfigFunc(func(cfg *servicecfg.Config) {
+					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
 			},
@@ -229,6 +231,10 @@ func TestSSHLoadAllCAs(t *testing.T) {
 
 			s := newTestSuite(t, tc.opts...)
 
+			time.Sleep(20 * time.Second)
+
+			fmt.Println("---------------------------------------")
+
 			leafProxySSHAddr, err := s.leaf.ProxySSHAddr()
 			require.NoError(t, err)
 
@@ -238,6 +244,7 @@ func TestSSHLoadAllCAs(t *testing.T) {
 			// Connect to leaf node
 			err = Run(context.Background(), []string{
 				"ssh", "-d",
+				"--cluster", s.leaf.Config.Auth.ClusterName.GetClusterName(),
 				"-p", strconv.Itoa(s.leaf.Config.SSH.Addr.Port(0)),
 				s.leaf.Config.SSH.Addr.Host(),
 				"echo", "hello",

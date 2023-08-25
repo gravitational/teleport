@@ -432,6 +432,7 @@ func (s *Server) acceptConnections() {
 	s.log.Debugf("Listening on %v.", addr)
 	for {
 		conn, err := s.listener.Accept()
+		fmt.Printf("---> Accept! conn=%+v, err=%v\n", conn, err)
 		if err != nil {
 			if trace.IsLimitExceeded(err) {
 				proxyConnectionLimitHitCount.Inc()
@@ -486,6 +487,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	wrappedConn := wrapConnection(wconn, s.caGetter, s.clusterName, s.clock, s.log)
 	sconn, chans, reqs, err := ssh.NewServerConn(wrappedConn, &s.cfg)
 	if err != nil {
+		fmt.Printf("---> Failed to create new server conn: %v\n", err)
 		// Ignore EOF as these are triggered by loadbalancer health checks
 		if !errors.Is(err, io.EOF) {
 			s.log.
@@ -521,7 +523,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		return
 	}
 	// Connection successfully initiated
-	s.log.Debugf("Incoming connection %v -> %v version: %v, certtype: %q",
+	fmt.Printf("---> Incoming connection %v -> %v version: %v, certtype: %q\n",
 		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()), certType)
 
 	// will be called when the connection is closed
@@ -548,6 +550,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		// from a NewConnHandler are rejections.
 		ctx, err = s.newConnHandler.HandleNewConn(ctx, ccx)
 		if err != nil {
+			fmt.Printf("---> Dropping inboud ssh connection: %v\n", err)
 			s.log.Warnf("Dropping inbound ssh connection due to error: %v", err)
 			// Immediately dropping the ssh connection results in an
 			// EOF error for the client.  We therefore wait briefly

@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -462,6 +463,7 @@ func (a *Server) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remo
 
 func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (resp *ValidateTrustedClusterResponse, err error) {
 	defer func() {
+		fmt.Printf("---> validateTrustedCluster(%+v) -> (%+v, %+v)\n", validateRequest, resp, err)
 		if err != nil {
 			log.WithError(err).Info("Trusted cluster validation failed")
 		}
