@@ -25,6 +25,7 @@ The `teleport-kube-agent` chart can run any or all of three Teleport services:
 | [`kubernetes_service`](../../kubernetes-access/introduction.mdx)   | `kube`                                 | Uses Teleport to handle authentication<br/> with and proxy access to a Kubernetes cluster   |
 | [`application_service`](../../application-access/guides.mdx) | `app`                                  | Uses Teleport to handle authentication<br/> with and proxy access to web-based applications |
 | [`database_service`](../../database-access/guides.mdx)       | `db`                                   | Uses Teleport to handle authentication<br/> with and proxy access to databases              |
+| [`discovery_service`](../../kubernetes-access/discovery/)       | `discovery`                                   | Uses Teleport to discover new resources<br/> and dynamically add them to the cluster             |
 
 ### Legacy releases
 
@@ -68,6 +69,8 @@ The `teleport-kube-agent` chart deploys the following Kubernetes resources:
 | `Role`                | The release name, suffixed by `-psp`                       | Enforces security requirements for pods deployed by `teleport-kube-agent`.                                                                                                                                                                                                                              | `podSecurityPolicy.enabled` is `true` and the Kubernetes cluster version is < 1.23.                               |
 | `RoleBinding`         | The release name, suffixed by `-psp`                       | Enforces security requirements for pods deployed by `teleport-kube-agent`.                                                                                                                                                                                                                              | `podSecurityPolicy.enabled` is `true` and the Kubernetes cluster version is < 1.23.                               |
 
+## Values reference
+
 ## `roles`
 
 This parameter is not mandatory to preserve backwards compatibility with older chart versions, but we recommend it is set.
@@ -81,13 +84,14 @@ This parameter is not mandatory to preserve backwards compatibility with older c
 | Services                     | Value for `roles` | Mandatory additional settings for this role |
 |------------------------------|-------------------|---------------------------------------------|
 | Teleport Kubernetes service  | `kube`            | [`kubeClusterName`](#kubeclustername)       |
-| Teleport Application service | `app`             | [`apps`](#apps)                             |
-| Teleport Database service    | `db`              | [`databases`](#databases)                   |
+| Teleport Application service | `app`             | [`apps`](#apps) or [`appResources`](#appresources) |
+| Teleport Database service    | `db`              | [`databases`](#databases) or [`databaseResources`](#databaseresources) |
+| Teleport Discovery service   | `discovery`       | [`kubeClusterName`](#kubeclustername) |
 
 `values.yaml` example:
 
   ```yaml
-  roles: kube,app,db
+  roles: kube,app,discovery
   ```
   
 ## `enterprise`
@@ -654,6 +658,50 @@ You can specify multiple selectors by adding elements to the list.
 <Admonition type="tip" title="Example">
   Once `databaseResources` is set, you can dynamically register database with `tsh` by following [this guide](../../database-access/guides/dynamic-registration.mdx).
 </Admonition>
+
+
+## kubernetesDiscovery
+
+| Type   | Default value | Required?                                                                                                                             |
+|--------|---------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `list` | `See below`   | When the `discovery` chart role is used, `kubernetesDiscovery` is required. |
+
+Default value:
+
+  ```yaml
+  kubernetesDiscovery:
+  - types: ["app"]
+    namespaces: ["*"]
+    labels:
+      "*": "*"
+  ```
+
+`kubernetesDiscovery` is a YAML list object detailing the filters for the services of the Kubernetes cluster that should be discovered
+ and exposed as apps in Teleport. By default the Discovery Service will try to find all apps that are serving HTTP/HTTPS, but you can manually
+ make it expose TCP apps as well, using Kubernetes annotations.
+
+You can specify multiple filters, each of which can include these parameters:
+- `types` is a list of types of services to be exposed in Teleport, currently only "app" value is supported, with "db" value planned.
+ Default value is "app"
+- `namespaces` is a list of namespaces of the Kubernetes cluster to search in. Default value is `*`, which denotes all namespaces.
+- `labels` is a list of Kubernetes labels based on which to filter out services. Labels  Default value is `*`: `*` that will match any labels.
+
+
+`values.yaml` example:
+
+  ```yaml
+  kubernetesDiscovery:
+  - types: ["app"]
+    namespaces: ["staging", "test"]
+    labels:
+      "*": "*"
+  - types: ["app"]
+    namespaces: ["*"]
+    labels:
+      "purpose": "monitoring"
+      "department": "security"
+  ```
+
 
 ## `teleportVersionOverride`
 
