@@ -25,10 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/client/mfa"
 )
 
-// TODO(Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
-// promptWebauthn provides indirection for tests.
-var promptWebauthn WebauthnLoginFunc
-
 // PromptMFAFunc matches the signature of [mfa.Prompt.Run].
 type PromptMFAFunc func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 
@@ -45,12 +41,6 @@ func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) PromptMFAFunc {
 	prompt.AuthenticatorAttachment = tc.AuthenticatorAttachment
 	prompt.PreferOTP = tc.PreferOTP
 	prompt.AllowStdinHijack = tc.AllowStdinHijack
-
-	// TODO(Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
-	if promptWebauthn != nil {
-		prompt.WebauthnLogin = promptWebauthn
-		prompt.WebauthnSupported = true
-	}
 
 	if tc.WebauthnLogin != nil {
 		prompt.WebauthnLogin = tc.WebauthnLogin
