@@ -198,8 +198,12 @@ default.
 ```yaml
 # Extra parts of OIDC yaml have been removed.
 spec:
-  # Valid values are none, select_account, login, consent
-  prompt: 'none'  
+  # Valid values as defined from https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+  # none: The Authorization Server must not display any authentication or consent user interface pages.
+  # select_account: The Authorization Server should prompt the End-User to select a user account.
+  # login: The Authorization Server should prompt the End-User for reauthentication.
+  # consent: The Authorization Server should prompt the End-User for consent before returning information to the Client.
+  prompt: 'login'
 ```
 
 ### Optional: Redirect URL and Timeout
