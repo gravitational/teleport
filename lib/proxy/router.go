@@ -162,13 +162,14 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 // Router is used by the proxy to establish connections to both
 // nodes and other clusters.
 type Router struct {
-	clusterName           string
-	log                   *logrus.Entry
-	clusterGetter         RemoteClusterGetter
-	localSite             reversetunnelclient.RemoteSite
-	siteGetter            SiteGetter
-	tracer                oteltrace.Tracer
-	serverResolver        serverResolverFn
+	clusterName    string
+	log            *logrus.Entry
+	clusterGetter  RemoteClusterGetter
+	localSite      reversetunnelclient.RemoteSite
+	siteGetter     SiteGetter
+	tracer         oteltrace.Tracer
+	serverResolver serverResolverFn
+	// DELETE IN 15.0.0: necessary for smoothing over v13 to v14 transition only.
 	permitUnlistedDialing bool
 }
 
