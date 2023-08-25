@@ -41,14 +41,14 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.10.39
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.11
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.81
-	github.com/aws/aws-sdk-go-v2/service/athena v1.31.5
+	github.com/aws/aws-sdk-go-v2/service/athena v1.31.6
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.21.5
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.114.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.115.0
 	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.16.5
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.29.6
-	github.com/aws/aws-sdk-go-v2/service/glue v1.61.3
+	github.com/aws/aws-sdk-go-v2/service/glue v1.62.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.22.5
-	github.com/aws/aws-sdk-go-v2/service/rds v1.52.0
+	github.com/aws/aws-sdk-go-v2/service/rds v1.53.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.38.5
 	github.com/aws/aws-sdk-go-v2/service/sns v1.21.5
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.24.5
