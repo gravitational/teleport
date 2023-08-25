@@ -65,20 +65,10 @@ jobs:
         name: Build base
         id: build_base
         run: |
-          BUILD_SECRET=FAKE_SECRET make WEBASSETS_SKIP_BUILD=0 BUILDDIR=base_build ensure-webassets binaries
+          make full
           cd .github/shared-workflows/bot && go run main.go -workflow=binary-sizes --artifacts="tbot,tctl,teleport,tsh" --builddir="../../../base_build" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"  >> ~/teleport_base_build_stats
           echo "base_stats_file=~/teleport_base_build_stats" >> $GITHUB_OUTPUT
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
-      - name: Check for Environment Leak
-        id: check-env-leak
-        if: ${{ steps.cache-build-restore.outputs.cache-hit != 'true' }}
-        run: |
-          for binary in ${BUILDDIR}/*; do \
-            if strings $binary | grep -q 'FAKE_SECRET'; then \
-              echo "Error: $binary contains FAKE_SECRET"; \
-              exit 1; \
-            fi; \
-          done
       - if: ${{ steps.cache-build-restore.outputs.cache-hit != 'true' }}
         name: Save base build
         id: base-build-save
@@ -107,9 +97,21 @@ jobs:
           path: .github/shared-workflows
           ref: tross/skip_items_on_pr
 
-      - name: Check branch for bloat
+      - name: Build branch for bloat and environment leak test
         id: build_branch
         run: |
-          make WEBASSETS_SKIP_BUILD=1 binaries
+          BUILD_SECRET=FAKE_SECRET make full
+      - name: Check for Environment Leak
+        id: check_branch_env_leak
+        run: |
+          for binary in $(pwd)/build/*; do \
+            if strings $binary | grep -q 'FAKE_SECRET'; then \
+              echo "Error: $binary contains FAKE_SECRET"; \
+              exit 1; \
+            fi; \
+          done
+      - name: Check branch for bloat
+        id: check_branch_bloat
+        run: |
           current=$(pwd)/build
           cd .github/shared-workflows/bot && go run main.go -workflow=bloat --artifacts="tbot,tctl,teleport,tsh" --base="${base_stats}" --builddir="${current}" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}" > $GITHUB_STEP_SUMMARY
