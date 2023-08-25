@@ -102,6 +102,7 @@ export function FilterPanel({
       <Flex>
         <Box width="100px">
           <SortSelect
+            size="small"
             options={sortFieldOptions}
             value={activeSortFieldOption}
             isSearchable={false}

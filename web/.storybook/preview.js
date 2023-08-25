@@ -31,6 +31,7 @@ import {
   lightTheme as teletermLightTheme,
 } from './../packages/teleterm/src/ui/ThemeProvider/theme';
 import { handlersTeleport } from './../packages/teleport/src/mocks/handlers';
+import history from './../packages/teleport/src/services/history/history';
 import { UserContextProvider } from 'teleport/User';
 
 // Checks we are running non-node environment (browser)
@@ -41,6 +42,8 @@ if (typeof global.process === 'undefined') {
   // So it can be accessed in stories more easily.
   window.msw = { worker, rest };
 }
+
+history.init();
 
 // wrap each story with theme provider
 const ThemeDecorator = (storyFn, meta) => {

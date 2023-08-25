@@ -960,7 +960,7 @@ exports[`render DocumentNodes 1`] = `
                   height="24px"
                   kind="border"
                 >
-                  CONNECT
+                  Connect
                   <span
                     class="c30 icon icon-chevrondown"
                     color="text.slightlyMuted"
@@ -1014,7 +1014,7 @@ exports[`render DocumentNodes 1`] = `
                   height="24px"
                   kind="border"
                 >
-                  CONNECT
+                  Connect
                   <span
                     class="c30 icon icon-chevrondown"
                     color="text.slightlyMuted"
@@ -1073,7 +1073,7 @@ exports[`render DocumentNodes 1`] = `
                   height="24px"
                   kind="border"
                 >
-                  CONNECT
+                  Connect
                   <span
                     class="c30 icon icon-chevrondown"
                     color="text.slightlyMuted"
@@ -1132,7 +1132,7 @@ exports[`render DocumentNodes 1`] = `
                   height="24px"
                   kind="border"
                 >
-                  CONNECT
+                  Connect
                   <span
                     class="c30 icon icon-chevrondown"
                     color="text.slightlyMuted"
@@ -1210,7 +1210,7 @@ exports[`render DocumentNodes 1`] = `
                   height="24px"
                   kind="border"
                 >
-                  CONNECT
+                  Connect
                   <span
                     class="c30 icon icon-chevrondown"
                     color="text.slightlyMuted"
