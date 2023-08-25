@@ -19,6 +19,7 @@ package integration
 import (
 	"context"
 	"os"
+	"os/user"
 	"path"
 	"testing"
 	"time"
@@ -48,8 +49,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// teleportTestUser is additional user used for tests
-const teleportTestUser = "teleport-test"
+// teleportFakeUser is a user that doesn't exist, used for tests.
+const teleportFakeUser = "teleport-fake"
 
 // wildcardAllow is used in tests to allow access to all labels.
 var wildcardAllow = types.Labels{
@@ -64,6 +65,8 @@ type SrvCtx struct {
 	nodeClient *auth.Client
 	nodeID     string
 	utmpPath   string
+	wtmpPath   string
+	btmpPath   string
 }
 
 // TestRootUTMPEntryExists verifies that user accounting is done on supported systems.
@@ -72,51 +75,85 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		t.Skip("This test will be skipped because tests are not being run as root.")
 	}
 
+	user, err := user.Current()
+	require.NoError(t, err)
+	teleportTestUser := user.Name
+
 	ctx := context.Background()
 	s := newSrvCtx(ctx, t)
-	up, err := newUpack(ctx, s, teleportTestUser, []string{teleportTestUser}, wildcardAllow)
+	up, err := newUpack(ctx, s, teleportTestUser, []string{teleportTestUser, teleportFakeUser}, wildcardAllow)
 	require.NoError(t, err)
 
-	sshConfig := &ssh.ClientConfig{
-		User:            teleportTestUser,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
-		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
-	}
+	t.Run("successful login is logged in utmp and wtmp", func(t *testing.T) {
+		sshConfig := &ssh.ClientConfig{
+			User:            teleportTestUser,
+			Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+			HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
+		}
 
-	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
-	require.NoError(t, err)
-	defer func() {
-		err := client.Close()
+		client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 		require.NoError(t, err)
-	}()
-
-	se, err := client.NewSession()
-	require.NoError(t, err)
-	defer se.Close()
-
-	modes := ssh.TerminalModes{
-		ssh.ECHO:          0,     // disable echoing
-		ssh.TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
-		ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
-	}
-
-	require.NoError(t, se.RequestPty("xterm", 80, 80, modes), nil)
-	err = se.Shell()
-	require.NoError(t, err)
-
-	start := time.Now()
-	for time.Since(start) < 5*time.Minute {
-		time.Sleep(time.Second)
-		entryExists := uacc.UserWithPtyInDatabase(s.utmpPath, teleportTestUser)
-		if entryExists == nil {
-			return
-		}
-		if !trace.IsNotFound(entryExists) {
+		defer func() {
+			err := client.Close()
 			require.NoError(t, err)
-		}
-	}
+		}()
 
-	t.Errorf("did not detect utmp entry within 5 minutes")
+		se, err := client.NewSession()
+		require.NoError(t, err)
+		defer se.Close()
+
+		modes := ssh.TerminalModes{
+			ssh.ECHO:          0,     // disable echoing
+			ssh.TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
+			ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
+		}
+
+		require.NoError(t, se.RequestPty("xterm", 80, 80, modes), nil)
+		err = se.Shell()
+		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			return uacc.UserWithPtyInDatabase(s.utmpPath, teleportTestUser) == nil &&
+				uacc.UserWithPtyInDatabase(s.wtmpPath, teleportTestUser) == nil &&
+				trace.IsNotFound(uacc.UserWithPtyInDatabase(s.btmpPath, teleportTestUser))
+		}, 5*time.Minute, time.Second, "did not detect utmp entry within 5 minutes")
+	})
+
+	t.Run("unsuccessful login is logged in btmp", func(t *testing.T) {
+		sshConfig := &ssh.ClientConfig{
+			User:            teleportFakeUser,
+			Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+			HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
+		}
+
+		client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+		require.NoError(t, err)
+		defer func() {
+			err := client.Close()
+			require.NoError(t, err)
+		}()
+
+		se, err := client.NewSession()
+		require.NoError(t, err)
+		defer se.Close()
+
+		modes := ssh.TerminalModes{
+			ssh.ECHO:          0,     // disable echoing
+			ssh.TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
+			ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
+		}
+
+		require.NoError(t, se.RequestPty("xterm", 80, 80, modes), nil)
+		err = se.Shell()
+		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			return uacc.UserWithPtyInDatabase(s.btmpPath, teleportFakeUser) == nil &&
+				trace.IsNotFound(uacc.UserWithPtyInDatabase(s.utmpPath, teleportFakeUser)) &&
+				trace.IsNotFound(uacc.UserWithPtyInDatabase(s.wtmpPath, teleportFakeUser))
+		}, 5*time.Minute, time.Second, "did not detect btmp entry within 5 minutes")
+	})
+
 }
 
 // TestUsernameLimit tests that the maximum length of usernames is a hard error.
@@ -139,15 +176,12 @@ func TestRootUsernameLimit(t *testing.T) {
 	host := [4]int32{0, 0, 0, 0}
 	tty := os.NewFile(uintptr(0), "/proc/self/fd/0")
 	err = uacc.Open(utmpPath, wtmpPath, username, "localhost", host, tty)
-	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
 
 	// A 32 character long username.
 	username = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	err = uacc.Open(utmpPath, wtmpPath, username, "localhost", host, tty)
-	require.NoError(t, err)
-
-	err = uacc.Close(utmpPath, wtmpPath, tty)
-	require.NoError(t, err)
+	require.False(t, trace.IsBadParameter(err))
 }
 
 // upack holds all ssh signing artifacts needed for signing and checking user keys
@@ -244,11 +278,13 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	uaccDir := t.TempDir()
 	utmpPath := path.Join(uaccDir, "utmp")
 	wtmpPath := path.Join(uaccDir, "wtmp")
-	err = TouchFile(utmpPath)
-	require.NoError(t, err)
-	err = TouchFile(wtmpPath)
-	require.NoError(t, err)
+	btmpPath := path.Join(uaccDir, "btmp")
+	require.NoError(t, TouchFile(utmpPath))
+	require.NoError(t, TouchFile(wtmpPath))
+	require.NoError(t, TouchFile(btmpPath))
 	s.utmpPath = utmpPath
+	s.wtmpPath = wtmpPath
+	s.btmpPath = btmpPath
 
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -297,7 +333,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
-		regular.SetUtmpPath(utmpPath, utmpPath),
+		regular.SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath),
 		regular.SetLockWatcher(lockWatcher),
 		regular.SetSessionController(nodeSessionController),
 	)
