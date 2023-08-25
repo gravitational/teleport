@@ -22,7 +22,7 @@ reverse tunnel using the root cluster's proxy.
 
 Most organizations don't need to configure trusted clusters. In most cases, you can enroll
 resources and add reverse-tunnel proxies without creating a new cluster. Typically, a single 
-Yeleport cluster can scale to hundreds of thousands of connected resources.
+teleport cluster can scale to hundreds of thousands of connected resources.
 
 However, there are a few specific scenarios where trusted clusters can be paricularly useful.
 For example, if you have a large and widely-distributed infrastructure or must provide access
@@ -33,469 +33,553 @@ a trusted cluster. The most common use cases for trusted clusters include:
 - Device manufacturers remotely maintaining computing appliances deployed on premises.
 - Large cloud software vendors managing multiple data centers using a common proxy.
 
+## How it works
+
 In the following example, a managed service provider uses three independent clusters to 
 provide access to clients in different regions:
 
-- Cluster `sso.example.com` is the root cluster. This cluster can have its own resources or be 
-used for collecting audit logs and authenticating users.
+- Cluster `sso.example.com` is the root cluster. This cluster might have its own resources or be 
+strictly used for collecting audit logs and authenticating users.
 - Clusters `us-east-1a` and `us-east-1b` are two independent clusters in different availability zones.
+- Each cluster is an independent x.509 and SSH certificate authority and can operate autonomously. 
+  However, each leaf cluster can only trust one root cluster at any given time.
+- Each leaf cluster dials back to the root cluster to establish a reverse tunnel. If you have multiple 
+proxies, you have multiple tunnels for high availability.
 
-![MSP Example](../../../img/trusted-clusters/trusted-clusters@1.5x.svg)
-![Trusted clusters](../../img/architecture/trusted-clusters@1.5x.svg)
+The following diagram provides a simplified view of the architecture:
 
-This guide explains how to:
+![Trusted cluster](../../../img/trusted-clusters/simplified-trusted-cluster.png)
 
-- Add and remove trusted clusters.
+As this diagram suggests, users can sign in to the root cluster to receive certificates signed by the root
+cluster certificate authority. They can then connect to leaf clusters either directly
+or through the root cluster acting as a bastion host.
+After users sign in, they can be recognozied and trusted on the leaf clusters based on informtion in their
+certificate and on how their roles in the root cluster are mapped to roles on the leaf cluster.
+
+The Teleport Auth Service on the leaf cluster determines the resources a user has permissions to access by
+checking the certificate for the following information:
+
+- The list of **principals** that the user is authorized to use. Principals are equivalent to
+  the local logins that have been added to a Teleport user profile.
+- The signature of the **certificate authority** that issued the certificate. In a trusted cluster environment, 
+  the Teleport Auth Service on the root cluster signs the certificate.
+- The **metadata certificate extensions** that are provided by the Teleport Auth Service. Teleport uses 
+  the metadata to store the list of user roles and SSH options like `permit-agent-forwarding`.
+- The expiration date, or **time-to-live** (TTL) to ensure the certificate is still valid.
+
+Based on the information in the certificate, the Teleport Auth Service performs the following actions:
+
+- Verifies that the certificate signature matches one of its trusted clusters.
+- Applies role mapping to associate a role on the leaf cluster with one of the roles assigned 
+  to the user in the root cluster.
+- Checks if the local role allows the requested identity—the Unix login—to have access.
+- Verifies that the certificate has not expired. The TTL is set by the root cluster.
+
+Note that trusted clusters only work in one direction. 
+Users from the leaf cluster can't see or connect to servers in the root cluster.
+
+## Role relationships in a trusted cluster
+
+As noted in [How it works](#how-it-works), leaf clusters are autonomous. They have their own state, roles, 
+and local users. This autonomy enables leaf cluster administrators to decide how to map the identity of the 
+external users to their local cluster roles. 
+The following diagram provides a simplified view of how role mapping works using the same trusted
+cluster with `sso.example.com` as the root cluster and `us-east-1a` as the leaf cluster:
+
+![Role mapping in a trusted cluster](../../../img/trusted-clusters/simplified-trusted-cluster-role-mapping.png)
+
+In this example, the user Alice signs in to the `sso.example.com` root cluster. The root cluster is
+configured with a single sign-on identity provider that authenticates her identity and her group membership.
+Based on the information from the identity provider, the root cluster assigns Alice the `full-access` role
+and issues her a certificate. The mapping of single sign-on properties to Teleport roles is configured when
+you add an authentication connector to the Teleport cluster. To learn more about configuring single sign-on
+through an external identity provider, see [Configure Single Sign-on](../../access-controls/sso).
+
+Alice receives the certificate that specifies the roles assigned to her in the root cluster. This metadata
+about her roles is contained in the certificate extensions and is protected by the signature of the root 
+cluster certificate authority so it can't be tampered with.
+
+When Alice connects to a resource in the leaf cluster `us-east-1a`, she's identified as an external user
+with a certificate signed by an external certificate authority. Based on the role mapping rules in the leaf
+cluster, Alice is assigned the `stage-access` role. This role allows her to access `mongodb.stage.us-east-1a`
+but not `mongodb.prod.us-east-1a`.
+
+In this example, the leaf cluster `us-east-1a` denies Alice access to the `mongodb.prod.us-east-1a` resource
+because her `full-access` role in the root cluster is mapped to the `stage-access` role in this leaf cluster.
+With role mapping, leaf cluster administrators can control the privileges external users are granted.
+Although role mapping can be as simple as assigning users to the same roles in the root and leaf clusters,
+you can also use mapping to downgrade a user's privileges or restrict access to specific resources.
+
+Now that you know what a trusted cluster is and how it works, you can use this guide 
+to learn how to:
+
+- Identify root and leaf clusters.
+- Add trusted cluster resources.
+- Generate an invitation token to establish a trust relationship between a root and leaf cluster.
 - Establish permission mapping between clusters using Teleport roles.
 - Enable and disable trust between clusters.
 
 ## Prerequisites
 
-<Tabs>
-<TabItem scope="team" label="Teleport Team">
+To complete the steps in this guide, verify your environment meets the following requirements:
 
-- A Teleport Team account. If you do not have one, visit the [signup
-  page](https://goteleport.com/signup/) to begin your free trial.
+- Access to **two** Teleport cluster instances in your environment:
 
-- A second Teleport cluster, which will act as the leaf cluster. For details on
-  how to set up this cluster, see our [Getting Started](../../index.mdx)
-  guide.
+  - Teleport Community Edition or Teleport Enterprise if you manage the Teleport clusters on your own network.
+  - Teleport Team or Teleport Enterprise Cloud if you access Teleport as a managed cloud-based service.
 
-  As an alternative, you can set up a second Teleport Team account.
+  For information about setting up a self-hosted Teleport Enterprise cluster, see [Deploying a High 
+  Availability Teleport Cluster](../deploy-a-cluster/high-availability.mdx).
+  To begin a free trial of Teleport Team or upgrade to Teleport Enterprise Cloud, visit the cloud
+  service [sign up page](https://goteleport.com/signup/).
+  For information about the differences between Teleport editions, see [Comparing 
+  editions](../choose-an-edition/introduction.mdx#comparing-editions) .
 
-- (!docs/pages/includes/cloud/tctl-tsh-prerequisite.mdx!)
+- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
+  
+  For Teleport Enterprise, Teleport Team, and Teleport Enterprise cloud, you should have
+  the Enterprise version of `tctl` and `tsh` installed. 
+  You can verify the tools you have installed by running the following commands:
 
-- A Teleport Node that is joined to one of your clusters. We will refer to this
-  cluster as the **leaf cluster** throughout this guide.
+  ```code
+  $ tctl version
+  # Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
+  
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
 
-  See [Join Services to your Cluster](../../agents/join-services-to-your-cluster.mdx) for
-  how to launch a Teleport Node in your cluster.
+  For more information about installing Teleport, see [Installation](../../installation.mdx).
 
-</TabItem>
-<TabItem scope={["oss"]} label="Open Source">
-
-- Two running Teleport clusters. For details on how to set up your clusters, see
-  our [Getting Started](../../index.mdx) guide.
-
-- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
-
-  See [Installation](../../installation.mdx) for details.
-
-- A Teleport agent that is joined to one of your clusters. We will refer to this
-  cluster as the **leaf cluster** throughout this guide.
-
-  See [Join Services to your
-  Cluster](../../agents/join-services-to-your-cluster.mdx) for how to launch a
-  Teleport agent in your cluster.
-
-</TabItem>
-<TabItem
-  scope={["enterprise"]} label="Enterprise">
-
-- Two running Teleport clusters. For details on how to set up your clusters, see
-  our Enterprise [Getting
-  Started](../../choose-an-edition/teleport-enterprise/introduction.mdx) guide.
-
-- (!docs/pages/includes/enterprise/tctl-tsh-prerequisite.mdx!)
-
-- A Teleport Node that is joined to one of your clusters. We will refer to this
-  cluster as the **leaf cluster** throughout this guide.
-
-  See [Join Services to your Cluster](../../agents/join-services-to-your-cluster.mdx) for how to launch a Teleport agent in
-  your cluster.
-
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Teleport Enterprise Cloud">
-
-- A Teleport Enterprise Cloud account. If you do not have one, visit the [sign
-  up page](https://goteleport.com/signup/) to begin a free trial of Teleport
-  Team and upgrade to Teleport Enterprise Cloud. 
-
-- A second Teleport cluster, which will act as the leaf cluster. For details on
-how to set up this cluster, see our
-[Getting Started](../../index.mdx) guide.
-
-  As an alternative, you can set up a second Teleport Cloud account.
-
-- (!docs/pages/includes/cloud/tctl-tsh-prerequisite.mdx!)
-
-- A Teleport Node that is joined to one of your clusters. We will refer to this
-  cluster as the **leaf cluster** throughout this guide.
-
-  See [Join Services to your Cluster](../../agents/join-services-to-your-cluster.mdx) for how to launch a
-  Teleport agent in your cluster.
-
-</TabItem>
-</Tabs>
+- A Teleport agent that is joined to the cluster you plan to use as the **leaf cluster**.
+  For information about how to launch a Teleport agent in a cluster, see 
+  [Join Services to your Cluster](../../agents/join-services-to-your-cluster.mdx).
 
 (!docs/pages/includes/permission-warning.mdx!)
 
-## Step 1/5. Prepare your environment
+## Step 1/6. Prepare the leaf cluster environment
 
-In this guide, we will enable users of your root cluster to SSH into the
-Teleport Node in your leaf cluster as the user `visitor`. First, we will create
-the `visitor` user and a Teleport role that can assume this username when
-logging in to your Node.
+This guide demonstrates how to enable users of your root cluster to access
+a server in your leaf cluster with a specific user identity and role.
+For this example, the user identity you can use to access the server in the leaf
+cluster is `visitor`. Therefore, to prepare your environment, you first need to 
+create the `visitor` user and a Teleport role that can assume this username when 
+logging in to the server in the leaf cluster.
 
-### Add a user to your Node
+To add a user and role for accessing the trusted cluster:
 
-On your Node, run the following command to add the `visitor` user:
+1. Open a terminal shell on the server running the Teleport agent in the leaf cluster.
 
-```code
-$ sudo useradd --create-home visitor
-```
-
-<Notice type="warning">
-
-This command also creates a home directory for the `visitor` user, which is
-required for accessing a shell on the Node.
-
-</Notice>
-
-### Create a role to access your Node
-
-On your local machine, log in to your leaf cluster using your Teleport username:
-
-<Tabs>
-<TabItem scope="cloud" label="Teleport Enterprise Cloud">
-
-```code
-# Log out of all clusters to begin this guide from a clean state
-$ tsh logout
-$ tsh login --proxy=leafcluster.teleport.sh --user=myuser
-```
-
-</TabItem>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-```code
-# Log out of all clusters to begin this guide from a clean state
-$ tsh logout
-$ tsh login --proxy=leafcluster.example.com --user=myuser
-```
-
-</TabItem>
-
-</Tabs>
-
-Create a file called `visitor.yaml` with the
-following content:
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: visitor
-spec:
-  allow:
-    logins:
-      - visitor
-    # In case your Node is labeled, you will need to explicitly allow access
-    # to Nodes with labels in order to SSH into your Node.
-    node_labels:
-      '*': '*'
-```
-
-Create the role:
-
-```code
-$ tctl create visitor.yaml
-role 'visitor' has been created
-```
-
-Now you have a `visitor` role on your leaf cluster that enables users to assume
-the `visitor` login on your Node.
-
-### Add a login to your root cluster user
-
-The `visitor` role allows users with the `visitor` login to access Nodes in the
-leaf cluster. In the next step, we will add the `visitor` login to your user so
-you can satisfy the conditions of the role and access the Node.
-
-Make sure that you are logged in to your root cluster.
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-```code
-$ tsh logout
-$ tsh login --proxy=rootcluster.example.com --user=myuser
-```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ tsh logout
-$ tsh login --proxy=rootcluster.teleport.sh --user=myuser
-```
-
-</TabItem>
-
-</Tabs>
-
-Create a file called `user.yaml` with your current user configuration. Replace
-`myuser` with your Teleport username:
-
-```code
-$ tctl get user/myuser > user.yaml
-```
-
-Make the following change to `user.yaml`:
-
-```diff
-   traits:
-     logins:
-+    - visitor
-     - ubuntu
-     - root
-```
-
-Apply your changes:
-
-```code
-$ tctl create -f user.yaml
-```
-
-In the next section, we will allow users on the root cluster to access your Node
-while assuming the `visitor` role.
-
-## Step 2/5. Establish trust between clusters
-
-Teleport establishes trust between the root cluster and a leaf cluster using
-a **join token**.
-
-To set up trust between clusters, you will first create a join token via the
-root cluster's Auth Service. You will then use the Auth Service on the leaf
-cluster to create a `trusted_cluster` resource.
-
-The `trusted_cluster` resource will include the join token, proving to the root
-cluster that the leaf cluster is the one you expected to register.
-
-### Create a join token
-
-You can create a join token using the `tctl` tool.
-
-First, log out of all clusters and log in to the root cluster.
-
-<Tabs>
-<TabItem scope={["oss"]} label="Teleport Community Edition">
-
-```code
-$ tsh logout
-$ tsh login --user=myuser --proxy=rootcluster.example.com
-> Profile URL:        https://rootcluster.example.com:443
-  Logged in as:       myuser
-  Cluster:            rootcluster.example.com
-  Roles:              access, auditor, editor
-  Logins:             root
-  Kubernetes:         enabled
-  Valid until:        2022-04-29 03:07:22 -0400 EDT [valid for 12h0m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-```
-
-</TabItem>
-<TabItem scope={["enterprise"]} label="Teleport Enterprise">
-
-```code
-$ tsh logout
-$ tsh login --user=myuser --proxy=rootcluster.example.com
-> Profile URL:        https://rootcluster.example.com:443
-  Logged in as:       myuser
-  Cluster:            rootcluster.example.com
-  Roles:              access, auditor, editor, reviewer
-  Logins:             root
-  Kubernetes:         enabled
-  Valid until:        2022-04-29 03:07:22 -0400 EDT [valid for 12h0m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ tsh login --user=myuser --proxy=myrootclustertenant.teleport.sh
-> Profile URL:        https://rootcluster.teleport.sh:443
-  Logged in as:       myuser
-  Cluster:            rootcluster.teleport.sh
-  Roles:              access, auditor, editor, reviewer
-  Logins:             root
-  Kubernetes:         enabled
-  Valid until:        2022-04-29 03:07:22 -0400 EDT [valid for 12h0m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-```
-
-</TabItem>
-
-</Tabs>
-
-Execute the following command on your development machine:
-
-```code
-# Generates a Trusted Cluster token to allow an inbound connection from a leaf cluster:
-$ tctl tokens add --type=trusted_cluster --ttl=5m
-The cluster invite token: (=presets.tokens.first=)
-This token will expire in 5 minutes
-
-Use this token when defining a trusted cluster resource on a remote cluster.
-```
-
-This command generates a Trusted Cluster join token. The token can be used
-multiple times and has an expiration time of 5 minutes.
-
-<Details title="Optional: Add labels">
-The `--labels` flag will add labels to the trusted cluster. This lets teams use
-the same RBAC controls used on individual resources to approve or deny access
-to clusters.
-</Details>
-
-Copy the join token for later use. If you need to display your join token again,
-run the following command against your root cluster:
-
-```code
-$ tctl tokens ls
-Token                                                            Type            Labels   Expiry Time (UTC)
----------------------------------------------------------------- --------------- -------- ---------------------------
-(=presets.tokens.first=)                                 trusted_cluster          28 Apr 22 19:19 UTC (4m48s)
-```
-
-<Details title="Revoking join tokens">
-
-You can revoke a join token with the following command:
-
-```code
-$ tctl tokens rm (=presets.tokens.first=)
-```
-
-</Details>
-
-<Notice
-  type="tip"
->
-
-  It's important to note that join tokens are only used to establish a
-  connection for the first time. Clusters will exchange certificates and
-  won't use tokens to re-establish their connection afterward.
-
-</Notice>
-
-### Define a Trusted Cluster resource
-
-On your local machine, create a file called `trusted_cluster.yaml` with the
-following content:
-
-```yaml
-# trusted_cluster.yaml
-kind: trusted_cluster
-version: v2
-metadata:
-  name: rootcluster.example.com
-spec:
-  enabled: true
-  token: (=presets.tokens.first=)
-  tunnel_addr: rootcluster.example.com:11106
-  web_proxy_addr: rootcluster.example.com:443
-  role_map:
-    - remote: "access"
-      local: ["visitor"]
-```
-
-Change the fields of `trusted_cluster.yaml` as follows:
-
-#### `metadata.name`
-
-Use the name of your root cluster, e.g., `example.teleport.sh`.
-
-#### `spec.token`
-
-This is join token you created earlier.
-
-#### `spec.tunnel_addr`
-
-This is the reverse tunnel address of the Proxy Service in the root cluster. Run
-the following command to retrieve the value you should use:
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-```code
-$ PROXY=rootcluster.example.com
-$ curl https://${PROXY?}/webapi/ping | jq 'if .proxy.tls_routing_enabled == true then .proxy.ssh.public_addr else .proxy.ssh.ssh_tunnel_public_addr end'
-"rootcluster.example.com:443"
-```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ PROXY=rootcluster.teleport.sh
-$ curl https://${PROXY?}/webapi/ping | jq 'if .proxy.tls_routing_enabled == true then .proxy.ssh.public_addr else .proxy.ssh.ssh_tunnel_public_addr end'
-"rootcluster.teleport.sh:443"
-```
-
-</TabItem>
-
-</Tabs>
-
-#### `web_proxy_addr`
-
-This is the address of the Proxy Service on the root cluster. Obtain this with the
+1. Add the local `visitor` user and create a home directory for the user by running the 
 following command:
+   
+   ```code
+   $ sudo useradd --create-home visitor
+   ```
+   
+   The home directory is required for the `visitor` user to access a shell on the server.
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+1. Sign out of all user logins and clusters by running the following command:
+   
+   ```code
+   $ tsh logout
+   ```
 
-```code
-$ curl https://${PROXY?}/webapi/ping | jq .proxy.ssh.public_addr
-"teleport.example.com:443"
-```
+1. Sign in to your **leaf cluster** from your administrative workstation using 
+your Teleport username:
+   
+   ```code
+   $ tsh login --proxy=<Var name="leafcluster.teleport.sh" /> --user=<Var name="myuser" />
+   ```
 
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+   Replace `leafcluster.teleport.sh` with the Teleport leaf cluster domain and 
+   `myuser` with your Teleport username.
 
-```code
-$ curl https://${PROXY?}/webapi/ping | jq .proxy.ssh.public_addr
-"mytenant.teleport.sh:443"
-```
+1. Create a role definition file called `visitor.yaml` with the following content:
 
-</TabItem>
+   ```yaml
+   kind: role
+   version: v5
+   metadata:
+     name: visitor
+   spec:
+     allow:
+       logins:
+         - visitor
+       node_labels:
+         '*': '*'
+   ```
 
-</Tabs>
+   You must explicitly allow access to nodes with labels to SSH into the server running 
+   the Teleport agent. In this example, the `visitor` login is allowed access to any server.
 
-#### `spec.role_map`
+1. Create the `visitor` role by running the following command:
+   
+   ```code
+   $ tctl create visitor.yaml
+   ```
+   
+   You now have a `visitor` role on your leaf cluster. The `visitor` role allows 
+   users with the `visitor` login to access nodes in the leaf cluster. In the next step, 
+   you must add the `visitor` login to your user so you can satisfy the conditions of 
+   the role and access the server in the leaf cluster.
 
-When a leaf cluster establishes trust with a root cluster, it needs a way to
-configure access from users in the root cluster. Teleport enables you to limit
-access to Trusted Clusters by mapping Teleport roles to cluster labels.
+## Step 2/6. Prepare the root cluster environment
 
-When creating a `trusted_cluster` resource, the administrator of the leaf
-cluster must define how roles from the root cluster map to roles on the leaf
-cluster.
+Before you can test access to the server in the leaf cluster, you must have a
+Teleport user that can assume the `visitor` login. Because authentication is
+handled by the root cluster, you need to add the `visitor` login to a user in the
+root cluster.
 
-`trusted_cluster.yaml` uses the following configuration:
+To add the login to your Teleport user:
 
-```yaml
-  role_map:
-    - remote: "access"
-      local: ["visitor"]
-```
+1. Sign out of all user logins and clusters by running the following command:
+   
+   ```code
+   $ tsh logout
+   ```
 
-Here, if a user has the `access` role on the root cluster, the leaf cluster will grant
-them the `visitor` role when they attempt to log in to a Node.
+1. Sign in to your **root cluster** from your administrative workstation using 
+your Teleport username:
+   
+   ```code
+   $ tsh login --proxy=<Var name="rootcluster.teleport.sh" /> --user=<Var name="myuser" />
+   ```
 
-If your user on the root cluster has the `access` role, leave this as it is. If
-not, change `access` to one of your user's roles.
+   Replace `rootcluster.teleport.sh` with the Teleport root cluster domain and 
+   `myuser` with your Teleport username.
 
-<Details title="Role mapping syntax">
+1. Create a file called `user.yaml` with your current user configuration by running 
+a command similar to the following:
+
+   ```code
+   $ tctl get user/<Var name="myuser" /> > user.yaml
+   ```
+
+   Replace `myuser` with your Teleport username.
+
+1. Open the `user.yaml` file in a text editor and add the `visitor` login:
+   
+   ```diff
+      traits:
+        logins:
+   +    - visitor
+        - ubuntu
+        - root
+   ```
+
+1. Apply your changes by running the following command:
+   
+   ```code
+   $ tctl create -f user.yaml
+   ```
+
+## Step 3/6. Establish trust between clusters
+
+Before users from the root cluster can access the server in the
+leaf cluster using the `visitor` role, you must define a trust relationship 
+between the clusters. Teleport establishes trust between the root cluster and a 
+leaf cluster using an **invitation token**.
+
+To set up trust between clusters, you must first create the invitation token using the
+Teleport Auth Service in the root cluster. You can then use the Teleport Auth Service 
+on the leaf cluster to create a `trusted_cluster` resource that includes the invitation token, 
+proving to the root cluster that the leaf cluster is the one you expect to register.
+
+To establish the trust relationship:
+
+1. Sign out of all user logins and clusters by running the following command:
+   
+   ```code
+   $ tsh logout
+   ```
+
+1. Sign in to your **root cluster** from your administrative workstation using 
+your Teleport username:
+   
+   ```code
+   $ tsh login --proxy=<Var name="rootcluster.teleport.sh" /> --user=<Var name="myuser" />
+   ```
+
+   Replace `rootcluster.teleport.sh` with the Teleport root cluster domain and 
+   `myuser` with your Teleport username.
+
+1. Generate the invitation token by running the following command:
+   
+   ```code
+   $ tctl tokens add --type=trusted_cluster --ttl=5m
+   The cluster invite token: (=presets.tokens.first=)
+   ```
+
+   This command generates a trusted cluster invitation token to allow an inbound 
+   connection from a leaf cluster. The token can be used multiple times. In this
+   command example, the token has an expiration time of five minutes.
+   
+   Note that the invitation token is only used to establish a
+   connection for the first time. Clusters exchange certificates and
+   don't use tokens to re-establish their connection afterward.
+
+   You can copy the token for later use. If you need to display the token again,
+   run the following command against your root cluster:
+
+   ```code
+   $ tctl tokens ls
+   Token                                                    Type            Labels   Expiry Time (UTC)
+   -------------------------------------------------------- --------------- -------- ---------------------------
+   (=presets.tokens.first=)                                 trusted_cluster          28 Apr 22 19:19 UTC (4m48s)
+   ```
+
+1. Create a resource configuration file called `trusted_cluster.yaml` with the
+following content:
+
+   ```yaml
+   kind: trusted_cluster
+   version: v2
+   metadata:
+     name: rootcluster.teleport.sh
+   spec:
+     enabled: true
+     token: (=presets.tokens.first=)
+     tunnel_addr: rootcluster.teleport.sh:443
+     web_proxy_addr: rootcluster.teleport.sh:443
+     role_map:
+       - remote: "access"
+         local: ["visitor"]
+   ```
+
+   In this file:
+
+   - Set `metadata.name` to the name of your root cluster.
+   - Set `spec.token` to the invitation token you generated previously.
+   - Set `spec.tunnel_addr` to the reverse tunnel address of the Teleport Proxy Service in the root cluster.
+   - Set `spec.web_proxy_addr` to the address of the Teleport Proxy Service on the root cluster. 
+   - Set `spec.role_map` to map Teleport roles from the root cluster to roles in the leaf cluster.
+
+   If you aren't sure of what values to set for the `tunnel_addr` or `web_proxy_addr`,
+   see [Commands to lookup cluster addresses](commands-to-look-up-cluster-addresses.mdx).
+
+   You use the `role_map` setting in the `trusted_cluster` resource configuration to define how 
+   roles from the root cluster map to roles on the leaf cluster. In this example, users assigned 
+   the `access` role for the root cluster are granted the `visitor` role when they attempt to log 
+   in to a server in the leaf cluster. This role mapping enables you to restrict access to resources
+   in the leaf cluster.
+   
+   If your Teleport user is assigned the `access` role on the root cluster, you can use this role 
+   mapping to test access to the server in the leaf cluster. If your Teleport user isn't assigned 
+   the `access` role, change `access` in the `role_map` to one of your user's roles.
+
+   Role mapping can be quite powerful for managing access in trusted clusters. For more information
+   about how to use role mapping to restrict access to leaf clusters and examples of the accepted
+   syntax, see [Role mapping  in trusted clusters](role-mapping-in-trusted-clusters).
+
+1. Sign out of the root cluster by running the following command:
+   
+   ```code
+   $ tsh logout
+   ```
+
+## Step 4/6. Create the trusted cluster resource
+
+You're now ready to create the trusted cluster resource in the leaf cluster.
+
+To create the trusted cluster resource:
+
+1. Sign in to your **leaf cluster** from your administrative workstation using 
+your Teleport username:
+   
+   ```code
+   $ tsh login --proxy=<Var name="leafcluster.teleport.sh" /> --user=<Var name="myuser" />
+   ```
+
+   Replace `leafcluster.teleport.sh` with the Teleport leaf cluster domain and 
+   `myuser` with your Teleport username.
+
+1. Create the trusted cluster resource from the resource configuration file by running 
+the following command:
+
+   ```code
+   $ tctl create trusted_cluster.yaml
+   ```
+
+   You can also configure leaf clusters directly in the Teleport Web UI.
+   For example, you can select **Management**, then click **Trusted Clusters** to create a
+   new `trusted_cluster` resource or manage an existing trusted cluster.
+
+1. Sign out of the leaf cluster and sign back in to the root cluster. 
+
+1. Verify the trusted cluster configuration by running the following command:
+   
+   ```code
+   $ tsh clusters
+   ```
+   
+   This command should list the root cluster and the leaf cluster with output 
+   similar to the following:
+   
+   ```
+   Cluster Name                Status Cluster Type Labels Selected 
+   --------------------------- ------ ------------ ------ -------- 
+   rootcluster.teleport.sh     online root                *        
+   leafcluster.teleport.sh     online leaf                         
+   ```
+
+## Step 5/6. Manage access to the trusted cluster
+
+When you created a `trusted_cluster` resource on the leaf cluster, the 
+Teleport Auth Service on the leaf cluster sends a request to the Teleport 
+Proxy Service on the root cluster to validate the trusted cluster. 
+After validating the request, the root cluster creates a `remote_cluster` 
+resource to represent the trusted leaf cluster.
+
+You can add labels to the `remote_cluster` resource on the root cluster to
+manage access to the leaf cluster. You can't manage labels on the leaf clusters
+themselves. Leaf clusters propagating their own labels could create problems with 
+rogue clusters updating their labels to unexpected values.
+
+To manage access to the leaf cluster:
+
+1. Verify that you are signed in as a Teleport user on the root cluster by
+running the following command:
+   
+   ```code
+   tsh status
+   ```
+
+1. Retrieve the `remote_cluster` resource by running the following command:
+
+   ```code
+   $ tctl get rc
+   ```
+
+   This command displays output similar to the following:
+
+   ```
+   kind: remote_cluster
+   metadata:
+     id: 1651261581522597792
+     name: leafcluster.teleport.sh
+   status:
+     connection: online
+     last_heartbeat: "2022-04-29T19:45:35.052864534Z"
+   version: v3
+   ```
+
+1. Add a label to the leaf cluster by running a command similar to the following:
+
+   ```code
+   $ tctl update rc/leafcluster.teleport.sh --set-labels=env=demo
+   ```
+   
+   After you run this command, you must be given explicit permission to access 
+   clusters with the label you just set. If a trusted cluster has a label, the 
+   Teleport Auth Service won't return any information about the cluster unless you
+   are assigned a role that allows access to clusters with the label that's been set.
+
+1. Create a role configuration file called `demo-cluster-access.yaml` that 
+allows access to clusters with the `env: demo` label:
+
+   ```yaml
+   kind: role
+   metadata:
+     name: demo-cluster-access
+   spec:
+     allow:
+       cluster_labels:
+         'env': 'demo'
+   version: v5
+   ```
+
+1. Create the role by running the following command:
+
+   ```code
+   $ tctl create demo-cluster-access.yaml
+   ```
+
+1. (!docs/pages/includes/add-role-to-user.mdx role="demo-cluster-access"!)
+
+1. Confirm that the leaf cluster has been updated with the label you set by 
+running the following command:
+
+   ```code
+   $ tctl get rc
+   ```
+
+   Because you now have a role with permission to access a cluster with the `env: demo` label,
+   the command displays the updated resource information:
+
+   ```
+   kind: remote_cluster
+   metadata:
+     id: 1651262381521336026
+     labels:
+       env: demo
+     name: leafcluster.teleport.sh
+   status:
+     connection: online
+     last_heartbeat: "2022-04-29T19:55:35.053054594Z"
+   version: v3
+   ```
+
+## Step 6/6. Access a server in the leaf cluster
+
+With the `trusted_cluster` resource you created earlier, you can log in to the
+server in your leaf cluster as a user of your root cluster.
+
+To test access to the server:
+
+1. Verify that you are signed in as a Teleport user on the root cluster by
+running the following command:
+   
+   ```code
+   tsh status
+   ```
+   
+
+1. Confirm that the server running the Teleport agent is joined to the leaf cluster by 
+running a command similar to the following:
+   
+   ```code
+   $ tsh ls --cluster=<Var name="leafcluster.teleport.sh" />
+   ```
+
+   This command displays output similar to the following:
+
+   ```
+   Node Name       Address        Labels
+   --------------- -------------- ------------------------------------
+   ip-172-3-1-242  127.0.0.1:3022 hostname=ip-172-3-1-242                                                                    
+   ip-172-3-2-205  ⟵ Tunnel      hostname=ip-172-3-2-205
+   ```
+
+1. Open a secure shell connection using the `visitor` login:
+
+   ```code
+   $ tsh ssh --cluster=leafcluster.example.com visitor@ip-172-3-2-205
+   ```
+
+1. Confirm you are logged in with as the user `visitor` on the server
+in the leaf cluster by running the following commands:
+   
+   ```code
+   $ pwd
+   /home/visitor
+   $ uname -a
+   Linux ip-172-3-2-205 5.15.0-1041-aws #46~20.04.1-Ubuntu SMP Wed Jul 19 15:39:29 UTC 2023 aarch64 aarch64 aarch64 GNU/Linux
+   ```
+
+## Role mapping in trusted clusters
+
+In this guide, you saw a simple example of role mapping.
+However, you can define more sophisticated role mapping for trusted clusters using wildcards, regular expressions, 
+role template variables, shared user traits, and labels.
+The next sections provide additional details about role mapping in trusted clusters and provide examples 
+for using more complex role mapping syntax.
 
 ### Wildcard characters
 
-In role mappings, the wildcard character `*` is used to match any number of
-characters in a string.
-
-For example, if we wanted to let *any* user from the root cluster connect to the
-leaf cluster, we can use a wildcard `*` in the `role_map` like this:
+In role mappings, the asterisk (*) is a wildcard character that you can use to match any number of
+characters in a string. For example, if you want to let *any* user from the root cluster connect to the
+leaf cluster, you can use a wildcard `*` in the `role_map` like this:
 
 ```yaml
 role_map:
@@ -503,8 +587,8 @@ role_map:
     local: [access]
 ```
 
-In this example, we are mapping any roles on the root cluster that begin with
-`cluster-` to the role `clusteradmin` on the leaf cluster.
+The following example illustrates mapping any roles on the root cluster that begin with
+`cluster-` to the role `clusteradmin` on the leaf cluster:
 
 ```yaml
 role_map:
@@ -515,13 +599,12 @@ role_map:
 ### Regular expressions
 
 You can also use regular expressions to map user roles from one cluster to
-another. Our regular expression syntax enables you to use capture groups to
-reference part of an remote role name that matches a regular expression in the
-corresponding local role:
+another. The regular expression syntax enables you to use part of a remote 
+role name that matches a regular expression in the corresponding local role.
+In the following example, remote users with a remote role called `remote-one` are
+mapped to a local role called `local-one`, `remote-two` becomes `local-two`, and so on:
 
 ```yaml
-  # In this example, remote users with a remote role called 'remote-one' will be
-  # mapped to a local role called 'local-one', and `remote-two` becomes `local-two`, etc:
   - remote: "^remote-(.*)$"
     local: [local-$1]
 ```
@@ -529,16 +612,12 @@ corresponding local role:
 Regular expression matching is activated only when the expression starts
 with `^` and ends with `$`.
 
-Regular expressions use Google's re2 syntax, which you can read about in the re2 [syntax guide](https://github.com/google/re2/wiki/Syntax).
+Regular expressions use Google's re2 syntax. For more information, see the re2 [syntax guide](https://github.com/google/re2/wiki/Syntax).
 
-</Details>
+### Sharing user traits between trusted clusters
 
-<Details title="Sharing user traits between Trusted Clusters">
-
-You can share user SSH logins, Kubernetes users/groups, and database users/names between Trusted Clusters.
-
-Suppose you have a root cluster with a role named `root` and the following
-allow rules:
+You can share user SSH logins, Kubernetes users and groups, and database users and names between trusted clusters.
+For example, assume you have a root cluster with a role named `root` and the following allow rules:
 
 ```yaml
 logins: ["root"]
@@ -548,7 +627,7 @@ db_users: ["postgres"]
 db_names: ["dev", "metrics"]
 ```
 
-When setting up the Trusted Cluster relationship, the leaf cluster can choose
+When setting up the trusted cluster relationship, the leaf cluster can choose 
 to map this `root` cluster role to its own `admin` role:
 
 ```yaml
@@ -558,7 +637,7 @@ role_map:
 ```
 
 The role `admin` of the leaf cluster can now be set up to use the root cluster's
-role logins, Kubernetes groups and other traits using the following variables:
+role logins, Kubernetes groups, and other traits using the following variables:
 
 ```yaml
 logins: ["{{internal.logins}}"]
@@ -568,9 +647,9 @@ db_users: ["{{internal.db_users}}"]
 db_names: ["{{internal.db_names}}"]
 ```
 
-User traits that come from the identity provider (such as OIDC claims or SAML
-attributes) are also passed to the leaf clusters and can be access in the role
-templates using `external` variable prefix:
+User traits that come from an identity provider—such as OIDC claims or SAML
+attributes—are also passed to the leaf clusters and can be used in role
+templates using the `external` variable prefix. For example:
 
 ```yaml
 logins: ["{{internal.logins}}", "{{external.logins_from_okta}}"]
@@ -578,440 +657,161 @@ node_labels:
   env: "{{external.env_from_okta}}"
 ```
 
-</Details>
+### Update role mappings
 
-### Create your Trusted Cluster resource
-
-Log out of the root cluster.
-
-```code
-$ tsh logout
-```
-
-Log in to the leaf cluster:
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-```code
-$ tsh login --user=myuser --proxy=leafcluster.example.com
-```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ tsh login --user=myuser --proxy=leafcluster.teleport.sh
-```
-
-</TabItem>
-
-</Tabs>
-
-Create the Trusted Cluster:
-
-```code
-$ tctl create trusted_cluster.yaml
-```
-
-<Details title="Creating Trusted Clusters via the Web UI">
-
-You can easily configure leaf nodes using the Teleport Web UI.
-
-Here is an example of creating trust between a leaf and a root node.
-![Tunnels](../../../img/trusted-clusters/setting-up-trust.png)
-</Details>
-
-<Details
-  type="tip"
-  title="Update role mappings"
->
-
-You can update the role mappings within the `trusted_cluster` resource we created earlier by modifying the resource definition (`trusted_cluster.yaml`) to indicate the new role mappings in the `role_map` field.
-
-Then, update the trusted cluster resource on the leaf cluster side:
+You can update role mappings for a trusted cluster resource by modifying the `role_map` 
+field in the `trusted_cluster.yaml` resource configuration file. After you update the 
+resource configuration file, you can update the trusted cluster by signing in to the 
+leaf cluster and running the following command:
 
 ```code
 $ tctl create --force trusted_cluster.yaml
 ```
 
-</Details>
+### Role mapping and labels
 
-Log out of the leaf cluster and log back in to the root cluster. When you run
-`tsh clusters`, you should see listings for both the root cluster and the leaf
-cluster:
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-```code
-$ tsh clusters
-tsh clusters
-Cluster Name                                          Status Cluster Type Selected
------------------------------------------------------ ------ ------------ --------
-rootcluster.example.com                               online root         *
-leafcluster.example.com                               online leaf
-```
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ tsh clusters
-Cluster Name                                          Status Cluster Type Selected
------------------------------------------------------ ------ ------------ --------
-rootcluster.teleport.sh                               online root         *
-leafcluster.teleport.sh                               online leaf
-```
-</TabItem>
+In this guide, you learned how you can combine role mapping and labels to manage access to leaf cluster resources.
+You should note that you can use a certificate issued for a root cluster to connect directly 
+to a leaf cluster because the leaf cluster inherently trusts the root cluster. In most cases, 
+the trust relationship between the root and leaf clusters provides the desired behavior. 
 
-</Tabs>
-
-## Step 3/5. Manage access to your Trusted Cluster
-
-### Apply labels
-
-When you created a `trusted_cluster` resource on the leaf cluster, the leaf
-cluster's Auth Service sent a request to the root cluster's Proxy Service to
-validate the Trusted Cluster. After validating the request, the root cluster's
-Auth Service created a `remote_cluster` resource to represent the Trusted
-Cluster.
-
-By applying labels to the `remote_cluster` resource on the root cluster, you can
-manage access to the leaf cluster. It is not possible to manage labels on the
-leaf cluster—allowing leaf clusters to propagate their own labels could create a
-problem with rogue clusters updating their labels to unexpected values.
-
-To retrieve a `remote_cluster`, make sure you are logged in to the root cluster
-and run the following command:
-
-```code
-$ tctl get rc
-
-kind: remote_cluster
-metadata:
-  id: 1651261581522597792
-  name: leafcluster.teleport.sh
-status:
-  connection: online
-  last_heartbeat: "2022-04-29T19:45:35.052864534Z"
-version: v3
-```
-
-Still logged in to the root cluster, use `tctl` to update the labels on the leaf
-cluster:
+However, this trust relationship can also be exploited if you use cluster labels to enforce authorization 
+restrictions. Because the leaf cluster trusts the certificate authority of the root cluster, that certificate 
+can be used to bypass any leaf-specific cluster labels that are intended to restrict access to the leaf cluster. 
+Because of the potential security vulnerability, you should use role mapping as the primary way to restrict access 
+to leaf clusters and use `cluster_labels` for filtering and limiting the visibility of leaf cluster resources.
 
-<Tabs>
-<TabItem scope="cloud" label="Teleport Enterprise Cloud">
+## Temporarily disable a trusted cluster
 
-```code
-$ tctl update rc/leafcluster.teleport.sh --set-labels=env=demo
+You can temporarily disable the trust relationship for a cluster by logging in to the leaf
+cluster and editing the `trusted_cluster` resource configuration files that you previously created.
 
-# Cluster leafcluster.teleport.sh has been updated
-```
+To temporarily disable trust:
 
-</TabItem>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+1. Sign in to your **leaf cluster** from your administrative workstation using 
+your Teleport username:
+   
+   ```code
+   $ tsh login --proxy=<Var name="leafcluster.teleport.sh" /> --user=<Var name="myuser" />
+   ```
 
-```code
-$ tctl update rc/leafcluster.example.com --set-labels=env=demo
+   Replace `leafcluster.teleport.sh` with the Teleport leaf cluster domain and 
+   `myuser` with your Teleport username.
 
-# Cluster leafcluster.example.com has been updated
-```
+1. Retrieve the resource configuration by running the following command:
 
-</TabItem>
+   ```code
+   $ tctl get trusted_cluster/<Var name="rootcluster.teleport.sh" > trusted_cluster.yaml
+   ```
 
-</Tabs>
+1. Set the `spec.enabled` field to `false`:
 
-### Change cluster access privileges
+   ```diff
+    spec:
+   -  enabled: true
+   +  enabled: false
+      role_map:
+      - local:
+        - visitor
+   ```
 
-At this point, the `tctl get rc` command may return an empty result, and
-`tsh clusters` may only display the root cluster.
+1. Update the trusted cluster configuration by running the following command:
 
-This is because, if a Trusted Cluster has a label, a user must have explicit
-permission to access clusters with that label. Otherwise, the Auth Service will
-not return information about that cluster when a user runs `tctl get rc` or
-`tsh clusters`.
+   ```code
+   $ tctl create --force trusted_cluster.yaml
+   ```
+      
+   This command closes the reverse tunnel between your leaf cluster and your root cluster.
+   It also deactivates the root cluster's certificate authority on the leaf cluster.
 
-While logged in to the root cluster, create a role that allows access to your
-Trusted Cluster by adding the following content to a file called
-`demo-cluster-access.yaml`:
+You can repeat these steps to change `spec.enabled` to `true` if you want to reestablish 
+the trust relationship between the leaf cluster and the root cluster.
 
-```yaml
-kind: role
-metadata:
-  name: demo-cluster-access
-spec:
-  allow:
-    cluster_labels:
-      'env': 'demo'
-version: v5
-```
+## Remove a trusted leaf cluster
 
-Create the role:
+If you want to completely remove a leaf cluster without the possibility of restoring
+it later, you must run commands on both the leaf cluster and the root cluster.
 
-```code
-$ tctl create demo-cluster-access.yaml
-role 'demo-cluster-access' has been created
-```
+TO remoe a leaf cluster completely:
 
-(!docs/pages/includes/add-role-to-user.mdx role="demo-cluster-access"!)
+1. Sign in to your **leaf cluster** from your administrative workstation using 
+your Teleport username:
+   
+   ```code
+   $ tsh login --proxy=<Var name="leafcluster.teleport.sh" /> --user=<Var name="myuser" />
+   ```
 
-Confirm that the updated labels have been set:
+   Replace `leafcluster.teleport.sh` with the Teleport leaf cluster domain and 
+   `myuser` with your Teleport username.
 
-```code
-$ tctl get rc
-
-$ sudo tctl get rc
-kind: remote_cluster
-metadata:
-  id: 1651262381521336026
-  labels:
-    env: demo
-  name: rootcluster.example.com
-status:
-  connection: online
-  last_heartbeat: "2022-04-29T19:55:35.053054594Z"
-version: v3
-```
-
-## Step 4/5. Access a Node in your remote cluster
+1. Disable and remove the leaf cluster by running the following command:
 
-With the `trusted_cluster` resource you created earlier, you can log in to the
-Node in your leaf cluster as a user of your root cluster.
+   ```code
+   $ tctl rm trusted_cluster/<Var name="rootcluster.teleport.sh" />
+   ```
 
-First, make sure that you are logged in to root cluster:
+   This command sets `spec.enabled` to `false` for the `trusted_cluster` resource
+   and removes the trusted cluster resource from the Teleport Auth Service backend.
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+1. Sign in to your **root cluster** from your administrative workstation using 
+your Teleport username:
+   
+   ```code
+   $ tsh login --proxy=<Var name="rootcluster.teleport.sh" /> --user=<Var name="myuser" />
+   ```
 
-```code
-$ tsh logout
-$ tsh --proxy=rootcluster.example.com --user=myuser login
-```
+   Replace `rootcluster.teleport.sh` with the Teleport root cluster domain and 
+   `myuser` with your Teleport username.
 
-</TabItem>
-<TabItem scope="cloud" label="Teleport Enterprise Cloud">
+1. Delete the certificate authorities associated with the remote cluster and remove the
+`remote_cluster` resource from the Teleport Auth Service backend by running the following command
 
-```code
-$ tsh logout
-$ tsh --proxy=rootcluster.teleport.sh --user=myuser login
-```
-
-</TabItem>
-
-</Tabs>
-
-To log in to your Node, confirm that your Node is joined to your leaf cluster:
-
-```code
-$ tsh ls --cluster=leafcluster.example.com
-
-Node Name       Address        Labels
---------------- -------------- ------------------------------------
-mynode          127.0.0.1:3022 env=demo,hostname=ip-172-30-13-38
-```
-
-SSH into your Node:
-
-```code
-$ tsh ssh --cluster=leafcluster.example.com visitor@mynode
-```
-
-<Details title="How does this work?">
-
-The Teleport Auth Service on the leaf cluster checks the permissions of users in
-remote clusters similarly to how it checks permissions for users in the same
-cluster: using certificate-based SSH authentication.
-
-You can think of an SSH certificate as a "permit" issued and time-stamped by a
-certificate authority. A certificate contains four important pieces of data:
-
-- List of allowed Unix logins a user can use. They are called "principals" in
-  the certificate.
-- Signature of the certificate authority that issued it (the Teleport Auth Service)
-- Metadata (certificate extensions): additional data protected by the signature
-  above. Teleport uses the metadata to store the list of user roles and SSH
-  options like "permit-agent-forwarding".
-- The expiration date, or time-to-live (**TTL**).
-
-When a user from the root cluster attempts to access a Node in the leaf cluster,
-the leaf cluster's Auth Service authenticates the user's certificate and reads
-these pieces of data from it. It then performs the following actions:
-
-- Checks that the certificate signature matches one of its Trusted Clusters.
-- Applies role mapping (as discussed earlier) to associate a role on the leaf
-  cluster with one of the remote user's roles.
-- Checks if the local role allows the requested identity (Unix login) to have
-  access.
-- Checks that the certificate has not expired. The TTL is set by the root cluster.
-
-</Details>
-
-<Details
-  type="tip"
-  title="What if you're using a load balancer?"
->
-
-  The leaf cluster establishes a reverse tunnel to the root cluster even if the
-  root cluster uses multiple proxies behind a load balancer (LB) or a DNS entry
-  with multiple values. In this case, the leaf cluster establishes a tunnel to
-  *every* proxy in the root cluster.
-
-  This requires that an LB use a round-robin or a similar balancing algorithm.
-  Do not use sticky load balancing algorithms (i.e., "session affinity" or
-  "sticky sessions") with Teleport Proxies.
-
-</Details>
-
-<Admonition
-  type="tip"
-  title="Note"
->
-Trusted Clusters work only in one direction. In the example above, users from
-the leaf cluster cannot see or connect to Nodes in the root cluster.
-
-The Teleport root cluster's Web UI will not populate available OS users for
-leaf cluster Nodes. When using the web UI, type in the host user when creating
-SSH sessions.
-</Admonition>
-
-## Step 5/5. Remove trust between your clusters
-
-### Temporarily disable a Trusted Cluster
-
-You can temporarily disable the trust relationship by logging in to the leaf
-cluster and editing the `trusted_cluster` resource you created earlier.
-
-Retrieve the Trusted Cluster resource you created earlier:
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-```code
-$ tctl get trusted_cluster/rootcluster.example.com > trusted_cluster.yaml
-```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ tctl get trusted_cluster/rootcluster.teleport.sh > trusted_cluster.yaml
-```
-
-</TabItem>
-
-</Tabs>
-
-Make the following change to the resource:
-
-```diff
- spec:
--  enabled: true
-+  enabled: false
-   role_map:
-   - local:
-     - visitor
-```
-
-Update the Trusted Cluster:
-
-```code
-$ tctl create --force trusted_cluster.yaml
-```
-
-This closes the reverse tunnel between your leaf cluster and your root cluster.
-It also deactivates the root cluster's certificate authority on
-the leaf cluster.
-
-You can enable the trust relationship again by setting `enabled` to `true`.
-
-### Remove a leaf cluster relationship from both sides
-
-If you want to remove a trust relationship without the possibility of restoring
-it later, you can take the following steps.
-
-On the leaf cluster, run the following command. This performs the same tasks as
-setting `enabled` to `false` in a `trusted_cluster` resource, but also removes
-the Trusted Cluster resource from the Auth Service backend:
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-```code
-$ tctl rm trusted_cluster/rootcluster.example.com
-```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ tctl rm trusted_cluster/rootcluster.teleport.sh
-```
-
-</TabItem>
-
-</Tabs>
-
-Next, run the following command on the root cluster. This command deletes the
-certificate authorities associated with the remote cluster and removes the
-`remote_cluster` resource from the root cluster's Auth Service backend.
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-```code
-$ tctl rm rc/leafcluster.example.com
-```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ tctl rm rc/leafcluster.teleport.sh
-```
-
-</TabItem>
-
-</Tabs>
-
-<Admonition type="Removing the relationship from the root side only">
-
-  You can remove the relationship by running only `tctl rm rc/leaf.example.com`.
-
-  The leaf cluster will continue to try and ping the root cluster, but will not
-  be able to connect. To re-establish the Trusted Cluster relationship, the
-  Trusted Cluster has to be created again from the leaf cluster.
-
-</Admonition>
+   ```code
+   $ tctl rm rc/<Var name="leafcluster.teleport.sh" />
+   ```
+
+   If you run this command without removing the trust relationship from the leaf cluster,
+   the leaf cluster will continue to try to ping the root cluster, but won't be able to connect. 
+   To reestablish the trusted cluster relationship, you must recreate the trusted cluster 
+   from the leaf cluster.
 
 ## Troubleshooting
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-There are three common types of problems Teleport administrators can run into when configuring
-trust between two clusters:
+The most common problems you might encounter when configuring a trust relationship fall into
+the following categories:
 
-- **HTTPS configuration**: when the root cluster uses a self-signed or invalid HTTPS certificate.
-- **Connectivity problems**: when a leaf cluster does not show up in the output
-  of `tsh clusters` on the root cluster.
-- **Access problems**: when users from the root cluster get "access denied" error messages
-  trying to connect to nodes on the leaf cluster.
+- **HTTPS configuration issues**.
+- **Connectivity problems**.
+- **Access problems**. 
 
-### HTTPS configuration
+### HTTPS configuration issues
 
-If the `web_proxy_addr` endpoint of the root cluster uses a self-signed or
-invalid HTTPS certificate, you will get an error: "the trusted cluster uses
-misconfigured HTTP/TLS certificate". For ease of testing, the `teleport` daemon
-on the leaf cluster can be started with the `--insecure` CLI flag to accept
-self-signed certificates. Make sure to configure HTTPS properly and remove the
-insecure flag for production use.
+The most common HTTPS configuration issues stem from a root cluster that uses a self-signed 
+or invalid HTTPS certificate. If the `web_proxy_addr` endpoint of the root cluster uses a self-signed 
+or invalid HTTPS certificate, you are likey to see an error similar to the following: 
+`The trusted cluster uses misconfigured HTTP/TLS certificate`. 
+
+For ease of testing, you can start the `teleport` daemon on the leaf cluster with 
+the `--insecure` command-line options to accept self-signed certificates. However, you should 
+ensure that you configure HTTPS properly to resolve the issue, then remove the `--insecure` before 
+running Teleport in a production environment.
 
 ### Connectivity problems
 
-To troubleshoot connectivity problems, enable verbose output for the Auth
-Servers on both clusters. Usually this can be done by adding `--debug` flag to
-`teleport start --debug`. You can also do this by updating the configuration
-file for both Auth Servers:
+If a leaf cluster doesn't show up in the output when you run the `tsh clusters` command 
+on the root cluster, it might indicate network connectivity issues or problems communicating 
+with the Teleport Auth Service.
+
+To troubleshoot connectivity problems, enable verbose output for the Teleport Auth Service on 
+both the root and leaf clusters. Usually, this can be done by adding the `--debug` flag to the
+command to start the teleport service:
+
+```code
+teleport start --debug`
+```
+
+You can also enable verbose output by updating the configuration file for both Auth Services.
+Open the `/etc/teleport.yaml` configuration file and add `DEBUG` to the `log` configuration section:
 
 ```yaml
 # Snippet from /etc/teleport.yaml
@@ -1021,47 +821,31 @@ teleport:
     severity: DEBUG
 ```
 
-On systemd-based distributions, you can watch the log output via:
+On systemd-based distributions, you can watch the log output by running the following command:
 
 ```code
 $ journalctl -fu teleport
 ```
 
-Most of the time you will find out that either a join token is
+Most of the time you will find out that either a invitation token is
 mismatched/expired, or the network addresses for `tunnel_addr` or
 `web_proxy_addr` cannot be reached due to pre-existing firewall rules or
 how your network security groups are configured on AWS.
 
 ### Access problems
 
-Troubleshooting access denied messages can be challenging. A Teleport administrator
-should check to see the following:
+If users from the root cluster get **Access denied** error messages when trying to connect to nodes 
+on the leaf cluster, it might indicate problems with their role ssignment, role mapping, or allowed logins.
+However, troubleshooting **Access denied** messages can be quite challenging. 
+To troubleshoot, you should start by checking the following information for the user being denied access:
 
-- Which roles a user is assigned on the root cluster when they retrieve their SSH
-  certificate via `tsh login`. You can inspect the retrieved certificate with the
-  `tsh status` command on the client-side.
-- Which roles a user is assigned on the leaf cluster when the role mapping takes
-  place. The role mapping result is reflected in the Teleport audit log. By
-  default, it is stored in `/var/lib/teleport/log` on the Auth Server of a
-  cluster. Check the audit log messages on both clusters to get answers for the
-  questions above.
-</TabItem>
-<TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
-Troubleshooting "access denied" messages can be challenging. A Teleport administrator
-should check to see the following:
+- The roles assigned to the user on the root cluster when signing in with the `tsh login` command. 
+  You can inspect the certificate and assigned roles by running the `tsh status` command on the client.
+- The roles assigned to the user on the leaf cluster when the role mapping takes place. You can check
+  the role mapping in the Teleport audit log. 
+  
+  If you manage Teleport on your own network, the default location for audit log is 
+  `/var/lib/teleport/log` on the server where the Teleport Auth Service for the cluster runs.
 
-- Which roles a user is assigned on the root cluster when they retrieve their SSH
-  certificate via `tsh login`. You can inspect the retrieved certificate with the
-  `tsh status` command on the client-side.
-- Which roles a user is assigned on the leaf cluster when the role mapping takes
-  place. The role mapping result is reflected in the Teleport audit log, which
-  you can access via the Teleport Web UI.
-</TabItem>
-</Tabs>
-
-## Further reading
-
-- Read more about how Trusted Clusters fit into Teleport's overall architecture:
-  [Architecture Introduction](../../architecture/trustedclusters.mdx).
-
-
+  If you use Teleport as a managed cloud-based service, you can access the audit log from the
+  Teleport Web UI by selecting **Management**, then clicking **Audit Log** in the Activity section.
