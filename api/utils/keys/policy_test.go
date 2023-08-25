@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package keys
+package keys_test
 
 import (
 	"fmt"
@@ -22,30 +22,72 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/utils/keys"
+)
+
+var (
+	privateKeyPolicies = []keys.PrivateKeyPolicy{
+		keys.PrivateKeyPolicyNone,
+		keys.PrivateKeyPolicyHardwareKey,
+		keys.PrivateKeyPolicyHardwareKeyTouch,
+		keys.PrivateKeyPolicyHardwareKeyPIN,
+		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+	}
+	hardwareKeyPolicies = []keys.PrivateKeyPolicy{
+		keys.PrivateKeyPolicyHardwareKey,
+		keys.PrivateKeyPolicyHardwareKeyTouch,
+		keys.PrivateKeyPolicyHardwareKeyPIN,
+		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+	}
+	hardwareKeyTouchPolicies = []keys.PrivateKeyPolicy{
+		keys.PrivateKeyPolicyHardwareKeyTouch,
+		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+	}
+	hardwareKeyPINPolicies = []keys.PrivateKeyPolicy{
+		keys.PrivateKeyPolicyHardwareKeyPIN,
+		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+	}
+	hardwareKeyTouchAndPINPolicies = []keys.PrivateKeyPolicy{
+		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+	}
 )
 
 func TestIsRequiredPolicyMet(t *testing.T) {
+	privateKeyPolicies := []keys.PrivateKeyPolicy{
+		keys.PrivateKeyPolicyNone,
+		keys.PrivateKeyPolicyHardwareKey,
+		keys.PrivateKeyPolicyHardwareKeyTouch,
+		keys.PrivateKeyPolicyHardwareKeyPIN,
+		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+	}
 	for _, tc := range []struct {
-		requiredPolicy   PrivateKeyPolicy
-		verifiedPolicies []PrivateKeyPolicy
+		requiredPolicy   keys.PrivateKeyPolicy
+		verifiedPolicies []keys.PrivateKeyPolicy
 	}{
 		{
-			requiredPolicy:   PrivateKeyPolicyNone,
+			requiredPolicy:   keys.PrivateKeyPolicyNone,
 			verifiedPolicies: privateKeyPolicies,
 		}, {
-			requiredPolicy:   PrivateKeyPolicyHardwareKey,
+			requiredPolicy:   keys.PrivateKeyPolicyHardwareKey,
 			verifiedPolicies: hardwareKeyPolicies,
 		}, {
-			requiredPolicy:   PrivateKeyPolicyHardwareKeyTouch,
+			requiredPolicy:   keys.PrivateKeyPolicyHardwareKeyTouch,
 			verifiedPolicies: hardwareKeyTouchPolicies,
+		}, {
+			requiredPolicy:   keys.PrivateKeyPolicyHardwareKeyPIN,
+			verifiedPolicies: hardwareKeyPINPolicies,
+		}, {
+			requiredPolicy:   keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+			verifiedPolicies: hardwareKeyTouchAndPINPolicies,
 		},
 	} {
-		t.Run(string(PrivateKeyPolicyHardwareKey), func(t *testing.T) {
+		t.Run(string(tc.requiredPolicy), func(t *testing.T) {
 			for _, keyPolicy := range privateKeyPolicies {
-				if IsRequiredPolicyMet(tc.requiredPolicy, keyPolicy) {
-					require.Contains(t, tc.verifiedPolicies, keyPolicy, "Policy %q does not meet %q but IsRequirePolicyMet(%v, %v) returned true", keyPolicy, tc.requiredPolicy, keyPolicy, tc.requiredPolicy)
+				if keys.IsRequiredPolicyMet(tc.requiredPolicy, keyPolicy) {
+					require.Contains(t, tc.verifiedPolicies, keyPolicy, "Policy %q does not meet %q but IsRequirePolicyMet(%v, %v) returned true", keyPolicy, tc.requiredPolicy, tc.requiredPolicy, keyPolicy)
 				} else {
-					require.NotContains(t, tc.verifiedPolicies, keyPolicy, "Policy %q does meet %q but IsRequirePolicyMet(%v, %v) returned false", keyPolicy, tc.requiredPolicy, keyPolicy, tc.requiredPolicy)
+					require.NotContains(t, tc.verifiedPolicies, keyPolicy, "Policy %q does meet %q but IsRequirePolicyMet(%v, %v) returned false", keyPolicy, tc.requiredPolicy, tc.requiredPolicy, keyPolicy)
 				}
 			}
 		})
@@ -55,42 +97,63 @@ func TestIsRequiredPolicyMet(t *testing.T) {
 func TestGetPolicyFromSet(t *testing.T) {
 	testCases := []struct {
 		name            string
-		policySet       []PrivateKeyPolicy
-		expectSetPolicy PrivateKeyPolicy
+		policySet       []keys.PrivateKeyPolicy
+		expectSetPolicy keys.PrivateKeyPolicy
 	}{
 		{
 			name: "none",
-			policySet: []PrivateKeyPolicy{
-				PrivateKeyPolicyNone,
-				PrivateKeyPolicyNone,
+			policySet: []keys.PrivateKeyPolicy{
+				keys.PrivateKeyPolicyNone,
+				keys.PrivateKeyPolicyNone,
 			},
-			expectSetPolicy: PrivateKeyPolicyNone,
+			expectSetPolicy: keys.PrivateKeyPolicyNone,
 		}, {
 			name: "hardware key policy",
-			policySet: []PrivateKeyPolicy{
-				PrivateKeyPolicyNone,
-				PrivateKeyPolicyHardwareKey,
+			policySet: []keys.PrivateKeyPolicy{
+				keys.PrivateKeyPolicyNone,
+				keys.PrivateKeyPolicyHardwareKey,
 			},
-			expectSetPolicy: PrivateKeyPolicyHardwareKey,
+			expectSetPolicy: keys.PrivateKeyPolicyHardwareKey,
 		}, {
 			name: "touch policy",
-			policySet: []PrivateKeyPolicy{
-				PrivateKeyPolicyNone,
-				PrivateKeyPolicyHardwareKey,
-				PrivateKeyPolicyHardwareKeyTouch,
+			policySet: []keys.PrivateKeyPolicy{
+				keys.PrivateKeyPolicyNone,
+				keys.PrivateKeyPolicyHardwareKey,
+				keys.PrivateKeyPolicyHardwareKeyTouch,
 			},
-			expectSetPolicy: PrivateKeyPolicyHardwareKeyTouch,
+			expectSetPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+		}, {
+			name: "pin policy",
+			policySet: []keys.PrivateKeyPolicy{
+				keys.PrivateKeyPolicyNone,
+				keys.PrivateKeyPolicyHardwareKey,
+				keys.PrivateKeyPolicyHardwareKeyPIN,
+			},
+			expectSetPolicy: keys.PrivateKeyPolicyHardwareKeyPIN,
+		}, {
+			name: "touch policy and pin policy",
+			policySet: []keys.PrivateKeyPolicy{
+				keys.PrivateKeyPolicyNone,
+				keys.PrivateKeyPolicyHardwareKey,
+				keys.PrivateKeyPolicyHardwareKeyPIN,
+				keys.PrivateKeyPolicyHardwareKeyTouch,
+			},
+			expectSetPolicy: keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+		}, {
+			name:            "touch and pin policy",
+			policySet:       privateKeyPolicies,
+			expectSetPolicy: keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expectSetPolicy, GetPolicyFromSet(tc.policySet))
+			require.Equal(t, tc.expectSetPolicy, keys.GetPolicyFromSet(tc.policySet))
 
 			// reversing the policy set shouldn't change the output
 			for i, j := 0, len(tc.policySet)-1; i < j; i, j = i+1, j-1 {
 				tc.policySet[i], tc.policySet[j] = tc.policySet[j], tc.policySet[i]
 			}
-			require.Equal(t, tc.expectSetPolicy, GetPolicyFromSet(tc.policySet))
+			require.Equal(t, tc.expectSetPolicy, keys.GetPolicyFromSet(tc.policySet))
 		})
 	}
 }
@@ -102,7 +165,7 @@ func TestPrivateKeyPolicyError(t *testing.T) {
 		errIn                   error
 		expectIsKeyPolicy       bool
 		expectParseKeyPolicyErr bool
-		expectKeyPolicy         PrivateKeyPolicy
+		expectKeyPolicy         keys.PrivateKeyPolicy
 	}
 
 	testCases := []testCase{
@@ -113,26 +176,26 @@ func TestPrivateKeyPolicyError(t *testing.T) {
 			expectParseKeyPolicyErr: true,
 		}, {
 			desc:                    "unknown_key_policy",
-			errIn:                   NewPrivateKeyPolicyError("unknown_key_policy"),
+			errIn:                   keys.NewPrivateKeyPolicyError("unknown_key_policy"),
 			expectIsKeyPolicy:       true,
 			expectParseKeyPolicyErr: true,
 		}, {
 			desc:              "wrapped policy error",
-			errIn:             trace.Wrap(NewPrivateKeyPolicyError(PrivateKeyPolicyHardwareKeyTouch), "wrapped err"),
+			errIn:             trace.Wrap(keys.NewPrivateKeyPolicyError(keys.PrivateKeyPolicyHardwareKeyTouch), "wrapped err"),
 			expectIsKeyPolicy: true,
-			expectKeyPolicy:   PrivateKeyPolicyHardwareKeyTouch,
+			expectKeyPolicy:   keys.PrivateKeyPolicyHardwareKeyTouch,
 		}, {
 			desc:              "policy error string contained in error",
-			errIn:             trace.Errorf("ssh: rejected: administratively prohibited (%s)", NewPrivateKeyPolicyError(PrivateKeyPolicyHardwareKeyTouch).Error()),
+			errIn:             trace.Errorf("ssh: rejected: administratively prohibited (%s)", keys.NewPrivateKeyPolicyError(keys.PrivateKeyPolicyHardwareKeyTouch).Error()),
 			expectIsKeyPolicy: true,
-			expectKeyPolicy:   PrivateKeyPolicyHardwareKeyTouch,
+			expectKeyPolicy:   keys.PrivateKeyPolicyHardwareKeyTouch,
 		},
 	}
 
 	for _, policy := range privateKeyPolicies {
 		testCases = append(testCases, testCase{
 			desc:              fmt.Sprintf("valid key policy: %v", policy),
-			errIn:             NewPrivateKeyPolicyError(policy),
+			errIn:             keys.NewPrivateKeyPolicyError(policy),
 			expectIsKeyPolicy: true,
 			expectKeyPolicy:   policy,
 		})
@@ -140,9 +203,9 @@ func TestPrivateKeyPolicyError(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			require.Equal(t, tc.expectIsKeyPolicy, IsPrivateKeyPolicyError(tc.errIn))
+			require.Equal(t, tc.expectIsKeyPolicy, keys.IsPrivateKeyPolicyError(tc.errIn))
 
-			keyPolicy, err := ParsePrivateKeyPolicyError(tc.errIn)
+			keyPolicy, err := keys.ParsePrivateKeyPolicyError(tc.errIn)
 			if tc.expectParseKeyPolicyErr {
 				require.Error(t, err)
 			} else {

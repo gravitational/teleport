@@ -34,17 +34,14 @@ const (
 	// hardware key to generate and store their private keys securely, and
 	// this key must require touch to be accessed and used.
 	PrivateKeyPolicyHardwareKeyTouch PrivateKeyPolicy = "hardware_key_touch"
-)
-
-var (
-	hardwareKeyTouchPolicies = []PrivateKeyPolicy{
-		PrivateKeyPolicyHardwareKeyTouch,
-	}
-	hardwareKeyPolicies = []PrivateKeyPolicy{
-		PrivateKeyPolicyHardwareKey,
-		PrivateKeyPolicyHardwareKeyTouch,
-	}
-	privateKeyPolicies = append(hardwareKeyPolicies, PrivateKeyPolicyNone)
+	// PrivateKeyPolicyHardwareKeyPIN means that the client must use a valid
+	// hardware key to generate and store their private keys securely, and
+	// this key must require pin to be accessed and used.
+	PrivateKeyPolicyHardwareKeyPIN PrivateKeyPolicy = "hardware_key_pin"
+	// PrivateKeyPolicyHardwareKeyTouchAndPIN means that the client must use a valid
+	// hardware key to generate and store their private keys securely, and
+	// this key must require touch and pin to be accessed and used.
+	PrivateKeyPolicyHardwareKeyTouchAndPIN PrivateKeyPolicy = "hardware_key_touch_and_pin"
 )
 
 // IsRequiredPolicyMet returns whether the required key policy is met by the key's policy.
@@ -53,9 +50,13 @@ func IsRequiredPolicyMet(requiredPolicy, keyPolicy PrivateKeyPolicy) bool {
 	case PrivateKeyPolicyNone:
 		return true
 	case PrivateKeyPolicyHardwareKey:
-		return keyPolicy.IsHardwareKeyVerified()
+		return keyPolicy.IsHardwareKeyPolicy()
 	case PrivateKeyPolicyHardwareKeyTouch:
 		return keyPolicy.isHardwareKeyTouchVerified()
+	case PrivateKeyPolicyHardwareKeyPIN:
+		return keyPolicy.isHardwareKeyPINVerified()
+	case PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		return keyPolicy.isHardwareKeyTouchVerified() && keyPolicy.isHardwareKeyPINVerified()
 	}
 
 	return false
@@ -70,20 +71,14 @@ func (requiredPolicy PrivateKeyPolicy) VerifyPolicy(keyPolicy PrivateKeyPolicy) 
 	return nil
 }
 
-// IsHardwareKeyVerified return true if this private key policy requires a hardware key.
-func (p PrivateKeyPolicy) IsHardwareKeyVerified() bool {
+// IsHardwareKeyPolicy return true if this private key policy requires a hardware key.
+func (p PrivateKeyPolicy) IsHardwareKeyPolicy() bool {
 	switch p {
-	case PrivateKeyPolicyHardwareKey, PrivateKeyPolicyHardwareKeyTouch:
+	case PrivateKeyPolicyHardwareKey,
+		PrivateKeyPolicyHardwareKeyTouch,
+		PrivateKeyPolicyHardwareKeyPIN,
+		PrivateKeyPolicyHardwareKeyTouchAndPIN:
 		return true
-	}
-	return false
-}
-
-func (p PrivateKeyPolicy) isHardwareKeyTouchVerified() bool {
-	for _, policy := range hardwareKeyTouchPolicies {
-		if p == policy {
-			return true
-		}
 	}
 	return false
 }
@@ -91,7 +86,35 @@ func (p PrivateKeyPolicy) isHardwareKeyTouchVerified() bool {
 // MFAVerified checks that private keys with this key policy count as MFA verified.
 // Both Hardware key touch and pin are count as MFA verification.
 func (p PrivateKeyPolicy) MFAVerified() bool {
-	return p.isHardwareKeyTouchVerified()
+	return p.isHardwareKeyTouchVerified() || p.isHardwareKeyPINVerified()
+}
+
+func (p PrivateKeyPolicy) isHardwareKeyTouchVerified() bool {
+	switch p {
+	case PrivateKeyPolicyHardwareKeyTouch, PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		return true
+	}
+	return false
+}
+
+func (p PrivateKeyPolicy) isHardwareKeyPINVerified() bool {
+	switch p {
+	case PrivateKeyPolicyHardwareKeyPIN, PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		return true
+	}
+	return false
+}
+
+func (p PrivateKeyPolicy) validate() error {
+	switch p {
+	case PrivateKeyPolicyNone,
+		PrivateKeyPolicyHardwareKey,
+		PrivateKeyPolicyHardwareKeyTouch,
+		PrivateKeyPolicyHardwareKeyPIN,
+		PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		return nil
+	}
+	return trace.BadParameter("%q is not a valid key policy", p)
 }
 
 // GetPolicyFromSet returns least restrictive policy necessary to meet the given set of policies.
@@ -102,6 +125,9 @@ func GetPolicyFromSet(policies []PrivateKeyPolicy) PrivateKeyPolicy {
 			if IsRequiredPolicyMet(setPolicy, policy) {
 				// Upgrade set policy to stricter policy.
 				setPolicy = policy
+			} else {
+				// neither policy is met by the other (pin or touch), return the strictest policy to meet both.
+				setPolicy = PrivateKeyPolicyHardwareKeyTouchAndPIN
 			}
 		}
 	}
@@ -134,14 +160,4 @@ func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 // IsPrivateKeyPolicyError returns true if the given error is a private key policy error.
 func IsPrivateKeyPolicyError(err error) bool {
 	return privateKeyPolicyErrRegex.MatchString(err.Error())
-}
-
-func (p PrivateKeyPolicy) validate() error {
-	for _, policy := range privateKeyPolicies {
-		if p == policy {
-			return nil
-		}
-	}
-
-	return trace.BadParameter("%q is not a valid key policy", p)
 }

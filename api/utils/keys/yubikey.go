@@ -135,6 +135,12 @@ func GetDefaultKeySlot(policy PrivateKeyPolicy) (piv.Slot, error) {
 	case PrivateKeyPolicyHardwareKeyTouch:
 		// private_key_policy: hardware_key_touch -> 9c
 		return piv.SlotSignature, nil
+	case PrivateKeyPolicyHardwareKeyPIN:
+		// private_key_policy: hardware_key_pin -> 9d
+		return piv.SlotCardAuthentication, nil
+	case PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		// private_key_policy: hardware_key_touch_and_pin -> 9e
+		return piv.SlotKeyManagement, nil
 	default:
 		return piv.Slot{}, trace.BadParameter("unexpected private key policy %v", policy)
 	}
@@ -146,6 +152,10 @@ func getKeyPolicies(policy PrivateKeyPolicy) (piv.TouchPolicy, piv.PINPolicy, er
 		return piv.TouchPolicyNever, piv.PINPolicyNever, nil
 	case PrivateKeyPolicyHardwareKeyTouch:
 		return piv.TouchPolicyCached, piv.PINPolicyNever, nil
+	case PrivateKeyPolicyHardwareKeyPIN:
+		return piv.TouchPolicyNever, piv.PINPolicyOnce, nil
+	case PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		return piv.TouchPolicyCached, piv.PINPolicyOnce, nil
 	default:
 		return piv.TouchPolicyNever, piv.PINPolicyNever, trace.BadParameter("unexpected private key policy %v", policy)
 	}
@@ -241,13 +251,9 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 	}
 	defer yk.Close()
 
-	privateKey, err := yk.PrivateKey(y.pivSlot, y.Public(), piv.KeyAuth{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	var touchPromptDelayTimer *time.Timer
 	if y.attestation.TouchPolicy != piv.TouchPolicyNever {
-		touchPromptDelayTimer := time.NewTimer(signTouchPromptDelay)
+		touchPromptDelayTimer = time.NewTimer(signTouchPromptDelay)
 		defer touchPromptDelayTimer.Stop()
 
 		go func() {
@@ -261,6 +267,27 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 				return
 			}
 		}()
+	}
+
+	promptPIN := func() (string, error) {
+		// touch prompt delay is disrupted by pin prompts. To prevent misfired
+		// touch prompts, pause the timer for the duration of the pin prompt.
+		if touchPromptDelayTimer != nil {
+			if touchPromptDelayTimer.Stop() {
+				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
+			}
+		}
+		return y.promptPIN(signCtx)
+	}
+
+	auth := piv.KeyAuth{
+		PINPrompt: promptPIN,
+		PINPolicy: y.attestation.PINPolicy,
+	}
+
+	privateKey, err := yk.PrivateKey(y.pivSlot, y.slotCert.PublicKey, auth)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	signer, ok := privateKey.(crypto.Signer)
@@ -321,9 +348,19 @@ func (y *YubiKeyPrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
 func GetPrivateKeyPolicyFromAttestation(att *piv.Attestation) PrivateKeyPolicy {
 	switch att.TouchPolicy {
 	case piv.TouchPolicyCached, piv.TouchPolicyAlways:
-		return PrivateKeyPolicyHardwareKeyTouch
+		switch att.PINPolicy {
+		case piv.PINPolicyOnce, piv.PINPolicyAlways:
+			return PrivateKeyPolicyHardwareKeyTouchAndPIN
+		default:
+			return PrivateKeyPolicyHardwareKeyTouch
+		}
 	default:
-		return PrivateKeyPolicyHardwareKey
+		switch att.PINPolicy {
+		case piv.PINPolicyOnce, piv.PINPolicyAlways:
+			return PrivateKeyPolicyHardwareKeyPIN
+		default:
+			return PrivateKeyPolicyHardwareKey
+		}
 	}
 }
 
@@ -459,13 +496,6 @@ func (y *YubiKey) getPrivateKey(slot piv.Slot) (*PrivateKey, error) {
 	attestation, err := piv.Verify(attCert, slotCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// We don't yet support pin policies so we must return a user readable error in case
-	// they passed a mis-configured slot. Otherwise they will get a PIV auth error during signing.
-	// TODO(Joerger): remove this check once PIN prompt is supported.
-	if attestation.PINPolicy != piv.PINPolicyNever {
-		return nil, trace.NotImplemented(`PIN policy is not currently supported. Please generate a key with PIN policy "never"`)
 	}
 
 	priv := &YubiKeyPrivateKey{
@@ -665,3 +695,20 @@ const (
 	// slower cards (if there are any).
 	signTouchPromptDelay = time.Millisecond * 200
 )
+
+// SetPin sets the YubiKey PIV PIN.
+func (y *YubiKey) SetPIN(oldPin, newPin string) error {
+	yk, err := y.open()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer yk.Close()
+
+	err = yk.SetPIN(oldPin, newPin)
+	return trace.Wrap(err)
+}
+
+// promptPIN prompts the user for PIN.
+func (y *YubiKey) promptPIN(ctx context.Context) (string, error) {
+	return prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your YubiKey PIV PIN")
+}

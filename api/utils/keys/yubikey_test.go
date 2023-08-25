@@ -23,6 +23,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -44,16 +45,19 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 	fmt.Println("This test is interactive, tap your YubiKey when prompted.")
 
 	ctx := context.Background()
-	resetYubikey(ctx, t)
+	t.Cleanup(func() { resetYubikey(t) })
 
 	for _, policy := range []keys.PrivateKeyPolicy{
 		keys.PrivateKeyPolicyHardwareKey,
 		keys.PrivateKeyPolicyHardwareKeyTouch,
+		keys.PrivateKeyPolicyHardwareKeyPIN,
+		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
 	} {
 		for _, customSlot := range []bool{true, false} {
 			t.Run(fmt.Sprintf("policy:%q", policy), func(t *testing.T) {
 				t.Run(fmt.Sprintf("custom slot:%v", customSlot), func(t *testing.T) {
-					t.Cleanup(func() { resetYubikey(ctx, t) })
+					resetYubikey(t)
+					setupPINPrompt(t)
 
 					var slot keys.PIVSlot = ""
 					if customSlot {
@@ -96,10 +100,7 @@ func TestOverwritePrompt(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	resetYubikey(ctx, t)
-
-	oldStdin := prompt.Stdin()
-	t.Cleanup(func() { prompt.SetStdin(oldStdin) })
+	t.Cleanup(func() { resetYubikey(t) })
 
 	// Use a custom slot.
 	pivSlot, err := keys.GetDefaultKeySlot(keys.PrivateKeyPolicyHardwareKeyTouch)
@@ -118,7 +119,7 @@ func TestOverwritePrompt(t *testing.T) {
 	}
 
 	t.Run("invalid metadata cert", func(t *testing.T) {
-		t.Cleanup(func() { resetYubikey(ctx, t) })
+		resetYubikey(t)
 
 		// Set a non-teleport certificate in the slot.
 		y, err := keys.FindYubiKey(0)
@@ -130,7 +131,7 @@ func TestOverwritePrompt(t *testing.T) {
 	})
 
 	t.Run("invalid key policies", func(t *testing.T) {
-		t.Cleanup(func() { resetYubikey(ctx, t) })
+		resetYubikey(t)
 
 		// Generate a key that does not require touch in the slot that Teleport expects to require touch.
 		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKey, keys.PIVSlot(pivSlot.String()))
@@ -141,9 +142,24 @@ func TestOverwritePrompt(t *testing.T) {
 }
 
 // resetYubikey connects to the first yubiKey and resets it to defaults.
-func resetYubikey(ctx context.Context, t *testing.T) {
+func resetYubikey(t *testing.T) {
 	t.Helper()
 	y, err := keys.FindYubiKey(0)
 	require.NoError(t, err)
 	require.NoError(t, y.Reset())
+}
+
+func setupPINPrompt(t *testing.T) {
+	t.Helper()
+	y, err := keys.FindYubiKey(0)
+	require.NoError(t, err)
+
+	// Set pin for tests.
+	const testPIN = "123123"
+	require.NoError(t, y.SetPIN(piv.DefaultPIN, testPIN))
+
+	// Handle PIN prompt.
+	oldStdin := prompt.Stdin()
+	t.Cleanup(func() { prompt.SetStdin(oldStdin) })
+	prompt.SetStdin(prompt.NewFakeReader().AddString(testPIN))
 }

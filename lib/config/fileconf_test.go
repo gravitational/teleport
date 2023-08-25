@@ -624,6 +624,22 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 				}
 			},
 			expectRequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+		}, {
+			desc: "RequireSessionMFA hardware_key_pin",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": types.RequireMFATypeHardwareKeyPINString,
+				}
+			},
+			expectRequireMFAType: types.RequireMFAType_HARDWARE_KEY_PIN,
+		}, {
+			desc: "RequireSessionMFA hardware_key_touch_and_pin",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": types.RequireMFATypeHardwareKeyTouchAndPINString,
+				}
+			},
+			expectRequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN,
 		},
 	}
 

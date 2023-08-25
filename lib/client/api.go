@@ -3858,7 +3858,7 @@ func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.Privat
 	)
 	defer span.End()
 
-	if tc.PrivateKeyPolicy.IsHardwareKeyVerified() {
+	if tc.PrivateKeyPolicy.IsHardwareKeyPolicy() {
 		log.Debugf("Attempting to login with YubiKey private key.")
 		if tc.PIVSlot != "" {
 			log.Debugf("Using PIV slot %q specified by client or server settings.", tc.PIVSlot)
