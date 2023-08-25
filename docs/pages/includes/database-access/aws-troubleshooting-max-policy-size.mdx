@@ -117,7 +117,7 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   ```
   </TabItem>
 
-  <TabItem label="Other dyanmic resources">
+  <TabItem label="Other dynamic resources">
   You can specify `aws.assume_role_arn` when defining databases:
   ```yaml
   kind: db
@@ -156,7 +156,7 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
 
 The IAM roles specified in `assume_role_arn` must
 [trust](https://aws.amazon.com/blogs/security/how-to-use-trust-policies-with-iam-roles/)
-the IAM identity of the host runing the Database Service.
+the IAM identity of the host running the Database Service.
 
 The `assume_role_arn` is not limited to the same AWS account so you can also
 use this feature for [AWS Cross-Account
