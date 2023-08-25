@@ -473,6 +473,9 @@ func isReverseTunnelDownError(err error) bool {
 //
 // Implements common.Service.
 func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, clientConn, serviceConn net.Conn) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	// Wrap a client connection with a monitor that auto-terminates
 	// idle connection and connection with expired cert.
 	var err error
