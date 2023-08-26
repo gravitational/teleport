@@ -378,6 +378,19 @@ steps:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Install Rust Toolchain
+  commands:
+  - $ProgressPreference = 'SilentlyContinue'
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Push-Location "$TeleportSrc/build.assets"
+  - $RustVersion = $(make print-rust-version).Trim()
+  - Pop-Location
+  - Install-Rust -RustVersion $RustVersion -ToolchainDir "$Workspace/toolchains"
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Install Node Toolchain
   commands:
   - $ProgressPreference = 'SilentlyContinue'
@@ -690,6 +703,19 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Install Rust Toolchain
+  commands:
+  - $ProgressPreference = 'SilentlyContinue'
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Push-Location "$TeleportSrc/build.assets"
+  - $RustVersion = $(make print-rust-version).Trim()
+  - Pop-Location
+  - Install-Rust -RustVersion $RustVersion -ToolchainDir "$Workspace/toolchains"
+  environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Install Node Toolchain
   commands:
@@ -17093,6 +17119,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: b2987beec79eb0ab1b984082213c4d15dadab830f15ddae3dfefd5eba1025ca1
+hmac: fe4b25966946166fea1be9a05da31480baa5963de4caf62ae985ff4327b55ce9
 
 ...
