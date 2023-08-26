@@ -5,6 +5,7 @@ with an existing Teleport cluster:
 - Teleport Kubernetes access
 - Teleport Application access
 - Teleport Database access
+- Teleport Desktop access
 - Teleport Kubernetes App Discovery
 
 To use it, you will need:
@@ -23,7 +24,7 @@ To use it, you will need:
 
 ## Combining roles
 
-You can combine multiple roles as a comma-separated list: `--set roles=kube\,db\,app\,discovery`
+You can combine multiple roles as a comma-separated list: `--set roles=kube\,db\,app\,windowsdesktop\,discovery`
 
 Note that commas must be escaped if the values are provided on the command line. This is due to the way that
 Helm parses arguments.
@@ -232,6 +233,63 @@ You can add multiple databases using `databases[1].name`, `databases[1].uri`, `d
 `databases[2].name`, `databases[2].uri`, `databases[2].protocol` etc.
 
 After installing, the new database should show up in `tsh db ls` after a few minutes.
+
+## Desktop
+
+Desktop access with and without an Active Directory domain are available for
+installing within a single Teleport Kube Agent.
+
+### Passwordless Windows desktop access without an Active Directory domain
+
+The Teleport service for Windows on the desktop should have been installed
+with the cluster certificate. 
+
+```sh
+$ helm install teleport-kube-agent . \
+  --create-namespace \
+  --namespace teleport \
+  --set roles=windowsdesktop \
+  --set proxyAddr=${PROXY_ENDPOINT?} \
+  --set authToken=${JOIN_TOKEN?} \
+  --set "windowsDesktopNonADHosts[0]=${WINDOW_DESKTOP_ADDRESS?}"
+```
+
+### Passwordless Windows desktop access to Active Directory domain connected machines
+
+Using a YAML file is recommended for the Active Directory configuration due to
+the inclusion of the Windows certificate. 
+
+Example desktopValues.yaml:
+
+```yaml
+authToken: auth-token
+proxyAddr: teleport.example.com:443
+roles: windowsdesktop
+windowsDesktopLDAP:
+  addr:     '3.86.29.254:636'
+  domain:   'windows.example.com'
+  username: 'WINDOWS\svc-teleport'
+  sid: 'S-1-5-21-1717630186-822870621-3846248122-1103'
+  server_name: 'server1.windows.example.com'
+  insecure_skip_verify: false
+  ldap_ca_cert: |
+      -----BEGIN CERTIFICATE-----
+      MIIDszCCApugAwIBAgIQK9/a6A9HNbFDkyqMrJFZ8TANBgkqhkiG9w0BAQwFADBs
+      ...
+      jwMCMyy8p33w+Y11a0av4eD/V0KMQdS90uxsUD5t1NTr2Fn5rEbg
+      -----END CERTIFICATE-----
+windowsDesktopDiscovery:
+  base_dn: "*"    
+windowsDesktopLabels: 
+  teleport.internal/resource-id: 5840df37-4cc3-49f1-ade0-ec9232575dbf    
+```
+
+```sh
+$ helm install teleport-kube-agent . \
+  --create-namespace \
+  --namespace teleport \
+  -f desktopValues.yaml
+```
 
 ## Kubernetes App Discovery
 

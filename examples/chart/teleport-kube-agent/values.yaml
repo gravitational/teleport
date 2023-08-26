@@ -8,7 +8,7 @@ authToken: ""
 
 # Address of the teleport proxy with port (usually :3080).
 proxyAddr: ""
-# Comma-separated list of roles to enable (any of: kube,db,app,discovery)
+# Comma-separated list of roles to enable (any of: kube,db,app,windowsdesktop,discovery)
 roles: "kube"
 
 ################################################################
@@ -98,6 +98,67 @@ databases: []
 #  - labels:
 #      "*": "*"
 databaseResources: []
+
+################################################################
+# Values that must be provided if Windows Desktop access is enabled.
+################################################################
+
+# AD or non-AD configuration
+
+# (optional) Determines whether desktop sessions will show a user-selected wallpaper
+# vs a system-default, single-color wallpaper. For improved visual performance,
+# set this to false (its default value).
+#showWindowsDesktopWallpaper: false
+
+# (optional) ldap contains configuration keys used when connecting Teleport
+# to an Active Directory domain. This enables the discovery service for
+# Windows desktops belonging to an Active Directory domain configured for
+# Teleport access.
+#windowsDesktopLDAP:
+# addr:     '$LDAP_SERVER_ADDRESS'
+# domain:   '$LDAP_DOMAIN_NAME'
+# username: '$LDAP_USERNAME'
+# sid: '$LDAP_USER_SID'
+# insecure_skip_verify: false
+# server_name: '$SERVER_NAME'
+# ldap_ca_cert: |
+#   -----BEGIN CERTIFICATE-----
+#     *certificate data*
+#   -----END CERTIFICATE-----
+
+
+# (optional) hosts is a list of hostnames to register as WindowsDesktop
+# objects in Teleport. These hosts must be part of the Active Directory
+# domain configured to grant Teleport access.
+windowsDesktopADHosts: []
+
+# (optional) non_ad_hosts is a list of hostnames that are not part of an
+# Active Diretory domain to register as WindowsDesktop objects in Teleport.
+# These hosts require the Teleport CA certificate and service, as described in
+# https://goteleport.com/docs/desktop-access/getting-started/
+windowsDesktopNonADHosts: [] 
+#- examplenonad.teleportdemo.com
+
+# (optional) settings for enabling automatic desktop discovery via LDAP
+#windowsDesktopDiscovery:
+# base_dn: '*'
+# filters:
+# - '(location=Oakland)'
+# - '(!(primaryGroupID=516))' # exclude domain controllers
+    # (optional) LDAP attributes to convert into Teleport labels.
+    # The key of the label will be "ldap/" + the value of the attribute.
+# label_attributes:
+# - location
+
+# Rules for applying labels to Windows hosts based on regular expressions
+# matched against the host name. If multiple rules match, the desktop will
+# get the union of all matching labels.
+windowsDesktopHostLabels: []
+
+# Labels to attach to the Windows Desktop Service. This is used internally, so
+# any custom labels added won't affect the Windows hosts.
+#windowsDesktopLabels: 
+# teleport.internal/resource-id: "resource-id"
 
 ################################################################
 # Values that must be provided for Kubernetes Discovery

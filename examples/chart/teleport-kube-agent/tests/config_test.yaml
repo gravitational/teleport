@@ -120,9 +120,29 @@ tests:
           of: ConfigMap
       - matchSnapshot: {}
 
-  - it: matches snapshot for dynamic-db.yaml
+  - it: matches snapshot for windows-nonad.yaml
     values:
-      - ../.lint/dynamic-db.yaml
+      - ../.lint/windows-nonad.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for windows-ad.yaml
+    values:
+      - ../.lint/windows-ad.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}      
+
+  - it: matches snapshot for aws-databases.yaml
+    values:
+      - ../.lint/aws-databases.yaml
     asserts:
       - hasDocuments:
           count: 1

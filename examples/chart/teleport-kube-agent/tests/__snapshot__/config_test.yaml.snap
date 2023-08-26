@@ -34,6 +34,8 @@ does not generate a config for clusterrole.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -74,6 +76,8 @@ does not generate a config for pdb.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -114,6 +118,8 @@ matches snapshot and tests for annotations.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       annotations:
@@ -157,6 +163,8 @@ matches snapshot and tests for extra-labels.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       labels:
@@ -200,6 +208,8 @@ matches snapshot for affinity.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -254,6 +264,8 @@ matches snapshot for all-v6.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       annotations:
@@ -309,6 +321,8 @@ matches snapshot for aws-databases.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -370,6 +384,8 @@ matches snapshot for azure-databases.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -410,6 +426,8 @@ matches snapshot for backwards-compatibility.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -452,6 +470,8 @@ matches snapshot for ca-pin.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -497,6 +517,8 @@ matches snapshot for db.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -539,48 +561,8 @@ matches snapshot for dynamic-app.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
-    kind: ConfigMap
-    metadata:
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-matches snapshot for dynamic-db.yaml:
-  1: |
-    apiVersion: v1
-    data:
-      teleport.yaml: |-
-        app_service:
+        windows_desktop_service:
           enabled: false
-        auth_service:
-          enabled: false
-        db_service:
-          enabled: true
-          resources:
-          - labels:
-              '*': '*'
-        discovery_service:
-          enabled: false
-        kubernetes_service:
-          enabled: false
-        proxy_service:
-          enabled: false
-        ssh_service:
-          enabled: false
-        teleport:
-          join_params:
-            method: token
-            token_name: /etc/teleport-secrets/auth-token
-          log:
-            format:
-              extra_fields:
-              - timestamp
-              - level
-              - component
-              - caller
-              output: text
-            output: stderr
-            severity: INFO
-          proxy_server: proxy.example.com:3080
-        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -621,6 +603,8 @@ matches snapshot for imagepullsecrets.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -661,6 +645,8 @@ matches snapshot for initcontainers.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -701,6 +687,8 @@ matches snapshot for join-params-iam.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -741,6 +729,8 @@ matches snapshot for join-params-token.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -781,6 +771,8 @@ matches snapshot for log-basic.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -821,6 +813,8 @@ matches snapshot for log-extra.yaml:
             severity: DEBUG
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -861,6 +855,8 @@ matches snapshot for log-legacy.yaml:
             severity: DEBUG
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -901,6 +897,8 @@ matches snapshot for node-selector.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -941,6 +939,8 @@ matches snapshot for pdb.yaml:
             severity: DEBUG
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -981,6 +981,8 @@ matches snapshot for resources.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1021,6 +1023,8 @@ matches snapshot for stateful.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1061,6 +1065,8 @@ matches snapshot for tolerations.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1101,10 +1107,13 @@ matches snapshot for v10.yaml:
               output: text
             output: stderr
             severity: INFO
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
       namespace: NAMESPACE
+
 matches snapshot for v11.yaml:
   1: |
     apiVersion: v1
@@ -1141,6 +1150,8 @@ matches snapshot for v11.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1181,6 +1192,126 @@ matches snapshot for volumes.yaml:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+matches snapshot for windows-ad.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
+        discovery_service:
+          enabled: false
+        kubernetes_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
+        windows_desktop_service:
+          discovery:
+            base_dn: '*'
+          enabled: true
+          labels:
+            teleport.internal/resource-id: 5840df37-4cc3-49f1-ade0-ec9232575dbf
+          ldap:
+            addr: 172.0.0.1:636
+            domain: astroid.example.com
+            insecure_skip_verify: false
+            ldap_ca_cert: |
+              -----BEGIN CERTIFICATE-----
+              MIIDszCCApugAwIBAgIQK9/a6A9HNbFDkyqMrJFZ8TANBgkqhkiG9w0BAQwFADBs
+              MRMwEQYKCZImiZPyLGQBGRYDY29tMRcwFQYKCZImiZPyLGQBGRYHZXhhbXBsZTEX
+              MBUGCgmSJomT8ixkARkWB2FzdHJvaWQxIzAhBgNVBAMTGmFzdHJvaWQtRUMyQU1B
+              Wi1VTE0zUTNTLUNBMB4XDTIzMDgyNjAxNDQyMloXDTI4MDgyNjAxNTQyMFowbDET
+              MBEGCgmSJomT8ixkARkWA2NvbTEXMBUGCgmSJomT8ixkARkWB2V4YW1wbGUxFzAV
+              BgoJkiaJk/IsZAEZFgdhc3Ryb2lkMSMwIQYDVQQDExphc3Ryb2lkLUVDMkFNQVot
+              VUxNM1EzUy1DQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAObKiE6G
+              8K2RiIZUZOAZ0lP4fFx619pdhfdXtJ+JuFqPKmuWRgOoLMNudyeW3X35rZqkyI74
+              TifjCe/Y0KkO1ix6sQQp3JXR0J+3cjF5IP+WXNqRBfrHvOMjadFboA8wgE8l9Fq0
+              a4FdSCNkBNmftRO4vqvgtvdhsaLyexjjsyKTuYtvKwLcW8CQHCU6zGsx94ZaOswR
+              nxB3VFY5kihkAnGu/pFh7oYaxmxrGQgtvnhD7PqsTnhRWQZRLyQCRpzjHikBLD5X
+              1qBa9tJgEhOyQOBkCNJ6zwB4t7hyWcKf7cKb/pG3A8RxMJ66yWeywKAHMbRr9xUp
+              iYClbN6ztvrD100CAwEAAaNRME8wCwYDVR0PBAQDAgGGMA8GA1UdEwEB/wQFMAMB
+              Af8wHQYDVR0OBBYEFFGrFo9TdGzbvMbUxpqMUhA/H4tgMBAGCSsGAQQBgjcVAQQD
+              AgEAMA0GCSqGSIb3DQEBDAUAA4IBAQBAhAKftgv7XHJEIXUQWp9HRA950znxHNGZ
+              E7vNMccwwap1q5yds86xny+qrbkMseTaJLJxxQHMB6/7Xkmtjc+Ltsw/8VCOzHWA
+              5nNF++tyllTLWBzypR3Ax68V3GYwnVbRIwOGiHrb1Y5MPzKsJF9h02U9ZehP2mwB
+              o1tHYEmHbofA/plVRr+lBkY1lK0plmhfyqF4AuJzjhAMvwdkpZg/RGG6LjOEGeCX
+              cuXopj9f2j+oYPAz798A1rZAm9Kz4b5uI46ultSVhU9WmM+nyjPU/J803J7sgy/m
+              jwMCMyy8p33w+Y11a0av4eD/V0KMQdS90uxsUD5t1NTr2Fn5rEbg
+              -----END CERTIFICATE-----
+            server_name: EC2AMAZ-ULM3Q3S.astroid.example.com
+            sid: S-1-5-21-1717630186-822870621-3846248122-1103
+            username: ASTROID\svc-teleport
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+matches snapshot for windows-nonad.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
+        discovery_service:
+          enabled: false
+        kubernetes_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
+        windows_desktop_service:
+          enabled: true
+          non_ad_hosts:
+          - windowsserver
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1233,6 +1364,8 @@ matches snapshot when app discovery is enabled:
             severity: INFO
           proxy_server: proxy.example.com:3080
         version: v3
+        windows_desktop_service:
+          enabled: false
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME

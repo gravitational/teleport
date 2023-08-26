@@ -128,6 +128,44 @@ discovery_service:
   enabled: false
 {{- end }}
 
+windows_desktop_service:
+  {{- if contains "windowsdesktop" (.Values.roles | toString) }}
+  enabled: true
+  {{- if not (or (.Values.windowsDesktopLDAP) (.Values.windowsDesktopNonADHosts) ) }}
+    {{- fail "at least one of 'windowsDesktopLDAP', 'windowsDesktopNonADHosts' is required in chart values when windowsdesktop role is enabled, see README" }}
+  {{- end }}
+  {{- if .Values.showWindowsDesktopWallpaper }}
+  show_desktop_wallpaper: {{ .Values.showWindowsDesktopWallpaper }}
+  {{- end }}
+  {{- if .Values.windowsDesktopNonADHosts }}
+  non_ad_hosts:
+    {{- toYaml .Values.windowsDesktopNonADHosts | nindent 6 }}
+  {{- end }}
+  {{- if .Values.windowsDesktopLDAP }}
+  ldap:
+    {{- toYaml .Values.windowsDesktopLDAP | nindent 6 }}
+  {{- end }}
+  {{- if .Values.windowsDesktopADHosts }}
+  hosts:
+    {{- toYaml .Values.windowsDesktopADHosts | nindent 6 }}
+  {{- end }}
+  {{- if .Values.windowsDesktopDiscovery }}
+  discovery:
+    {{- toYaml .Values.windowsDesktopDiscovery | nindent 6 }}
+  {{- end }}
+  {{- if .Values.windowsDesktopHostLabels }}
+  host_labels:
+      {{- toYaml .Values.windowsDesktopHostLabels | nindent 6 }}
+  {{- end }}
+  {{- if .Values.windowsDesktopLabels }}
+  labels:
+      {{- toYaml .Values.windowsDesktopLabels | nindent 6 }}
+  {{- end }}
+
+{{- else }}
+  enabled: false
+{{- end }}
+
 auth_service:
   enabled: false
 ssh_service:
