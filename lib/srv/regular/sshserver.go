@@ -855,7 +855,6 @@ func New(
 		sshutils.SetFIPS(s.fips),
 		sshutils.SetClock(s.clock),
 		sshutils.SetIngressReporter(s.ingressService, s.ingressReporter),
-		sshutils.SetCAGetter(s.caGetter),
 		sshutils.SetClusterName(clusterName.GetClusterName()),
 	)
 	if err != nil {
