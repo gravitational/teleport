@@ -73,8 +73,10 @@ $ tctl sso configure github \
 > github.yaml
 ```
 <Admonition type="tip">
-  GitHub will send the team names in lowercase. Configure the team mapping to roles
-  with the lowercase version of the name e.g. `MyTeam` -> `myteam`.
+  GitHub organizations and teams should be referred to by their slug value, not display name. 
+  Slug values are available in the url or GitHub API.
+  Example: `example-team` in the url `https://github.com/orgs/Org-Example/teams/example-team`
+  matches to the slug value for team `Example Team`.
 </Admonition>
 
 The contents of `github.yaml` should resemble the following:
@@ -422,19 +424,20 @@ After logging out of `tsh`, you can log back in without specifying
 ### Teams Not Mapping to Roles
 
 If you are not seeing teams mapping to roles confirm you 
-are using the lower case version of the team name in the connector.
-GitHub transmits the lower case of team names.
+are using the slug value of the organizations and teams in the connector.
+The GitHub Web application URIs and GitHub API can provide the slug values.
 
-Example with mixed case team name `MyTeam`:
+Example with team name `My Team`:
 ```yaml
   teams_to_roles:
     - organization: ORG-NAME
       roles:
         - access
-      team: My-Team
+      team: My Team
 ```
 
-Convert to use the lower case version of the team name `my-team`:
+Navigate to the team `My Team`. The url `https://github.com/orgs/ORG-NAME/teams/my-team`
+shows the slug value is `my-team`. Update the teams to roles mapping.
 
 ```yaml
   teams_to_roles:
