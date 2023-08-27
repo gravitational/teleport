@@ -69,9 +69,13 @@ for a full reference of flags for this command:
 $ tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
 --secret=$(cat client-secret.txt) \
---teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
+--teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
 > github.yaml
 ```
+<Admonition type="tip">
+  GitHub will send the team names in lowercase. Configure the team mapping to roles
+  with the lowercase version of the name e.g. `MyTeam` -> `myteam`.
+</Admonition>
 
 The contents of `github.yaml` should resemble the following:
 
@@ -94,7 +98,7 @@ spec:
       roles:
         - access
         - editor
-      team: GITHUB-TEAM
+      team: github-team
 version: v3
 ```
 </TabItem>
@@ -118,7 +122,7 @@ spec:
         - access
         - editor
         - reviewer
-      team: GITHUB-TEAM
+      team: github-team
 version: v3
 ```
 </TabItem>
@@ -133,7 +137,7 @@ file to define multiple mappings. For example:
 $  tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
 --secret=$(cat client-secret.txt) \
---teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
+--teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
 --teams-to-roles="ORG-NAME,administrators,admins \
 --teams-to-roles="DIFFERENT-ORG,developers,dev \
 > github.yaml
@@ -146,7 +150,7 @@ spec.
       roles:
         - access
         - editor
-      team: GITHUB-TEAM
+      team: github-team
     - organization: ORG-NAME
       roles:
         - admins
@@ -168,7 +172,7 @@ instance endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters:
 $ tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
 --secret=$(cat client-secret.txt) \
---teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
+--teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
 --endpoint-url=https://<Var name="github-enterprise-server-address"/>
 --api-endpoint-url=https://<Var name="api-github-enterprise-server-address"/>
 > github.yaml
@@ -414,4 +418,31 @@ After logging out of `tsh`, you can log back in without specifying
 ## Troubleshooting
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
+
+### Teams Not Mapping to Roles
+
+If you are not seeing teams mapping to roles confirm you 
+are using the lower case version of the team name in the connector.
+GitHub transmits the lower case of team names.
+
+Example with mixed case team name `MyTeam`:
+```yaml
+  teams_to_roles:
+    - organization: ORG-NAME
+      roles:
+        - access
+      team: My-Team
+```
+
+Convert to use the lower case version of the team name `my-team`:
+
+```yaml
+  teams_to_roles:
+    - organization: ORG-NAME
+      roles:
+        - access
+        - editor
+        - reviewer
+      team: my-team
+```
 
