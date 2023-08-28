@@ -660,6 +660,30 @@ const (
 	// OktaAssignmentCleanupEvent is emitted when an assignment is cleaned up.
 	OktaAssignmentCleanupEvent = "okta.assignment.cleanup"
 
+	// AccessListCreateEvent is emitted when an access list is created.
+	AccessListCreateEvent = "access_list.create"
+
+	// AccessListUpdateEvent is emitted when an access list is updated.
+	AccessListUpdateEvent = "access_list.update"
+
+	// AccessListDeleteEvent is emitted when an access list is deleted.
+	AccessListDeleteEvent = "access_list.delete"
+
+	// AccessListReviewEvent is emitted when an access list is reviewed.
+	AccessListReviewEvent = "access_list.review"
+
+	// AccessListMemberCreateEvent is emitted when a member is added to an access list.
+	AccessListMemberCreateEvent = "access_list.member.create"
+
+	// AccessListMemberUpdateEvent is emitted when a member is updated in an access list.
+	AccessListMemberUpdateEvent = "access_list.member.update"
+
+	// AccessListMemberDeleteEvent is emitted when a member is deleted from an access list.
+	AccessListMemberDeleteEvent = "access_list.member.delete"
+
+	// AccessListMemberDeleteAllMembersEvent is emitted when all members are deleted from an access list.
+	AccessListMemberDeleteAllMembersEvent = "access_list.member.delete_all_members"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )

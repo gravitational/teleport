@@ -1433,6 +1433,102 @@ export const formatters: Formatters = {
     format: ({ name, source, user }) =>
       `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
   },
+  [eventCodes.ACCESS_LIST_CREATE]: {
+    type: 'access_list.create',
+    desc: 'Access list created',
+    format: ({ name, updated_by }) =>
+      `Access list [${name}] has been created by user [${updated_by}]`,
+  },
+  [eventCodes.ACCESS_LIST_CREATE_FAILURE]: {
+    type: 'access_list.create',
+    desc: 'Access list create failed',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] failed to create access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_UPDATE]: {
+    type: 'access_list.update',
+    desc: 'Access list updated',
+    format: ({ name, updated_by }) =>
+      `Access list [${name}] has been updated by user [${updated_by}]`,
+  },
+  [eventCodes.ACCESS_LIST_UPDATE_FAILURE]: {
+    type: 'access_list.update',
+    desc: 'Access list update failed',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] failed to update access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_DELETE]: {
+    type: 'access_list.delete',
+    desc: 'Access list deleted',
+    format: ({ name, updated_by }) =>
+      `Access list [${name}] has been deleted by user [${updated_by}]`,
+  },
+  [eventCodes.ACCESS_LIST_DELETE_FAILURE]: {
+    type: 'access_list.delete',
+    desc: 'Access list delete failed',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] failed to delete access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_REVIEW]: {
+    type: 'access_list.review',
+    desc: 'Access list reviewed',
+    format: ({ name, updated_by }) =>
+      `Access list [${name}] has been reviewed by user [${updated_by}]`,
+  },
+  [eventCodes.ACCESS_LIST_REVIEW_FAILURE]: {
+    type: 'access_list.review',
+    desc: 'Access list review failed',
+    format: ({ name, updated_by }) =>
+      `Failure during to review access list [${name}] by user [${updated_by}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
+    type: 'access_list.member.create',
+    desc: 'Access list member added',
+    format: ({ access_list_name, member_name, updated_by }) =>
+      `Member [${member_name}] was added to access list [${access_list_name}] by user [${updated_by}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: {
+    type: 'access_list.member.create',
+    desc: 'Access list member addition failure',
+    format: ({ access_list_name, member_name, updated_by }) =>
+      `Failure when user [${updated_by}] attempted to add member [${member_name}] to access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: {
+    type: 'access_list.member.update',
+    desc: 'Access list member updated',
+    format: ({ access_list_name, member_name, updated_by }) =>
+      `Member [${member_name}] was updated in access list [${access_list_name}] by user [${updated_by}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: {
+    type: 'access_list.member.update',
+    desc: 'Access list member update failure',
+    format: ({ access_list_name, member_name, updated_by }) =>
+      `Failure when user [${updated_by}] attempted to update member [${member_name}] in access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE]: {
+    type: 'access_list.member.delete',
+    desc: 'Access list member deleted',
+    format: ({ access_list_name, member_name, updated_by }) =>
+      `Member [${member_name}] was deleted from access list [${access_list_name}] by user [${updated_by}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: {
+    type: 'access_list.member.delete',
+    desc: 'Access list member delete failure',
+    format: ({ access_list_name, member_name, updated_by }) =>
+      `Failure when user [${updated_by}] attempted to delete member [${member_name}] from access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_MEMBERS]: {
+    type: 'access_list.member.delete_all_members',
+    desc: 'All members deleted for access list',
+    format: ({ access_list_name, updated_by }) =>
+      `All members were deleted from access list [${access_list_name}] by user [${updated_by}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_MEMBERS_FAILURE]: {
+    type: 'access_list.member.delete_all_members',
+    desc: 'Access list member delete all membersfailure',
+    format: ({ access_list_name, updated_by }) =>
+      `Failure when user [${updated_by}] attempted to delete all members from access list [${access_list_name}]`,
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',
