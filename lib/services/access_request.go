@@ -1126,6 +1126,8 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 		accessTTL := now.Add(ttl)
 		req.SetAccessExpiry(accessTTL)
+		// Adjusted max access duration is equal to the access expiry time.
+		req.SetMaxDuration(accessTTL)
 	}
 
 	return nil
@@ -1151,7 +1153,13 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 	}
 
 	maxDuration := maxDurationTime.Sub(req.GetCreationTime())
-	if maxDuration < 0 {
+
+	// For dry run requests, the max_duration is set to 7 days.
+	// This prevents the time drift that can occur as the value is set on the client side.
+	// TODO(jakule): Replace with MaxAccessDuration that is a duration (5h, 4d etc), and not a point in time.
+	if req.GetDryRun() {
+		maxDuration = maxAccessDuration
+	} else if maxDuration < 0 {
 		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
 	}
 

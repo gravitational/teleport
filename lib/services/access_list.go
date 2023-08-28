@@ -32,6 +32,8 @@ var _ AccessLists = (*accesslistclient.Client)(nil)
 
 // AccessListsGetter defines an interface for reading access lists.
 type AccessListsGetter interface {
+	AccessListMembersGetter
+
 	// GetAccessLists returns a list of all access lists.
 	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
 	// ListAccessLists returns a paginated list of access lists.
@@ -43,6 +45,7 @@ type AccessListsGetter interface {
 // AccessLists defines an interface for managing AccessLists.
 type AccessLists interface {
 	AccessListsGetter
+	AccessListMembers
 
 	// UpsertAccessList creates or updates an access list resource.
 	UpsertAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
@@ -94,6 +97,28 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 		accessList.SetExpiry(cfg.Expires)
 	}
 	return accessList, nil
+}
+
+// AccessListMembersGetter defines an interface for reading access list members.
+type AccessListMembersGetter interface {
+	// ListAccessListMembers returns a paginated list of all access list members.
+	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// GetAccessListMember returns the specified access list member resource.
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+}
+
+// AccessListMembers defines an interface for managing AccessListMembers.
+type AccessListMembers interface {
+	AccessListMembersGetter
+
+	// UpsertAccessListMember creates or updates an access list member resource.
+	UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
+	// DeleteAccessListMember hard deletes the specified access list member resource.
+	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
+	// DeleteAllAccessListMembers hard deletes all access list members for an access list.
+	DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error
+	// DeleteAllAccessListMembers hard deletes all access list members.
+	DeleteAllAccessListMembers(ctx context.Context) error
 }
 
 // MarshalAccessListMember marshals the access list member resource to JSON.

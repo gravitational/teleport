@@ -21,10 +21,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
+	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 
@@ -918,17 +920,29 @@ func (t *TestTLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, err
 
 // CloneClient uses the same credentials as the passed client
 // but forces the client to be recreated
-func (t *TestTLSServer) CloneClient(clt *Client) *Client {
+func (t *TestTLSServer) CloneClient(tt *testing.T, clt *Client) *Client {
+	tlsConfig := clt.Config()
+	// When cloning a client, we want to make sure that we don't reuse
+	// the same session ticket cache. The session ticket cache should not be
+	// shared between all clients that use the same TLS config.
+	// Reusing the cache will skip the TLS handshake and may introduce a weird
+	// behavior in tests.
+	if !tlsConfig.SessionTicketsDisabled {
+		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(utils.DefaultLRUCapacity)
+	}
+
 	newClient, err := NewClient(client.Config{
 		Addrs: []string{t.Addr().String()},
 		Credentials: []client.Credentials{
-			client.LoadTLS(clt.Config()),
+			client.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(tt, err)
+
+	tt.Cleanup(func() {
+		require.NoError(tt, newClient.Close())
+	})
 	return newClient
 }
 

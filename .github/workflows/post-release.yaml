@@ -47,12 +47,14 @@ jobs:
     needs: release
     if: needs.release.outputs.type == 'latest'
     uses: gravitational/teleport/.github/workflows/update-ami-ids.yaml@master
+    secrets: inherit
     with:
       version: ${{ needs.release.outputs.version }}
 
   update-docs-version:
     name: Update docs version
     runs-on: ubuntu-latest
+    environment: post-release
     steps:
       - name: Get Release Branch
         id: get-branch

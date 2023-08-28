@@ -17,7 +17,7 @@ package userloginstate
 import (
 	"context"
 
-	"github.com/gravitational/trace/trail"
+	"github.com/gravitational/trace"
 
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -41,7 +41,7 @@ func NewClient(grpcClient userloginstatev1.UserLoginStateServiceClient) *Client 
 func (c *Client) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
 	resp, err := c.grpcClient.GetUserLoginStates(ctx, &userloginstatev1.GetUserLoginStatesRequest{})
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	ulsList := make([]*userloginstate.UserLoginState, len(resp.UserLoginStates))
@@ -49,7 +49,7 @@ func (c *Client) GetUserLoginStates(ctx context.Context) ([]*userloginstate.User
 		var err error
 		ulsList[i], err = conv.FromProto(uls)
 		if err != nil {
-			return nil, trail.FromGRPC(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -62,21 +62,21 @@ func (c *Client) GetUserLoginState(ctx context.Context, name string) (*userlogin
 		Name: name,
 	})
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	uls, err := conv.FromProto(resp)
-	return uls, trail.FromGRPC(err)
+	return uls, trace.Wrap(err)
 }
 
 // UpsertUserLoginState creates or updates a user login state resource.
 func (c *Client) UpsertUserLoginState(ctx context.Context, uls *userloginstate.UserLoginState) (*userloginstate.UserLoginState, error) {
 	resp, err := c.grpcClient.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{})
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 	responseUls, err := conv.FromProto(resp)
-	return responseUls, trail.FromGRPC(err)
+	return responseUls, trace.Wrap(err)
 }
 
 // DeleteUserLoginState removes the specified user login state resource.
@@ -84,11 +84,11 @@ func (c *Client) DeleteUserLoginState(ctx context.Context, name string) error {
 	_, err := c.grpcClient.DeleteUserLoginState(ctx, &userloginstatev1.DeleteUserLoginStateRequest{
 		Name: name,
 	})
-	return trail.FromGRPC(err)
+	return trace.Wrap(err)
 }
 
 // DeleteAllUserLoginStates removes all user login states.
 func (c *Client) DeleteAllUserLoginStates(ctx context.Context) error {
 	_, err := c.grpcClient.DeleteAllUserLoginStates(ctx, &userloginstatev1.DeleteAllUserLoginStatesRequest{})
-	return trail.FromGRPC(err)
+	return trace.Wrap(err)
 }

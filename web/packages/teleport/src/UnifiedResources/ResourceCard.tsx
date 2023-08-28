@@ -29,7 +29,7 @@ import {
 } from 'design/SVGIcon';
 
 import {
-  AgentLabel,
+  ResourceLabel,
   UnifiedResource,
   UnifiedResourceKind,
 } from 'teleport/services/agents';
@@ -54,7 +54,7 @@ const ResTypeIconBox = styled(Box)`
 
 type Props = {
   resource: UnifiedResource;
-  onLabelClick?: (label: AgentLabel) => void;
+  onLabelClick?: (label: ResourceLabel) => void;
 };
 
 export function ResourceCard({ resource, onLabelClick }: Props) {
@@ -209,9 +209,10 @@ function resourceDescription(resource: UnifiedResource) {
     case 'kube_cluster':
       return { primary: 'Kubernetes' };
     case 'node':
-      // TODO(bl-nero): Pass the subkind to display as the primary and push addr
-      // to secondary.
-      return { primary: resource.addr };
+      return {
+        primary: resource.subKind || 'SSH Server',
+        secondary: resource.tunnel ? '← tunnel' : resource.addr,
+      };
     case 'windows_desktop':
       return { primary: 'Windows', secondary: resource.addr };
 

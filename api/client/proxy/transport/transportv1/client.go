@@ -20,7 +20,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc/peer"
 
@@ -51,7 +50,7 @@ func NewClient(client transportv1pb.TransportServiceClient) (*Client, error) {
 func (c *Client) ClusterDetails(ctx context.Context) (*transportv1pb.ClusterDetails, error) {
 	resp, err := c.clt.GetClusterDetails(ctx, &transportv1pb.GetClusterDetailsRequest{})
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return resp.Details, nil
@@ -62,11 +61,11 @@ func (c *Client) ClusterDetails(ctx context.Context) (*transportv1pb.ClusterDeta
 func (c *Client) DialCluster(ctx context.Context, cluster string, src net.Addr) (net.Conn, error) {
 	stream, err := c.clt.ProxyCluster(ctx)
 	if err != nil {
-		return nil, trail.FromGRPC(err, "unable to establish proxy stream")
+		return nil, trace.Wrap(err, "unable to establish proxy stream")
 	}
 
 	if err := stream.Send(&transportv1pb.ProxyClusterRequest{Cluster: cluster}); err != nil {
-		return nil, trail.FromGRPC(err, "failed to send cluster request")
+		return nil, trace.Wrap(err, "failed to send cluster request")
 	}
 
 	streamRW, err := streamutils.NewReadWriter(clusterStream{stream: stream})
@@ -115,19 +114,19 @@ func (c clusterStream) Close() error {
 func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net.Addr, keyring agent.ExtendedAgent) (net.Conn, *transportv1pb.ClusterDetails, error) {
 	stream, err := c.clt.ProxySSH(ctx)
 	if err != nil {
-		return nil, nil, trail.FromGRPC(err, "unable to establish proxy stream")
+		return nil, nil, trace.Wrap(err, "unable to establish proxy stream")
 	}
 
 	if err := stream.Send(&transportv1pb.ProxySSHRequest{DialTarget: &transportv1pb.TargetHost{
 		HostPort: hostport,
 		Cluster:  cluster,
 	}}); err != nil {
-		return nil, nil, trail.FromGRPC(err, "failed to send dial target request")
+		return nil, nil, trace.Wrap(err, "failed to send dial target request")
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
-		return nil, nil, trail.FromGRPC(err, "failed to receive cluster details response")
+		return nil, nil, trace.Wrap(err, "failed to receive cluster details response")
 	}
 
 	// create streams for ssh and agent protocol
@@ -161,8 +160,8 @@ func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net
 		for {
 			req, err := stream.Recv()
 			if err != nil {
-				sshStream.errorC <- trail.FromGRPC(err)
-				agentStream.errorC <- trail.FromGRPC(err)
+				sshStream.errorC <- trace.Wrap(err)
+				agentStream.errorC <- trace.Wrap(err)
 				return
 			}
 

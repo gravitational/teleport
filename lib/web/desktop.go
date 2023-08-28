@@ -168,6 +168,18 @@ func (h *Handler) createDesktopConnection(
 		validServiceIDs[i], validServiceIDs[j] = validServiceIDs[j], validServiceIDs[i]
 	})
 
+	pc, err := proxyClient(r.Context(), sctx, h.ProxyHostPort(), username, h.cfg.PROXYSigner)
+	if err != nil {
+		return sendTDPError(trace.Wrap(err))
+	}
+	defer pc.Close()
+
+	// Issue certificate for TLS config and pass MFA check if required.
+	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, sctx, desktopName, username, site.GetName())
+	if err != nil {
+		return sendTDPError(err)
+	}
+
 	clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(r.Context())
 
 	c := &connector{
@@ -183,16 +195,6 @@ func (h *Handler) createDesktopConnection(
 	}
 	defer serviceConn.Close()
 
-	pc, err := proxyClient(r.Context(), sctx, h.ProxyHostPort(), username, h.cfg.PROXYSigner)
-	if err != nil {
-		return sendTDPError(trace.Wrap(err))
-	}
-	defer pc.Close()
-
-	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, sctx, desktopName, username, site.GetName())
-	if err != nil {
-		return sendTDPError(err)
-	}
 	serviceConnTLS := tls.Client(serviceConn, tlsConfig)
 
 	if err := serviceConnTLS.HandshakeContext(r.Context()); err != nil {

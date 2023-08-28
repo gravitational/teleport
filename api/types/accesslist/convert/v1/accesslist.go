@@ -69,10 +69,12 @@ func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
 	}
 
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
+		Title:       msg.Spec.Title,
 		Description: msg.Spec.Description,
 		Owners:      owners,
 		Audit: accesslist.Audit{
-			Frequency: msg.Spec.Audit.Frequency.AsDuration(),
+			Frequency:     msg.Spec.Audit.Frequency.AsDuration(),
+			NextAuditDate: msg.Spec.Audit.NextAuditDate.AsTime(),
 		},
 		MembershipRequires: accesslist.Requires{
 			Roles:  msg.Spec.MembershipRequires.Roles,
@@ -116,10 +118,12 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 	return &accesslistv1.AccessList{
 		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
 		Spec: &accesslistv1.AccessListSpec{
+			Title:       accessList.Spec.Title,
 			Description: accessList.Spec.Description,
 			Owners:      owners,
 			Audit: &accesslistv1.AccessListAudit{
-				Frequency: durationpb.New(accessList.Spec.Audit.Frequency),
+				Frequency:     durationpb.New(accessList.Spec.Audit.Frequency),
+				NextAuditDate: timestamppb.New(accessList.Spec.Audit.NextAuditDate),
 			},
 			MembershipRequires: &accesslistv1.AccessListRequires{
 				Roles:  accessList.Spec.MembershipRequires.Roles,

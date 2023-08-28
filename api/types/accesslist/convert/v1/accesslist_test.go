@@ -96,6 +96,7 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 			Name: name,
 		},
 		accesslist.Spec{
+			Title:       "title",
 			Description: "test access list",
 			Owners: []accesslist.Owner{
 				{
@@ -108,7 +109,8 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				Frequency:     time.Hour,
+				NextAuditDate: time.Now(),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},

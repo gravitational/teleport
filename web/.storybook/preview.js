@@ -17,7 +17,11 @@ limitations under the License.
 import React from 'react';
 import { rest, setupWorker } from 'msw';
 import { addDecorator, addParameters } from '@storybook/react';
-import { darkTheme, lightTheme } from './../packages/design/src/theme';
+import {
+  darkTheme,
+  lightTheme,
+  bblpTheme,
+} from './../packages/design/src/theme';
 import DefaultThemeProvider from '../packages/design/src/ThemeProvider';
 import Box from './../packages/design/src/Box';
 import '../packages/teleport/src/lib/polyfillRandomUuid';
@@ -27,6 +31,7 @@ import {
   lightTheme as teletermLightTheme,
 } from './../packages/teleterm/src/ui/ThemeProvider/theme';
 import { handlersTeleport } from './../packages/teleport/src/mocks/handlers';
+import history from './../packages/teleport/src/services/history/history';
 import { UserContextProvider } from 'teleport/User';
 
 // Checks we are running non-node environment (browser)
@@ -37,6 +42,8 @@ if (typeof global.process === 'undefined') {
   // So it can be accessed in stories more easily.
   window.msw = { worker, rest };
 }
+
+history.init();
 
 // wrap each story with theme provider
 const ThemeDecorator = (storyFn, meta) => {
@@ -51,7 +58,17 @@ const ThemeDecorator = (storyFn, meta) => {
         : teletermLightTheme;
   } else {
     ThemeProvider = DefaultThemeProvider;
-    theme = meta.globals.theme === 'Dark Theme' ? darkTheme : lightTheme;
+    switch (meta.globals.theme) {
+      case 'Dark Theme':
+        theme = darkTheme;
+        break;
+      case 'Light Theme':
+        theme = lightTheme;
+        break;
+      case 'BBLP Theme':
+        theme = bblpTheme;
+        break;
+    }
   }
 
   return (
@@ -96,7 +113,7 @@ export const globalTypes = {
     defaultValue: 'Dark Theme',
     toolbar: {
       icon: 'contrast',
-      items: ['Light Theme', 'Dark Theme'],
+      items: ['Light Theme', 'Dark Theme', 'BBLP Theme'],
       dynamicTitle: true,
     },
   },

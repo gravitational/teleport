@@ -37,11 +37,11 @@ For Google Workspace, see [Teleport Authentication with Google Workspace](google
 </Admonition>
 
 Save the relevant information from your identity provider. To make following
-this guide easier, you can add the values here and they will be included in the
+this guide easier, you can add the Client ID here and it will be included in the
 example commands below:
 
-- Client ID: <Var name="<CLIENT-ID>" description="The Client ID for your Teleport application, provided by your IdP"/>
-- Client secret: <Var name="<CLIENT-SECRET>" description="The Client secret for your Teleport application, provided by your IdP"/>
+Client ID: <Var name="<CLIENT-ID>" description="The Client ID for your Teleport
+application, provided by your IdP"/>
 
 ## OIDC Redirect URL
 
@@ -57,8 +57,11 @@ with your Teleport Cloud tenant or Proxy Service address.
 ## OIDC connector configuration
 
 The next step is to add an OIDC connector to Teleport. The connectors are
-created, tested, and added or removed using `tctl` [resource commands](../../reference/resources.mdx)
-or the Teleport Web UI.
+created, tested, and added or removed using `tctl` [resource
+commands](../../reference/resources.mdx) or the Teleport Web UI.
+
+On your workstation, create a file called `client-secret.txt` consisting only of
+your client secret.
 
 To create a new connector, use `tctl sso configure`. The following example creates a
 connector resource file in YAML format named `oidc-connector.yaml`:
@@ -66,7 +69,8 @@ connector resource file in YAML format named `oidc-connector.yaml`:
 ```code
 $ tctl sso configure oidc --name <CONNECTOR-NAME> \
   --issuer-url <PATH-TO-PROVIDER> \
-  --id <CLIENT-ID> --secret <CLIENT-SECRET> \
+  --id <CLIENT-ID> \
+  --secret $(cat client-secret.txt) \
   --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,access \
   --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,editor > oidc-connector.yaml
 ```

@@ -333,6 +333,8 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 			// localhost. Set appropriate header to keep this information.
 			if addr, err := utils.ParseAddr(req.Host); err == nil && !addr.IsLocal() {
 				req.Header.Set("X-Forwarded-Host", req.Host)
+			} else { // ensure that there is no client provided X-Forwarded-Host
+				req.Header.Del("X-Forwarded-Host")
 			}
 
 			proxy, err := l.getHTTPReverseProxyForReq(req, defaultProxy)

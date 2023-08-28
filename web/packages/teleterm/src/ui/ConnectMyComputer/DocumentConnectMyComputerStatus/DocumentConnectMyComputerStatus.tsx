@@ -161,7 +161,7 @@ export function DocumentConnectMyComputerStatus(
           </MenuIcon>
         </Flex>
 
-        <Transition in={!!agentNode} timeout={1_800} mountOnEnter>
+        <Transition in={!!agentNode} timeout={1_800} mountOnEnter unmountOnExit>
           {state => (
             <LabelsContainer gap={1} className={state}>
               {renderLabels(agentNode.labelsList)}
@@ -194,6 +194,7 @@ export function DocumentConnectMyComputerStatus(
             block
             disabled={disableDisconnectButton}
             onClick={killAgent}
+            size="large"
           >
             Disconnect
           </ButtonPrimary>
@@ -202,6 +203,7 @@ export function DocumentConnectMyComputerStatus(
             block
             disabled={disableConnectButton}
             onClick={downloadAndStartAgent}
+            size="large"
           >
             Connect
           </ButtonPrimary>
@@ -239,13 +241,13 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
           // TODO(gzdunek) add progress
           return {
             Icon: StyledIndicator,
-            title: 'Verifying agent binary',
+            title: 'Checking agent version',
           };
         }
         case 'error': {
           return {
             Icon: StyledWarning,
-            title: 'Failed to download agent',
+            title: 'Failed to verify agent binary',
             error: currentAction.attempt.statusText,
           };
         }

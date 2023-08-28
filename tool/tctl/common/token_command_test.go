@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
 )
 
@@ -49,7 +50,7 @@ type listedToken struct {
 }
 
 func TestTokens(t *testing.T) {
-	dynAddr := newDynamicServiceAddr(t)
+	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -63,18 +64,18 @@ func TestTokens(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: dynAddr.webAddr,
-			TunAddr: dynAddr.tunnelAddr,
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: dynAddr.authAddr,
+				ListenAddress: dynAddr.AuthAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 
 	// Test all output formats of "tokens add".
 	t.Run("add", func(t *testing.T) {

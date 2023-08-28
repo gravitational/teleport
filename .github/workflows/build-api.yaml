@@ -22,7 +22,6 @@ on:
 jobs:
   build:
     name: Build API
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-latest
 
     permissions:
