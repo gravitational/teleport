@@ -439,6 +439,7 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Pass through the Insecure mode flag so that the webapi/find call works with a self-signed certificate as expected.
 	tlsConfig.InsecureSkipVerify = b.cfg.Insecure
 
 	sshConfig, err := id.SSHClientConfig(b.cfg.FIPS)
