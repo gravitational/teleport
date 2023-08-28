@@ -210,7 +210,7 @@ function resourceDescription(resource: UnifiedResource) {
       return { primary: 'Kubernetes' };
     case 'node':
       return {
-        primary: resource.openssh ? 'OpenSSH Server' : 'SSH Server',
+        primary: resource.subKind || 'SSH Server',
         secondary: resource.tunnel ? '← tunnel' : resource.addr,
       };
     case 'windows_desktop':

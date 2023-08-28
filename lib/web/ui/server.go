@@ -42,8 +42,8 @@ type Server struct {
 	Kind string `json:"kind"`
 	// Tunnel indicates of this server is connected over a reverse tunnel.
 	Tunnel bool `json:"tunnel"`
-	// OpenSSh returns true for OpenSSHNode and OpenSSHEICENodes
-	OpenSSH bool `json:"openssh,omitempty"`
+	// SubKind is an optional subkind such as OpenSSH
+	SubKind string `json:"subKind,omitempty"`
 	// Name is this server name
 	Name string `json:"id"`
 	// ClusterName is this server cluster name
@@ -86,7 +86,7 @@ func MakeServer(clusterName string, server types.Server, accessChecker services.
 		return Server{}, trace.Wrap(err)
 	}
 
-	return Server{
+	uiServer := Server{
 		Kind:        server.GetKind(),
 		ClusterName: clusterName,
 		Labels:      uiLabels,
@@ -94,9 +94,11 @@ func MakeServer(clusterName string, server types.Server, accessChecker services.
 		Hostname:    server.GetHostname(),
 		Addr:        server.GetAddr(),
 		Tunnel:      server.GetUseTunnel(),
-		OpenSSH:     server.IsOpenSSHNode(),
+		SubKind:     server.GetSubKind(),
 		SSHLogins:   serverLogins,
-	}, nil
+	}
+
+	return uiServer, nil
 }
 
 // MakeServers creates server objects for webapp
