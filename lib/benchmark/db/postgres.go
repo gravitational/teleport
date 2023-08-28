@@ -110,7 +110,7 @@ func (p *PostgresBenchmark) buildConnectionConfig(ctx context.Context, tc *clien
 		return nil, trace.Wrap(err)
 	}
 
-	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%v/?sslmode=verify-full", lp.GetAddr()))
+	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%v/%s", lp.GetAddr(), p.DBName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
