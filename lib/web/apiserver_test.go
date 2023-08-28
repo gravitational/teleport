@@ -1107,6 +1107,7 @@ func TestClusterNodesGet(t *testing.T) {
 	require.ElementsMatch(t, res.Items, []ui.Server{
 		{
 			Kind:        types.KindNode,
+			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
 			Name:        server1.GetName(),
 			Hostname:    server1.GetHostname(),
@@ -1117,6 +1118,7 @@ func TestClusterNodesGet(t *testing.T) {
 		},
 		{
 			Kind:        types.KindNode,
+			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
 			Name:        "server2",
 			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
