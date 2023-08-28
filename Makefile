@@ -724,9 +724,9 @@ test-go-unit:
 # Runs tbot unit tests
 .PHONY: test-go-unit-tbot
 test-go-unit-tbot: FLAGS ?= -race -shuffle on
-test-go-unit-tbot: SUBJECT ?= $(shell go list ./... | grep -E '(tool/tbot|lib/tbot)')
+test-go-unit-tbot: SUBJECT ?= ./tool/tbot/... ./lib/tbot/...
 test-go-unit-tbot:
-	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -cover -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 

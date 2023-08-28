@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/gravitational/teleport/lib"
 	"io"
 	"net"
 	"net/http"
@@ -671,6 +672,7 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 		JoinMethod:   types.JoinMethodIAM,
 		PublicTLSKey: pubTLS,
 		PublicSSHKey: []byte(fixtures.SSHCAPublicKey),
+		Insecure:     lib.IsInsecureDevMode(),
 	})
 	require.NoError(t, err, trace.DebugReport(err))
 }
