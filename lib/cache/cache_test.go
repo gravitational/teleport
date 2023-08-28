@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
@@ -976,7 +977,11 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 			Limit:        int32(pageSize),
 			SortBy:       sortBy,
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Logf("error listing resources: %v", err)
+			return false
+		}
+
 		resources = append(resources, resp.Resources...)
 		listResourcesStartKey = resp.NextKey
 		return len(resources) == nodeCount
@@ -2213,7 +2218,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.Eventually(t, func() bool {
 		// Make sure the cache has a single resource in it.
 		out, err = funcs.cacheList(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
 	}, time.Second*2, time.Millisecond*250)
 
@@ -2240,7 +2245,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.Eventually(t, func() bool {
 		// Make sure the cache has a single resource in it.
 		out, err = funcs.cacheList(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
 	}, time.Second*2, time.Millisecond*250)
 
@@ -2252,7 +2257,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.Eventually(t, func() bool {
 		// Check that the cache is now empty.
 		out, err = funcs.cacheList(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		return len(out) == 0
 	}, time.Second*2, time.Millisecond*250)
 }

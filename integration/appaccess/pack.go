@@ -894,11 +894,22 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, cfgApps []servicecfg.App, hostUUID string) {
 	require.Eventually(t, func() bool {
 		site, err := tunnel.GetSite(clusterName)
-		require.NoError(t, err)
+		if err != nil {
+			t.Logf("error getting site from tunnel: %v", err)
+			return false
+		}
+
 		ap, err := site.CachingAccessPoint()
-		require.NoError(t, err)
+		if err != nil {
+			t.Logf("error getting caching access point from site: %v", err)
+			return false
+		}
+
 		apps, err := ap.GetApplicationServers(context.Background(), apidefaults.Namespace)
-		require.NoError(t, err)
+		if err != nil {
+			t.Logf("error getting application servers from access point: %v", err)
+			return false
+		}
 
 		counter := 0
 		for _, v := range apps {

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
@@ -209,7 +210,7 @@ func TestEC2NodeJoin(t *testing.T) {
 	// the node should eventually join the cluster and heartbeat
 	require.Eventually(t, func() bool {
 		nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		return len(nodes) > 0
 	}, time.Minute, time.Second, "waiting for node to join cluster")
 }
@@ -269,7 +270,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	// the proxy should eventually join the cluster and heartbeat
 	require.Eventually(t, func() bool {
 		proxies, err := authServer.GetProxies()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		return len(proxies) > 0
 	}, time.Minute, time.Second, "waiting for proxy to join cluster")
 
@@ -294,7 +295,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	// the node should eventually join the cluster and heartbeat
 	require.Eventually(t, func() bool {
 		nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		return len(nodes) > 0
 	}, time.Minute, time.Second, "waiting for node to join cluster")
 }
@@ -393,13 +394,13 @@ func TestEC2Labels(t *testing.T) {
 	require.Eventually(t, func() bool {
 		var err error
 		nodes, err = authServer.GetNodes(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		apps, err = authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		databases, err = authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		kubes, err = authServer.GetKubernetesServers(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		// dedupClusters is required because GetKubernetesServers returns duplicated servers
 		// because it lists the KindKubeServer and KindKubeService.
@@ -423,22 +424,38 @@ func TestEC2Labels(t *testing.T) {
 	// Check that EC2 labels were applied.
 	require.Eventually(t, func() bool {
 		node, err := authServer.GetNode(ctx, tconf.SSH.Namespace, nodes[0].GetName())
-		require.NoError(t, err)
+		if err != nil {
+			t.Logf("error getting node: %v", err)
+			return false
+		}
+
 		_, nodeHasLabel := node.GetAllLabels()[tagName]
 		apps, err := authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		require.Len(t, apps, 1)
+		assert.NoError(t, err)
+		if len(apps) != 1 {
+			t.Logf("want 1 app, got %d", len(apps))
+			return false
+		}
+
 		app := apps[0].GetApp()
 		_, appHasLabel := app.GetAllLabels()[tagName]
 
 		databases, err := authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		require.Len(t, databases, 1)
+		assert.NoError(t, err)
+		if len(databases) != 1 {
+			t.Logf("want 1 database, got %d", len(databases))
+			return false
+		}
+
 		database := databases[0].GetDatabase()
 		_, dbHasLabel := database.GetAllLabels()[tagName]
 
 		kubeClusters := helpers.GetKubeClusters(t, authServer)
-		require.Len(t, kubeClusters, 1)
+		if len(kubeClusters) != 1 {
+			t.Logf("want 1 kube cluster, got %d", len(kubeClusters))
+			return false
+		}
+
 		kube := kubeClusters[0]
 		_, kubeHasLabel := kube.GetStaticLabels()[tagName]
 		return nodeHasLabel && appHasLabel && dbHasLabel && kubeHasLabel
