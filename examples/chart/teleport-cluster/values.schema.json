@@ -352,6 +352,11 @@
                     "type": "string",
                     "default": ""
                 },
+                "storageClassName": {
+                    "$id": "#/properties/persistence/properties/storageClassName",
+                    "type": "string",
+                    "default": ""
+                },
                 "volumeSize": {
                     "$id": "#/properties/persistence/properties/volumeSize",
                     "type": "string",

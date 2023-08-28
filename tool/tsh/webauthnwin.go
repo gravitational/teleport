@@ -21,7 +21,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/auth/webauthnwin"
+	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
 
 type webauthnwinCommand struct {
@@ -49,7 +49,7 @@ func newWebauthnwinDiagCommand(app *kingpin.CmdClause) *webauthnwinDiagCommand {
 }
 
 func (w *webauthnwinDiagCommand) run(cf *CLIConf) error {
-	diag := webauthnwin.CheckSupport()
+	diag := wanwin.CheckSupport()
 	fmt.Printf("\nWebauthnWin available: %v\n", diag.IsAvailable)
 	fmt.Printf("Compile support: %v\n", diag.HasCompileSupport)
 	fmt.Printf("DLL API version: %v\n", diag.WebAuthnAPIVersion)
@@ -58,7 +58,12 @@ func (w *webauthnwinDiagCommand) run(cf *CLIConf) error {
 	if !diag.IsAvailable {
 		return nil
 	}
-	resp, err := webauthnwin.Diag(cf.Context, os.Stdout)
+
+	promptBefore := wanwin.PromptWriter
+	defer func() { wanwin.PromptWriter = promptBefore }()
+	wanwin.PromptWriter = os.Stderr
+
+	resp, err := wanwin.Diag(cf.Context)
 	// Abort if we got a nil diagnostic, otherwise print as much as we can.
 	if resp == nil {
 		return trace.Wrap(err)

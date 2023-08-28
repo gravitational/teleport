@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client
+package webauthntypes
 
-var PromptMFAStandalone = &promptMFAStandalone
-var PromptWebauthn = &promptWebauthn
-var HasPlatformSupport = &hasPlatformSupport
+// AppIDExtension is the key for the appid extension.
+// https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
+const AppIDExtension = "appid"

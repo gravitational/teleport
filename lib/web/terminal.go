@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -404,6 +404,17 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	t.log.Debug("Closing websocket stream")
 }
 
+type stderrWriter struct {
+	stream *TerminalStream
+}
+
+func (s stderrWriter) Write(b []byte) (int, error) {
+	if err := s.stream.writeError(string(b)); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return len(b), nil
+}
+
 // makeClient builds a *client.TeleportClient for the connection.
 func (t *TerminalHandler) makeClient(ctx context.Context, ws *websocket.Conn) (*client.TeleportClient, error) {
 	ctx, span := tracing.DefaultProvider().Tracer("terminal").Start(ctx, "terminal/makeClient")
@@ -418,7 +429,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, ws *websocket.Conn) (*
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
 	clientConfig.Namespace = apidefaults.Namespace
 	clientConfig.Stdout = t.stream
-	clientConfig.Stderr = t.stream
+	clientConfig.Stderr = stderrWriter{stream: t.stream}
 	clientConfig.Stdin = t.stream
 	clientConfig.SiteName = t.sessionData.ClusterName
 	if err := clientConfig.ParseProxyHost(t.proxyHostPort); err != nil {
@@ -560,7 +571,7 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 	}
 
 	span.AddEvent("prompting user with mfa challenge")
-	assertion, err := promptMFAChallenge(t.stream, protobufMFACodec{})(ctx, tc.WebProxyAddr, challenge)
+	assertion, err := promptMFAChallenge(t.stream, protobufMFACodec{})(ctx, challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -598,18 +609,15 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 	return []ssh.AuthMethod{am}, nil
 }
 
-func promptMFAChallenge(
-	stream *TerminalStream,
-	codec mfaCodec,
-) client.PromptMFAChallengeHandler {
-	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+func promptMFAChallenge(stream *TerminalStream, codec mfaCodec) client.PromptMFAFunc {
+	return func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		var challenge *client.MFAAuthenticateChallenge
 
 		// Convert from proto to JSON types.
 		switch {
-		case c.GetWebauthnChallenge() != nil:
+		case chal.GetWebauthnChallenge() != nil:
 			challenge = &client.MFAAuthenticateChallenge{
-				WebauthnChallenge: wanlib.CredentialAssertionFromProto(c.WebauthnChallenge),
+				WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
 			}
 		default:
 			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
@@ -890,7 +898,7 @@ func (t *TerminalHandler) windowChange(ctx context.Context, params *session.Term
 
 // writeError displays an error in the terminal window.
 func (t *TerminalHandler) writeError(err error) {
-	if writeErr := t.stream.writeError(err); writeErr != nil {
+	if writeErr := t.stream.writeError(err.Error()); writeErr != nil {
 		t.log.WithError(writeErr).Warnf("Unable to send error to terminal: %v", err)
 	}
 }
@@ -1022,8 +1030,8 @@ type TerminalStream struct {
 var replacer = strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
 
 // writeError displays an error in the terminal window.
-func (t *WSStream) writeError(err error) error {
-	_, writeErr := replacer.WriteString(t, err.Error())
+func (t *WSStream) writeError(err string) error {
+	_, writeErr := replacer.WriteString(t, err)
 	return trace.Wrap(writeErr)
 }
 

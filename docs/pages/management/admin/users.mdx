@@ -6,10 +6,6 @@ description: Learn how to manage local users in Teleport. Local users are stored
 In Teleport, **local users** are users managed directly via Teleport, rather
 than a third-party identity provider.
 
-Local user accounts can be used alongside external user accounts managed via
-GitHub<ScopedBlock scope={["enterprise", "cloud"]}> as well as OIDC and SAML
-2.0</ScopedBlock>.
-
 This guide shows you how to:
 
 - [Add local users](./users.mdx#adding-local-users)
@@ -110,7 +106,7 @@ $ tctl users rm joe
 In addition to users, you can use `tctl` to manage roles and other dynamic
 resources. See our [Teleport Resources Reference](../../reference/resources.mdx).
 
-For all available `tctl` commands and flags, see our [CLI Reference](../../reference/cli.mdx#tctl).
+For all available `tctl` commands and flags, see our [CLI Reference](../../reference/cli/tctl.mdx).
 
 You can also configure Teleport so that users can log in using an SSO provider.
 For more information, see:
@@ -124,10 +120,11 @@ In addition to users, you can use `tctl` to manage roles and other dynamic
 resources. See our [Teleport Resources Reference](../../reference/resources.mdx).
 
 For all available `tctl` commands and flags, see our
-[CLI Reference](../../reference/cli.mdx#tctl).
+[CLI Reference](../../reference/cli/tctl.mdx).
 
 You can also configure Teleport so that users can log in using GitHub. For more
 information, see [GitHub SSO](../../access-controls/sso/github-sso.mdx).
 
 </TabItem>
 </Tabs>
+

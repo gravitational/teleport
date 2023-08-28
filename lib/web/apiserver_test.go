@@ -96,7 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
@@ -1316,7 +1316,13 @@ func TestResizeTerminal(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws1.Close()) })
 
-	// Create a new user "bar", open a terminal to the session created above
+	// Wait for session to have started
+	require.Eventually(t, func() bool {
+		_, err := s.server.Auth().GetSessionTracker(context.Background(), sess.ID.String())
+		return err == nil
+	}, 3*time.Second, 200*time.Millisecond, "session not available")
+
+	// Create a new user "bar" and join the session created above
 	pack2 := s.authPack(t, "bar")
 	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID), withParticipantMode(types.SessionPeerMode))
 	require.NoError(t, err)
@@ -1362,7 +1368,7 @@ t1ready:
 	select {
 	case e := <-ws2Messages:
 		if isResizeEventEnvelope(e) {
-			require.FailNow(t, "terminal 2 should not have received a resize event")
+			require.FailNow(t, "terminal 2 should not have received a resize event: %v", e)
 		}
 	case err := <-errs:
 		require.NoError(t, err)
@@ -1602,9 +1608,9 @@ func TestTerminalNameResolution(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Wait for the node to be registered as the registration is asynchronous.
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		nodes, err := s.proxyClient.GetNodes(ctx, "default")
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		return len(nodes) == 2 // one created by default and llama
 	}, 5*time.Second, 200*time.Millisecond, "failed to register node")
@@ -1697,12 +1703,12 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			},
 			getChallengeResponseBytes: func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
 				res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-					WebauthnChallenge: wanlib.CredentialAssertionToProto(chals.WebauthnChallenge),
+					WebauthnChallenge: wantypes.CredentialAssertionToProto(chals.WebauthnChallenge),
 				})
 				require.Nil(t, err)
 
-				webauthnResBytes, err := json.Marshal(wanlib.CredentialAssertionResponseFromProto(res.GetWebauthn()))
-				require.Nil(t, err)
+				webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+				require.NoError(t, err)
 
 				return webauthnResBytes
 			},
@@ -1901,7 +1907,7 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 	mfaChallange, err := tdp.DecodeMFAChallenge(br)
 	require.NoError(t, err)
 	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-		WebauthnChallenge: wanlib.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
+		WebauthnChallenge: wantypes.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
 	err = tdp.NewConn(&WebsocketIO{Conn: ws}).WriteMessage(tdp.MFA{
@@ -4251,7 +4257,7 @@ func TestAddMFADevice(t *testing.T) {
 		name            string
 		deviceName      string
 		getTOTPCode     func() string
-		getWebauthnResp func() *wanlib.CredentialCreationResponse
+		getWebauthnResp func() *wantypes.CredentialCreationResponse
 	}{
 		{
 			name:       "new TOTP device",
@@ -4273,7 +4279,7 @@ func TestAddMFADevice(t *testing.T) {
 		{
 			name:       "new Webauthn device",
 			deviceName: "new-webauthn",
-			getWebauthnResp: func() *wanlib.CredentialCreationResponse {
+			getWebauthnResp: func() *wantypes.CredentialCreationResponse {
 				// Get webauthn register challenge.
 				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
 					TokenID:    privilegeToken,
@@ -4284,7 +4290,7 @@ func TestAddMFADevice(t *testing.T) {
 				_, regRes, err := auth.NewTestDeviceFromChallenge(res)
 				require.NoError(t, err)
 
-				return wanlib.CredentialCreationResponseFromProto(regRes.GetWebauthn())
+				return wantypes.CredentialCreationResponseFromProto(regRes.GetWebauthn())
 			},
 		},
 	}
@@ -4294,7 +4300,7 @@ func TestAddMFADevice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var totpCode string
-			var webauthnRegResp *wanlib.CredentialCreationResponse
+			var webauthnRegResp *wantypes.CredentialCreationResponse
 
 			if tc.getWebauthnResp != nil {
 				webauthnRegResp = tc.getWebauthnResp()
@@ -5208,7 +5214,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		})
 		require.NoError(t, err)
 
-		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+		cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
 		// use passwordless as auth method
 		device, err := mocku2f.Create()
@@ -6864,7 +6870,14 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 
 	ws, resp, err := dialer.Dial(u.String(), header)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		var sb strings.Builder
+		sb.WriteString("websocket dial")
+		if resp != nil {
+			fmt.Fprintf(&sb, "; status code %v;", resp.StatusCode)
+			fmt.Fprintf(&sb, "headers: %v; body: ", resp.Header)
+			io.Copy(&sb, resp.Body)
+		}
+		return nil, nil, trace.Wrap(err, sb.String())
 	}
 
 	ty, raw, err := ws.ReadMessage()
@@ -8457,12 +8470,8 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	}
 
 	grpcServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			authMiddleware.UnaryInterceptor(),
-		),
-		grpc.ChainStreamInterceptor(
-			authMiddleware.StreamInterceptor(),
-		),
+		grpc.ChainUnaryInterceptor(authMiddleware.UnaryInterceptors()...),
+		grpc.ChainStreamInterceptor(authMiddleware.StreamInterceptors()...),
 		grpc.Creds(credentials.NewTLS(
 			copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName),
 		)),

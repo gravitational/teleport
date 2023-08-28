@@ -19,12 +19,15 @@ This guide will help you to:
 - Set up Teleport to access AWS Keyspaces (Apache Cassandra).
 - Connect to your database through Teleport.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Redis Self-Hosted](../../../img/database-access/guides/cassandra_keyspaces_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access Redis Cloud](../../../img/database-access/guides/cassandra_keyspaces_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -45,7 +48,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 Create a configuration for the Teleport Database Service, pointing the
 `--proxy` flag to the address of your Teleport Proxy Service:
@@ -61,8 +65,8 @@ $ teleport db configure create \
   --labels=env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 Create a configuration for the Teleport Database Service, pointing the
 `--proxy` flag to the address of your Teleport Proxy Service:
@@ -78,7 +82,9 @@ $ teleport db configure create \
   --labels=env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 (!docs/pages/includes/aws-credentials.mdx service="the Teleport Database Service"!)
 
@@ -138,7 +144,8 @@ assume the IAM roles:
 Once the Database Service has joined the cluster, log in to see the available
 databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
   ```code
   $ tsh login --proxy=teleport.example.com --user=alice
@@ -148,8 +155,8 @@ databases:
   # keyspaces             [*]           env=dev
   ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
   ```code
   $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -159,7 +166,9 @@ databases:
   # keyspaces             [*]           env=dev
   ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To connect to a particular database instance using the `KeyspacesReader`  AWS IAM Keyspaces role as a database user:
 ```code
@@ -187,3 +196,4 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

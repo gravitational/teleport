@@ -19,23 +19,6 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.20.7
-
-NODE_VERSION ?= 16.18.1
-
-# run lint-rust check locally before merging code after you bump this
-RUST_VERSION ?= 1.68.0
-LIBBPF_VERSION ?= 1.0.1
-LIBPCSCLITE_VERSION ?= 1.9.9-teleport
-
-# Protogen related versions.
-BUF_VERSION ?= 1.25.1
-# Keep in sync with api/proto/buf.yaml (and buf.lock)
-GOGO_PROTO_TAG ?= v1.3.2
-NODE_GRPC_TOOLS_VERSION ?= 1.12.4
-NODE_PROTOC_TS_VERSION ?= 5.0.1
-PROTOC_VER ?= 3.20.3
-
 UID := $$(id -u)
 GID := $$(id -g)
 
@@ -47,8 +30,9 @@ RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
 # BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
+include versions.mk
 include images.mk
-include grpcbox.mk
+include grpcbox.mk # Requires images.mk
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
@@ -299,26 +283,18 @@ clean:
 .PHONY:test
 test: buildbox
 	docker run \
-		--env TELEPORT_ETCD_TEST="yes" \
 		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
-		"examples/etcd/start-etcd.sh & sleep 1; \
-		type gcloud 2>&1 >/dev/null || exit 1; \
-		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
 .PHONY:test-root
 test-root: buildbox
 	docker run \
-		--env TELEPORT_ETCD_TEST="yes" \
 		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c \
-		"examples/etcd/start-etcd.sh & sleep 1; \
-		type gcloud 2>&1 >/dev/null || exit 1; \
-		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test-go-root"
 
@@ -340,10 +316,7 @@ test-helm-update-snapshots:
 .PHONY:integration
 integration: buildbox
 	docker run \
-		--env TELEPORT_ETCD_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		/bin/bash -c \
-		"examples/etcd/start-etcd.sh & sleep 1; \
 		make -C $(SRCDIR) FLAGS='-cover' integration"
 
 .PHONY:integration-root

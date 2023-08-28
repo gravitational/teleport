@@ -64,6 +64,7 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 type kubeCommands struct {
@@ -160,7 +161,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 				k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 					RouteToCluster:    cluster,
 					KubernetesCluster: kubeCluster,
-				}, nil /*applyOpts*/)
+				})
 
 				return trace.Wrap(err)
 			})
@@ -700,7 +701,7 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 			k, err = tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 				RouteToCluster:    c.teleportCluster,
 				KubernetesCluster: c.kubeCluster,
-			}, nil /*applyOpts*/)
+			})
 			return err
 		},
 		client.WithBeforeLoginHook(
@@ -901,18 +902,6 @@ func (l kubeListings) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]
 }
 
-func formatKubeLabels(cluster types.KubeCluster) string {
-	labels := make([]string, 0, len(cluster.GetStaticLabels())+len(cluster.GetDynamicLabels()))
-	for key, value := range cluster.GetStaticLabels() {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, value))
-	}
-	for key, value := range cluster.GetDynamicLabels() {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, value.GetResult()))
-	}
-	sort.Strings(labels)
-	return strings.Join(labels, " ")
-}
-
 func (c *kubeLSCommand) run(cf *CLIConf) error {
 	cf.SearchKeywords = c.searchKeywords
 	cf.UserHost = c.labels
@@ -947,7 +936,11 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 			if cluster.GetName() == selectedCluster {
 				selectedMark = "*"
 			}
-			rows = append(rows, []string{cluster.GetName(), formatKubeLabels(cluster), selectedMark})
+			rows = append(rows, []string{
+				cluster.GetName(),
+				common.FormatLabels(cluster.GetAllLabels(), c.verbose),
+				selectedMark,
+			})
 		}
 
 		if c.quiet {
@@ -982,11 +975,10 @@ func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, fo
 	}
 	clusterInfo := make([]cluster, 0, len(kubeClusters))
 	for _, cl := range kubeClusters {
-		labels := cl.GetStaticLabels()
-		for key, value := range cl.GetDynamicLabels() {
-			labels[key] = value.GetResult()
+		labels := cl.GetAllLabels()
+		if len(labels) == 0 {
+			labels = nil
 		}
-
 		clusterInfo = append(clusterInfo, cluster{
 			KubeClusterName: cl.GetName(),
 			Labels:          labels,
@@ -1044,7 +1036,12 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 			t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"})
 		}
 		for _, listing := range listings {
-			t.AddRow([]string{listing.Proxy, listing.Cluster, listing.KubeCluster.GetName(), formatKubeLabels(listing.KubeCluster)})
+			t.AddRow([]string{
+				listing.Proxy,
+				listing.Cluster,
+				listing.KubeCluster.GetName(),
+				common.FormatLabels(listing.KubeCluster.GetAllLabels(), c.verbose),
+			})
 		}
 		fmt.Fprintln(cf.Stdout(), t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:

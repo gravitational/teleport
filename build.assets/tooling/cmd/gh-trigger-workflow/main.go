@@ -50,6 +50,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -71,8 +72,14 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), args.timeout)
-	defer cancel()
+	ctx := context.Background()
+	if args.timeout != 0 {
+		log.Printf("Setting %v timeout", args.timeout)
+
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, args.timeout)
+		defer cancel()
+	}
 
 	installationID, err := lookupInstallationID(ctx, args)
 	if err != nil {
@@ -182,10 +189,19 @@ func getIncompleteWorkflowRunID(ctx context.Context, gh *ghapi.Client, args args
 		return nil, trace.Wrap(err, "failed to get a list of current workflow runs")
 	}
 
+	regex, err := regexp.Compile(args.seriesRunFilter)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to compile series run regex %q", args.seriesRunFilter)
+	}
+
 	for _, recentRun := range recentRuns {
 		runStatus := recentRun.GetStatus()
 		if runStatus == "" {
 			return nil, trace.Errorf("failed to get status for run ID %q", recentRun.GetID())
+		}
+
+		if !regex.MatchString(*recentRun.Name) {
+			continue
 		}
 
 		if runStatus != "completed" {

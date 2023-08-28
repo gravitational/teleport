@@ -1205,17 +1205,24 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 
 // getInstallerProxyAddr determines the address of the proxy for discovered
 // nodes to connect to.
-func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
-	if matcher.InstallParams.PublicProxyAddr != "" {
-		return matcher.InstallParams.PublicProxyAddr
+func getInstallerProxyAddr(installParams *InstallParams, fc *FileConfig) string {
+	// Explicit proxy address.
+	if installParams != nil && installParams.PublicProxyAddr != "" {
+		return installParams.PublicProxyAddr
 	}
+	// Proxy address from config.
 	if fc.ProxyServer != "" {
 		return fc.ProxyServer
 	}
 	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) > 0 {
 		return fc.Proxy.PublicAddr[0]
 	}
-	return ""
+	// Possible proxy address for v1/v2 config.
+	if len(fc.AuthServers) > 0 {
+		return fc.AuthServers[0]
+	}
+	// Probably not a proxy address, but we have nothing better.
+	return fc.AuthServer
 }
 
 func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) error {
@@ -1251,7 +1258,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) error {
 				JoinMethod:      matcher.InstallParams.JoinParams.Method,
 				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
 				ScriptName:      matcher.InstallParams.ScriptName,
-				PublicProxyAddr: getInstallerProxyAddr(matcher, fc),
+				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
 			}
 		}
 		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers, m)
@@ -1523,8 +1530,9 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 					application.Name)
 			}
 			app.Rewrite = &service.Rewrite{
-				Redirect: application.Rewrite.Redirect,
-				Headers:  headers,
+				Redirect:  application.Rewrite.Redirect,
+				Headers:   headers,
+				JWTClaims: application.Rewrite.JWTClaims,
 			}
 		}
 		if application.AWS != nil {

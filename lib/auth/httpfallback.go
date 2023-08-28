@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // httpfallback.go holds endpoints that have been converted to gRPC
@@ -39,7 +39,7 @@ type legacyChangePasswordReq struct {
 	// SecondFactorToken is user 2nd factor token
 	SecondFactorToken string `json:"second_factor_token"`
 	// WebauthnResponse is Webauthn sign response
-	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response"`
+	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthn_response"`
 }
 
 // ChangePassword updates users password based on the old password.
@@ -57,7 +57,7 @@ func (c *Client) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 		OldPassword:       req.OldPassword,
 		NewPassword:       req.NewPassword,
 		SecondFactorToken: req.SecondFactorToken,
-		WebauthnResponse:  wanlib.CredentialAssertionResponseFromProto(req.Webauthn),
+		WebauthnResponse:  wantypes.CredentialAssertionResponseFromProto(req.Webauthn),
 	})
 	return trace.Wrap(err)
 }

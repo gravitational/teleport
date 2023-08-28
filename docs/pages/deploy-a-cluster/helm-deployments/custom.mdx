@@ -123,7 +123,9 @@ $ kubectl label namespace teleport 'pod-security.kubernetes.io/enforce=baseline'
 namespace/teleport labeled
 ```
 
-<ScopedBlock scope="enterprise">
+If you are running a self-hosted Teleport Enterprise cluster, you  will need to
+create a secret that contains your Teleport license information before you can
+install Teleport.
 
 Before you can install Teleport in your Kubernetes cluster, you will need to
 create a secret that contains your Teleport license information.
@@ -133,11 +135,9 @@ create a secret that contains your Teleport license information.
 Create a secret from your license file. Teleport will automatically discover
 this secret as long as your file is named `license.pem`.
 
-```code
-$ kubectl -n teleport create secret generic license --from-file=license.pem
-```
-
-</ScopedBlock>
+  ```code
+  $ kubectl -n teleport create secret generic license --from-file=license.pem
+  ```
 
 <Admonition type="note" title="External proxy port">
 Note that although the `proxy_service` listens on port 3080 inside the pod,
@@ -265,3 +265,4 @@ users and setting up RBAC.
 To see all of the options you can set in the values file for the
 `teleport-cluster` Helm chart, consult our [reference
 guide](../../reference/helm-reference/teleport-cluster.mdx).
+

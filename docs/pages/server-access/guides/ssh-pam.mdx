@@ -115,7 +115,8 @@ include:
 
 ## Display a Message of the Day (MOTD) with Teleport
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 A cluster-wide Message of the Day can be set in the `auth_service` configuration.
 
@@ -138,15 +139,17 @@ the traditional Unix `/etc/motd` file. The `/etc/motd` file is normally
 displayed by login(1) after a user has logged in but before the shell is run. It
 is generally used for important system-wide announcements.
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 You can set a per-Node Message of the Day using the traditional Unix `/etc/motd`
 file. The `/etc/motd` file is normally displayed by login(1) after a user has
 logged in but before the shell is run. It is generally used for important
 system-wide announcements.
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 This feature can help you inform users that activity on the Node is being audited
 and recorded.
@@ -298,3 +301,4 @@ ssh_service:
     # use the "auth" modules in the PAM config
     use_pam_auth: true
 ```
+
