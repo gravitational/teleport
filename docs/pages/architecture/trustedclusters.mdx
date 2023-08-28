@@ -28,16 +28,16 @@ need separate access.
 In many cases, a single cluster is enough and can scale to hundreds of thousands
 of connected resources.
 
-## Multi-cluster datacenters
+## Multi-cluster data centers
 
 In the following example, a managed service provider uses three independent clusters to 
 provide access to clients in different regions:
 
-- Cluster `sso.example.com` is the root cluster. This cluster might have its own resources or be 
+- Cluster `msp-root.example.com` is the root cluster. This cluster might have its own resources or be 
 strictly used for collecting audit logs and authenticating users.
-- Clusters `us-east-1a` and `us-east-1b` are two independent clusters in different availability zones.
-- Each cluster is an independent x.509 and SSH certificate authority and can operate autonomously. 
-  However, each leaf cluster can only trust one root cluster at any given time.
+- Clusters `leaf-east.example.com` and `leaf-west.example.com` are two independent leaf clusters to service 
+clients in different regions.
+- Each cluster is an independent x.509 and SSH certificate authority and can operate autonomously.
 - Each leaf cluster dials back to the root cluster to establish a reverse tunnel. If you have multiple 
 proxies, you have multiple tunnels for high availability.
 
