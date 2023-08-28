@@ -24,6 +24,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/db/oracle/audit"
 	"github.com/gravitational/teleport/e/lib/db/oracle/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -46,14 +48,18 @@ type Engine struct {
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
 	// proxyConn is a client connection.
-	conn               net.Conn
-	clientConn         *protocol.Conn
-	serverNameReceived bool
+	conn                net.Conn
+	clientConn          *protocol.Conn
+	serverNameReceived  bool
+	serverParamReceived bool
+	auditPuller         *audit.Puller
+	session             *common.Session
 }
 
 // InitializeConnection initializes the engine with client connection.
-func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
+func (e *Engine) InitializeConnection(clientConn net.Conn, sess *common.Session) error {
 	e.conn = clientConn
+	e.session = sess
 	return nil
 }
 
@@ -91,11 +97,41 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	if cfg := sessionCtx.Database.GetOracle(); cfg.IsAuditLogEnabled() {
+		auditPuller, err := e.createAuditPuller(ctx, cfg)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer auditPuller.Close()
+		e.auditPuller = auditPuller
+	}
+
 	if err := e.handleClientServerConn(ctx, sessionCtx, clientConn, serverConn); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
+}
+
+func (e *Engine) createAuditPuller(ctx context.Context, cfg types.OracleOptions) (*audit.Puller, error) {
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.session.WithUser(cfg.AuditUser))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	af, err := audit.NewPuller(audit.PullerConfig{
+		Addr:      e.session.Database.GetURI(),
+		TLSConfig: tlsConfig,
+		OnQuery: func(entry audit.QueryEntry) {
+			e.Audit.OnQuery(e.Context, e.session, common.Query{
+				Parameters: []string{entry.Bind},
+				Query:      entry.Text,
+			})
+		},
+	})
+	return af, trace.Wrap(err)
 }
 
 func (e *Engine) connectToOracleDB(ctx context.Context, sessionCtx *common.Session) (*protocol.Conn, error) {
@@ -134,9 +170,12 @@ func (e *Engine) handleClientConn(sessCtx *common.Session, clientConn, serverCon
 	}
 }
 
-func (e *Engine) handleServerConn(ctx *common.Session, clientConn, serverConn *protocol.Conn) error {
+func (e *Engine) handleServerConn(session *common.Session, clientConn, serverConn *protocol.Conn) error {
 	defer serverConn.Close()
 	defer clientConn.Close()
+	ctx, cancel := context.WithCancel(e.Context)
+	defer cancel()
+
 	for {
 		packet, err := serverConn.ReadPacket()
 		if err != nil {
@@ -152,11 +191,44 @@ func (e *Engine) handleServerConn(ctx *common.Session, clientConn, serverConn *p
 					return trace.BadParameter("server name package not received")
 				}
 			}
+		} else {
+			switch t := packet.(type) {
+			case *protocol.DataPacket:
+				if e.needToStartAuditPoller(t) {
+					// Audit Puller starts after the ReturnOPIParameterDataID backed is received where the sessionID entryID client
+					// identifiers are extracted from Oracle Server Parameters.
+					e.serverParamReceived = true
+					if err := e.startAuditPuller(ctx, t, clientConn, serverConn); err != nil {
+						return trace.Wrap(err)
+					}
+				}
+			}
 		}
 		if err = clientConn.WritePacket(packet); err != nil {
 			return trace.Wrap(err)
 		}
 	}
+}
+
+func (e *Engine) needToStartAuditPoller(t *protocol.DataPacket) bool {
+	return t.DataType == protocol.ReturnOPIParameterDataID && !e.serverParamReceived && e.auditPuller != nil
+}
+
+func (e *Engine) startAuditPuller(ctx context.Context, data *protocol.DataPacket, clientConn, serverConn *protocol.Conn) error {
+	sn := data.Parameters[protocol.AuthSCServiceNameKey]
+	sid := data.Parameters[protocol.AuthSessionIDKey]
+
+	if err := e.auditPuller.Init(sn, sid); err != nil {
+		return trace.NewAggregate(err)
+	}
+	go func() {
+		if err := e.auditPuller.Run(ctx); err != nil {
+			e.Log.Error("Closing connections due to active audit log fetcher error: %v", err)
+			_ = serverConn.Close()
+			_ = clientConn.Close()
+		}
+	}()
+	return nil
 }
 
 func (e *Engine) handleClientServerConn(ctx context.Context, sessionCtx *common.Session, clientConn, serverConn *protocol.Conn) error {

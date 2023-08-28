@@ -29,7 +29,10 @@ import (
 // oracleConn is a helper connection structured used to read write oracle package.
 type oracleConn struct {
 	net.Conn
-	protocolVersion uint16
+	protocolVersion   uint16
+	sessionID         string
+	isServerConn      bool
+	connParamReceived bool
 }
 
 type writer interface {

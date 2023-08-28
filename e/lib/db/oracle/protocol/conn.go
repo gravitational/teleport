@@ -45,9 +45,12 @@ func NewServerConn(addr string, tlsConfig *tls.Config) (*Conn, error) {
 	}
 
 	return &Conn{
-		tcpConn:    tcpConn,
-		oracleConn: oracleConn{Conn: tlsConn},
-		tlsConfig:  tlsConfig,
+		tcpConn: tcpConn,
+		oracleConn: oracleConn{
+			Conn:         tlsConn,
+			isServerConn: true,
+		},
+		tlsConfig: tlsConfig,
 	}, nil
 }
 

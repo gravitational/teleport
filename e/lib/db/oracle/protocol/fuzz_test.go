@@ -17,6 +17,7 @@ limitations under the License.
 package protocol
 
 import (
+	"bytes"
 	"net"
 	"testing"
 
@@ -39,6 +40,14 @@ func FuzzReadPacket(f *testing.F) {
 				pw.Close()
 			}()
 			_, _ = conn.readPacket()
+		})
+	})
+}
+
+func FuzzReadInt64(f *testing.F) {
+	f.Fuzz(func(t *testing.T, body []byte) {
+		require.NotPanics(t, func() {
+			_, _ = readInt64(bytes.NewReader(body))
 		})
 	})
 }

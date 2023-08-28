@@ -62,12 +62,6 @@ func (b *packet) Payload() []byte {
 	return b.buff
 }
 
-// DataPacket defines TNS data oracle packet
-// that is used a generic transport unit in oracle wire protocol.
-type DataPacket struct {
-	*packet
-}
-
 // Header defines the TNS Oracle packet header.
 type Header struct {
 	// PacketSize is the size of a packet.
@@ -92,9 +86,14 @@ func parsePacket(bp *packet, c *oracleConn) (Packet, error) {
 			packet: bp,
 		}, nil
 	case DATA:
-		return &DataPacket{
-			packet: bp,
-		}, nil
+		if !c.isServerConn || c.connParamReceived {
+			return bp, nil
+		}
+		dp, err := parseDataPacket(bp, c)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return dp, nil
 	case REDIRECT:
 		return &RedirectPacket{
 			packet: bp,
@@ -117,16 +116,53 @@ func parsePacket(bp *packet, c *oracleConn) (Packet, error) {
 }
 
 func readString(r io.Reader) (string, error) {
-	// Read string length.
-	var strLength uint8
-	if err := binary.Read(r, binary.BigEndian, &strLength); err != nil {
-		return "", trace.Wrap(err)
+	buff, err := readByteArray(r)
+	return string(buff), trace.Wrap(err)
+}
+
+func readByteArray(r io.Reader) ([]byte, error) {
+	var len uint8
+	if err := binary.Read(r, binary.BigEndian, &len); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	buff := bytes.NewBuffer(make([]byte, 0, len))
+	if _, err := io.CopyN(buff, r, int64(len)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buff.Bytes(), nil
+
+}
+
+func readInt64(r io.Reader) (int64, error) {
+	var length uint8
+	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if length > 8 {
+		return 0, trace.BadParameter("invalid length value: %d", length)
 	}
 
-	// Read string content.
-	buff := bytes.NewBuffer(make([]byte, 0, strLength))
-	if _, err := io.CopyN(buff, r, int64(strLength)); err != nil {
-		return "", trace.Wrap(err)
+	buff := bytes.NewBuffer(make([]byte, 0, length))
+	if _, err := io.CopyN(buff, r, int64(length)); err != nil {
+		return 0, trace.Wrap(err)
 	}
-	return buff.String(), nil
+	temp := make([]byte, 8)
+	copy(temp[8-length:], buff.Bytes())
+	return int64(binary.BigEndian.Uint64(temp)), nil
+}
+
+func readDataLengthContent(r io.Reader) ([]byte, error) {
+	n, err := readInt64(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if n > 0 {
+		out, err := readByteArray(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return out[:n], nil
+	}
+	return nil, nil
 }

@@ -85,9 +85,10 @@ func TestOracleEngine(t *testing.T) {
 	}
 	engine := Engine{
 		EngineConfig: common.EngineConfig{
-			Log:   logrus.New(),
-			Auth:  &authMock{},
-			Audit: &auditMock{},
+			Context: context.Background(),
+			Log:     logrus.New(),
+			Auth:    &authMock{},
+			Audit:   &auditMock{},
 		},
 	}
 

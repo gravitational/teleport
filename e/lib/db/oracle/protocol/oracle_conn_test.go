@@ -47,6 +47,7 @@ func TestConn(t *testing.T) {
 		packetDump      string
 		protocolVersion uint16
 		checks          []check
+		isServerConn    bool
 	}{
 		{
 			name:       "connect packet",
@@ -93,6 +94,22 @@ func TestConn(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:            "data server param packet",
+			packetDump:      testdata.DataParameters,
+			protocolVersion: TNSVersionMinLargeSdu,
+			isServerConn:    true,
+			checks: []check{
+				hasNoErr(),
+				hasPacketType(DATA),
+				func(t *testing.T, err error, packet Packet) {
+					data, ok := packet.(*DataPacket)
+					require.True(t, ok)
+					require.Equal(t, "117", data.Parameters[AuthSessionIDKey])
+					require.Equal(t, "xe", data.Parameters[AuthSCServiceNameKey])
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -106,6 +123,7 @@ func TestConn(t *testing.T) {
 			conn := oracleConn{
 				Conn:            pr,
 				protocolVersion: tc.protocolVersion,
+				isServerConn:    tc.isServerConn,
 			}
 			defer conn.Close()
 
