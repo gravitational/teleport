@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -65,38 +64,7 @@ func (m *MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]e
 }
 
 type mockResourceGetter struct {
-	mu       sync.Mutex
-	nodes    []types.Server
-	presence *local.PresenceService
-}
-
-func (m *mockResourceGetter) UpsertNode(ctx context.Context, node types.Server) (*types.KeepAlive, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	found := false
-	for i, n := range m.nodes {
-		// update
-		if n.GetName() == node.GetName() {
-			found = true
-			m.nodes[i] = node
-			break
-		}
-	}
-
-	// insert
-	if !found {
-		m.nodes = append(m.nodes, node)
-	}
-
-	return m.presence.UpsertNode(ctx, node)
-}
-
-func (m *mockResourceGetter) GetNodes(_ context.Context, _ string) ([]types.Server, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	d := make([]types.Server, len(m.nodes))
-	copy(d, m.nodes)
-	return d, nil
+	services.Presence
 }
 
 func (m *mockResourceGetter) GetDatabaseServers(_ context.Context, _ string, _ ...services.MarshalOption) ([]types.DatabaseServer, error) {
@@ -139,11 +107,11 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 		timesCalled: make(map[string]int),
 	}
 	events := local.NewEventsService(bk)
-	presence := &mockResourceGetter{
-		presence: local.NewPresenceService(bk),
+	resources := &mockResourceGetter{
+		Presence: local.NewPresenceService(bk),
 	}
 	cache, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
-		ResourceGetter: &mockResourceGetter{},
+		ResourceGetter: resources,
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "resource-watcher",
 			Client:    events,
@@ -172,7 +140,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	nodes := make([]types.Server, 0, numInitialNodes)
 	for i := 0; i < numInitialNodes; i++ {
 		node := makeNode(i + 1)
-		_, err = presence.UpsertNode(ctx, node)
+		_, err = resources.UpsertNode(ctx, node)
 		require.NoError(t, err)
 		nodes = append(nodes, node)
 	}
@@ -183,7 +151,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 		return len(items) == numInitialNodes
 	}, 14*time.Second, 200*time.Millisecond)
 
-	nodesAcquired, err := presence.GetNodes(ctx, defaults.Namespace)
+	nodesAcquired, err := resources.GetNodes(ctx, defaults.Namespace)
 	require.NoError(t, err)
 
 	validateEmbeddings(t,
@@ -197,10 +165,10 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	// Run once more and verify that only changed or newly inserted nodes get their embeddings calculated
 	node1 := nodes[0]
 	node1.GetMetadata().Labels["foo"] = "bar"
-	_, err = presence.UpsertNode(ctx, node1)
+	_, err = resources.UpsertNode(ctx, node1)
 	require.NoError(t, err)
 	node6 := makeNode(6)
-	_, err = presence.UpsertNode(ctx, node6)
+	_, err = resources.UpsertNode(ctx, node6)
 	require.NoError(t, err)
 
 	// Since nodes are streamed in ascending order by names, when embeddings for node6 are calculated,
@@ -219,7 +187,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 		require.Equal(t, expected, v, "expected embedding for %q to be computed %d times, got computed %d times", k, expected, v)
 	}
 
-	nodesAcquired, err = presence.GetNodes(ctx, defaults.Namespace)
+	nodesAcquired, err = resources.GetNodes(ctx, defaults.Namespace)
 	require.NoError(t, err)
 
 	validateEmbeddings(t,
