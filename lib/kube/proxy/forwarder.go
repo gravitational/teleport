@@ -28,6 +28,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -2071,12 +2072,6 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	proxier := utilnet.NewProxierWithNoProxyCIDR(http.ProxyFromEnvironment)
-	// When the target cluster is not served by this teleport service, the
-	// proxier must be nil to avoid using it through the reverse tunnel.
-	if sess.kubeAPICreds == nil {
-		proxier = nil
-	}
 
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
@@ -2086,7 +2081,7 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 		pingPeriod:            f.cfg.ConnPingPeriod,
 		originalHeaders:       req.Header,
 		useIdentityForwarding: useImpersonation,
-		proxier:               proxier,
+		proxier:               sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
@@ -2110,12 +2105,7 @@ func (f *Forwarder) getSPDYDialer(ctx authContext, sess *clusterSession, req *ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	proxier := utilnet.NewProxierWithNoProxyCIDR(http.ProxyFromEnvironment)
-	// When the target cluster is not served by this teleport service, the
-	// proxier must be nil to avoid using it through the reverse tunnel.
-	if sess.kubeAPICreds == nil {
-		proxier = nil
-	}
+
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
 		authCtx:               ctx,
@@ -2124,7 +2114,7 @@ func (f *Forwarder) getSPDYDialer(ctx authContext, sess *clusterSession, req *ht
 		pingPeriod:            f.cfg.ConnPingPeriod,
 		originalHeaders:       req.Header,
 		useIdentityForwarding: useImpersonation,
-		proxier:               proxier,
+		proxier:               sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
@@ -2236,6 +2226,20 @@ func (s *clusterSession) dial(ctx context.Context, network, addr string, opts ..
 	conn, err := dialer(ctx, network, addr)
 
 	return conn, trace.Wrap(err)
+}
+
+// getProxier returns the proxier function to use for this session.
+// If the target cluster is not served by this teleport service, the proxier
+// must be nil to avoid using it through the reverse tunnel.
+// If the target cluster is served by this teleport service, the proxier
+// must be set to the default proxy function.
+func (s *clusterSession) getProxier() func(req *http.Request) (*url.URL, error) {
+	// When the target cluster is not served by this teleport service, the
+	// proxier must be nil to avoid using it through the reverse tunnel.
+	if s.kubeAPICreds == nil {
+		return nil
+	}
+	return utilnet.NewProxierWithNoProxyCIDR(http.ProxyFromEnvironment)
 }
 
 // TODO(awly): unit test this
