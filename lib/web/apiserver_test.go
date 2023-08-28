@@ -7563,7 +7563,10 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	require.NoError(t, err)
 
 	require.NoError(t, node.Start())
-	t.Cleanup(func() { require.NoError(t, node.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, node.Close())
+		node.Wait()
+	})
 
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
