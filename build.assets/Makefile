@@ -232,7 +232,7 @@ ui: buildbox
 	docker run -u $(UID):$(GID) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
 		bash -c "cd ../teleport && yarn install --frozen-lockfile && yarn build-ui"
 
-# Builds webassets inside the standard Ubuntu buildbox container via the
+# Builds webassets inside the buildbox-connect container via the
 # Makefile (instead of calling yarn directly as the ui target above does)
 # as that computes a SHA to prevent unnecessary rebuilds. This is used by
 # the CentOS 7 build that does not have a new enough version of node.js
@@ -435,7 +435,7 @@ release-fips: buildbox-centos7-fips webassets
 
 #
 # Create a Teleport package for CentOS 7 using the build container.
-# We depend on webassets to pre-build them in the standard Ubuntu buildbox
+# We depend on webassets to pre-build them in the buildbox-connect container
 # as the version of node.js on CentOS 7 is too old.
 #
 .PHONY:release-centos7
@@ -446,7 +446,7 @@ release-centos7: buildbox-centos7 webassets
 #
 # Create a Teleport FIPS package for CentOS 7 using the build container.
 # This only builds and packages enterprise FIPS binaries, no OSS.
-# We depend on webassets to pre-build them in the standard Ubuntu buildbox
+# We depend on webassets to pre-build them in the buildbox-connect container
 # as the version of node.js on CentOS 7 is too old. The enterprise Makefile
 # does not clean the web assets on the `release` target so there is no need
 # to call release-unix-preserving-webassets like we do for the non-fips release.
