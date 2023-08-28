@@ -219,8 +219,8 @@ func TestBot(t *testing.T) {
 			kubeOutput,
 		},
 		testhelpers.DefaultBotConfigOpts{
-			PreferAuthServerOverProxyServer: true,
-			Insecure:                        true,
+			UseAuthServer: true,
+			Insecure:      true,
 		},
 	)
 	b := New(botConfig, log)
@@ -375,8 +375,8 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 
 	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
 		testhelpers.DefaultBotConfigOpts{
-			PreferAuthServerOverProxyServer: true,
-			Insecure:                        true,
+			UseAuthServer: true,
+			Insecure:      true,
 		},
 	)
 
@@ -420,8 +420,8 @@ func TestBot_Insecure(t *testing.T) {
 
 	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
 		testhelpers.DefaultBotConfigOpts{
-			PreferAuthServerOverProxyServer: false,
-			Insecure:                        true,
+			UseAuthServer: false,
+			Insecure:      true,
 		},
 	)
 	// Use a destination directory to ensure locking behaves correctly and

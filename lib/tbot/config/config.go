@@ -355,7 +355,6 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	// Validate Insecure and CA Settings
 	if conf.Insecure {
 		if len(conf.Onboarding.CAPins) > 0 {
-			log.Warnf("CAPins detected")
 			return trace.BadParameter("the option ca-pin is mutually exclusive with --insecure")
 		}
 
