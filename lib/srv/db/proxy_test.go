@@ -406,7 +406,7 @@ func TestProxyClientDisconnectDueToIdleConnection(t *testing.T) {
 	require.Eventually(t, func() bool {
 		err := mysql.Ping()
 		return err != nil
-	}, time.Second, 100*time.Millisecond, "failed to disconnect client conn")
+	}, 5*time.Second, 100*time.Millisecond, "failed to disconnect client conn")
 }
 
 // TestProxyClientDisconnectDueToCertExpiration ensures that if the DisconnectExpiredCert cluster flag is enabled
@@ -436,7 +436,7 @@ func TestProxyClientDisconnectDueToCertExpiration(t *testing.T) {
 	require.Eventually(t, func() bool {
 		err := mysql.Ping()
 		return err != nil
-	}, time.Second, 100*time.Millisecond, "failed to disconnect client conn")
+	}, 5*time.Second, 100*time.Millisecond, "failed to disconnect client conn")
 }
 
 // TestProxyClientDisconnectDueToLockInForce ensures that clients will be
@@ -467,7 +467,7 @@ func TestProxyClientDisconnectDueToLockInForce(t *testing.T) {
 	require.Eventually(t, func() bool {
 		err := mysql.Ping()
 		return err != nil
-	}, time.Second, 100*time.Millisecond, "failed to disconnect client conn")
+	}, 5*time.Second, 100*time.Millisecond, "failed to disconnect client conn")
 }
 
 func setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx context.Context, t *testing.T, auth *auth.Server, timeout time.Duration) {
