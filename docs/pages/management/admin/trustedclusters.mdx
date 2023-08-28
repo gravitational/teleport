@@ -1,7 +1,7 @@
 ---
 title: Configure Trusted Clusters
 description: Explains how you can configure a trust relationship and manage access between two Teleport clusters.
-h1: Trusted Clusters
+h1: Configure trusted clusters
 ---
 
 As you learned in [Core Concepts](../../core-concepts.mdx), a Teleport cluster
@@ -363,7 +363,7 @@ following content:
    - Set `spec.role_map` to map Teleport roles from the root cluster to roles in the leaf cluster.
 
    If you aren't sure of what values to set for the `tunnel_addr` or `web_proxy_addr`,
-   see [Commands to lookup cluster addresses](commands-to-look-up-cluster-addresses.mdx).
+   see [Commands to look up cluster addresses](./trusted-cluster-address-lookup.mdx).
 
    You use the `role_map` setting in the `trusted_cluster` resource configuration to define how 
    roles from the root cluster map to roles on the leaf cluster. In this example, users assigned 
