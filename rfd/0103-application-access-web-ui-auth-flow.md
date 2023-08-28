@@ -1,5 +1,5 @@
 ---
-authors: Ryan Clark (ryan.clark@goteleport.com)
+authors: Ryan Clark (ryan.clark@goteleport.com), Lisa Kim (lisa@goteleport.com)
 state: implemented
 ---
 
@@ -12,8 +12,7 @@ application through Teleport Web UI.
 
 ## Why
 
-The method used to set cookies on a different domain requires a few changes to Teleport's default security
-mechanisms. It's important these changes are documented and understood for future reference.
+To document and understand the HTTP application access authn flow for future reference.
 
 ## Details
 
@@ -22,53 +21,44 @@ the auth service. This application session has two values (a name and a bearer t
 as cookies when the user navigates to the application's URL.
 
 The flow to be able to set the needed cookies from the application session across different domains is
-as follows:
+as follows (using debug dumper app as example):
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant Proxy UI
-    participant Application
+    participant Browser
+    participant Proxy
+    participant Target App
     participant Auth Service
-    User->>Proxy UI: Launch Application
-    Proxy UI->>Auth Service: Create App Session /v1/webapi/sessions/app
-    Auth Service->>Proxy UI: Returns two cookie values (app session & subject)
-    Proxy UI->>Application: CORS preflight request to appurl.com/x-teleport-auth
-    Application->>Proxy UI: Matches Origin against public proxy addresses & allows CORS if a match
-    Proxy UI->>Application: POST appurl.com/x-teleport-auth with the cookie values in the header
-    Application->>Proxy UI: Sets the cookies on appurl.com if they are valid
-    Proxy UI->>User: User is logged in, redirect to appurl.com
+    alt Loading target app outside of web UI
+    Note left of Browser: User copy pastes target app URL into browser <br/>https://dumper.localhost:3080
+    Browser->>Proxy: Redirect to web launcher, preserving the requested path and query params <br/>In subsequent requests both the path and query gets preserved as path<br/>REDIRECT /web/launch/dumper.localhost?path=<requested-path>&query=<requested-query>
+    Note left of Browser: Redirected to app launcher
+    else Loading target app within the web UI (using the web app launcher)
+    Note left of Browser: At web UI, user clicks on `launch` button for the target app
+    Note left of Browser: Web UI routes to app launcher <br/>/web/launch/dumper.localhost/cluster-name/dumper.localhost<br/>route format: /web/launch/:fqdn/:clusterId?/:publicAddr?
+    end
+    Note right of Browser: App launcher navigates to target app <br/>https://dumper.localhost:3080/x-teleport-auth
+    Browser->>Target App: Navigating to target app start's the auth exchange <br/>GET /dumper.localhost/x-teleport-auth
+    Target App->>Browser: Create state token, set the token value in a cookie, and as a query param in the redirect URL back to web launcher<br/>REDIRECT /web/launch/dumper.localhost/cluster-name/dumper.localhost?state=<token>
+    Note left of Browser: Redirected back to app launcher
+    Browser->>Proxy: Create App Session <br>POST /v1/webapi/sessions/app with body:<br>{fqdn: dumper.localhost, plubic_addr: dumper.localhost, cluster_name: cluster-name}
+    Proxy->>Auth Service: Create App Session grpc.CreateAppSession
+    Auth Service->>Proxy: Returns two cookie values (app session & subject)
+    Proxy->>Browser: Returns two cookie values (app session & subject)
+    Note right of Browser: App launcher navigates back to target app <br>https://dumper.localhost:3080/x-teleport-auth?state=<token>&subject=<subject-cookie-value>#35;value=<session-cookie-value>
+    Browser->>Target App: Continue auth exchange <br>GET /dumper.localhost:3080/x-teleport-auth?state=<token>&subject=<subject-cookie-value>#35;value=<session-cookie-value>
+    Target App->>Browser: After checking that a "state" query param exists, serve the app redirection HTML <br>(Just a blank page with inline JS that contains logic to complete auth exchange and redirect to target app path)
+    Note right of Browser: Target app loads the redirection HTML
+    Browser->>Target App: Complete auth exchange <br>POST /dumper.localhost:3080/x-teleport-auth with body:<br>{state_value: <token>, cookie_value: <session-cookie_value>, subject_cookie: <subject-cookie-value>}
+    Target App->>Browser: After verifying the state token matches with the cookie sent automatically by browser and verifying app session,<br>sets the cookies (session cookie and subject cookie) for the target app
+    Browser-->Browser: User is authenticated<br>Redirect to the originally requested path https://dumper.localhost:3080 <br/>(In this case it was just the root path)
+
 ```
 
-### CORS
+### CSRF Protection
 
-As we need to enable cross-origin requests from the proxy URL to the application URL, we add middleware
-before `/x-teleport-auth` to check the `Origin` header (this cannot be changed via a `fetch` request).
+We use the double submit cookie technique to protect against CSRF for the endpoint `POST /target-app/x-teleport-auth` which grants the cookies that is required by the target app (session cookie and subject cookie).
 
-We check the origin against the public addresses of the proxy, and if one is a match, we allow a cross-origin
-request.
+When initiating auth exchange, the backend will create a crypto safe random token and send back this token value as part of a query param called `state` and as a cookie (set on the target app domain).
 
-The rules around the cross-origin request are strict and the absolute minimum needed:
-
-- Must be a `POST` request
-- Only allowed for the `/x-teleport-auth` endpoint
-- Only allows the headers `X-Cookie-Value` and `X-Subject-Cookie-Value` to be set
-- Only allowed from one of the public proxy addresses
-
-### Content Security Policy
-
-Teleport's default content security policy disallows cross-origin requests by setting `connect-src` to `'self' wss:`.
-
-To allow for the request to the application's domain, we modify the content security policy for `/web/launch` URLs
-only. This changes `connect-src` to `'self' https://applicationfqdn:*`, which allows requests to both proxy as
-normal, and the application's FQDN.
-
-### Cookie Validity Checking
-
-In the handler for `/x-teleport-auth`, we take the cookie values from the headers and use `X-Cookie-Value` to
-look-up the application session created by the auth service.
-
-If this application session exists, we then check the value of the `X-Subject-Cookie-Value` header against the
-bearer token stored in the application session.
-
-If these both match, we set the relevant cookies to log the user in once they're redirected to the application.
+Call to `POST /target-app/x-teleport-auth` will check that the `state` query param matches with the value of the cookie sent automatically by the browser.
