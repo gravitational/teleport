@@ -203,7 +203,6 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	tlsConfig.InsecureSkipVerify = cf.InsecureSkipVerify
 	session, err := client.NewKubeSession(cf.Context, tc, meta, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode), tlsConfig)
 	if err != nil {
 		return trace.Wrap(err)
