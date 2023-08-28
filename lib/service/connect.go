@@ -1048,7 +1048,9 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 }
 
 // getClient gets an appropriate client for the given identity. The instance client is reused if appropriate, otherwise
-// a new client is created.
+// a new client is created. Reused clients should not be closed since they are owned by another service. In practice, the value
+// of 'reused' should just be passed directly to Connector.ReusedClient when building the connector of this client. Connector.Close
+// will handle closure correctly as long as this value is set.
 func (process *TeleportProcess) getClient(identity *auth.Identity) (clt *auth.Client, reused bool, err error) {
 	if identity.ID.Role != types.RoleInstance {
 		// non-instance roles should wait to see if the instance client can be reused

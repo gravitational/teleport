@@ -32,6 +32,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -967,21 +968,14 @@ type Identity struct {
 	SystemRoles []string
 }
 
-// HasSystemRole checks if this identity encompases the supplied system role.
+// HasSystemRole checks if this identity encompasses the supplied system role.
 func (i *Identity) HasSystemRole(role types.SystemRole) bool {
 	// check identity's primary system role
 	if i.ID.Role == role {
 		return true
 	}
 
-	// check any additional system roles the cert might have
-	for _, r := range i.SystemRoles {
-		if types.SystemRole(r) == role {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(i.SystemRoles, string(role))
 }
 
 // String returns user-friendly representation of the identity.

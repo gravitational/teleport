@@ -1271,6 +1271,10 @@ func (process *TeleportProcess) getInstanceConnector() *Connector {
 	return process.instanceConnector
 }
 
+// getInstanceClient tries to ge the current instance client without blocking. May return nil if either the
+// instance client has yet to be created, or this is an auth-only instance. Auth-only instances cannot use
+// the instance client because auth servers need to be able to fully initialize without a valid CA in order
+// to support HSMs.
 func (process *TeleportProcess) getInstanceClient() *auth.Client {
 	conn := process.getInstanceConnector()
 	if conn == nil {
@@ -1280,7 +1284,9 @@ func (process *TeleportProcess) getInstanceClient() *auth.Client {
 }
 
 // waitForInstanceConnector waits for the instance connector to become available. returns nil if
-// process shutdown is triggered or if this is an auth-only instance.
+// process shutdown is triggered or if this is an auth-only instance. Auth-only instances cannot
+// use the instance client because auth servers need to be able to fully initialize without a
+// valid CA in order to support HSMs.
 func (process *TeleportProcess) waitForInstanceConnector() *Connector {
 	select {
 	case <-process.instanceConnectorReady:
@@ -2382,8 +2388,8 @@ func (process *TeleportProcess) initInstance() error {
 		// or a fully in-memory instance client is implemented, we cannot rely on the instance client existing
 		// for purposes other than the control stream.
 		// TODO(fspmarshall): implement one of the two potential solutions listed above.
-		process.BroadcastEvent(Event{Name: InstanceReady, Payload: nil})
 		process.setInstanceConnector(nil)
+		process.BroadcastEvent(Event{Name: InstanceReady, Payload: nil})
 		return nil
 	}
 	process.RegisterWithAuthServer(types.RoleInstance, InstanceIdentityEvent)
