@@ -238,7 +238,8 @@ func newAccessList(t *testing.T, name string, roles []string, traits trait.Trait
 	}, accesslist.Spec{
 		Title: "title",
 		Audit: accesslist.Audit{
-			Frequency: time.Hour,
+			Frequency:     time.Hour,
+			NextAuditDate: time.Now().Add(time.Hour * 48),
 		},
 		Owners: []accesslist.Owner{
 			{
