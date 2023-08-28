@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/build-teleport-updater.yaml
+      - .github/workflows/deploy-packages.yaml
       - .github/actions/load-gpg-key/action.yaml
       - .github/actions/deploy-os-package/action.yaml
       - assets/systemd-unit-upgrader/**

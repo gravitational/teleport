@@ -686,12 +686,10 @@ jobs:
           # Set the package version
           # Note that if we ever republish a tag then the `-1` at the end will refer to the original version
           echo "PACKAGE_VERSION=$(echo "${ARTIFACT_TAG#v}" | sed 's/-/_/g')-1" >> "$GITHUB_ENV"
-      - name: Install the package
-        if: inputs.do-teleport-package-tests
+      - name: Prepare to install the package
         env:
           RELEASE_CHANNEL: ${{ inputs.release-channel }}
           VERSION_CHANNEL: ${{ needs.deploy.outputs.component-version-channel }}
-          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
         run: |
           # Install teleport based off of instructions from https://goteleport.com/docs/installation/#linux
           # This is designed to be changed as little as possible from the source
@@ -709,16 +707,20 @@ jobs:
           rm "$GPG_KEY_PATH"
 
           sudo zypper addrepo --refresh --repo $(rpm --eval "https://${ZYPPER_REPO_DOMAIN_NAME}/$ID/$VERSION_ID/Teleport/%{_arch}/$RELEASE_CHANNEL/$VERSION_CHANNEL/teleport.repo")
-
-          sudo zypper install -y "$PACKAGE_TO_TEST=$PACKAGE_VERSION"
-      - name: Log Teleport version
-        if: inputs.do-teleport-package-tests
-        run: teleport version
       - name: Log package cache information
         env:
           PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
         run: |
           zypper search -s "$PACKAGE_TO_TEST"
+      - name: Install the package
+        if: inputs.do-teleport-package-tests
+        env:
+          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
+        run: |
+          sudo zypper install -y "$PACKAGE_TO_TEST=$PACKAGE_VERSION"
+      - name: Log Teleport version
+        if: inputs.do-teleport-package-tests
+        run: teleport version
       - name: Verify installed Teleport version matches provided artifact version
         if: inputs.do-teleport-package-tests
         env:
