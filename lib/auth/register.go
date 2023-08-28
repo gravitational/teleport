@@ -381,7 +381,7 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 	case params.CAPath != "":
 		client, err = caPathRegisterClient(params)
 	default:
-		// Falling back to insecure registration for backwards compatibility.
+		// Falling back to insecure registration.
 		client, err = insecureRegisterClient(params)
 	}
 
@@ -604,8 +604,14 @@ func caPathRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig.Time = params.Clock.Now
 
 	cert, err := readCA(params.CAPath)
-	if err != nil {
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
+	}
+
+	// For backwards compatibility we still attempt to use insecureRegisterClient if registration using caPath fails.
+	// TODO: At a future date we should remove this
+	if trace.IsNotFound(err) {
+		return insecureRegisterClient(params)
 	}
 
 	certPool := x509.NewCertPool()

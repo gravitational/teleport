@@ -174,17 +174,6 @@ func Run(args []string, stdout io.Writer) error {
 		return trace.Wrap(err)
 	}
 
-	// Warn if Insecure mode is used.
-	// Warn & Clear CA Pins if they are provided.
-	if botConfig.Insecure {
-		log.Warnf("Running in insecure mode. Do not use this in production!")
-
-		if len(botConfig.Onboarding.CAPins) > 0 {
-			log.Warnf("Ignoring provided CAPins since we are running in Insecure mode.")
-			botConfig.Onboarding.CAPins = nil
-		}
-	}
-
 	switch command {
 	case versionCmd.FullCommand():
 		err = onVersion()

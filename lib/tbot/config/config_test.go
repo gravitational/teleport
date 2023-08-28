@@ -29,11 +29,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
@@ -305,14 +302,6 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 }
 
 func TestBotConfig_InsecureWithCaPins(t *testing.T) {
-	t.Helper()
-
-	fc, _ := testhelpers.DefaultConfig(t)
-
-	authCfg := servicecfg.MakeDefaultConfig()
-	err := config.ApplyFileConfig(fc, authCfg)
-	require.Error(t, err)
-
 	cfg := &BotConfig{
 		Insecure: true,
 		Onboarding: OnboardingConfig{
@@ -320,18 +309,10 @@ func TestBotConfig_InsecureWithCaPins(t *testing.T) {
 		},
 	}
 
-	require.Error(t, cfg.CheckAndSetDefaults())
+	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "ca-pin")
 }
 
 func TestBotConfig_InsecureWithCaPath(t *testing.T) {
-	t.Helper()
-
-	fc, _ := testhelpers.DefaultConfig(t)
-
-	authCfg := servicecfg.MakeDefaultConfig()
-	err := config.ApplyFileConfig(fc, authCfg)
-	require.NoError(t, err)
-
 	cfg := &BotConfig{
 		Insecure: true,
 		Onboarding: OnboardingConfig{
@@ -339,18 +320,10 @@ func TestBotConfig_InsecureWithCaPath(t *testing.T) {
 		},
 	}
 
-	require.Error(t, cfg.CheckAndSetDefaults())
+	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "ca-path")
 }
 
 func TestBotConfig_WithCaPathAndCaPins(t *testing.T) {
-	t.Helper()
-
-	fc, _ := testhelpers.DefaultConfig(t)
-
-	authCfg := servicecfg.MakeDefaultConfig()
-	err := config.ApplyFileConfig(fc, authCfg)
-	require.NoError(t, err)
-
 	cfg := &BotConfig{
 		Insecure: false,
 		Onboarding: OnboardingConfig{
@@ -359,5 +332,5 @@ func TestBotConfig_WithCaPathAndCaPins(t *testing.T) {
 		},
 	}
 
-	require.Error(t, cfg.CheckAndSetDefaults())
+	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "mutually exclusive")
 }
