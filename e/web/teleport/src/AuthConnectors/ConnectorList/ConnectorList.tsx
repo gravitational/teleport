@@ -30,7 +30,7 @@ export default function ConnectorList({
   });
 
   return (
-    <Flex flexWrap="wrap" alignItems="center" flex={1}>
+    <Flex flexWrap="wrap" alignItems="center" flex={1} gap={5}>
       {$items}
     </Flex>
   );

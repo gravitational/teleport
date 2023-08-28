@@ -1,16 +1,19 @@
 import React from 'react';
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
-import { Indicator, Text, Box, Flex, Alert } from 'design';
+import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
+import styled from 'styled-components';
+import { Alert, Box, Flex, Indicator, Text } from 'design';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import useResources from 'teleport/components/useResources';
 
 import DeleteConnectorDialog from 'teleport/AuthConnectors/DeleteConnectorDialog';
 
 import useTeleport from 'teleport/useTeleport';
+
+import {
+  DesktopDescription,
+  MobileDescription,
+  ResponsiveFeatureHeader,
+} from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
 
 import EmptyList from './EmptyList';
 import ConnectorList from './ConnectorList';
@@ -33,6 +36,8 @@ export function AuthConnectors(props: State) {
     resources.status === 'creating'
       ? 'Creating a new auth connector'
       : 'Editing auth connector';
+  const description =
+    'Auth connectors allow Teleport to authenticate users via an external identity source such as Okta, Active Directory, GitHub, etc. This authentication method is commonly known as single sign-on (SSO).';
 
   function handleOnRemove() {
     return remove(resources.item);
@@ -47,18 +52,21 @@ export function AuthConnectors(props: State) {
 
   return (
     <FeatureBox>
-      <FeatureHeader>
+      <ResponsiveFeatureHeader>
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
+        <MobileDescription typography="subtitle1">
+          {description}
+        </MobileDescription>
         {(!showAuthConnectorsCTA || !isEmpty) && (
-          <Box ml="auto" alignSelf="center" width="240px">
+          <ResponsiveAddMenu>
             <AddMenu
               onClick={resources.create}
               isOidcLocked={ctx.lockedFeatures.authConnectors}
               isSamlLocked={ctx.lockedFeatures.authConnectors}
             />
-          </Box>
+          </ResponsiveAddMenu>
         )}
-      </FeatureHeader>
+      </ResponsiveFeatureHeader>
       {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
@@ -83,15 +91,12 @@ export function AuthConnectors(props: State) {
               showAuthConnectorsCTA={showAuthConnectorsCTA}
             />
           )}
-          <Box ml="4" width="240px" color="text.main" style={{ flexShrink: 0 }}>
+          <DesktopDescription>
             <Text typography="h6" mb={3}>
-              AUTH CONNECTORS
+              Auth Connectors
             </Text>
             <Text typography="subtitle1" mb={3}>
-              Auth connectors allow Teleport to authenticate users via an
-              external identity source such as Okta, Active Directory, GitHub,
-              etc. This authentication method is commonly known as single
-              sign-on (SSO).
+              {description}
             </Text>
             <Text typography="subtitle1" mb={2}>
               Please{' '}
@@ -105,7 +110,7 @@ export function AuthConnectors(props: State) {
               </Text>{' '}
               for samples of each connector.
             </Text>
-          </Box>
+          </DesktopDescription>
         </Flex>
       )}
       {(resources.status === 'creating' || resources.status === 'editing') && (
@@ -128,3 +133,13 @@ export function AuthConnectors(props: State) {
     </FeatureBox>
   );
 }
+
+const ResponsiveAddMenu = styled(Box)`
+  width: 240px;
+  margin-left: auto;
+  align-self: center;
+
+  @media screen and (max-width: ${props => props.theme.breakpoints.tablet}px) {
+    width: 100%;
+  } ;
+`;
