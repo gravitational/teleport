@@ -373,11 +373,18 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 	// Auth Server is validated. Otherwise attempt to use the CA file on disk
 	// but if it's not available connect without validating the Auth Server CA.
 	switch {
+	case params.Insecure:
+		log.Warnf("Insecure mode enabled. Auth Server cert will not be validated and CAPins and CAPath value will be ignored.")
+		client, err = insecureRegisterClient(params)
 	case len(params.CAPins) != 0:
 		client, err = pinRegisterClient(params)
+	case params.CAPath != "":
+		client, err = caPathRegisterClient(params)
 	default:
+		// Falling back to insecure registration for backwards compatibility.
 		client, err = insecureRegisterClient(params)
 	}
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -486,31 +493,7 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 
-	cert, err := readCA(params.CAPath)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	// If no CA was found (or --insecure was explicitly set), then create a insecure connection to the Auth Server,
-	// otherwise use the CA on disk to validate the Auth Server.
-	if params.Insecure {
-		tlsConfig.InsecureSkipVerify = true
-		log.Warnf("Running in insecure mode. Do not use this in production!")
-	} else if trace.IsNotFound(err) {
-		tlsConfig.InsecureSkipVerify = true
-
-		log.Warnf("Joining cluster without validating the identity of the Auth " +
-			"Server. This may open you up to a Man-In-The-Middle (MITM) attack if an " +
-			"attacker can gain privileged network access. To remedy this, use the CA pin " +
-			"value provided when join token was generated to validate the identity of " +
-			"the Auth Server.")
-	} else {
-		certPool := x509.NewCertPool()
-		certPool.AddCert(cert)
-		tlsConfig.RootCAs = certPool
-
-		log.Infof("Joining remote cluster %v, validating connection with certificate on disk.", cert.Subject.CommonName)
-	}
+	tlsConfig.InsecureSkipVerify = true
 
 	client, err := NewClient(client.Config{
 		Addrs: getHostAddresses(params),
@@ -614,6 +597,35 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	}
 
 	return authClient, nil
+}
+
+func caPathRegisterClient(params RegisterParams) (*Client, error) {
+	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	tlsConfig.Time = params.Clock.Now
+
+	cert, err := readCA(params.CAPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certPool := x509.NewCertPool()
+	certPool.AddCert(cert)
+	tlsConfig.RootCAs = certPool
+
+	log.Infof("Joining remote cluster %v, validating connection with certificate on disk.", cert.Subject.CommonName)
+
+	client, err := NewClient(client.Config{
+		Addrs: getHostAddresses(params),
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+		CircuitBreakerConfig: params.CircuitBreakerConfig,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return client, nil
 }
 
 type joinServiceClient interface {

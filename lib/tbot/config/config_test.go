@@ -29,8 +29,11 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
@@ -299,4 +302,62 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 			require.Equal(t, unmarshalled, tt.in, "unmarshalling did not result in same object as input")
 		})
 	}
+}
+
+func TestBotConfig_InsecureWithCaPins(t *testing.T) {
+	t.Helper()
+
+	fc, _ := testhelpers.DefaultConfig(t)
+
+	authCfg := servicecfg.MakeDefaultConfig()
+	err := config.ApplyFileConfig(fc, authCfg)
+	require.Error(t, err)
+
+	cfg := &BotConfig{
+		Insecure: true,
+		Onboarding: OnboardingConfig{
+			CAPins: []string{"123"},
+		},
+	}
+
+	require.Error(t, cfg.CheckAndSetDefaults())
+}
+
+func TestBotConfig_InsecureWithCaPath(t *testing.T) {
+	t.Helper()
+
+	fc, _ := testhelpers.DefaultConfig(t)
+
+	authCfg := servicecfg.MakeDefaultConfig()
+	err := config.ApplyFileConfig(fc, authCfg)
+	require.NoError(t, err)
+
+	cfg := &BotConfig{
+		Insecure: true,
+		Onboarding: OnboardingConfig{
+			CAPath: "/tmp/invalid-path/some.crt",
+		},
+	}
+
+	require.Error(t, cfg.CheckAndSetDefaults())
+}
+
+func TestBotConfig_WithCaPathAndCaPins(t *testing.T) {
+	t.Helper()
+
+	fc, _ := testhelpers.DefaultConfig(t)
+
+	authCfg := servicecfg.MakeDefaultConfig()
+	err := config.ApplyFileConfig(fc, authCfg)
+	require.NoError(t, err)
+
+	cfg := &BotConfig{
+		Insecure: false,
+		Onboarding: OnboardingConfig{
+			CAPath: "/tmp/invalid-path/some.crt",
+			CAPins: []string{"123"},
+		},
+	}
+
+	require.Error(t, cfg.CheckAndSetDefaults())
 }

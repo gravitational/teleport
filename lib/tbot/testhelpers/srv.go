@@ -43,9 +43,6 @@ type DefaultBotConfigOpts struct {
 
 	// Makes the bot accept an Insecure auth or proxy server
 	Insecure bool
-
-	// Overwrites the CAPins
-	CAPins []string `default:nil`
 }
 
 // DefaultConfig returns a FileConfig to be used in tests, with random listen
