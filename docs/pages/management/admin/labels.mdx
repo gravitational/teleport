@@ -130,7 +130,7 @@ on your local computer.
    ip-192-168-13-57 ⟵ Tunnel   environment=dev,hostname=ip-192-168-13-57
    ```
 
-   #### Checking the status of your server
+   **Checking the status of your server**
 
    If you don't see your server listed when you query for the label you added, you should verify that the 
    SSH Service is running on the server. Check the log for the server to verify that there are 
@@ -142,7 +142,7 @@ on your local computer.
    2023-08-07T22:22:21Z INFO [PROC:1]    The new service has started successfully. Starting syncing rotation status...
    ```
    
-   #### Checking your user profile
+   **Checking your user profile**
    
    If the SSH Service is running on the server, verify that your current Teleport user has a login on the local host.
    You can check the status of your user account by running the following command:
@@ -176,7 +176,7 @@ on your local computer.
    This example adds the `root` login to the `myuser` Teleport user.
    For more information about managing logins for Teleport users, see [Local Users](./users.mdx).
 
-#### Using hidden static labels
+**Using hidden static labels**
 
 If you want to use labels for role-based access control but don't want to 
 display the labels in command output or the Teleport Web UI, you can define them 
