@@ -42,8 +42,7 @@ provide access to clients in different regions:
 strictly used for collecting audit logs and authenticating users.
 - Clusters `leaf-east.example.com` and `leaf-west.example.com` are two independent leaf clusters to service 
 clients in different regions.
-- Each cluster is an independent x.509 and SSH certificate authority and can operate autonomously. 
-  However, each leaf cluster can only trust one root cluster at any given time.
+- Each cluster is an independent x.509 and SSH certificate authority and can operate autonomously.
 - Each leaf cluster dials back to the root cluster to establish a reverse tunnel. If you have multiple 
 proxies, you have multiple tunnels for high availability.
 
@@ -70,7 +69,7 @@ checking the certificate for the following information:
 
 Based on the information in the certificate, the Teleport Auth Service performs the following actions:
 
-- Verifies that the certificate signature matches its trusted root cluster.
+- Verifies that the certificate signature matches one of its trusted root clusters.
 - Applies role mapping to associate a role on the leaf cluster with one of the roles assigned 
   to the user in the root cluster.
 - Checks if the local role allows the requested identity—the Unix login—to have access.
