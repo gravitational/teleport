@@ -18,6 +18,8 @@ package awsoidc
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -27,6 +29,9 @@ import (
 
 // ListEC2ICERequest contains the required fields to list AWS EC2 Instance Connect Endpoints.
 type ListEC2ICERequest struct {
+	// Region is the region of the EICE.
+	Region string
+
 	// VPCID is the VPC to filter EC2 Instance Connect Endpoints.
 	VPCID string
 
@@ -37,6 +42,10 @@ type ListEC2ICERequest struct {
 
 // CheckAndSetDefaults checks if the required fields are present.
 func (req *ListEC2ICERequest) CheckAndSetDefaults() error {
+	if req.Region == "" {
+		return trace.BadParameter("region is required")
+	}
+
 	if req.VPCID == "" {
 		return trace.BadParameter("vpc id is required")
 	}
@@ -53,6 +62,13 @@ type EC2InstanceConnectEndpoint struct {
 	// Known values:
 	// create-in-progress | create-complete | create-failed | delete-in-progress | delete-complete | delete-failed
 	State string
+
+	// StateMessage contains a message describing the state of the EICE.
+	// Can be empty.
+	StateMessage string
+
+	// DashboardLink is a URL to AWS Console where the user can see the EC2 Instance Connect Endpoint.
+	DashboardLink string
 
 	// SubnetID is the subnet used by the endpoint.
 	// Please note that the Endpoint should be able to reach any subnet within the VPC.
@@ -126,11 +142,19 @@ func ListEC2ICE(ctx context.Context, clt ListEC2ICEClient, req ListEC2ICERequest
 		name := aws.ToString(ice.InstanceConnectEndpointId)
 		subnetID := aws.ToString(ice.SubnetId)
 		state := ice.State
+		stateMessage := aws.ToString(ice.StateMessage)
+
+		idURLSafe := url.QueryEscape(name)
+		dashboardLink := fmt.Sprintf("https://%s.console.aws.amazon.com/vpc/home?#InstanceConnectEndpointDetails:instanceConnectEndpointId=%s",
+			req.Region, idURLSafe,
+		)
 
 		ret.EC2ICEs = append(ret.EC2ICEs, EC2InstanceConnectEndpoint{
-			Name:     name,
-			SubnetID: subnetID,
-			State:    string(state),
+			Name:          name,
+			SubnetID:      subnetID,
+			State:         string(state),
+			StateMessage:  stateMessage,
+			DashboardLink: dashboardLink,
 		})
 	}
 
