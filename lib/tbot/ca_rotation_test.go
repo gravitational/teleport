@@ -287,8 +287,8 @@ func TestBot_Run_CARotation(t *testing.T) {
 	botParams := testhelpers.MakeBot(t, client, "test", "access")
 	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, nil,
 		testhelpers.DefaultBotConfigOpts{
-			PreferAuthServerOverProxyServer: true,
-			Insecure:                        true,
+			UseAuthServer: true,
+			Insecure:      true,
 		},
 	)
 	b := New(botConfig, log)

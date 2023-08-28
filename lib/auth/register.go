@@ -152,7 +152,7 @@ type RegisterParams struct {
 	// certificates that are returned by registering should expire at.
 	// It should not be specified for non-bot registrations.
 	Expires *time.Time
-	// Insecure makes the authentication process ignore the CA of the Auth Server during registration.
+	// Insecure trusts the certificates from the Auth Server or Proxy during registration without verification.
 	Insecure bool
 }
 
@@ -608,7 +608,7 @@ func caPathRegisterClient(params RegisterParams) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// For backwards compatibility we still attempt to use insecureRegisterClient if registration using caPath fails.
+	// For backwards compatibility, we fall back to insecure mode if loading the caPath fails.
 	// TODO: At a future date we should remove this
 	if trace.IsNotFound(err) {
 		return insecureRegisterClient(params)

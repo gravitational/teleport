@@ -39,7 +39,7 @@ import (
 
 type DefaultBotConfigOpts struct {
 	// Makes the bot connect via the Auth Server instead of the Proxy server.
-	PreferAuthServerOverProxyServer bool
+	UseAuthServer bool
 
 	// Makes the bot accept an Insecure auth or proxy server
 	Insecure bool
@@ -175,7 +175,7 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) *p
 // - Uses a memory storage destination
 // - Does not verify Proxy WebAPI certificates
 func DefaultBotConfig(
-	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, outputs []botconfig.Output, defaultBotConfigOpts DefaultBotConfigOpts,
+	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, outputs []botconfig.Output, opts DefaultBotConfigOpts,
 ) *botconfig.BotConfig {
 	t.Helper()
 
@@ -184,7 +184,7 @@ func DefaultBotConfig(
 	require.NoError(t, err)
 
 	var authServer = ""
-	if defaultBotConfigOpts.PreferAuthServerOverProxyServer {
+	if opts.UseAuthServer {
 		authServer = authCfg.AuthServerAddresses()[0].String()
 	} else {
 		authServer = authCfg.Proxy.WebAddr.String()
@@ -202,7 +202,7 @@ func DefaultBotConfig(
 		Outputs: outputs,
 		// Set Insecure so the bot will trust the Proxy's webapi default signed
 		// certs.
-		Insecure: defaultBotConfigOpts.Insecure,
+		Insecure: opts.Insecure,
 	}
 
 	cfg.Onboarding.SetToken(botParams.TokenID)
