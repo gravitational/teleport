@@ -2348,7 +2348,7 @@
     },
     {
       "source": "/kubernetes-access/guides/cicd/",
-      "destination": "/machine-id/guides/kubernetes/",
+      "destination": "/machine-id/access-guides/kubernetes/",
       "permanent": true
     },
     {
