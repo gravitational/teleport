@@ -4,9 +4,9 @@ roles: windowsdesktop
 windowsDesktopLDAP:
   addr: '172.0.0.1:636'
   domain: 'astroid.example.com'
-  username: 'ASTROID\svc-teleport'
+  username: 'ASTEROID\svc-teleport'
   sid: 'S-1-5-21-1717630186-822870621-3846248122-1103'
-  server_name: 'EC2AMAZ-ULM3Q3S.astroid.example.com'
+  server_name: 'EC2AMAZ-ULM3Q3S.asteroid.example.com'
   insecure_skip_verify: false
   ldap_ca_cert: |
     -----BEGIN CERTIFICATE-----

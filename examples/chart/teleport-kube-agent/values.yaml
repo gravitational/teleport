@@ -110,7 +110,7 @@ databaseResources: []
 # set this to false (its default value).
 #showWindowsDesktopWallpaper: false
 
-# (optional) ldap contains configuration keys used when connecting Teleport
+# (optional) Configuration keys used when connecting Teleport
 # to an Active Directory domain. This enables the discovery service for
 # Windows desktops belonging to an Active Directory domain configured for
 # Teleport access.
