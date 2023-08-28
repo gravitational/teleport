@@ -832,7 +832,7 @@ func (s *Server) Close() error {
 
 // Shutdown performs a graceful shutdown.
 func (s *Server) Shutdown(ctx context.Context) (err error) {
-	err = s.close(ctx)
+	err = trace.Wrap(s.close(ctx))
 	defer s.closeConnFunc()
 
 	activeConnections := s.activeConnections.Load()
@@ -841,7 +841,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 	}
 
 	s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
-	lastReport := time.Time{}
+	lastReport := time.Now()
 	ticker := time.NewTicker(s.cfg.ShutdownPollPeriod)
 	defer ticker.Stop()
 
