@@ -490,6 +490,12 @@ func verifyALPNUpgradedConn(clock clockwork.Clock) func(tls.ConnectionState) err
 // CA on disk. If no CA is found on disk, Teleport will not verify the Auth
 // Server it is connecting to.
 func insecureRegisterClient(params RegisterParams) (*Client, error) {
+	log.Warnf("Joining cluster without validating the identity of the Auth " +
+		"Server. This may open you up to a Man-In-The-Middle (MITM) attack if an " +
+		"attacker can gain privileged network access. To remedy this, use the CA pin " +
+		"value provided when join token was generated to validate the identity of " +
+		"the Auth Server or point to a valid Certificate via the CA Path option.")
+
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 
@@ -611,6 +617,7 @@ func caPathRegisterClient(params RegisterParams) (*Client, error) {
 	// For backwards compatibility, we fall back to insecure mode if loading the caPath fails.
 	// TODO: At a future date we should remove this
 	if trace.IsNotFound(err) {
+		log.Warnf("Falling back to insecurely joining because a missing or empty CA Path was provided.")
 		return insecureRegisterClient(params)
 	}
 
