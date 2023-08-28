@@ -73,8 +73,8 @@ $ tctl sso configure github \
 > github.yaml
 ```
 <Admonition type="tip">
-  GitHub organizations and teams should be referred to by their slug value, not display name. 
-  Slug values are available in the url or GitHub API.
+  GitHub organizations and teams should be referred to by their slug, not display name. 
+  Slug values are available in the URL or GitHub API.
   Example: `example-team` in the url `https://github.com/orgs/Org-Example/teams/example-team`
   matches to the slug value for team `Example Team`.
 </Admonition>
@@ -424,7 +424,7 @@ After logging out of `tsh`, you can log back in without specifying
 ### Teams Not Mapping to Roles
 
 If you are not seeing teams mapping to roles confirm you 
-are using the slug value of the organizations and teams in the connector.
+are using the slug of the organizations and teams in the connector.
 The GitHub Web application URIs and GitHub API can provide the slug values.
 
 Example with team name `My Team`:
@@ -436,7 +436,7 @@ Example with team name `My Team`:
       team: My Team
 ```
 
-Navigate to the team `My Team`. The url `https://github.com/orgs/ORG-NAME/teams/my-team`
+Navigate to the team `My Team`. The URL `https://github.com/orgs/ORG-NAME/teams/my-team`
 shows the slug value is `my-team`. Update the teams to roles mapping.
 
 ```yaml
