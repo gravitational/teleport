@@ -1246,50 +1246,12 @@
           "slug": "/machine-id/getting-started/"
         },
         {
-          "title": "Guides",
-          "slug": "/machine-id/guides/",
-          "entries": [
-            {
-              "title": "Ansible",
-              "slug": "/machine-id/guides/ansible/"
-            },
-            {
-              "title": "GitHub Actions",
-              "slug": "/machine-id/guides/github-actions/"
-            },
-            {
-              "title": "CircleCI",
-              "slug": "/machine-id/guides/circleci/"
-            },
-            {
-              "title": "GitHub Actions & Kubernetes",
-              "slug": "/machine-id/guides/github-actions-kubernetes/"
-            },
-            {
-              "title": "GitLab CI",
-              "slug": "/machine-id/guides/gitlab/"
-            },
-            {
-              "title": "Jenkins",
-              "slug": "/machine-id/guides/jenkins/"
-            },
-            {
-              "title": "Databases",
-              "slug": "/machine-id/guides/databases/"
-            },
-            {
-              "title": "Kubernetes",
-              "slug": "/machine-id/guides/kubernetes/"
-            },
-            {
-              "title": "Applications",
-              "slug": "/machine-id/guides/applications/"
-            },
-            {
-              "title": "Host Certificates",
-              "slug": "/machine-id/guides/host-certificate/"
-            }
-          ]
+          "title": "Platform Guides",
+          "slug": "/machine-id/platform-guides/"
+        },
+        {
+          "title": "Access Guides",
+          "slug": "/machine-id/access-guides/"
         },
         {
           "title": "Architecture",
