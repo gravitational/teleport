@@ -32,11 +32,8 @@ import history from 'teleport/services/history/history';
 import localStorage from 'teleport/services/localStorage';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
-import { useKeyBasedPagination } from 'teleport/components/hooks/useKeyBasedPagination';
 import { SearchResource } from 'teleport/Discover/SelectResource';
-import { useUrlFiltering } from 'teleport/components/hooks';
-
-import { useInfiniteScroll } from 'teleport/components/hooks/useInfiniteScroll';
+import { useUrlFiltering, useInfiniteScroll } from 'teleport/components/hooks';
 
 import { ResourceCard } from './ResourceCard';
 import SearchPanel from './SearchPanel';
@@ -56,17 +53,15 @@ export function Resources() {
   const { params, setParams, replaceHistory, pathname, setSort, onLabelClick } =
     filtering;
 
-  const { fetch, forceFetch, resources, attempt } = useKeyBasedPagination({
+  const scrollDetector = useRef(null);
+  const { forceFetch, resources, attempt } = useInfiniteScroll({
     fetchFunc: teleCtx.resourceService.fetchUnifiedResources,
+    trigger: scrollDetector.current,
     clusterId,
     filter: params,
     initialFetchSize: 1,
     fetchMoreSize: 1,
   });
-
-  const scrollDetector = useRef(null);
-
-  useInfiniteScroll(scrollDetector.current, fetch);
 
   if (!enabled) {
     history.replace(cfg.getNodesRoute(clusterId));

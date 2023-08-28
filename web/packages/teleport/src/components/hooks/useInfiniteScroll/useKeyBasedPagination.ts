@@ -33,8 +33,8 @@ import { UrlResourcesParams } from 'teleport/config';
  * The hook maintains an invariant that there's only up to one valid
  * pending request at all times. Any out-of-order responses are discarded.
  *
- * This hook is intended to be used in tandem with the `useInfiniteScroll` hook.
- * See its documentation for an example.
+ * This hook is an implementation detail of the `useInfiniteScroll` hook and
+ * should not be used directly.
  */
 export function useKeyBasedPagination<T>({
   fetchFunc,
@@ -67,9 +67,10 @@ export function useKeyBasedPagination<T>({
   const fetch = async (force: boolean) => {
     if (
       finished ||
-      (!force && pendingPromise.current) ||
       (!force &&
-        (attempt.status === 'processing' || attempt.status === 'failed'))
+        (pendingPromise.current ||
+          attempt.status === 'processing' ||
+          attempt.status === 'failed'))
     ) {
       return;
     }
@@ -121,7 +122,6 @@ export function useKeyBasedPagination<T>({
         return;
       }
       setAttempt({ status: 'failed', statusText: err.message });
-    } finally {
     }
   };
 
