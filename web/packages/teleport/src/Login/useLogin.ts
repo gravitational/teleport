@@ -39,14 +39,16 @@ export default function useLogin() {
   const auth2faType = cfg.getAuth2faType();
   const isLocalAuthEnabled = cfg.getLocalAuthFlag();
   const motd = cfg.getMotd();
-  const [showMotd, setShowMotd] = useState(() => {
+  const [showMotd, setShowMotd] = useState<boolean>(() => {
     const url = new URL(window.location.href);
-    const redirect_uri = url.searchParams.get('redirect_uri');
+    const redirectUri = url.searchParams.get('redirect_uri');
 
-    if (redirect_uri?.includes('headless')) {
+    if (redirectUri?.includes('headless')) {
       return false;
     } else if (cfg.getMotd()) {
       return true;
+    } else {
+      return false;
     }
   });
 
