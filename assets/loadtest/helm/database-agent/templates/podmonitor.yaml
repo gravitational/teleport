@@ -1,0 +1,27 @@
+{{- if.Values.podMonitor.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  jobLabel: {{ .Release.Name }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Release.Name }}
+  podMetricsEndpoints:
+    - port: diag
+      path: /metrics
+      {{- with .Values.podMonitor.interval }}
+      interval: {{ . | quote }}
+      {{- end }}
+  podTargetLabels:
+    - "app.kubernetes.io/name"
+    - "app.kubernetes.io/instance"
+    - "app.kubernetes.io/component"
+    - "app.kubernetes.io/version"
+    - "teleport.dev/majorVersion"
+{{- end }}

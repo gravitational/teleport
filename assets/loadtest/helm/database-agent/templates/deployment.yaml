@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  minReadySeconds: {{ .Values.minReadySeconds }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ .Release.Name }}
+      containers:
+        - image: "{{ $.Values.image.repository }}:{{ default $.Chart.AppVersion $.Values.image.tag }}"
+          name: agent
+          command: ["bash", "/etc/teleport-config/entrypoint.sh"]
+          ports:
+          - name: diag
+            containerPort: 3000
+            protocol: TCP
+          volumeMounts:
+            - mountPath: /etc/teleport-config
+              name: config
+              readOnly: true
+          resources: {{- toYaml $.Values.resources | nindent 12 }}
+      volumes:
+        - configMap:
+            name: {{ .Release.Name }}
+            defaultMode: 0766
+          name: config
+      {{- if .Values.tolerations }}
+      tolerations: {{ toYaml .Values.tolerations | nindent 8}}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity: {{ toYaml .Values.affinity | nindent 8}}
+      {{- end }}

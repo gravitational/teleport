@@ -64,7 +64,7 @@ create-user:
 # teleport cluster
 .PHONY: create-token
 create-token:
-	kubectl --namespace teleport exec deploy/teleport-auth -- tctl tokens add --type=node --ttl=8h
+	kubectl --namespace teleport exec deploy/teleport-auth -- tctl tokens add --type=node,db --ttl=8h
 
 # forwards the grafana web app to localhost:6060
 .PHONY: forward-grafana
@@ -76,3 +76,32 @@ forward-grafana:
 scale-auth:
 	kubectl scale deployment/teleport-auth --replicas=$(REPLICAS) -n teleport
 
+POSTGRES_NAME ?= rdspostgres
+POSTGRES_URL ?=
+MYSQL_NAME ?= rdsmysql
+MYSQL_URL ?=
+DATABASE_ROLE_ARN ?=
+TELEPORT_VERSION ?= 13
+
+.PHONY: create-rds-database
+create-rds-database:
+	$(MAKE) -C databases/rds apply
+
+.PHONY: deploy-database-agents
+deploy-database-agents:
+	helm upgrade --install \
+		database-agents \
+		-n database-agents \
+		--create-namespace \
+		./helm/database-agent/ \
+		--set image.tag=${TELEPORT_VERSION} \
+		--set replicaCount=${NODE_REPLICAS} \
+		--set proxyServer=${PROXY_SERVER} \
+		--set joinParams.token_name=${NODE_TOKEN} \
+		--set serviceAccount.roleARN=${DATABASE_ROLE_ARN} \
+		--set databases[0].name=${POSTGRES_NAME} \
+		--set databases[0].protocol=postgres \
+		--set databases[0].uri=${POSTGRES_URL} \
+		--set databases[1].name=${MYSQL_NAME} \
+		--set databases[1].protocol=mysql \
+		--set databases[1].uri=${MYSQL_URL}
