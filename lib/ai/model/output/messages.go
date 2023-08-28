@@ -16,6 +16,8 @@
 
 package output
 
+import "strings"
+
 // Message represents a new message within a live conversation.
 type Message struct {
 	Content string
@@ -24,6 +26,16 @@ type Message struct {
 // StreamingMessage represents a new message that is being streamed from the LLM.
 type StreamingMessage struct {
 	Parts <-chan string
+}
+
+// String implements the Stringer interface. It waits until the message stream
+// is over and returns the full message.
+func (msg *StreamingMessage) String() string {
+	sb := strings.Builder{}
+	for part := range msg.Parts {
+		sb.WriteString(part)
+	}
+	return sb.String()
 }
 
 // Label represents a label returned by OpenAI's completion API.
