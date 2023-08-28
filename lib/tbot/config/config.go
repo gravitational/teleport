@@ -352,6 +352,26 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		}
 	}
 
+	log.Warnf("We are here")
+	// Validate Insecure and CA Settings
+	if conf.Insecure {
+		log.Warnf("Insecure mode detected")
+		if len(conf.Onboarding.CAPins) > 0 {
+			log.Warnf("CAPins detected")
+			return trace.BadParameter("the option ca-pin is mutually exclusive with --insecure")
+		}
+
+		if conf.Onboarding.CAPath != "" {
+			log.Warnf("CAPath detected")
+			return trace.BadParameter("the option ca-path is mutually exclusive with --insecure")
+		}
+	} else {
+		log.Warnf("Secure mode detected")
+		if len(conf.Onboarding.CAPins) > 0 && conf.Onboarding.CAPath != "" {
+			return trace.BadParameter("the options ca-pin and ca-path are mutually exclusive")
+		}
+	}
+
 	return nil
 }
 
