@@ -73,10 +73,12 @@ $ tctl sso configure github \
 > github.yaml
 ```
 <Admonition type="tip">
-  GitHub organizations and teams should be referred to by their slug, not display name. 
-  Slug values are available in the URL or GitHub API.
-  Example: `example-team` in the url `https://github.com/orgs/Org-Example/teams/example-team`
-  matches to the slug value for team `Example Team`.
+  GitHub organizations and teams should be referred to by their slug, not display name.
+  To create the slug, GitHub replaces special characters in the name string, changes all words to lowercase,
+  and replaces spaces with a `-` separator. For example, `My TEam Näme` would become `my-team-name`.
+  You can confirm the slug in GitHub Web application URLs or via the GitHub API.
+  Example: `example-team` in the URL `https://github.com/orgs/Org-Example/teams/example-team`
+  matches to the slug for team `Example Team`.
 </Admonition>
 
 The contents of `github.yaml` should resemble the following:
@@ -423,21 +425,16 @@ After logging out of `tsh`, you can log back in without specifying
 
 ### Teams Not Mapping to Roles
 
-If you are not seeing teams mapping to roles confirm you 
+If you are not seeing teams mapping to roles as expectedconfirm you 
 are using the slug of the organizations and teams in the connector.
-The GitHub Web application URIs and GitHub API can provide the slug values.
+To create the slug, GitHub replaces special characters in the name string,
+changes all words to lowercase, and replaces spaces with a `-` separator.
+For example, "My TEam Näme" would become `my-team-name`.
+The GitHub Web application URLs and GitHub API can provide the slug.
 
-Example with team name `My Team`:
-```yaml
-  teams_to_roles:
-    - organization: ORG-NAME
-      roles:
-        - access
-      team: My Team
-```
-
-Navigate to the team `My Team`. The URL `https://github.com/orgs/ORG-NAME/teams/my-team`
-shows the slug value is `my-team`. Update the teams to roles mapping.
+Example: navigate to the team `My Team` in the GitHub web application.
+The URL `https://github.com/orgs/org-name/teams/my-team`
+shows the slug is `my-team`. Update the teams to roles mapping.
 
 ```yaml
   teams_to_roles:
