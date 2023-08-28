@@ -63,12 +63,12 @@ func MetaRedirect(w http.ResponseWriter, redirectURL string) error {
 	return trace.Wrap(metaRedirectTemplate.Execute(w, redirectURL))
 }
 
-const appRedirectionJs = `
+const appRedirectHTML = `
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <title>Teleport Redirection Service</title>
-    <script nonce="%v">
+    <script nonce="{{.}}">
       (function() {
         var url = new URL(window.location);
         var params = new URLSearchParams(url.search);

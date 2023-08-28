@@ -625,7 +625,10 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string, req l
 
 	// Presence of a stateToken means we are beginning an app auth exchange.
 	if req.stateToken != "" {
-		u.RawQuery = fmt.Sprintf("state=%s&path=%s", url.QueryEscape(req.stateToken), url.QueryEscape(req.path))
+		v := url.Values{}
+		v.Add("state", req.stateToken)
+		v.Add("path", req.path)
+		u.RawQuery = v.Encode()
 
 		urlPath := []string{"web", "launch", hostname}
 
@@ -651,18 +654,17 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string, req l
 		// and will need to be redirected to the web launcher to
 		// start the auth exchange.
 
-		// Note that r.URL.Path field is stored in decoded form where:
+		// Note that r.URL.Path field is stored as decoded form where:
 		//  - `/%47%6f%2f` becomes `/Go/`
 		//  - `siema%20elo` becomes `siema elo`
-		// And QueryEscape() will encode spaces as `+`
-		//
-		// QueryEscape is used on the `r.URL.Path` since it is being placed
-		// into the query part of the URL.
-		query := fmt.Sprintf("path=%s", url.QueryEscape(r.URL.Path))
+		// So Encode() will just encode it once (note that spaces will be convereted to `+`)
+		v := url.Values{}
+		v.Add("path", r.URL.Path)
+
 		if len(r.URL.RawQuery) > 0 {
-			query = fmt.Sprintf("%s&query=%s", query, url.QueryEscape(r.URL.RawQuery))
+			v.Add("query", r.URL.RawQuery)
 		}
-		u.RawQuery = query
+		u.RawQuery = v.Encode()
 	}
 
 	return u.String()

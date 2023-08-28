@@ -22,6 +22,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"net/http"
 	"strings"
 
@@ -62,7 +63,7 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 		// and in the request "state" query param.
 		secretToken, err := utils.CryptoRandomHex(auth.TokenLenBytes)
 		if err != nil {
-			h.log.WithError(err).Debugf("Failed to generate and encode random numbers.")
+			h.log.WithError(err).Debugf("Failed to generate token required for app auth exchange")
 			return trace.AccessDenied("access denied")
 		}
 
@@ -74,7 +75,7 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 		// different token value eg: launch app in multiple tabs in quick succession
 		cookieIdentifier, err := utils.CryptoRandomHex(auth.TokenLenBytes)
 		if err != nil {
-			h.log.WithError(err).Debugf("Failed to generate and encode random numbers.")
+			h.log.WithError(err).Debugf("Failed to generate an UID for the app auth state cookie")
 			return trace.AccessDenied("access denied")
 		}
 
@@ -104,27 +105,34 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 	SetRedirectPageHeaders(w.Header(), nonce)
 
 	// Serving the HTML page.
-	fmt.Fprintf(w, appRedirectionJs, nonce)
+	appRedirectTemplate, err := template.New("index").Parse(appRedirectHTML)
+	if err != nil {
+		h.log.WithError(err).Debugf("Failed parsing appRedirectHTML string")
+		return trace.AccessDenied("access denied")
+	}
+	if err := appRedirectTemplate.Execute(w, nonce); err != nil {
+		h.log.WithError(err).Debugf("Failed executing appRedirect template")
+		return trace.AccessDenied("access denied")
+	}
 	return nil
 }
 
 // completeAppAuthExchange completes the auth exchange flow started by "startAppAuthExchange" handler
 // by validating the values passed in the request body, and upon success sets cookies required
-// for the current app session. User should be able to interact with the app now.
+// for the current app session.
 func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
 	httplib.SetNoCacheHeaders(w.Header())
 	var req fragmentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return trace.Wrap(err)
+		h.log.Warn("Failed to decode JSON from request body")
+		return trace.AccessDenied("access denied")
 	}
 
-	tokens := strings.Split(req.StateValue, "_")
-	if len(tokens) != 2 {
+	secretToken, cookieID, ok := strings.Cut(req.StateValue, "_")
+	if !ok {
 		h.log.Warn("Request failed: request state token is not in the expected format")
 		return trace.AccessDenied("access denied")
 	}
-	secretToken := tokens[0]
-	cookieID := tokens[1]
 
 	// Validate that the caller-provided state token matches the stored state token (CSRF check)
 	stateCookie, err := r.Cookie(getAuthStateCookieName(cookieID))
