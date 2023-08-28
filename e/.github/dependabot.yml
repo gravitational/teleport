@@ -1,0 +1,39 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: "/tooling/os-package-repo-tool"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - codingllama
+      - fheinecke
+      - jentfoo
+      - rosstimothy
+      - zmb3
+  - package-ecosystem: cargo
+    directory: "/windowsauth"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    open-pull-requests-limit: 10
+    groups:
+      rust:
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - codingllama
+      - jentfoo
+      - probakowski
+      - rosstimothy
+      - zmb3
+
