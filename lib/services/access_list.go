@@ -227,7 +227,7 @@ func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock cloc
 	}
 
 	expires := member.Spec.Expires
-	if expires.IsZero() {
+	if expires.IsZero() || accessList.Spec.Audit.NextAuditDate.Before(expires) {
 		expires = accessList.Spec.Audit.NextAuditDate
 	}
 
