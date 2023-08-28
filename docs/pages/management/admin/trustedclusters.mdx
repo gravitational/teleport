@@ -153,7 +153,7 @@ On your local machine, log in to your leaf cluster using your Teleport username:
 ```code
 # Log out of all clusters to begin this guide from a clean state
 $ tsh logout
-$ tsh login --proxy=leafcluster.teleport.sh --user=myuser
+$ tsh login --proxy=<Var name="leafcluster.teleport.sh" /> --user=<Var name="myuser"/>
 ```
 
 </TabItem>
@@ -162,7 +162,7 @@ $ tsh login --proxy=leafcluster.teleport.sh --user=myuser
 ```code
 # Log out of all clusters to begin this guide from a clean state
 $ tsh logout
-$ tsh login --proxy=leafcluster.example.com --user=myuser
+$ tsh login --proxy=<Var name="leafcluster.example.com" /> --user=<Var name="myuser"/>
 ```
 
 </TabItem>
@@ -210,7 +210,7 @@ Make sure that you are logged in to your root cluster.
 
 ```code
 $ tsh logout
-$ tsh login --proxy=rootcluster.example.com --user=myuser
+$ tsh login --proxy=<Var name="rootcluster.example.com"/> --user=<Var name="myuser"/>
 ```
 
 </TabItem>
@@ -218,7 +218,7 @@ $ tsh login --proxy=rootcluster.example.com --user=myuser
 
 ```code
 $ tsh logout
-$ tsh login --proxy=rootcluster.teleport.sh --user=myuser
+$ tsh login --proxy=<Var name="rootcluster.teleport.sh"/> --user=<Var name="myuser"/>
 ```
 
 </TabItem>
@@ -226,10 +226,10 @@ $ tsh login --proxy=rootcluster.teleport.sh --user=myuser
 </Tabs>
 
 Create a file called `user.yaml` with your current user configuration. Replace
-`myuser` with your Teleport username:
+`<Var name="myuser"/>` with your Teleport username:
 
 ```code
-$ tctl get user/myuser > user.yaml
+$ tctl get user/<Var name="myuser"/> > user.yaml
 ```
 
 Make the following change to `user.yaml`:
@@ -274,10 +274,10 @@ First, log out of all clusters and log in to the root cluster.
 
 ```code
 $ tsh logout
-$ tsh login --user=myuser --proxy=rootcluster.example.com
-> Profile URL:        https://rootcluster.example.com:443
-  Logged in as:       myuser
-  Cluster:            rootcluster.example.com
+$ tsh login --user=<Var name="myuser"/> --proxy=<Var name="rootcluster.example.com"/>
+> Profile URL:        https://<Var name="rootcluster.example.com"/>:443
+  Logged in as:       <Var name="myuser"/>
+  Cluster:            <Var name="rootcluster.example.com"/>
   Roles:              access, auditor, editor
   Logins:             root
   Kubernetes:         enabled
@@ -290,10 +290,10 @@ $ tsh login --user=myuser --proxy=rootcluster.example.com
 
 ```code
 $ tsh logout
-$ tsh login --user=myuser --proxy=rootcluster.example.com
-> Profile URL:        https://rootcluster.example.com:443
-  Logged in as:       myuser
-  Cluster:            rootcluster.example.com
+$ tsh login --user=<Var name="myuser"/> --proxy=<Var name="rootcluster.example.com"/>
+> Profile URL:        https://<Var name="rootcluster.example.com"/>:443
+  Logged in as:       <Var name="myuser"/>
+  Cluster:            <Var name="rootcluster.example.com"/>
   Roles:              access, auditor, editor, reviewer
   Logins:             root
   Kubernetes:         enabled
@@ -305,10 +305,10 @@ $ tsh login --user=myuser --proxy=rootcluster.example.com
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
-$ tsh login --user=myuser --proxy=myrootclustertenant.teleport.sh
-> Profile URL:        https://rootcluster.teleport.sh:443
-  Logged in as:       myuser
-  Cluster:            rootcluster.teleport.sh
+$ tsh login --user=<Var name="myuser"/> --proxy=<Var name="rootcluster.teleport.sh"/>
+> Profile URL:        https://<Var name="rootcluster.teleport.sh"/>:443
+  Logged in as:       <Var name="myuser"/>
+  Cluster:            <Var name="rootcluster.teleport.sh"/>
   Roles:              access, auditor, editor, reviewer
   Logins:             root
   Kubernetes:         enabled
@@ -375,21 +375,42 @@ $ tctl tokens rm (=presets.tokens.first=)
 On your local machine, create a file called `trusted_cluster.yaml` with the
 following content:
 
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ```yaml
 # trusted_cluster.yaml
 kind: trusted_cluster
 version: v2
 metadata:
-  name: rootcluster.example.com
+  name: <Var name="rootcluster.example.com"/>
 spec:
   enabled: true
   token: (=presets.tokens.first=)
-  tunnel_addr: rootcluster.example.com:11106
-  web_proxy_addr: rootcluster.example.com:443
+  tunnel_addr: <Var name="rootcluster.example.com"/>:443
+  web_proxy_addr: <Var name="rootcluster.example.com"/>:443
   role_map:
     - remote: "access"
       local: ["visitor"]
 ```
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+```yaml
+# trusted_cluster.yaml
+kind: trusted_cluster
+version: v2
+metadata:
+  name: <Var name="rootcluster.teleport.sh"/>
+spec:
+  enabled: true
+  token: (=presets.tokens.first=)
+  tunnel_addr: <Var name="rootcluster.teleport.sh"/>:443
+  web_proxy_addr: <Var name="rootcluster.teleport.sh"/>:443
+  role_map:
+    - remote: "access"
+      local: ["visitor"]
+```
+</TabItem>
+</Tabs>  
 
 Change the fields of `trusted_cluster.yaml` as follows:
 
@@ -410,18 +431,16 @@ the following command to retrieve the value you should use:
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
-$ PROXY=rootcluster.example.com
-$ curl https://${PROXY?}/webapi/ping | jq 'if .proxy.tls_routing_enabled == true then .proxy.ssh.public_addr else .proxy.ssh.ssh_tunnel_public_addr end'
-"rootcluster.example.com:443"
+$ curl https://<Var name="rootcluster.example.com"/>/webapi/ping | jq 'if .proxy.tls_routing_enabled == true then .proxy.ssh.public_addr else .proxy.ssh.ssh_tunnel_public_addr end'
+"<Var name="rootcluster.example.com"/>:443"
 ```
 
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
-$ PROXY=rootcluster.teleport.sh
-$ curl https://${PROXY?}/webapi/ping | jq 'if .proxy.tls_routing_enabled == true then .proxy.ssh.public_addr else .proxy.ssh.ssh_tunnel_public_addr end'
-"rootcluster.teleport.sh:443"
+$ curl https://<Var name="rootcluster.teleport.sh"/>/webapi/ping | jq 'if .proxy.tls_routing_enabled == true then .proxy.ssh.public_addr else .proxy.ssh.ssh_tunnel_public_addr end'
+"<Var name="rootcluster.teleport.sh"/>:443"
 ```
 
 </TabItem>
@@ -437,16 +456,16 @@ following command:
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
-$ curl https://${PROXY?}/webapi/ping | jq .proxy.ssh.public_addr
-"teleport.example.com:443"
+$ curl https://<Var name="rootcluster.example.com"/>/webapi/ping | jq .proxy.ssh.public_addr
+"<Var name="rootcluster.example.com"/>:443"
 ```
 
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
-$ curl https://${PROXY?}/webapi/ping | jq .proxy.ssh.public_addr
-"mytenant.teleport.sh:443"
+$ curl https://<Var name="rootcluster.teleport.sh"/>/webapi/ping | jq .proxy.ssh.public_addr
+"<Var name="rootcluster.teleport.sh"/>:443"
 ```
 
 </TabItem>
@@ -584,14 +603,14 @@ Log in to the leaf cluster:
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
-$ tsh login --user=myuser --proxy=leafcluster.example.com
+$ tsh login --user=<Var name="myuser"/> --proxy=<Var name="leafcluster.example.com" />
 ```
 
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
-$ tsh login --user=myuser --proxy=leafcluster.teleport.sh
+$ tsh login --user=<Var name="myuser"/> --proxy=<Var name="leafcluster.teleport.sh" />
 ```
 
 </TabItem>
@@ -639,8 +658,8 @@ $ tsh clusters
 tsh clusters
 Cluster Name                                          Status Cluster Type Selected
 ----------------------------------------------------- ------ ------------ --------
-rootcluster.example.com                               online root         *
-leafcluster.example.com                               online leaf
+<Var name="rootcluster.example.com" />                online root         *
+<Var name="leafcluster.example.com" />                online leaf
 ```
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
@@ -649,8 +668,8 @@ leafcluster.example.com                               online leaf
 $ tsh clusters
 Cluster Name                                          Status Cluster Type Selected
 ----------------------------------------------------- ------ ------------ --------
-rootcluster.teleport.sh                               online root         *
-leafcluster.teleport.sh                               online leaf
+<Var name="rootcluster.teleport.sh" />                online root         *
+<Var name="leafcluster.teleport.sh" />                online leaf
 ```
 </TabItem>
 
@@ -680,7 +699,7 @@ $ tctl get rc
 kind: remote_cluster
 metadata:
   id: 1651261581522597792
-  name: leafcluster.teleport.sh
+  name: <Var name="leafcluster.teleport.sh" />
 status:
   connection: online
   last_heartbeat: "2022-04-29T19:45:35.052864534Z"
@@ -694,18 +713,18 @@ cluster:
 <TabItem scope="cloud" label="Teleport Enterprise Cloud">
 
 ```code
-$ tctl update rc/leafcluster.teleport.sh --set-labels=env=demo
+$ tctl update rc/<Var name="leafcluster.teleport.sh" /> --set-labels=env=demo
 
-# Cluster leafcluster.teleport.sh has been updated
+# Cluster <Var name="leafcluster.teleport.sh" /> has been updated
 ```
 
 </TabItem>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
-$ tctl update rc/leafcluster.example.com --set-labels=env=demo
+$ tctl update rc/<Var name="leafcluster.example.com" /> --set-labels=env=demo
 
-# Cluster leafcluster.example.com has been updated
+# Cluster <Var name="leafcluster.example.com" /> has been updated
 ```
 
 </TabItem>
@@ -757,7 +776,7 @@ metadata:
   id: 1651262381521336026
   labels:
     env: demo
-  name: rootcluster.example.com
+  name: <Var name="rootcluster.example.com" />
 status:
   connection: online
   last_heartbeat: "2022-04-29T19:55:35.053054594Z"
@@ -776,7 +795,7 @@ First, make sure that you are logged in to root cluster:
 
 ```code
 $ tsh logout
-$ tsh --proxy=rootcluster.example.com --user=myuser login
+$ tsh --proxy=<Var name="rootcluster.example.com" /> --user=<Var name="myuser"/> login
 ```
 
 </TabItem>
@@ -784,7 +803,7 @@ $ tsh --proxy=rootcluster.example.com --user=myuser login
 
 ```code
 $ tsh logout
-$ tsh --proxy=rootcluster.teleport.sh --user=myuser login
+$ tsh --proxy=<Var name="rootcluster.teleport.sh" /> --user=<Var name="myuser"/> login
 ```
 
 </TabItem>
@@ -794,7 +813,7 @@ $ tsh --proxy=rootcluster.teleport.sh --user=myuser login
 To log in to your Node, confirm that your Node is joined to your leaf cluster:
 
 ```code
-$ tsh ls --cluster=leafcluster.example.com
+$ tsh ls --cluster=<Var name="leafcluster.example.com" />
 
 Node Name       Address        Labels
 --------------- -------------- ------------------------------------
@@ -804,7 +823,7 @@ mynode          127.0.0.1:3022 env=demo,hostname=ip-172-30-13-38
 SSH into your Node:
 
 ```code
-$ tsh ssh --cluster=leafcluster.example.com visitor@mynode
+$ tsh ssh --cluster=<Var name="leafcluster.example.com" /> visitor@mynode
 ```
 
 <Details title="How does this work?">
@@ -878,14 +897,14 @@ Retrieve the Trusted Cluster resource you created earlier:
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
-$ tctl get trusted_cluster/rootcluster.example.com > trusted_cluster.yaml
+$ tctl get trusted_cluster/<Var name="rootcluster.example.com" /> > trusted_cluster.yaml
 ```
 
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
-$ tctl get trusted_cluster/rootcluster.teleport.sh > trusted_cluster.yaml
+$ tctl get trusted_cluster/<Var name="rootcluster.teleport.sh" /> > trusted_cluster.yaml
 ```
 
 </TabItem>
@@ -928,14 +947,14 @@ the Trusted Cluster resource from the Auth Service backend:
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
-$ tctl rm trusted_cluster/rootcluster.example.com
+$ tctl rm trusted_cluster/<Var name="rootcluster.example.com" />
 ```
 
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
-$ tctl rm trusted_cluster/rootcluster.teleport.sh
+$ tctl rm trusted_cluster/<Var name="rootcluster.teleport.sh" />
 ```
 
 </TabItem>
@@ -950,14 +969,14 @@ certificate authorities associated with the remote cluster and removes the
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
-$ tctl rm rc/leafcluster.example.com
+$ tctl rm rc/<Var name="leafcluster.example.com" />
 ```
 
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
-$ tctl rm rc/leafcluster.teleport.sh
+$ tctl rm rc/<Var name="leafcluster.teleport.sh" />
 ```
 
 </TabItem>
@@ -966,7 +985,7 @@ $ tctl rm rc/leafcluster.teleport.sh
 
 <Admonition type="Removing the relationship from the root side only">
 
-  You can remove the relationship by running only `tctl rm rc/leaf.example.com`.
+  You can remove the relationship by running only `tctl rm rc/<<Var name="leaf.example.com" />`.
 
   The leaf cluster will continue to try and ping the root cluster, but will not
   be able to connect. To re-establish the Trusted Cluster relationship, the
