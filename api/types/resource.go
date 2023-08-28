@@ -51,9 +51,15 @@ type Resource interface {
 	// GetMetadata returns object metadata
 	GetMetadata() Metadata
 	// GetResourceID returns resource ID
+	// Deprecated: use GetRevision instead
 	GetResourceID() int64
 	// SetResourceID sets resource ID
+	// Deprecated: use SetRevision instead
 	SetResourceID(int64)
+	// GetRevision returns the revision
+	GetRevision() string
+	// SetRevision sets the revision
+	SetRevision(string)
 	// CheckAndSetDefaults validates the Resource and sets any empty fields to
 	// default values.
 	CheckAndSetDefaults() error
@@ -278,13 +284,25 @@ func (h *ResourceHeader) GetVersion() string {
 }
 
 // GetResourceID returns resource ID
+// Deprecated: Use GetRevision instead.
 func (h *ResourceHeader) GetResourceID() int64 {
 	return h.Metadata.ID
 }
 
 // SetResourceID sets resource ID
+// Deprecated: Use SetRevision instead.
 func (h *ResourceHeader) SetResourceID(id int64) {
 	h.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (h *ResourceHeader) GetRevision() string {
+	return h.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (h *ResourceHeader) SetRevision(rev string) {
+	h.Metadata.SetRevision(rev)
 }
 
 // GetName returns the name of the resource
@@ -377,6 +395,16 @@ func (m *Metadata) GetID() int64 {
 // SetID sets resource ID
 func (m *Metadata) SetID(id int64) {
 	m.ID = id
+}
+
+// GetRevision returns the revision
+func (m *Metadata) GetRevision() string {
+	return m.Revision
+}
+
+// SetRevision sets the revision
+func (m *Metadata) SetRevision(rev string) {
+	m.Revision = rev
 }
 
 // GetMetadata returns object metadata

@@ -106,6 +106,16 @@ func (r *NetworkRestrictionsV4) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
 }
 
+// GetRevision returns the revision
+func (r *NetworkRestrictionsV4) GetRevision() string {
+	return r.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (r *NetworkRestrictionsV4) SetRevision(rev string) {
+	r.Metadata.SetRevision(rev)
+}
+
 func (r *NetworkRestrictionsV4) Expiry() time.Time {
 	return r.Metadata.Expiry()
 }

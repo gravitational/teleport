@@ -181,6 +181,16 @@ func (d *DatabaseV3) SetResourceID(id int64) {
 	d.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (d *DatabaseV3) GetRevision() string {
+	return d.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (d *DatabaseV3) SetRevision(rev string) {
+	d.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns the database resource metadata.
 func (d *DatabaseV3) GetMetadata() Metadata {
 	return d.Metadata

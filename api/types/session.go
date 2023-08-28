@@ -169,6 +169,16 @@ func (ws *WebSessionV2) SetResourceID(id int64) {
 	ws.Metadata.SetID(id)
 }
 
+// GetRevision returns the revision
+func (ws *WebSessionV2) GetRevision() string {
+	return ws.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (ws *WebSessionV2) SetRevision(rev string) {
+	ws.Metadata.SetRevision(rev)
+}
+
 // GetIdleTimeout returns the max idle timeout duration.
 func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 	return ws.Spec.IdleTimeout.Duration()
@@ -525,6 +535,16 @@ func (r *WebTokenV3) GetResourceID() int64 {
 // SetResourceID sets the token resource ID
 func (r *WebTokenV3) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
+}
+
+// GetRevision returns the revision
+func (r *WebTokenV3) GetRevision() string {
+	return r.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (r *WebTokenV3) SetRevision(rev string) {
+	r.Metadata.SetRevision(rev)
 }
 
 // GetToken returns the token value

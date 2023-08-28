@@ -307,6 +307,16 @@ func (r *RoleV6) SetResourceID(id int64) {
 	r.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (r *RoleV6) GetRevision() string {
+	return r.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (r *RoleV6) SetRevision(rev string) {
+	r.Metadata.SetRevision(rev)
+}
+
 // SetExpiry sets expiry time for the object.
 func (r *RoleV6) SetExpiry(expires time.Time) {
 	r.Metadata.SetExpiry(expires)

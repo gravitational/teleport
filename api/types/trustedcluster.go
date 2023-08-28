@@ -132,6 +132,16 @@ func (c *TrustedClusterV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (c *TrustedClusterV2) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *TrustedClusterV2) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
+}
+
 // CombinedMapping is used to specify combined mapping from legacy property Roles
 // and new property RoleMap
 func (c *TrustedClusterV2) CombinedMapping() RoleMap {

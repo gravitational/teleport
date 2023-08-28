@@ -112,6 +112,16 @@ func (c *LockV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (c *LockV2) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *LockV2) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
+}
+
 // GetKind returns resource kind.
 func (c *LockV2) GetKind() string {
 	return c.Kind
