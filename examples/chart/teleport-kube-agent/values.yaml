@@ -110,7 +110,7 @@ databaseResources: []
 # set this to false (its default value).
 #showWindowsDesktopWallpaper: false
 
-# (optional) Configuration keys used when connecting Teleport
+# (required for AD configuration) Configuration keys used when connecting Teleport
 # to an Active Directory domain. This enables the discovery service for
 # Windows desktops belonging to an Active Directory domain configured for
 # Teleport access.
@@ -132,7 +132,7 @@ databaseResources: []
 # domain configured to grant Teleport access.
 windowsDesktopADHosts: []
 
-# (optional) non_ad_hosts is a list of hostnames that are not part of an
+# (optiona) non_ad_hosts is a list of hostnames that are not part of an
 # Active Diretory domain to register as WindowsDesktop objects in Teleport.
 # These hosts require the Teleport CA certificate and service, as described in
 # https://goteleport.com/docs/desktop-access/getting-started/

@@ -131,9 +131,6 @@ discovery_service:
 windows_desktop_service:
   {{- if contains "windowsdesktop" (.Values.roles | toString) }}
   enabled: true
-  {{- if not (or (.Values.windowsDesktopLDAP) (.Values.windowsDesktopNonADHosts) ) }}
-    {{- fail "at least one of 'windowsDesktopLDAP', 'windowsDesktopNonADHosts' is required in chart values when windowsdesktop role is enabled, see README" }}
-  {{- end }}
   {{- if .Values.showWindowsDesktopWallpaper }}
   show_desktop_wallpaper: {{ .Values.showWindowsDesktopWallpaper }}
   {{- end }}

@@ -279,9 +279,7 @@ windowsDesktopLDAP:
       jwMCMyy8p33w+Y11a0av4eD/V0KMQdS90uxsUD5t1NTr2Fn5rEbg
       -----END CERTIFICATE-----
 windowsDesktopDiscovery:
-  base_dn: "*"    
-windowsDesktopLabels: 
-  teleport.internal/resource-id: 5840df37-4cc3-49f1-ade0-ec9232575dbf    
+  base_dn: "*" 
 ```
 
 ```sh
