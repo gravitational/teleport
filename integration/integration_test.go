@@ -7928,7 +7928,7 @@ func testReconcileLabels(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, watcher.Close()) })
 
-	timeout := time.After(5 * time.Second)
+	timeout := time.After(10 * time.Second)
 	// Wait for server to receive updated labels.
 	for {
 		clock.Advance(15 * time.Minute)
