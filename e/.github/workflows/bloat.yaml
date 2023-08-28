@@ -59,7 +59,7 @@ jobs:
         name: Build base
         id: build_base
         run: |
-          make WEBASSETS_SKIP_BUILD=1 BUILDDIR=base_build binaries
+          make WEBASSETS_SKIP_BUILD=1 BUILDDIR=base_build all
           cd .github/shared-workflows/bot && go run main.go -workflow=binary-sizes --artifacts="tbot,tctl,teleport,tsh" --builddir="../../../base_build" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"  >> ~/teleport_base_build_stats
           echo "base_stats_file=~/teleport_base_build_stats" >> $GITHUB_OUTPUT
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
@@ -95,6 +95,6 @@ jobs:
       - name: Check branch for bloat
         id: build_branch
         run: |
-          make WEBASSETS_SKIP_BUILD=1 binaries
+          make WEBASSETS_SKIP_BUILD=1 all
           current=$(pwd)/build
           cd .github/shared-workflows/bot && go run main.go -workflow=bloat --artifacts="tbot,tctl,teleport,tsh" --base="${base_stats}" --builddir="${current}" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}" > $GITHUB_STEP_SUMMARY
