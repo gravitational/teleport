@@ -473,6 +473,7 @@ steps:
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Go -ToolchainDir "$Workspace/toolchains"
+  - Enable-Rust -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
   - cd "$TeleportSrc\e\windowsauth"
@@ -751,6 +752,7 @@ steps:
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Go -ToolchainDir "$Workspace/toolchains"
+  - Enable-Rust -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
   - cd "$TeleportSrc\e\windowsauth"
@@ -17119,6 +17121,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: fe4b25966946166fea1be9a05da31480baa5963de4caf62ae985ff4327b55ce9
+hmac: 38d88cfd48e6bd15c51a7d4bee1acd889330cc78b53720efdf713430702193a1
 
 ...
