@@ -353,13 +353,7 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 						w.Entry.WithError(err).Warn("Failed to send idle timeout message.")
 					}
 				}
-				w.Entry.Debugf("Disconnecting client: %v", reason)
-				if err := w.Conn.Close(); err != nil {
-					w.Entry.WithError(err).Error("Failed to close connection.")
-				}
-				if err := w.emitDisconnectEvent(reason); err != nil {
-					w.Entry.WithError(err).Warn("Failed to emit audit event.")
-				}
+				w.disconnectClient(reason)
 				return
 			}
 			next := w.ClientIdleTimeout - since
@@ -408,14 +402,18 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 
 func (w *Monitor) disconnectClientOnExpiredCert() {
 	reason := fmt.Sprintf("client certificate expired at %v", w.Clock.Now().UTC())
+	w.disconnectClient(reason)
+}
 
+func (w *Monitor) disconnectClient(reason string) {
 	w.Entry.Debugf("Disconnecting client: %v", reason)
-	if err := w.Conn.Close(); err != nil {
-		w.Entry.WithError(err).Error("Failed to close connection.")
-	}
-
+	// Emit Audit event first to make sure that that underlying context will not be canceled during
+	// emitting audit event.
 	if err := w.emitDisconnectEvent(reason); err != nil {
 		w.Entry.WithError(err).Warn("Failed to emit audit event.")
+	}
+	if err := w.Conn.Close(); err != nil {
+		w.Entry.WithError(err).Error("Failed to close connection.")
 	}
 }
 
@@ -448,13 +446,7 @@ func (w *Monitor) handleLockInForce(lockErr error) {
 			w.Entry.WithError(err).Warn("Failed to send lock-in-force message.")
 		}
 	}
-	w.Entry.Debugf("Disconnecting client: %v.", reason)
-	if err := w.Conn.Close(); err != nil {
-		w.Entry.WithError(err).Error("Failed to close connection.")
-	}
-	if err := w.emitDisconnectEvent(reason); err != nil {
-		w.Entry.WithError(err).Warn("Failed to emit audit event.")
-	}
+	w.disconnectClient(reason)
 }
 
 type trackingChannel struct {
