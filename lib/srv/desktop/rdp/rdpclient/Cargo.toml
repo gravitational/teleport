@@ -30,7 +30,7 @@ bytes = "1"
 futures-util = "0.3"
 tokio = { version = "1", features = ["full"]}
 tokio-util = { version = "0.7.4", features = ["compat"] }
-tokio-rustls =  { version = "0.23", features = ["dangerous_configuration"] }
+tokio-rustls =  { version = "0.24", features = ["dangerous_configuration"] }
 x509-parser = "0.14"
 sspi = { version = "0.10.1", features = ["network_client"] }
 
