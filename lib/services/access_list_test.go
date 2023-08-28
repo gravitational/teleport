@@ -460,6 +460,21 @@ func TestIsAccessListMember(t *testing.T) {
 		{
 			name: "is expired member",
 			identity: tlsca.Identity{
+				Username: member2,
+				Groups:   []string{"mrole1", "mrole2"},
+				Traits: map[string][]string{
+					"mtrait1": {"mvalue1", "mvalue2"},
+					"mtrait2": {"mvalue3", "mvalue4"},
+				},
+			},
+			currentTime: time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC),
+			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name: "is expired member (overridden next audit date)",
+			identity: tlsca.Identity{
 				Username: member1,
 				Groups:   []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
@@ -467,7 +482,7 @@ func TestIsAccessListMember(t *testing.T) {
 					"mtrait2": {"mvalue3", "mvalue4"},
 				},
 			},
-			currentTime: time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
+			currentTime: time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC),
 			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -550,7 +565,8 @@ func newAccessList(t *testing.T) *accesslist.AccessList {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				Frequency:     time.Hour,
+				NextAuditDate: time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
