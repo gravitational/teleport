@@ -1383,7 +1383,7 @@ exports[`failed state 1`] = `
                 kind="border"
                 width="90px"
               >
-                LAUNCH
+                Launch
                 <span
                   class="c33 icon icon-chevrondown"
                   color="text.slightlyMuted"
@@ -2667,7 +2667,7 @@ exports[`loaded state 1`] = `
                 kind="border"
                 width="90px"
               >
-                LAUNCH
+                Launch
                 <span
                   class="c33 icon icon-chevrondown"
                   color="text.slightlyMuted"
