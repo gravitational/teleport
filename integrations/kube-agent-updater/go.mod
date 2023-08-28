@@ -15,7 +15,7 @@ require (
 	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63
 	golang.org/x/mod v0.12.0
 	k8s.io/api v0.28.0
-	k8s.io/apimachinery v0.28.0
+	k8s.io/apimachinery v0.28.1
 	sigs.k8s.io/controller-runtime v0.15.1
 )
 
