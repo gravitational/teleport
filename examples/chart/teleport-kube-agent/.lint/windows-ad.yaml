@@ -3,7 +3,7 @@ proxyAddr: proxy.example.com:3080
 roles: windowsdesktop
 windowsDesktopLDAP:
   addr: '172.0.0.1:636'
-  domain: 'astroid.example.com'
+  domain: 'asteroid.example.com'
   username: 'ASTEROID\svc-teleport'
   sid: 'S-1-5-21-1717630186-822870621-3846248122-1103'
   server_name: 'EC2AMAZ-ULM3Q3S.asteroid.example.com'

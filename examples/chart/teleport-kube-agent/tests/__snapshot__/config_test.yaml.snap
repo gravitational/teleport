@@ -1241,7 +1241,7 @@ matches snapshot for windows-ad.yaml:
             teleport.internal/resource-id: 5840df37-4cc3-49f1-ade0-ec9232575dbf
           ldap:
             addr: 172.0.0.1:636
-            domain: astroid.example.com
+            domain: asteroid.example.com
             insecure_skip_verify: false
             ldap_ca_cert: |
               -----BEGIN CERTIFICATE-----
@@ -1266,9 +1266,9 @@ matches snapshot for windows-ad.yaml:
               cuXopj9f2j+oYPAz798A1rZAm9Kz4b5uI46ultSVhU9WmM+nyjPU/J803J7sgy/m
               jwMCMyy8p33w+Y11a0av4eD/V0KMQdS90uxsUD5t1NTr2Fn5rEbg
               -----END CERTIFICATE-----
-            server_name: EC2AMAZ-ULM3Q3S.astroid.example.com
+            server_name: EC2AMAZ-ULM3Q3S.asteroid.example.com
             sid: S-1-5-21-1717630186-822870621-3846248122-1103
-            username: ASTROID\svc-teleport
+            username: ASTEROID\svc-teleport
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
