@@ -35,7 +35,7 @@ export type UnifiedResource =
 
 export type UnifiedResourceKind = UnifiedResource['kind'];
 
-export type ResourcesResponse<T> = {
+export type ResourcesResponse<T extends UnifiedResource> = {
   agents: T[];
   startKey?: string;
   totalCount?: number;
@@ -58,36 +58,7 @@ export type ResourceFilter = {
   kinds?: string[];
 };
 
-export function resourceFiltersEqual(
-  a: ResourceFilter,
-  b: ResourceFilter
-): boolean {
-  return (
-    a.query === b.query &&
-    a.search === b.search &&
-    a.sort?.fieldName === b.sort?.fieldName &&
-    a.sort?.dir === b.sort?.dir &&
-    // Note: safe to compare as JSON, because it's an array of primitives. We
-    // can't do it with the rest of the fields, as the field order is affected
-    // by creation order.
-    JSON.stringify(a.kinds) === JSON.stringify(b.kinds)
-  );
-}
-
-export function resourceFilterToHookDeps({
-  query,
-  search,
-  sort,
-  kinds,
-}: ResourceFilter): [
-  string | null,
-  string | null,
-  string | null,
-  SortDir | null,
-  string
-] {
-  return [query, search, sort?.fieldName, sort?.dir, JSON.stringify(kinds)];
-}
+export const resourceFiltersEqual = (a, b) => a === b;
 
 export type SortType = {
   fieldName: string;

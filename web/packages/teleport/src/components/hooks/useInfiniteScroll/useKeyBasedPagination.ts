@@ -14,16 +14,17 @@
  * limitations under the License.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import {
   ResourcesResponse,
   ResourceFilter,
-  resourceFilterToHookDeps,
-  resourceFiltersEqual,
+  UnifiedResource,
 } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
+
+export const resourceFiltersEqual = (a, b) => a === b;
 
 /**
  * Supports fetching more data from the server when more data is available. Pass
@@ -37,7 +38,7 @@ import { UrlResourcesParams } from 'teleport/config';
  * This hook is an implementation detail of the `useInfiniteScroll` hook and
  * should not be used directly.
  */
-export function useKeyBasedPagination<T>({
+export function useKeyBasedPagination<T extends UnifiedResource>({
   fetchFunc,
   clusterId,
   filter,
@@ -47,7 +48,7 @@ export function useKeyBasedPagination<T>({
   const { attempt, setAttempt } = useAttempt();
   const [finished, setFinished] = useState(false);
   const [resources, setResources] = useState<T[]>([]);
-  const [startKey, setStartKey] = useState(null);
+  const [startKey, setStartKey] = useState<string | null>(null);
 
   // Ephemeral state used solely to coordinate fetch calls, doesn't need to
   // cause rerenders.
@@ -66,10 +67,7 @@ export function useKeyBasedPagination<T>({
   const [prevClusterId, setPrevClusterId] = useState(clusterId);
   const [prevFilter, setPrevFilter] = useState(filter);
 
-  if (
-    prevClusterId !== clusterId ||
-    !resourceFiltersEqual(prevFilter, filter)
-  ) {
+  if (prevClusterId !== clusterId || prevFilter !== filter) {
     setPrevClusterId(clusterId);
     setPrevFilter(filter);
 
@@ -83,7 +81,7 @@ export function useKeyBasedPagination<T>({
     setStartKey(null);
   }
 
-  const fetch = async (force: boolean) => {
+  const fetchInternal = async (force: boolean) => {
     if (
       finished ||
       (!force &&
@@ -104,7 +102,6 @@ export function useKeyBasedPagination<T>({
         {
           ...filter,
           limit,
-          // startKey: startKey,
           startKey,
         },
         abortController.current.signal
@@ -129,7 +126,6 @@ export function useKeyBasedPagination<T>({
       // sorry.
       setResources([...resources, ...res.agents]);
       setStartKey(res.startKey);
-      // startKey = res.startKey;
       if (!res.startKey) {
         setFinished(true);
       }
@@ -146,16 +142,19 @@ export function useKeyBasedPagination<T>({
 
   const callbackDeps = [
     clusterId,
-    ...resourceFilterToHookDeps(filter),
+    filter,
     startKey,
     resources,
     finished,
     attempt,
   ];
 
+  const fetch = useCallback(() => fetchInternal(false), callbackDeps);
+  const forceFetch = useCallback(() => fetchInternal(true), callbackDeps);
+
   return {
-    fetch: useCallback(() => fetch(false), callbackDeps),
-    forceFetch: useCallback(() => fetch(true), callbackDeps),
+    fetch,
+    forceFetch,
     attempt,
     resources,
     finished,
@@ -166,7 +165,7 @@ const isAbortError = (err: any): boolean =>
   (err instanceof DOMException && err.name === 'AbortError') ||
   (err.cause && isAbortError(err.cause));
 
-export type Props<T> = {
+export type Props<T extends UnifiedResource> = {
   fetchFunc: (
     clusterId: string,
     params: UrlResourcesParams,

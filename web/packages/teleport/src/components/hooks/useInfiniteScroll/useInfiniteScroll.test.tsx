@@ -17,11 +17,11 @@
 import React from 'react';
 
 import { renderHook, act } from '@testing-library/react-hooks';
-import { render, screen, waitFor } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 
-import { useInfiniteScroll, Props } from './useInfiniteScroll';
-import { TestResource, newFetchFunc, resourceNames } from './testUtils';
+import { useInfiniteScroll } from './useInfiniteScroll';
+import { newFetchFunc, resourceNames } from './testUtils';
 
 const mio = mockIntersectionObserver();
 
@@ -37,9 +37,9 @@ function hookProps() {
 }
 
 test('fetches data whenever an element is in view', async () => {
-  const { result, waitForNextUpdate } = renderHook(() =>
-    useInfiniteScroll(hookProps())
-  );
+  const { result, waitForNextUpdate } = renderHook(useInfiniteScroll, {
+    initialProps: hookProps(),
+  });
   render(<div ref={result.current.setTrigger} data-testid="trigger" />);
   const trigger = screen.getByTestId('trigger');
   expect(resourceNames(result)).toEqual([]);

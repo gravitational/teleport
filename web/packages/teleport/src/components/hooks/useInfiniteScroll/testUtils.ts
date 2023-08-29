@@ -1,21 +1,32 @@
+import 'whatwg-fetch';
+import { RenderResult } from '@testing-library/react-hooks';
+
 import { UrlResourcesParams } from 'teleport/config';
 import { ApiError } from 'teleport/services/api/parseError';
-import { RenderResult } from '@testing-library/react-hooks';
-import { State } from './useKeyBasedPagination';
 
-export interface TestResource {
-  name: string;
-  clusterId: string;
-}
+import { Node } from 'teleport/services/nodes';
 
+/**
+ * Creates `n` nodes. We use the `Node` type for testing, because it's slim and
+ * it has a `clusterId` field.
+ */
 function makeTestResources(
   clusterId: string,
   namePrefix: string,
   n: number
-): TestResource[] {
+): Node[] {
   return Array(n)
     .fill(0)
-    .map((_, i) => ({ clusterId: clusterId, name: `${namePrefix}${i}` }));
+    .map((_, i) => ({
+      kind: 'node',
+      id: i.toString(),
+      clusterId: clusterId,
+      hostname: `${namePrefix}${i}`,
+      labels: [],
+      addr: '',
+      tunnel: false,
+      sshLogins: [],
+    }));
 }
 
 export function newDOMAbortError() {
@@ -66,14 +77,12 @@ export function newFetchFunc(
   };
 }
 
-export function resourceNames(
-  result: RenderResult<{ resources: TestResource[] }>
-) {
-  return result.current.resources.map((r: any) => r.name);
+export function resourceNames(result: RenderResult<{ resources: Node[] }>) {
+  return result.current.resources.map(r => r.hostname);
 }
 
 export function resourceClusterIds(
-  result: RenderResult<{ resources: TestResource[] }>
+  result: RenderResult<{ resources: Node[] }>
 ) {
-  return result.current.resources.map((r: any) => r.clusterId);
+  return result.current.resources.map(r => r.clusterId);
 }

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useRef } from 'react';
+import React from 'react';
 import { Box, Indicator, Flex, ButtonLink, ButtonSecondary } from 'design';
 
 import styled from 'styled-components';
@@ -53,7 +53,6 @@ export function Resources() {
   const { params, setParams, replaceHistory, pathname, setSort, onLabelClick } =
     filtering;
 
-  const scrollDetector = useRef(null);
   const {
     setTrigger: setScrollDetector,
     forceFetch,
@@ -61,7 +60,6 @@ export function Resources() {
     attempt,
   } = useInfiniteScroll({
     fetchFunc: teleCtx.resourceService.fetchUnifiedResources,
-    // trigger: scrollDetector.current,
     clusterId,
     filter: params,
   });

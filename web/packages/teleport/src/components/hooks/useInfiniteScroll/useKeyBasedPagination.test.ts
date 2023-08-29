@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import { renderHook, act, RenderResult } from '@testing-library/react-hooks';
+import { renderHook, act } from '@testing-library/react-hooks';
 
-import { UrlResourcesParams } from 'teleport/config';
 import { ApiError } from 'teleport/services/api/parseError';
 
-import { useKeyBasedPagination, Props, State } from './useKeyBasedPagination';
+import { Node } from 'teleport/services/nodes';
+
+import { useKeyBasedPagination, Props } from './useKeyBasedPagination';
 import {
-  TestResource,
   newApiAbortError,
   newDOMAbortError,
   newFetchFunc,
@@ -29,7 +29,7 @@ import {
   resourceNames,
 } from './testUtils';
 
-function hookProps(overrides: Partial<Props<TestResource>> = {}) {
+function hookProps(overrides: Partial<Props<Node>> = {}) {
   return {
     fetchFunc: newFetchFunc(7),
     clusterId: 'test-cluster',
@@ -46,14 +46,12 @@ test.each`
   ${4}  | ${['r0', 'r1', 'r2', 'r3']}
   ${10} | ${['r0', 'r1', 'r2', 'r3']}
 `('fetches one data batch, n=$n', async ({ n, names }) => {
-  const { result } = renderHook(() =>
-    useKeyBasedPagination(
-      hookProps({
-        fetchFunc: newFetchFunc(4),
-        initialFetchSize: n,
-      })
-    )
-  );
+  const { result } = renderHook(useKeyBasedPagination, {
+    initialProps: hookProps({
+      fetchFunc: newFetchFunc(4),
+      initialFetchSize: n,
+    }),
+  });
 
   expect(result.current.resources).toEqual([]);
   await act(result.current.fetch);
@@ -61,7 +59,9 @@ test.each`
 });
 
 test('fetches multiple data batches', async () => {
-  const { result } = renderHook(() => useKeyBasedPagination(hookProps()));
+  const { result } = renderHook(useKeyBasedPagination, {
+    initialProps: hookProps(),
+  });
   expect(result.current.finished).toBe(false);
 
   await act(result.current.fetch);
@@ -79,7 +79,9 @@ test('fetches multiple data batches', async () => {
 });
 
 test('maintains attempt state', async () => {
-  const { result } = renderHook(() => useKeyBasedPagination(hookProps()));
+  const { result } = renderHook(useKeyBasedPagination, {
+    initialProps: hookProps(),
+  });
 
   expect(result.current.attempt.status).toBe('');
   let fetchPromise;
@@ -134,18 +136,19 @@ test('restarts after query params change', async () => {
 });
 
 test("doesn't restart if params didn't change on rerender", async () => {
+  const props = hookProps();
   const { result, rerender } = renderHook(useKeyBasedPagination, {
-    initialProps: hookProps(),
+    initialProps: props,
   });
   await act(result.current.fetch);
   expect(resourceNames(result)).toEqual(['r0', 'r1']);
-  rerender(hookProps());
+  rerender(props);
   await act(result.current.fetch);
   expect(resourceNames(result)).toEqual(['r0', 'r1', 'r2', 'r3', 'r4']);
 });
 
 describe("doesn't react to fetch() calls before the previous one finishes", () => {
-  let props: Props<TestResource>, fetchSpy;
+  let props: Props<Node>, fetchSpy;
 
   beforeEach(() => {
     props = hookProps();
@@ -153,7 +156,9 @@ describe("doesn't react to fetch() calls before the previous one finishes", () =
   });
 
   test('when called once per state reconciliation cycle', async () => {
-    const { result } = renderHook(() => useKeyBasedPagination(props));
+    const { result } = renderHook(useKeyBasedPagination, {
+      initialProps: props,
+    });
     let f1, f2;
     act(() => {
       f1 = result.current.fetch();
@@ -169,7 +174,9 @@ describe("doesn't react to fetch() calls before the previous one finishes", () =
   });
 
   test('when called multiple times per state reconciliation cycle', async () => {
-    const { result } = renderHook(() => useKeyBasedPagination(props));
+    const { result } = renderHook(useKeyBasedPagination, {
+      initialProps: props,
+    });
     let f1, f2;
     act(() => {
       f1 = result.current.fetch();
@@ -212,7 +219,9 @@ describe.each`
 `('for error type $name', ({ ErrorType }) => {
   it('stops fetching more pages once error is encountered', async () => {
     const props = hookProps();
-    const { result } = renderHook(() => useKeyBasedPagination(props));
+    const { result } = renderHook(useKeyBasedPagination, {
+      initialProps: props,
+    });
     const fetchSpy = jest.spyOn(props, 'fetchFunc');
 
     await act(result.current.fetch);
@@ -258,7 +267,9 @@ describe.each`
 
   it('resumes fetching once forceFetch is called after an error', async () => {
     const props = hookProps();
-    const { result } = renderHook(() => useKeyBasedPagination(props));
+    const { result } = renderHook(useKeyBasedPagination, {
+      initialProps: props,
+    });
     const fetchSpy = jest.spyOn(props, 'fetchFunc');
 
     await act(result.current.fetch);
@@ -276,9 +287,24 @@ describe.each`
 test('forceFetch spawns another request, even if there is one pending', async () => {
   const props = hookProps();
   const fetchSpy = jest.spyOn(props, 'fetchFunc');
-  const { result } = renderHook(() => useKeyBasedPagination(props));
+  const { result } = renderHook(useKeyBasedPagination, {
+    initialProps: props,
+  });
   fetchSpy.mockImplementationOnce(async () => {
-    return { agents: [{ name: 'impostor', clusterId: 'sus' }] };
+    return {
+      agents: [
+        {
+          kind: 'node',
+          id: 'sus',
+          clusterId: 'test-cluster',
+          hostname: `impostor`,
+          labels: [],
+          addr: '',
+          tunnel: false,
+          sshLogins: [],
+        },
+      ],
+    };
   });
   let f1, f2;
   act(() => {

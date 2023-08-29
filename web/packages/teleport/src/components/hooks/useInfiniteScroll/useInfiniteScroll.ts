@@ -14,21 +14,27 @@
  * limitations under the License.
  */
 
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
+
+import { Attempt } from 'shared/hooks/useAttemptNext';
+
+import { UnifiedResource } from 'teleport/services/agents';
+
 import {
   useKeyBasedPagination,
   Props as PaginationProps,
 } from './useKeyBasedPagination';
-import { Attempt } from 'shared/hooks/useAttemptNext';
 
-export type Props<T> = PaginationProps<T>;
+export type Props<T extends UnifiedResource> = PaginationProps<T>;
 
 /**
  * Fetches a part of resource list whenever the `trigger` element intersects the
  * viewport until the list is exhausted or an error happens. Use
  * [State.forceFetch] to continue after an error.
  */
-export function useInfiniteScroll<T>(props: Props<T>): State<T> {
+export function useInfiniteScroll<T extends UnifiedResource>(
+  props: Props<T>
+): State<T> {
   const observer = useRef<IntersectionObserver | null>(null);
   const trigger = useRef<Element | null>(null);
 
@@ -52,7 +58,12 @@ export function useInfiniteScroll<T>(props: Props<T>): State<T> {
     recreateObserver();
   };
 
-  useLayoutEffect(recreateObserver, [fetch]);
+  useLayoutEffect(() => {
+    recreateObserver();
+    return () => {
+      observer.current?.disconnect();
+    };
+  }, [fetch]);
 
   return { setTrigger, forceFetch, attempt, resources, finished };
 }
