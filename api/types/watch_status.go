@@ -88,6 +88,16 @@ func (w *WatchStatusV1) SetResourceID(id int64) {
 	w.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (w *WatchStatusV1) GetRevision() string {
+	return w.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (w *WatchStatusV1) SetRevision(rev string) {
+	w.Metadata.SetRevision(rev)
+}
+
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (w *WatchStatusV1) CheckAndSetDefaults() error {
 	return nil

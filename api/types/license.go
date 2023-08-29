@@ -205,6 +205,16 @@ func (c *LicenseV3) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (c *LicenseV3) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *LicenseV3) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
+}
+
 // GetName returns the name of the resource
 func (c *LicenseV3) GetName() string {
 	return c.Metadata.Name

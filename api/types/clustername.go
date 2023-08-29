@@ -84,6 +84,16 @@ func (c *ClusterNameV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (c *ClusterNameV2) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *ClusterNameV2) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
+}
+
 // GetName returns the name of the cluster.
 func (c *ClusterNameV2) GetName() string {
 	return c.Metadata.Name

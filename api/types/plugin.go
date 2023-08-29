@@ -308,6 +308,16 @@ func (p *PluginV1) SetResourceID(id int64) {
 	p.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (p *PluginV1) GetRevision() string {
+	return p.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (p *PluginV1) SetRevision(rev string) {
+	p.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns object metadata
 func (p *PluginV1) GetMetadata() Metadata {
 	return p.Metadata

@@ -116,6 +116,16 @@ func (c *GithubConnectorV3) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (c *GithubConnectorV3) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *GithubConnectorV3) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
+}
+
 // GetName returns the name of the connector
 func (c *GithubConnectorV3) GetName() string {
 	return c.Metadata.GetName()

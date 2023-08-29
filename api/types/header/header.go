@@ -64,6 +64,16 @@ func (h *ResourceHeader) SetResourceID(id int64) {
 	h.Metadata.SetID(id)
 }
 
+// GetRevision returns the revision.
+func (h *ResourceHeader) GetRevision() string {
+	return h.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision.
+func (h *ResourceHeader) SetRevision(rev string) {
+	h.Metadata.SetRevision(rev)
+}
+
 // GetName returns the name of the resource.
 func (h *ResourceHeader) GetName() string {
 	return h.Metadata.GetName()
@@ -163,17 +173,34 @@ type Metadata struct {
 	// Expires is a global expiry time header can be set on any resource in the system.
 	Expires time.Time `json:"expires" yaml:"expires"`
 	// ID is a record ID
+	// Deprecated: Use revision instead.
 	ID int64 `json:"id,omitempty" yaml:"id,omitempty"`
+	// Revision is an opaque identifier which tracks the versions of a resource
+	// over time. Clients should ignore and not alter its value but must return
+	// the revision in any updates of a resource.
+	Revision string `json:"revision,omitempty" yaml:"revision,omitempty"`
 }
 
 // GetID returns the resource ID.
+// Deprecated: Use GetRevision instead
 func (m *Metadata) GetID() int64 {
 	return m.ID
 }
 
 // SetID sets the resource ID.
+// Deprecated: Use SetRevision instead
 func (m *Metadata) SetID(id int64) {
 	m.ID = id
+}
+
+// GetRevision returns the revision
+func (m *Metadata) GetRevision() string {
+	return m.Revision
+}
+
+// SetRevision sets the revision
+func (m *Metadata) SetRevision(rev string) {
+	m.Revision = rev
 }
 
 // GetName returns the name of the resource.
