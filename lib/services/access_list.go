@@ -232,7 +232,7 @@ func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock cloc
 	}
 
 	if !clock.Now().Before(expires) {
-		return trace.NotFound("user %s's membership has expired in the access list", username)
+		return trace.AccessDenied("user %s's membership has expired in the access list", username)
 	}
 
 	if !userMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
