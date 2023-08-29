@@ -516,12 +516,13 @@ func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEvent
 type ResourceKind = prehogv1a.ResourceKind
 
 const (
-	ResourceKindNode           = prehogv1a.ResourceKind_RESOURCE_KIND_NODE
-	ResourceKindAppServer      = prehogv1a.ResourceKind_RESOURCE_KIND_APP_SERVER
-	ResourceKindKubeServer     = prehogv1a.ResourceKind_RESOURCE_KIND_KUBE_SERVER
-	ResourceKindDBServer       = prehogv1a.ResourceKind_RESOURCE_KIND_DB_SERVER
-	ResourceKindWindowsDesktop = prehogv1a.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
-	ResourceKindNodeOpenSSH    = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
+	ResourceKindNode            = prehogv1a.ResourceKind_RESOURCE_KIND_NODE
+	ResourceKindAppServer       = prehogv1a.ResourceKind_RESOURCE_KIND_APP_SERVER
+	ResourceKindKubeServer      = prehogv1a.ResourceKind_RESOURCE_KIND_KUBE_SERVER
+	ResourceKindDBServer        = prehogv1a.ResourceKind_RESOURCE_KIND_DB_SERVER
+	ResourceKindWindowsDesktop  = prehogv1a.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
+	ResourceKindNodeOpenSSH     = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
+	ResourceKindNodeOpenSSHEICE = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH_EICE
 )
 
 func ResourceKindFromKeepAliveType(t types.KeepAlive_KeepAliveType) ResourceKind {
