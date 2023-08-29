@@ -1165,6 +1165,17 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiscovery), process.log)
 	}
 
+	if process.enterpriseServicesEnabledWithCommunityBuild() {
+		var services []string
+		if process.Config.Okta.Enabled {
+			services = append(services, "okta")
+		}
+		if process.Config.Jamf.Enabled() {
+			services = append(services, "jamf")
+		}
+		return nil, trace.BadParameter("Attempting to use enterprise only services %v, with a community teleport build", services)
+	}
+
 	// Enterprise services will be handled by the enterprise binary. We'll let these set serviceStarted
 	// to true and let the enterprise binary error if need be.
 	if process.enterpriseServicesEnabled() {
@@ -1205,9 +1216,16 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	return process, nil
 }
 
-// enterpriseServicesEnabled will return true of any enterprise services are enabled.
+// enterpriseServicesEnabled will return true if any enterprise services are enabled.
 func (process *TeleportProcess) enterpriseServicesEnabled() bool {
 	return modules.GetModules().BuildType() == modules.BuildEnterprise &&
+		(process.Config.Okta.Enabled || process.Config.Jamf.Enabled())
+}
+
+// enterpriseServicesEnabledWithCommunityBuild will return true if any
+// enterprise services are enabled with an OSS teleport build.
+func (process *TeleportProcess) enterpriseServicesEnabledWithCommunityBuild() bool {
+	return modules.GetModules().BuildType() == modules.BuildOSS &&
 		(process.Config.Okta.Enabled || process.Config.Jamf.Enabled())
 }
 
