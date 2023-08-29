@@ -98,6 +98,7 @@ deploy-database-agents:
 		--create-namespace \
 		teleport/teleport-kube-agent \
 		--set teleportVersionOverride="${TELEPORT_VERSION}" \
+		--set highAvailability.replicaCount=${NODE_REPLICAS} \
 		--set roles=db \
 		--set proxyAddr=${PROXY_SERVER} \
 		--set authToken=${NODE_TOKEN} \
