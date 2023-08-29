@@ -87,7 +87,9 @@ export function Resources() {
           <ErrorBoxInternal>
             <Danger>
               {attempt.statusText}
-              <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
+              <Box flex="0 0 auto" ml={2}>
+                <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
+              </Box>
             </Danger>
           </ErrorBoxInternal>
         </ErrorBox>
