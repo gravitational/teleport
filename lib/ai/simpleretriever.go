@@ -21,7 +21,27 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/lib/ai/embedding"
+	"github.com/gravitational/trace"
 )
+
+// Document is a embedding enriched with similarity score
+type Document struct {
+	*embedding.Embedding
+	SimilarityScore float64
+}
+
+func calculateSimilarity(v1, v2 []float64) (float64, error) {
+	if len(v1) != len(v2) {
+		return 0, trace.BadParameter("vectors must be the same length")
+	}
+
+	var result float64
+	for i, val := range v1 {
+		result += val * v2[i]
+	}
+
+	return result, nil
+}
 
 // SimpleRetriever is a simple implementation of embeddings retriever.
 // It stores all the embeddings in memory and retrieves the k nearest neighbors
