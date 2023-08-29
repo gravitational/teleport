@@ -1181,8 +1181,8 @@
           "slug": "/desktop-access/introduction/"
         },
         {
-          "title": "Getting Started",
-          "slug": "/desktop-access/getting-started/",
+          "title": "Configure access for local users",
+          "slug": "/desktop-access/windows-local-users/",
           "forScopes": ["enterprise", "cloud"]
         },
         {
