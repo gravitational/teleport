@@ -93,15 +93,16 @@ deploy-database-agents:
 		database-agents \
 		-n database-agents \
 		--create-namespace \
-		./helm/database-agent/ \
-		--set image.tag=${TELEPORT_VERSION} \
-		--set replicaCount=${NODE_REPLICAS} \
-		--set proxyServer=${PROXY_SERVER} \
-		--set joinParams.token_name=${NODE_TOKEN} \
-		--set serviceAccount.roleARN=${DATABASE_ROLE_ARN} \
+		teleport/teleport-kube-agent \
+		--set roles=db \
+		--set proxyAddr=${PROXY_SERVER} \
+		--set authToken=${NODE_TOKEN} \
+		--set annotations.serviceAccount."eks\.amazonaws\.com/role-arn"=${DATABASE_ROLE_ARN} \
 		--set databases[0].name=${POSTGRES_NAME} \
 		--set databases[0].protocol=postgres \
 		--set databases[0].uri=${POSTGRES_URL} \
 		--set databases[1].name=${MYSQL_NAME} \
 		--set databases[1].protocol=mysql \
 		--set databases[1].uri=${MYSQL_URL}
+
+	$(MAKE) -C control-plane enable-database-agents-monitoring

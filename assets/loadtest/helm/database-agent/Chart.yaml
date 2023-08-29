@@ -1,9 +1,0 @@
-apiVersion: v2
-name: database-agent
-description: Deploys database load-test agents (Teleport nodes running Database acccess service)
-
-type: application
-
-version: 0.1.0
-
-appVersion: "13.0.0-alpha.1"
