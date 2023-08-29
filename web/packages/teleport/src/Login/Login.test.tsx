@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { MemoryRouter, Route } from 'react-router';
 import { render, fireEvent, screen, waitFor } from 'design/utils/testing';
 import { privateKeyEnablingPolicies } from 'shared/services/consts';
 
@@ -155,22 +156,21 @@ describe('test MOTD', () => {
   });
 
   test('skip motd if login initiated from headless auth', async () => {
-    // set global window.location with redirect url.
-    global.window = Object.create(window);
-    const url =
-      'https://teleport.example.com/web/login?redirect_uri=https://teleport.example.com/web/headless/5c5c1f73-ac5c-52ee-bc9e-0353094dcb4a';
-    Object.defineProperty(window, 'location', {
-      value: {
-        href: url,
-      },
-    });
-
     jest
       .spyOn(cfg, 'getMotd')
       .mockImplementation(
         () => 'Welcome to cluster, your activity will be recorded.'
       );
-    render(<Login />);
+
+    const url =
+      'https://teleport.example.com/web/login?redirect_uri=https://teleport.example.com/web/headless/5c5c1f73-ac5c-52ee-bc9e-0353094dcb4a';
+    render(
+      <MemoryRouter>
+        <Route path={url}>
+          <Login />
+        </Route>
+      </MemoryRouter>
+    );
 
     expect(
       screen.queryByText('Welcome to cluster, your activity will be recorded.')
