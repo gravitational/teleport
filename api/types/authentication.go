@@ -133,6 +133,11 @@ type AuthPreference interface {
 	// SetDefaultSessionTTL sets the max session ttl
 	SetDefaultSessionTTL(Duration)
 
+	// GetOktaSyncPeriod returns the duration between Okta synchronization calls if the Okta service is running.
+	GetOktaSyncPeriod() time.Duration
+	// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
+	SetOktaSyncPeriod(timeBetweenSyncs time.Duration)
+
 	// String represents a human readable version of authentication settings.
 	String() string
 }
@@ -461,6 +466,16 @@ func (c *AuthPreferenceV2) GetDefaultSessionTTL() Duration {
 	return c.Spec.DefaultSessionTTL
 }
 
+// GetOktaSyncPeriod returns the duration between Okta synchronization calls if the Okta service is running.
+func (c *AuthPreferenceV2) GetOktaSyncPeriod() time.Duration {
+	return time.Duration(c.Spec.Okta.SyncPeriod)
+}
+
+// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
+func (c *AuthPreferenceV2) SetOktaSyncPeriod(timeBetweenSyncs time.Duration) {
+	c.Spec.Okta.SyncPeriod = int64(timeBetweenSyncs)
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (c *AuthPreferenceV2) setStaticFields() {
 	c.Kind = KindClusterAuthPreference
@@ -638,6 +653,11 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	if c.Spec.IDP.SAML.Enabled == nil {
 		// Enable the IdP by default.
 		c.Spec.IDP.SAML.Enabled = NewBoolOption(true)
+	}
+
+	// Make sure the Okta field is populated.
+	if c.Spec.Okta == nil {
+		c.Spec.Okta = &OktaOptions{}
 	}
 
 	return nil
