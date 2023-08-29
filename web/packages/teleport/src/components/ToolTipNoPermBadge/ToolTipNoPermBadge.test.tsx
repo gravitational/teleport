@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { render, screen, userEvent } from 'design/utils/testing';
 
-import { ToolTipNoPermBadge, TooltipText } from './ToolTipNoPermBadge';
+import { BadgeTitle, ToolTipNoPermBadge } from './ToolTipNoPermBadge';
 
 test('hovering renders tooltip msg and unhovering makes it disappear', async () => {
   render(
@@ -63,8 +63,8 @@ test('sticky prop prevents tooltip from disappearing until child element is unho
   expect(screen.queryByTestId('tooltip-msg')).not.toBeInTheDocument();
 });
 
-test('tooltipText prop shows different text', async () => {
-  // test default to be TooltipText.LackingPermissions
+test('badgeTitle prop shows different text', async () => {
+  // test default to be BadgeTitle.LackingPermissions
   const { rerender } = render(
     <SomeBox>
       <ToolTipNoPermBadge children="test message" />
@@ -72,31 +72,31 @@ test('tooltipText prop shows different text', async () => {
   );
 
   let badge = screen.getByTestId('tooltip');
-  expect(badge).toHaveTextContent(TooltipText.LackingPermissions);
+  expect(badge).toHaveTextContent(BadgeTitle.LackingPermissions);
 
-  // test TooltipText.LackingEnterpriseLicense
+  // test BadgeTitle.LackingEnterpriseLicense
   rerender(
     <SomeBox>
       <ToolTipNoPermBadge
         children="test message"
-        tooltipText={TooltipText.LackingEnterpriseLicense}
+        badgeTitle={BadgeTitle.LackingEnterpriseLicense}
       />
     </SomeBox>
   );
 
-  expect(badge).toHaveTextContent(TooltipText.LackingEnterpriseLicense);
+  expect(badge).toHaveTextContent(BadgeTitle.LackingEnterpriseLicense);
 
-  // test TooltipText.LackingPermissions
+  // test BadgeTitle.LackingPermissions
   rerender(
     <SomeBox>
       <ToolTipNoPermBadge
         children="test message"
-        tooltipText={TooltipText.LackingPermissions}
+        badgeTitle={BadgeTitle.LackingPermissions}
       />
     </SomeBox>
   );
 
-  expect(badge).toHaveTextContent(TooltipText.LackingPermissions);
+  expect(badge).toHaveTextContent(BadgeTitle.LackingPermissions);
 });
 
 const SomeBox = styled.div`
