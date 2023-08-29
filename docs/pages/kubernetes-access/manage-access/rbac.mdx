@@ -213,7 +213,7 @@ Request a token that the Kubernetes Service will use to join your Teleport
 cluster:
 
 ```code
-$ tctl tokens add --type=kube --ttl=1h --format=text
+$ tctl tokens add --type=kube,app,discovery --ttl=1h --format=text
 ```
 
 Copy this token so you can use it when running the Teleport Kubernetes Service.
@@ -226,6 +226,7 @@ requested earlier:
 ```code
 $ helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=minikube \
+  --set roles="kube\,app\,discovery" \
   --set proxyAddr=<Var name="proxy-address" /> \
   --set authToken=<Var name="token" /> \
   --set labels.region=local --set labels.platform=minikube \

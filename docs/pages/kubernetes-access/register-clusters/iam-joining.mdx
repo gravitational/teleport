@@ -248,6 +248,7 @@ $ CLUSTER=iam-cluster
 $ PROXY=tele.example.com:443
 $ helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=${CLUSTER?} \
+  --set roles="kube\,app\,discovery" \
   --set proxyAddr=${PROXY?} \
   --set joinParams.method=iam \
   --set joinParams.tokenName=<Var name="kube-iam-token"/> \

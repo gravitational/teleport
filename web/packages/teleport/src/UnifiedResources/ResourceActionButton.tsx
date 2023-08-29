@@ -244,6 +244,7 @@ const KubeConnect = ({ kube }: { kube: Kube }) => {
   return (
     <>
       <ButtonBorder
+        width="90px"
         textTransform="none"
         size="small"
         onClick={() => setOpen(true)}

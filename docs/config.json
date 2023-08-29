@@ -1606,7 +1606,7 @@
       "version": "14.0.0-dev",
       "git": "api/14.0.0-gd1e081e",
       "url": "teleport.example.com",
-      "golang": "1.20",
+      "golang": "1.21",
       "plugin": {
         "version": "12.1.1"
       },
