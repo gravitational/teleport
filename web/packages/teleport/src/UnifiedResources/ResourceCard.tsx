@@ -33,6 +33,7 @@ import {
   UnifiedResource,
   UnifiedResourceKind,
 } from 'teleport/services/agents';
+import { Database } from 'teleport/services/databases';
 
 import { ResourceActionButton } from './ResourceActionButton';
 
@@ -221,12 +222,31 @@ function resourceDescription(resource: UnifiedResource) {
   }
 }
 
+function databaseIconName(resource: Database): ResourceIconName {
+  switch (resource.protocol) {
+    case 'postgres':
+      return 'Postgres';
+    case 'mysql':
+      return 'MysqlLarge';
+    case 'mongodb':
+      return 'Mongo';
+    case 'cockroachdb':
+      return 'Cockroach';
+    case 'snowflake':
+      return 'Snowflake';
+    case 'dynamodb':
+      return 'Dynamo';
+    default:
+      return 'Database';
+  }
+}
+
 function resourceIconName(resource: UnifiedResource): ResourceIconName {
   switch (resource.kind) {
     case 'app':
       return 'Application';
     case 'db':
-      return 'Database';
+      return databaseIconName(resource);
     case 'kube_cluster':
       return 'Kube';
     case 'node':
