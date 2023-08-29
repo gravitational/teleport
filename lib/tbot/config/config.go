@@ -205,9 +205,6 @@ type OnboardingConfig struct {
 	// connection to the Teleport auth server.
 	CAPins []string `yaml:"ca_pins,omitempty"`
 
-	// Insecure instructs `tbot` to trust the Auth Server without verifying the CA.
-	Insecure bool `yaml:"insecure,omitempty"`
-
 	// JoinMethod is the method the bot should use to exchange a token for the
 	// initial certificate
 	JoinMethod types.JoinMethod `yaml:"join_method"`
