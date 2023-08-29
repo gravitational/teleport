@@ -14,16 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { fonts } from './fonts';
-import { darken, getContrastRatio } from './utils/colorManipulator';
-import { blue, lightBlue, blueGrey, yellow } from './palette';
-import typography, { fontSizes, fontWeights } from './typography';
-import { sharedStyles } from './sharedStyles';
+import { darken } from '../utils/colorManipulator';
+import { blue } from '../palette';
 
-const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
-const contrastThreshold = 3;
+import { sharedColors, sharedStyles } from './sharedStyles';
+import { DataVisualisationColors, Theme, ThemeColors } from './types';
 
-const dataVisualisationColors = {
+const dataVisualisationColors: DataVisualisationColors = {
   primary: {
     purple: '#5531D4',
     wednesdays: '#A70DAF',
@@ -53,46 +50,32 @@ const dataVisualisationColors = {
   },
 };
 
-const colors = {
-  /*
-  Colors in `levels` are used to reflect the perceived depth of elements in the UI.
-  The further back an element is, the more "sunken" it is, and the more forwards it is, the more "elevated" it is (think CSS z-index).
+const levels = {
+  deep: '#E6E9EA',
 
-  A `sunken` color would be used to represent something like the background of the app.
-  While `surface` would be the color of the primary surface where most content is located (such as tables).
-  Any colors more "elevated" than that would be used for things such as popovers, menus, and dialogs.
+  sunken: '#F1F2F4',
 
-  For more information on this concept: https://m3.material.io/styles/elevation/applying-elevation
- */
-  levels: {
-    deep: '#E6E9EA',
+  surface: '#FBFBFC',
 
-    sunken: '#F1F2F4',
+  elevated: '#FFFFFF',
 
-    surface: '#FBFBFC',
+  popout: '#FFFFFF',
+};
 
-    elevated: '#FFFFFF',
+const colors: ThemeColors = {
+  ...sharedColors,
 
-    popout: '#FFFFFF',
-  },
+  levels,
 
-  // Spot backgrounds are used as highlights, for example
-  // to indicate a hover or active state for an item in a menu.
   spotBackground: ['rgba(0,0,0,0.06)', 'rgba(0,0,0,0.13)', 'rgba(0,0,0,0.18)'],
 
   brand: '#512FC9',
 
   text: {
-    // The most important text.
     main: '#000000',
-    // Slightly muted text.
     slightlyMuted: 'rgba(0,0,0,0.72)',
-    // Muted text. Also used as placeholder text in forms.
     muted: 'rgba(0,0,0,0.54)',
-    // Disabled text.
     disabled: 'rgba(0,0,0,0.36)',
-    // For text on  a background that is on a color opposite to the theme. For dark theme,
-    // this would mean text that is on a light background.
     primaryInverse: '#FFFFFF',
   },
 
@@ -146,13 +129,6 @@ const colors = {
 
   progressBarColor: '#007D6B',
 
-  dark: '#000000',
-  light: '#FFFFFF',
-
-  grey: {
-    ...blueGrey,
-  },
-
   error: {
     main: '#CC372D',
     hover: '#A32C24',
@@ -180,19 +156,19 @@ const colors = {
 
   terminal: {
     foreground: '#000',
-    background: '#F1F2F4', // levels.sunken
+    background: levels.sunken,
     selectionBackground: 'rgba(0, 0, 0, 0.18)',
     cursor: '#000',
-    cursorAccent: '#F1F2F4',
+    cursorAccent: levels.sunken,
     red: dataVisualisationColors.tertiary.abbey,
     green: dataVisualisationColors.tertiary.caribbean,
     yellow: dataVisualisationColors.tertiary.sunflower,
     blue: dataVisualisationColors.tertiary.picton,
     magenta: dataVisualisationColors.tertiary.purple,
     cyan: dataVisualisationColors.tertiary.cyan,
-    brightWhite: darken('#F1F2F4', 0.55),
-    white: darken('#F1F2F4', 0.68),
-    brightBlack: darken('#F1F2F4', 0.8),
+    brightWhite: darken(levels.sunken, 0.55),
+    white: darken(levels.sunken, 0.68),
+    brightBlack: darken(levels.sunken, 0.8),
     black: '#000',
     brightRed: dataVisualisationColors.primary.abbey,
     brightGreen: dataVisualisationColors.primary.caribbean,
@@ -211,55 +187,18 @@ const colors = {
     caribbean: dataVisualisationColors.primary.caribbean,
   },
 
-  subtle: blueGrey[50],
   link: '#0073BA',
-  bgTerminal: '#010B1C',
-  highlight: yellow[50],
-  disabled: blueGrey[500],
-  info: lightBlue[600],
   success: '#007D6B',
 
   dataVisualisation: dataVisualisationColors,
 };
 
-const borders = [
-  0,
-  '1px solid',
-  '2px solid',
-  '4px solid',
-  '8px solid',
-  '16px solid',
-  '32px solid',
-];
-
-const theme = {
-  name: 'light',
-  colors,
-  typography,
-  font: fonts.sansSerif,
-  fonts: fonts,
-  fontWeights,
-  fontSizes,
-  space,
-  borders,
-  radii: [0, 2, 4, 8, 16, 9999, '100%'],
-  regular: fontWeights.regular,
-  bold: fontWeights.bold,
+const theme: Theme = {
   ...sharedStyles,
-  // disabled media queries for styled-system
-  breakpoints: [],
+  name: 'light',
+  type: 'light',
+  isCustomTheme: false,
+  colors,
 };
 
 export default theme;
-
-export function getContrastText(background) {
-  // Use the same logic as
-  // Bootstrap: https://github.com/twbs/bootstrap/blob/1d6e3710dd447de1a200f29e8fa521f8a0908f70/scss/_functions.scss#L59
-  // and material-components-web https://github.com/material-components/material-components-web/blob/ac46b8863c4dab9fc22c4c662dc6bd1b65dd652f/packages/mdc-theme/_functions.scss#L54
-  const contrastText =
-    getContrastRatio(background, colors.light) >= contrastThreshold
-      ? colors.light
-      : colors.dark;
-
-  return contrastText;
-}

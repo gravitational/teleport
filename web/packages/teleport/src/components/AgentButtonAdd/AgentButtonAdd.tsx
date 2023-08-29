@@ -26,6 +26,9 @@ export default function AgentButtonAdd(props: Props) {
   const { canCreate, isLeafCluster, onClick, agent, beginsWithVowel } = props;
   const disabled = isLeafCluster || !canCreate;
 
+  // Don't render button if it's disabled and feature hiding is enabled.
+  const hidden = disabled && cfg.hideInaccessibleFeatures;
+
   let title = '';
   if (!canCreate) {
     title = `You do not have access to add ${
@@ -37,6 +40,10 @@ export default function AgentButtonAdd(props: Props) {
     title = `Adding ${
       beginsWithVowel ? 'an' : 'a'
     } ${agent} to a leaf cluster is not supported`;
+  }
+
+  if (hidden) {
+    return null;
   }
 
   return (

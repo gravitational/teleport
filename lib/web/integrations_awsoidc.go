@@ -93,7 +93,7 @@ func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p htt
 		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
 	}
 
-	issuer, err := h.issuerFromPublicAddr()
+	issuer, err := awsoidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -352,6 +352,7 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 	resp, err := awsoidc.ListEC2ICE(ctx,
 		listEC2ICEClient,
 		awsoidc.ListEC2ICERequest{
+			Region:    req.Region,
 			VPCID:     req.VPCID,
 			NextToken: req.NextToken,
 		},
