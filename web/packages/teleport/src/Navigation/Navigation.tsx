@@ -31,6 +31,8 @@ import { useFeatures } from 'teleport/FeaturesContext';
 
 import { NavigationCategoryContainer } from 'teleport/Navigation/NavigationCategoryContainer';
 
+import { useTeleport } from '..';
+
 import logoLight from './logoLight.svg';
 import logoDark from './logoDark.svg';
 
@@ -47,7 +49,7 @@ const NavigationLogo = styled.div`
   height: 32px;
   margin-top: 20px;
   margin-left: 32px;
-  margin-bottom: 46px;
+  margin-bottom: 20px;
 `;
 
 const NavigationContainer = styled.div`
@@ -104,6 +106,7 @@ export function Navigation() {
   const history = useHistory();
   const location = useLocation();
   const theme = useTheme();
+  const ctx = useTeleport();
 
   const [view, setView] = useState(
     getCategoryForRoute(features, history.location) ||
@@ -177,11 +180,13 @@ export function Navigation() {
     <NavigationContainer>
       <NavigationLogo themeOption={theme.name} />
 
-      <NavigationSwitcher
-        onChange={handleCategoryChange}
-        value={view}
-        items={NAVIGATION_CATEGORIES}
-      />
+      {ctx.getFeatureFlags().managementSection && (
+        <NavigationSwitcher
+          onChange={handleCategoryChange}
+          value={view}
+          items={NAVIGATION_CATEGORIES}
+        />
+      )}
 
       <CategoriesContainer>{categories}</CategoriesContainer>
     </NavigationContainer>

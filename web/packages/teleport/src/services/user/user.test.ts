@@ -252,6 +252,7 @@ test('undefined values in context response gives proper default values', async (
     accessStrategy: { type: 'optional', prompt: '' },
     // Test undefined roles and reviewers are set to empty arrays.
     accessCapabilities: { requestableRoles: [], suggestedReviewers: [] },
+    allowedSearchAsRoles: [],
   });
 });
 
