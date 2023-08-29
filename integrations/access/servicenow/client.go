@@ -124,7 +124,7 @@ func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData Req
 		Description:      bodyDetails,
 	}
 
-	var result Incident
+	var result incidentResult
 	resp, err := snc.client.NewRequest().
 		SetContext(ctx).
 		SetBody(body).
@@ -137,7 +137,8 @@ func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData Req
 	if resp.IsError() {
 		return Incident{}, errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
-	return result, nil
+
+	return result.Result, nil
 }
 
 // PostReviewNote posts a note once a new request review appears.

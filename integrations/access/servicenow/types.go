@@ -99,6 +99,10 @@ type userResult struct {
 	} `json:"result"`
 }
 
+type incidentResult struct {
+	Result Incident `json:"result"`
+}
+
 type AccessResponse struct {
 	Scope            string `json:"scope"`
 	TokenType        string `json:"token_type"`

@@ -251,6 +251,18 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if staticCreds == nil {
 			return trace.BadParameter("Discord plugin must be used with the static credentials ref type")
 		}
+	case *PluginSpecV1_Servicenow:
+		if settings.Servicenow == nil {
+			return trace.BadParameter("missing Servicenow settings")
+		}
+		if err := settings.Servicenow.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Servicenow plugin must be used with the static credentials ref type")
+		}
 
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
@@ -408,6 +420,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeMattermost
 	case *PluginSpecV1_Discord:
 		return PluginTypeDiscord
+	case *PluginSpecV1_Servicenow:
+		return PluginTypeServicenow
 	default:
 		return PluginTypeUnknown
 	}
@@ -513,6 +527,14 @@ func (c *PluginDiscordSettings) CheckAndSetDefaults() error {
 
 	if _, present := c.RoleToRecipients[Wildcard]; !present {
 		return trace.BadParameter("role_to_recipients must contain default entry `*`")
+	}
+
+	return nil
+}
+
+func (c *PluginServicenowSettings) CheckAndSetDefaults() error {
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("API endpoint must be set")
 	}
 
 	return nil
