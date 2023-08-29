@@ -1216,13 +1216,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	return process, nil
 }
 
-// enterpriseServicesEnabled will return true of any enterprise services are enabled.
+// enterpriseServicesEnabled will return true if any enterprise services are enabled.
 func (process *TeleportProcess) enterpriseServicesEnabled() bool {
 	return modules.GetModules().BuildType() == modules.BuildEnterprise &&
 		(process.Config.Okta.Enabled || process.Config.Jamf.Enabled())
 }
 
-// enterpriseServicesEnabledWithCommunityBuild will return true of any
+// enterpriseServicesEnabledWithCommunityBuild will return true if any
 // enterprise services are enabled with an OSS teleport build.
 func (process *TeleportProcess) enterpriseServicesEnabledWithCommunityBuild() bool {
 	return modules.GetModules().BuildType() == modules.BuildOSS &&
