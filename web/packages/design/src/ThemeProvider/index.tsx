@@ -23,8 +23,9 @@ import {
 import storage, { KeysEnum } from 'teleport/services/localStorage';
 
 import { ThemePreference } from 'teleport/services/userPreferences/types';
+import cfg from 'teleport/config';
 
-import { darkTheme, lightTheme } from '../theme';
+import { darkTheme, lightTheme, bblpTheme } from '../theme';
 
 import { GlobalStyle } from './globals';
 
@@ -59,10 +60,22 @@ const ThemeProvider = props => {
     };
   }, [themePreference]);
 
+  const customThemes = {
+    bblp: bblpTheme,
+  };
+
+  // If no props.theme is defined, use the custom theme instead of the user preference theme.
+  let theme;
+  if (props.theme) {
+    theme = props.theme;
+  } else if (customThemes[cfg.customTheme]) {
+    theme = customThemes[cfg.customTheme];
+  } else {
+    theme = themePreferenceToTheme(themePreference);
+  }
+
   return (
-    <StyledThemeProvider
-      theme={props.theme || themePreferenceToTheme(themePreference)}
-    >
+    <StyledThemeProvider theme={theme}>
       <StyleSheetManager disableVendorPrefixes>
         <React.Fragment>
           <GlobalStyle />
