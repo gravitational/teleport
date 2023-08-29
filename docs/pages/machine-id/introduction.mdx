@@ -3,10 +3,23 @@ title: Machine ID
 description: Teleport Machine ID introduction, demo and resources.
 ---
 
-Machine ID is a service that programmatically issues and renews short-lived
-certificates to any service account (e.g., a CI/CD server) by retrieving
-credentials from the Teleport Auth Service. This enables fine-grained
-role-based access controls and audit.
+Teleport Machine ID enables machines, such as CI/CD workflows, to securely
+authenticate with your Teleport cluster in order to connect to resources and
+configure the cluster itself.
+
+Using Machine ID brings the existing benefits of the Teleport platform to
+machine access:
+
+- Short-lived, rotating credentials.
+- Rich auditing and session recording.
+- Fine-grained role-based access control.
+- Consistency with your techniques for managing human access.
+
+Machine ID supports a number of use-cases and platforms, but amongst the most
+common are:
+
+- Deploying
+- Authenticating custom autom
 
 <iframe
   width="712"
@@ -17,6 +30,28 @@ role-based access controls and audit.
   allowFullScreen
 />
 <br/>
+
+
+## Overview
+
+Machine ID operates primarily through an agent, `tbot`. `tbot` runs on the
+machine that needs to access your Teleport cluster, and generates credentials
+
+TODO EXPLAIN BOT USER / BOT ROLE
+
+## Guides
+
+TODO EXPLAIN GUIDES/QUICKSTART
+
+- [Getting started](./getting-started.mdx): Getting started with Teleport Machine ID
+- [Architecture](./architecture.mdx): A technical overview of how Machine ID works
+
+## FAQ & Troubleshooting
+
+Finally, check out [Frequently Asked Questions](./faq.mdx) and the 
+[troubleshooting guide](./troubleshooting.mdx) for common questions and issues.
+
+## Old stuff lol
 
 Machine ID supports the following Teleport features:
 
@@ -33,13 +68,3 @@ The following features are **not** yet supported by Machine ID:
   ID uses Role Impersonation which cannot be combined with User Impersonation
 - Multifactor authentication like [WebAuthn](../access-controls/guides/webauthn.mdx) and [Passwordless](../access-controls/guides/passwordless.mdx)
 - [AWS Console Access](../application-access/cloud-apis/aws-console.mdx)
-
-## Getting started
-
-- [Getting started](./getting-started.mdx): Getting started with Teleport Machine ID
-- [Architecture](./architecture.mdx): A technical overview of how Machine ID works
-
-## FAQ & Troubleshooting
-
-Finally, check out [Frequently Asked Questions](./faq.mdx) and the 
-[troubleshooting guide](./troubleshooting.mdx) for common questions and issues.
