@@ -831,17 +831,17 @@ func (s *Server) Close() error {
 }
 
 // Shutdown performs a graceful shutdown.
-func (s *Server) Shutdown(ctx context.Context) (err error) {
-	err = s.close(ctx)
+func (s *Server) Shutdown(ctx context.Context) error {
+	err := s.close(ctx)
 	defer s.closeConnFunc()
 
 	activeConnections := s.activeConnections.Load()
 	if activeConnections == 0 {
-		return
+		return trace.Wrap(err)
 	}
 
 	s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
-	lastReport := time.Time{}
+	lastReport := time.Now()
 	ticker := time.NewTicker(s.cfg.ShutdownPollPeriod)
 	defer ticker.Stop()
 
@@ -850,7 +850,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 		case <-ticker.C:
 			activeConnections = s.activeConnections.Load()
 			if activeConnections == 0 {
-				return
+				return trace.Wrap(err)
 			}
 
 			if time.Since(lastReport) > 10*s.cfg.ShutdownPollPeriod {
@@ -859,7 +859,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 			}
 		case <-ctx.Done():
 			s.log.Infof("Context canceled wait, returning.")
-			return
+			return trace.Wrap(err)
 		}
 	}
 }
