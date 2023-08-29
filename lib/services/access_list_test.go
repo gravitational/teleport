@@ -469,7 +469,7 @@ func TestIsAccessListMember(t *testing.T) {
 			},
 			currentTime: time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC),
 			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsNotFound(err))
+				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
 		{
@@ -484,7 +484,7 @@ func TestIsAccessListMember(t *testing.T) {
 			},
 			currentTime: time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC),
 			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsNotFound(err))
+				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
 		{
