@@ -146,6 +146,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	// Add access list to backend
 	accessList, err := accesslist.NewAccessList(header.Metadata{
 		Name: "my-access-list",
+		ID:   5,
 	},
 		accesslist.Spec{
 			Title:       "title",
@@ -182,7 +183,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	accessList, err = clt.UpsertAccessList(ctx, accessList)
+	_, err = clt.UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
 
 	// we expect each of the resources above to exist
@@ -208,7 +209,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// this should include the updated node, and shouldn't have any apps included
-	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, dbServer, win}
+	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, dbServer, win, accessList}
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
 		require.NoError(t, err)
