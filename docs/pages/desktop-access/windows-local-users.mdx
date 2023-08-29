@@ -32,7 +32,7 @@ you need to prepare the Microsoft Windows environment with a certificate from th
 certificate authority (CA) and modify the default authentication service for remote desktop
 access.
 
-To prepare Microsoft Windows desktop:
+To prepare a Windows computer:
 
 1. Open a Command Prompt (`cmd.exe`) window on the Windows computer you want to enroll.
 
@@ -42,11 +42,10 @@ To prepare Microsoft Windows desktop:
    $ curl -o teleport.cer https://teleport-proxy.example.com/webapi/auth/export?type=windows
    ```
 
-1. Download the [Teleport Windows Auth
-Setup](https://cdn.teleport.dev/teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe) program.
+1. Download the Teleport Windows Auth [setup program](https://cdn.teleport.dev/teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe).
 
-1. Run the Teleport Windows Auth Setup program and select the Teleport certificate that you 
-exported when prompted.
+1. Doubleclick the executable you downloaded to run the Teleport Windows Auth Setup program 
+interactively and select the Teleport certificate that you exported when prompted.
    
    The setup program:
 
@@ -86,7 +85,7 @@ To configure the Windows Desktop Service:
    
    The command displays information similar to the following:
 
-   ```code
+   ```text
    The invite token: (=presets.tokens.first=)
    This token will expire in 60 minutes.
    
@@ -138,7 +137,7 @@ following for the Windows Desktop Service:
    
    Teleport can't automatically discover Windows desktops without Active Directory. 
    Therefore, you must specify the Windows IP addresses or DNS names that you want to 
-   enroll using the Teleport configuration file or use the Teleport [API](../api/introduction.mdx) 
+   enroll using the Teleport configuration file or use the Teleport API  
    to build your own integration. You can find an example of API integration on 
    [GitHub](https://github.com/gravitational/teleport/tree/master/examples/desktop-registration).
 
