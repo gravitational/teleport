@@ -360,6 +360,7 @@ func TestSSODiagnostic(t *testing.T) {
 			request, err := s.a.CreateOIDCAuthRequest(ctx, oidcRequest)
 			require.NoError(t, err)
 			require.NotNil(t, request)
+			require.NotEmpty(t, request.RedirectURL)
 
 			values := url.Values{
 				"code":  []string{"XXX-code"},
@@ -978,6 +979,7 @@ func TestUsernameClaim(t *testing.T) {
 			}
 			request, err := s.a.CreateOIDCAuthRequest(ctx, oidcRequest)
 			require.NoError(t, err)
+			require.NotEmpty(t, request.RedirectURL)
 
 			// Generate the userCreateParams for the OIDC user.
 			createUserParams, err := s.oas.calculateOIDCUser(ctx, &diagCtx, connector, claims, ident, request)
@@ -1045,6 +1047,7 @@ func TestReqMaxAge(t *testing.T) {
 			}
 			request, err := s.a.CreateOIDCAuthRequest(ctx, oidcRequest)
 			require.NoError(t, err)
+			require.NotEmpty(t, request.RedirectURL)
 
 			redirURL, err := url.Parse(request.RedirectURL)
 			require.NoError(t, err)

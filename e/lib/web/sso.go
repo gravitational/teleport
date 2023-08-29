@@ -264,7 +264,6 @@ func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params ht
 
 	proxyClient := p.h.GetProxyClient()
 	response, err := proxyClient.ValidateSAMLResponse(r.Context(), samlResponse, params.ByName("connector"))
-
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
 

@@ -305,31 +305,16 @@ func (oas *OIDCAuthService) CreateOIDCAuthRequest(ctx context.Context, req types
 
 	// online indicates that this login should only work online
 	acURL := oauthClient.AuthCodeURL(req.StateToken, teleport.OIDCAccessTypeOnline, connector.GetPrompt())
-	var redirectURL *url.URL
-	var redirectQuery url.Values
-
-	// lazily add values to the redirect URL
-	parseRedirectURL := func() error {
-		if redirectURL != nil {
-			return nil
-		}
-
-		redirectURL, err = url.Parse(acURL)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		redirectQuery = redirectURL.Query()
-		return nil
+	redirectURL, err := url.Parse(acURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	redirectQuery := redirectURL.Query()
 
 	// if the connector has an Authentication Context Class Reference (ACR) value set,
 	// update redirect url and add it as a query value.
 	acrValue := connector.GetACR()
 	if acrValue != "" {
-		if err := parseRedirectURL(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		redirectQuery.Set("acr_values", acrValue)
 	}
 
@@ -337,17 +322,14 @@ func (oas *OIDCAuthService) CreateOIDCAuthRequest(ctx context.Context, req types
 	// after a certain amount of time if necessary.
 	// https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
 	if maxAge, ok := connector.GetMaxAge(); ok {
-		if err := parseRedirectURL(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		maxAgeSeconds := int64(maxAge / time.Second)
 		redirectQuery.Set("max_age", strconv.FormatInt(maxAgeSeconds, 10))
 	}
 
-	if redirectURL != nil {
-		redirectURL.RawQuery = redirectQuery.Encode()
-		req.RedirectURL = redirectURL.String()
+	redirectURL.RawQuery = redirectQuery.Encode()
+	req.RedirectURL = redirectURL.String()
+	if req.RedirectURL == "" {
+		return nil, trace.BadParameter("response redirect URL is empty")
 	}
 
 	err = oas.auth.Services.CreateOIDCAuthRequest(ctx, req, defaults.OIDCAuthRequestTTL)
