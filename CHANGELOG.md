@@ -1,5 +1,24 @@
 # Changelog
 
+## 13.3.7 (08/29/23)
+
+* Added bblp custom theme and logos [#31149](https://github.com/gravitational/teleport/pull/31149)
+* Set `127.0.0.1:3080` as Vite default proxy target [#31148](https://github.com/gravitational/teleport/pull/31148)
+* `tsh request drop` behavior was restored to pre-v13.3.5 state where after dropping an access request, the role list will be based on the current role list of the user on the backend, not on the login state (as introduced in #30628) [#31136](https://github.com/gravitational/teleport/pull/31136)
+* Update headless modal to show both Reject and Cancel [#31135](https://github.com/gravitational/teleport/pull/31135)
+* Added support for proxy environment variables when dialing directly to the Kubernetes Cluster [#31133](https://github.com/gravitational/teleport/pull/31133)
+* Fixed the Oracle Database GUI Access flow on Windows Platform [#31129](https://github.com/gravitational/teleport/pull/31129)
+* Added OSS CTA for Auth Connectors (#30713) [#31083](https://github.com/gravitational/teleport/pull/31083)
+* Added dynamic identity file reloading support for API Client [#31076](https://github.com/gravitational/teleport/pull/31076)
+* Fixed leaking connection monitor instances [#31042](https://github.com/gravitational/teleport/pull/31042)
+* Added calendar icon, export select style, and add type to validation rule (#30817) [#31036](https://github.com/gravitational/teleport/pull/31036)
+* Added OSS CTAs for support, access requests, and moderated sessions [#31030](https://github.com/gravitational/teleport/pull/31030)
+* Added support for using Amazon EC2 Instance Connect Endpoint to SSH into EC2 instances [#31021](https://github.com/gravitational/teleport/pull/31021)
+* Added support for IAM joining over reverse tunnel port [#31000](https://github.com/gravitational/teleport/pull/31000)
+* Added StateMessage and DashboardLink to List EICE [#30949](https://github.com/gravitational/teleport/pull/30949)
+* Added license flag to disable inaccessible features from being discoverable in the UI [#30936](https://github.com/gravitational/teleport/pull/30936)
+* Added access list members to the cache. [#30919](https://github.com/gravitational/teleport/pull/30919)
+
 ## 13.3.6 (08/25/23)
 
 * Fixed regression in 13.3.5 causing bot locking when using the Kubernetes Operator. [#30996](https://github.com/gravitational/teleport/pull/30996)
