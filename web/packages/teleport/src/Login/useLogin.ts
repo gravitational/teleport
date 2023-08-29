@@ -40,8 +40,7 @@ export default function useLogin() {
   const isLocalAuthEnabled = cfg.getLocalAuthFlag();
   const motd = cfg.getMotd();
   const [showMotd, setShowMotd] = useState<boolean>(() => {
-    const url = new URL(window.location.href);
-    const redirectUri = url.searchParams.get('redirect_uri');
+    const redirectUri = history.getRedirectParam();
 
     if (redirectUri?.includes('headless')) {
       return false;
