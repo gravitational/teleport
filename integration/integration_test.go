@@ -7860,6 +7860,7 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 // testReconcileLabels verifies that an SSH server's labels can be updated by
 // upserting a corresponding ServerInfo to the auth server.
 func testReconcileLabels(t *testing.T, suite *integrationTestSuite) {
+	t.Parallel()
 	// Create Teleport cluster.
 	cfg := suite.defaultServiceConfig()
 	cfg.CachePolicy.Enabled = false
@@ -7914,10 +7915,21 @@ func testReconcileLabels(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, watcher.Close()) })
 
-	timeout := time.After(10 * time.Second)
+	// Prevent reconciler loop from blocking too long.
+	go func() {
+		for {
+			select {
+			case <-time.After(100 * time.Millisecond):
+				clock.Advance(15 * time.Minute)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	timeout := time.After(5 * time.Second)
 	// Wait for server to receive updated labels.
 	for {
-		clock.Advance(15 * time.Minute)
 		select {
 		case <-timeout:
 			require.Fail(t, "Timed out waiting for server update")
