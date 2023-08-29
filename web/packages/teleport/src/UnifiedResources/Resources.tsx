@@ -54,13 +54,16 @@ export function Resources() {
     filtering;
 
   const scrollDetector = useRef(null);
-  const { forceFetch, resources, attempt } = useInfiniteScroll({
+  const {
+    setTrigger: setScrollDetector,
+    forceFetch,
+    resources,
+    attempt,
+  } = useInfiniteScroll({
     fetchFunc: teleCtx.resourceService.fetchUnifiedResources,
-    trigger: scrollDetector.current,
+    // trigger: scrollDetector.current,
     clusterId,
     filter: params,
-    initialFetchSize: 1,
-    fetchMoreSize: 1,
   });
 
   if (!enabled) {
@@ -112,7 +115,7 @@ export function Resources() {
           <ResourceCard key={i} onLabelClick={onLabelClick} resource={res} />
         ))}
       </ResourcesContainer>
-      <div ref={scrollDetector} />
+      <div ref={setScrollDetector} />
       <ListFooter>
         <IndicatorContainer status={attempt.status}>
           <Indicator size={INDICATOR_SIZE} />

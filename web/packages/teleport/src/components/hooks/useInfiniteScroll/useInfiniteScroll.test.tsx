@@ -25,7 +25,7 @@ import { TestResource, newFetchFunc, resourceNames } from './testUtils';
 
 const mio = mockIntersectionObserver();
 
-function hookProps(overrides: Partial<Props<TestResource>> = {}) {
+function hookProps() {
   return {
     fetchFunc: newFetchFunc(7),
     trigger: null,
@@ -33,16 +33,15 @@ function hookProps(overrides: Partial<Props<TestResource>> = {}) {
     filter: {},
     initialFetchSize: 2,
     fetchMoreSize: 3,
-    ...overrides,
   };
 }
 
 test('fetches data whenever an element is in view', async () => {
-  render(<div data-testid="trigger" />);
-  const trigger = screen.getByTestId('trigger');
   const { result, waitForNextUpdate } = renderHook(() =>
-    useInfiniteScroll(hookProps({ trigger }))
+    useInfiniteScroll(hookProps())
   );
+  render(<div ref={result.current.setTrigger} data-testid="trigger" />);
+  const trigger = screen.getByTestId('trigger');
   expect(resourceNames(result)).toEqual([]);
 
   act(() => mio.enterNode(trigger));
@@ -66,20 +65,21 @@ test('supports changing nodes', async () => {
   );
   const trigger1 = screen.getByTestId('trigger1');
   const trigger2 = screen.getByTestId('trigger2');
-  let props = hookProps({ trigger: trigger1 });
+  let props = hookProps();
   const { result, rerender, waitForNextUpdate } = renderHook(
     useInfiniteScroll,
     {
       initialProps: props,
     }
   );
+  result.current.setTrigger(trigger1);
 
   act(() => mio.enterNode(trigger1));
   await waitForNextUpdate();
   expect(resourceNames(result)).toEqual(['r0', 'r1']);
 
-  props = { ...props, trigger: trigger2 };
   rerender(props);
+  result.current.setTrigger(trigger2);
 
   // Should only register entering trigger2, reading resources r2 through r4.
   act(() => mio.leaveNode(trigger1));

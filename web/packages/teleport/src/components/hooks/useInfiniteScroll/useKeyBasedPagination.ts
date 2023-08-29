@@ -21,6 +21,7 @@ import {
   ResourcesResponse,
   ResourceFilter,
   resourceFilterToHookDeps,
+  resourceFiltersEqual,
 } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
 
@@ -53,7 +54,25 @@ export function useKeyBasedPagination<T>({
   const abortController = useRef<AbortController | null>(null);
   const pendingPromise = useRef<Promise<ResourcesResponse<T>> | null>(null);
 
-  useEffect(() => {
+  // This state is used to recognize when the `clusterId` or `filter` props
+  // changed. Note that it might be easier to wrap it all with `useEffect`, but
+  // combined with how this hook is used (via an IntersectionObserver), it
+  // creates a tiny window for a race condition where the resulting fetch
+  // function is cached (and subsequently executed) even before `useEffect` can
+  // be triggered.  Unfortunately, the race condition is not reproducible with
+  // our testing framework, so beware.  Here, we are using a pattern described
+  // in this article:
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  const [prevClusterId, setPrevClusterId] = useState(clusterId);
+  const [prevFilter, setPrevFilter] = useState(filter);
+
+  if (
+    prevClusterId !== clusterId ||
+    !resourceFiltersEqual(prevFilter, filter)
+  ) {
+    setPrevClusterId(clusterId);
+    setPrevFilter(filter);
+
     abortController.current?.abort();
     abortController.current = null;
     pendingPromise.current = null;
@@ -62,7 +81,7 @@ export function useKeyBasedPagination<T>({
     setFinished(false);
     setResources([]);
     setStartKey(null);
-  }, [clusterId, ...resourceFilterToHookDeps(filter)]);
+  }
 
   const fetch = async (force: boolean) => {
     if (

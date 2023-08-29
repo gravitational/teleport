@@ -14,46 +14,47 @@
  * limitations under the License.
  */
 
-import { useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import {
-  Props as PaginationProps,
   useKeyBasedPagination,
+  Props as PaginationProps,
 } from './useKeyBasedPagination';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-export interface Props<T> extends PaginationProps<T> {
-  trigger: Element | null;
-}
+export type Props<T> = PaginationProps<T>;
 
 /**
  * Fetches a part of resource list whenever the `trigger` element intersects the
  * viewport until the list is exhausted or an error happens. Use
  * [State.forceFetch] to continue after an error.
  */
-export function useInfiniteScroll<T>({
-  trigger,
-  ...paginationProps
-}: Props<T>): State<T> {
+export function useInfiniteScroll<T>(props: Props<T>): State<T> {
   const observer = useRef<IntersectionObserver | null>(null);
+  const trigger = useRef<Element | null>(null);
 
   const { fetch, forceFetch, attempt, resources, finished } =
-    useKeyBasedPagination(paginationProps);
+    useKeyBasedPagination(props);
 
-  useLayoutEffect(() => {
-    if (observer.current) {
-      observer.current.disconnect();
+  const recreateObserver = () => {
+    observer.current?.disconnect();
+    if (trigger.current) {
+      observer.current = new IntersectionObserver(entries => {
+        if (entries[0]?.isIntersecting) {
+          fetch();
+        }
+      });
+      observer.current.observe(trigger.current);
     }
-    observer.current = new IntersectionObserver(entries => {
-      if (entries[0]?.isIntersecting) {
-        fetch();
-      }
-    });
-    if (trigger) {
-      observer.current.observe(trigger);
-    }
-  }, [trigger, fetch]);
+  };
 
-  return { forceFetch, attempt, resources, finished };
+  const setTrigger = (el: Element | null) => {
+    trigger.current = el;
+    recreateObserver();
+  };
+
+  useLayoutEffect(recreateObserver, [fetch]);
+
+  return { setTrigger, forceFetch, attempt, resources, finished };
 }
 
 export type State<T> = {
@@ -62,6 +63,8 @@ export type State<T> = {
    * Disregards whether error has previously occurred.
    */
   forceFetch: () => Promise<void>;
+
+  setTrigger: (el: Element | null) => void;
 
   attempt: Attempt;
   resources: T[];
