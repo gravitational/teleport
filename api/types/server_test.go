@@ -529,3 +529,39 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 		})
 	}
 }
+
+func TestIsOpenSSHNodeSubKind(t *testing.T) {
+	tests := []struct {
+		name    string
+		subkind string
+		want    bool
+	}{
+		{
+			name:    "openssh using EC2 Instance Connect Endpoint",
+			subkind: SubKindOpenSSHEICENode,
+			want:    true,
+		},
+		{
+			name:    "openssh using raw sshd server",
+			subkind: SubKindOpenSSHNode,
+			want:    true,
+		},
+		{
+			name:    "regular node",
+			subkind: SubKindTeleportNode,
+			want:    false,
+		},
+		{
+			name:    "another value",
+			subkind: "xyz",
+			want:    false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsOpenSSHNodeSubKind(tt.subkind); got != tt.want {
+				t.Errorf("IsOpenSSHNodeSubKind() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -371,6 +371,19 @@ func TestRouter_DialHost(t *testing.T) {
 		},
 	}
 
+	agentlessEC2ICESrv := &types.ServerV2{
+		Kind:    types.KindNode,
+		SubKind: types.SubKindOpenSSHEICENode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: uuid.NewString(),
+		},
+		Spec: types.ServerSpecV2{
+			Addr:     "127.0.0.1:9001",
+			Hostname: "agentless",
+		},
+	}
+
 	agentGetter := func() (teleagent.Agent, error) {
 		return nil, nil
 	}
@@ -461,6 +474,26 @@ func TestRouter_DialHost(t *testing.T) {
 				require.Equal(t, agentlessSrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
 				require.NotNil(t, params.AgentlessSigner)
+				require.True(t, params.IsAgentlessNode)
+				require.NotNil(t, conn)
+			},
+		},
+		{
+			name: "dial success to agentless node using EC2 Instance Connect Endpoint",
+			router: Router{
+				clusterName:    "test",
+				log:            logger,
+				localSite:      &testRemoteSite{conn: fakeConn{}},
+				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
+				tracer:         tracing.NoopTracer("test"),
+				serverResolver: serverResolver(agentlessEC2ICESrv, nil),
+			},
+			assertion: func(t *testing.T, params reversetunnel.DialParams, conn net.Conn, err error) {
+				require.NoError(t, err)
+				require.Equal(t, agentlessEC2ICESrv, params.TargetServer)
+				require.Nil(t, params.GetUserAgent)
+				require.Nil(t, params.AgentlessSigner)
+				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
 			},
 		},
