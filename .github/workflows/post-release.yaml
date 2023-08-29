@@ -54,6 +54,7 @@ jobs:
   update-docs-version:
     name: Update docs version
     runs-on: ubuntu-latest
+    environment: post-release
     steps:
       - name: Get Release Branch
         id: get-branch
