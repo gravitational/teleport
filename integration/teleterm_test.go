@@ -302,6 +302,13 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 	}, time.Second, 100*time.Millisecond)
 }
 
+// mustLogin logs in as the given user by completely skipping the actual login flow and saving valid
+// certs to disk. clusters.Storage can then be pointed to tc.KeysDir and daemon.Service can act as
+// if the user was successfully logged in.
+//
+// This is faster than going through the actual process, but keep in mind that it might skip some
+// vital steps. It should be used only for tests which don't depend on complex user setup and do not
+// reissue certs or modify them in some other way.
 func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) *client.TeleportClient {
 	tc, err := pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   userName,
