@@ -341,6 +341,10 @@ type TeleportProcess struct {
 	// auditLog is the initialized audit log
 	auditLog events.AuditLogSessionStreamer
 
+	// proxyNodeWatcher is the watcher used by proxies to make routing decisions. Only available if
+	// the proxy service is enabled.
+	proxyNodeWatcher *services.NodeWatcher
+
 	// inventorySetupDelay lets us inject a one-time delay in the makeInventoryControlStream
 	// method that helps reduce log spam in the event of slow instance cert acquisition.
 	inventorySetupDelay sync.Once
@@ -1272,6 +1276,21 @@ func (process *TeleportProcess) getLocalAuth() *auth.Server {
 	process.Lock()
 	defer process.Unlock()
 	return process.localAuth
+}
+
+func (process *TeleportProcess) setProxyNodeWatcher(w *services.NodeWatcher) {
+	process.Lock()
+	defer process.Unlock()
+	process.proxyNodeWatcher = w
+}
+
+// GetProxyNodeWatcher gets the node watcher used by proxies to perform routing decisions. Used in
+// tests to monitor proxy routing readiness. Returned value is nil if the proxy service is not
+// present/initialized.
+func (process *TeleportProcess) GetProxyNodeWatcher() *services.NodeWatcher {
+	process.Lock()
+	defer process.Unlock()
+	return process.proxyNodeWatcher
 }
 
 func (process *TeleportProcess) setInstanceConnector(conn *Connector) {
@@ -3796,6 +3815,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	process.setProxyNodeWatcher(nodeWatcher)
 
 	caWatcher, err := services.NewCertAuthorityWatcher(process.ExitContext(), services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{

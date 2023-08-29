@@ -235,10 +235,10 @@ func TestSSHLoadAllCAs(t *testing.T) {
 			// Login to root
 			tshHome, _ := mustLogin(t, s)
 
+			// wait for proxy watchers to observe nodes
 			require.Eventually(t, func() bool {
-				lnodes, _ := s.leaf.GetAuthServer().GetNodes(context.Background(), "default")
-				rnodes, _ := s.root.GetAuthServer().GetNodes(context.Background(), "default")
-				return len(lnodes) != 0 && len(rnodes) != 0
+				return s.leaf.GetProxyNodeWatcher().NodeCount() != 0 &&
+					s.root.GetProxyNodeWatcher().NodeCount() != 0
 			}, time.Second*30, time.Millisecond*100)
 
 			// Connect to leaf node
@@ -540,8 +540,7 @@ func TestProxySSH(t *testing.T) {
 			homePath, kubeConfigPath := mustLogin(t, s)
 
 			require.Eventually(t, func() bool {
-				rnodes, _ := s.root.GetAuthServer().GetNodes(context.Background(), "default")
-				return len(rnodes) != 0
+				return s.root.GetProxyNodeWatcher().NodeCount() != 0
 			}, time.Second*30, time.Millisecond*100)
 
 			t.Run("logged in", func(t *testing.T) {
