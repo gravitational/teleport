@@ -39,10 +39,17 @@ jobs:
           REF_TYPE=$(echo "$GITHUB_EVENT_REF" | cut -d'/' -f2)
           REF_VALUE=$(echo "$GITHUB_EVENT_REF" | cut -d'/' -f3)
 
-          # Check for tag pushes that are not prereleases
-          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$REF_TYPE" = "tags" ] && [ "${REF_VALUE#*-}" = "$REF_VALUE" ]; then
-            echo "package-environment=promote" >> "$GITHUB_OUTPUT"
-            echo "should-target-production=true" >> "$GITHUB_OUTPUT"
+          # If this run was caused by a tag event
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$REF_TYPE" = "tags" ]; then
+            # If the tag is not a pre-release
+            if [ "${REF_VALUE#*-}" = "$REF_VALUE" ]; then
+              echo "package-environment=promote" >> "$GITHUB_OUTPUT"
+              echo "should-target-production=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "package-environment=build" >> "$GITHUB_OUTPUT"
+              echo "should-target-production=false" >> "$GITHUB_OUTPUT"
+            fi
+
             echo "artifact-version=${GITHUB_EVENT_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           else
             echo "package-environment=build" >> "$GITHUB_OUTPUT"
