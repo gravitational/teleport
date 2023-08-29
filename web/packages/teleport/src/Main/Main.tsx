@@ -261,7 +261,10 @@ function FeatureRoutes({ lockedFeatures }: { lockedFeatures: LockedFeatures }) {
 }
 
 export const ContentMinWidth = styled.div`
-  min-width: calc(1250px - var(--sidebar-width));
+  min-width: 1250px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 `;
 
 export const HorizontalSplit = styled.div`
