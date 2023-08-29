@@ -820,7 +820,7 @@ func (b *Backend) deleteDocuments(docs []*firestore.DocumentSnapshot) error {
 	return trace.NewAggregate(errs...)
 }
 
-// ConvertGRPCError converts GRPC errors
+// ConvertGRPCError converts gRPC errors
 func ConvertGRPCError(err error, args ...interface{}) error {
 	if err == nil {
 		return nil

@@ -411,7 +411,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.bindDefaultEndpoints()
 	}
 
-	// if Web UI is enabled, check the assets dir:
+	// serve the web UI from the embedded filesystem
 	var indexPage *template.Template
 	if cfg.StaticFS != nil {
 		index, err := cfg.StaticFS.Open("/index.html")
@@ -429,6 +429,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
 		}
 
+		h.Handle("GET", "/robots.txt", httplib.MakeHandler(serveRobotsTxt))
 		h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
 	}
 
@@ -2486,8 +2487,8 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 
 // clusterUnifiedResourcesGet returns a list of resources for a given cluster site. This includes all resources available to be displayed in the web ui
 // such as Nodes, Apps, Desktops, etc etc
-func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	clt, err := sctx.GetUserClient(r.Context(), site)
+func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(request.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2497,12 +2498,12 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := makeUnifiedResourceRequest(r)
+	req, err := makeUnifiedResourceRequest(request)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	page, err := apiclient.ListUnifiedResourcePage(r.Context(), clt, req)
+	page, err := apiclient.ListUnifiedResourcePage(request.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2512,24 +2513,38 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	dbNames, dbUsers, err := getDatabaseUsersAndNames(accessChecker)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var userGroups []types.UserGroup
 
-	userGroups, err := apiclient.GetAllResources[types.UserGroup](r.Context(), clt, &proto.ListResourcesRequest{
-		ResourceType:     types.KindUserGroup,
-		Namespace:        apidefaults.Namespace,
-		UseSearchAsRoles: true,
-	})
-	if err != nil {
-		h.log.Debugf("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
-	}
+	// generator to retrieve UserGroupLookup on first call and return it again in subsequent calls.
+	// If we encounter an error, we log it once and return an empty UserGroupLookup for the current and subsequent calls.
+	getUserGroupLookup := func() func() map[string]types.UserGroup {
+		userGroupLookup := make(map[string]types.UserGroup)
+		var gotUserGroupLookup bool
+		return func() map[string]types.UserGroup {
+			if gotUserGroupLookup {
+				return userGroupLookup
+			}
 
-	userGroupLookup := make(map[string]types.UserGroup, len(userGroups))
-	for _, userGroup := range userGroups {
-		userGroupLookup[userGroup.GetName()] = userGroup
-	}
+			userGroups, err = apiclient.GetAllResources[types.UserGroup](request.Context(), clt, &proto.ListResourcesRequest{
+				ResourceType:     types.KindUserGroup,
+				Namespace:        apidefaults.Namespace,
+				UseSearchAsRoles: true,
+			})
+			if err != nil {
+				h.log.Infof("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
+			}
+
+			for _, userGroup := range userGroups {
+				userGroupLookup[userGroup.GetName()] = userGroup
+			}
+
+			gotUserGroupLookup = true
+			return userGroupLookup
+		}
+	}()
+
+	var dbNames, dbUsers []string
+	hasFetchedDBUsersAndNames := false
 
 	unifiedResources := make([]any, 0, len(page.Resources))
 	for _, resource := range page.Resources {
@@ -2541,6 +2556,13 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 			}
 			unifiedResources = append(unifiedResources, server)
 		case types.DatabaseServer:
+			if !hasFetchedDBUsersAndNames {
+				dbNames, dbUsers, err = getDatabaseUsersAndNames(accessChecker)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				hasFetchedDBUsersAndNames = true
+			}
 			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
@@ -2549,7 +2571,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 				LocalProxyDNSName: h.proxyDNSName(),
 				AppClusterName:    site.GetName(),
 				Identity:          identity,
-				UserGroupLookup:   userGroupLookup,
+				UserGroupLookup:   getUserGroupLookup(),
 				Logger:            h.log,
 			})
 			unifiedResources = append(unifiedResources, app)
@@ -2560,7 +2582,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 					LocalProxyDNSName: h.proxyDNSName(),
 					AppClusterName:    site.GetName(),
 					Identity:          identity,
-					UserGroupLookup:   userGroupLookup,
+					UserGroupLookup:   getUserGroupLookup(),
 					Logger:            h.log,
 				})
 				unifiedResources = append(unifiedResources, app)
@@ -2581,9 +2603,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 			unifiedResources = append(unifiedResources, desktop)
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			unifiedResources = append(unifiedResources, kube)
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", resource)
@@ -4183,4 +4202,15 @@ func isDashboard(features proto.Features) bool {
 	// the presence of recovery codes, which are never enabled
 	// in OSS or self-hosted Teleport.
 	return !features.GetCloud() && features.GetRecoveryCodes()
+}
+
+const robots = `User-agent: *
+Disallow: /`
+
+func serveRobotsTxt(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(robots))
+	return nil, nil
 }

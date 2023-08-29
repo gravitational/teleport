@@ -1277,16 +1277,23 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 // getInstallerProxyAddr determines the address of the proxy for discovered
 // nodes to connect to.
 func getInstallerProxyAddr(installParams *InstallParams, fc *FileConfig) string {
+	// Explicit proxy address.
 	if installParams != nil && installParams.PublicProxyAddr != "" {
 		return installParams.PublicProxyAddr
 	}
+	// Proxy address from config.
 	if fc.ProxyServer != "" {
 		return fc.ProxyServer
 	}
 	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) > 0 {
 		return fc.Proxy.PublicAddr[0]
 	}
-	return ""
+	// Possible proxy address for v1/v2 config.
+	if len(fc.AuthServers) > 0 {
+		return fc.AuthServers[0]
+	}
+	// Probably not a proxy address, but we have nothing better.
+	return fc.AuthServer
 }
 
 func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {

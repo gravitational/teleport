@@ -77,6 +77,9 @@ const NodeConnect = ({ node }: { node: Node }) => {
 
   return (
     <MenuLogin
+      width="90px"
+      textTransform="none"
+      alignButtonWidthToMenu
       getLoginItems={handleOnOpen}
       onSelect={handleOnSelect}
       transformOrigin={{
@@ -114,6 +117,9 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
 
   return (
     <MenuLogin
+      width="90px"
+      textTransform="none"
+      alignButtonWidthToMenu
       getLoginItems={handleOnOpen}
       onSelect={handleOnSelect}
       transformOrigin={{
@@ -157,6 +163,7 @@ const AppLaunch = ({ app }: { app: App }) => {
         width="90px"
         size="small"
         title="Cloud or TCP applications cannot be launched by the browser"
+        textTransform="none"
       >
         Launch
       </ButtonBorder>
@@ -171,6 +178,7 @@ const AppLaunch = ({ app }: { app: App }) => {
         target="_blank"
         href={samlAppSsoUrl}
         rel="noreferrer"
+        textTransform="none"
       >
         Login
       </ButtonBorder>
@@ -184,6 +192,7 @@ const AppLaunch = ({ app }: { app: App }) => {
       target="_blank"
       href={launchUrl}
       rel="noreferrer"
+      textTransform="none"
     >
       Launch
     </ButtonBorder>
@@ -201,6 +210,8 @@ function DatabaseConnect({ database }: { database: Database }) {
   return (
     <>
       <ButtonBorder
+        textTransform="none"
+        width="90px"
         size="small"
         onClick={() => {
           setOpen(true);
@@ -232,7 +243,12 @@ const KubeConnect = ({ kube }: { kube: Kube }) => {
   const accessRequestId = ctx.storeUser.getAccessRequestId();
   return (
     <>
-      <ButtonBorder size="small" onClick={() => setOpen(true)}>
+      <ButtonBorder
+        width="90px"
+        textTransform="none"
+        size="small"
+        onClick={() => setOpen(true)}
+      >
         Connect
       </ButtonBorder>
       {open && (

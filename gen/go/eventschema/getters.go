@@ -207,3 +207,13 @@ func sqlFieldName(path []string) string {
 func viewSchemaLine(jsonField, viewField, fieldType string) string {
 	return fmt.Sprintf("  , CAST(json_extract(event_data, '%s') AS %s) as %s\n", jsonField, fieldType, viewField)
 }
+
+// IsValidEventType takes a string and returns whether it represents a valid event type.
+func IsValidEventType(input string) bool {
+	for _, eventType := range eventTypes {
+		if input == eventType {
+			return true
+		}
+	}
+	return false
+}

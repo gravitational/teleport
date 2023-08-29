@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client
-
-// TODO(Joerger): Remove this export once /e no longer depends on it.
-var PromptWebauthn = &promptWebauthn
+// Package e2e contains end-to-end tests for Teleport's AWS integrations.
+package e2e

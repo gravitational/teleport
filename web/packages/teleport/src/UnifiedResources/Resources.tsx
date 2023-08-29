@@ -26,6 +26,7 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history/history';
@@ -38,6 +39,8 @@ import { useUrlFiltering, useInfiniteScroll } from 'teleport/components/hooks';
 import { ResourceCard } from './ResourceCard';
 import SearchPanel from './SearchPanel';
 import { FilterPanel } from './FilterPanel';
+
+const RESOURCES_MAX_WIDTH = '1800px';
 
 export function Resources() {
   const { isLeafCluster } = useStickyClusterId();
@@ -73,7 +76,12 @@ export function Resources() {
   };
 
   return (
-    <FeatureBox>
+    <FeatureBox
+      css={`
+        max-width: ${RESOURCES_MAX_WIDTH};
+        margin: auto;
+      `}
+    >
       {attempt.status === 'failed' && (
         <ErrorBox>
           <ErrorBoxInternal>
@@ -84,7 +92,14 @@ export function Resources() {
           </ErrorBoxInternal>
         </ErrorBox>
       )}
-      <FeatureHeader alignItems="center" justifyContent="space-between">
+      <FeatureHeader
+        css={`
+          border-bottom: none;
+        `}
+        mb={1}
+        alignItems="center"
+        justifyContent="space-between"
+      >
         <FeatureHeaderTitle>Resources</FeatureHeaderTitle>
         <Flex alignItems="center">
           <AgentButtonAdd
@@ -121,6 +136,13 @@ export function Resources() {
         {attempt.status === 'failed' && resources.length > 0 && (
           <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
         )}
+        {attempt.status === 'success' && resources.length === 0 && (
+          <Empty
+            clusterId={clusterId}
+            canCreate={canCreate && !isLeafCluster}
+            emptyStateInfo={emptyStateInfo}
+          />
+        )}
       </ListFooter>
     </FeatureBox>
   );
@@ -131,6 +153,9 @@ const INDICATOR_SIZE = '48px';
 const ResourcesContainer = styled(Flex)`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  @media (min-width: ${RESOURCES_MAX_WIDTH}) {
+    grid-template-columns: repeat(4, minmax(400px, 1fr));
+  }
 `;
 
 const ErrorBox = styled(Box)`
@@ -163,3 +188,13 @@ const IndicatorContainer = styled(Box)`
   display: ${props => (props.status === 'processing' ? 'block' : 'none')};
   line-height: 0;
 `;
+
+const emptyStateInfo: EmptyStateInfo = {
+  title: 'Add your first resource to Teleport',
+  byline:
+    'Connect SSH servers, Kubernetes clusters, Windows Desktops, Databases, Web apps and more from our integrations catalog.',
+  readOnly: {
+    title: 'No Resources Found',
+    resource: 'resources',
+  },
+};
