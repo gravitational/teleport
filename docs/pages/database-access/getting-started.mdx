@@ -103,7 +103,7 @@ endpoint and region appropriately. The `--auth-server` flag must point to the
 address of your Teleport Proxy Service.
 
 ```code
-$ teleport db start \
+$ sudo teleport db start \
   --token=/tmp/token \
   --name=aurora \
   --auth-server=teleport.example.com:3080 \
@@ -121,7 +121,7 @@ endpoint and region appropriately. The `--auth-server` flag must point to the
 address of your Teleport Cloud tenant.
 
 ```code
-$ teleport db start \
+$ sudo teleport db start \
   --token=/tmp/token \
   --name=aurora \
   --auth-server=mytenant.teleport.sh:443 \
