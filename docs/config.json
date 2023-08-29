@@ -1181,7 +1181,7 @@
           "slug": "/desktop-access/introduction/"
         },
         {
-          "title": "Configure access for local users",
+          "title": "Configure local Windows users",
           "slug": "/desktop-access/windows-local-users/",
           "forScopes": ["enterprise", "cloud"]
         },
