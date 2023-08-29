@@ -28,6 +28,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -50,6 +51,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	kubeexec "k8s.io/client-go/util/exec"
@@ -2070,6 +2072,7 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
 		authCtx:               ctx,
@@ -2078,6 +2081,7 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 		pingPeriod:            f.cfg.ConnPingPeriod,
 		originalHeaders:       req.Header,
 		useIdentityForwarding: useImpersonation,
+		proxier:               sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
@@ -2101,6 +2105,7 @@ func (f *Forwarder) getSPDYDialer(ctx authContext, sess *clusterSession, req *ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
 		authCtx:               ctx,
@@ -2109,6 +2114,7 @@ func (f *Forwarder) getSPDYDialer(ctx authContext, sess *clusterSession, req *ht
 		pingPeriod:            f.cfg.ConnPingPeriod,
 		originalHeaders:       req.Header,
 		useIdentityForwarding: useImpersonation,
+		proxier:               sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
@@ -2205,21 +2211,35 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 }
 
 func (s *clusterSession) Dial(network, addr string) (net.Conn, error) {
-	return s.monitorConn(s.dial(s.requestContext, network))
+	return s.monitorConn(s.dial(s.requestContext, network, addr))
 }
 
 func (s *clusterSession) DialWithContext(opts ...contextDialerOption) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return s.monitorConn(s.dial(ctx, network, opts...))
+		return s.monitorConn(s.dial(ctx, network, addr, opts...))
 	}
 }
 
-func (s *clusterSession) dial(ctx context.Context, network string, opts ...contextDialerOption) (net.Conn, error) {
+func (s *clusterSession) dial(ctx context.Context, network, addr string, opts ...contextDialerOption) (net.Conn, error) {
 	dialer := s.parent.getContextDialerFunc(s, opts...)
 
-	conn, err := dialer(ctx, network, s.targetAddr)
+	conn, err := dialer(ctx, network, addr)
 
 	return conn, trace.Wrap(err)
+}
+
+// getProxier returns the proxier function to use for this session.
+// If the target cluster is not served by this teleport service, the proxier
+// must be nil to avoid using it through the reverse tunnel.
+// If the target cluster is served by this teleport service, the proxier
+// must be set to the default proxy function.
+func (s *clusterSession) getProxier() func(req *http.Request) (*url.URL, error) {
+	// When the target cluster is not served by this teleport service, the
+	// proxier must be nil to avoid using it through the reverse tunnel.
+	if s.kubeAPICreds == nil {
+		return nil
+	}
+	return utilnet.NewProxierWithNoProxyCIDR(http.ProxyFromEnvironment)
 }
 
 // TODO(awly): unit test this
