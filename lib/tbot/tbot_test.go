@@ -405,7 +405,7 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	require.NoError(t, thirdBot.Run(ctx))
 }
 
-func TestBot_Insecure(t *testing.T) {
+func TestBot_InsecureViaProxy(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	log := utils.NewLoggerForTests()

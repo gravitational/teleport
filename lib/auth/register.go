@@ -384,7 +384,6 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 		// Falling back to insecure registration.
 		client, err = insecureRegisterClient(params)
 	}
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
