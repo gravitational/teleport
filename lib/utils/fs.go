@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -250,4 +251,94 @@ func RemoveFileIfExist(filePath string) {
 	if err := os.Remove(filePath); err != nil {
 		log.WithError(err).Warnf("Failed to remove %v", filePath)
 	}
+}
+
+func RecursiveChown(dir string, uid, gid int) error {
+	if err := os.Chown(dir, uid, gid); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = os.Chown(path, uid, gid)
+		if os.IsNotExist(err) { // empty symlinks cause an error here
+			return nil
+		}
+		return trace.Wrap(err)
+	}))
+}
+
+func CopyFile(src, dest string, perm os.FileMode) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	destFile, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	_, err = destFile.ReadFrom(srcFile)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
+// RecursivelyCopy will copy a directory from src to dest, if the
+// directory exists, files will be overwritten. The skip paramater, if
+// provided, will be passed the source and destination paths, and will
+// skip files upon returning true
+func RecursiveCopy(src, dest string, skip func(src, dest string) (bool, error)) error {
+	return trace.Wrap(fs.WalkDir(os.DirFS(src), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		absSrcPath := filepath.Join(src, path)
+		destPath := filepath.Join(dest, path)
+		info, err := d.Info()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		originalPerm := info.Mode().Perm()
+
+		if skip != nil {
+			doSkip, err := skip(absSrcPath, destPath)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if doSkip {
+				return nil
+			}
+		}
+
+		if d.IsDir() {
+			err := os.Mkdir(destPath, originalPerm)
+			if os.IsExist(err) {
+				return nil
+			}
+			return trace.ConvertSystemError(err)
+		}
+
+		if d.Type().IsRegular() {
+			if err := CopyFile(absSrcPath, destPath, originalPerm); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}
+
+		if info.Mode().Type()&os.ModeSymlink != 0 {
+			linkDest, err := os.Readlink(absSrcPath)
+			if err != nil {
+				return trace.ConvertSystemError(err)
+			}
+			if err := os.Symlink(linkDest, destPath); err != nil {
+				return trace.ConvertSystemError(err)
+			}
+			return nil
+		}
+
+		return nil
+	}))
 }
