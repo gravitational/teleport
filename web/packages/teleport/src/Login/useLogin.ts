@@ -44,11 +44,8 @@ export default function useLogin() {
 
     if (redirectUri?.includes('headless')) {
       return false;
-    } else if (cfg.getMotd()) {
-      return true;
-    } else {
-      return false;
     }
+    return !!cfg.getMotd();
   });
 
   function acknowledgeMotd() {

@@ -15,7 +15,6 @@
  */
 
 import React from 'react';
-import { MemoryRouter, Route } from 'react-router';
 import { render, fireEvent, screen, waitFor } from 'design/utils/testing';
 import { privateKeyEnablingPolicies } from 'shared/services/consts';
 
@@ -161,16 +160,13 @@ describe('test MOTD', () => {
       .mockImplementation(
         () => 'Welcome to cluster, your activity will be recorded.'
       );
+    jest
+      .spyOn(history, 'getRedirectParam')
+      .mockReturnValue(
+        'https://teleport.example.com/web/headless/5c5c1f73-ac5c-52ee-bc9e-0353094dcb4a'
+      );
 
-    const url =
-      'https://teleport.example.com/web/login?redirect_uri=https://teleport.example.com/web/headless/5c5c1f73-ac5c-52ee-bc9e-0353094dcb4a';
-    render(
-      <MemoryRouter>
-        <Route path={url}>
-          <Login />
-        </Route>
-      </MemoryRouter>
-    );
+    render(<Login />);
 
     expect(
       screen.queryByText('Welcome to cluster, your activity will be recorded.')
