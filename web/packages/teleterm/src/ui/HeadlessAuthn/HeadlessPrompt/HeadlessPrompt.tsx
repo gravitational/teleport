@@ -16,7 +16,7 @@
 
 import React, { useState } from 'react';
 import * as Alerts from 'design/Alert';
-import { ButtonIcon, Text, ButtonSecondary } from 'design';
+import { ButtonIcon, Text, ButtonSecondary, Image, Flex, Box } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogHeader,
@@ -25,7 +25,8 @@ import DialogConfirmation, {
 import { Attempt } from 'shared/hooks/useAsync';
 import * as Icons from 'design/Icon';
 
-import { PromptWebauthn } from '../../ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn';
+import LinearProgress from 'teleterm/ui/components/LinearProgress';
+import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 
@@ -35,9 +36,16 @@ export type HeadlessPromptProps = {
   skipConfirm: boolean;
   onApprove(): Promise<void>;
   abortApproval(): void;
+  /**
+   * onReject updates the state of the request by rejecting it.
+   */
   onReject(): Promise<void>;
   headlessAuthenticationId: string;
   updateHeadlessStateAttempt: Attempt<void>;
+  /**
+   * onCancel simply closes the modal and ignores the request. The user is still able to confirm or
+   * reject the request from the Web UI.
+   */
   onCancel(): void;
 };
 
@@ -89,7 +97,7 @@ export function HeadlessPrompt({
         <Text color="text.slightlyMuted">
           Someone initiated a headless command from <b>{clientIp}</b>.
           <br />
-          If it was not you, click Cancel and contact your administrator.
+          If it was not you, click Reject and contact your administrator.
         </Text>
         <Text color="text.muted" mt={1} fontSize="12px">
           Request ID: {headlessAuthenticationId}
@@ -100,13 +108,38 @@ export function HeadlessPrompt({
           <Text color="text.slightlyMuted">
             Complete MFA verification to approve the Headless Login.
           </Text>
-          <PromptWebauthn
-            prompt={'tap'}
-            onCancel={() => {
-              abortApproval();
-              onReject();
-            }}
-          />
+
+          <Image mt={4} mb={4} width="200px" src={svgHardwareKey} mx="auto" />
+          <Box textAlign="center" style={{ position: 'relative' }}>
+            <Text bold>Insert your security key and tap it</Text>
+            <LinearProgress />
+          </Box>
+
+          <Flex justifyContent="flex-end" mt={4} gap={3}>
+            {/*
+              The Reject button is there so that if skipping confirmation is enabled (see
+              HeadlessAuthenticationService) then the user still has the ability to reject the
+              request from the screen that prompts for key touch.
+            */}
+            <ButtonSecondary
+              type="button"
+              onClick={() => {
+                abortApproval();
+                onReject();
+              }}
+            >
+              Reject
+            </ButtonSecondary>
+            <ButtonSecondary
+              type="button"
+              onClick={() => {
+                abortApproval();
+                onCancel();
+              }}
+            >
+              Cancel
+            </ButtonSecondary>
+          </Flex>
         </DialogContent>
       )}
       {!waitForMfa && (
@@ -130,7 +163,7 @@ export function HeadlessPrompt({
               onReject();
             }}
           >
-            Cancel
+            Reject
           </ButtonSecondary>
         </DialogFooter>
       )}

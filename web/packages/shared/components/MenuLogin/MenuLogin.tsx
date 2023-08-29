@@ -123,7 +123,7 @@ const LoginItemList = ({
   const content = getLoginItemListContent(getLoginItemsAttempt, onClick);
 
   return (
-    <Flex flexDirection="column" width={width}>
+    <Flex flexDirection="column" minWidth={width}>
       <Input
         p="2"
         m="2"
