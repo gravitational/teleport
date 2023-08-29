@@ -1,0 +1,9 @@
+enabled: true
+
+# Can take 3 values: dynamic, always, never
+# - "dynamic" means the CRD will be installed if the operator is enabled or if
+#   the CRD was already present in the cluster. The presence check is here to
+#   avoid massive deletion issue when disabling the operator.
+# - "always" means the CRD is always installed
+# - "never" means the CRD is never installed
+installCRDs: "dynamic"

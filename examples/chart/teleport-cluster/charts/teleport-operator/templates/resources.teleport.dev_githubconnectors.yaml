@@ -1,3 +1,17 @@
+{{/*
+  Deploy the CRD if `installCRDs` is set to "always", or if `installCRD` is set
+  to "dynamic" and either `enabled` is true or the CRD is already present.
+*/}}
+{{- if or
+  (eq .Values.installCRDs "always")
+  (and
+    (eq .Values.installCRDs "dynamic")
+    (or
+      .Values.enabled
+      (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "teleportgithubconnectors.resources.teleport.dev")
+    )
+  )
+}}
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -166,3 +180,4 @@ status:
     plural: ""
   conditions: null
   storedVersions: null
+{{- end }}
