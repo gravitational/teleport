@@ -1604,7 +1604,9 @@
     "teleport": {
       "major_version": "14",
       "version": "14.0.0-dev",
-      "golang": "1.20",
+      "git": "api/14.0.0-gd1e081e",
+      "url": "teleport.example.com",
+      "golang": "1.21",
       "plugin": {
         "version": "12.1.1"
       },

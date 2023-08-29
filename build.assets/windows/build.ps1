@@ -145,6 +145,8 @@ function Enable-Rust {
         [string] $ToolchainDir
     )
     begin {
+        $Env:RUSTUP_HOME = "$ToolchainDir/rustup"
+        $Env:CARGO_HOME = "$ToolchainDir/cargo"
         $Env:Path = "$ToolchainDir/cargo/bin;$Env:Path"
     }
 }
