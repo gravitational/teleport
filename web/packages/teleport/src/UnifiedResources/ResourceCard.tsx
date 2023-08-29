@@ -244,7 +244,7 @@ function databaseIconName(resource: Database): ResourceIconName {
 function resourceIconName(resource: UnifiedResource): ResourceIconName {
   switch (resource.kind) {
     case 'app':
-      return 'Application';
+      return resource.guessedAppIconName;
     case 'db':
       return databaseIconName(resource);
     case 'kube_cluster':
