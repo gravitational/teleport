@@ -20,14 +20,14 @@ import { Popover, Box } from 'design';
 
 type Props = {
   borderRadius?: number;
-  tooltipText?: TooltipText;
+  badgeTitle?: BadgeTitle;
   sticky?: boolean;
 };
 
 export const ToolTipNoPermBadge: React.FC<Props> = ({
   children,
   borderRadius = 2,
-  tooltipText,
+  badgeTitle = BadgeTitle.LackingPermissions,
   sticky = false,
 }) => {
   const [anchorEl, setAnchorEl] = useState();
@@ -41,8 +41,6 @@ export const ToolTipNoPermBadge: React.FC<Props> = ({
     setAnchorEl(null);
   }
 
-  const popoverPointerEvent = !sticky ? 'none' : 'auto';
-  const tooltip = tooltipText ? tooltipText : TooltipText.LackingPermissions;
   return (
     <>
       <Box
@@ -61,10 +59,10 @@ export const ToolTipNoPermBadge: React.FC<Props> = ({
           background-color: ${p => p.theme.colors.error.main};
         `}
       >
-        {tooltip}
+        {badgeTitle}
       </Box>
       <Popover
-        modalCss={() => `pointer-events: ${popoverPointerEvent}`}
+        modalCss={() => `pointer-events: ${sticky ? 'auto' : 'none'}`}
         onClose={handlePopoverClose}
         open={open}
         anchorEl={anchorEl}
@@ -81,7 +79,6 @@ export const ToolTipNoPermBadge: React.FC<Props> = ({
           px={3}
           py={2}
           data-testid="tooltip-msg"
-          modalCss={() => `pointer-events: none`}
           onMouseLeave={handlePopoverClose}
         >
           {children}
@@ -97,7 +94,7 @@ const StyledOnHover = styled(Box)`
   max-width: 350px;
 `;
 
-export enum TooltipText {
+export enum BadgeTitle {
   LackingPermissions = 'Lacking Permissions',
   LackingEnterpriseLicense = 'Enterprise Only',
 }
