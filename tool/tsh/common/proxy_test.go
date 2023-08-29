@@ -235,27 +235,29 @@ func TestSSHLoadAllCAs(t *testing.T) {
 			// Login to root
 			tshHome, _ := mustLogin(t, s)
 
+			require.Eventually(t, func() bool {
+				lnodes, _ := s.leaf.GetAuthServer().GetNodes(context.Background(), "default")
+				rnodes, _ := s.root.GetAuthServer().GetNodes(context.Background(), "default")
+				return len(lnodes) != 0 && len(rnodes) != 0
+			}, time.Second*30, time.Millisecond*100)
+
 			// Connect to leaf node
-			require.Eventually(t, func() bool {
-				err = Run(context.Background(), []string{
-					"ssh", "-d",
-					"-p", strconv.Itoa(s.leaf.Config.SSH.Addr.Port(0)),
-					"--cluster", s.leaf.Config.Auth.ClusterName.GetClusterName(),
-					s.leaf.Config.SSH.Addr.Host(),
-					"echo", "hello",
-				}, setHomePath(tshHome))
-				return err == nil
-			}, time.Second*30, time.Millisecond*100)
+			err = Run(context.Background(), []string{
+				"ssh", "-d",
+				"-p", strconv.Itoa(s.leaf.Config.SSH.Addr.Port(0)),
+				"--cluster", s.leaf.Config.Auth.ClusterName.GetClusterName(),
+				s.leaf.Config.SSH.Addr.Host(),
+				"echo", "hello",
+			}, setHomePath(tshHome))
+			require.NoError(t, err)
 			// Connect to leaf node with Jump host
-			require.Eventually(t, func() bool {
-				err = Run(context.Background(), []string{
-					"ssh", "-d",
-					"-J", leafProxySSHAddr.String(),
-					s.leaf.Config.Hostname,
-					"echo", "hello",
-				}, setHomePath(tshHome))
-				return err == nil
-			}, time.Second*30, time.Millisecond*100)
+			err = Run(context.Background(), []string{
+				"ssh", "-d",
+				"-J", leafProxySSHAddr.String(),
+				s.leaf.Config.Hostname,
+				"echo", "hello",
+			}, setHomePath(tshHome))
+			require.NoError(t, err)
 		})
 	}
 }
@@ -537,28 +539,27 @@ func TestProxySSH(t *testing.T) {
 			// login to Teleport
 			homePath, kubeConfigPath := mustLogin(t, s)
 
+			require.Eventually(t, func() bool {
+				rnodes, _ := s.root.GetAuthServer().GetNodes(context.Background(), "default")
+				return len(rnodes) != 0
+			}, time.Second*30, time.Millisecond*100)
+
 			t.Run("logged in", func(t *testing.T) {
 				t.Parallel()
-				require.Eventually(t, func() bool {
-					err := runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath))
-					return err == nil
-				}, time.Second*30, time.Millisecond*100)
+				err := runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath))
+				require.NoError(t, err)
 			})
 
 			t.Run("re-login", func(t *testing.T) {
 				t.Parallel()
-				require.Eventually(t, func() bool {
-					err := runProxySSH(proxyRequest, setHomePath(t.TempDir()), setKubeConfigPath(filepath.Join(t.TempDir(), teleport.KubeConfigFile)), setMockSSOLogin(t, s))
-					return err == nil
-				}, time.Second*30, time.Millisecond*100)
+				err := runProxySSH(proxyRequest, setHomePath(t.TempDir()), setKubeConfigPath(filepath.Join(t.TempDir(), teleport.KubeConfigFile)), setMockSSOLogin(t, s))
+				require.NoError(t, err)
 			})
 
 			t.Run("identity file", func(t *testing.T) {
 				t.Parallel()
-				require.Eventually(t, func() bool {
-					err := runProxySSH(proxyRequest, setIdentity(mustLoginIdentity(t, s)))
-					return err == nil
-				}, time.Second*30, time.Millisecond*100)
+				err := runProxySSH(proxyRequest, setIdentity(mustLoginIdentity(t, s)))
+				require.NoError(t, err)
 			})
 
 			t.Run("invalid node login", func(t *testing.T) {
