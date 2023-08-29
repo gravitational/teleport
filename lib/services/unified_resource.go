@@ -381,7 +381,6 @@ func (c *UnifiedResourceCache) getAccessLists(ctx context.Context) ([]*accesslis
 
 	for {
 		resp, nextKey, err := c.ListAccessLists(ctx, apidefaults.DefaultChunkSize, startKey)
-
 		if err != nil {
 			return nil, trace.Wrap(err, "getting access lists for unified resource watcher")
 		}
@@ -493,6 +492,7 @@ func (c *UnifiedResourceCache) resourceKinds() []types.WatchKind {
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindKubeServer},
+		{Kind: types.KindAccessList},
 	}
 }
 
