@@ -1,22 +1,16 @@
 ---
-title: Get started with Desktop Access
-description: Configure passwordless access to Windows computers for local users.
+title: Configure access for local users
+description: Configure passwordless access for local Windows users on Windows computers that aren't joined to an Active Directory domain.
 videoBanner: 9DyKQbg4ORc
 ---
 
 This guide demonstrates how to configure Teleport to provide secure, passwordless access
 to Microsoft Windows desktops that aren't joined to an Active Directory domain.
-Passwordless access is only supported for **commercial editions** of Teleport.
-For the open source Teleport Community Edition, you can protect Microsoft Windows servers 
-and desktops by integrating Teleport with Active Directory. 
 
-Integrating with Active Directory enables you to automatically discover Microsoft Windows servers 
-and desktops that are joined to Active Directory domains. If you use a commercial edition of 
-Teleport can also mix the automatic discovery provided by Active Directory integration
-with the static host definitions demonstrated in this guide.
+The following diagram provides a simplified view of how you configure Teleport
+Desktop Access for local Windows users:
 
-For information about integrating Teleport with Active Directory, see [Desktop Access with 
-Active Directory](./active-directory.mdx).
+![Configure access for local Windows users](../../img/desktop-access/windows-local-users.png)
 
 ## Prerequisites
 
@@ -25,10 +19,11 @@ To complete the steps in this guide, verify your environment meets the following
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - A Linux server to run the Teleport Windows Desktop Service.
-  You can reuse an existing server running any other Teleport instance.
-- A physical or virtual machine running Microsoft Windows with
-  Remote Desktop enabled and the RDP port—typically, port 3389—open for inbound connections
-  from the Linux server.
+  You can reuse an existing server running any other Teleport instance. 
+  However, you must generate a new invitation token to add the Windows Desktop Service
+  to an existing Teleport instance.
+- A physical or virtual machine running Microsoft Windows with Remote Desktop enabled 
+  and the RDP port—typically, port 3389—open for inbound connections from the Linux server.
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Prepare Windows
@@ -143,7 +138,7 @@ following for the Windows Desktop Service:
    - List the Windows IP addresses or DNS names under `non_ad_hosts`.
    
    Teleport can't automatically discover Windows desktops without Active Directory. 
-   Therefore, you must specify the Windows IP addresses or DNS name that you want to 
+   Therefore, you must specify the Windows IP addresses or DNS names that you want to 
    enroll using the Teleport configuration file or use the Teleport [API](../api/introduction.mdx) 
    to build your own integration. You can find an example of API integration on 
    [GitHub](https://github.com/gravitational/teleport/tree/master/examples/desktop-registration).
@@ -240,5 +235,5 @@ Windows login to use for the connection.
 
 For more information about how to create, assign, and update roles, see [Access Controls 
 Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles).
-For more specific information about configuring role-based access controls to manage Windows desktop 
-access permissions, see [Role-Based Access Control for Desktop Access](./rbac.mdx).
+For more specific information about configuring Windows-specific role permissions, see 
+[Configure Windows-specific role permissions](./rbac.mdx).
