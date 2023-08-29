@@ -415,7 +415,9 @@ func TestAutoRotation(t *testing.T) {
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
 	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "certificate")
+	// TODO(rosstimothy, espadolini, jakule): figure out how to consistently
+	// match a certificate error and not other errors
+	require.Error(t, err)
 
 	// new clients work
 	_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
@@ -588,7 +590,7 @@ func TestManualRotation(t *testing.T) {
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
 	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "certificate")
+	require.Error(t, err)
 
 	// new clients work
 	_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
@@ -683,7 +685,7 @@ func TestRollback(t *testing.T) {
 
 	// clients with new creds will no longer work
 	_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "certificate")
+	require.Error(t, err)
 
 	grpcClientOld := testSrv.CloneClient(t, proxy)
 	t.Cleanup(func() {

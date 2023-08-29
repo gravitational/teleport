@@ -209,9 +209,10 @@ function resourceDescription(resource: UnifiedResource) {
     case 'kube_cluster':
       return { primary: 'Kubernetes' };
     case 'node':
-      // TODO(bl-nero): Pass the subkind to display as the primary and push addr
-      // to secondary.
-      return { primary: resource.addr };
+      return {
+        primary: resource.subKind || 'SSH Server',
+        secondary: resource.tunnel ? '← tunnel' : resource.addr,
+      };
     case 'windows_desktop':
       return { primary: 'Windows', secondary: resource.addr };
 
