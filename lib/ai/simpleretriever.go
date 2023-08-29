@@ -20,8 +20,9 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/ai/embedding"
 )
 
 // Document is a embedding enriched with similarity score
