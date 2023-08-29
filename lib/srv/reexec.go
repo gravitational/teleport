@@ -29,6 +29,7 @@ import (
 	"os/signal"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -1044,6 +1045,17 @@ func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
 	gid, err := strconv.Atoi(localUser.Gid)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if runtime.GOOS == "darwin" {
+		// on macOS we should rely on the list of groups managed by the system
+		// (the use of setgroups is "highly discouraged", as per the setgroups
+		// man page in macOS 13.5)
+		return &syscall.Credential{
+			Uid:         uint32(uid),
+			Gid:         uint32(gid),
+			NoSetGroups: true,
+		}, nil
 	}
 
 	// Lookup supplementary groups for the user.
