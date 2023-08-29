@@ -124,6 +124,15 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Network request are allowed when a policy allow them.
   - [ ] Network request are blocked when a policy deny them.
 
+- [ ] Auditd
+  - [ ] When auditd is enabled, audit events are recorded — https://github.com/gravitational/teleport/blob/7744f72c6eb631791434b648ba41083b5f6d2278/lib/auditd/common.go#L25-L34
+    - [ ] SSH session start — user login event
+    - [ ] SSH session end
+    - [ ] SSH Login failures — SSH auth error
+    - [ ] SSH Login failures — unknown OS user
+    - [ ] Session ID is correct (only true when Teleport runs as systemd service)
+    - [ ] Teleport user is recorded as an auditd event field
+
 - [ ] Audit Log
   - [ ] Audit log with dynamodb
     - [ ] AWS integration tests are passing
