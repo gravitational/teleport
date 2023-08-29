@@ -23,6 +23,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
@@ -30,6 +31,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -40,6 +43,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 
 	ctx := context.Background()
 
+	clock := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
@@ -48,10 +52,13 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		services.WindowsDesktops
 		services.SAMLIdPServiceProviders
 		types.Events
-		services.AccessListsGetter
+		services.AccessLists
 	}
 
 	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
+	require.NoError(t, err)
+
+	accessListService, err := local.NewAccessListService(bk, clock)
 	require.NoError(t, err)
 
 	clt := &client{
@@ -59,6 +66,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		WindowsDesktops:         local.NewWindowsDesktopService(bk),
 		SAMLIdPServiceProviders: samlService,
 		Events:                  local.NewEventsService(bk),
+		AccessLists:             accessListService,
 	}
 	// Add node to the backend.
 	node := newNodeServer(t, "node1", "127.0.0.1:22", false /*tunnel*/)
@@ -135,8 +143,50 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	err = clt.UpsertWindowsDesktop(ctx, win)
 	require.NoError(t, err)
 
+	// Add access list to backend
+	accessList, err := accesslist.NewAccessList(header.Metadata{
+		Name: "my-access-list",
+	},
+		accesslist.Spec{
+			Title:       "title",
+			Description: "test access list",
+			Owners: []accesslist.Owner{
+				{
+					Name:        "test-user1",
+					Description: "test user 1",
+				},
+			},
+			Audit: accesslist.Audit{
+				Frequency: time.Hour,
+			},
+			MembershipRequires: accesslist.Requires{
+				Roles: []string{"mrole1", "mrole2"},
+				Traits: map[string][]string{
+					"mtrait1": {"mvalue1", "mvalue2"},
+					"mtrait2": {"mvalue3", "mvalue4"},
+				},
+			},
+			OwnershipRequires: accesslist.Requires{
+				Roles: []string{"orole1", "orole2"},
+				Traits: map[string][]string{
+					"otrait1": {"ovalue1", "ovalue2"},
+					"otrait2": {"ovalue3", "ovalue4"},
+				},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"grole1", "grole2"},
+				Traits: map[string][]string{
+					"gtrait1": {"gvalue1", "gvalue2"},
+					"gtrait2": {"gvalue3", "gvalue4"},
+				},
+			},
+		})
+	require.NoError(t, err)
+	accessList, err = clt.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
 	// we expect each of the resources above to exist
-	expectedRes := []types.ResourceWithLabels{node, app, samlapp, dbServer, win}
+	expectedRes := []types.ResourceWithLabels{node, app, samlapp, dbServer, win, accessList}
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
 		return len(res) == len(expectedRes)
