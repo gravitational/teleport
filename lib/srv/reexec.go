@@ -1035,11 +1035,11 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 // getCmdCredentials parses the uid, gid, and groups of the
 // given user into a credential object for a command to use.
 func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
-	uid, err := strconv.Atoi(localUser.Uid)
+	uid, err := strconv.ParseUint(localUser.Uid, 10, 32)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	gid, err := strconv.Atoi(localUser.Gid)
+	gid, err := strconv.ParseUint(localUser.Gid, 10, 32)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1062,7 +1062,7 @@ func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
 	}
 	groups := make([]uint32, 0)
 	for _, sgid := range userGroups {
-		igid, err := strconv.Atoi(sgid)
+		igid, err := strconv.ParseUint(sgid, 10, 32)
 		if err != nil {
 			log.Warnf("Cannot interpret user group: '%v'", sgid)
 		} else {
