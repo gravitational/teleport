@@ -183,11 +183,9 @@ func DefaultBotConfig(
 	err := config.ApplyFileConfig(fc, authCfg)
 	require.NoError(t, err)
 
-	var authServer = ""
+	var authServer = authCfg.Proxy.WebAddr.String()
 	if opts.UseAuthServer {
 		authServer = authCfg.AuthServerAddresses()[0].String()
-	} else {
-		authServer = authCfg.Proxy.WebAddr.String()
 	}
 
 	cfg := &botconfig.BotConfig{
