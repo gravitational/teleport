@@ -1,11 +1,13 @@
 ---
 title: Machine ID Access Guides
-description: Teleport Machine ID access guides.
+description: How to use Machine ID to access Teleport resources
 layout: tocless-doc
 ---
 
-These guides cover how to configure Machine ID to access resources and to
-integrate with specific tools. It is a pre-requisite of these guides that
+These guides cover how to configure a deployed Machine ID to produce credentials
+that can be used for machine to machine access to different Teleport resources.
+
+It is a pre-requisite of these guides that
 Machine ID has been configured for your platform, see the
 [Platform Guides](./platform-guides.mdx) for information on how to do so.
 
@@ -15,8 +17,10 @@ Machine ID has been configured for your platform, see the
 - [Kubernetes Access](./access-guides/kubernetes.mdx): How to use Machine ID to access Kubernetes clusters.
 - [Database Access](./access-guides/databases.mdx): How to use Machine ID to access Database servers.
 - [Application Access](./access-guides/applications.mdx): How to use Machine ID to access Applications.
-- [SSH Host Certificates](./access-guides/host-certificate.mdx): How to use Machine ID to generate a host certificate for an OpenSSH server.
 
-## Tooling Specific
+## Specific Tools
 
+- [tctl](./access-guides/tctl.mdx): How to use Machine ID with `tctl` to manage your Teleport configuration.
+- [Teleport Terraform](./access-guides/terraform.mdx): How to use Machine ID with the Teleport Terraform provider to manage your Teleport configuration as IaC.
 - [Ansible](./access-guides/ansible.mdx): How to use Machine ID with Ansible.
+- [OpenSSH Server](./access-guides/host-certificate.mdx): How to use Machine ID to generate a host certificate to enrol an OpenSSH server to your Teleport cluster.
