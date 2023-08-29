@@ -81,7 +81,10 @@ POSTGRES_URL ?=
 MYSQL_NAME ?= rdsmysql
 MYSQL_URL ?=
 DATABASE_ROLE_ARN ?=
-TELEPORT_VERSION ?= 13
+
+ifndef TELEPORT_VERSION
+$(error TELEPORT_VERSION is required but not provided)
+endif
 
 .PHONY: create-rds-database
 create-rds-database:
@@ -94,6 +97,7 @@ deploy-database-agents:
 		-n database-agents \
 		--create-namespace \
 		teleport/teleport-kube-agent \
+		--set teleportVersionOverride="${TELEPORT_VERSION}" \
 		--set roles=db \
 		--set proxyAddr=${PROXY_SERVER} \
 		--set authToken=${NODE_TOKEN} \

@@ -35,6 +35,7 @@ With the infrastructure in place, you can deploy the agents with
 make create-token
 
 make deploy-database-agents \
+  TELEPORT_VERSION=13.3.5 \
   NODE_TOKEN=00000000000000000000000000000000 \
   PROXY_SERVER=yourcluster.teleportdemo.net:443 \
   NODE_REPLICAS=3 \
