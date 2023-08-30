@@ -34,7 +34,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 )
 
@@ -61,16 +60,10 @@ type OpenTunnelEC2Request struct {
 	// Region is the AWS Region.
 	Region string
 
-	// InstanceID is the EC2 Instance's ID.
-	InstanceID string
-
 	// VPCID is the VPC where the EC2 Instance is located.
 	// Used to look for the EC2 Instance Connect Endpoint.
 	// Each VPC ID can only have one EC2 Instance Connect Endpoint.
 	VPCID string
-
-	// EC2SSHLoginUser is the OS user to use when the user wants SSH access.
-	EC2SSHLoginUser string
 
 	// EC2Address is the address to connect to in the EC2 Instance.
 	// Eg, ip-172-31-32-234.eu-west-2.compute.internal:22
@@ -98,16 +91,8 @@ func (r *OpenTunnelEC2Request) CheckAndSetDefaults() error {
 		return trace.BadParameter("region is required")
 	}
 
-	if r.InstanceID == "" {
-		return trace.BadParameter("instance id is required")
-	}
-
 	if r.VPCID == "" {
 		return trace.BadParameter("vpcid is required")
-	}
-
-	if r.EC2SSHLoginUser == "" {
-		return trace.BadParameter("ec2 ssh login user is required")
 	}
 
 	if r.EC2Address == "" {
@@ -129,9 +114,6 @@ func (r *OpenTunnelEC2Request) CheckAndSetDefaults() error {
 // OpenTunnelEC2Response contains the response for creating a Tunnel to an EC2 Instance.
 // It returns the listening address and the SSH Private Key (PEM encoded).
 type OpenTunnelEC2Response struct {
-	// SSHSigner is the SSH Signer that should be used to connect to the host.
-	SSHSigner ssh.Signer
-
 	// Tunnel is a net.Conn that is connected to the EC2 instance.
 	// The SSH Client must use this connection to connect to it.
 	Tunnel net.Conn
@@ -144,12 +126,6 @@ type OpenTunnelEC2Client interface {
 	// Connect Endpoints.
 	DescribeInstanceConnectEndpoints(ctx context.Context, params *ec2.DescribeInstanceConnectEndpointsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeInstanceConnectEndpointsOutput, error)
 
-	// SendSSHPublicKey pushes an SSH public key to the specified EC2 instance for use by the specified
-	// user. The key remains for 60 seconds. For more information, see Connect to your
-	// Linux instance using EC2 Instance Connect (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Connect-using-EC2-Instance-Connect.html)
-	// in the Amazon EC2 User Guide.
-	SendSSHPublicKey(ctx context.Context, params *ec2instanceconnect.SendSSHPublicKeyInput, optFns ...func(*ec2instanceconnect.Options)) (*ec2instanceconnect.SendSSHPublicKeyOutput, error)
-
 	// Retrieve returns nil if it successfully retrieved the value.
 	// Error is returned if the value were not obtainable, or empty.
 	Retrieve(ctx context.Context) (aws.Credentials, error)
@@ -159,14 +135,6 @@ type defaultOpenTunnelEC2Client struct {
 	*ec2.Client
 	awsCredentialsProvider aws.CredentialsProvider
 	ec2icClient            *ec2instanceconnect.Client
-}
-
-// SendSSHPublicKey pushes an SSH public key to the specified EC2 instance for use by the specified
-// user. The key remains for 60 seconds. For more information, see Connect to your
-// Linux instance using EC2 Instance Connect (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Connect-using-EC2-Instance-Connect.html)
-// in the Amazon EC2 User Guide.
-func (d defaultOpenTunnelEC2Client) SendSSHPublicKey(ctx context.Context, params *ec2instanceconnect.SendSSHPublicKeyInput, optFns ...func(*ec2instanceconnect.Options)) (*ec2instanceconnect.SendSSHPublicKeyOutput, error) {
-	return d.ec2icClient.SendSSHPublicKey(ctx, params, optFns...)
 }
 
 // Retrieve returns nil if it successfully retrieved the value.
@@ -205,19 +173,11 @@ func NewOpenTunnelEC2Client(ctx context.Context, clientReq *AWSClientRequest) (O
 // - https://github.com/aws/aws-cli/blob/f6c820e89d8b566ab54ab9d863754ec4b713fd6a/awscli/customizations/ec2instanceconnect/opentunnel.py
 //
 // High level archictecture:
-// - create a new SSH Key SK1
-// - send SK1 key using ec2instanceconnect.SendSSHPublicKey
-// - open TCP listener to receive connections from Teleport Proxy
-// - when a connection arrives C1, it connects to the websocket (EC2 Instance Connect Endpoint service), the websocket connects to the EC2 instance.
-// - the proxy then talks SSH protocol to C1, which in turn pipes the tcp stream via websocket to EC2 Instance Connect Endpoint, which in turns pipes the stream to the EC2 instance.
-// - the proxy sends the Public Key created in the first step in order to authenticate.
+// - does a lookup for an EC2 Instance Connect Endpoint available (create-complete state) for the target VPC
+// - connects to it (websockets) and returns the connection
+// - the connection can be used to access the EC2 instance directly (tcp stream)
 func OpenTunnelEC2(ctx context.Context, clt OpenTunnelEC2Client, req OpenTunnelEC2Request) (*OpenTunnelEC2Response, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshSigner, err := sendSSHPublicKey(ctx, clt, req)
-	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -240,8 +200,7 @@ func OpenTunnelEC2(ctx context.Context, clt OpenTunnelEC2Client, req OpenTunnelE
 	}
 
 	return &OpenTunnelEC2Response{
-		SSHSigner: sshSigner,
-		Tunnel:    ec2Conn,
+		Tunnel: ec2Conn,
 	}, nil
 }
 
