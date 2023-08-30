@@ -213,7 +213,8 @@ type MonitorConfig struct {
 	Tracker ActivityTracker
 	// Conn is a connection to close
 	Conn TrackingConn
-	// Context is an external context to cancel the operation
+	// Context is an external context. To reliably close the monitor and ensure no goroutine leak,
+	// make sure to pass a context which will be canceled on time.
 	Context context.Context
 	// Login is linux box login
 	Login string
