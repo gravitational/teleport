@@ -382,7 +382,7 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 		client, err = caPathRegisterClient(params)
 	default:
 		// We fall back to insecure mode here - this is a little odd but is
-		// necessary to preserve the behaviour of registration. At a later date,
+		// necessary to preserve the behavior of registration. At a later date,
 		// we may consider making this an error asking the user to provide
 		// Insecure, CAPins or CAPath.
 		client, err = insecureRegisterClient(params)
@@ -616,7 +616,7 @@ func caPathRegisterClient(params RegisterParams) (*Client, error) {
 	}
 
 	// If we're unable to read the file at CAPath, we fall back to insecure
-	// registration. This preserves the existing behaviour. At a later date,
+	// registration. This preserves the existing behavior. At a later date,
 	// we may wish to consider changing this to return an error - but this is a
 	// breaking change.
 	if trace.IsNotFound(err) {
