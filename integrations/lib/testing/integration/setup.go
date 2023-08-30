@@ -121,10 +121,9 @@ func (s *SSHSetup) SetupService() {
 	require.True(t, ready, "ssh is not ready")
 
 	// Wait for node to show up on the server.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		resources, err := s.Integration.tctl(s.Auth).GetAll(s.Context(), "nodes")
 		assert.NoError(t, err)
-
-		return len(resources) != 0
+		assert.NotEmpty(t, resources)
 	}, 5*time.Second, time.Second)
 }

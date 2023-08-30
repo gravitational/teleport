@@ -409,10 +409,10 @@ func TestCloseWithActiveConnections(t *testing.T) {
 	server, connErrCh, _ := databaseServerWithActiveConnection(t, ctx)
 
 	require.NoError(t, server.Close())
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		select {
 		case err := <-connErrCh:
-			assert.ErrorIs(c, err, io.ErrUnexpectedEOF)
+			assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
 		default:
 		}
 	}, time.Second, 100*time.Millisecond)

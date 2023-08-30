@@ -969,7 +969,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Field:  types.ResourceMetadataName,
 		IsDesc: true,
 	}
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
 			Namespace:    apidefaults.Namespace,
 			ResourceType: types.KindNode,
@@ -977,14 +977,11 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 			Limit:        int32(pageSize),
 			SortBy:       sortBy,
 		})
-		if err != nil {
-			t.Logf("error listing resources: %v", err)
-			return false
-		}
+		assert.NoError(t, err)
 
 		resources = append(resources, resp.Resources...)
 		listResourcesStartKey = resp.NextKey
-		return len(resources) == nodeCount
+		assert.Len(t, resources, nodeCount)
 	}, 5*time.Second, 100*time.Millisecond)
 
 	servers, err := types.ResourcesWithLabels(resources).AsServers()
@@ -2810,12 +2807,10 @@ func TestInvalidDatabases(t *testing.T) {
 				require.NoError(t, err)
 
 				// Wait until the database appear on cache.
-				require.Eventually(t, func() bool {
-					if dbs, err := c.GetDatabases(ctx); err == nil {
-						return len(dbs) == 1
-					}
-
-					return false
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					dbs, err := c.GetDatabases(ctx)
+					assert.NoError(t, err)
+					assert.Len(t, dbs, 1)
 				}, time.Second, 100*time.Millisecond, "expected database to be on cache, but nothing found")
 
 				cacheDB, err := c.GetDatabase(ctx, dbName)
