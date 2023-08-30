@@ -92,6 +92,14 @@ enum ResourceKind {
   //
   // PostHog property value: "node.openssh"
   RESOURCE_KIND_NODE_OPENSSH = 6;
+
+  // ServerV3 ("node") heartbeat with a subkind of "openssh-ec2-ice".
+  // Nodes that map EC2 instances and are accessed using EC2 Instance Connect Endpoint.
+  // Not used in keepalives.
+  // This is the SubKind SubKindOpenSSHEICENode in teleport repo.
+  //
+  // PostHog property value: "node.openssh_ec2_ice"
+  RESOURCE_KIND_NODE_OPENSSH_EICE = 7;
 }
 
 // a heartbeat for a resource served by a Teleport instance outside of the
