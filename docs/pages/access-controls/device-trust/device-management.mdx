@@ -1,6 +1,6 @@
 ---
 title: Manage Trusted Devices (Preview)
-description: Learn how to manage Trusted Devices in Teleport
+description: Learn how to manage Trusted Devices
 ---
 
 <Admonition type="warning" title="Preview Note: Supported Device Type">
@@ -21,7 +21,7 @@ responsible for managing devices, adding new devices to the inventory and
 removing devices that are no longer in use.
 
 <Admonition type="tip" title="Self enrollment: v13.3.5+">
-  Users with the preset `editor` or `device-enroll` role (available from v13.3.6 and above)
+  Users with the preset `editor` or `device-admin` role (since v13.3.6)
   can register and enroll their device in a single step with the following command:
   ```code
   $ tsh device enroll --current-device
@@ -36,34 +36,16 @@ are automatically updated in Teleport's device inventory.
 Before you can enroll the device, you need to register it. To register
 a device, you first need to determine its serial number.
 
-<Tabs>
+Retreive device serial number with `tsh` (must be run on the device you want to register):
+```code
+$ tsh device asset-tag
+(=devicetrust.asset_tag=)
+```
+
+<Details title="Manually retrieving device serial" closed>
+  <Tabs>
   <TabItem label="macOS">
-    The serial number of a macOS device can be determined in two ways.
-
-    Through the UI, visible under Apple -> "About This Mac" -> "Serial number".
-
-    Through the terminal:
-    ```code
-    $ ioreg -c IOPlatformExpertDevice -d 2 | grep -i IOPlatformSerialNumber | awk -F'"' '{print $4}'
-    (=devicetrust.asset_tag=)
-    ```
-
-    Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/>
-    with the serial number obtained from the device you wish to enroll and run `tctl devices add` command:
-
-    ```code
-    $ tctl devices add --os=macos --asset-tag="<Var name="(=devicetrust.asset_tag=)"/>"
-    Device <Var name="(=devicetrust.asset_tag=)"/>/macos added to the inventory
-    ```
-
-    Use `tctl` to check that the device has been registered:
-
-    ```code
-    $ tctl devices ls
-    Asset Tag    OS    Enroll Status Device ID
-    ------------ ----- ------------- ------------------------------------
-    (=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
-    ```
+    The serial number is visible under Apple manu -> "About This Mac" -> "Serial number".
   </TabItem>
 
   <TabItem label="Windows">
@@ -83,7 +65,31 @@ a device, you first need to determine its serial number.
       ...
     }
     ```
+  </TabItem>
+</Tabs>
+</Details>
+Use the serial number to register device:
+<Tabs>
+  <TabItem label="macOS">
+    Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/>
+    with the serial number obtained from the device you wish to enroll and run `tctl devices add` command:
 
+    ```code
+    $ tctl devices add --os=macos --asset-tag="<Var name="(=devicetrust.asset_tag=)"/>"
+    Device <Var name="(=devicetrust.asset_tag=)"/>/macos added to the inventory
+    ```
+
+    Use `tctl` to check that the device has been registered:
+
+    ```code
+    $ tctl devices ls
+    Asset Tag    OS    Enroll Status Device ID
+    ------------ ----- ------------- ------------------------------------
+    (=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
+    ```
+  </TabItem>
+
+  <TabItem label="Windows">
     Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/>
     with the serial number obtained from the device you wish to enroll and run `tctl devices add` command:
 
@@ -107,22 +113,19 @@ a device, you first need to determine its serial number.
   For clusters created after v13.3.6, Teleport supports preset `device-admin` role to manage devices.
 
   For clusters created using Teleport v12 or newer, the preset `editor` role has
-  the necessary permissions to manage devices. If your Teleport cluster is older than v12, you will
-  need to create and grant [`device` role](#dedicated-device-admin-role) to manage device inventory.
+  the necessary permissions to manage devices. For clusters created before v12, you may want
+  to create a dedicated [`device-admin`](#dedicated-device-admin-role) role.
 </Admonition>
 
-## Generate enrollment token
+## Create a device enrollment token
 
 A registered device becomes a trusted device after it goes through the
-enrollment ceremony. The tie between the device inventory and enrollment
-is a device enrollment token. A device enrollment token needs to be created
-by a device admin and sent to the person performing the enrollment ceremony.
+enrollment ceremony. To enroll the device, a device enrollment token is
+necessary. The token is created by a device admin and sent to the person
+performing the enrollment off-band (for example, via a corporate chat).
 
-The token ties the actual device being enrolled to the expected device in the
-inventory, adding an extra layer of protection.
-
-To create an enrollment token run the following command, where `--asset-tag` is
-the serial number of the device we want to enroll.
+To create an enrollment token run the command below, where `--asset-tag` is
+the serial number of the device we want to enroll:
 
 ```code
 $ tctl devices enroll --asset-tag="(=devicetrust.asset_tag=)"
@@ -130,7 +133,7 @@ Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
 tsh device enroll --token=(=devicetrust.enroll_token=)
 ```
 
-## Enrolling device
+## Enroll a trusted device
 
 To perform the enrollment ceremony, using the device specified above, type the
 command printed by `tctl devices enroll`:
@@ -156,21 +159,13 @@ Detected security key tap
 The presence of the `teleport-device-*` extensions shows that the device was
 successfully enrolled and authenticated. The device above is now a trusted device.
 
-<Admonition type="note" title="Windows">
-On Windows, the `tsh device enroll` command attempts to elevate to
-administrator privileges on the device. Privilege elevation is required to
-perform a TPM Credential Activation. This step is only required for
-enrollment and is not required on future device authentications.
-</Admonition>
-
 ## Auto-Enrollment
 
-In a large organization, distributing enrollment tokens to each user can be challenging.
-Teleport supports auto-enrollment, which if enabled, automatically enrolls user
-device during next Teleport login.
+Distributing enrollment tokens to many users can be challenging. To address that,
+Teleport supports auto-enrollment. When enabled, auto-enrollment automatically
+enrolls the user's device in their next Teleport (`tsh`) login.
 
-Auto-enrollment allows `tsh` to automatically enroll devices already registered
-in Teleport during the user's login. The registration may be
+A device must be registered for auto-enrollment to work. Registration may be
 [manual](#register-a-trusted-device) or performed using an
 integration, like the [Jamf Pro integration](./jamf-integration.mdx).
 
@@ -233,7 +228,7 @@ Detected security key tap
 The presence of the `teleport-device-*` extensions shows that the device was
 successfully enrolled and authenticated.
 
-## Removing trusted device
+## Remove a trusted device
 
 A device that is no longer in use may be removed using `tctl devices rm
 --device-id=<ID>` or `tctl devices rm --asset-tag=<SERIAL>`
@@ -248,23 +243,23 @@ C00AA0AAAA0A macOS enrolled      c9cbb327-68a8-497e-b820-6a4b2bf58269
 
 Now use asset-tag or device id to delete a device:
 ```code
-# delete with asset tag
+# Delete using asset tag:
 $ tctl devices rm --asset-tag=C00AA0AAAA0A
 Device "C00AA0AAAA0A" removed
 
-# delete with device id
+# Delete using device id:
 $ tctl devices rm --device-id=c9cbb327-68a8-497e-b820-6a4b2bf58269
 Device "c9cbb327-68a8-497e-b820-6a4b2bf58269" removed
 ```
 
 ## Dedicated device admin role
 
-For tighter control over enrollment process, we recommend creating a dedicated
-device admin role and grant the role to user allowed for device management.
+We recommend creating a dedicated `device-admin` role for device inventory
+management.
 
 <Admonition type="tip" title="v13.3.6+">
-  Teleport version 13.3.6 and above supports preset `device-admin` role, which
-  can be used as an alternative to creating a new role as explained below.
+  Teleport version 13.3.6 and above has the preset `device-admin` role, which
+  is a substitute for the role described below.
 </Admonition>
 
 Following is an example of a role that grants permissions for the `device` resource is necessary to manage
@@ -298,8 +293,7 @@ role 'device-admin' has been created
 Note that in addition to the usual CRUD verbs (create, read, list, update and
 delete), we have also included `create_enroll_token` and `enroll`. The
 `create_enroll_token` verb is necessary to execute the `tctl devices enroll`
-command; `enroll` is necessary to execute `tsh device enroll`. Both are
-demonstrated in the following section.
+command; `enroll` is necessary to execute `tsh device enroll`.
 
 
 ## Configuring a TPM EKCert CA allow-list
