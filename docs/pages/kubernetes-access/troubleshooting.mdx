@@ -170,7 +170,7 @@ $ CLUSTER=cookie
 $ cat > values.yaml << EOF
 authToken: "${TOKEN}"
 proxyAddr: "${PROXY_ADDR}"
-roles: "kube"
+roles: "kube,app,discovery"
 joinParams:
   method: "token"
   tokenName: "${TOKEN}"

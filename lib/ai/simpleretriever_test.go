@@ -18,6 +18,7 @@ package ai
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -27,6 +28,25 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai/embedding"
 )
+
+// Function to calculate L2 norm
+func L2norm(v []float64) float64 {
+	sum := 0.0
+	for _, value := range v {
+		sum += value * value
+	}
+	return math.Sqrt(sum)
+}
+
+// Function to normalize vector using L2 norm
+func normalize(v embedding.Vector64) embedding.Vector64 {
+	norm := L2norm(v)
+	result := make(embedding.Vector64, len(v))
+	for i, value := range v {
+		result[i] = value / norm
+	}
+	return result
+}
 
 func TestSimpleRetriever_GetRelevant(t *testing.T) {
 	t.Parallel()
