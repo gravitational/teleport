@@ -29,6 +29,7 @@ import (
 	"os/signal"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -1034,13 +1035,24 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 // getCmdCredentials parses the uid, gid, and groups of the
 // given user into a credential object for a command to use.
 func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
-	uid, err := strconv.Atoi(localUser.Uid)
+	uid, err := strconv.ParseUint(localUser.Uid, 10, 32)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	gid, err := strconv.Atoi(localUser.Gid)
+	gid, err := strconv.ParseUint(localUser.Gid, 10, 32)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if runtime.GOOS == "darwin" {
+		// on macOS we should rely on the list of groups managed by the system
+		// (the use of setgroups is "highly discouraged", as per the setgroups
+		// man page in macOS 13.5)
+		return &syscall.Credential{
+			Uid:         uint32(uid),
+			Gid:         uint32(gid),
+			NoSetGroups: true,
+		}, nil
 	}
 
 	// Lookup supplementary groups for the user.
@@ -1050,7 +1062,7 @@ func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
 	}
 	groups := make([]uint32, 0)
 	for _, sgid := range userGroups {
-		igid, err := strconv.Atoi(sgid)
+		igid, err := strconv.ParseUint(sgid, 10, 32)
 		if err != nil {
 			log.Warnf("Cannot interpret user group: '%v'", sgid)
 		} else {
