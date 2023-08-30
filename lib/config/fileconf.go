@@ -2559,6 +2559,9 @@ type Okta struct {
 
 	// APITokenPath is the path to the Okta API token.
 	APITokenPath string `yaml:"api_token_path,omitempty"`
+
+	// SyncPeriod is the duration between synchronization calls.
+	SyncPeriod time.Duration `yaml:"sync_period,omitempty"`
 }
 
 // JamfService is the yaml representation of jamf_service.
