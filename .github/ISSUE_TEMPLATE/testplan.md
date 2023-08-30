@@ -99,11 +99,12 @@ as well as an upgrade of the previous version of Teleport.
 
 - [ ] Backends
   - [ ] Teleport runs with etcd
-  - [ ] Teleport runs with dynamodb
+  - [ ] Teleport runs with DynamoDB
     - [ ] AWS integration tests are passing
   - [ ] Teleport runs with SQLite
   - [ ] Teleport runs with Firestore
     - [ ] GCP integration tests are passing
+  - [ ] Teleport runs with Postgres
 
 - [ ] Session Recording
   - [ ] Session recording can be disabled
@@ -754,6 +755,7 @@ Scale up the number of nodes/clusters a few times for each configuration below.
   - [ ] etcd - 10k
   - [ ] DynamoDB - 10k
   - [ ] Firestore - 10k
+  - [ ] Postgres - 10k
 
   Perform the following additional scaling tests on DynamoDB:
  - [ ] 10k direct dial nodes.
