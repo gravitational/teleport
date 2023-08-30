@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Box } from 'design';
 
-import { ToolTipNoPermBadge } from './ToolTipNoPermBadge';
+import { ToolTipNoPermBadge, BadgeTitle } from './ToolTipNoPermBadge';
 
 export default {
   title: 'Teleport/ToolTip',
@@ -36,6 +36,26 @@ export const NoPermissionBadgeComp = () => (
     I'm a sample container
     <ToolTipNoPermBadge
       children={<Box p={3}>I'm a box component with too much padding</Box>}
+    />
+  </SomeBox>
+);
+
+export const EnterpriseOnly = () => (
+  <SomeBox>
+    I'm a sample container
+    <ToolTipNoPermBadge
+      badgeTitle={BadgeTitle.LackingEnterpriseLicense}
+      children={'Lacking enterprise license'}
+    />
+  </SomeBox>
+);
+
+export const StickyTooltip = () => (
+  <SomeBox>
+    I'm a sample container
+    <ToolTipNoPermBadge
+      sticky={true}
+      children={<Box p={3}>I will only disappear after this component is unhovered</Box>}
     />
   </SomeBox>
 );
