@@ -113,8 +113,7 @@ func (c *Client) DeleteAccessList(ctx context.Context, name string) error {
 
 // DeleteAllAccessLists removes all access lists.
 func (c *Client) DeleteAllAccessLists(ctx context.Context) error {
-	_, err := c.grpcClient.DeleteAllAccessLists(ctx, &accesslistv1.DeleteAllAccessListsRequest{})
-	return trace.Wrap(err)
+	return trace.NotImplemented("DeleteAllAccessLists not supported in the gRPC client")
 }
 
 // ListAccessListMembers returns a paginated list of all access list members for an access list.
@@ -185,6 +184,5 @@ func (c *Client) DeleteAllAccessListMembersForAccessList(ctx context.Context, ac
 
 // DeleteAllAccessListMembers hard deletes all access list members.
 func (c *Client) DeleteAllAccessListMembers(ctx context.Context) error {
-	_, err := c.grpcClient.DeleteAllAccessListMembers(ctx, &accesslistv1.DeleteAllAccessListMembersRequest{})
-	return trace.Wrap(err)
+	return trace.NotImplemented("DeleteAllAccessListMembers is not supported in the gRPC client")
 }
