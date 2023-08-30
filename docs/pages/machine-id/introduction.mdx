@@ -38,21 +38,24 @@ for:
 
 ## Overview
 
-Machine ID is implemented by the `tbot` agent. `tbot` manages authenticating
-with your Teleport cluster and then generating and writing artifacts (such as
-credentials and configuration files) to destinations. In daemon mode, it runs
-continually, renewing these short-lived credentials before they expire.
+Machine ID is used through an agent called `tbot`. `tbot` authenticates
+with the Teleport cluster and then writes short-lived credentials and
+configuration files (known as artifacts) to configured destinations (such as a
+directory). These credentials can then be used by other tools to access a
+Teleport cluster and its resources. In daemon mode, `tbot` continually renews
+the short-lived credentials before they expire.
 
-The `tbot` agent authenticates to the cluster using a join token. The join token
-grants access to a Bot User, which has a Bot Role.
+`tbot` authenticates with the Teleport cluster using a join token which grants
+access to a Bot User. A Bot User is similar to a normal Teleport user but is
+only accessible via a join token and cannot be "logged into" like a normal
+user. A Bot User holds a single role, known as the Bot Role. This role gives
+`tbot` the ability to generate certificates for specified Teleport roles.
 
-This Bot Role grants the ability role impersonate roles.
+## Further Reading
 
-## Resources
-
-- [Getting Started Guide](./getting-started.mdx): Getting started with Teleport Machine ID
-- [Platform Guides](./platform-guides.mdx): G
-- [Access Guides](./access-guides.mdx): G
-- [Frequently Asked Questions](./faq.mdx)
+- [Getting Started Guide](./getting-started.mdx): A quick-start non-production guide intended to familiarise the reader with Machine ID.
+- [Platform Guides](./platform-guides.mdx): How to install and configuring Machine ID on specific platforms.
+- [Access Guides](./access-guides.mdx): How to use Machine ID to access Teleport resources.
+- [Frequently Asked Questions](./faq.mdx): Commonly asked questions.
 - [Troubleshooting Guide](./troubleshooting.mdx): Common issues and how to solve them.
 - [Architecture](./architecture.mdx): A technical deep-dive into how Machine ID works.
