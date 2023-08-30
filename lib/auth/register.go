@@ -369,19 +369,22 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 	var client *Client
 	var err error
 
-	// Build a client to the Auth Server. If a CA pin is specified require the
-	// Auth Server is validated. Otherwise attempt to use the CA file on disk
-	// but if it's not available connect without validating the Auth Server CA.
+	// Build a client for the Auth Server with different certificate validation
+	// depending on the configured values for Insecure, CAPins and CAPath.
 	switch {
 	case params.Insecure:
 		log.Warnf("Insecure mode enabled. Auth Server cert will not be validated and CAPins and CAPath value will be ignored.")
 		client, err = insecureRegisterClient(params)
 	case len(params.CAPins) != 0:
+		// CAPins takes precedence over CAPath
 		client, err = pinRegisterClient(params)
 	case params.CAPath != "":
 		client, err = caPathRegisterClient(params)
 	default:
-		// Falling back to insecure registration.
+		// We fall back to insecure mode here - this is a little odd but is
+		// necessary to preserve the behaviour of registration. At a later date,
+		// we may consider making this an error asking the user to provide
+		// Insecure, CAPins or CAPath.
 		client, err = insecureRegisterClient(params)
 	}
 	if err != nil {
@@ -497,7 +500,6 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
-
 	tlsConfig.InsecureSkipVerify = true
 
 	client, err := NewClient(client.Config{
@@ -613,8 +615,10 @@ func caPathRegisterClient(params RegisterParams) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// For backwards compatibility, we fall back to insecure mode if loading the caPath fails.
-	// TODO: At a future date we should remove this
+	// If we're unable to read the file at CAPath, we fall back to insecure
+	// registration. This preserves the existing behaviour. At a later date,
+	// we may wish to consider changing this to return an error - but this is a
+	// breaking change.
 	if trace.IsNotFound(err) {
 		log.Warnf("Falling back to insecurely joining because a missing or empty CA Path was provided.")
 		return insecureRegisterClient(params)
