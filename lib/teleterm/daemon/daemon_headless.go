@@ -101,7 +101,7 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster, waitInit bool)
 		Step:   maxBackoffDuration / 5,
 		Max:    maxBackoffDuration,
 		Jitter: retryutils.NewHalfJitter(),
-		Clock:  s.cfg.Storage.Clock,
+		Clock:  s.cfg.Clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -248,7 +248,7 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster, waitInit bool)
 				return
 			}
 
-			startedWaiting := s.cfg.Storage.Clock.Now()
+			startedWaiting := s.cfg.Clock.Now()
 			select {
 			case t := <-retry.After():
 				log.WithError(err).Debugf("Restarting watch on error after waiting %v.", t.Sub(startedWaiting))
