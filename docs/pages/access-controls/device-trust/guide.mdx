@@ -72,20 +72,20 @@ For this guide, we will use the preset `require-trusted-device` role to update c
 
     First, fetch a role so you can update it locally:
     ```code
-    $ tctl get roles/access > access.yaml
+    $ tctl edit role/access
     ```
 
     Edit the role with device trust mode:
     ```diff
     kind: role
-    version: v6
     metadata:
       labels:
         teleport.internal/resource-type: preset
       name: access
     spec:
       allow:
-        logins: ['root']
+        logins:
+        - '{{internal.logins}}'
         ...
       options:
         # require authenticated device check for this role
@@ -96,11 +96,7 @@ For this guide, we will use the preset `require-trusted-device` role to update c
 
     ```
 
-    Save and update the role:
-
-    ```code
-    $ tctl create -f access.yaml
-    ```
+    Save your edits.
 
     Now that the `access` role is configured with device mode "required", users with
     this role will be enforced with Device Trust.
@@ -143,6 +139,7 @@ Now that the user profile is updated to enforce Device Trust, try to access the 
 again.
 
 ```code
+$ tsh logout; tsh login --proxy=(=clusterDefaults.clusterName=) --user=(=clusterDefaults.username=)
 $ tsh ssh root@(=clusterDefaults.nodeIP=)
 ERROR: access denied to root connecting to (=clusterDefaults.nodeIP=):0
 ```
