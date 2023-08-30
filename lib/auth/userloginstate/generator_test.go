@@ -44,6 +44,7 @@ func TestAccessLists(t *testing.T) {
 		"otrait1": {"value1", "value2"},
 	})
 	require.NoError(t, err)
+	clock := clockwork.NewFakeClock()
 
 	tests := []struct {
 		name        string
@@ -64,15 +65,15 @@ func TestAccessLists(t *testing.T) {
 		{
 			name: "access lists add roles and traits",
 			accessLists: []*accesslist.AccessList{
-				newAccessList(t, "1", []string{"role1"}, trait.Traits{
+				newAccessList(t, clock, "1", []string{"role1"}, trait.Traits{
 					"trait1": []string{"value1"},
 				}),
-				newAccessList(t, "2", []string{"role2"}, trait.Traits{
+				newAccessList(t, clock, "2", []string{"role2"}, trait.Traits{
 					"trait1": []string{"value2"},
 					"trait2": []string{"value3"},
 				}),
 			},
-			members: append(newAccessListMembers(t, "1", "user"), newAccessListMembers(t, "2", "user")...),
+			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"orole1", "role1", "role2"},
 			expected: newUserLoginState(t, "user",
 				[]string{
@@ -88,15 +89,15 @@ func TestAccessLists(t *testing.T) {
 		{
 			name: "access lists add roles and traits, roles missing from backend",
 			accessLists: []*accesslist.AccessList{
-				newAccessList(t, "1", []string{"role1"}, trait.Traits{
+				newAccessList(t, clock, "1", []string{"role1"}, trait.Traits{
 					"trait1": []string{"value1"},
 				}),
-				newAccessList(t, "2", []string{"role2"}, trait.Traits{
+				newAccessList(t, clock, "2", []string{"role2"}, trait.Traits{
 					"trait1": []string{"value2"},
 					"trait2": []string{"value3"},
 				}),
 			},
-			members: append(newAccessListMembers(t, "1", "user"), newAccessListMembers(t, "2", "user")...),
+			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"orole1"},
 			expected: newUserLoginState(t, "user",
 				[]string{"orole1"}, trait.Traits{
@@ -108,15 +109,15 @@ func TestAccessLists(t *testing.T) {
 		{
 			name: "access lists only a member of some lists",
 			accessLists: []*accesslist.AccessList{
-				newAccessList(t, "1", []string{"role1"}, trait.Traits{
+				newAccessList(t, clock, "1", []string{"role1"}, trait.Traits{
 					"trait1": []string{"value1"},
 				}),
-				newAccessList(t, "2", []string{"role2"}, trait.Traits{
+				newAccessList(t, clock, "2", []string{"role2"}, trait.Traits{
 					"trait1": []string{"value2"},
 					"trait2": []string{"value3"},
 				}),
 			},
-			members: append(newAccessListMembers(t, "1", "user"), newAccessListMembers(t, "2", "not-user")...),
+			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "not-user")...),
 			roles:   []string{"orole1", "role1", "role2"},
 			expected: newUserLoginState(t, "user",
 				[]string{
@@ -130,10 +131,10 @@ func TestAccessLists(t *testing.T) {
 		{
 			name: "access lists add roles with duplicates",
 			accessLists: []*accesslist.AccessList{
-				newAccessList(t, "1", []string{"role1", "role2"}, trait.Traits{}),
-				newAccessList(t, "2", []string{"role2", "role3"}, trait.Traits{}),
+				newAccessList(t, clock, "1", []string{"role1", "role2"}, trait.Traits{}),
+				newAccessList(t, clock, "2", []string{"role2", "role3"}, trait.Traits{}),
 			},
-			members: append(newAccessListMembers(t, "1", "user"), newAccessListMembers(t, "2", "user")...),
+			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"orole1", "role1", "role2", "role3"},
 			expected: newUserLoginState(t, "user",
 				[]string{
@@ -148,20 +149,20 @@ func TestAccessLists(t *testing.T) {
 		{
 			name: "access lists add traits with duplicates",
 			accessLists: []*accesslist.AccessList{
-				newAccessList(t, "1", []string{},
+				newAccessList(t, clock, "1", []string{},
 					trait.Traits{
 						"trait1": []string{"value1", "value2"},
 						"trait2": []string{"value3", "value4"},
 					},
 				),
-				newAccessList(t, "2", []string{},
+				newAccessList(t, clock, "2", []string{},
 					trait.Traits{
 						"trait2": []string{"value3", "value1"},
 						"trait3": []string{"value5", "value6"},
 					},
 				),
 			},
-			members: append(newAccessListMembers(t, "1", "user"), newAccessListMembers(t, "2", "user")...),
+			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"orole1"},
 			expected: newUserLoginState(t, "user",
 				[]string{
@@ -230,7 +231,7 @@ func initGeneratorSvc(t *testing.T) (*Generator, *svc) {
 		&svc{AccessLists: accessListsSvc, Access: accessSvc}
 }
 
-func newAccessList(t *testing.T, name string, roles []string, traits trait.Traits) *accesslist.AccessList {
+func newAccessList(t *testing.T, clock clockwork.Clock, name string, roles []string, traits trait.Traits) *accesslist.AccessList {
 	t.Helper()
 
 	accessList, err := accesslist.NewAccessList(header.Metadata{
@@ -238,8 +239,8 @@ func newAccessList(t *testing.T, name string, roles []string, traits trait.Trait
 	}, accesslist.Spec{
 		Title: "title",
 		Audit: accesslist.Audit{
-			Frequency:     time.Hour,
-			NextAuditDate: time.Now().Add(time.Hour * 48),
+			Frequency:     time.Hour * 8760, // Roughly a year
+			NextAuditDate: clock.Now().Add(time.Hour * 48),
 		},
 		Owners: []accesslist.Owner{
 			{
@@ -265,7 +266,7 @@ func newAccessList(t *testing.T, name string, roles []string, traits trait.Trait
 	return accessList
 }
 
-func newAccessListMembers(t *testing.T, accessList string, members ...string) []*accesslist.AccessListMember {
+func newAccessListMembers(t *testing.T, clock clockwork.Clock, accessList string, members ...string) []*accesslist.AccessListMember {
 	alMembers := make([]*accesslist.AccessListMember, len(members))
 	for i, member := range members {
 		var err error
@@ -274,8 +275,8 @@ func newAccessListMembers(t *testing.T, accessList string, members ...string) []
 		}, accesslist.AccessListMemberSpec{
 			AccessList: accessList,
 			Name:       member,
-			Joined:     time.Now(),
-			Expires:    time.Now().Add(24 * time.Hour),
+			Joined:     clock.Now(),
+			Expires:    clock.Now().Add(24 * time.Hour),
 			Reason:     "added",
 			AddedBy:    "owner",
 		})

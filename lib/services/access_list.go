@@ -166,7 +166,7 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 }
 
 // IsOwner will return true if the user is an owner for the current list.
-// TODO(mdwn): Remove this.
+// TODO(mdwn): Remove this once references to this function call are removed from enterprise.
 func IsOwner(identity tlsca.Identity, accessList *accesslist.AccessList) error {
 	return IsAccessListOwner(identity, accessList)
 }
@@ -198,7 +198,7 @@ func IsAccessListOwner(identity tlsca.Identity, accessList *accesslist.AccessLis
 }
 
 // IsMember will return true if the user is a member for the current list.
-// TODO(mdwn): Remove this.
+// TODO(mdwn): Remove this once references to this function call are removed from enterprise.
 func IsMember(identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList) error {
 	username := identity.Username
 	for _, member := range accessList.Spec.Members {
@@ -236,7 +236,7 @@ func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock cloc
 	}
 
 	if !userMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
-		return trace.AccessDenied("user %s does not meet membership requirements", username)
+		return trace.AccessDenied("user %s is a member, but does not have the roles or traits required to be a member of this list", username)
 	}
 	return nil
 }
