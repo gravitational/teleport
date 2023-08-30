@@ -381,7 +381,7 @@ const MoreLabelsButton = styled(ButtonLink)`
   transition: visibility 0s;
   transition: background 150ms;
 
-  .grv-unified-resource-card:hover & {
+  ${CardContainer}:hover & {
     background-color: ${props => props.theme.colors.levels.elevated};
   }
 `;
