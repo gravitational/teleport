@@ -251,7 +251,7 @@ $ helm install teleport-kube-agent . \
   --set roles=windowsdesktop \
   --set proxyAddr=${PROXY_ENDPOINT?} \
   --set authToken=${JOIN_TOKEN?} \
-  --set "windowsDesktopNonADHosts[0]=${WINDOW_DESKTOP_ADDRESS?}"
+  --set "windowsDesktopNonADHosts[0]=${WINDOWS_DESKTOP_ADDRESS?}"
 ```
 
 ### Passwordless Windows desktop access to Active Directory domain connected machines
@@ -259,7 +259,7 @@ $ helm install teleport-kube-agent . \
 Using a YAML file is recommended for the Active Directory configuration due to
 the inclusion of the Windows certificate. 
 
-Example desktopValues.yaml:
+Example `desktopValues.yaml`:
 
 ```yaml
 authToken: auth-token

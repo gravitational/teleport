@@ -152,13 +152,12 @@ windows_desktop_service:
   {{- end }}
   {{- if .Values.windowsDesktopHostLabels }}
   host_labels:
-      {{- toYaml .Values.windowsDesktopHostLabels | nindent 6 }}
+    {{- toYaml .Values.windowsDesktopHostLabels | nindent 6 }}
   {{- end }}
   {{- if .Values.windowsDesktopLabels }}
   labels:
       {{- toYaml .Values.windowsDesktopLabels | nindent 6 }}
   {{- end }}
-
 {{- else }}
   enabled: false
 {{- end }}
