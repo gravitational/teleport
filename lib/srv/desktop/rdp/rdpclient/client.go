@@ -168,14 +168,13 @@ func New(cfg Config) (*Client, error) {
 // Run starts the rdp client and blocks until the client disconnects,
 // then ensures the cleanup is run.
 func (c *Client) Run(ctx context.Context) error {
-	defer c.handle.Delete()
 	c.handle = cgo.NewHandle(c)
+	defer c.handle.Delete()
 
 	c.start()
 	if err := c.connect(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	c.start()
 
 	c.wg.Wait()
 
@@ -222,9 +221,6 @@ func (c *Client) connect(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	x := C.CString("xx")
-	defer C.free(unsafe.Pointer(x))
 
 	// Addr and username strings only need to be valid for the duration of
 	// C.client_connect. They are copied on the Rust side and can be freed here.
