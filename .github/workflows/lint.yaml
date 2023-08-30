@@ -72,15 +72,16 @@ jobs:
           github_token: ${{ github.token }}
           version: latest
       - uses: bufbuild/buf-lint-action@v1
-      - name: buf breaking --against=parent
+      - name: buf breaking from parent to self
         uses: bufbuild/buf-breaking-action@v1
         with:
           against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
-      - name: buf breaking --against=master
+      - name: buf breaking from self to master
         uses: bufbuild/buf-breaking-action@v1
         if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
         with:
-          against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=master"
+          input: "https://github.com/${GITHUB_REPOSITORY}.git#branch=master"
+          against: "."
 
       # TODO(codingllama): Consider https://github.com/actions-rs/clippy-check
       #  for Rust.
