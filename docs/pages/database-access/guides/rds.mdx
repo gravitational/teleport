@@ -78,17 +78,11 @@ the following:
  - The [`jq` CLI tool](https://jqlang.github.io/jq/), which we use to process
    JSON data in this guide.
 
-## Step 1/7. Register the database
-
-Skip this step if using IAM OIDC provider for your Kubernetes cluster.
-
-(!docs/pages/includes/database-access/aws-register-resource-with-var-protocol.mdx type="RDS" matcher="rds" protocol="mysql or postgres" example="my-aurora-cluster.abcdefghijklm.us-west-1.rds.amazonaws.com:5432" !)
-
-## Step 2/7. Create a Teleport user
+## Step 1/6. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/7. Create a Database Service configuration
+## Step 2/6. Create a Database Service configuration
 
 In this section, you will configure the Teleport Database Service. To do so, you
 will:
@@ -145,7 +139,7 @@ Next, get your environment ready to run the Teleport Database Service:
 </TabItem>
 </Tabs>
 
-## Step 4/7. Create IAM policies for Teleport
+## Step 3/6. Create IAM policies for Teleport
 
 The Teleport Database Service needs AWS IAM permissions to be able to:
 
@@ -266,7 +260,7 @@ $ aws iam attach-role-policy --policy-arn arn:aws:iam::<Var name="aws-account" /
 </TabItem>
 </Tabs>
 
-## Step 5/7. Start the Database Service
+## Step 4/6. Start the Database Service
 
 Start the Teleport Database Service in your environment:
 
@@ -335,7 +329,7 @@ IAM access policies for the registered databases. Keep in mind that AWS IAM
 changes may not propagate immediately and can take a few minutes to come into
 effect.
 
-## Step 6/7. Create a database IAM user
+## Step 5/6. Create a database IAM user
 
 Database users must allow IAM authentication in order to be used with Database
 Access for RDS. See below how to enable it for the user `alice` on your database
@@ -370,7 +364,7 @@ user via the user's Teleport account.
 See [Creating a database account using IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html)
 for more information.
 
-## Step 7/7. Connect
+## Step 6/6. Connect
 
 Once the Database Service has started and joined the cluster, log in as the
 `alice` user you created earlier to see the registered databases:

@@ -39,11 +39,7 @@ access provided may not suit your needs, or may not fit your organization's
 access conventions. You should adjust the AWS IAM permissions to fit your needs.
 </Admonition>
 
-## Step 1/5. Register the database
-
-(!docs/pages/includes/database-access/aws-register-resource.mdx type="OpenSearch" matcher="opensearch" protocol="opensearch" example="my-opensearch-instance-xxxxxx.us-west-1.es.amazonaws.com"!)
-
-## Step 2/5. Create IAM roles for OpenSearch Managed Cluster access
+## Step 1/4. Create IAM roles for OpenSearch Managed Cluster access
 
 The setup described in this guide requires two IAM roles:
 - One associated with the EC2 instance running the Teleport Database Service,
@@ -122,7 +118,7 @@ role created in the previous step.
 
 Finally, click the **Map** button to apply the settings.
 
-## Step 3/5. Configure the Teleport IAM role mapping
+## Step 2/4. Configure the Teleport IAM role mapping
 
 The next step is to give your Teleport users permissions to assume AWS IAM roles
 when accessing AWS resources through your Teleport cluster.
@@ -152,7 +148,7 @@ $ tctl create -f aws-opensearch-access.yaml
 
 (!docs/pages/includes/add-role-to-user.mdx role="aws-opensearch-access"!)
 
-## Step 4/5. Install the Teleport Database Service
+## Step 3/4. Install the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -160,7 +156,7 @@ $ tctl create -f aws-opensearch-access.yaml
 
 (!docs/pages/includes/database-access/aws-create-db-configuration.mdx type="OpenSearch" matcher="opensearch" protocol="opensearch" example="my-opensearch-instance-xxxxxx.us-west-1.es.amazonaws.com" partialSuffix="-with-account-id" !)
 
-## Step 5/5. Connect
+## Step 4/4. Connect
 
 Once the Database Service has started and joined the cluster, you can start accessing AWS OpenSearch API:
 

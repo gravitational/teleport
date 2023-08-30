@@ -9,16 +9,14 @@ depending how the database is registered:
 
 <Tabs>
 
-<TabItem label="Using Auto-Discovery">
-(!docs/pages/includes/database-access/aws-create-db-configuration-dynamic-resources.mdx source="the Discovery Service" !)
+<TabItem label="Dynamic Resources">
+(!docs/pages/includes/database-access/aws-create-db-configuration-dynamic-resources.mdx !)
 
-(!docs/pages/includes/database-access/aws-create-db-configuration-assume-role.mdx!)
+(!docs/pages/includes/database-access/aws-create-db-configuration-discovery.mdx type="{{type}}" matcher="{{matcher}}" !)
 </TabItem>
 
-<TabItem label="Using static config">
+<TabItem label="Static config">
 (!docs/pages/includes/database-access/aws-create-db-configuration-static{{partialSuffix}}.mdx matcher="{{matcher}}" protocol="{{protocol}}" example="{{example}}" !)
-
-(!docs/pages/includes/database-access/aws-create-db-configuration-assume-role.mdx!)
 </TabItem>
 
 <TabItem label="Modifying existing Database Service">

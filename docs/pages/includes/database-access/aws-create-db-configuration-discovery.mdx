@@ -1,3 +1,5 @@
+<Details title="Enable auto-discovery for AWS {{type}} in Discovery Service?">
+
 In your Teleport Discovery Service's configuration, use AWS matcher type
 `{{ matcher }}`, and update `region` and `tags` that match your {{ type }}
 databases:
@@ -11,3 +13,7 @@ discovery_service:
     tags:
       "env": "prod" # Match database resource tags where tag:env=prod
 ```
+
+Restart the Discovery Service.
+
+</Details>

@@ -32,11 +32,7 @@ This guide will help you to:
 - (!docs/pages/includes/database-access/aws-auto-discovery-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Register the database
-
-(!docs/pages/includes/database-access/aws-register-resource.mdx type="Redshift Serverless" matcher="redshift-serverless" protocol="postgres" example="my-workgroup.123456789012.us-west-1.redshift-serverless.amazonaws.com:5439" !)
-
-## Step 2/5. Create an IAM Role for user access
+## Step 1/4. Create an IAM Role for user access
 
 Create an AWS IAM role to provide user access to Redshift Serverless. This role
 will be granted to Teleport users via a corresponding Teleport role. In this guide
@@ -91,7 +87,7 @@ Or you can restrict the `Resource` line to a specific Redshift Serverless workgr
 }
 ```
 
-## Step 3/5. Create a Teleport role for Redshift Serverless access
+## Step 2/4. Create a Teleport role for Redshift Serverless access
 
 On your workstation logged in to your Teleport cluster with `tsh`, define a new
 role to provide access to Redshift Serverless. Our example file is
@@ -127,7 +123,7 @@ role 'redshift-serverless-access' has been created
 
 (\!docs/pages/includes/add-role-to-user.mdx role="redshift-serverless-access" \!)
 
-## Step 4/5. Install and start the Teleport Database Service
+## Step 3/4. Install and start the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -143,7 +139,7 @@ role 'redshift-serverless-access' has been created
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
-## Step 5/5. Connect
+## Step 4/4. Connect
 
 Once the Database Service has started and joined the cluster, log in to see the
 registered databases. Replace `--proxy` with the address of your Teleport Proxy
