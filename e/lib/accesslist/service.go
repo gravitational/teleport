@@ -354,17 +354,7 @@ func (s *Service) DeleteAccessList(ctx context.Context, req *accesslistv1.Delete
 
 // DeleteAllAccessLists removes all access lists.
 func (s *Service) DeleteAllAccessLists(ctx context.Context, _ *accesslistv1.DeleteAllAccessListsRequest) (*emptypb.Empty, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAccessList, types.VerbDelete)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = s.accessLists.DeleteAllAccessLists(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
+	return nil, trace.NotImplemented("DeleteAllAccessLists not supported in the gRPC server")
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
@@ -467,16 +457,7 @@ func (s *Service) DeleteAllAccessListMembersForAccessList(ctx context.Context, r
 
 // DeleteAllAccessListMembers hard deletes all access list members for all access lists (without deleting the access lists themselves).
 func (s *Service) DeleteAllAccessListMembers(ctx context.Context, req *accesslistv1.DeleteAllAccessListMembersRequest) (*emptypb.Empty, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAccessList, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err := s.accessLists.DeleteAllAccessListMembers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
+	return nil, trace.NotImplemented("DeleteAllAccessListMembers not supported in the gRPC service")
 }
 
 // Check if the user is either authorized for the access list or owns this access list.

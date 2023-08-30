@@ -367,38 +367,6 @@ func TestService_DeleteAccessList(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 }
 
-func TestService_DeleteAllAccessLists(t *testing.T) {
-	t.Parallel()
-
-	ctx, _, svc, clock := initSvc(t)
-
-	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
-	require.NoError(t, err)
-	require.Empty(t, getResp.AccessLists)
-
-	a1 := newAccessList(t, "1", clock)
-	a2 := newAccessList(t, "2", clock)
-	a3 := newAccessList(t, "3", clock)
-
-	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2, a3}, nil)
-
-	// members should always be stripped from getall/list endpoints
-	a1.Spec.Members = []accesslist.Member{}
-	a2.Spec.Members = []accesslist.Member{}
-	a3.Spec.Members = []accesslist.Member{}
-
-	getResp, err = svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a3}, mustFromProtoAll(t, getResp.AccessLists...), cmpOpts...))
-
-	_, err = svc.DeleteAllAccessLists(ctx, &accesslistv1.DeleteAllAccessListsRequest{})
-	require.NoError(t, err)
-
-	getResp, err = svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
-	require.NoError(t, err)
-	require.Empty(t, getResp.AccessLists)
-}
-
 func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Context, svc *Service, clock clockwork.Clock) {
 	ctx := context.Background()
 	clock = clockwork.NewFakeClock()
@@ -668,36 +636,6 @@ func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
 	// owner should be able to delete members
 	_, err = svc.DeleteAllAccessListMembersForAccessList(ownerCtx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{AccessList: a2.GetName()})
 	require.NoError(t, err)
-
-	members = listAllAccessListMembers(ctx, t, svc, a2.GetName(), 1)
-	require.Empty(t, members)
-}
-
-func TestService_DeleteAllAccessListMembers(t *testing.T) {
-	t.Parallel()
-
-	ctx, ownerCtx, svc, clock := initSvc(t)
-
-	a1 := newAccessList(t, "1", clock)
-	a2 := newAccessList(t, "2", clock)
-
-	a1m1 := newAccessListMember(t, a1.GetName(), "user1", clock)
-	a1m2 := newAccessListMember(t, a1.GetName(), "user2", clock)
-	a2m1 := newAccessListMember(t, a2.GetName(), "user1", clock)
-	a2m2 := newAccessListMember(t, a2.GetName(), "user2", clock)
-
-	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2})
-
-	// owners can't use this endpoint
-	_, err := svc.DeleteAllAccessListMembers(ownerCtx, &accesslistv1.DeleteAllAccessListMembersRequest{})
-	require.True(t, trace.IsAccessDenied(err))
-
-	// Admin should be able to delete all members
-	_, err = svc.DeleteAllAccessListMembers(ctx, &accesslistv1.DeleteAllAccessListMembersRequest{})
-	require.NoError(t, err)
-
-	members := listAllAccessListMembers(ctx, t, svc, a1.GetName(), 1)
-	require.Empty(t, members)
 
 	members = listAllAccessListMembers(ctx, t, svc, a2.GetName(), 1)
 	require.Empty(t, members)
