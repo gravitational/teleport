@@ -37,11 +37,11 @@
     "@opentelemetry/sdk-trace-web": "1.8.0",
     "@opentelemetry/semantic-conventions": "1.8.0",
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.7",
+    "@storybook/addon-toolbars": "^6.5.16",
     "@storybook/builder-webpack5": "^6.5.16",
+    "@storybook/components": "^6.5.16",
     "@storybook/manager-webpack5": "^6.5.16",
     "@storybook/react": "^6.5.16",
-    "@storybook/addon-toolbars": "^6.5.16",
-    "@storybook/components": "^6.5.16",
     "@swc/plugin-styled-components": "1.5.41",
     "@testing-library/jest-dom": "^5.15.1",
     "@testing-library/react": "^12.1.2",
@@ -72,8 +72,8 @@
     "eslint-plugin-jest": "^25.3.0",
     "eslint-plugin-jest-dom": "^4.0.2",
     "eslint-plugin-react": "^7.27.1",
-    "eslint-plugin-testing-library": "^5.6.0",
     "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-testing-library": "^5.6.0",
     "events": "1.0.2",
     "fork-ts-checker-webpack-plugin": "^8.0.0",
     "html-webpack-plugin": "^5.5.0",
@@ -96,5 +96,8 @@
     "webpack-bundle-analyzer": "^4.6.1",
     "webpack-cli": "^4.10.0",
     "webpack-dev-server": "^4.9.3"
+  },
+  "devDependencies": {
+    "msw-storybook-addon": "^1.8.0"
   }
 }
