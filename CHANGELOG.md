@@ -1,9 +1,5 @@
 # Changelog
 
-## 14.0.0-alpha.1 (08/30/23)
-
-* Ensure access list data integrity. [#31232](https://github.com/gravitational/teleport/pull/31232)
-
 ## 14.0.0 (xx/xx/23)
 
 ### Breaking Changes
