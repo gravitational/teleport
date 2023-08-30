@@ -717,7 +717,7 @@ test-go-unit:
 test-go-unit-tbot: FLAGS ?= -race -shuffle on
 test-go-unit-tbot: SUBJECT ?= ./tool/tbot/... ./lib/tbot/...
 test-go-unit-tbot:
-	$(CGOFLAG) go test -cover -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -cover -json $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 
