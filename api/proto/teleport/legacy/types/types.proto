@@ -6191,5 +6191,8 @@ message KubernetesMatcher {
 // OktaOptions specify options related to the Okta service.
 message OktaOptions {
   // SyncPeriod is the duration between synchronization calls in nanoseconds.
-  int64 SyncPeriod = 1 [(gogoproto.jsontag) = "sync_period,omitempty"];
+  int64 SyncPeriod = 1 [
+    (gogoproto.jsontag) = "sync_period,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }

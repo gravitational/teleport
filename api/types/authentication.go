@@ -468,12 +468,12 @@ func (c *AuthPreferenceV2) GetDefaultSessionTTL() Duration {
 
 // GetOktaSyncPeriod returns the duration between Okta synchronization calls if the Okta service is running.
 func (c *AuthPreferenceV2) GetOktaSyncPeriod() time.Duration {
-	return time.Duration(c.Spec.Okta.SyncPeriod)
+	return c.Spec.Okta.SyncPeriod.Duration()
 }
 
 // SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
-func (c *AuthPreferenceV2) SetOktaSyncPeriod(timeBetweenSyncs time.Duration) {
-	c.Spec.Okta.SyncPeriod = int64(timeBetweenSyncs)
+func (c *AuthPreferenceV2) SetOktaSyncPeriod(syncPeriod time.Duration) {
+	c.Spec.Okta.SyncPeriod = Duration(syncPeriod)
 }
 
 // setStaticFields sets static resource header and metadata fields.
