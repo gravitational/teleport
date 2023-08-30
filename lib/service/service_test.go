@@ -172,6 +172,72 @@ func TestAdditionalExpectedRoles(t *testing.T) {
 	}
 }
 
+// TestDynamicClientReuse verifies that the instance client is shared between statically
+// defined services, but that additional services are granted unique clients.
+func TestDynamicClientReuse(t *testing.T) {
+	t.Parallel()
+	fakeClock := clockwork.NewFakeClock()
+
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.Clock = fakeClock
+	var err error
+	cfg.DataDir = t.TempDir()
+	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.Auth.Enabled = true
+	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Proxy.Enabled = true
+	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
+	cfg.SSH.Enabled = false
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+
+	require.NoError(t, process.Start())
+	t.Cleanup(func() { require.NoError(t, process.Close()) })
+
+	// wait for instance connector
+	iconn, err := process.WaitForConnector(InstanceIdentityEvent, process.log)
+	require.NoError(t, err)
+	require.NotNil(t, iconn)
+
+	// wait for proxy connector
+	pconn, err := process.WaitForConnector(ProxyIdentityEvent, process.log)
+	require.NoError(t, err)
+	require.NotNil(t, pconn)
+
+	// proxy connector should reuse instance client since the proxy was part of the initial
+	// set of services.
+	require.Same(t, iconn.Client, pconn.Client)
+
+	// trigger a new registration flow for a system role that wasn't part of the statically
+	// configued set.
+	process.RegisterWithAuthServer(types.RoleNode, SSHIdentityEvent)
+
+	nconn, err := process.WaitForConnector(SSHIdentityEvent, process.log)
+	require.NoError(t, err)
+	require.NotNil(t, nconn)
+
+	// node connector should contain a unique client since RoleNode was not part of the
+	// initial static set of system roles that got applied to the instance cert.
+	require.NotSame(t, iconn.Client, nconn.Client)
+
+	nconn.Close()
+
+	// node connector closure should not affect proxy client
+	_, err = pconn.Client.Ping(context.Background())
+	require.NoError(t, err)
+
+	pconn.Close()
+
+	// proxy connector closure should not affect instance client
+	_, err = iconn.Client.Ping(context.Background())
+	require.NoError(t, err)
+}
+
 func TestMonitor(t *testing.T) {
 	t.Parallel()
 	fakeClock := clockwork.NewFakeClock()

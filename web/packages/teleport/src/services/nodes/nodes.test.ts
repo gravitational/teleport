@@ -31,6 +31,7 @@ test('correct formatting of nodes fetch response', async () => {
         hostname: 'im-a-nodename',
         labels: [{ name: 'env', value: 'dev' }],
         addr: '192.168.86.132:3022',
+        subKind: 'SSH Server',
         tunnel: false,
         sshLogins: ['root'],
       },
