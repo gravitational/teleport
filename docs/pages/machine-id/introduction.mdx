@@ -3,6 +3,16 @@ title: Machine ID
 description: Teleport Machine ID introduction, demo and resources.
 ---
 
+<iframe
+  width="712"
+  height="400"
+  src="https://www.youtube-nocookie.com/embed/QWd0eqIa9mA?"
+  frameBorder="0"
+  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
+<br/>
+
 Teleport Machine ID enables machines, such as CI/CD workflows, to securely
 authenticate with your Teleport cluster in order to connect to resources and
 configure the cluster itself.
@@ -23,35 +33,26 @@ for:
   deploy changes.
 - Granting SecOps tooling access to SSH servers and Kubernetes Clusters in order
   to run security analysis against them.
-- Creating and renewing credentials for custom automations and scripts that
-  leverage `tctl` or the Teleport API in order to control Teleport configuration.
-
-<iframe
-  width="712"
-  height="400"
-  src="https://www.youtube-nocookie.com/embed/QWd0eqIa9mA?"
-  frameBorder="0"
-  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-  allowFullScreen
-/>
-<br/>
-
+- Creating and renewing credentials for custom scripts that leverage `tctl` or
+  the Teleport API in order to control Teleport configuration.
 
 ## Overview
 
-Machine ID operates primarily through an agent, `tbot`. `tbot` runs on the
-machine that needs to access your Teleport cluster, and generates credentials
+Machine ID is implemented by the `tbot` agent. `tbot` manages authenticating
+with your Teleport cluster and then generating and writing artifacts (such as
+credentials and configuration files) to destinations. In daemon mode, it runs
+continually, renewing these short-lived credentials before they expire.
 
-TODO EXPLAIN BOT USER / BOT ROLE
+The `tbot` agent authenticates to the cluster using a join token. The join token
+grants access to a Bot User, which has a Bot Role.
 
-## Guides
+This Bot Role grants the ability role impersonate roles.
 
-TODO EXPLAIN GUIDES/QUICKSTART
+## Resources
 
-- [Getting started](./getting-started.mdx): Getting started with Teleport Machine ID
-- [Architecture](./architecture.mdx): A technical overview of how Machine ID works
-
-## FAQ & Troubleshooting
-
-Finally, check out [Frequently Asked Questions](./faq.mdx) and the 
-[troubleshooting guide](./troubleshooting.mdx) for common questions and issues.
+- [Getting Started Guide](./getting-started.mdx): Getting started with Teleport Machine ID
+- [Platform Guides](./platform-guides.mdx): G
+- [Access Guides](./access-guides.mdx): G
+- [Frequently Asked Questions](./faq.mdx)
+- [Troubleshooting Guide](./troubleshooting.mdx): Common issues and how to solve them.
+- [Architecture](./architecture.mdx): A technical deep-dive into how Machine ID works.
