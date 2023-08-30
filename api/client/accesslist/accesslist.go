@@ -17,7 +17,7 @@ package accesslist
 import (
 	"context"
 
-	"github.com/gravitational/trace/trail"
+	"github.com/gravitational/trace"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -41,7 +41,7 @@ func NewClient(grpcClient accesslistv1.AccessListServiceClient) *Client {
 func (c *Client) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
 	resp, err := c.grpcClient.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
@@ -49,7 +49,7 @@ func (c *Client) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, 
 		var err error
 		accessLists[i], err = conv.FromProto(accessList)
 		if err != nil {
-			return nil, trail.FromGRPC(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -63,7 +63,7 @@ func (c *Client) ListAccessLists(ctx context.Context, pageSize int, nextToken st
 		NextToken: nextToken,
 	})
 	if err != nil {
-		return nil, "", trail.FromGRPC(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
@@ -71,7 +71,7 @@ func (c *Client) ListAccessLists(ctx context.Context, pageSize int, nextToken st
 		var err error
 		accessLists[i], err = conv.FromProto(accessList)
 		if err != nil {
-			return nil, "", trail.FromGRPC(err)
+			return nil, "", trace.Wrap(err)
 		}
 	}
 
@@ -84,11 +84,11 @@ func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.Ac
 		Name: name,
 	})
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	accessList, err := conv.FromProto(resp)
-	return accessList, trail.FromGRPC(err)
+	return accessList, trace.Wrap(err)
 }
 
 // UpsertAccessList creates or updates an access list resource.
@@ -97,10 +97,10 @@ func (c *Client) UpsertAccessList(ctx context.Context, accessList *accesslist.Ac
 		AccessList: conv.ToProto(accessList),
 	})
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 	responseAccessList, err := conv.FromProto(resp)
-	return responseAccessList, trail.FromGRPC(err)
+	return responseAccessList, trace.Wrap(err)
 }
 
 // DeleteAccessList removes the specified access list resource.
@@ -108,13 +108,13 @@ func (c *Client) DeleteAccessList(ctx context.Context, name string) error {
 	_, err := c.grpcClient.DeleteAccessList(ctx, &accesslistv1.DeleteAccessListRequest{
 		Name: name,
 	})
-	return trail.FromGRPC(err)
+	return trace.Wrap(err)
 }
 
 // DeleteAllAccessLists removes all access lists.
 func (c *Client) DeleteAllAccessLists(ctx context.Context) error {
 	_, err := c.grpcClient.DeleteAllAccessLists(ctx, &accesslistv1.DeleteAllAccessListsRequest{})
-	return trail.FromGRPC(err)
+	return trace.Wrap(err)
 }
 
 // ListAccessListMembers returns a paginated list of all access list members for an access list.
@@ -125,7 +125,7 @@ func (c *Client) ListAccessListMembers(ctx context.Context, accessList string, p
 		AccessList: accessList,
 	})
 	if err != nil {
-		return nil, "", trail.FromGRPC(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	members = make([]*accesslist.AccessListMember, len(resp.Members))
@@ -133,7 +133,7 @@ func (c *Client) ListAccessListMembers(ctx context.Context, accessList string, p
 		var err error
 		members[i], err = conv.FromMemberProto(accessList)
 		if err != nil {
-			return nil, "", trail.FromGRPC(err)
+			return nil, "", trace.Wrap(err)
 		}
 	}
 
@@ -147,11 +147,11 @@ func (c *Client) GetAccessListMember(ctx context.Context, accessList string, mem
 		MemberName: memberName,
 	})
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
 	member, err := conv.FromMemberProto(resp)
-	return member, trail.FromGRPC(err)
+	return member, trace.Wrap(err)
 }
 
 // UpsertAccessListMember creates or updates an access list member resource.
@@ -160,10 +160,10 @@ func (c *Client) UpsertAccessListMember(ctx context.Context, member *accesslist.
 		Member: conv.ToMemberProto(member),
 	})
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 	responseMember, err := conv.FromMemberProto(resp)
-	return responseMember, trail.FromGRPC(err)
+	return responseMember, trace.Wrap(err)
 }
 
 // DeleteAccessListMember hard deletes the specified access list member resource.
@@ -172,7 +172,7 @@ func (c *Client) DeleteAccessListMember(ctx context.Context, accessList string, 
 		AccessList: accessList,
 		MemberName: memberName,
 	})
-	return trail.FromGRPC(err)
+	return trace.Wrap(err)
 }
 
 // DeleteAllAccessListMembers hard deletes all access list members for an access list.
@@ -180,11 +180,11 @@ func (c *Client) DeleteAllAccessListMembersForAccessList(ctx context.Context, ac
 	_, err := c.grpcClient.DeleteAllAccessListMembersForAccessList(ctx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{
 		AccessList: accessList,
 	})
-	return trail.FromGRPC(err)
+	return trace.Wrap(err)
 }
 
 // DeleteAllAccessListMembers hard deletes all access list members.
 func (c *Client) DeleteAllAccessListMembers(ctx context.Context) error {
 	_, err := c.grpcClient.DeleteAllAccessListMembers(ctx, &accesslistv1.DeleteAllAccessListMembersRequest{})
-	return trail.FromGRPC(err)
+	return trace.Wrap(err)
 }

@@ -79,7 +79,7 @@ export function NavigationMenu(props: NavigationMenuProps) {
   }
 
   const setupMenuItem = (
-    <MenuItem onClick={openSetupDocument}>Connect computer</MenuItem>
+    <MenuItem onClick={openSetupDocument}>Connect My Computer</MenuItem>
   );
   const statusMenuItem = (
     <MenuItem onClick={openStatusDocument}>

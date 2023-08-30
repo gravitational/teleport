@@ -32,10 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-var (
-	// Username used for tests.
-	username string
-)
+// username is the name of the host user used for tests.
+var username string
 
 func init() {
 	me, err := user.Current()

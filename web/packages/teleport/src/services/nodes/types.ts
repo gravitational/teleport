@@ -23,6 +23,7 @@ export interface Node {
   labels: ResourceLabel[];
   addr: string;
   tunnel: boolean;
+  subKind?: string;
   sshLogins: string[];
 }
 

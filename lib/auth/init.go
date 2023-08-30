@@ -32,6 +32,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -963,6 +964,18 @@ type Identity struct {
 	XCert *x509.Certificate
 	// ClusterName is a name of host's cluster
 	ClusterName string
+	// SystemRoles is a list of additional system roles.
+	SystemRoles []string
+}
+
+// HasSystemRole checks if this identity encompasses the supplied system role.
+func (i *Identity) HasSystemRole(role types.SystemRole) bool {
+	// check identity's primary system role
+	if i.ID.Role == role {
+		return true
+	}
+
+	return slices.Contains(i.SystemRoles, string(role))
 }
 
 // String returns user-friendly representation of the identity.
@@ -1137,6 +1150,7 @@ func ReadIdentityFromKeyPair(privateKey []byte, certs *proto.Certs) (*Identity, 
 		identity.XCert = i.XCert
 		identity.TLSCertBytes = certs.TLS
 		identity.TLSCACertsBytes = certs.TLSCACerts
+		identity.SystemRoles = i.SystemRoles
 	}
 
 	return identity, nil
@@ -1177,6 +1191,7 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 		TLSCertBytes:    certBytes,
 		TLSCACertsBytes: caCertsBytes,
 		XCert:           cert,
+		SystemRoles:     id.SystemRoles,
 	}
 	// The passed in ciphersuites don't appear to matter here since the returned
 	// *tls.Config is never actually used?

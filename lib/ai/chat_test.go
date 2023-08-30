@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/ai/model"
 	"github.com/gravitational/teleport/lib/ai/model/output"
 	"github.com/gravitational/teleport/lib/ai/model/tools"
+	"github.com/gravitational/teleport/lib/ai/testutils"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -315,4 +316,47 @@ func generateAccessRequestResponse(t *testing.T) string {
 	dataBytes = append(dataBytes, []byte("data: [DONE]\n\n")...)
 
 	return string(dataBytes)
+}
+
+func TestChat_Complete_AuditQuery(t *testing.T) {
+	// Test setup: generate the responses that will be served by our OpenAI mock
+	action := model.PlanOutput{
+		Action:      "Audit Query Generation",
+		ActionInput: "Lists user who connected to a server as root.",
+		Reasoning:   "foo",
+	}
+	selectedAction, err := json.Marshal(action)
+	require.NoError(t, err)
+	generatedQuery := "SELECT user FROM session_start WHERE login='root'"
+
+	responses := []string{
+		// The model must select the audit query tool
+		string(selectedAction),
+		// Then the audit query tool chooses to request session.start events
+		"session.start",
+		// Finally the tool builds a query based on the provided schemas
+		generatedQuery,
+	}
+	server := httptest.NewServer(testutils.GetTestHandlerFn(t, responses))
+	t.Cleanup(server.Close)
+
+	cfg := openai.DefaultConfig("secret-test-token")
+	cfg.BaseURL = server.URL
+
+	client := NewClientFromConfig(cfg)
+
+	// End of test setup, we run the agent
+	chat := client.NewAuditQuery("bob")
+
+	ctx := context.Background()
+	// We insert a message to make the conversation not empty and skip the
+	// greeting message.
+	chat.Insert(openai.ChatMessageRoleUser, "Hello")
+	result, _, err := chat.Complete(ctx, "List users who connected to a server as root", func(action *model.AgentAction) {})
+	require.NoError(t, err)
+
+	// We check that the agent returns the expected response
+	message, ok := result.(*output.Message)
+	require.True(t, ok)
+	require.Equal(t, generatedQuery, message.Content)
 }
