@@ -2674,6 +2674,11 @@
       "permanent": true
     },
     {
+      "source": "/access-controls/device-trust/auto-enrollment/",
+      "destination": "/access-controls/device-trust/device-management/",
+      "permanent": true
+    },
+    {
       "source": "/management/guides/teleport-operator/",
       "destination": "/management/dynamic-resources/teleport-operator/",
       "permanent": true
