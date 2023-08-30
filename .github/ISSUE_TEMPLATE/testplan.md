@@ -754,6 +754,7 @@ Scale up the number of nodes/clusters a few times for each configuration below.
   - [ ] etcd - 10k
   - [ ] DynamoDB - 10k
   - [ ] Firestore - 10k
+  - [ ] Postgres - 10k
 
   Perform the following additional scaling tests on DynamoDB:
  - [ ] 10k direct dial nodes.
