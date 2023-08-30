@@ -50,8 +50,12 @@ Create a client secret to use along with the client ID in the next step:
 
 ## Step 2/3. Create a GitHub authentication connector
 
-Define a GitHub authentication connector using `tctl`. Update this example
-command with:
+In this section, you will define a GitHub authentication connector using `tctl`.
+
+On your workstation, create a file called `client-secret.txt` consisting only of
+your client secret.
+
+Update this example command with:
 
 - Your OAuth app's client ID and client secret created during the previous step.
 - The roles you want to map from your GitHub organization to Teleport roles.
@@ -63,8 +67,8 @@ for a full reference of flags for this command:
 
 ```code
 $ tctl sso configure github \
---id=<Var name="GITHUB-CLIENT-ID"/>\
---secret=<Var name="GITHUB-CLIENT-SECRET"/> \
+--id=<Var name="GITHUB-CLIENT-ID"/> \
+--secret=$(cat client-secret.txt) \
 --teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
 > github.yaml
 ```
@@ -98,8 +102,8 @@ file to define multiple mappings. For example:
 
 ```code
 $  tctl sso configure github \
---id=<Var name="GITHUB-CLIENT-ID"/>\
---secret=<Var name="GITHUB-CLIENT-SECRET"/> \
+--id=<Var name="GITHUB-CLIENT-ID"/> \
+--secret=$(cat client-secret.txt) \
 --teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
 --teams-to-roles="ORG-NAME,administrators,admins \
 --teams-to-roles="DIFFERENT-ORG,developers,dev \
