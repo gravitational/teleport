@@ -85,11 +85,11 @@ the kernel 5.8+. Enhanced session recording records all:
 * open family system calls
 * network connections
 
-All events are recorded in the audit log. https://goteleport.com/docs/server-access/guides/bpf-session-recording/
+All events are recorded in the audit log. See https://goteleport.com/docs/server-access/guides/bpf-session-recording/.
 
 Restricted networking allows you to restrict network access for users.
-It's implemented by using LSM hooks and BPF programs.
-https://goteleport.com/docs/server-access/guides/restricted-session/
-On ubuntu systems LSM hooks are not enabled in some version.
-Here are the instructions on how to enable them https://github.com/gravitational/teleport/issues/8089#issuecomment-924990678
+It's implemented by using LSM hooks and BPF programs (
+see https://goteleport.com/docs/server-access/guides/restricted-session/).
+On ubuntu systems LSM hooks are not enabled in some versions.
+Here are the instructions on how to enable them https://github.com/gravitational/teleport/issues/8089#issuecomment-924990678.
 
