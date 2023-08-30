@@ -368,7 +368,7 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 }
 
 // awsOIDCDeployC2ICE creates an EC2 Instance Connect Endpoint.
-func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (any, error) {
 	ctx := r.Context()
 
 	var req ui.AWSOIDCDeployEC2ICERequest
