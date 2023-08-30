@@ -539,6 +539,7 @@ func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, c
 	}
 	var _, err = client.GetClusterMaintenanceConfig(ctx)
 	if err != nil && !trace.IsNotFound(err){
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 	exists := (err == nil)
@@ -619,7 +620,7 @@ func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client
 	}
 	exists := (err == nil)
 	if !rc.force && exists {
-		return trace.AlreadyExists("token '%s' already exists, use -f flag to override", newNetRestricts.GetName())
+		return trace.AlreadyExists("token '%s' already exists", newNetRestricts.GetName())
 	}
 	if err = client.SetNetworkRestrictions(ctx, newNetRestricts); err != nil {
 		return trace.Wrap(err)
@@ -639,7 +640,7 @@ func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client auth
 	}
 	exists := (err == nil)
 	if !rc.force && exists {
-		return trace.AlreadyExists("windows desktop '%s' already exists, use -f flag to override", wd.GetName())
+		return trace.AlreadyExists("windows desktop '%s' already exists", wd.GetName())
 	}
 	if err = client.UpsertWindowsDesktop(ctx, wd); err != nil {
 		return trace.Wrap(err)
@@ -726,7 +727,7 @@ func (rc *ResourceCommand) createToken(ctx context.Context, client auth.ClientI,
 	}
 	exists := (err == nil)
 	if !rc.force && exists {
-		return trace.AlreadyExists("token '%s' already exists, use -f flag to override", token.GetSafeName())
+		return trace.AlreadyExists("token '%s' already exists", token.GetSafeName())
 	}
 	if err = client.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
@@ -746,7 +747,7 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.Clie
 	}
 	exists := (err == nil)
 	if !rc.force && exists {
-		return trace.AlreadyExists("installer '%s' already exists, use -f flag to override", inst.GetName())
+		return trace.AlreadyExists("installer '%s' already exists", inst.GetName())
 	}
 	if err = client.SetInstaller(ctx, inst); err != nil {
 		return trace.Wrap(err)
@@ -766,12 +767,12 @@ func (rc *ResourceCommand) createUIConfig(ctx context.Context, client auth.Clien
 	}
 	exists := (err == nil)
 	if !rc.force && exists {
-		return trace.AlreadyExists("ui config '%s' already exists, use -f flag to override", uic.GetName())
+		return trace.AlreadyExists("UI config '%s' already exists", uic.GetName())
 	}
 	if err = client.SetUIConfig(ctx, uic); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("ui config '%s' has been %s\n", uic.GetName(), UpsertVerb(exists, rc.force))
+	fmt.Printf("UI config '%s' has been %s\n", uic.GetName(), UpsertVerb(exists, rc.force))
 	return nil
 
 }
@@ -792,7 +793,7 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 	}
 	exists := (err == nil)
 	if !rc.force && exists {
-		return trace.AlreadyExists("node %q with Hostname %q and Addr %q already exists, use --force flag to override",
+		return trace.AlreadyExists("node %q with Hostname %q and Addr %q already exists",
 			name,
 			server.GetHostname(),
 			server.GetAddr(),
@@ -820,7 +821,7 @@ func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client auth.
 	}
 	exists := (err == nil)
 	if !rc.force && exists {
-		return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
+		return trace.AlreadyExists("connector '%s' already exists", connectorName)
 	}
 	if err = client.UpsertOIDCConnector(ctx, conn); err != nil {
 		return trace.Wrap(err)
@@ -843,7 +844,7 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.
 	}
 	exists := (err == nil)
 	if !rc.force && exists {
-		return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
+		return trace.AlreadyExists("connector '%s' already exists", connectorName)
 	}
 
 	// If the connector being pushed to the backend does not have a signing key
@@ -876,14 +877,14 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.Clie
 		return trace.Wrap(err)
 	}
 	exists := (err == nil)
-	if rc.IsForced() {
+	if rc.force {
 		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
 			LoginRule: rule,
 		})
 		return trail.FromGRPC(err)
 	}
-	if exists && !rc.force{
-		return trace.AlreadyExists("login rule '%s' already exists, use -f flag to override", rule.Metadata.GetName())
+	if exists && !rc.force {
+		return trace.AlreadyExists("login rule '%s' already exists", rule.Metadata.GetName())
 	}
 	_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
 		LoginRule: rule,
@@ -891,7 +892,7 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.Clie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("login rule '%s' has been %s\n", rule.Metadata.Name, UpsertVerb(exists, rc.IsForced()))
+	fmt.Printf("login rule '%s' has been %s\n", rule.Metadata.Name, UpsertVerb(exists, rc.force))
 	return nil
 }
 
@@ -970,7 +971,7 @@ func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client auth
 			return trace.Wrap(err)
 		}
 	}
-	fmt.Printf("Okta import rule '%s' has been %s\n", importRule.GetName(), UpsertVerb(exists, rc.force))
+	fmt.Printf("okta import rule '%s' has been %s\n", importRule.GetName(), UpsertVerb(exists, rc.force))
 	return nil
 }
 
@@ -988,7 +989,7 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client auth.Cl
 
 	if exists {
 		if !rc.force {
-			return trace.AlreadyExists("Integration %q already exists", integration.GetName())
+			return trace.AlreadyExists("integration %q already exists", integration.GetName())
 		}
 
 		if err := existingIntegration.CanChangeStateTo(integration); err != nil {
@@ -1009,7 +1010,7 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client auth.Cl
 
 	igV1, ok := integration.(*types.IntegrationV1)
 	if !ok {
-		return trace.BadParameter("unexpected Integration type %T", integration)
+		return trace.BadParameter("unexpected integration type %T", integration)
 	}
 
 	if _, err := client.CreateIntegration(ctx, igV1); err != nil {
@@ -1033,13 +1034,13 @@ func (rc *ResourceCommand) createAccessList(ctx context.Context, client auth.Cli
 	exists := (err == nil)
 
 	if exists && !rc.force {
-		return trace.AlreadyExists("Access list %q already exists", accessList.GetName())
+		return trace.AlreadyExists("access list %q already exists", accessList.GetName())
 	}
 
 	if _, err := client.AccessListClient().UpsertAccessList(ctx, accessList); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Access list %q has been %s\n", accessList.GetName(), UpsertVerb(exists, rc.force))
+	fmt.Printf("access list %q has been %s\n", accessList.GetName(), UpsertVerb(exists, rc.force))
 
 	return nil
 }
@@ -1464,11 +1465,6 @@ func (rc *ResourceCommand) Update(ctx context.Context, clt auth.ClientI) error {
 		return trace.BadParameter("updating resources of type %q is not supported, supported are: %q", rc.ref.Kind, types.KindRemoteCluster)
 	}
 	return nil
-}
-
-// IsForced returns true if -f flag was passed
-func (rc *ResourceCommand) IsForced() bool {
-	return rc.force
 }
 
 // getCollection lists all resources of a given type
