@@ -76,7 +76,7 @@ var (
 // against a static list of known valid endpoints. We will need to update this
 // list as AWS adds new regions.
 func validateSTSHost(stsHost string, cfg *iamRegisterConfig) error {
-	valid := slices.Contains(validSTSEndpoints, stsHost)
+	valid := slices.Contains(aws.GetValidSTSEndpoints(), stsHost)
 	if !valid {
 		return trace.AccessDenied("IAM join request uses unknown STS host %q. "+
 			"This could mean that the Teleport Node attempting to join the cluster is "+
@@ -86,10 +86,10 @@ func validateSTSHost(stsHost string, cfg *iamRegisterConfig) error {
 			"Following is the list of valid STS endpoints known to this auth server. "+
 			"If a legitimate STS endpoint is not included, please file an issue at "+
 			"https://github.com/gravitational/teleport. %v",
-			stsHost, validSTSEndpoints)
+			stsHost, aws.GetValidSTSEndpoints())
 	}
 
-	if cfg.fips && !slices.Contains(fipsSTSEndpoints, stsHost) {
+	if cfg.fips && !slices.Contains(aws.GetSTSFipsEndpoints(), stsHost) {
 		return trace.AccessDenied("node selected non-FIPS STS endpoint (%s) for the IAM join method", stsHost)
 	}
 
@@ -467,7 +467,7 @@ func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS,
 
 	stsClient := sts.New(sess)
 
-	if slices.Contains(globalSTSEndpoints, strings.TrimPrefix(stsClient.Endpoint, "https://")) {
+	if slices.Contains(aws.GetSTSGlobalEndpoints(), strings.TrimPrefix(stsClient.Endpoint, "https://")) {
 		// If the caller wants to use the regional endpoint but it was not resolved
 		// from the environment, attempt to find the region from the EC2 IMDS
 		if cfg.regionalEndpointOption == endpoints.RegionalSTSEndpoint {
@@ -484,7 +484,7 @@ func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS,
 	}
 
 	if cfg.fipsEndpointOption == endpoints.FIPSEndpointStateEnabled &&
-		!slices.Contains(validSTSEndpoints, strings.TrimPrefix(stsClient.Endpoint, "https://")) {
+		!slices.Contains(aws.GetValidSTSEndpoints(), strings.TrimPrefix(stsClient.Endpoint, "https://")) {
 		// The AWS SDK will generate invalid endpoints when attempting to
 		// resolve the FIPS endpoint for a region which does not have one.
 		// In this case, try to use the FIPS endpoint in us-east-1. This should
