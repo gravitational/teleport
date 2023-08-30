@@ -1246,50 +1246,12 @@
           "slug": "/machine-id/getting-started/"
         },
         {
-          "title": "Guides",
-          "slug": "/machine-id/guides/",
-          "entries": [
-            {
-              "title": "Ansible",
-              "slug": "/machine-id/guides/ansible/"
-            },
-            {
-              "title": "GitHub Actions",
-              "slug": "/machine-id/guides/github-actions/"
-            },
-            {
-              "title": "CircleCI",
-              "slug": "/machine-id/guides/circleci/"
-            },
-            {
-              "title": "GitHub Actions & Kubernetes",
-              "slug": "/machine-id/guides/github-actions-kubernetes/"
-            },
-            {
-              "title": "GitLab CI",
-              "slug": "/machine-id/guides/gitlab/"
-            },
-            {
-              "title": "Jenkins",
-              "slug": "/machine-id/guides/jenkins/"
-            },
-            {
-              "title": "Databases",
-              "slug": "/machine-id/guides/databases/"
-            },
-            {
-              "title": "Kubernetes",
-              "slug": "/machine-id/guides/kubernetes/"
-            },
-            {
-              "title": "Applications",
-              "slug": "/machine-id/guides/applications/"
-            },
-            {
-              "title": "Host Certificates",
-              "slug": "/machine-id/guides/host-certificate/"
-            }
-          ]
+          "title": "Platform Guides",
+          "slug": "/machine-id/platform-guides/"
+        },
+        {
+          "title": "Access Guides",
+          "slug": "/machine-id/access-guides/"
         },
         {
           "title": "Architecture",
@@ -2386,7 +2348,7 @@
     },
     {
       "source": "/kubernetes-access/guides/cicd/",
-      "destination": "/machine-id/guides/kubernetes/",
+      "destination": "/machine-id/access-guides/kubernetes/",
       "permanent": true
     },
     {
@@ -2717,6 +2679,56 @@
     {
       "source": "/management/guides/terraform-provider/",
       "destination": "/management/dynamic-resources/terraform-provider/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/",
+      "destination": "/machine-id/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/applications/",
+      "destination": "/machine-id/access-guides/applications/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/ansible/",
+      "destination": "/machine-id/access-guides/ansible/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/databases/",
+      "destination": "/machine-id/access-guides/databases/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/host-certificate/",
+      "destination": "/machine-id/access-guides/host-certificate/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/kubernetes/",
+      "destination": "/machine-id/access-guides/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/circleci/",
+      "destination": "/machine-id/platform-guides/circleci/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/jenkins/",
+      "destination": "/machine-id/platform-guides/jenkins/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/gitlab/",
+      "destination": "/machine-id/platform-guides/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/gitlab/",
+      "destination": "/machine-id/platform-guides/github-actions/",
       "permanent": true
     }
   ]

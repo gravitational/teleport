@@ -3,11 +3,6 @@ title: Machine ID
 description: Teleport Machine ID introduction, demo and resources.
 ---
 
-Machine ID is a service that programmatically issues and renews short-lived
-certificates to any service account (e.g., a CI/CD server) by retrieving
-credentials from the Teleport Auth Service. This enables fine-grained
-role-based access controls and audit.
-
 <iframe
   width="712"
   height="400"
@@ -18,34 +13,63 @@ role-based access controls and audit.
 />
 <br/>
 
-Machine ID supports the following Teleport features:
+Teleport Machine ID enables machines, such as CI/CD workflows, to securely
+authenticate with your Teleport cluster in order to connect to resources and
+configure the cluster itself.
 
-- [Server Access](./getting-started.mdx)
-- [Database Access](./guides/databases.mdx)
-- [Kubernetes Access](./guides/kubernetes.mdx) (*in Teleport v10.1*)
-- [Application Access](./guides/applications.mdx) (*in Teleport v10.1*)
-  - Note: [AWS Console](../application-access/cloud-apis/aws-console.mdx) and API access are currently unsupported.
-- [Teleport API Access](../api/introduction.mdx)
+Using Machine ID brings the existing benefits of the Teleport platform to
+machine access:
 
-These features are supported in Teleport Enterprise and Teleport Cloud.
+- Short-lived, rotating credentials.
+- Rich auditing and session recording.
+- Fine-grained role-based access control.
+- Consistency with your techniques for managing human access.
 
-The following features are **not** yet supported by Machine ID:
-- [Desktop Access](../desktop-access/introduction.mdx)
-- [User Impersonation](../access-controls/guides/impersonation.mdx): Machine
-  ID uses Role Impersonation which cannot be combined with User Impersonation
-- Multifactor authentication like [WebAuthn](../access-controls/guides/webauthn.mdx) and [Passwordless](../access-controls/guides/passwordless.mdx)
-- [AWS Console Access](../application-access/cloud-apis/aws-console.mdx)
+Machine ID supports a number of use-cases and platforms, but is commonly used
+for:
 
-## Getting started
+- Granting CI/CD workflows access to resources such as SSH servers,
+  Kubernetes Clusters, Databases and Applications that are protected by Teleport
+  in order to deploy changes.
+- Granting SecOps tooling access to resources in order to run security analysis
+  against them.
+- Creating and renewing credentials for custom scripts that leverage `tctl` or
+  the Teleport API in order to control Teleport configuration.
 
-- [Getting started](./getting-started.mdx): Getting started with Teleport Machine ID
-- [Architecture](./architecture.mdx): A technical overview of how Machine ID works
+## Overview
 
-## Guides
+TODO: THIS TEXT IS ROUGH
 
-(!docs/pages/includes/machine-id/guides.mdx!)
+Machine ID is used through an agent called `tbot`. `tbot` authenticates
+with the Teleport cluster and then writes short-lived credentials and
+configuration files (known as artifacts) to configured destinations (such as a
+directory). These credentials can then be used by other tools to access a
+Teleport cluster and its resources. In daemon mode, `tbot` continually renews
+the short-lived credentials before they expire.
 
-## FAQ & Troubleshooting
+TODO: THIS TEXT IS ROUGH
 
-Finally, check out [Frequently Asked Questions](./faq.mdx) and the 
-[troubleshooting guide](./troubleshooting.mdx) for common questions and issues.
+`tbot` authenticates with the Teleport cluster using a join token which grants
+access to a Bot User. A Bot User is similar to a normal Teleport user but is
+only accessible via a join token and cannot be "logged into" like a normal
+user. A Bot User holds a single role, known as the Bot Role. This role gives
+`tbot` the ability to generate certificates for specified Teleport roles.
+
+TODO: THIS TEXT IS ROUGH
+
+## Further Reading
+
+For a quickstart non-production introduction to Machine ID, read the
+[Getting Started Guide](./getting-started.mdx).
+
+Production-ready guidance on deploying Machine ID is broken out into two parts:
+
+- [Platform Guides](./platform-guides.mdx): How to install and configure Machine ID for a specific platform.
+- [Access Guides](./access-guides.mdx): How to use Machine ID to access Teleport and Teleport resources.
+
+Other resources:
+
+- [Frequently Asked Questions](./faq.mdx): Commonly asked questions.
+- [Troubleshooting Guide](./troubleshooting.mdx): Common issues and how to solve them.
+- [Architecture](./architecture.mdx): A technical deep-dive into how Machine ID works.
+- [Reference](./reference.mdx): Complete documentation of available configuration options.
