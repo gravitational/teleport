@@ -1025,7 +1025,7 @@ exports[`loaded denied role based request state 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   padding: 0px;
-  background: #9F85FF;
+  background: #FF6257;
   color: #000000;
   width: 10px;
   font-size: 10px;
@@ -1409,7 +1409,7 @@ exports[`loaded denied role based request state 1`] = `
           class="c32"
           font-size="0"
           font-weight="bold"
-          kind="error"
+          kind="danger"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
         />

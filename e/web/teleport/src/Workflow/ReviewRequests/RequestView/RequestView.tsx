@@ -382,7 +382,7 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
     if (reviewer.state === 'APPROVED') {
       kind = 'success';
     } else if (reviewer.state === 'DENIED') {
-      kind = 'error';
+      kind = 'danger';
     }
 
     return (
