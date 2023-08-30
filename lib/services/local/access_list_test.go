@@ -238,7 +238,6 @@ func TestAccessListMembersCRUD(t *testing.T) {
 
 	// Verify that the access list's members have been removed and that the other has not been affected.
 	_, _, err = service.ListAccessListMembers(ctx, accessList1.GetName(), 0, "")
-	require.True(t, trace.IsNotFound(err), "missing access list should produce not found error during list")
 	require.ErrorIs(t, err, trace.NotFound("access_list %q doesn't exist", accessList1.GetName()))
 
 	members, _, err = service.ListAccessListMembers(ctx, accessList2.GetName(), 0, "")
