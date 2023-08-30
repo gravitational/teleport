@@ -969,7 +969,7 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 			return
 		}
 		if err != nil {
-			c.Logger.WithError(err).Warn("Re-init the cache on error")
+			c.Logger.Warnf("Re-init the cache on error: %v", err)
 		}
 
 		// events cache should be closed as well

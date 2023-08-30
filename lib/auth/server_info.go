@@ -53,7 +53,7 @@ func (s *Server) ReconcileServerInfos(ctx context.Context) error {
 			select {
 			case <-clock.After(timeBetweenBatches):
 			case <-ctx.Done():
-				return trace.Wrap(ctx.Err())
+				return nil
 			}
 		}
 
@@ -65,7 +65,7 @@ func (s *Server) ReconcileServerInfos(ctx context.Context) error {
 		select {
 		case <-clock.After(timeBetweenReconciliationLoops):
 		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
+			return nil
 		}
 	}
 }
