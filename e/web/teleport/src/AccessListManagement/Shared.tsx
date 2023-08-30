@@ -1,19 +1,16 @@
 import React, { useState, PropsWithChildren } from 'react';
 import styled from 'styled-components';
 import { format } from 'date-fns';
-import { Popover, Text, Box, LabelInput, Flex } from 'design';
+import { Popover, Text, Box, LabelInput, Flex, Label } from 'design';
 import { Calendar as CalendarIcon } from 'design/Icon';
 import { StyledSelect, Option } from 'shared/components/Select';
 import { User } from 'teleport/services/user';
-import { Resource, KindRole } from 'teleport/services/resources';
 import { useRule } from 'shared/components/Validation';
 
 import { DatePicker } from './DatePicker';
 
-export const dateFormat = 'MM/dd/yyyy';
 export type UserOption = Option<User>;
-export type RoleOption = Option<Resource<KindRole>>;
-export type UserKind = 'Member' | 'Owner';
+export type EditKind = 'Member' | 'Owner' | 'Grants';
 
 interface RuleResult {
   valid: boolean;
@@ -107,6 +104,13 @@ const StyledOnHover = styled(Text)`
   max-width: 350px;
 `;
 
+export const TruncatingLabel = styled(Label)`
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 160px;
+`;
+
 // TODO(lisa): would benefit moving it to shared package
 // similar to FieldInput and FieldSelect
 export const CalendarDateSelect = ({
@@ -126,6 +130,8 @@ export const CalendarDateSelect = ({
   const hasError = Boolean(!valid);
   const labelText = hasError ? message : label;
 
+  const validDate = date && !isNaN(date.getTime());
+
   return (
     <>
       <LabelInput hasError={hasError}>{labelText}</LabelInput>
@@ -138,7 +144,7 @@ export const CalendarDateSelect = ({
         borderRadius={2}
         dateSelected={Boolean(date)}
       >
-        <Box>{date ? format(date, dateFormat) : 'Select a Date'}</Box>
+        <Box>{validDate ? format(date, dateFormat) : 'Select a Date'}</Box>
         <CalendarIcon />
       </CalendarInput>
       {showDatePicker && (
@@ -173,3 +179,54 @@ const CalendarInput = styled(Flex)`
     }
   }}
 `;
+
+const HOURS_PER_MONTH = 730;
+const SECONDS_PER_MONTH = 2628000; // approx. 0.9999989041 month (google)
+const SECONDS_PER_DAY = 86400;
+
+type OptionWithKey = Option & { key: number };
+export const auditFrequencyOpts: OptionWithKey[] = [
+  { label: 'every 1 month', value: `${1 * HOURS_PER_MONTH}h`, key: 1 },
+  { label: 'every 3 months', value: `${3 * HOURS_PER_MONTH}h`, key: 3 },
+  { label: 'every 6 months', value: `${6 * HOURS_PER_MONTH}h`, key: 6 },
+];
+
+// calculateMonthsDaysFromDuration is an approximate calculation
+// of months and days from seconds.
+export function calculateMonthsDaysFromDuration(duration: string) {
+  // Assuming the backend will always return the format string '0h0m0s'
+  const [hrs = 0, mins = 0, secs = 0] = duration.split(/h|m|s/);
+  let totalSeconds = Number(hrs) * 3600 + Number(mins) * 60 + Number(secs);
+
+  // This is an approximate value.
+  const months = Math.floor(totalSeconds / SECONDS_PER_MONTH);
+  totalSeconds %= SECONDS_PER_MONTH;
+  const days = Math.floor(totalSeconds / SECONDS_PER_DAY);
+  // Drop the rest.
+  // We are only handling days, despite the UI having hard coded
+  // frequency limits (see auditFrequencyOpts) just in case a user
+  // tries to create an access list through the CLI, which allows
+  // you to fine tune the frequency down the seconds.
+
+  return { months, days };
+}
+
+const dateFormat = 'MM/dd/yyyy';
+export function getFormattedDate(d: Date) {
+  if (!d || isNaN(d.getTime())) {
+    return '';
+  }
+
+  // The zero value for golang Date comes back as "0001-01-01T00:00:00Z"
+  // which is January 1, year 1.
+  // JS zero date is January 1, 1970  which is "greater" than
+  // golang's zero value. So it's safe to assume that backend Dates
+  // that are less than JS's zero value means the date was not set.
+  const zeroDate = new Date(0);
+  const thisDate = new Date(d);
+  if (thisDate <= zeroDate) {
+    return '';
+  }
+
+  return format(thisDate, dateFormat);
+}

@@ -1,41 +1,45 @@
 import React from 'react';
 import { Text } from 'design';
+import { Option } from 'shared/components/Select';
 
-import { RoleOption, UserOption } from '../Shared';
+import { UserOption } from '../Shared';
 
 import {
-  EligibilityRolesFieldSelect,
+  EligibilityOrGrantRolesFieldSelectAndCreate,
   EligibleUsersFieldSelectAndCreate,
 } from './Shared';
 
 type Props = {
-  fetchedRoleOpts: RoleOption[];
+  roleOptions: Option[];
   isDisabled: boolean;
   setMembers(m: Members): void;
   members: Members;
+  noAccess: boolean;
 };
 
 export type Members = {
-  selectedRolesRequired: RoleOption[];
+  selectedRolesRequired: Option[];
   eligibleMembers: UserOption[];
   selectedMembers: UserOption[];
 };
 
 export const MembersSection = ({
-  fetchedRoleOpts,
+  roleOptions,
   isDisabled,
   setMembers,
   members,
+  noAccess,
 }: Props) => {
   return (
     <>
       <Text fontSize="18px" mb={2}>
         Members (Optional)
       </Text>
-      <EligibilityRolesFieldSelect
-        options={fetchedRoleOpts}
+      <EligibilityOrGrantRolesFieldSelectAndCreate
+        editKind="Member"
+        options={roleOptions}
         isDisabled={isDisabled}
-        onChange={(option: RoleOption[]) =>
+        onChange={(option: Option[]) =>
           setMembers({
             ...members,
             selectedRolesRequired: option || [],
@@ -51,6 +55,7 @@ export const MembersSection = ({
         }
         options={members.eligibleMembers}
         label="Add Eligible Members (optional)"
+        noEligibleUsersFromNoAccess={noAccess}
       />
     </>
   );

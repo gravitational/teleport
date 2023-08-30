@@ -1,42 +1,45 @@
 import React from 'react';
 import { Text } from 'design';
+import { Option } from 'shared/components/Select';
 
-import { RoleOption, UserOption } from '../Shared';
+import { UserOption } from '../Shared';
 
 import {
-  EligibilityRolesFieldSelect,
+  EligibilityOrGrantRolesFieldSelectAndCreate,
   EligibleUsersFieldSelectAndCreate,
 } from './Shared';
 
 type Props = {
-  fetchedRoleOpts: RoleOption[];
+  roleOptions: Option[];
   isDisabled: boolean;
   setOwners(m: Owners): void;
   owners: Owners;
+  noAccess: boolean;
 };
 
 export type Owners = {
-  selectedRolesRequired: RoleOption[];
+  selectedRolesRequired: Option[];
   eligibleOwners: UserOption[];
   selectedOwners: UserOption[];
 };
 
 export const OwnersSection = ({
-  fetchedRoleOpts,
+  roleOptions,
   isDisabled,
   owners,
   setOwners,
+  noAccess,
 }: Props) => {
   return (
     <>
       <Text fontSize="18px" mb={2}>
         List Owners
       </Text>
-      <EligibilityRolesFieldSelect
-        requiredErrMsg={`Owner eligibility role's are required`}
-        options={fetchedRoleOpts}
+      <EligibilityOrGrantRolesFieldSelectAndCreate
+        editKind="Owner"
+        options={roleOptions}
         isDisabled={isDisabled}
-        onChange={(option: RoleOption[]) =>
+        onChange={(option: Option[]) =>
           setOwners({
             ...owners,
             selectedRolesRequired: option || [],
@@ -51,6 +54,7 @@ export const OwnersSection = ({
         options={owners.eligibleOwners}
         label="Add Eligible List Owners"
         requiredErrMsg="Eligible owners are required"
+        noEligibleUsersFromNoAccess={noAccess}
       />
     </>
   );

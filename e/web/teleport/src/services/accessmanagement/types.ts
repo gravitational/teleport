@@ -26,16 +26,16 @@ export type AccessListMember = {
   // name is the username of the member of the access list.
   name: string;
   // joined is when the user joined the access list.
-  joined?: Date;
+  joined: Date;
   // expires is when the user's membership to the access list expires.
   expires?: Date;
   // reason is the reason this user was added to the access list.
   reason?: string;
   // addedBy is the user that added this user to the access list.
   addedBy: string;
-  // ineligibleReason is a description for the web UI only
-  // on why this member is no longer eligible.
-  ineligibleReason?: string;
+  // ineligibleReason is a description on why this member
+  // no longer meets requirements as defined in membershipRequires.
+  ineligibleReason?: string; // TODO(lisa) need to come from the back
 };
 
 export type AccessListOwner = {
@@ -44,15 +44,16 @@ export type AccessListOwner = {
   // description is the plaintext description of the owner
   // and why they are an owner.
   description?: string;
-  // ineligibleReason is a description for the web UI only
-  // on why this owner is no longer eligible.
-  ineligibleReason?: string;
+  // ineligibleReason is a description on why this owner
+  // no longer meets requirements as defined in ownershipRequires.
+  ineligibleReason?: string; // TODO(lisa) need to come from the back
 };
 
 // AccessListAudit describes the frequency that this
 // access list must be audited.
 export type AccessListAudit = {
   frequency: string;
+  nextDate: Date;
 };
 
 // AccessListGrant describes the access granted
@@ -61,21 +62,28 @@ export type AccessListGrant = {
   roles: string[];
 };
 
-type MembersRequest = Omit<AccessListMember, 'addedBy'> & { added_by: string };
+export type OwnerRequest = Omit<AccessListOwner, 'ineligibleReason'>;
+export type MemberRequest = Omit<
+  AccessListMember,
+  'addedBy' | 'ineligibleReason'
+> & {
+  added_by: string;
+};
+
 export type CreateAccessListRequest = {
   // auditDuration should be in the format:
   // <number>h<number>m<number>s eg: 10h10m10s
   auditDuration: string;
+  auditStartDate: Date; // TODO(lisa): depends on backend implementation
   title: string;
   description?: string;
   grants: AccessListGrant;
-  owners: AccessListOwner[];
+  owners: OwnerRequest[];
   ownership_requires: AccessListRequires;
   membership_requires?: AccessListRequires;
-  members?: MembersRequest[];
+  members?: MemberRequest[];
 };
 
-export type UpdateAccessListRequest = {
-  members: string[]; // either add or delete
-  owners: string[]; // either add or delete
-};
+export type UpdateAccessListRequest = Partial<
+  Omit<CreateAccessListRequest, 'title' | 'description'>
+>;

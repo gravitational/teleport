@@ -1,63 +1,93 @@
 import React from 'react';
 import ReactSelectCreatable from 'react-select/creatable';
-import FieldSelect from 'shared/components/FieldSelect';
 import { requiredField } from 'shared/components/Validation/rules';
+import { Option } from 'shared/components/Select';
 
 import {
+  EditKind,
   FieldSelectAndCreatableWrapper,
-  RoleOption,
   UserOption,
 } from '../Shared';
 
-export function EligibilityRolesFieldSelect({
+export function EligibilityOrGrantRolesFieldSelectAndCreate({
   options,
   isDisabled,
   onChange,
   selected,
-  requiredErrMsg = '',
+  autoFocus = false,
+  editKind,
 }: {
-  options: RoleOption[];
+  options: Option[];
   isDisabled: boolean;
-  onChange(opts: RoleOption[]): void;
-  selected: RoleOption[];
-  requiredErrMsg?: string;
+  onChange(opts: Option[]): void;
+  selected: Option[];
+  autoFocus?: boolean;
+  editKind: EditKind;
 }) {
+  let requiredErrMsg = 'Roles granted are required';
+  let label = 'Roles Granted';
+
+  if (editKind !== 'Grants') {
+    requiredErrMsg = `${editKind} eligibility roles are required`;
+    label = 'Eligibility: Roles Required';
+  }
+
   return (
-    <FieldSelect
-      label="Eligibility: Roles Required"
-      isMulti={true}
-      isSearchable={true}
-      options={options}
-      isDisabled={isDisabled}
-      rule={requiredErrMsg ? requiredField(requiredErrMsg) : undefined}
-      onChange={onChange}
+    <FieldSelectAndCreatableWrapper<Option>
+      label={label}
       value={selected}
-    />
+      rule={requiredErrMsg ? requiredField(requiredErrMsg) : undefined}
+    >
+      <ReactSelectCreatable
+        autoFocus={autoFocus}
+        classNamePrefix="react-select"
+        placeholder="Start typing a role name and press enter"
+        isMulti={true}
+        isClearable={true}
+        options={options}
+        isDisabled={isDisabled}
+        onChange={onChange}
+        value={selected || []}
+        noOptionsMessage={() => 'Start typing a role name and press enter'}
+      />
+    </FieldSelectAndCreatableWrapper>
   );
 }
 
-export function EligibleUsersFieldSelectAndCreate({
+export function EligibleUsersFieldSelectAndCreate<T = UserOption>({
   selected,
   isDisabled,
   onChange,
   options,
   label,
   requiredErrMsg = '',
+  autoFocus = false,
+  noEligibleUsersFromNoAccess = false,
 }: {
-  selected: UserOption[];
+  selected: T[];
   isDisabled: boolean;
-  onChange(opts: UserOption[]): void;
-  options: UserOption[];
+  onChange(opts: T[]): void;
+  options: T[];
   label: string;
   requiredErrMsg?: string;
+  autoFocus?: boolean;
+  noEligibleUsersFromNoAccess?: boolean;
 }) {
+  let noOptionsMsg = 'No eligible users found';
+
+  // If a user had no access to list users,
+  // then we can't calculate eligible users.
+  if (noEligibleUsersFromNoAccess) {
+    noOptionsMsg = 'Start typing a username and press enter';
+  }
   return (
-    <FieldSelectAndCreatableWrapper<UserOption>
+    <FieldSelectAndCreatableWrapper<T>
       label={label}
       value={selected}
       rule={requiredErrMsg ? requiredField(requiredErrMsg) : undefined}
     >
       <ReactSelectCreatable
+        autoFocus={autoFocus}
         classNamePrefix="react-select"
         placeholder="Start typing a username and press enter"
         isMulti={true}
@@ -66,7 +96,7 @@ export function EligibleUsersFieldSelectAndCreate({
         value={selected || []}
         onChange={onChange}
         options={options}
-        noOptionsMessage={() => 'No eligible users found'}
+        noOptionsMessage={() => noOptionsMsg}
       />
     </FieldSelectAndCreatableWrapper>
   );

@@ -22,6 +22,7 @@ test('fetch access lists, empty responses does not throw error', async () => {
       },
       audit: {
         frequency: '',
+        nextDate: undefined,
       },
       ownershipRequires: {
         roles: [],
@@ -39,7 +40,7 @@ test('fetch an access list, empty response does not throw error', async () => {
     'does-not-matter'
   );
   expect(response).toStrictEqual({
-    audit: { frequency: '' },
+    audit: { frequency: '', nextDate: undefined },
     description: '',
     grants: { roles: [] },
     id: '',

@@ -2,13 +2,13 @@ import React from 'react';
 import { useHistory } from 'react-router';
 
 import styled from 'styled-components';
-import { Flex, Box, Text, Label } from 'design';
+import { Flex, Box, Text } from 'design';
 import { User } from 'design/Icon';
 
 import cfg from 'e-teleport/config';
 import { AccessList } from 'e-teleport/services/accessmanagement';
 
-import { ToolTipText } from '../Shared';
+import { ToolTipText, TruncatingLabel } from '../Shared';
 
 export type Props = {
   accessList: AccessList;
@@ -122,11 +122,4 @@ const SingleLineBox = styled(Text)`
   white-space: nowrap;
   text-overflow: ellipsis;
   width: 100%;
-`;
-
-const TruncatingLabel = styled(Label)`
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  max-width: 160px;
 `;

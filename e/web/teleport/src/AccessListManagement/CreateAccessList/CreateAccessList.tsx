@@ -18,17 +18,17 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import Validation, { Validator } from 'shared/components/Validation';
-import userService from 'teleport/services/user';
-import ResourceService from 'teleport/services/resources';
 import useTeleport from 'teleport/useTeleport';
+import { Option } from 'shared/components/Select';
 
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
 
 import { NoAccessState } from '../NoAccessState';
-import { RoleOption, UserOption } from '../Shared';
+import { UserOption, auditFrequencyOpts } from '../Shared';
+import { useFetchUserAndRoles } from '../useFetchUsersAndRoles';
 
-import { auditFrequencyOpts, Spec, SpecSection } from './SpecSection';
+import { Spec, SpecSection } from './SpecSection';
 import { Members, MembersSection } from './MemberSection';
 import { Owners, OwnersSection } from './OwnerSection';
 
@@ -39,11 +39,12 @@ export function CreateAccessList() {
   const canCreate = perm.create;
   const accessListCreater = ctx.storeUser.getUsername();
 
-  const { attempt: initAttempt, run: initRun } = useAttempt('');
-  const [fetchedUserOpts, setFetchedUserOpts] = useState<UserOption[]>([]);
-  const [fetchedRoleOpts, setFetchedRoleOpts] = useState<RoleOption[]>([]);
-
-  const { attempt: createAttempt, run: createRun } = useAttempt('');
+  const initAttemptObj = useAttempt('processing');
+  const { attempt: initAttempt } = initAttemptObj;
+  const { userOptions, roleOptions, fetchUsersAndRoles } =
+    useFetchUserAndRoles(initAttemptObj);
+  const { attempt: createAttempt, setAttempt: setCreateAttempt } =
+    useAttempt('');
 
   const [spec, setSpec] = useState<Spec>({
     title: '',
@@ -66,31 +67,8 @@ export function CreateAccessList() {
     selectedMembers: [],
   });
 
-  // Fetch initial users and roles.
   useEffect(() => {
-    const resourceSvc = new ResourceService();
-    initRun(() =>
-      Promise.all([
-        resourceSvc.fetchRoles().then(roles => {
-          const madeRoleOpts = roles.map(role => ({
-            value: role,
-            label: role.name,
-          }));
-          setFetchedRoleOpts(madeRoleOpts);
-        }),
-        // Fetch all the existing users to filter
-        // users who are eligible for being
-        // owners or members depending on the
-        // required roles defined.
-        userService.fetchUsers().then(users => {
-          const madeUserOpts = users.map(user => ({
-            value: user,
-            label: user.name,
-          }));
-          setFetchedUserOpts(madeUserOpts);
-        }),
-      ])
-    );
+    fetchUsersAndRoles();
   }, []);
 
   // Update owners.
@@ -100,14 +78,11 @@ export function CreateAccessList() {
     const rolesRequiredToBeEligible = owners.selectedRolesRequired;
 
     if (rolesRequiredToBeEligible.length > 0) {
-      eligibleOwners = eligibleUsers(
-        rolesRequiredToBeEligible,
-        fetchedUserOpts
-      );
+      eligibleOwners = getEligibleUsers(rolesRequiredToBeEligible, userOptions);
     }
 
     if (eligibleOwners.length > 0 && owners.selectedOwners.length > 0) {
-      selectedOwners = eligibleUsersAmongSelectedUsers({
+      selectedOwners = getEligibleUsersAmongSelectedUsers({
         eligibleUsers: eligibleOwners,
         selectedUsers: owners.selectedOwners,
       });
@@ -123,14 +98,14 @@ export function CreateAccessList() {
     const rolesRequiredToBeEligible = members.selectedRolesRequired;
 
     if (rolesRequiredToBeEligible.length > 0) {
-      eligibleMembers = eligibleUsers(
+      eligibleMembers = getEligibleUsers(
         rolesRequiredToBeEligible,
-        fetchedUserOpts
+        userOptions
       );
     }
 
     if (eligibleMembers.length > 0 && members.selectedMembers.length > 0) {
-      selectedMembers = eligibleUsersAmongSelectedUsers({
+      selectedMembers = getEligibleUsersAmongSelectedUsers({
         eligibleUsers: eligibleMembers,
         selectedUsers: members.selectedMembers,
       });
@@ -144,34 +119,39 @@ export function CreateAccessList() {
       return;
     }
 
-    createRun(() =>
-      accessManagementService
-        .createAccessList({
-          // specs
-          title: spec.title,
-          description: spec.description,
-          grants: { roles: spec.rolesToGrant.map(r => r.value.name) },
-          auditDuration: spec.auditFrequency.value,
-          // owners
-          ownership_requires: {
-            roles: owners.selectedRolesRequired.map(r => r.value.name),
-          },
-          owners: owners.selectedOwners.map(o => ({
-            name: o.value.name,
-          })),
-          // members
-          membership_requires: {
-            roles: members.selectedRolesRequired.map(r => r.value.name),
-          },
-          members: members.selectedMembers.map(m => ({
-            name: m.value.name,
-            joined: new Date(),
-            added_by: accessListCreater,
-          })),
-        })
-        // After creating, go back to access list listing.
-        .then(() => history.push(cfg.getAccessListManagementRoute()))
-    );
+    // We don't need to setAttempt to "success"
+    // since we are unmounting right after updating.
+    setCreateAttempt({ status: 'processing' });
+    accessManagementService
+      .createAccessList({
+        // specs
+        title: spec.title,
+        description: spec.description,
+        grants: { roles: spec.rolesToGrant.map(r => r.value) },
+        auditDuration: spec.auditFrequency.value,
+        auditStartDate: spec.auditStartDate,
+        // owners
+        ownership_requires: {
+          roles: owners.selectedRolesRequired.map(r => r.value),
+        },
+        owners: owners.selectedOwners.map(o => ({
+          name: o.value.name,
+        })),
+        // members
+        membership_requires: {
+          roles: members.selectedRolesRequired.map(r => r.value),
+        },
+        members: members.selectedMembers.map(m => ({
+          name: m.value.name,
+          joined: new Date(),
+          added_by: accessListCreater,
+        })),
+      })
+      // After creating, go back to access list listing.
+      .then(() => history.push(cfg.getAccessListManagementRoute()))
+      .catch((e: Error) =>
+        setCreateAttempt({ status: 'failed', statusText: e.message })
+      );
   }
 
   let MainContent: React.ReactElement;
@@ -198,7 +178,7 @@ export function CreateAccessList() {
                 <SpecSection
                   spec={spec}
                   setSpec={setSpec}
-                  fetchedRoleOpts={fetchedRoleOpts}
+                  roleOptions={roleOptions}
                   isDisabled={createAttempt.status === 'processing'}
                 />
               </Box>
@@ -206,16 +186,18 @@ export function CreateAccessList() {
                 <OwnersSection
                   owners={owners}
                   setOwners={setOwners}
-                  fetchedRoleOpts={fetchedRoleOpts}
+                  roleOptions={roleOptions}
                   isDisabled={createAttempt.status === 'processing'}
+                  noAccess={userOptions.length === 0}
                 />
               </Box>
               <Box>
                 <MembersSection
                   members={members}
                   setMembers={setMembers}
-                  fetchedRoleOpts={fetchedRoleOpts}
+                  roleOptions={roleOptions}
                   isDisabled={createAttempt.status === 'processing'}
+                  noAccess={userOptions.length === 0}
                 />
               </Box>
               <Box mt={5}>
@@ -266,14 +248,14 @@ export function CreateAccessList() {
 
 // eligibleUsers returns users with roles
 // that match with the required roles.
-export function eligibleUsers(
-  rolesRequiredToBeEligible: RoleOption[],
+export function getEligibleUsers(
+  rolesRequiredToBeEligible: Option[],
   users: UserOption[]
 ) {
   return users.filter(userOpt => {
     const currRolesAssigned = userOpt.value.roles;
     const isEligible = rolesRequiredToBeEligible.every(requiredRole =>
-      currRolesAssigned.includes(requiredRole.value.name)
+      currRolesAssigned.includes(requiredRole.value)
     );
     if (isEligible) {
       return userOpt;
@@ -284,7 +266,7 @@ export function eligibleUsers(
 // eligibleUsersAmongSelectedUsers checks if selected owners
 // are still eligible and returns selected users who are found
 // in the eligible list.
-function eligibleUsersAmongSelectedUsers({
+function getEligibleUsersAmongSelectedUsers({
   eligibleUsers,
   selectedUsers,
 }: {

@@ -5,13 +5,15 @@ import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { CalendarDateSelect, RoleOption } from '../Shared';
+import { CalendarDateSelect, auditFrequencyOpts } from '../Shared';
+
+import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
 
 type Props = {
   spec: Spec;
   setSpec(s: Spec): void;
   isDisabled: boolean;
-  fetchedRoleOpts: RoleOption[];
+  roleOptions: Option[];
 };
 
 export type Spec = {
@@ -19,23 +21,14 @@ export type Spec = {
   description: string;
   auditFrequency: Option;
   auditStartDate: Date;
-  rolesToGrant: RoleOption[];
+  rolesToGrant: Option[];
 };
-
-export const auditFrequencyOpts: Option[] = [
-  { label: '1 month', value: '730h' },
-  { label: '2 month', value: '1460h' },
-  { label: '3 month', value: '2190h' },
-  { label: '4 month', value: '2920h' },
-  { label: '5 month', value: '3650h' },
-  { label: '6 month', value: '4380h' },
-];
 
 export const SpecSection = ({
   spec,
   setSpec,
   isDisabled,
-  fetchedRoleOpts,
+  roleOptions,
 }: Props) => {
   return (
     <>
@@ -74,43 +67,16 @@ export const SpecSection = ({
           />
         </Box>
       </Flex>
-      <RolesGrantedFieldSelect
-        options={fetchedRoleOpts}
+      <EligibilityOrGrantRolesFieldSelectAndCreate
+        options={roleOptions}
         isDisabled={isDisabled}
-        onChange={(roles: RoleOption[]) =>
+        onChange={(roles: Option[]) =>
           setSpec({ ...spec, rolesToGrant: roles || [] })
         }
         selected={spec.rolesToGrant}
+        editKind="Grants"
       />
     </>
-  );
-};
-
-export const RolesGrantedFieldSelect = ({
-  options,
-  isDisabled,
-  onChange,
-  selected,
-  autoFocus = false,
-}: {
-  options: RoleOption[];
-  isDisabled: boolean;
-  onChange(roles: RoleOption[]): void;
-  selected: RoleOption[];
-  autoFocus?: boolean;
-}) => {
-  return (
-    <FieldSelect
-      autoFocus={autoFocus}
-      label="Roles Granted"
-      rule={requiredField('Roles granted is required')}
-      isMulti={true}
-      isSearchable={true}
-      options={options}
-      isDisabled={isDisabled}
-      onChange={onChange}
-      value={selected}
-    />
   );
 };
 

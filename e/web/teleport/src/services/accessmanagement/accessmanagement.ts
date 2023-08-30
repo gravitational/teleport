@@ -6,6 +6,7 @@ import type {
   CreateAccessListRequest,
   AccessList,
   AccessListMember,
+  UpdateAccessListRequest,
 } from 'e-teleport/services/accessmanagement';
 
 export const accessManagementService = {
@@ -23,6 +24,39 @@ export const accessManagementService = {
     return api
       .post(cfg.getAccessManagementListUrl(), req)
       .then(resp => makeAccessList(resp.accessList));
+  },
+  updateAccessList(a: Partial<AccessList>): Promise<void> {
+    const req: UpdateAccessListRequest = {
+      auditDuration: a.audit?.frequency,
+      auditStartDate: a.audit?.nextDate,
+      grants: a.grants,
+      members: a.members?.map(m => ({
+        name: m.name,
+        joined: m.joined,
+        expires: m.expires,
+        reason: m.reason,
+        added_by: m.addedBy,
+      })),
+      owners: a.owners?.map(o => ({
+        name: o.name,
+        description: o.description,
+      })),
+      membership_requires: {
+        roles: a.membershipRequires?.roles,
+      },
+      ownership_requires: {
+        roles: a.ownershipRequires?.roles,
+      },
+    };
+
+    // TODO(lisa) backend wip
+    console.log(req);
+    return Promise.resolve();
+  },
+  deleteAccessList(accessListId): Promise<void> {
+    // TODO(lisa) backend wip
+    console.log(accessListId);
+    return Promise.resolve();
   },
 };
 
@@ -46,6 +80,9 @@ function makeAccessList(json: any): AccessList {
     },
     audit: {
       frequency: spec.audit?.frequency || '',
+      nextDate: spec.audit?.next_audit_date
+        ? new Date(spec.audit?.next_audit_date)
+        : undefined,
     },
     ownershipRequires: {
       roles: spec.ownership_requires?.roles || [],
@@ -60,5 +97,12 @@ function makeMembers(json: any): AccessListMember[] {
   if (!json) {
     return [];
   }
-  return json.map(m => ({ ...m, addedBy: m.added_by }));
+  return json.map(m => {
+    return {
+      ...m,
+      addedBy: m.added_by,
+      joined: new Date(m.joined),
+      expires: new Date(m.expires),
+    };
+  });
 }
