@@ -28,9 +28,9 @@ type StreamingMessage struct {
 	Parts <-chan string
 }
 
-// String implements the Stringer interface. It waits until the message stream
-// is over and returns the full message.
-func (msg *StreamingMessage) String() string {
+// WaitAndConsume waits until the message stream is over and returns the full message.
+// This can only be called once on a message as it empties its Parts channel.
+func (msg *StreamingMessage) WaitAndConsume() string {
 	sb := strings.Builder{}
 	for part := range msg.Parts {
 		sb.WriteString(part)
