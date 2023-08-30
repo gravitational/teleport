@@ -603,15 +603,13 @@ func (s *Server) Serve() {
 		}
 
 		if s.targetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
-			openTunnelResp, err := s.setupTunnelForOpenSSHEphemeralNode(ctx)
+			sshSigner, err := s.sendSSHPublicKeyToTarget(ctx)
 			if err != nil {
-				s.log.Warnf("Unable to set up EC2 Instance Connect Endpoint Tunnel for %q: %v", s.targetServer.GetName(), err)
+				s.log.Warnf("Unable to upload SSH Public Key to EC2 Instance  %q: %v", s.targetServer.GetName(), err)
 				return
 			}
 
-			s.agentlessSigner = openTunnelResp.SSHSigner
-			s.targetConn = openTunnelResp.Tunnel
-			s.address = openTunnelResp.Tunnel.LocalAddr().String()
+			s.agentlessSigner = sshSigner
 		}
 	}
 
@@ -647,34 +645,13 @@ func (s *Server) Serve() {
 	go s.handleConnection(ctx, chans, reqs)
 }
 
-func getProxyPublicAddr(clt auth.ClientI) (string, error) {
-	proxies, err := clt.GetProxies()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	for _, p := range proxies {
-		proxyPublicAddress := p.GetPublicAddr()
-		if proxyPublicAddress != "" {
-			return proxyPublicAddress, nil
-		}
-	}
-
-	return "", trace.BadParameter("failed to get Proxy Public Address")
-}
-
-func (s *Server) setupTunnelForOpenSSHEphemeralNode(ctx context.Context) (*awsoidc.OpenTunnelEC2Response, error) {
-	if s.targetServer.GetCloudMetadata() == nil || s.targetServer.GetCloudMetadata().AWS == nil {
+func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, error) {
+	awsInfo := s.targetServer.GetAWSInfo()
+	if awsInfo == nil {
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
-	awsInfo := s.targetServer.GetCloudMetadata().AWS
 
-	proxyPublicAddress, err := getProxyPublicAddr(s.authClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	issuer, err := awsoidc.IssuerFromPublicAddress(proxyPublicAddress)
+	issuer, err := awsoidc.IssuerForCluster(ctx, s.authClient)
 	if err != nil {
 		return nil, trace.BadParameter("failed to get issuer %v", err)
 	}
@@ -695,31 +672,27 @@ func (s *Server) setupTunnelForOpenSSHEphemeralNode(ctx context.Context) (*awsoi
 		return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", awsInfo.Integration)
 	}
 
-	openTunnelClt, err := awsoidc.NewOpenTunnelEC2Client(ctx, &awsoidc.AWSClientRequest{
+	sendSSHClient, err := awsoidc.NewEICESendSSHPublicKeyClient(ctx, &awsoidc.AWSClientRequest{
 		IntegrationName: integration.GetName(),
 		Token:           token,
 		RoleARN:         integration.GetAWSOIDCIntegrationSpec().RoleARN,
 		Region:          awsInfo.Region,
 	})
 	if err != nil {
-		return nil, trace.BadParameter("failed to create the ec2 open tunnel client: %v", err)
+		return nil, trace.BadParameter("failed to create an aws client to send ssh public key:  %v", err)
 	}
 
-	openTunnelResp, err := awsoidc.OpenTunnelEC2(ctx, openTunnelClt, awsoidc.OpenTunnelEC2Request{
-		Region:          awsInfo.Region,
+	sshSigner, err := awsoidc.SendSSHPublicKeyToEC2(ctx, sendSSHClient, awsoidc.SendSSHPublicKeyToEC2Request{
 		InstanceID:      awsInfo.InstanceID,
-		VPCID:           awsInfo.VPCID,
-		EC2Address:      s.targetServer.GetAddr(),
 		EC2SSHLoginUser: s.identityContext.Login,
 	})
 	if err != nil {
-		return nil, trace.BadParameter("failed to open aws ec2 instance endpoint connect tunnel: %v", err)
+		return nil, trace.BadParameter("send ssh public key failed for instance %s: %v", awsInfo.InstanceID, err)
 	}
 
-	// This is the SSH Signer that the client must have used to connect to the EC2
-	// This is trusted because awsoidc.OpenTunnelEC2 sends the public key to the host.
-	// It also returns a connection to the EC2 instance.
-	return openTunnelResp, nil
+	// This is the SSH Signer that the client must use to connect to the EC2.
+	// This signer generates trusted keys, because the public key was sent to the target EC2 host.
+	return sshSigner, nil
 }
 
 // Close will close all underlying connections that the forwarding server holds.
