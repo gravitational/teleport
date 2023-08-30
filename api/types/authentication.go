@@ -213,6 +213,16 @@ func (c *AuthPreferenceV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (c *AuthPreferenceV2) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *AuthPreferenceV2) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
+}
+
 // Origin returns the origin value of the resource.
 func (c *AuthPreferenceV2) Origin() string {
 	return c.Metadata.Origin()
@@ -788,8 +798,10 @@ func (d *MFADevice) GetVersion() string      { return d.Version }
 func (d *MFADevice) GetMetadata() Metadata   { return d.Metadata }
 func (d *MFADevice) GetName() string         { return d.Metadata.GetName() }
 func (d *MFADevice) SetName(n string)        { d.Metadata.SetName(n) }
-func (d *MFADevice) GetResourceID() int64    { return d.Metadata.ID }
+func (d *MFADevice) GetResourceID() int64    { return d.Metadata.GetID() }
 func (d *MFADevice) SetResourceID(id int64)  { d.Metadata.SetID(id) }
+func (d *MFADevice) GetRevision() string     { return d.Metadata.GetRevision() }
+func (d *MFADevice) SetRevision(rev string)  { d.Metadata.SetRevision(rev) }
 func (d *MFADevice) Expiry() time.Time       { return d.Metadata.Expiry() }
 func (d *MFADevice) SetExpiry(exp time.Time) { d.Metadata.SetExpiry(exp) }
 

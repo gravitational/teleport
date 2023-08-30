@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -28,7 +29,7 @@ import (
 
 // TestConnect tests client config and connection logic.
 func TestConnect(t *testing.T) {
-	dynAddr := newDynamicServiceAddr(t)
+	dynAddr := helpers.NewDynamicServiceAddr(t)
 	ctx := context.Background()
 
 	fileConfig := &config.FileConfig{
@@ -38,11 +39,11 @@ func TestConnect(t *testing.T) {
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: dynAddr.authAddr,
+				ListenAddress: dynAddr.AuthAddr,
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 
 	username := "admin"
 	mustAddUser(t, fileConfig, "admin", "access")

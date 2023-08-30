@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"net"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -34,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
@@ -49,9 +49,7 @@ type suite struct {
 }
 
 func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
-	sshListenAddr := localListenerAddr()
-	_, sshListenPort, err := net.SplitHostPort(sshListenAddr)
-	require.NoError(t, err)
+	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Version: "v2",
 		Global: config.Global{
@@ -61,32 +59,34 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		SSH: config.SSH{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: localListenerAddr(),
+				ListenAddress: dynAddr.NodeSSHAddr,
 			},
 		},
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: sshListenAddr,
+				ListenAddress: dynAddr.ProxySSHAddr,
 			},
-			SSHPublicAddr: []string{net.JoinHostPort("localhost", sshListenPort)},
-			WebAddr:       localListenerAddr(),
-			TunAddr:       localListenerAddr(),
+			SSHPublicAddr: []string{dynAddr.ProxySSHAddr},
+			WebAddr:       dynAddr.WebAddr,
+			TunAddr:       dynAddr.TunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: localListenerAddr(),
+				ListenAddress: dynAddr.AuthAddr,
 			},
-			ClusterName: "root",
+			ClusterName:      "root",
+			SessionRecording: "node-sync",
 		},
 	}
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Log = utils.NewLoggerForTests()
-	err = config.ApplyFileConfig(fileConfig, cfg)
+	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
+	cfg.FileDescriptors = dynAddr.Descriptors
 
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -138,9 +138,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 }
 
 func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
-	sshListenAddr := localListenerAddr()
-	_, sshListenPort, err := net.SplitHostPort(sshListenAddr)
-	require.NoError(t, err)
+	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Version: "v2",
 		Global: config.Global{
@@ -150,17 +148,17 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		SSH: config.SSH{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: localListenerAddr(),
+				ListenAddress: dynAddr.NodeSSHAddr,
 			},
 		},
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: sshListenAddr,
+				ListenAddress: dynAddr.ProxySSHAddr,
 			},
-			SSHPublicAddr: []string{net.JoinHostPort("localhost", sshListenPort)},
-			WebAddr:       localListenerAddr(),
-			TunAddr:       localListenerAddr(),
+			SSHPublicAddr: []string{dynAddr.ProxySSHAddr},
+			WebAddr:       dynAddr.WebAddr,
+			TunAddr:       dynAddr.TunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
@@ -169,14 +167,16 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 			},
 			ClusterName:       "leaf1",
 			ProxyListenerMode: types.ProxyListenerMode_Multiplex,
+			SessionRecording:  "node-sync",
 		},
 	}
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Log = utils.NewLoggerForTests()
-	err = config.ApplyFileConfig(fileConfig, cfg)
+	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
+	cfg.FileDescriptors = dynAddr.Descriptors
 
 	user, err := user.Current()
 	require.NoError(t, err)
@@ -201,11 +201,16 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	})
 	require.NoError(t, err)
 
+	tunnelAddr := s.root.Config.Proxy.WebAddr.String()
+	if s.root.Config.Auth.NetworkingConfig.GetProxyListenerMode() != types.ProxyListenerMode_Multiplex {
+		tunnelAddr = s.root.Config.Proxy.ReverseTunnelListenAddr.String()
+	}
+
 	tc, err := types.NewTrustedCluster("root-cluster", types.TrustedClusterSpecV2{
 		Enabled:              true,
 		Token:                staticToken,
 		ProxyAddress:         s.root.Config.Proxy.WebAddr.String(),
-		ReverseTunnelAddress: s.root.Config.Proxy.WebAddr.String(),
+		ReverseTunnelAddress: tunnelAddr,
 		RoleMap: []types.RoleMapping{
 			{
 				Remote: "access",
@@ -268,19 +273,11 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 
 	if options.leafCluster || options.leafConfigFunc != nil {
 		s.setupLeafCluster(t, options)
-		// Wait for root/leaf to find each other.
-		if s.root.Config.Auth.NetworkingConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
-			require.Eventually(t, func() bool {
-				rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
-				require.NoError(t, err)
-				return len(rt) == 1
-			}, time.Second*10, time.Second)
-		} else {
-			require.Eventually(t, func() bool {
-				_, err := s.leaf.GetAuthServer().GetReverseTunnel(s.root.Config.Auth.ClusterName.GetClusterName())
-				return err == nil
-			}, time.Second*10, time.Second)
-		}
+		require.Eventually(t, func() bool {
+			rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
+			require.NoError(t, err)
+			return len(rt) == 1
+		}, time.Second*10, time.Second)
 	}
 
 	if options.validationFunc != nil {

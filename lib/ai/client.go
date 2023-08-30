@@ -99,6 +99,20 @@ func (client *Client) NewCommand(username string) *Chat {
 	}
 }
 
+func (client *Client) NewAuditQuery(username string) *Chat {
+	toolContext := &modeltools.ToolContext{User: username}
+	return &Chat{
+		client: client,
+		messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: model.PromptCharacter(username),
+			},
+		},
+		agent: model.NewAgent(toolContext, &modeltools.AuditQueryGenerationTool{LLM: client.svc}),
+	}
+}
+
 // Summary creates a short summary for the given input.
 func (client *Client) Summary(ctx context.Context, message string) (string, error) {
 	resp, err := client.svc.CreateChatCompletion(

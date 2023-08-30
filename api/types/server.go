@@ -170,6 +170,16 @@ func (s *ServerV2) SetResourceID(id int64) {
 	s.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (s *ServerV2) GetRevision() string {
+	return s.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (s *ServerV2) SetRevision(rev string) {
+	s.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns metadata
 func (s *ServerV2) GetMetadata() Metadata {
 	return s.Metadata
@@ -374,7 +384,13 @@ func (s *ServerV2) setStaticFields() {
 // IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
 // This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 func (s *ServerV2) IsOpenSSHNode() bool {
-	return s.SubKind == SubKindOpenSSHNode || s.SubKind == SubKindOpenSSHEICENode
+	return IsOpenSSHNodeSubKind(s.SubKind)
+}
+
+// IsOpenSSHNodeSubKind returns whether the Node SubKind is from a server which accepts connections over the
+// OpenSSH daemon (instead of a Teleport Node).
+func IsOpenSSHNodeSubKind(subkind string) bool {
+	return subkind == SubKindOpenSSHNode || subkind == SubKindOpenSSHEICENode
 }
 
 // openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.

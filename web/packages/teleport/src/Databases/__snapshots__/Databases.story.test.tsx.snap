@@ -51,6 +51,7 @@ exports[`empty state for enterprise, can create 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 224px;
+  text-transform: none;
 }
 
 .c11:hover,
@@ -95,6 +96,7 @@ exports[`empty state for enterprise, can create 1`] = `
   padding: 0px 24px;
   margin-left: 24px;
   width: 224px;
+  text-transform: none;
 }
 
 .c12:hover,
@@ -249,8 +251,7 @@ exports[`empty state for enterprise, can create 1`] = `
               kind="primary"
               width="224px"
             >
-              Add 
-              database
+              Add Resource
             </button>
           </a>
           <a
@@ -1210,6 +1211,7 @@ exports[`open source loaded 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c3:hover,
