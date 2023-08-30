@@ -85,8 +85,16 @@ message Metadata {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
-  // ID is a record ID
-  int64 ID = 7 [(gogoproto.jsontag) = "id,omitempty"];
+  // ID is a record ID.
+  // Deprecated: Use revision instead.
+  int64 ID = 7 [
+    deprecated = true,
+    (gogoproto.jsontag) = "id,omitempty"
+  ];
+  // Revision is an opaque identifier which tracks the versions of a resource
+  // over time. Clients should ignore and not alter its value but must return
+  // the revision in any updates of a resource.
+  string Revision = 8 [(gogoproto.jsontag) = "revision,omitempty"];
 }
 
 // Rotation is a status of the rotation of the certificate authority

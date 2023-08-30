@@ -102,6 +102,16 @@ func (s *ServerInfoV1) SetResourceID(id int64) {
 	s.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (s *ServerInfoV1) GetRevision() string {
+	return s.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (s *ServerInfoV1) SetRevision(rev string) {
+	s.Metadata.SetRevision(rev)
+}
+
 // Origin returns the origin value of the resource.
 func (s *ServerInfoV1) Origin() string {
 	return s.Metadata.Origin()
