@@ -84,6 +84,9 @@ export interface Acl {
   accessList: Access;
 }
 
+// AllTraits represent all the traits defined for a user.
+export type AllUserTraits = Record<string, string[]>;
+
 export interface User {
   // name is the teleport username.
   name: string;
@@ -94,7 +97,13 @@ export interface User {
   authType?: string;
   // isLocal is true if json.authType was 'local'.
   isLocal?: boolean;
+  // traits existed before field "externalTraits"
+  // and returns only "specific" traits.
   traits?: UserTraits;
+  // externalTraits came after field "traits"
+  // and contains ALL the traits defined for
+  // this user.
+  allTraits?: AllUserTraits;
 }
 
 // UserTraits contain fields that define traits for local accounts.
