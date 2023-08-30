@@ -73,7 +73,7 @@ Save the following file as `/var/lib/teleport.yaml` and edit as needed:
 version: v3
 teleport:
   # Necessary to write devices back to Teleport.
-  proxy_server: teleport.example.com:443 # CHANGEME
+  proxy_server: (=clusterDefaults.clusterName=):443 # CHANGEME
 
 jamf_service:
   enabled: true
@@ -265,7 +265,7 @@ service has a different "jamf\_service.name". For example:
 ```diff
 version: v3
 teleport:
-  proxy_server: teleport.example.com:443
+  proxy_server: (=clusterDefaults.clusterName=):443
 
 jamf_service:
   enabled: true
