@@ -49,26 +49,26 @@ following basic information model:
 
 - Tutorials are learning-oriented and designed to give a newcomer a positive, successful 
   experience. Tutorials should be tested regularly to ensure they don't get stale and that
-  that always provide a successful result.
+  they always provide a successful result.
 - How-to guides are task-oriented with practical steps to achieve a specific goal. 
-  These guides assume that readers familiar enough with Teleport that they know the task
+  These guides assume that readers are familiar enough with Teleport that they know the task
   they want to complete for a specific scenario but not necessarily how to complete it.
 - References are information-oriented technical descriptions of a system or its components.
 - Explanations are the conceptual framework for understanding how or why a system works.
   Explanation provide the context that surrounds what people learn in a tutorial, do in a 
-  how-toguide, or look up in reference material.
+  how-to guide, or look up in reference material.
 
 For more detailed information and examples of how to structure documentation using this 
 information model, see [The Grand Unified Theory of Documentation](https://documentation.divio.com/).
 
 ### Structuring content into pages
 
-In general, every page of documentation should have a purpose and self-contained. 
+In general, every page of documentation should have a purpose and be self-contained. 
 It's okay for information to be in multiple places and similar content can exist in 
 pages that serve different purposes. For example, you might have conceptual information
 about trusted clusters in one page and have similar content as context in a how-to topic.
 When possible, you should reuse content rather than duplicate content, but it's perfectly
-fined to cover the same information in more than one place to serve different purposes.
+fine to cover the same information in more than one place to serve different purposes.
 
 ## General guidance for engaging content
 
@@ -91,7 +91,7 @@ reader's journey.
 
 Don't use “I” or “me” unless it appears in the text of a user interface element.
 
-Avoid using “we” to unless you have a really good rationale for it. For example, if you 
+Avoid using “we” unless you have a really good rationale for it. For example, if you 
 are documenting a recommended setting or practice, using “We recommend...” is ambiguous
 ("we" being who exactly?) and potentially dangerous if something goes wrong. If there
 are industry best practices or recommendations, it's okay to indicate that instead of 
@@ -133,8 +133,8 @@ To keep the tone conversational but concise, adhere to the following common-sens
     - Instead of “i.e.”, use “that is” or rewrite the sentence to make the meaning clear without 
       needing extra qualification.
     - Instead of “e.g.”, use “for example”.
-    - Instead of “via”, use an appropriate English substitute such as “by”, “through”, or 
-      “using”.
+    - Instead of “via”, use an appropriate English substitute such as “by”, “through”, 
+      "from", or “using”.
     - Instead of “etc.”, use “and so on” or revise the content to make the term unnecessary. 
       For example, revise to use *such as* or *like* followed by an example or two.
     - Instead of “caveat”, use an appropriate English substitute such as “notice”, 
@@ -160,7 +160,7 @@ All heading levels should use the following conventions:
 - Use noun phrases for conceptual and reference topics whenever possible.
 - Summarize as succintly as possible the content they contain.
 - Avoid generic headings like overview and introduction, if possible. While generic 
-  heading can be conceptually useful, they add no value to the content or the navigational 
+  headings can be conceptually useful, they add no value to the content or the navigational 
   experience.
 - Always contain content. A heading should never be immediately followed by another 
   heading. As a best practice, avoid using headings strictly for navigation.
@@ -211,7 +211,7 @@ Use gender-neutral pronouns, like “they” whenever possible. Generally, you c
 noun from singular to plural to have subject-verb-pronoun agreement and avoid the use of 
 gender-specific pronouns like “he”, “him”, “his” or “she”, “her”, “hers”. Using "they" or 
 "their" with singular nouns is more generally accepted in modern conversational English, but
-it's rare you to need to use it.
+it's rare you to need to use the disagreeing format in documentation.
 
 Be wary of impersonal and potentially ambiguous pronouns such as:
 
@@ -220,14 +220,18 @@ Be wary of impersonal and potentially ambiguous pronouns such as:
 - few, many, neither, none,
 - one, other
 - same, several, some, such
-- that, them, these, those
+- this, that, them, these, those
 
 If you use any of these impersonal pronouns, be sure you answer “of what?”, “of which?”, 
-or “as what?” in the sentence. 
+or “as what?” in the sentence. Be especially cautious if you start a sentence with an
+indefinite pronoun like "This" followed by a verb. In most cases, the pronoun should be 
+followed by an object.
 
 ## Terminology and usage conventions
 
-This section covers common terminology, style, and usage questions and recommended practices. 
+This section covers common terminology, style, and usage questions.
+It includes recommended practices for using punctuation, referring to user interface
+elements, and selecting the right words for the information you're trying to convey. 
 
 ### Above and below
 
@@ -252,20 +256,19 @@ Use commas in numbers with four or more digits. Use *more than* instead of *over
 
 Use bold formatting for user interface elements that the user interacts with, including:
 
-- Dialog titles
-- Field labels
-- Buttons labels
-- Options displayed in the user interface
+- Menus and menu commands.
+- Field and button labels.
+- Options that can be selected in the user interface.
 
 If there's text that requires more attention than the surrounding body, consider isolating 
 it as a standalone note or tip. However, **think twice** before adding any type of special 
-notice. A paragraph highlighted as a note, tip, caution, or warning can be distracting and 
+notice, embedding details, or using tabbed boxes. These elements can all be distracting and 
 too many of them make text unreadable. 
 
-Because they are generally disruptive to the reader's experience, ask yourself if it is 
-really necessary to stop the reader's forward progress by adding a Note, Caution, or Tip 
-component. In most cases, it's more effective to integrate the information in the main
-body of the text. If you use these types of components at all, use them sparingly! 
+Because they are generally **disruptive** to the reader's experience, ask yourself if it is 
+really necessary to stop the reader's forward progress by adding a Note, Caution, Tip, or 
+any other special component. In most cases, it's more effective to integrate the information 
+in the main body of the text. If you use these types of components at all, use them sparingly! 
 
 **Note**—Indicates neutral or positive information that emphasizes or supplements important 
 points of the main text. A note supplies information that may apply only in special cases. 
@@ -316,12 +319,6 @@ Use (Optional) at the beginning of steps that are optional. For example:
 
 Use the guidelines in this section for punctuation marks.
 
-When referring to elements in the user interface, follow the capitalization that is used for the element unless it is rendered as all capitals. 
-Because using all capitals to typically consider aggressive in text and most
-user interface elements that use all capital letters are also text that the user interacts
-with, you can break the "follow the UI rule" and use an initial capital letter.
-Don't capitalize common terms like server, node, agent, and so on.
-
 | Punctuation	| Usage
 | ----------- | -----
 | apostrophe (') | Use in contractions for a conversational tone. Avoid using the possessive form.
@@ -351,9 +348,15 @@ be safely assumed.
 
 ### User interface elements
 
-In general, you should avoid writing about user interface elements. Instead, documentation 
-should always focus on what the audience needs to do or wants to accomplish and not what 
-is displayed on the screen.
+In general, you should avoid writing about user interface elements themselves. Instead, 
+documentation should always focus on what the audience needs to do or wants to 
+accomplish—that is, the user interaction—and not the widgets displayed on the screen.
+
+When referring to interactions in the user interface, you should generally follow the 
+capitalization that is used for the element unless it is rendered as all capital letters. 
+Because using all capitals to typically considered aggressive in text and most
+user interface elements that use all capital letters are also text that the user interacts
+with, you can break the "follow the UI rule" and use an initial capital letter.
 
 | Element	| How to use it
 | ------- | -------------
@@ -645,7 +648,8 @@ for the audience of a specific guide.
 - Full product names are treated as proper nouns and capitalized. 
   For example, Teleport Auth Service and Teleport Proxy Service are proper nouns.
   The terms proxy and service are common words and not proper nouns.
-  In general, avoid capitalizing terms and features. Overuse of capitalization
+  In general, avoid capitalizing terms and features. For example, don't capitalize 
+  common terms like server, node, agent, and so on. Overuse of capitalization
   makes text more difficult to read.
 - Don't use quotes to refer to product names.
 - Product proper nouns should be bolded on first use.
