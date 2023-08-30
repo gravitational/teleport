@@ -44,7 +44,7 @@ jobs:
 
       - name: Build etcd image
         id: docker_build
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v4
         with:
           context: ${{ github.workspace }}
           file: .github/services/Dockerfile.etcd

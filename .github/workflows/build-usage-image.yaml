@@ -24,7 +24,7 @@ jobs:
         with:
           registry-type: public
       # Build and publish container image on ECR.
-      - uses: docker/build-push-action@v3
+      - uses: docker/build-push-action@v4
         with:
           context: "examples/teleport-usage"
           tags: public.ecr.aws/gravitational/teleport-usage:${{ steps.version.outputs.version }}
