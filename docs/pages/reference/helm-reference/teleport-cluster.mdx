@@ -952,9 +952,8 @@ to inject your custom configuration.
 
 `podMonitor` controls [the PodMonitor CR (from monitoring.coreos.com/v1)
 ](https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#monitoring.coreos.com/v1.PodMonitor)
-This custom resource is used to configure Prometheus to monitor workload running
-in Kubernetes. This value can be used if you are using both Prometheus and
-prometheus-operator to monitor workload running in the Kubernetes cluster.
+that monitors the workload (auth and proxy pods) deployed by the chart.
+This custom resource configures Prometheus and makes it scrape Teleport metrics.
 
 The CRD is deployed by the prometheus-operator and allows workload to
 get monitored. You need to deploy the `prometheus-operator`
