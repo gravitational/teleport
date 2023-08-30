@@ -55,7 +55,8 @@ Create a configuration for the Teleport Database Service, pointing the
 `--proxy` flag to the address of your Teleport Proxy Service:
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
+   -o file \
   --token=/tmp/token \
   --proxy=teleport.example.com:443 \
   --name=keyspaces \
@@ -72,7 +73,8 @@ Create a configuration for the Teleport Database Service, pointing the
 `--proxy` flag to the address of your Teleport Proxy Service:
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
+   -o file \
   --token=/tmp/token \
   --proxy=mytenant.teleport.sh:443 \
   --name=keyspaces \

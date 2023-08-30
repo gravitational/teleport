@@ -198,7 +198,7 @@ Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
    --proxy=teleport.example.com \
@@ -208,7 +208,7 @@ $ teleport db configure create \
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
    --proxy=mytenant.teleport.sh:443 \
