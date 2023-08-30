@@ -33,9 +33,9 @@ protected with Teleport.
 - User with `editor` role.
   ```code
   $ tsh status
-  > Profile URL:      https://teleport.example.com:443
-  Logged in as:       myuser
-  Cluster:            teleport.example.com
+  > Profile URL:      (=clusterDefaults.clusterName=):443
+  Logged in as:       (=clusterDefaults.username=)
+  Cluster:            (=clusterDefaults.clusterName=)
   Roles:              access, auditor, editor
   Logins:             root, ubuntu, ec2-user
   Kubernetes:         disabled
@@ -47,11 +47,11 @@ protected with Teleport.
   $ tsh ls
   Node Name        Address        Labels
   ---------------- -------------- --------------------------------------
-  ip-172-31-35-170 ⟵ Tunnel
+  (=clusterDefaults.nodeIP=) ⟵ Tunnel
 
-  # test connection to ip-172-31-35-170
-  $ tsh ssh root@ip-172-31-35-170
-  root@ip-172-31-35-170:~#
+  # test connection to (=clusterDefaults.nodeIP=)
+  $ tsh ssh root@(=clusterDefaults.nodeIP=)
+  root@(=clusterDefaults.nodeIP=):~#
   ```
 
 Once the above prerequisites are met, begin with the following step.
@@ -110,7 +110,7 @@ For this guide, we will use the preset `require-trusted-device` role to update c
 First, let's fetch the user profile locally so we can update it with the preset `require-trusted-device` role.
 
 ```code
-$ tctl get users/myuser > myuser.yaml
+$ tctl get users/(=clusterDefaults.username=) > (=clusterDefaults.username=).yaml
 ```
 
 Edit the profile:
@@ -118,7 +118,7 @@ Edit the profile:
 kind: user
 metadata:
   id: 1692716146877042322
-  name: myuser
+  name: (=clusterDefaults.username=)
 spec:
   created_by:
     time: "2023-08-14T13:42:22.291972449Z"
@@ -136,23 +136,23 @@ spec:
 Save and update user:
 
 ```code
-$ tctl create -f myuser.yaml
+$ tctl create -f (=clusterDefaults.username=).yaml
 ```
 
 Now that the user profile is updated to enforce Device Trust, try to access the test server
 again.
 
 ```code
-$ tsh ssh root@ip-172-31-35-170
-ERROR: access denied to root connecting to ip-172-31-35-170:0
+$ tsh ssh root@(=clusterDefaults.nodeIP=)
+ERROR: access denied to root connecting to (=clusterDefaults.nodeIP=):0
 ```
 
-As you can verify from the above step, access to `ip-172-31-35-170` ssh server,
+As you can verify from the above step, access to `(=clusterDefaults.nodeIP=)` ssh server,
 which was previously accessible, is now forbidden.
 
 ## Step 2/2. Enroll device
 
-To access `ip-172-31-35-170` server again, you will have to enroll your device.
+To access `(=clusterDefaults.nodeIP=)` server again, you will have to enroll your device.
 
 Enrolling your device is easy, and can be done using `tsh` client:
 
@@ -172,12 +172,12 @@ Device "(=devicetrust.asset_tag=)"/macOS registered and enrolled
 Relogin to fetch updated certificate with device extension:
 
 ```code
-$ tsh logout; tsh login --proxy=teleport.example.com --user=myuser
+$ tsh logout; tsh login --proxy=(=clusterDefaults.clusterName=) --user=(=clusterDefaults.username=)
 
 $ tsh status
-> Profile URL:        https://teleport.example.com:443
-  Logged in as:       myuser
-  Cluster:            teleport.example.com:443
+> Profile URL:        (=clusterDefaults.clusterName=):443
+  Logged in as:       (=clusterDefaults.username=)
+  Cluster:            (=clusterDefaults.clusterName=):443
   Roles:              access, auditor, editor
   Logins:             root
   Kubernetes:         enabled
@@ -187,11 +187,11 @@ $ tsh status
 
 The presence of the `teleport-device-*` extensions shows that the device was successfully authenticated.
 
-Now, let's try to access server (`ip-172-31-35-170`) again:
+Now, let's try to access server (`(=clusterDefaults.nodeIP=)`) again:
 
 ```bash
-$ tsh ssh root@ip-172-31-35-170
-root@ip-172-31-35-170:~#
+$ tsh ssh root@(=clusterDefaults.nodeIP=)
+root@(=clusterDefaults.nodeIP=):~#
 ```
 
 Congratulations! You have successfully configured a Trusted Device and accessed a resource protected with

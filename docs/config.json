@@ -1563,6 +1563,11 @@
     }
   ],
   "variables": {
+    "clusterDefaults": {
+      "clusterName": "teleport.example.com",
+      "username": "myuser",
+      "nodeIP": "ip-172-31-35-170"
+    },
     "ansible": {
       "min_version": "2.9.6"
     },

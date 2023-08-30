@@ -143,15 +143,15 @@ $ tsh device enroll --token=(=devicetrust.enroll_token=)
 Device "(=devicetrust.asset_tag=)"/macOS enrolled
 
 $ tsh logout
-$ tsh login --proxy=teleport.example.com --user=myuser # fetch new certificates
-Enter password for Teleport user myuser:
+$ tsh login --proxy=(=clusterDefaults.clusterName=) --user=(=clusterDefaults.username=) # fetch new certificates
+Enter password for Teleport user (=clusterDefaults.username=):
 Tap any security key
 Detected security key tap
-> Profile URL:        https://teleport.example.com:443
-  Logged in as:       myuser
-  Cluster:            teleport.example.com
+> Profile URL:        (=clusterDefaults.clusterName=):443
+  Logged in as:       (=clusterDefaults.username=)
+  Cluster:            (=clusterDefaults.clusterName=)
   Roles:              access, editor
-  Logins:             myuser
+  Logins:             (=clusterDefaults.username=)
   Kubernetes:         enabled
   Valid until:        2023-06-23 02:47:05 -0300 -03 [valid for 12h0m0s]
   Extensions:         teleport-device-asset-tag, teleport-device-credential-id, teleport-device-id
@@ -211,15 +211,15 @@ Using a device previously registered in Teleport, logout and login again:
 ```code
 $ tsh logout
 All users logged out.
-$ tsh login --proxy=teleport.example.com --user=myuser
-Enter password for Teleport user myuser:
+$ tsh login --proxy=(=clusterDefaults.clusterName=) --user=(=clusterDefaults.username=)
+Enter password for Teleport user (=clusterDefaults.username=):
 Tap any security key
 Detected security key tap
-> Profile URL:        https://teleport.example.com:443
-  Logged in as:       myuser
-  Cluster:            teleport.example.com
+> Profile URL:        (=clusterDefaults.clusterName=):443
+  Logged in as:       (=clusterDefaults.username=)
+  Cluster:            (=clusterDefaults.clusterName=)
   Roles:              access, editor
-  Logins:             myuser
+  Logins:             (=clusterDefaults.username=)
   Kubernetes:         enabled
   Valid until:        2023-06-23 02:47:05 -0300 -03 [valid for 12h0m0s]
   Extensions:         teleport-device-asset-tag, teleport-device-credential-id, teleport-device-id
