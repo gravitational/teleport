@@ -310,6 +310,7 @@ func buildWindowsAuthenticationPackageStep(workspace string) step {
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Go -ToolchainDir "$Workspace` + toolchainDir + `"`,
+			`Enable-Rust -ToolchainDir "$Workspace` + toolchainDir + `"`,
 			`cd $TeleportSrc`,
 			`$TeleportVersion=$(make print-version).Trim()`,
 			`cd "$TeleportSrc\e\windowsauth"`,

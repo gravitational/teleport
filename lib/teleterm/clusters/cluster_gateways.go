@@ -35,11 +35,10 @@ type CreateGatewayParams struct {
 	// name on a database server.
 	TargetSubresourceName string
 	// LocalPort is the gateway local port
-	LocalPort          string
-	CLICommandProvider gateway.CLICommandProvider
-	TCPPortAllocator   gateway.TCPPortAllocator
-	OnExpiredCert      gateway.OnExpiredCertFunc
-	KubeconfigsDir     string
+	LocalPort        string
+	TCPPortAllocator gateway.TCPPortAllocator
+	OnExpiredCert    gateway.OnExpiredCertFunc
+	KubeconfigsDir   string
 }
 
 // CreateGateway creates a gateway
@@ -86,7 +85,6 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
 		Log:                           c.Log,
-		CLICommandProvider:            params.CLICommandProvider,
 		TCPPortAllocator:              params.TCPPortAllocator,
 		OnExpiredCert:                 params.OnExpiredCert,
 		Clock:                         c.clock,
@@ -122,7 +120,6 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
 		Log:                           c.Log,
-		CLICommandProvider:            params.CLICommandProvider,
 		TCPPortAllocator:              params.TCPPortAllocator,
 		OnExpiredCert:                 params.OnExpiredCert,
 		Clock:                         c.clock,

@@ -287,6 +287,10 @@ type Connector struct {
 
 	// Client is authenticated client with credentials from ClientIdentity.
 	Client *auth.Client
+
+	// ReusedClient, if true, indicates that the client reference is owned by
+	// a different connector and should not be closed.
+	ReusedClient bool
 }
 
 // TunnelProxyResolver if non-nil, indicates that the client is connected to the Auth Server
@@ -312,7 +316,7 @@ func (c *Connector) UseTunnel() bool {
 
 // Close closes resources associated with connector
 func (c *Connector) Close() error {
-	if c.Client != nil {
+	if c.Client != nil && !c.ReusedClient {
 		return c.Client.Close()
 	}
 	return nil
@@ -344,15 +348,15 @@ type TeleportProcess struct {
 	// inventoryHandle is the downstream inventory control handle for this instance.
 	inventoryHandle inventory.DownstreamHandle
 
-	// instanceClient is the instance-level auth client. this is created asynchronously
+	// instanceConnector contains the instance-level connector. this is created asynchronously
 	// and may not exist for some time if cert migrations are necessary.
-	instanceClient *auth.Client
+	instanceConnector *Connector
 
-	// instanceClientReady is closed when the isntance client becomes available.
-	instanceClientReady chan struct{}
+	// instanceConnectorReady is closed when the isntance client becomes available.
+	instanceConnectorReady chan struct{}
 
-	// instanceClientReadyOnce protects instanceClientReady from double-close.
-	instanceClientReadyOnce sync.Once
+	// instanceConnectorReadyOnce protects instanceConnectorReady from double-close.
+	instanceConnectorReadyOnce sync.Once
 
 	// instanceRoles is the collection of enabled service roles (excludes things like "admin"
 	// and "instance" which aren't true user-facing services). The values in this mapping are
@@ -923,21 +927,21 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	process := &TeleportProcess{
-		PluginRegistry:      cfg.PluginRegistry,
-		Clock:               cfg.Clock,
-		Supervisor:          supervisor,
-		Config:              cfg,
-		instanceClientReady: make(chan struct{}),
-		instanceRoles:       make(map[types.SystemRole]string),
-		Identities:          make(map[types.SystemRole]*auth.Identity),
-		connectors:          make(map[types.SystemRole]*Connector),
-		importedDescriptors: cfg.FileDescriptors,
-		storage:             storage,
-		id:                  processID,
-		log:                 cfg.Log,
-		keyPairs:            make(map[keyPairKey]KeyPair),
-		cloudLabels:         cloudLabels,
-		TracingProvider:     tracing.NoopProvider(),
+		PluginRegistry:         cfg.PluginRegistry,
+		Clock:                  cfg.Clock,
+		Supervisor:             supervisor,
+		Config:                 cfg,
+		instanceConnectorReady: make(chan struct{}),
+		instanceRoles:          make(map[types.SystemRole]string),
+		Identities:             make(map[types.SystemRole]*auth.Identity),
+		connectors:             make(map[types.SystemRole]*Connector),
+		importedDescriptors:    cfg.FileDescriptors,
+		storage:                storage,
+		id:                     processID,
+		log:                    cfg.Log,
+		keyPairs:               make(map[keyPairKey]KeyPair),
+		cloudLabels:            cloudLabels,
+		TracingProvider:        tracing.NoopProvider(),
 	}
 
 	process.registerExpectedServices(cfg)
@@ -1161,6 +1165,17 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiscovery), process.log)
 	}
 
+	if process.enterpriseServicesEnabledWithCommunityBuild() {
+		var services []string
+		if process.Config.Okta.Enabled {
+			services = append(services, "okta")
+		}
+		if process.Config.Jamf.Enabled() {
+			services = append(services, "jamf")
+		}
+		return nil, trace.BadParameter("Attempting to use enterprise only services %v, with a community teleport build", services)
+	}
+
 	// Enterprise services will be handled by the enterprise binary. We'll let these set serviceStarted
 	// to true and let the enterprise binary error if need be.
 	if process.enterpriseServicesEnabled() {
@@ -1201,9 +1216,16 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	return process, nil
 }
 
-// enterpriseServicesEnabled will return true of any enterprise services are enabled.
+// enterpriseServicesEnabled will return true if any enterprise services are enabled.
 func (process *TeleportProcess) enterpriseServicesEnabled() bool {
 	return modules.GetModules().BuildType() == modules.BuildEnterprise &&
+		(process.Config.Okta.Enabled || process.Config.Jamf.Enabled())
+}
+
+// enterpriseServicesEnabledWithCommunityBuild will return true if any
+// enterprise services are enabled with an OSS teleport build.
+func (process *TeleportProcess) enterpriseServicesEnabledWithCommunityBuild() bool {
+	return modules.GetModules().BuildType() == modules.BuildOSS &&
 		(process.Config.Okta.Enabled || process.Config.Jamf.Enabled())
 }
 
@@ -1252,31 +1274,43 @@ func (process *TeleportProcess) getLocalAuth() *auth.Server {
 	return process.localAuth
 }
 
-func (process *TeleportProcess) setInstanceClient(clt *auth.Client) {
+func (process *TeleportProcess) setInstanceConnector(conn *Connector) {
 	process.Lock()
-	process.instanceClient = clt
+	process.instanceConnector = conn
 	process.Unlock()
-	process.instanceClientReadyOnce.Do(func() {
-		close(process.instanceClientReady)
+	process.instanceConnectorReadyOnce.Do(func() {
+		close(process.instanceConnectorReady)
 	})
 }
 
-func (process *TeleportProcess) getInstanceClient() *auth.Client {
+func (process *TeleportProcess) getInstanceConnector() *Connector {
 	process.Lock()
 	defer process.Unlock()
-	return process.instanceClient
+	return process.instanceConnector
 }
 
-// waitForInstanceClient waits for the instance client to become available. Instance client is only available if at least
-// one non-auth service is registered.  Auth-only instances cannot use the instance client because auth servers need to
-// be able to fully initialize without a valid CA in order to support HSMs.
-func (process *TeleportProcess) waitForInstanceClient() (clt *auth.Client, ok bool) {
+// getInstanceClient tries to ge the current instance client without blocking. May return nil if either the
+// instance client has yet to be created, or this is an auth-only instance. Auth-only instances cannot use
+// the instance client because auth servers need to be able to fully initialize without a valid CA in order
+// to support HSMs.
+func (process *TeleportProcess) getInstanceClient() *auth.Client {
+	conn := process.getInstanceConnector()
+	if conn == nil {
+		return nil
+	}
+	return conn.Client
+}
+
+// waitForInstanceConnector waits for the instance connector to become available. returns nil if
+// process shutdown is triggered or if this is an auth-only instance. Auth-only instances cannot
+// use the instance client because auth servers need to be able to fully initialize without a
+// valid CA in order to support HSMs.
+func (process *TeleportProcess) waitForInstanceConnector() *Connector {
 	select {
-	case <-process.instanceClientReady:
-		clt = process.getInstanceClient()
-		return clt, clt != nil
+	case <-process.instanceConnectorReady:
+		return process.getInstanceConnector()
 	case <-process.ExitContext().Done():
-		return nil, false
+		return nil
 	}
 }
 
@@ -2372,6 +2406,7 @@ func (process *TeleportProcess) initInstance() error {
 		// or a fully in-memory instance client is implemented, we cannot rely on the instance client existing
 		// for purposes other than the control stream.
 		// TODO(fspmarshall): implement one of the two potential solutions listed above.
+		process.setInstanceConnector(nil)
 		process.BroadcastEvent(Event{Name: InstanceReady, Payload: nil})
 		return nil
 	}
@@ -2387,7 +2422,7 @@ func (process *TeleportProcess) initInstance() error {
 			return trace.Wrap(err)
 		}
 
-		process.setInstanceClient(conn.Client)
+		process.setInstanceConnector(conn)
 		log.Infof("Successfully registered instance client.")
 		process.BroadcastEvent(Event{Name: InstanceReady, Payload: nil})
 		return nil
@@ -3983,9 +4018,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
 				return ctx, trace.Wrap(err)
 			}),
-			PROXYSigner:  proxySigner,
-			OpenAIConfig: cfg.OpenAIConfig,
-			NodeWatcher:  nodeWatcher,
+			PROXYSigner:    proxySigner,
+			OpenAIConfig:   cfg.OpenAIConfig,
+			NodeWatcher:    nodeWatcher,
+			TracerProvider: process.TracingProvider,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
