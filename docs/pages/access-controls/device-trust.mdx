@@ -62,13 +62,13 @@ and perform device challenges. The specific implementation varies between types 
 
 On macOS devices, Device Trust uses the Secure Enclave in order to store a
 device private key. That key is used to solve device challenges issued by the
-Teleport Auth Server, proving the identity of the trusted device.
+Teleport Auth Service, proving the identity of the trusted device.
 
 On Windows devices, a Trusted Platform Module (TPM) is used to perform an
 attestation as to the state of the device. This attestation is signed by a
 private key that is also protected by the TPM.
 
-The signed attestation ensures that the Teleport Auth Server knows both the state
+The signed attestation ensures that the Teleport Auth Service knows both the state
 of the device and that the request has come from the device.
 
 That said, a device is as "trustworthy" as the enrollment process. If enrollment operator

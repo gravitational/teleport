@@ -30,18 +30,16 @@ by the `device_trust_mode` authentication setting:
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
-
 ## Role-based trusted device enforcement
 
 Role-based configuration enforces trusted device access at the role level. It
 can be configured with the `spec.options.device_trust_mode` option and
 applies to the resources in its `allow` rules. It
-works similar to [`require_session_mfa`](../guides/per-session-mfa.mdx).
+works similarly to [`require_session_mfa`](../guides/per-session-mfa.mdx).
 
 <Admonition type="tip" title="v13.3.6+">
-  Teleport version 13.3.6 and above supports preset `require-trusted-device` role to enforce Device Trust.
-  You have an option to either update existing role as referenced below, or use the preset role.
-  Ensure to update rules defined in preset `require-trusted-device` role as required.
+  Teleport version 13.3.6 and above has the preset `require-trusted-device` role.
+  Make sure you update the "allow" rules in the role according to your requirements.
 </Admonition>
 
 To enforce authenticated device checks for a specific role, update the role with
@@ -51,7 +49,7 @@ the following:
 kind: role
 version: v6
 metadata:
-  name: example-role
+  name: require-trusted-device
 spec:
   options:
     # require authenticated device check for this role
@@ -69,21 +67,12 @@ spec:
 $ tctl create -f device-enforcement.yaml
 ```
 
-```code
-$ tctl create -f admin.yaml
-```
-
-
 ## Cluster-wide trusted device enforcement
 
 Cluster-wide configuration enforces trusted device access at the cluster level.
-
-<Admonition type="note" title="Default configuration">
 Enterprise clusters run in `optional` mode by default. Changing the mode to
 `required` will enforce a trusted device for all SSH, Database and Kubernetes
 accesses.
-</Admonition>
-
 
 <Admonition type="warning" title="Web UI">
 The Web UI is not capable of trusted device access during the device trust
@@ -159,16 +148,6 @@ all of its resources, without imposing the same restrictions to the root
 cluster. Likewise, a root cluster will not enforce device trust on resources in
 leaf clusters.
 </Admonition>
-
-<Admonition type="tip" title="Per-role vs. Cluster-wide">
-Per-role configuration let's you progressively block unauthorized device access,
-and is useful for getting started with Teleport Device Trust.
-
-Once all the devices used are enrolled in Teleport, cluster-wide
-configuration will ensure every resources can only ever be accessed with a
-trusted device.
-</Admonition>
-
 
 ## Locking a device
 
