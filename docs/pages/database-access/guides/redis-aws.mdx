@@ -52,7 +52,7 @@ Create the Database Service configuration:
 <Tabs>
   <TabItem label="ElastiCache">
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
      -o file \
      --proxy=teleport.example.com:3080 \
      --token=/tmp/token \
@@ -61,7 +61,7 @@ Create the Database Service configuration:
   </TabItem>
   <TabItem label="MemoryDB">
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
      -o file \
      --proxy=teleport.example.com:3080 \
      --token=/tmp/token \
@@ -76,7 +76,7 @@ Create the Database Service configuration:
 <Tabs>
   <TabItem label="ElastiCache">
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
      -o file \
      --proxy=mytenant.teleport.sh:443 \
      --token=/tmp/token \
@@ -85,7 +85,7 @@ Create the Database Service configuration:
   </TabItem>
   <TabItem label="MemoryDB">
   ```
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
      -o file \
      --proxy=mytenant.teleport.sh:443 \
      --token=/tmp/token \

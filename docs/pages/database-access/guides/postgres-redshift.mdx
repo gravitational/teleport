@@ -50,7 +50,7 @@ On the node that is running the Database Service, create a configuration file:
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --proxy=teleport.example.com:3080 \
    --token=/tmp/token \
@@ -61,7 +61,7 @@ $ teleport db configure create \
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --proxy=mytenant.teleport.sh:443 \
    --token=/tmp/token \
