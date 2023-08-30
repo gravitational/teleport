@@ -163,7 +163,8 @@ func TestCheckSFTPAllowed(t *testing.T) {
 
 			ctx.Identity.AccessChecker = services.NewAccessCheckerWithRoleSet(
 				&services.AccessInfo{
-					Roles: roles.RoleNames(),
+					Username: "test",
+					Roles:    roles.RoleNames(),
 				},
 				"localhost",
 				roles,

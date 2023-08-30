@@ -313,12 +313,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.WindowsDesktop.Enabled = false
 	}
 
-	if fc.Predicate.Enabled {
-		cfg.Predicate.Enabled = true
-		if fc.Predicate.Addr == "" {
-			return trace.Errorf("Please, provide predicate_service.addr configuration variable")
+	if fc.AccessGraph.Enabled {
+		cfg.AccessGraph.Enabled = true
+		if fc.AccessGraph.Endpoint == "" {
+			return trace.Errorf("Please, provide access_graph_service.addr configuration variable")
 		}
-		cfg.Predicate.Addr = fc.Predicate.Addr
+		cfg.AccessGraph.Addr = fc.AccessGraph.Endpoint
 	}
 
 	applyString(fc.NodeName, &cfg.Hostname)

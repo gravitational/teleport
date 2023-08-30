@@ -1891,6 +1891,10 @@ func (process *TeleportProcess) initAuthService() error {
 		// Various Auth APIs must allow access to unauthorized devices, otherwise it
 		// is not possible to acquire device-aware certificates in the first place.
 		DisableDeviceAuthorization: true,
+		AccessGraph: authz.AccessGraphConfig{
+			Enabled:  cfg.AccessGraph.Enabled,
+			Endpoint: cfg.AccessGraph.Addr,
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2628,6 +2632,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetSessionController(sessionController),
 			regular.SetCAGetter(authClient.GetCertAuthority),
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
+			regular.SetAccessGraph(cfg.AccessGraph.Addr),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3887,6 +3892,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				LocalAuthAddresses:            utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 				IngressReporter:               ingressReporter,
 				PROXYSigner:                   proxySigner,
+				AccessGraph: reversetunnel.AccessGraph{
+					Endpoint: process.Config.AccessGraph.Addr,
+					Enabled:  process.Config.AccessGraph.Enabled,
+				},
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4179,6 +4188,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetPROXYSigner(proxySigner),
 		regular.SetPublicAddrs(cfg.Proxy.PublicAddrs),
 		regular.SetLabels(staticLabels, services.CommandLabels(nil), labels.Importer(nil)),
+		regular.SetAccessGraph(cfg.AccessGraph.Addr),
 	)
 	if err != nil {
 		return trace.Wrap(err)

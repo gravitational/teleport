@@ -738,7 +738,8 @@ func TestAuthenticate(t *testing.T) {
 			authCtx := authz.Context{
 				User: user,
 				Checker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
-					Roles: roles.RoleNames(),
+					Username: username,
+					Roles:    roles.RoleNames(),
 				}, "local", roles),
 				Identity: authz.WrapIdentity(tlsca.Identity{
 					RouteToCluster:    tt.routeToCluster,

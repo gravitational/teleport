@@ -264,8 +264,8 @@ type Config struct {
 	// Note: When set, this overrides Auth and Proxy's AssistAPIKey settings.
 	OpenAIConfig *openai.ClientConfig
 
-	// Predicate represents Predicate auth server config
-	Predicate PredicateConfig
+	// AccessGraph represents AccessGraph server config
+	AccessGraph AccessGraphConfig
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
@@ -289,8 +289,8 @@ type Config struct {
 	authServers []utils.NetAddr
 }
 
-// PredicateConfig represents Predicate auth server config
-type PredicateConfig struct {
+// AccessGraphConfig represents TAG server config
+type AccessGraphConfig struct {
 	// Enabled predicate reporting enabled
 	Enabled bool
 
