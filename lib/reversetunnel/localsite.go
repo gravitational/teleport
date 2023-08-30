@@ -615,7 +615,6 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 
 		return newMetricConn(conn, dt, dialStart, s.srv.Clock), true, nil
 	}
-	s.log.WithError(tunnelErr).WithField("address", dreq.Address).Debug("Error occurred while dialing through a tunnel.")
 
 	if s.tryProxyPeering(params) {
 		s.log.Info("Dialing over peer proxy")
@@ -625,7 +624,6 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 		if peerErr == nil {
 			return newMetricConn(conn, dialTypePeer, dialStart, s.srv.Clock), true, nil
 		}
-		s.log.WithError(peerErr).WithField("address", dreq.Address).Debug("Error occurred while dialing over peer proxy.")
 	}
 
 	err = trace.NewAggregate(tunnelErr, peerErr)
@@ -649,7 +647,7 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 	conn, directErr = dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), apidefaults.DefaultIOTimeout)
 	if directErr != nil {
 		directMsg := getTunnelErrorMessage(params, "direct dial", directErr)
-		s.log.WithError(directErr).WithField("address", params.To.String()).Debug("Error occurred while dialing directly.")
+		s.log.WithField("address", params.To.String()).Debugf("All attempted dial methods failed. tunnel=%q, peer=%q, direct=%q", tunnelErr, peerErr, directErr)
 		aggregateErr := trace.NewAggregate(tunnelErr, peerErr, directErr)
 		return nil, false, trace.ConnectionProblem(aggregateErr, directMsg)
 	}
