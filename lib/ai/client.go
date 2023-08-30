@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
-	"github.com/tiktoken-go/tokenizer/codec"
 
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/ai/model"
@@ -75,10 +74,7 @@ func (client *Client) NewChat(toolContext *modeltools.ToolContext) *Chat {
 				Content: model.PromptCharacter(toolContext.User),
 			},
 		},
-		// Initialize a tokenizer for prompt token accounting.
-		// Cl100k is used by GPT-3 and GPT-4.
-		tokenizer: codec.NewCl100kBase(),
-		agent:     model.NewAgent(toolContext, tools...),
+		agent: model.NewAgent(toolContext, tools...),
 	}
 }
 
@@ -92,10 +88,7 @@ func (client *Client) NewCommand(username string) *Chat {
 				Content: model.PromptCharacter(username),
 			},
 		},
-		// Initialize a tokenizer for prompt token accounting.
-		// Cl100k is used by GPT-3 and GPT-4.
-		tokenizer: codec.NewCl100kBase(),
-		agent:     model.NewAgent(toolContext, &modeltools.CommandGenerationTool{}),
+		agent: model.NewAgent(toolContext, &modeltools.CommandGenerationTool{}),
 	}
 }
 
