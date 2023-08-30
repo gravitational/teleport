@@ -252,7 +252,7 @@ func TestIsAccessListOwner(t *testing.T) {
 					"otrait2": {"ovalue3", "ovalue4"},
 				},
 			},
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -266,7 +266,7 @@ func TestIsAccessListOwner(t *testing.T) {
 					"otrait2": {"ovalue3", "ovalue4"},
 				},
 			},
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -280,7 +280,7 @@ func TestIsAccessListOwner(t *testing.T) {
 					"otrait2": {"ovalue3"},
 				},
 			},
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
