@@ -567,6 +567,50 @@ matches snapshot for dynamic-app.yaml:
     metadata:
       name: RELEASE-NAME
       namespace: NAMESPACE
+matches snapshot for dynamic-db.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: true
+          resources:
+          - labels:
+              '*': '*'
+        discovery_service:
+          enabled: false
+        kubernetes_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
+        windows_desktop_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for imagepullsecrets.yaml:
   1: |
     apiVersion: v1
@@ -1113,7 +1157,6 @@ matches snapshot for v10.yaml:
     metadata:
       name: RELEASE-NAME
       namespace: NAMESPACE
-
 matches snapshot for v11.yaml:
   1: |
     apiVersion: v1
