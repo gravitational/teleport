@@ -1,0 +1,133 @@
+---
+name: Enforce changelog requirements
+run-name: Enforce changelog requirements
+
+on:
+  pull_request:
+    types:
+      # Trigger for adding/removing "no-changelog" label
+      - labeled
+      - unlabeled
+      # Trigger for adding/editing changelog body
+      - opened
+      - edited
+      - reopened
+
+concurrency:
+    cancel-in-progress: true
+    group: "Only run this workflow for the latest trigger event for PR #${{ github.event.pull_request.number }}"
+
+permissions: 
+  pull-requests: write  # Used for commenting on the PR
+
+jobs:
+  enforce-changelog:
+    name: Enforce changelog requirements
+    runs-on: ubuntu-latest
+    env:
+      NO_CHANGELOG_LABEL_NAME: no-changelog
+    steps:
+      - name: Check if the "no-changelog" label is set
+        env:
+          PR_LABELS: ${{ github.event.pull_request.labels.*.name }}
+        run: |
+          printf "%s" "$PR_LABELS" | jq -rc '.[]' | while read -r PR_LABEL; do
+              echo "Checking label: $PR_LABEL"
+          
+              # Case insensitive comparison
+              if [ "${PR_LABEL,,}" == "${NO_CHANGELOG_LABEL_NAME,,}" ]; then
+                  echo "Found label $PR_LABEL matching $NO_CHANGELOG_LABEL_NAME"
+                  echo "LABEL_FOUND=true" >> "$GITHUB_ENV"
+                  exit 0
+              fi
+          done
+          
+          echo "No label found matching $NO_CHANGELOG_LABEL_NAME"
+          echo "LABEL_FOUND=false" >> "$GITHUB_ENV"
+      - name: Check if the PR body contains a changelog entry
+        if: env.LABEL_FOUND != 'true'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body}}
+          CHANGELOG_PREFIX: "changelog: " # Be wary of accidentially putting an escape character here if this is updated
+        run: |
+          function log_error() {
+              ERROR_MESSAGE="$1"
+          
+              if [ -z "$ERROR_MESSAGE" ]; then
+                  # shellcheck disable=SC2016 # The backticks are intentional here, and not intended to be an expression 
+                  >&2 echo 'Script error: No input to `log_error` function was provided. Usage: `log_error "error message"`'
+                  exit 1
+              fi
+          
+              >&2 echo "$ERROR_MESSAGE"
+          
+              # For logging to the PR
+              echo "ERROR_MESSAGE=$ERROR_MESSAGE" >> "$GITHUB_ENV"
+          
+              exit 1
+          }
+          
+          CHANGELOG_MESSAGE=$(echo "$PR_BODY" | grep -i "^$CHANGELOG_PREFIX" | sed "s/^$CHANGELOG_PREFIX//i")
+          
+          # Check if a changelog message exists
+          if [ -z "$CHANGELOG_MESSAGE" ]; then
+              ERROR_MESSAGE=$({
+                  echo "Changelog message not found!"
+                  echo "Please add a '$CHANGELOG_PREFIX<your PR changelog entry>' line to your PR body, or add a $NO_CHANGELOG_LABEL_NAME label."
+              })
+              log_error "$ERROR_MESSAGE"
+          fi
+          
+          echo "Found changelog message with prefix $CHANGELOG_PREFIX: $CHANGELOG_MESSAGE"
+          
+          # Check if the message is syntactically valid for the changelog
+          # This is not intended to be comprehensive, but should cover most cases.
+          if [ -z "${CHANGELOG_MESSAGE// }" ]; then
+              echo "The changelog entry must contain a non-empty value."
+          fi
+          
+          if echo "$CHANGELOG_MESSAGE" | sed 's/[^[:alpha:]]//g' | cut -c 1 | grep '^[a-z]'; then
+              echo "The changelog entry must start with a capital letter."
+          fi
+          
+          if echo "$CHANGELOG_MESSAGE" | grep -Ei '^\s+backport of' > /dev/null; then
+              log_error "The changelog entry must contain the actual change, not a reference to the source PR of the backport."
+          fi
+          
+          if echo "$CHANGELOG_MESSAGE" | grep -E '[.!?: ]$' > /dev/null; then
+              log_error "Punctiontion or space found at the end of the changelog line, please remove."
+          fi
+          
+          if echo "$CHANGELOG_MESSAGE" | grep '\](' > /dev/null; then
+              log_error "Markdown link or image found in the changelog URL, please remove."
+          fi
+          
+          if echo "$CHANGELOG_MESSAGE" | grep '^\s*# ' > /dev/null; then
+              log_error "Markdown header found in the changelog URL, please remove."
+          fi
+          
+          if echo "$CHANGELOG_MESSAGE" | grep -E '^\s*[[:digit:]]+\. ' > /dev/null; then
+              log_error "Ordered list entry found in the changelog URL, please remove."
+          fi
+          
+          if echo "$CHANGELOG_MESSAGE" | grep '^\s*- ' > /dev/null; then
+              log_error "Unordered list entry found in the changelog URL, please remove."
+          fi
+          
+          if echo "$CHANGELOG_MESSAGE" | grep '```' > /dev/null; then
+              log_error "Multiline code block found in the changelog URL, please remove."
+          fi
+
+          echo "Changelog message passed validation!"
+      - name: Log the changelog message problem to the PR
+        if: failure() && env.LABEL_FOUND != 'true' && env.ERROR_MESSAGE != ''
+        uses: thollander/actions-comment-pull-request@v2
+        with:
+          message: ${{ env.ERROR_MESSAGE }}
+          comment_tag: changelog-error
+      - name: Remove the changelog message problem from the PR
+        if: success()
+        uses: thollander/actions-comment-pull-request@v2
+        with:
+          comment_tag: changelog-error
+          mode: delete
