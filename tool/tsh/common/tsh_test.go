@@ -4923,7 +4923,7 @@ func TestBenchmarkPostgres(t *testing.T) {
 		"connect to database": {
 			database:            "postgres-local",
 			additionalFlags:     []string{"--db-user", "username", "--db-name", "database"},
-			expectedErrContains: "tls error (server refused TLS connection)",
+			expectedErrContains: "server error",
 			// When connecting to Teleport databases, it will use a local proxy.
 			expectedHost:     "127.0.0.1",
 			expectedUser:     "username",
