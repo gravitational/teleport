@@ -20,8 +20,6 @@ import (
 	"encoding/json"
 	"time"
 
-	xreflect "golang.design/x/reflect"
-
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -238,7 +236,9 @@ func (a *AccessList) MatchSearch(values []string) bool {
 
 // CloneResource returns a copy of the resource as types.ResourceWithLabels.
 func (a *AccessList) CloneResource() types.ResourceWithLabels {
-	return xreflect.DeepCopy(a)
+	var copy *AccessList
+	utils.StrictObjectToStruct(a, &copy)
+	return copy
 }
 
 func (a *Audit) UnmarshalJSON(data []byte) error {
