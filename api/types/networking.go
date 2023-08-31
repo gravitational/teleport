@@ -191,6 +191,16 @@ func (c *ClusterNetworkingConfigV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (c *ClusterNetworkingConfigV2) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *ClusterNetworkingConfigV2) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
+}
+
 // Origin returns the origin value of the resource.
 func (c *ClusterNetworkingConfigV2) Origin() string {
 	return c.Metadata.Origin()

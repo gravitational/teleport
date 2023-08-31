@@ -74,7 +74,7 @@ type DeployServiceIAMConfigureRequest struct {
 	// - teleport.dev/cluster: <cluster>
 	// - teleport.dev/origin: aws-oidc-integration
 	// - teleport.dev/integration: <integrationName>
-	ResourceCreationTags awsTags
+	ResourceCreationTags AWSTags
 
 	// partitionID is the AWS Partition ID.
 	// Eg, aws, aws-cn, aws-us-gov
@@ -113,7 +113,7 @@ func (r *DeployServiceIAMConfigureRequest) CheckAndSetDefaults() error {
 	}
 
 	if len(r.ResourceCreationTags) == 0 {
-		r.ResourceCreationTags = DefaultResourceCreationTags(r.Cluster, r.IntegrationName)
+		r.ResourceCreationTags = defaultResourceCreationTags(r.Cluster, r.IntegrationName)
 	}
 
 	r.partitionID = awsapiutils.GetPartitionFromRegion(r.Region)

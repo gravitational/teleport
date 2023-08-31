@@ -71,7 +71,7 @@ func TestDeployServiceIAMConfigReqDefaults(t *testing.T) {
 				partitionID:                        "aws",
 				IntegrationRoleDeployServicePolicy: "DeployService",
 				TaskRoleBoundaryPolicyName:         "taskroleBoundary",
-				ResourceCreationTags: awsTags{
+				ResourceCreationTags: AWSTags{
 					"teleport.dev/cluster":     "mycluster",
 					"teleport.dev/integration": "myintegration",
 					"teleport.dev/origin":      "integration_awsoidc",

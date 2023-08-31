@@ -16,8 +16,10 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"sync"
 
@@ -167,6 +169,8 @@ type Router struct {
 	siteGetter     SiteGetter
 	tracer         oteltrace.Tracer
 	serverResolver serverResolverFn
+	// DELETE IN 15.0.0: necessary for smoothing over v13 to v14 transition only.
+	permitUnlistedDialing bool
 }
 
 // NewRouter creates and returns a Router that is populated
@@ -182,13 +186,14 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 	}
 
 	return &Router{
-		clusterName:    cfg.ClusterName,
-		log:            cfg.Log,
-		clusterGetter:  cfg.RemoteClusterGetter,
-		localSite:      localSite,
-		siteGetter:     cfg.SiteGetter,
-		tracer:         cfg.TracerProvider.Tracer("Router"),
-		serverResolver: cfg.serverResolver,
+		clusterName:           cfg.ClusterName,
+		log:                   cfg.Log,
+		clusterGetter:         cfg.RemoteClusterGetter,
+		localSite:             localSite,
+		siteGetter:            cfg.SiteGetter,
+		tracer:                cfg.TracerProvider.Tracer("Router"),
+		serverResolver:        cfg.serverResolver,
+		permitUnlistedDialing: os.Getenv("TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING") == "yes",
 	}, nil
 }
 
@@ -279,6 +284,9 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		}
 
 	} else {
+		if !r.permitUnlistedDialing {
+			return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
+		}
 		if port == "" || port == "0" {
 			port = strconv.Itoa(defaults.SSHServerListenPort)
 		}

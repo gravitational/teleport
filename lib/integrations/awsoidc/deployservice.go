@@ -137,7 +137,7 @@ type DeployServiceRequest struct {
 	IntegrationName string
 
 	// ResourceCreationTags is used to add tags when creating resources in AWS.
-	ResourceCreationTags awsTags
+	ResourceCreationTags AWSTags
 
 	// DeploymentMode is the identifier of a deployment mode - which Teleport Services to enable and their configuration.
 	DeploymentMode string
@@ -236,7 +236,7 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ResourceCreationTags == nil {
-		r.ResourceCreationTags = DefaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
+		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
 	if len(r.DatabaseResourceMatcherLabels) == 0 {
