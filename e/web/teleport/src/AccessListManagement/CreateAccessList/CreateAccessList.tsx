@@ -25,12 +25,19 @@ import { accessManagementService } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
 
 import { NoAccessState } from '../NoAccessState';
-import { UserOption, auditFrequencyOpts } from '../Shared';
+import {
+  UserOption,
+  auditFrequencyOpts,
+  matchRoles,
+  matchTraits,
+} from '../Shared';
 import { useFetchUserAndRoles } from '../useFetchUsersAndRoles';
+import { TraitLookup, convertTraitLabelsToAllUserTraits } from '../Traits';
 
 import { Spec, SpecSection } from './SpecSection';
 import { Members, MembersSection } from './MemberSection';
 import { Owners, OwnersSection } from './OwnerSection';
+import { Grant, GrantSection } from './GrantSection';
 
 export function CreateAccessList() {
   const history = useHistory();
@@ -52,19 +59,27 @@ export function CreateAccessList() {
     // Default to the max frequency
     auditFrequency: auditFrequencyOpts[auditFrequencyOpts.length - 1],
     auditStartDate: null,
+  });
+
+  const [grant, setGrant] = useState<Grant>({
     rolesToGrant: [],
+    traitsToGrant: [],
   });
 
   const [owners, setOwners] = useState<Owners>({
     selectedRolesRequired: [],
     eligibleOwners: [],
     selectedOwners: [],
+    traitLabels: [],
+    traitLookup: {},
   });
 
   const [members, setMembers] = useState<Members>({
     selectedRolesRequired: [],
     eligibleMembers: [],
     selectedMembers: [],
+    traitLabels: [],
+    traitLookup: {},
   });
 
   useEffect(() => {
@@ -77,9 +92,11 @@ export function CreateAccessList() {
     let selectedOwners: UserOption[] = [];
     const rolesRequiredToBeEligible = owners.selectedRolesRequired;
 
-    if (rolesRequiredToBeEligible.length > 0) {
-      eligibleOwners = getEligibleUsers(rolesRequiredToBeEligible, userOptions);
-    }
+    eligibleOwners = getEligibleUsers(
+      rolesRequiredToBeEligible,
+      owners.traitLookup,
+      userOptions
+    );
 
     if (eligibleOwners.length > 0 && owners.selectedOwners.length > 0) {
       selectedOwners = getEligibleUsersAmongSelectedUsers({
@@ -97,12 +114,11 @@ export function CreateAccessList() {
     let selectedMembers: UserOption[] = [];
     const rolesRequiredToBeEligible = members.selectedRolesRequired;
 
-    if (rolesRequiredToBeEligible.length > 0) {
-      eligibleMembers = getEligibleUsers(
-        rolesRequiredToBeEligible,
-        userOptions
-      );
-    }
+    eligibleMembers = getEligibleUsers(
+      rolesRequiredToBeEligible,
+      members.traitLookup,
+      userOptions
+    );
 
     if (eligibleMembers.length > 0 && members.selectedMembers.length > 0) {
       selectedMembers = getEligibleUsersAmongSelectedUsers({
@@ -127,12 +143,16 @@ export function CreateAccessList() {
         // specs
         title: spec.title,
         description: spec.description,
-        grants: { roles: spec.rolesToGrant.map(r => r.value) },
+        grants: {
+          roles: grant.rolesToGrant.map(r => r.value),
+          traits: convertTraitLabelsToAllUserTraits(grant.traitsToGrant),
+        },
         auditDuration: spec.auditFrequency.value,
         auditStartDate: spec.auditStartDate,
         // owners
         ownership_requires: {
           roles: owners.selectedRolesRequired.map(r => r.value),
+          traits: convertTraitLabelsToAllUserTraits(owners.traitLabels),
         },
         owners: owners.selectedOwners.map(o => ({
           name: o.value.name,
@@ -140,6 +160,7 @@ export function CreateAccessList() {
         // members
         membership_requires: {
           roles: members.selectedRolesRequired.map(r => r.value),
+          traits: convertTraitLabelsToAllUserTraits(owners.traitLabels),
         },
         members: members.selectedMembers.map(m => ({
           name: m.value.name,
@@ -178,11 +199,18 @@ export function CreateAccessList() {
                 <SpecSection
                   spec={spec}
                   setSpec={setSpec}
+                  isDisabled={createAttempt.status === 'processing'}
+                />
+              </Box>
+              <Box mb={8}>
+                <GrantSection
+                  grant={grant}
+                  setGrant={setGrant}
                   roleOptions={roleOptions}
                   isDisabled={createAttempt.status === 'processing'}
                 />
               </Box>
-              <Box mb={6}>
+              <Box mb={8}>
                 <OwnersSection
                   owners={owners}
                   setOwners={setOwners}
@@ -200,7 +228,7 @@ export function CreateAccessList() {
                   noAccess={userOptions.length === 0}
                 />
               </Box>
-              <Box mt={5}>
+              <Box mt={5} mb={8}>
                 <ButtonPrimary
                   width="170px"
                   onClick={() => handleOnCreate(validator)}
@@ -246,27 +274,31 @@ export function CreateAccessList() {
   );
 }
 
-// eligibleUsers returns users with roles
-// that match with the required roles.
+// eligibleUsers returns users with roles and traits
+// that match with the required roles and traits.
 export function getEligibleUsers(
   rolesRequiredToBeEligible: Option[],
+  requiredTraitsToBeEligible: TraitLookup,
   users: UserOption[]
-) {
-  return users.filter(userOpt => {
-    const currRolesAssigned = userOpt.value.roles;
-    const isEligible = rolesRequiredToBeEligible.every(requiredRole =>
-      currRolesAssigned.includes(requiredRole.value)
-    );
-    if (isEligible) {
-      return userOpt;
-    }
-  });
+): UserOption[] {
+  if (
+    users.length === 0 ||
+    (rolesRequiredToBeEligible.length === 0 &&
+      Object.keys(requiredTraitsToBeEligible).length === 0)
+  ) {
+    return [];
+  }
+
+  const rolesRequired = rolesRequiredToBeEligible.map(opt => opt.value);
+  let filteredUsers = matchRoles(rolesRequired, users);
+
+  return matchTraits(requiredTraitsToBeEligible, filteredUsers);
 }
 
 // eligibleUsersAmongSelectedUsers checks if selected owners
 // are still eligible and returns selected users who are found
 // in the eligible list.
-function getEligibleUsersAmongSelectedUsers({
+export function getEligibleUsersAmongSelectedUsers({
   eligibleUsers,
   selectedUsers,
 }: {

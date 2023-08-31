@@ -8,31 +8,38 @@ import {
 } from 'design/Icon';
 import { Option } from 'shared/components/Select';
 
-import {
-  AccessListAudit,
-  AccessListGrant,
-  AccessListRequires,
-} from 'e-teleport/services/accessmanagement';
+import { AccessListAudit } from 'e-teleport/services/accessmanagement';
 import {
   TruncatingLabel,
   EditKind,
   calculateMonthsDaysFromDuration,
   getFormattedDate,
 } from 'e-teleport/AccessListManagement/Shared';
+import { TraitConvenience } from 'e-teleport/AccessListManagement/Traits';
 
-import { EditAccess } from '../ViewEditAccessList';
+import {
+  AccessListGrantWithTraitConvenience,
+  AccessListRequiresWithTraitConvenience,
+  EditAccess,
+} from '../ViewEditAccessList';
 
 import { EditEligibilityOrGrantRoles } from './EditEligibilityOrGrants';
 import { EditAudit } from './EditAudit';
 
 type Props = {
-  membershipRequires: AccessListRequires;
-  ownershipRequires: AccessListRequires;
-  grants: AccessListGrant;
+  membershipRequires: AccessListRequiresWithTraitConvenience;
+  ownershipRequires: AccessListRequiresWithTraitConvenience;
+  grants: AccessListGrantWithTraitConvenience;
   audit: AccessListAudit;
   roleOptions: Option[];
   editAccess: EditAccess;
   fetchAccessList(): Promise<void | boolean>;
+};
+
+type EditEligibility = {
+  roles: string[];
+  kind: EditKind;
+  trait: TraitConvenience;
 };
 
 export function Specs({
@@ -44,17 +51,24 @@ export function Specs({
   editAccess,
   fetchAccessList,
 }: Props) {
-  const [editElibilityRoles, setEditEligibilityRoles] =
-    useState<{ roles: string[]; kind: EditKind }>();
+  const [editElibility, setEditEligibility] = useState<EditEligibility>();
   const [showEditGrants, setShowEditGrants] = useState(false);
   const [showEditAudit, setShowEditAudit] = useState(false);
 
   function handleShowEditEligibility(kind: EditKind) {
     if (kind === 'Member') {
-      setEditEligibilityRoles({ roles: membershipRequires.roles, kind });
+      setEditEligibility({
+        roles: membershipRequires.roles,
+        kind,
+        trait: membershipRequires,
+      });
       return;
     }
-    setEditEligibilityRoles({ roles: ownershipRequires.roles, kind });
+    setEditEligibility({
+      roles: ownershipRequires.roles,
+      kind,
+      trait: ownershipRequires,
+    });
   }
 
   let frequencyTxt = '';
@@ -90,12 +104,22 @@ export function Specs({
                   disabled={!editAccess.owners.hasAccess}
                 />
               </Flex>
-              <Flex alignItems="center">
-                <Text fontSize={1} mr={1}>
-                  Roles:
-                </Text>
-                {renderRoles(ownershipRequires.roles)}
-              </Flex>
+              {ownershipRequires.roles.length > 0 && (
+                <Flex alignItems="center">
+                  <Text fontSize={1} mr={1}>
+                    Roles:
+                  </Text>
+                  {renderRoles(ownershipRequires.roles)}
+                </Flex>
+              )}
+              {ownershipRequires.traitList.length > 0 && (
+                <Flex alignItems="center">
+                  <Text fontSize={1} mr={1}>
+                    Traits:
+                  </Text>
+                  {renderRoles(ownershipRequires.traitList)}
+                </Flex>
+              )}
             </Box>
 
             {/* Members section */}
@@ -110,12 +134,22 @@ export function Specs({
                   disabled={!editAccess.members.hasAccess}
                 />
               </Flex>
-              <Flex alignItems="center">
-                <Text fontSize={1} mr={1}>
-                  Roles:
-                </Text>
-                {renderRoles(membershipRequires.roles)}
-              </Flex>
+              {membershipRequires.roles.length > 0 && (
+                <Flex alignItems="center">
+                  <Text fontSize={1} mr={1}>
+                    Roles:
+                  </Text>
+                  {renderRoles(membershipRequires.roles)}
+                </Flex>
+              )}
+              {membershipRequires.traitList.length > 0 && (
+                <Flex alignItems="center">
+                  <Text fontSize={1} mr={1}>
+                    Traits:
+                  </Text>
+                  {renderRoles(membershipRequires.traitList)}
+                </Flex>
+              )}
             </Box>
           </Box>
         </Flex>
@@ -133,12 +167,22 @@ export function Specs({
               disabled={!editAccess.grants.hasAccess}
             />
           </Flex>
-          <Flex alignItems="center">
-            <Text mr={1} fontSize={1}>
-              Roles:
-            </Text>
-            {renderRoles(grants.roles)}
-          </Flex>
+          {grants.roles.length > 0 && (
+            <Flex alignItems="center">
+              <Text mr={1} fontSize={1}>
+                Roles:
+              </Text>
+              {renderRoles(grants.roles)}
+            </Flex>
+          )}
+          {grants.traitList.length > 0 && (
+            <Flex alignItems="center">
+              <Text fontSize={1} mr={1}>
+                Traits:
+              </Text>
+              {renderRoles(grants.traitList)}
+            </Flex>
+          )}
         </Box>
 
         {/* Audit section */}
@@ -162,13 +206,14 @@ export function Specs({
           </Box>
         </Box>
       </Flex>
-      {editElibilityRoles && (
+      {editElibility && (
         <EditEligibilityOrGrantRoles
-          onClose={() => setEditEligibilityRoles(null)}
-          existingRoles={editElibilityRoles.roles}
-          editKind={editElibilityRoles.kind}
+          onClose={() => setEditEligibility(null)}
+          existingRoles={editElibility.roles}
+          editKind={editElibility.kind}
           roleOptions={roleOptions}
           fetchAccessList={fetchAccessList}
+          trait={editElibility.trait}
         />
       )}
       {showEditGrants && (
@@ -178,6 +223,7 @@ export function Specs({
           roleOptions={roleOptions}
           fetchAccessList={fetchAccessList}
           editKind="Grants"
+          trait={grants}
         />
       )}
       {showEditAudit && (

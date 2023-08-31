@@ -7,13 +7,10 @@ import { requiredField } from 'shared/components/Validation/rules';
 
 import { CalendarDateSelect, auditFrequencyOpts } from '../Shared';
 
-import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
-
 type Props = {
   spec: Spec;
   setSpec(s: Spec): void;
   isDisabled: boolean;
-  roleOptions: Option[];
 };
 
 export type Spec = {
@@ -21,15 +18,9 @@ export type Spec = {
   description: string;
   auditFrequency: Option;
   auditStartDate: Date;
-  rolesToGrant: Option[];
 };
 
-export const SpecSection = ({
-  spec,
-  setSpec,
-  isDisabled,
-  roleOptions,
-}: Props) => {
+export const SpecSection = ({ spec, setSpec, isDisabled }: Props) => {
   return (
     <>
       <FieldInput
@@ -67,15 +58,6 @@ export const SpecSection = ({
           />
         </Box>
       </Flex>
-      <EligibilityOrGrantRolesFieldSelectAndCreate
-        options={roleOptions}
-        isDisabled={isDisabled}
-        onChange={(roles: Option[]) =>
-          setSpec({ ...spec, rolesToGrant: roles || [] })
-        }
-        selected={spec.rolesToGrant}
-        editKind="Grants"
-      />
     </>
   );
 };

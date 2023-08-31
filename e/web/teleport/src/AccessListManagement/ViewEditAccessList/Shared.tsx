@@ -10,7 +10,8 @@ import {
   AccessListRequires,
 } from 'e-teleport/services/accessmanagement';
 
-import { ToolTipText, UserOption } from '../Shared';
+import { ToolTipText, UserOption, matchRoles, matchTraits } from '../Shared';
+import { convertToTraitConvenience } from '../Traits';
 
 export const CustomCell: React.FC<{ disabled: boolean }> = ({
   disabled,
@@ -106,18 +107,23 @@ export function getEligibleUsersForAddingNewUsers(
   fetchedUsers: UserOption[],
   existingUsers: { name: string }[]
 ): Option[] {
+  if (
+    fetchedUsers.length === 0 ||
+    (eligibility.roles.length === 0 &&
+      Object.keys(eligibility.traits).length === 0)
+  ) {
+    return [];
+  }
+
+  let filteredUsers: UserOption[] = matchRoles(eligibility.roles, fetchedUsers);
+  const { traitLookup } = convertToTraitConvenience(eligibility.traits);
+  filteredUsers = matchTraits(traitLookup, filteredUsers);
+
   return (
-    fetchedUsers
-      // Filter out uneligible users.
-      .filter(u => {
-        const currRolesAssigned = u.value.roles;
-        return eligibility.roles.every(requiredRole =>
-          currRolesAssigned.includes(requiredRole)
-        );
-      })
-      // Filter out existing members.
+    filteredUsers
+      // Filter out existing existing users among filtered users.
       .filter(u => existingUsers.every(m => m.name !== u.value.name))
       // Convert to type Option for dropdowns.
-      .map(u => ({ value: u.value.name, label: u.value.name }))
+      .map(u => ({ label: u.value.name, value: u.value.name }))
   );
 }

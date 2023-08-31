@@ -59,7 +59,11 @@ export const ViewingAsAdmin = () => {
         ctx.json([
           { name: 'apple' },
           { name: 'banana' },
-          { name: 'carrot', roles: ['admin'] },
+          {
+            name: 'carrot',
+            roles: ['reviewer', 'auditor'],
+            allTraits: { fruit: ['carrot'] },
+          },
         ])
       );
     }),
@@ -130,6 +134,7 @@ const mockAccessList = {
     ],
     grants: {
       roles: ['access', 'editor'],
+      traits: { fruit: ['apple'] },
     },
     audit: {
       frequency: '730h0m0s',
@@ -137,9 +142,11 @@ const mockAccessList = {
     },
     ownership_requires: {
       roles: ['admin'],
+      traits: { fruit: ['banana', 'apple'], drink: ['coffee'] },
     },
     membership_requires: {
-      roles: ['auditor', 'reviewer'],
+      roles: ['reviewer', 'auditor'],
+      traits: { fruit: ['carrot'] },
     },
   },
 };

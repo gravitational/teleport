@@ -1,8 +1,14 @@
 import React from 'react';
-import { Text } from 'design';
+import { Text, Box } from 'design';
 import { Option } from 'shared/components/Select';
 
 import { UserOption } from '../Shared';
+import {
+  TraitLabel,
+  TraitLookup,
+  TraitsCreator,
+  convertTraitLabelsToTraitLookup,
+} from '../Traits';
 
 import {
   EligibilityOrGrantRolesFieldSelectAndCreate,
@@ -21,6 +27,8 @@ export type Owners = {
   selectedRolesRequired: Option[];
   eligibleOwners: UserOption[];
   selectedOwners: UserOption[];
+  traitLabels: TraitLabel[];
+  traitLookup: TraitLookup;
 };
 
 export const OwnersSection = ({
@@ -35,18 +43,34 @@ export const OwnersSection = ({
       <Text fontSize="18px" mb={2}>
         List Owners
       </Text>
-      <EligibilityOrGrantRolesFieldSelectAndCreate
-        editKind="Owner"
-        options={roleOptions}
-        isDisabled={isDisabled}
-        onChange={(option: Option[]) =>
-          setOwners({
-            ...owners,
-            selectedRolesRequired: option || [],
-          })
-        }
-        selected={owners.selectedRolesRequired}
-      />
+      <Box mb={3} mt={3}>
+        <TraitsCreator
+          kind="Owner"
+          traitLabels={owners.traitLabels}
+          isDisabled={isDisabled}
+          updateTraitLabels={(traitLabels: TraitLabel[]) =>
+            setOwners({
+              ...owners,
+              traitLabels,
+              traitLookup: convertTraitLabelsToTraitLookup(traitLabels),
+            })
+          }
+        />
+      </Box>
+      <Box>
+        <EligibilityOrGrantRolesFieldSelectAndCreate
+          editKind="Owner"
+          options={roleOptions}
+          isDisabled={isDisabled}
+          onChange={(option: Option[]) =>
+            setOwners({
+              ...owners,
+              selectedRolesRequired: option || [],
+            })
+          }
+          selected={owners.selectedRolesRequired}
+        />
+      </Box>
       <EligibleUsersFieldSelectAndCreate
         selected={owners.selectedOwners || []}
         isDisabled={isDisabled}

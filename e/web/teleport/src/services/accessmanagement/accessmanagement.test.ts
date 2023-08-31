@@ -19,6 +19,7 @@ test('fetch access lists, empty responses does not throw error', async () => {
       members: [],
       grants: {
         roles: [],
+        traits: {},
       },
       audit: {
         frequency: '',
@@ -26,9 +27,11 @@ test('fetch access lists, empty responses does not throw error', async () => {
       },
       ownershipRequires: {
         roles: [],
+        traits: {},
       },
       membershipRequires: {
         roles: [],
+        traits: {},
       },
     },
   ]);
@@ -42,12 +45,12 @@ test('fetch an access list, empty response does not throw error', async () => {
   expect(response).toStrictEqual({
     audit: { frequency: '', nextDate: undefined },
     description: '',
-    grants: { roles: [] },
+    grants: { roles: [], traits: {} },
     id: '',
     members: [],
-    membershipRequires: { roles: [] },
+    membershipRequires: { roles: [], traits: {} },
     owners: [],
-    ownershipRequires: { roles: [] },
+    ownershipRequires: { roles: [], traits: {} },
     title: '',
   });
 });

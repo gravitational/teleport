@@ -8,6 +8,7 @@ import { User } from 'teleport/services/user';
 import { useRule } from 'shared/components/Validation';
 
 import { DatePicker } from './DatePicker';
+import { TraitLookup } from './Traits';
 
 export type UserOption = Option<User>;
 export type EditKind = 'Member' | 'Owner' | 'Grants';
@@ -229,4 +230,35 @@ export function getFormattedDate(d: Date) {
   }
 
   return format(thisDate, dateFormat);
+}
+
+export function matchRoles(
+  rolesRequiredToBeEligible: string[],
+  userOptions: UserOption[]
+): UserOption[] {
+  return userOptions.filter(userOpt => {
+    const currRolesAssigned = userOpt.value.roles;
+    return rolesRequiredToBeEligible.every(requiredRole =>
+      currRolesAssigned.includes(requiredRole)
+    );
+  });
+}
+
+export function matchTraits(
+  traitsRequiredToBeEligible: TraitLookup,
+  userOptions: UserOption[]
+): UserOption[] {
+  const requiredTraitKeys = Object.keys(traitsRequiredToBeEligible);
+
+  return userOptions.filter(userOpt => {
+    const currTraits = userOpt.value.allTraits;
+    return requiredTraitKeys.every(requiredTraitKey => {
+      return (
+        currTraits[requiredTraitKey] &&
+        currTraits[requiredTraitKey].some(
+          val => traitsRequiredToBeEligible[requiredTraitKey][val]
+        )
+      );
+    });
+  });
 }

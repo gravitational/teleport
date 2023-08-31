@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ButtonPrimary, ButtonSecondary, Alert } from 'design';
+import { ButtonPrimary, ButtonSecondary, Alert, Box } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Dialog, {
   DialogHeader,
@@ -17,10 +17,17 @@ import {
 } from 'e-teleport/services/accessmanagement';
 import { EditKind } from 'e-teleport/AccessListManagement/Shared';
 import { EligibilityOrGrantRolesFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
+import {
+  TraitConvenience,
+  TraitLabel,
+  TraitsCreator,
+  convertTraitLabelsToAllUserTraits,
+} from 'e-teleport/AccessListManagement/Traits';
 
 type Props = {
   onClose(): void;
   existingRoles: AccessListRequires['roles'];
+  trait: TraitConvenience;
   editKind: EditKind;
   roleOptions: Option[];
   fetchAccessList(): Promise<void | boolean>;
@@ -32,12 +39,19 @@ export function EditEligibilityOrGrantRoles({
   editKind,
   roleOptions,
   fetchAccessList,
+  trait,
 }: Props) {
   const { attempt, setAttempt } = useAttempt('');
+  const [traitLabels, setTraitLabels] = useState<TraitLabel[]>(
+    trait.traitLabels
+  );
   const [selectedRoles, setSelectedRoles] = useState<Option[]>([]);
 
   useEffect(() => {
-    let selectedRoles = existingRoles.map(r => ({ value: r, label: r }));
+    let selectedRoles = existingRoles.map(r => ({
+      value: r,
+      label: r,
+    }));
 
     if (roleOptions.length > 0) {
       selectedRoles = roleOptions.filter(roleOpt =>
@@ -54,16 +68,17 @@ export function EditEligibilityOrGrantRoles({
     }
 
     const roles = selectedRoles.map(r => r.value);
+    const traits = convertTraitLabelsToAllUserTraits(traitLabels);
     let req: Partial<AccessList> = {
-      ownershipRequires: { roles },
+      ownershipRequires: { roles, traits },
     };
     if (editKind === 'Member') {
       req = {
-        membershipRequires: { roles },
+        membershipRequires: { roles, traits },
       };
     } else if (editKind === 'Grants') {
       req = {
-        grants: { roles },
+        grants: { roles, traits },
       };
     }
 
@@ -82,11 +97,11 @@ export function EditEligibilityOrGrantRoles({
       );
   }
 
-  let dialogTitle = 'Edit Roles Granted';
-  let editBtnTitle = 'Edit Roles Granted';
+  let dialogTitle = 'Edit Permissions Granted';
+  let editBtnTitle = 'Edit Permissions Granted';
 
   if (editKind !== 'Grants') {
-    dialogTitle = `Edit ${editKind} Eligibility: Roles Required`;
+    dialogTitle = `Edit ${editKind} Eligibility`;
     editBtnTitle = `Edit ${editKind} Eligibility`;
   }
 
@@ -117,6 +132,16 @@ export function EditEligibilityOrGrantRoles({
               autoFocus={true}
               editKind={editKind}
             />
+            <Box mt={2}>
+              <TraitsCreator
+                kind={editKind}
+                traitLabels={traitLabels}
+                isDisabled={attempt.status === 'processing'}
+                updateTraitLabels={(traitLabels: TraitLabel[]) =>
+                  setTraitLabels(traitLabels)
+                }
+              />
+            </Box>
           </DialogContent>
           <DialogFooter>
             <ButtonPrimary

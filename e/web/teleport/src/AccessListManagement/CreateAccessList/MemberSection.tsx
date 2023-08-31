@@ -1,8 +1,14 @@
 import React from 'react';
-import { Text } from 'design';
+import { Box, Text } from 'design';
 import { Option } from 'shared/components/Select';
 
 import { UserOption } from '../Shared';
+import {
+  TraitLabel,
+  TraitLookup,
+  TraitsCreator,
+  convertTraitLabelsToTraitLookup,
+} from '../Traits';
 
 import {
   EligibilityOrGrantRolesFieldSelectAndCreate,
@@ -21,6 +27,8 @@ export type Members = {
   selectedRolesRequired: Option[];
   eligibleMembers: UserOption[];
   selectedMembers: UserOption[];
+  traitLabels: TraitLabel[];
+  traitLookup: TraitLookup;
 };
 
 export const MembersSection = ({
@@ -35,6 +43,20 @@ export const MembersSection = ({
       <Text fontSize="18px" mb={2}>
         Members (Optional)
       </Text>
+      <Box mb={3} mt={3}>
+        <TraitsCreator
+          kind="Member"
+          traitLabels={members.traitLabels}
+          isDisabled={isDisabled}
+          updateTraitLabels={(traitLabels: TraitLabel[]) =>
+            setMembers({
+              ...members,
+              traitLabels,
+              traitLookup: convertTraitLabelsToTraitLookup(traitLabels),
+            })
+          }
+        />
+      </Box>
       <EligibilityOrGrantRolesFieldSelectAndCreate
         editKind="Member"
         options={roleOptions}

@@ -29,7 +29,10 @@ export const accessManagementService = {
     const req: UpdateAccessListRequest = {
       auditDuration: a.audit?.frequency,
       auditStartDate: a.audit?.nextDate,
-      grants: a.grants,
+      grants: {
+        roles: a.grants?.roles,
+        traits: a.grants?.traits,
+      },
       members: a.members?.map(m => ({
         name: m.name,
         joined: m.joined,
@@ -43,9 +46,11 @@ export const accessManagementService = {
       })),
       membership_requires: {
         roles: a.membershipRequires?.roles,
+        traits: a.membershipRequires?.traits,
       },
       ownership_requires: {
         roles: a.ownershipRequires?.roles,
+        traits: a.ownershipRequires?.traits,
       },
     };
 
@@ -76,7 +81,8 @@ function makeAccessList(json: any): AccessList {
     owners: spec.owners || [],
     members: makeMembers(spec.members),
     grants: {
-      roles: spec.grants?.roles || [],
+      roles: spec.grants?.roles.sort() || [],
+      traits: spec.grants?.grants || {},
     },
     audit: {
       frequency: spec.audit?.frequency || '',
@@ -85,10 +91,12 @@ function makeAccessList(json: any): AccessList {
         : undefined,
     },
     ownershipRequires: {
-      roles: spec.ownership_requires?.roles || [],
+      roles: spec.ownership_requires?.roles.sort() || [],
+      traits: spec.ownership_requires?.traits || {},
     },
     membershipRequires: {
-      roles: spec.membership_requires?.roles || [],
+      roles: spec.membership_requires?.roles.sort() || [],
+      traits: spec.membership_requires?.traits || {},
     },
   };
 }

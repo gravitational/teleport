@@ -1,3 +1,5 @@
+import { AllUserTraits } from 'teleport/services/user';
+
 export type AccessList = {
   id: string;
   title: string; // friendly name of id
@@ -16,10 +18,11 @@ export type AccessList = {
   owners: AccessListOwner[];
 };
 
+// A user must match both roles and traits to
+// be found "eligible" (gets granted additional permissions)
 export type AccessListRequires = {
-  // roles are the user roles that must be present
-  // for the user to obtain access.
   roles: string[];
+  traits: AllUserTraits;
 };
 
 export type AccessListMember = {
@@ -60,6 +63,7 @@ export type AccessListAudit = {
 // by membership to this access list.
 export type AccessListGrant = {
   roles: string[];
+  traits: AllUserTraits;
 };
 
 export type OwnerRequest = Omit<AccessListOwner, 'ineligibleReason'>;

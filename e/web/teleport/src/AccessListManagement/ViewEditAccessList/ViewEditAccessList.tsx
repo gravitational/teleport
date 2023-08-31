@@ -15,15 +15,30 @@ import { Access } from 'teleport/services/user';
 import {
   accessManagementService,
   AccessList,
+  AccessListRequires,
+  AccessListGrant,
 } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
 
 import { useFetchUserAndRoles } from '../useFetchUsersAndRoles';
+import { TraitConvenience, convertToTraitConvenience } from '../Traits';
 
 import { OwnersList } from './Owners/OwnersList';
 import { MembersList } from './Members/MembersList';
 import { Specs } from './Specs/Specs';
 import { DeleteAccessListConfirmDialog } from './DeleteAccessListConfirmDialog';
+
+export type AccessListRequiresWithTraitConvenience = AccessListRequires &
+  TraitConvenience;
+
+export type AccessListGrantWithTraitConvenience = AccessListGrant &
+  TraitConvenience;
+
+type AccessListModified = AccessList & {
+  membershipRequires: AccessListRequiresWithTraitConvenience;
+  ownershipRequires: AccessListRequiresWithTraitConvenience;
+  grants: AccessListGrantWithTraitConvenience;
+};
 
 export function ViewEditAccessList() {
   const ctx = useTeleport();
@@ -32,7 +47,7 @@ export function ViewEditAccessList() {
   const attemptObj = useAttempt('processing');
   const { setAttempt, attempt } = attemptObj;
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [accessList, setAccessList] = useState<AccessList>();
+  const [accessList, setAccessList] = useState<AccessListModified>();
   const { userOptions, roleOptions, fetchUsersAndRoles } =
     useFetchUserAndRoles(attemptObj);
 
@@ -46,7 +61,26 @@ export function ViewEditAccessList() {
     return accessManagementService
       .fetchAccessList(accessListId)
       .then(fetchedAccessList => {
-        setAccessList(fetchedAccessList);
+        const modifiedAccessList: AccessListModified = {
+          ...fetchedAccessList,
+          grants: {
+            ...fetchedAccessList.grants,
+            ...convertToTraitConvenience(fetchedAccessList.grants.traits),
+          },
+          ownershipRequires: {
+            ...fetchedAccessList.ownershipRequires,
+            ...convertToTraitConvenience(
+              fetchedAccessList.ownershipRequires.traits
+            ),
+          },
+          membershipRequires: {
+            ...fetchedAccessList.membershipRequires,
+            ...convertToTraitConvenience(
+              fetchedAccessList.membershipRequires.traits
+            ),
+          },
+        };
+        setAccessList(modifiedAccessList);
 
         const accessListAccess = ctx.storeUser.getAccessListAccess();
         const isOwner = fetchedAccessList.owners.some(
