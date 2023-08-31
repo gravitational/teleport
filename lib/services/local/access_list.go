@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -223,5 +224,5 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 }
 
 func lockName(accessListName string) string {
-	return string(backend.Key("access_list", accessListName))
+	return strings.Join([]string{"access_list", accessListName}, string(backend.Separator))
 }
