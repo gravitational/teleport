@@ -212,7 +212,7 @@ type AWSOIDCListEC2Response struct {
 type AWSOIDCListSecurityGroupsRequest struct {
 	// Region is the AWS Region.
 	Region string `json:"region"`
-	// VPCID is the VPC to filter EC2 Instance Connect Endpoints.
+	// VPCID is the VPC to filter security groups by.
 	VPCID string `json:"vpcId"`
 	// NextToken is the token to be used to fetch the next page.
 	// If empty, the first page is fetched.
@@ -222,7 +222,7 @@ type AWSOIDCListSecurityGroupsRequest struct {
 // AWSOIDCListSecurityGroupsResponse contains a list of VPC Security Groups and a next token if more pages are available.
 type AWSOIDCListSecurityGroupsResponse struct {
 	// SecurityGroups contains the page of SecurityGroups
-	SecurityGroupss []awsoidc.SecurityGroup `json:"securityGroups"`
+	SecurityGroups []awsoidc.SecurityGroup `json:"securityGroups"`
 
 	// NextToken is used for pagination.
 	// If non-empty, it can be used to request the next page.

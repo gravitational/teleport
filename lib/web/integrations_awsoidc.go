@@ -362,8 +362,8 @@ func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Reque
 	}
 
 	return ui.AWSOIDCListSecurityGroupsResponse{
-		NextToken:       resp.NextToken,
-		SecurityGroupss: resp.SecurityGroups,
+		NextToken:      resp.NextToken,
+		SecurityGroups: resp.SecurityGroups,
 	}, nil
 }
 

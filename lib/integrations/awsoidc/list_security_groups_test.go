@@ -101,7 +101,7 @@ func TestListSecurityGroups(t *testing.T) {
 		require.NotEmpty(t, resp.NextToken)
 		require.Len(t, resp.SecurityGroups, pageSize)
 		nextPageToken := resp.NextToken
-		require.Equal(t, resp.SecurityGroups[0].SecurityGroupID, "sg-0")
+		require.Equal(t, resp.SecurityGroups[0].ID, "sg-0")
 		require.Equal(t, resp.SecurityGroups[0].Name, "MySG-0")
 
 		// Second page must return pageSize number of Endpoints
@@ -113,7 +113,7 @@ func TestListSecurityGroups(t *testing.T) {
 		require.NotEmpty(t, resp.NextToken)
 		require.Len(t, resp.SecurityGroups, pageSize)
 		nextPageToken = resp.NextToken
-		require.Equal(t, resp.SecurityGroups[0].SecurityGroupID, "sg-100")
+		require.Equal(t, resp.SecurityGroups[0].ID, "sg-100")
 		require.Equal(t, resp.SecurityGroups[0].Name, "MySG-100")
 
 		// Third page must return only the remaining Endpoints and an empty nextToken
@@ -124,7 +124,7 @@ func TestListSecurityGroups(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, resp.NextToken)
 		require.Len(t, resp.SecurityGroups, 3)
-		require.Equal(t, resp.SecurityGroups[0].SecurityGroupID, "sg-200")
+		require.Equal(t, resp.SecurityGroups[0].ID, "sg-200")
 		require.Equal(t, resp.SecurityGroups[0].Name, "MySG-200")
 	})
 
@@ -151,8 +151,8 @@ func TestListSecurityGroups(t *testing.T) {
 				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
 
 				sg := SecurityGroup{
-					Name:            "MySG-123",
-					SecurityGroupID: "sg-123",
+					Name: "MySG-123",
+					ID:   "sg-123",
 				}
 				require.Empty(t, cmp.Diff(sg, ldr.SecurityGroups[0]))
 			},
