@@ -31,9 +31,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -208,8 +211,7 @@ func TestEC2NodeJoin(t *testing.T) {
 
 	// the node should eventually join the cluster and heartbeat
 	require.Eventually(t, func() bool {
-		nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
+		nodes, _ := authServer.GetNodes(ctx, apidefaults.Namespace)
 		return len(nodes) > 0
 	}, time.Minute, time.Second, "waiting for node to join cluster")
 }
@@ -267,12 +269,11 @@ func TestIAMNodeJoin(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, proxySvc.Close()) })
 
 	// the proxy should eventually join the cluster and heartbeat
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		proxies, err := authServer.GetProxies()
-		require.NoError(t, err)
-		return len(proxies) > 0
+		assert.NoError(t, err)
+		assert.NotEmpty(t, proxies)
 	}, time.Minute, time.Second, "waiting for proxy to join cluster")
-
 	// InsecureDevMode needed for node to trust proxy
 	wasInsecureDevMode := lib.IsInsecureDevMode()
 	t.Cleanup(func() { lib.SetInsecureDevMode(wasInsecureDevMode) })
@@ -292,10 +293,10 @@ func TestIAMNodeJoin(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
 
 	// the node should eventually join the cluster and heartbeat
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
-		require.NoError(t, err)
-		return len(nodes) > 0
+		assert.NoError(t, err)
+		assert.NotEmpty(t, nodes)
 	}, time.Minute, time.Second, "waiting for node to join cluster")
 }
 
@@ -389,22 +390,23 @@ func TestEC2Labels(t *testing.T) {
 	var apps []types.AppServer
 	var databases []types.DatabaseServer
 	var kubes []types.KubeServer
+
 	// Wait for everything to come online.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var err error
 		nodes, err = authServer.GetNodes(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		apps, err = authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		databases, err = authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		kubes, err = authServer.GetKubernetesServers(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		// dedupClusters is required because GetKubernetesServers returns duplicated servers
 		// because it lists the KindKubeServer and KindKubeService.
 		// We must remove this once legacy heartbeat is removed.
-		// DELETE IN 13.0.0
+		// DELETE IN 13.0.0 (tigrato)
 		var dedupClusters []types.KubeServer
 		dedup := map[string]struct{}{}
 		for _, kube := range kubes {
@@ -415,33 +417,51 @@ func TestEC2Labels(t *testing.T) {
 			dedupClusters = append(dedupClusters, kube)
 		}
 
-		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(dedupClusters) == 1
+		assert.Len(t, nodes, 1)
+		assert.Len(t, apps, 1)
+		assert.Len(t, databases, 1)
+		assert.Len(t, dedupClusters, 1)
 	}, 10*time.Second, time.Second)
 
 	tagName := fmt.Sprintf("%s/Name", labels.AWSLabelNamespace)
 
 	// Check that EC2 labels were applied.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		node, err := authServer.GetNode(ctx, tconf.SSH.Namespace, nodes[0].GetName())
-		require.NoError(t, err)
+		assert.NoError(t, err)
+
 		_, nodeHasLabel := node.GetAllLabels()[tagName]
+		assert.True(t, nodeHasLabel)
+
 		apps, err := authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		require.Len(t, apps, 1)
+		assert.NoError(t, err)
+		assert.Len(t, apps, 1)
+
 		app := apps[0].GetApp()
 		_, appHasLabel := app.GetAllLabels()[tagName]
+		assert.True(t, appHasLabel)
 
 		databases, err := authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		require.Len(t, databases, 1)
+		assert.NoError(t, err)
+		assert.Len(t, databases, 1)
+
 		database := databases[0].GetDatabase()
 		_, dbHasLabel := database.GetAllLabels()[tagName]
+		assert.True(t, dbHasLabel)
 
-		kubeClusters := helpers.GetKubeClusters(t, authServer)
-		require.Len(t, kubeClusters, 1)
-		kube := kubeClusters[0]
+		kubeResources, err := apiclient.GetResourcesWithFilters(
+			context.Background(), authServer,
+			proto.ListResourcesRequest{ResourceType: types.KindKubeServer},
+		)
+		assert.NoError(t, err)
+		assert.Len(t, kubeResources, 1)
+
+		kubeServers, err := types.ResourcesWithLabels(kubeResources).AsKubeServers()
+		assert.NoError(t, err)
+
+		kube := kubeServers[0].GetCluster()
 		_, kubeHasLabel := kube.GetStaticLabels()[tagName]
-		return nodeHasLabel && appHasLabel && dbHasLabel && kubeHasLabel
+		assert.True(t, kubeHasLabel)
 	}, 10*time.Second, time.Second)
 }
 

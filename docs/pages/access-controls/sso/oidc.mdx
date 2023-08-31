@@ -193,6 +193,23 @@ spec:
        roles: [ "access" ]
 ```
 
+### Optional: Prompt
+
+Set the Authorization Server prompt for the End-User for reauthentication and consent
+per the OIDC protocol. If no `prompt` value is set, Teleport uses `select_account` as
+default.
+
+```yaml
+# Extra parts of OIDC yaml have been removed.
+spec:
+  # Valid values as defined from https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+  # none: The Authorization Server must not display any authentication or consent user interface pages.
+  # select_account: The Authorization Server should prompt the End-User to select a user account.
+  # login: The Authorization Server should prompt the End-User for reauthentication.
+  # consent: The Authorization Server should prompt the End-User for consent before returning information to the Client.
+  prompt: 'login'
+```
+
 ### Optional: Redirect URL and Timeout
 
 The redirect URL must be accessible by all user, optional redirect timeout.

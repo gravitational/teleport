@@ -1107,6 +1107,7 @@ func TestClusterNodesGet(t *testing.T) {
 	require.ElementsMatch(t, res.Items, []ui.Server{
 		{
 			Kind:        types.KindNode,
+			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
 			Name:        server1.GetName(),
 			Hostname:    server1.GetHostname(),
@@ -1117,6 +1118,7 @@ func TestClusterNodesGet(t *testing.T) {
 		},
 		{
 			Kind:        types.KindNode,
+			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
 			Name:        "server2",
 			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
@@ -6014,7 +6016,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
-					Error:   "Teleport proxy failed to connect to",
+					Error:   "direct dialing to nodes not found in inventory is not supported",
 				},
 			},
 		},
