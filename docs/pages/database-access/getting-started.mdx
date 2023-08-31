@@ -32,7 +32,7 @@ In this guide, you will:
   Service.
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Set up Aurora
+## Step 1/5. Set up Aurora
 
 In order to allow Teleport connections to an Aurora instance, the instance needs
 to support IAM authentication.
@@ -104,37 +104,37 @@ Install Teleport on the host where you will run the Teleport Database Service:
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-On the node where you will run the Teleport Database Service, start Teleport and
+On the node where you will run the Teleport Database Service, configure Teleport and
 point it to your Aurora database instance. Make sure to update the database
-endpoint and region appropriately. The `--auth-server` flag must point to the
+endpoint and region appropriately. The `--proxy` flag must point to the
 address of your Teleport Proxy Service.
 
 ```code
-$ teleport db start \
+$ sudo teleport db configure create \
   --token=/tmp/token \
-  --name=aurora \
-  --auth-server=teleport.example.com:3080 \
+  --name=<Var name="aurora" /> \
+  --proxy=<Var name="teleport.example.com" />:443 \
   --protocol=postgres \
-  --uri=postgres-aurora-instance-1.abcdefghijklm.us-west-1.rds.amazonaws.com:5432 \
-  --aws-region=us-west-1
+  --uri=<Var name="postgres-aurora-instance-1.abcdefghijklm.us-west-1.rds.amazonaws.com"/>:5432 \
+  --aws-region=<Var name="us-west-1" />
 ```
 
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
-On the node where you will run the Teleport Database Service, start Teleport and
+On the node where you will run the Teleport Database Service, configure Teleport and
 point it to your Aurora database instance. Make sure to update the database
-endpoint and region appropriately. The `--auth-server` flag must point to the
+endpoint and region appropriately. The `--proxy` flag must point to the
 address of your Teleport Cloud tenant.
 
 ```code
-$ teleport db start \
+$ sudo teleport db configure create  \
   --token=/tmp/token \
-  --name=aurora \
-  --auth-server=mytenant.teleport.sh:443 \
+  --name=<Var name="aurora" /> \
+  --proxy=<Var name="mytenant.teleport.sh" />:443 \
   --protocol=postgres \
-  --uri=postgres-aurora-instance-1.abcdefghijklm.us-west-1.rds.amazonaws.com:5432 \
-  --aws-region=us-west-1
+  --uri=<Var name="postgres-aurora-instance-1.abcdefghijklm.us-west-1.rds.amazonaws.com"/>:5432 \
+  --aws-region=<Var name="us-west-1" />
 ```
 
 </TabItem>
@@ -146,10 +146,16 @@ $ teleport db start \
   title="AWS Credentials"
 >
   The node that connects to the database should have AWS credentials configured
-  with the policy from [step 1](#step-14-set-up-aurora).
+  with the policy from [step 1](#step-15-set-up-aurora).
 </Admonition>
 
-## Step 3/4. Create a user and role
+## Step 3/5. Start the Database Service
+
+Start the Teleport Database Service in your environment:
+
+(!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
+
+## Step 4/5. Create a user and role
 
 Create the role that will allow a user to connect to any database using any
 database account:
@@ -188,14 +194,14 @@ Log in to Teleport with the user we've just created.
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
-$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="alice" />
 ```
 
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh login --proxy=<Var name="mytenant.teleport.sh" /> --user=<Var name="alice" />
 ```
 
 </TabItem>
