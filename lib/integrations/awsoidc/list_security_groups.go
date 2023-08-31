@@ -50,9 +50,9 @@ type SecurityGroup struct {
 	// This is just a friendly name and should not be used for further API calls
 	Name string
 
-	// SecurityGroupID is the security group ID.
+	// ID is the security group ID.
 	// This is the value that should be used when doing further API calls.
-	SecurityGroupID string
+	ID string
 }
 
 // ListSecurityGroupsResponse contains a page of SecurityGroups.
@@ -122,8 +122,8 @@ func ListSecurityGroups(ctx context.Context, clt ListSecurityGroupsClient, req L
 		sgID := aws.ToString(sg.GroupId)
 
 		ret.SecurityGroups = append(ret.SecurityGroups, SecurityGroup{
-			Name:            sgName,
-			SecurityGroupID: sgID,
+			Name: sgName,
+			ID:   sgID,
 		})
 	}
 
