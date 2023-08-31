@@ -31,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -892,13 +893,15 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 }
 
 func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, cfgApps []servicecfg.App, hostUUID string) {
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		site, err := tunnel.GetSite(clusterName)
-		require.NoError(t, err)
+		assert.NoError(t, err)
+
 		ap, err := site.CachingAccessPoint()
-		require.NoError(t, err)
+		assert.NoError(t, err)
+
 		apps, err := ap.GetApplicationServers(context.Background(), apidefaults.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		counter := 0
 		for _, v := range apps {
@@ -906,6 +909,6 @@ func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnelclient.Ser
 				counter++
 			}
 		}
-		return len(cfgApps) == counter
+		assert.Len(t, cfgApps, counter)
 	}, time.Minute*2, time.Millisecond*200)
 }

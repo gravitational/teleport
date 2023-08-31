@@ -2519,6 +2519,7 @@ func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Okta.Enabled = fc.Okta.Enabled()
 	cfg.Okta.APIEndpoint = fc.Okta.APIEndpoint
 	cfg.Okta.APITokenPath = fc.Okta.APITokenPath
+	cfg.Okta.SyncPeriod = fc.Okta.SyncPeriod
 	return nil
 }
 

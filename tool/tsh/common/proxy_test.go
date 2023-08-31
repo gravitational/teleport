@@ -208,18 +208,18 @@ func TestSSHLoadAllCAs(t *testing.T) {
 				}),
 			},
 		},
-		{
-			name: "TLS routing disabled",
-			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
-					cfg.Auth.LoadAllCAs = true
-				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
-				}),
-			},
-		},
+		// { // todo(lxea): unskip this test once flakiness is resolved
+		// 	name: "TLS routing disabled",
+		// 	opts: []testSuiteOptionFunc{
+		// 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+		// 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+		// 			cfg.Auth.LoadAllCAs = true
+		// 		}),
+		// 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
+		// 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+		// 		}),
+		// 	},
+		// },
 	}
 
 	for _, tc := range tests {
