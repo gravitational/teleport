@@ -885,6 +885,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Azure single-server MySQL and Postgres
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
+  - [ ] OpenSearch.
   - [ ] Cassandra/ScyllaDB.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Dynamodb.
@@ -915,6 +916,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Azure single-server MySQL and Postgres
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
+  - [ ] OpenSearch.
   - [ ] Cassandra/ScyllaDB.
   - [ ] Dynamodb.
   - [ ] Azure SQL Server.
@@ -1014,6 +1016,7 @@ tsh bench web sessions --max=5000 --web user ls
     - [ ] MSSQL
     - [ ] Snowflake
     - [ ] Elasticsearch.
+    - [ ] OpenSearch.
     - [ ] Cassandra/ScyllaDB.
     - [ ] Oracle.
   - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
