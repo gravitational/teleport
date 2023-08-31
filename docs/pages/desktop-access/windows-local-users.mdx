@@ -55,9 +55,10 @@ interactively and select the Teleport certificate that you exported when prompte
 
 1. Restart the computer.
 
-You can also run the Teleport Windows Auth Setup program as an administrator
-in a Command Prompt window or PowerShell terminal to automate the process.
-After you have downloaded the setup program, run following command
+
+After you download the setup program so it's available on the Windows computer, 
+you can run the program from the command-line instead of interactively to automate 
+the process. In a Command Prompt window or PowerShell terminal, run following command 
 to install the Teleport certificate, load the DLL, disable NLA, and restart the 
 computer in a single step:
 
@@ -211,14 +212,16 @@ To connect to a Windows desktop:
 1. Sign in to the Teleport cluster using an account that's assigned the 
 `windows-desktop-admins` role.
 
-1. Under Resources, click **Desktops**.
+1. Select **Resources**.
+
+1. Click **Type**, then select **Desktops**.
 
 1. Click **Connect** for the Windows desktop you want to access, then select the 
 Windows login to use for the connection.
    
-   ![Connect to a Windows desktop from the Teleport Web UI](../../img/desktop-access/non-ad-connect.png)
+   ![Connect to a Windows desktop from the Teleport Web UI](../../img/desktop-access/passwordless-desktop.png)
 
-   Teleport opens a remote desktop connection and start recording the desktop session. When you're
+   Teleport opens a remote desktop connection and starts recording the desktop session. When you're
    finished working with the Windows desktop, click the **More items** menu, then click **Disconnect**.
 
    ![Disconnect from a Windows desktop ](../../img/desktop-access/desktop-disconnect.png)
