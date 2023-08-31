@@ -696,10 +696,9 @@ func TestService_AuthOrIsOwner(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
+			// This test must not be parallel to avoid testing issues with lock interaction and
+			// the fake clock being used for the underlying tests.
 			test.wantErr(t, svc.authOrIsOwner(test.ctx, test.accessListName, types.VerbRead))
 		})
 	}
