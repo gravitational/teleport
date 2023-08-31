@@ -374,7 +374,7 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 	return newSAMLApps, nil
 }
 
-// getSAMLApps will get all access lists
+// getAccessLists will get all access lists
 func (c *UnifiedResourceCache) getAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
 	var accessLists []*accesslist.AccessList
 	startKey := ""
