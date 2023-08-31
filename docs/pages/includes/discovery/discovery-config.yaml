@@ -79,7 +79,7 @@ discovery_service:
     # When `kubernetes` value is set `discovery_group` parameter is mandatory, it should be set to 
     # the name of Kubernetes cluster discovery service is running in.
     kubernetes:
-      # Type of services to discovery. Currently only "app" value is supported. Default value is `["app"]`
+      # Type of services to discover. Currently, only "app" is supported. Default value is `["app"]`
     - types: ["app"]
       # List of namespaces of the Kubernetes cluster to search in. Default value is `*`, which denotes all namespaces.
       namespaces: ["test", "staging"]
