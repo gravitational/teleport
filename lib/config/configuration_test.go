@@ -821,6 +821,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 					Enabled: types.NewBoolOption(true),
 				},
 			},
+			Okta: &types.OktaOptions{},
 		},
 	}, protocmp.Transform()))
 
@@ -910,6 +911,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.True(t, cfg.Okta.Enabled)
 	require.Equal(t, cfg.Okta.APIEndpoint, "https://some-endpoint")
 	require.Equal(t, cfg.Okta.APITokenPath, oktaAPITokenPath)
+	require.Equal(t, cfg.Okta.SyncPeriod, time.Second*300)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
