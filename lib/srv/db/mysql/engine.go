@@ -384,7 +384,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 		"client": clientConn.RemoteAddr(),
 		"server": serverConn.RemoteAddr(),
 	})
-	ctr := common.GetMessagesFromServerMetric(sessionCtx.Database)
+	messagesCounter := common.GetMessagesFromServerMetric(sessionCtx.Database)
 
 	// parse and count the messages from the server in a separate goroutine,
 	// operating on a copy of the server message stream. the copy is arranged below.
@@ -406,7 +406,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 			}
 
 			count += 1
-			ctr.Inc()
+			messagesCounter.Inc()
 		}
 	}()
 
