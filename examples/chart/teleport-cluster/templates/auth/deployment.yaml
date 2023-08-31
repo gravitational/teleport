@@ -252,7 +252,7 @@ spec:
           - name: operator-http-metrics
             containerPort: 8080
             protocol: TCP
-          - name: operator-http-readiness
+          - name: operator-http-health
             containerPort: 8081
             protocol: TCP
   {{- if .Values.operator.resources }}
