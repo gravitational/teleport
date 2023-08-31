@@ -314,7 +314,9 @@ RUN VERSION='v1.54.2'; \
     sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
 
 # Install Buf.
-RUN go install github.com/bufbuild/buf/cmd/buf@latest
+ARG BUF_VERSION # eg, "v1.26.1"
+RUN VERSION="$BUF_VERSION"; \
+    go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
 
 # Copy BPF libraries.
 ARG LIBBPF_VERSION
