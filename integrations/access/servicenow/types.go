@@ -53,8 +53,13 @@ type Incident struct {
 }
 
 const (
+	// Servicenow uses a value of 1-8 to indicate incident state
+	// https://support.servicenow.com/kb?id=kb_article_view&sysparm_article=KB0564465
+
+	// ResolutionStateResolved is the incident state for a resolved incident
 	ResolutionStateResolved = "6"
-	ResolutionStateClosed   = "7"
+	// ResolutionStateClosed is the incident state for a closed incident
+	ResolutionStateClosed = "7"
 )
 
 // Resolution stores the resolution state and the servicenow close code.

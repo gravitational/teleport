@@ -5366,11 +5366,11 @@ message PluginOpsgenieAccessSettings {
 message PluginServicenowSettings {
   option (gogoproto.equal) = true;
 
-  // Servicenow API endpoint.
+  // ApiEndpoint is the Servicenow API endpoint.
   string api_endpoint = 1 [(gogoproto.jsontag) = "api_endpoint,omitempty"];
-  // Servicenow API username.
+  // Username is the Servicenow API username.
   string username = 2 [(gogoproto.jsontag) = "username,omitempty"];
-  // Servicenow API password.
+  // Password is the Servicenow API password.
   string password = 3 [(gogoproto.jsontag) = "password,omitempty"];
 }
 

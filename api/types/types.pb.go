@@ -13780,11 +13780,11 @@ func (m *PluginOpsgenieAccessSettings) XXX_DiscardUnknown() {
 var xxx_messageInfo_PluginOpsgenieAccessSettings proto.InternalMessageInfo
 
 type PluginServicenowSettings struct {
-	// Servicenow API endpoint.
+	// ApiEndpoint is the Servicenow API endpoint.
 	ApiEndpoint string `protobuf:"bytes,1,opt,name=api_endpoint,json=apiEndpoint,proto3" json:"api_endpoint,omitempty"`
-	// Servicenow API username.
+	// Username is the Servicenow API username.
 	Username string `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
-	// Servicenow API password.
+	// Password is the Servicenow API password.
 	Password             string   `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
