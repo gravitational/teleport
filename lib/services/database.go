@@ -620,8 +620,10 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 		return nil, trace.Wrap(err)
 	}
 
+	var vpcID string
 	var subnets []string
 	if rdsInstance.DBSubnetGroup != nil {
+		vpcID = aws.StringValue(rdsInstance.DBSubnetGroup.VpcId)
 		subnets = make([]string, 0, len(rdsInstance.DBSubnetGroup.Subnets))
 		for _, s := range rdsInstance.DBSubnetGroup.Subnets {
 			if s.SubnetIdentifier == nil || *s.SubnetIdentifier == "" {
@@ -640,6 +642,7 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
 			IAMAuth:    rdsInstance.IAMDatabaseAuthenticationEnabled,
 			Subnets:    subnets,
+			VPCID:      vpcID,
 		},
 	}, nil
 }
