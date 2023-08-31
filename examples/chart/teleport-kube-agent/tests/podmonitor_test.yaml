@@ -4,14 +4,16 @@ templates:
 tests:
   - it: does not create a PodMonitor by default
     set:
-      clusterName: test-kube-cluster-name
+      proxyAddr: proxy.example.com:3080
+      kubeClusterName: test-kube-cluster-name
     asserts:
       - hasDocuments:
           count: 0
 
   - it: creates a PodMonitor when enabled
     set:
-      clusterName: test-kube-cluster-name
+      proxyAddr: proxy.example.com:3080
+      kubeClusterName: test-kube-cluster-name
       podMonitor:
         enabled: true
     asserts:
@@ -22,7 +24,8 @@ tests:
 
   - it: configures scrape interval if provided
     set:
-      clusterName: test-kube-cluster-name
+      proxyAddr: proxy.example.com:3080
+      kubeClusterName: test-kube-cluster-name
       podMonitor:
         enabled: true
         interval: 2m
