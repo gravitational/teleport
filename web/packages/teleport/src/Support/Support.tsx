@@ -188,7 +188,7 @@ const getDownloadLink = (isCloud: boolean, isEnterprise: boolean) => {
   }
 
   if (isEnterprise) {
-    return 'https://dashboard.gravitational.com/web/downloads';
+    return 'https://goteleport.com/docs/choose-an-edition/teleport-enterprise/introduction/?scope=enterprise#dedicated-account-site';
   }
 
   return 'https://goteleport.com/download/';
