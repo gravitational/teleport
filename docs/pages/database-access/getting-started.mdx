@@ -91,7 +91,7 @@ GRANT rds_iam TO alice;
 For more information about connecting to the PostgreSQL instance directly,
 see the AWS [documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ConnectToPostgreSQLInstance.html).
 
-## Step 2/4. Start the Teleport Database Service
+## Step 2/5. Start the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -183,7 +183,7 @@ Create the Teleport user assigned the `db` role we've just created:
 $ tctl users add --roles=access,db alice
 ```
 
-## Step 4/4. Connect
+## Step 5/5. Connect
 
 Now that Aurora is configured with IAM authentication, Teleport is running, and
 the local user is created, we're ready to connect to the database.
