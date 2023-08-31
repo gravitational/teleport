@@ -1191,26 +1191,31 @@ tsh bench web sessions --max=5000 --web user ls
 
 ## Machine ID
 
-### SSH
-
-With a default Teleport instance configured with a SSH node:
-
 - [ ] Verify you are able to create a new bot user with `tctl bots add robot --roles=access`. Follow the instructions provided in the output to start `tbot`
-- [ ] Verify you are able to connect to the SSH node using openssh with the generated `ssh_config` in the destination directory
+  - [ ] Directly connecting to the auth server
+  - [ ] Connecting to the auth server via the proxy reverse tunnel
 - [ ] Verify that after the renewal period (default 20m, but this can be reduced via configuration), that newly generated certificates are placed in the destination directory
 - [ ] Verify that sending both `SIGUSR1` and `SIGHUP` to a running tbot process causes a renewal and new certificates to be generated
-- [ ] Verify that you are able to make a connection to the SSH node using the `ssh_config` provided by `tbot` after each phase of a manual CA rotation.
 
-Ensure the above tests are completed for both:
+With an SSH node registered to the Teleport cluster:
 
-- [ ] Directly connecting to the auth server
-- [ ] Connecting to the auth server via the proxy reverse tunnel
+- [ ] Verify you are able to connect to the SSH node using openssh with the generated `ssh_config` in the destination directory
+- [ ] Verify you are able to connect to the SSH node using `tsh` with the identity file in the destination directory
 
-### DB Access
+With a Postgres DB registered to the Teleport cluster:
 
-With a default Postgres DB instance, a Teleport instance configured with DB access and a bot user configured:
+- [ ] Verify you are able to interact with a database using `tbot db connect` with a database output
+- [ ] Verify you are able to connect to the database using `tbot proxy db` with a database output
+- [ ] Verify you are able to produce an authenticated tunnel using `tbot proxy db --tunnel` with a database output and then able to connect to the database through the tunnel without credentials 
 
-- [ ] Verify you are able to connect to and interact with a database using `tbot db` while `tbot start` is running
+With a Kubernetes cluster registered to the Teleport cluster:
+
+- [ ] Verify the `kubeconfig` produced by a Kubernetes output can be used to run basic commands (e.g `kubectl get pods`)
+
+With a HTTP application registered to the Teleport cluster:
+
+- [ ] Verify the certificates produced by an application output can be used directly against the proxy (e.g `curl --cert ./out/tlscert --key ./out/key https://httpbin.teleport.example.com/headers`)
+- [ ] Verify you are able to produce an authenticated tunnel using `tbot proxy app httpbin` with an application output and then able to connect to the application through the tunnel without credentials `curl localhost:port/headers`
 
 ## Host users creation
 
