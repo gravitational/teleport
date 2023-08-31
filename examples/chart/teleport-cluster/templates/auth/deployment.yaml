@@ -248,6 +248,13 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
+        ports:
+          - name: operator-http-metrics
+            containerPort: 8080
+            protocol: TCP
+          - name: operator-http-health
+            containerPort: 8081
+            protocol: TCP
   {{- if .Values.operator.resources }}
         resources: {{- toYaml .Values.operator.resources | nindent 10 }}
   {{- end }}

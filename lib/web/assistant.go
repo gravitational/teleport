@@ -48,6 +48,8 @@ const (
 	actionSSHGenerateCommand = "ssh-cmdgen"
 	// actionSSHExplainCommand is a name of the action for explaining terminal output in SSH session.
 	actionSSHExplainCommand = "ssh-explain"
+	// actionGenerateAuditQuery is the name of the action for generating audit queries.
+	actionGenerateAuditQuery = "audit-query"
 )
 
 // createAssistantConversationResponse is a response for POST /webapi/assistant/conversations.
@@ -489,6 +491,8 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		err = h.assistGenSSHCommandLoop(ctx, assistClient, ws, sctx.GetUser(), authClient)
 	case actionSSHExplainCommand:
 		err = h.assistSSHExplainOutputLoop(ctx, assistClient, ws, authClient)
+	case actionGenerateAuditQuery:
+		err = h.assistGenAuditQueryLoop(ctx, assistClient, ws, sctx.GetUser(), authClient)
 	default:
 		err = h.assistChatLoop(ctx, assistClient, authClient, conversationID, sctx, ws)
 	}
@@ -498,6 +502,49 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 type usageReporter interface {
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
+}
+
+// assistGenAuditQueryLoop reads the user's input and generates an audit query.
+func (h *Handler) assistGenAuditQueryLoop(ctx context.Context, assistClient *assist.Assist, ws *websocket.Conn, username string, usageRep usageReporter) error {
+	for {
+		_, payload, err := ws.ReadMessage()
+		if err != nil {
+			if wsIsClosed(err) {
+				break
+			}
+			return trace.Wrap(err)
+		}
+
+		onMessage := func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
+			return onMessageFn(ws, kind, payload, createdTime)
+		}
+
+		toolCtx := &tools.ToolContext{User: username}
+
+		tokenCount, err := assistClient.RunTool(ctx, onMessage, tools.AuditQueryGenerationToolName, string(payload), toolCtx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		prompt, completion := tokens.CountTokens(tokenCount)
+
+		usageEventReq := &clientproto.SubmitUsageEventRequest{
+			Event: &usageeventsv1.UsageEventOneOf{
+				Event: &usageeventsv1.UsageEventOneOf_AssistAction{
+					AssistAction: &usageeventsv1.AssistAction{
+						Action:           actionGenerateAuditQuery,
+						TotalTokens:      int64(completion + prompt),
+						PromptTokens:     int64(prompt),
+						CompletionTokens: int64(completion),
+					},
+				},
+			},
+		}
+		if err := usageRep.SubmitUsageEvent(ctx, usageEventReq); err != nil {
+			h.log.WithError(err).Warn("Failed to emit usage event")
+		}
+	}
+	return nil
 }
 
 // assistSSHExplainOutputLoop reads the user's input and generates a command summary.
