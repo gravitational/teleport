@@ -1260,6 +1260,9 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 			return trace.Wrap(err)
 		}
 		cfg.SSH.RestrictedSession = rs
+
+		log.Warnf("Restricted Sessions for SSH were deprecated in Teleport 14 " +
+			"and will be removed in Teleport 15.")
 	}
 
 	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
