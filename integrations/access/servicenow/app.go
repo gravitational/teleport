@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -176,10 +177,17 @@ func (a *App) init(ctx context.Context) error {
 		}
 	}
 
-	if _, err = a.checkTeleportVersion(ctx); err != nil {
+	pong, err := a.checkTeleportVersion(ctx)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	webProxyURL, err := url.Parse(pong.ProxyPublicAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.conf.ClientConfig.WebProxyURL = webProxyURL
 	a.servicenow, err = NewClient(a.conf.ClientConfig)
 	if err != nil {
 		return trace.Wrap(err)
