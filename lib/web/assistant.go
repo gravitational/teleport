@@ -48,6 +48,8 @@ const (
 	actionSSHGenerateCommand = "ssh-cmdgen"
 	// actionSSHExplainCommand is a name of the action for explaining terminal output in SSH session.
 	actionSSHExplainCommand = "ssh-explain"
+	// actionGenerateAuditQuery is the name of the action for generating audit queries.
+	actionGenerateAuditQuery = "audit-query"
 	// We can not know how many tokens we will consume in advance.
 	// Try to consume a small amount of tokens first.
 	lookaheadTokens = 100
@@ -492,11 +494,44 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		err = h.assistGenSSHCommandLoop(ctx, assistClient, authClient, ws, sctx.GetUser())
 	case actionSSHExplainCommand:
 		err = h.assistSSHExplainOutputLoop(ctx, assistClient, authClient, ws)
+	case actionGenerateAuditQuery:
+		err = h.assistGenAuditQueryLoop(ctx, assistClient, authClient, ws, sctx.GetUser())
 	default:
 		err = h.assistChatLoop(ctx, assistClient, authClient, conversationID, sctx, ws)
 	}
 
 	return trace.Wrap(err)
+}
+
+// assistGenAuditQueryLoop reads the user's input and generates an audit query.
+func (h *Handler) assistGenAuditQueryLoop(ctx context.Context, assistClient *assist.Assist, authClient auth.ClientI, ws *websocket.Conn, username string) error {
+	for {
+		_, payload, err := ws.ReadMessage()
+		if err != nil {
+			if wsIsClosed(err) {
+				break
+			}
+			return trace.Wrap(err)
+		}
+
+		onMessage := func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
+			return onMessageFn(ws, kind, payload, createdTime)
+		}
+
+		toolCtx := &tools.ToolContext{User: username}
+
+		if err := h.preliminaryRateLimitGuard(onMessage); err != nil {
+			return trace.Wrap(err)
+		}
+
+		tokenCount, err := assistClient.RunTool(ctx, onMessage, tools.AuditQueryGenerationToolName, string(payload), toolCtx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		go h.reportTokenUsage(tokenCount, uuid.NewString(), authClient)
+	}
+	return nil
 }
 
 // assistSSHExplainOutputLoop reads the user's input and generates a command summary.
