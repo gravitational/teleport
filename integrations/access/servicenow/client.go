@@ -85,6 +85,11 @@ func NewClient(conf ClientConfig) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 	client := resty.NewWithClient(defaults.Config().HTTPClient)
+	apiURL, err := url.Parse(conf.APIEndpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	apiURL.Scheme = "https"
 	client.SetBaseURL(conf.APIEndpoint).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json").
