@@ -165,9 +165,12 @@ Distributing enrollment tokens to many users can be challenging. To address that
 Teleport supports auto-enrollment. When enabled, auto-enrollment automatically
 enrolls the user's device in their next Teleport (`tsh`) login.
 
-A device must be registered for auto-enrollment to work. Registration may be
+For auto-enrollment to work, the following conditions must be met:
+- A device must be registered. Registration may be
 [manual](#register-a-trusted-device) or performed using an
 integration, like the [Jamf Pro integration](./jamf-integration.mdx).
+- Auto-enrollment must be enabled in the cluster setting.
+- User must have either preset `editor` or `device-enroll` (available v13.3.6+) role assigned to them.
 
 Enable auto-enrollment in your cluster settings:
 
@@ -204,9 +207,9 @@ After saving the changes, restart the Teleport service.
 </TabItem>
 </Tabs>
 
-Login using a registered device.
-
-Using a device previously registered in Teleport, logout and login again:
+Once enabled, user's with their device registered in Telepot and with the required permission
+(preset `editor` or `device-enroll` role) will have their device enrolled to Teleport in
+their next login.
 
 ```code
 $ tsh logout
