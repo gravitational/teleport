@@ -173,6 +173,19 @@ func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey, endKey []
 	return res, nil
 }
 
+// GetUnifiedResource returns a single resource by key if found or nil if not
+func (c *UnifiedResourceCache) GetUnifiedResource(ctx context.Context, key []byte) (resource, error) {
+	var found resource
+	err := c.read(ctx, func(tree *btree.BTreeG[*item]) error {
+		if res, ok := tree.Get(&item{Key: key}); ok {
+			found = res.Value
+			return nil
+		}
+		return nil
+	})
+	return found, err
+}
+
 // GetUnifiedResources returns a list of all resources stored in the current unifiedResourceCollector tree
 func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
 	result, err := c.getRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)

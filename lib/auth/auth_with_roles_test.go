@@ -4382,6 +4382,54 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 	require.Empty(t, resp.NextKey)
 }
 
+func TestListUnifiedResources_WithPinnedResourcesIDs(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
+	for i := 0; i < 6; i++ {
+		name := names[i]
+
+		// add nodes
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{
+				Hostname: name,
+			},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, testNodes, 6)
+
+	// create user, role, and client
+	username := "theuser"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	require.NoError(t, err)
+	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		PinnedResourcesIDs: []string{"/unified_resource/cid/node"},
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, resp.NextKey)
+	// Check that our returned resource has the correct names
+	for _, resource := range resp.Resources {
+		r := resource.GetNode()
+		require.True(t, strings.Contains(r.GetHostname(), "cid"))
+	}
+}
+
 // go test ./lib/auth -bench=BenchmarkListUnifiedResources -run=^$ -v -benchtime 1x
 // goos: darwin
 // goarch: arm64

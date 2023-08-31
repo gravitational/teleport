@@ -2496,9 +2496,17 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		}
 	}
 
+	var pinnedResourcesIDs []string
+	for _, id := range values["pinnedResourcesIDs"] {
+		if id != "" {
+			pinnedResourcesIDs = append(pinnedResourcesIDs, id)
+		}
+	}
+
 	startKey := values.Get("startKey")
 	return &proto.ListUnifiedResourcesRequest{
 		Kinds:               kinds,
+		PinnedResourcesIDs:  pinnedResourcesIDs,
 		Limit:               limit,
 		StartKey:            startKey,
 		SortBy:              sortBy,

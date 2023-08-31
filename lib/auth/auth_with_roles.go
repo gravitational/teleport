@@ -1613,6 +1613,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		elapsedFilter     time.Duration
 		unifiedResources  types.ResourcesWithLabels
 		filteredResources types.ResourcesWithLabels
+		err               error
 	)
 
 	defer func() {
@@ -1626,11 +1627,23 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	}()
 
 	startFetch := time.Now()
-	unifiedResources, err := a.authServer.UnifiedResourceCache.GetUnifiedResources(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
+	// If PinedResourcesIDs exist, only fetch by ID instead of every item
+	if len(req.PinnedResourcesIDs) > 0 {
+		// only fetch resource IDs in our pinned list
+		for _, id := range req.PinnedResourcesIDs {
+			resource, err := a.authServer.UnifiedResourceCache.GetUnifiedResource(ctx, []byte(id))
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			unifiedResources = append(unifiedResources, resource)
+		}
+	} else {
+		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResources(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	elapsedFetch = time.Since(startFetch)
 
 	startFilter := time.Now()
