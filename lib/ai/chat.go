@@ -21,17 +21,17 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
-	"github.com/tiktoken-go/tokenizer"
 
 	"github.com/gravitational/teleport/lib/ai/model"
+	"github.com/gravitational/teleport/lib/ai/model/output"
+	"github.com/gravitational/teleport/lib/ai/tokens"
 )
 
 // Chat represents a conversation between a user and an assistant with context memory.
 type Chat struct {
-	client    *Client
-	messages  []openai.ChatCompletionMessage
-	tokenizer tokenizer.Codec
-	agent     *model.Agent
+	client   *Client
+	messages []openai.ChatCompletionMessage
+	agent    *model.Agent
 }
 
 // Insert inserts a message into the conversation. Returns the index of the message.
@@ -58,19 +58,19 @@ func (chat *Chat) GetMessages() []openai.ChatCompletionMessage {
 // - CompletionCommand: a command from the assistant
 // - Message: a text message from the assistant
 // - AccessRequest: an access request suggestion from the assistant
-func (chat *Chat) Complete(ctx context.Context, userInput string, progressUpdates func(*model.AgentAction)) (any, *model.TokenCount, error) {
+func (chat *Chat) Complete(ctx context.Context, userInput string, progressUpdates func(*model.AgentAction)) (any, *tokens.TokenCount, error) {
 	// if the chat is empty, return the initial response we predefine instead of querying GPT-4
 	if len(chat.messages) == 1 {
-		return &model.Message{
+		return &output.Message{
 			Content: model.InitialAIResponse,
-		}, model.NewTokenCount(), nil
+		}, tokens.NewTokenCount(), nil
 	}
 
 	return chat.Reply(ctx, userInput, progressUpdates)
 }
 
 // Reply replies to the user input with a message from the assistant based on the current context.
-func (chat *Chat) Reply(ctx context.Context, userInput string, progressUpdates func(*model.AgentAction)) (any, *model.TokenCount, error) {
+func (chat *Chat) Reply(ctx context.Context, userInput string, progressUpdates func(*model.AgentAction)) (any, *tokens.TokenCount, error) {
 	userMessage := openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleUser,
 		Content: userInput,

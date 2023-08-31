@@ -601,12 +601,11 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	}
 
 	opts, err := prepareLocalProxyOptions(&localProxyConfig{
-		cf:               cf,
-		tc:               tc,
-		profile:          profile,
-		dbInfo:           dbInfo,
-		autoReissueCerts: requires.tunnel,
-		tunnel:           requires.tunnel,
+		cf:      cf,
+		tc:      tc,
+		profile: profile,
+		dbInfo:  dbInfo,
+		tunnel:  requires.tunnel,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -648,12 +647,11 @@ type localProxyConfig struct {
 	tc      *client.TeleportClient
 	profile *client.ProfileStatus
 	dbInfo  *databaseInfo
-	// autoReissueCerts indicates whether a cert auto reissuer should be used
-	// for the local proxy to keep certificates valid.
+	// tunnel controls whether client certs will always be used to dial upstream
+	// by the local proxy, and whether db certs will be auto-reissued for the
+	// connection.
 	// - when `tsh db connect` needs to tunnel it will set this field.
 	// - when `tsh proxy db` is used with `--tunnel` cli flag it will set this field.
-	autoReissueCerts bool
-	// tunnel controls whether client certs will always be used to dial upstream.
 	tunnel bool
 }
 
@@ -683,26 +681,31 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 		alpnproxy.WithClusterCAsIfConnUpgrade(arg.cf.Context, arg.tc.RootClusterCACertPool),
 	}
 
-	if !arg.tunnel && arg.dbInfo.Protocol == defaults.ProtocolPostgres {
-		opts = append(opts, alpnproxy.WithCheckCertsNeeded())
+	if arg.tunnel {
+		cc := client.NewDBCertChecker(arg.tc, arg.dbInfo.RouteToDatabase, nil)
+		opts = append(opts, alpnproxy.WithMiddleware(cc))
+		// When using a tunnel, try to load certs, but if that fails
+		// just skip them and let the reissuer fetch new certs when the local
+		// proxy starts instead.
+		cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
+		if err == nil {
+			opts = append(opts, alpnproxy.WithClientCerts(cert))
+		}
+		return opts, nil
 	}
 
-	// load certs if local proxy needs to be able to tunnel.
-	// certs are needed for non-tunnel postgres cancel requests.
-	if arg.tunnel || arg.dbInfo.Protocol == defaults.ProtocolPostgres {
-		certs, err := getDBLocalProxyCerts(arg)
+	// no tunnel, check for protocol-specific cases
+	switch arg.dbInfo.Protocol {
+	case defaults.ProtocolPostgres:
+		// certs are needed for non-tunnel postgres cancel requests.
+		cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		opts = append(opts, alpnproxy.WithClientCerts(certs...))
-	}
-
-	if arg.autoReissueCerts {
-		opts = append(opts, alpnproxy.WithMiddleware(client.NewDBCertChecker(arg.tc, arg.dbInfo.RouteToDatabase, nil)))
-	}
-
-	// To set correct MySQL server version DB proxy needs additional protocol.
-	if !arg.tunnel && arg.dbInfo.Protocol == defaults.ProtocolMySQL {
+		opts = append(opts, alpnproxy.WithClientCerts(cert))
+		opts = append(opts, alpnproxy.WithCheckCertsNeeded())
+	case defaults.ProtocolMySQL:
+		// To set correct MySQL server version DB proxy needs additional protocol.
 		db, err := arg.dbInfo.GetDatabase(arg.cf, arg.tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -710,43 +713,6 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 		opts = append(opts, alpnproxy.WithMySQLVersionProto(db))
 	}
 	return opts, nil
-}
-
-// getDBLocalProxyCerts gets cert/key file specified by cli config, or
-// if both are not specified then it tries to load certs from the profile.
-// This is a helper func for preparing local proxy options.
-func getDBLocalProxyCerts(arg *localProxyConfig) ([]tls.Certificate, error) {
-	if arg.cf.LocalProxyCertFile != "" || arg.cf.LocalProxyKeyFile != "" {
-		return getUserSpecifiedLocalProxyCerts(arg)
-	}
-	// if neither --cert-file nor --key-file are specified, load db cert from client store.
-	cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
-	if err != nil {
-		if arg.autoReissueCerts {
-			// If using a reissuer, just return nil certs and let the reissuer
-			// fetch new certs when the local proxy starts instead.
-			// We don't do this for user specified certs (above), because it is
-			// surprising UX to get a login prompt when a user passes
-			// --cert-file/--key-file, and we don't know how the user wants to
-			// proceed.
-			return nil, nil
-		}
-		return nil, trace.Wrap(err)
-	}
-	return []tls.Certificate{cert}, nil
-}
-
-// getUserSpecifiedLocalProxyCerts loads certs from files specified by cli arguments.
-// This is a helper func for preparing local proxy options.
-func getUserSpecifiedLocalProxyCerts(arg *localProxyConfig) ([]tls.Certificate, error) {
-	if arg.cf.LocalProxyCertFile == "" || arg.cf.LocalProxyKeyFile == "" {
-		return nil, trace.BadParameter("both --cert-file and --key-file are required")
-	}
-	cert, err := keys.LoadX509KeyPair(arg.cf.LocalProxyCertFile, arg.cf.LocalProxyKeyFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []tls.Certificate{cert}, nil
 }
 
 // onDatabaseConnect implements "tsh db connect" command.
@@ -863,6 +829,23 @@ func newDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, route *tlsca.RouteT
 // checkAndSetPrincipalDefaults checks the db route (schema) name and username,
 // and sets them to defaults if necessary.
 func (d *databaseInfo) checkAndSetPrincipalDefaults(cf *CLIConf, tc *client.TeleportClient, db types.Database) error {
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// if either user or db name isn't given as a cli flag, try to populate
+	// user/db name from an active db cert.
+	if cf.DatabaseUser == "" || cf.DatabaseName == "" {
+		routes, err := profile.DatabasesForCluster(tc.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if route, ok := findActiveDatabase(d.ServiceName, routes); ok {
+			d.Username = route.Username
+			d.Database = route.Database
+		}
+	}
 	if cf.DatabaseUser != "" {
 		d.Username = cf.DatabaseUser
 	}
@@ -881,11 +864,6 @@ func (d *databaseInfo) checkAndSetPrincipalDefaults(cf *CLIConf, tc *client.Tele
 	needDBName := d.Database == "" && role.RequireDatabaseNameMatcher(d.Protocol)
 	if !needDBUser && !needDBName {
 		return nil
-	}
-
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	var proxy *client.ProxyClient
@@ -1149,7 +1127,7 @@ func getDefaultDBName(db types.Database, checker services.AccessChecker) (string
 }
 
 func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route tlsca.RouteToDatabase, profile *client.ProfileStatus, requires *dbLocalProxyRequirement) (bool, error) {
-	if (requires.localProxy && requires.tunnel) || isLocalProxyTunnelRequested(cf) {
+	if (requires.localProxy && requires.tunnel) || cf.LocalProxyTunnel {
 		switch route.Protocol {
 		case defaults.ProtocolOracle:
 			// Oracle Protocol needs to generate a local configuration files.
@@ -1340,16 +1318,11 @@ func filterActiveDatabases(ctx context.Context, tc *client.TeleportClient, activ
 	}
 	prefix := tc.DatabaseService
 	if len(tc.Labels) == 0 && tc.PredicateExpression == "" {
-		if prefix == "" && len(activeRoutes) == 1 {
-			return activeRoutes, nil, nil
-		}
 		// when we have a name but don't have label or predicate query, look for
 		// a route that matches the name exactly to maybe avoid calling
 		// ListDatabases API below.
-		for _, route := range activeRoutes {
-			if route.ServiceName == prefix {
-				return []tlsca.RouteToDatabase{route}, nil, nil
-			}
+		if route, ok := findActiveDatabase(prefix, activeRoutes); ok {
+			return []tlsca.RouteToDatabase{route}, nil, nil
 		}
 	}
 
@@ -1384,6 +1357,20 @@ func filterActiveDatabases(ctx context.Context, tc *client.TeleportClient, activ
 		}
 	}
 	return selectedRoutes, activeDBs, nil
+}
+
+// findActiveDatabase returns a database route and a bool indicating whether
+// the route was found.
+func findActiveDatabase(name string, activeRoutes []tlsca.RouteToDatabase) (tlsca.RouteToDatabase, bool) {
+	if name == "" && len(activeRoutes) == 1 {
+		return activeRoutes[0], true
+	}
+	for _, r := range activeRoutes {
+		if r.ServiceName == name {
+			return r, true
+		}
+	}
+	return tlsca.RouteToDatabase{}, false
 }
 
 func formatDatabaseListCommand(clusterFlag string) string {

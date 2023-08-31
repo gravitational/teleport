@@ -73,7 +73,8 @@ func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
 		Description: msg.Spec.Description,
 		Owners:      owners,
 		Audit: accesslist.Audit{
-			Frequency: msg.Spec.Audit.Frequency.AsDuration(),
+			Frequency:     msg.Spec.Audit.Frequency.AsDuration(),
+			NextAuditDate: msg.Spec.Audit.NextAuditDate.AsTime(),
 		},
 		MembershipRequires: accesslist.Requires{
 			Roles:  msg.Spec.MembershipRequires.Roles,
@@ -121,7 +122,8 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			Description: accessList.Spec.Description,
 			Owners:      owners,
 			Audit: &accesslistv1.AccessListAudit{
-				Frequency: durationpb.New(accessList.Spec.Audit.Frequency),
+				Frequency:     durationpb.New(accessList.Spec.Audit.Frequency),
+				NextAuditDate: timestamppb.New(accessList.Spec.Audit.NextAuditDate),
 			},
 			MembershipRequires: &accesslistv1.AccessListRequires{
 				Roles:  accessList.Spec.MembershipRequires.Roles,

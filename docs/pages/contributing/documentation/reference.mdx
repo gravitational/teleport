@@ -155,21 +155,22 @@ documentation experience to their own environment.
 
 ### The Var component
 
-To declare a variable, use the `Var` component, as shown in the two `code`
-snippets below:
+To declare a variable, use the `Var` component, as shown in the following `code`
+snippets. This example includes an extra space before the tag names of the `Var`
+components to prevent these components from rendering:
 
 ````markdown
 <Details title="Getting cluster information" opened>
 Log in to your Teleport cluster using the following command:
 
 ```code
-$ tsh login --user=<Var name="user"/> --proxy=<Var name="proxy" description="Domain name of your Teleport Web UI" />
+$ tsh login --user=< Var name="user"/> --proxy=< Var name="proxy" description="Domain name of your Teleport Web UI" />
 ```
 
 Get information about your Teleport cluster:
 
 ```code
-$ curl https://<Var name="proxy"/>/webapi/ping
+$ curl https://< Var name="proxy"/>/webapi/ping
 ```
 
 </Details>
@@ -192,32 +193,41 @@ $ curl https://<Var name="proxy"/>/webapi/ping
 
 </Details>
 
-<Admonition type="tip">
+#### Where to use the Var component
 
-The `Var` component only works in [code blocks](#code-blocks) using the `code`
-syntax (e.g. <code>```code</code>), and only for "command" lines (beginning
-with `$`). The component will work without caveats outside of code blocks.
+You can use the `Var` component inside as well as outside code snippets. It is
+possible to use this component in code snippets with any language label, such as
+`yaml` or `go`.
 
-</Admonition>
+`Var` tags must be self closing (ending in `/>`).
+
+#### How the Var component works
 
 When a user updates the value of an in-page variable, the values of any `Var`
 components with the same `name` property update automatically. When you copy a
 `code` snippet using the copy button, the values of any in-page variables within
 the `code` snippet are added to the clipboard.
 
-The `description` field is used in the `VarList` component, which we explain in
-the next section. You only need to specify the `description` once.
-
-<Admonition type="tip" title="Global variables">
-
 Variables are scoped to a single page by default. You can make a variable
 preserve its value across all of the pages a user visits by adding the
 `isGlobal` property to the `<Var/>` tag. Variable values are not preserved
 between browser sessions.
 
-</Admonition>
+#### Var component properties
 
-`Var` tags must be self closing (ending in `/>`).
+The `description` field is used in the `VarList` component, which we explain in
+the next section. You only need to specify the `description` once.
+
+By default, the `Var` component displays its `name` until the user assigns a
+value to it. To configure the component to display an initial value beside its
+name, set the `initial` field:
+
+```
+< Var name="proxy" initial="teleport.example.com" />
+```
+
+You should only set an `initial` field for a single occurrence of a `Var` with a
+particular name. Otherwise, `Var`s will overwrite one another's initial values.
 
 ### The VarList component
 
@@ -275,7 +285,9 @@ require more than lines, coloring, and text must use another solution.
 
 ## Notices
 
-<Notice type="tip">Notice content.</Notice>
+<Notice type="tip">
+Notice content.
+</Notice>
 
 If you want to add notice like the one above to the page, use this syntax:
 
@@ -466,7 +478,9 @@ the image in `docs/img/screenshot.png`.
 
 ## Scopes
 
-There are three versions of Teleport: `oss`, `enterprise`, and `cloud`. Readers can switch the scope of the documentation using a dropdown menu at the top of the page.
+There are four editions of Teleport: `oss`, `enterprise`, `cloud`, and `team`.
+Readers can switch the scope of the documentation using a dropdown menu at the
+top of the page.
 
 Based on the selector's value, some `.mdx` components can hide or show different content sections. Check the components' descriptions below to see which component can be affected by this selector. These components will include the `scope` property.
 

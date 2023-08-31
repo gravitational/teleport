@@ -199,7 +199,7 @@ export function TopBar() {
                     <PopupLogos>
                       <OpenAIIcon size={30} />
                       <PopupLogosSpacer>+</PopupLogosSpacer>
-                      <TeleportIcon light={theme.name === 'light'} />
+                      <TeleportIcon light={theme.type === 'light'} />
                     </PopupLogos>
 
                     <PopupButton onClick={() => setShowAssistPopup(false)}>

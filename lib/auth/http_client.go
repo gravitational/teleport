@@ -89,7 +89,7 @@ func (c *HTTPClientConfig) CheckAndSetDefaults() error {
 	// Set the next protocol. This is needed due to the Auth Server using a
 	// multiplexer for protocol detection. Unless next protocol is specified
 	// it will attempt to upgrade to HTTP2 and at that point there is no way
-	// to distinguish between HTTP2/JSON or GPRC.
+	// to distinguish between HTTP2/JSON or gRPC.
 	c.TLS.NextProtos = []string{teleport.HTTPNextProtoTLS}
 
 	// Configure ALPN SNI direct dial TLS routing information used by ALPN SNI proxy in order to
@@ -780,7 +780,7 @@ func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *OIDCAuthRawResponse
+	var rawResponse OIDCAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -818,7 +818,7 @@ func (c *HTTPClient) ValidateSAMLResponse(ctx context.Context, re string, connec
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *SAMLAuthRawResponse
+	var rawResponse SAMLAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}

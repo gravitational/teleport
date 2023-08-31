@@ -190,7 +190,7 @@ func postgresConnTestFn(cluster *helpers.TeleInstance) dbConnectionTestFunc {
 		var pgConn *pgconn.PgConn
 		// retry for a while, the database service might need time to give
 		// itself IAM rds:connect permissions.
-		require.EventuallyWithT(t, func(c *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			var err error
 			pgConn, err = postgres.MakeTestClient(ctx, common.TestClientConfig{
 				AuthClient:      cluster.GetSiteAPI(cluster.Secrets.SiteName),
@@ -200,8 +200,8 @@ func postgresConnTestFn(cluster *helpers.TeleInstance) dbConnectionTestFunc {
 				Username:        username,
 				RouteToDatabase: route,
 			})
-			assert.NoError(c, err)
-			assert.NotNil(c, pgConn)
+			assert.NoError(t, err)
+			assert.NotNil(t, pgConn)
 		}, time.Second*10, time.Second, "connecting to postgres")
 
 		// Execute a query.
@@ -229,11 +229,11 @@ func postgresLocalProxyConnTestFn(cluster *helpers.TeleInstance) dbConnectionTes
 		var pgConn *pgconn.PgConn
 		// retry for a while, the database service might need time to give
 		// itself IAM rds:connect permissions.
-		require.EventuallyWithT(t, func(c *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			var err error
 			pgConn, err = pgconn.Connect(ctx, connString)
-			assert.NoError(c, err)
-			assert.NotNil(c, pgConn)
+			assert.NoError(t, err)
+			assert.NotNil(t, pgConn)
 		}, time.Second*10, time.Second, "connecting to postgres")
 
 		// Execute a query.
@@ -259,11 +259,11 @@ func mySQLLocalProxyConnTestFn(cluster *helpers.TeleInstance) dbConnectionTestFu
 		var conn *mysqlclient.Conn
 		// retry for a while, the database service might need time to give
 		// itself IAM rds:connect permissions.
-		require.EventuallyWithT(t, func(c *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			var err error
 			conn, err = mysqlclient.Connect(lp.GetAddr(), route.Username, "" /*no password*/, route.Database)
-			assert.NoError(c, err)
-			assert.NotNil(c, conn)
+			assert.NoError(t, err)
+			assert.NotNil(t, conn)
 		}, time.Second*10, time.Second, "connecting to mysql")
 
 		// Execute a query.
@@ -329,11 +329,12 @@ func generateClientDBCert(t *testing.T, authSrv *auth.Server, user string, route
 }
 
 func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...string) {
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+
 		databases, err := auth.GetAuthServer().GetDatabases(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		// map the registered "db" resource names.
 		seen := map[string]struct{}{}
@@ -347,11 +348,12 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...
 }
 
 func waitForDatabaseServers(t *testing.T, auth *service.TeleportProcess, wantNames ...string) {
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+
 		servers, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		// map the registered "db_server" resource names.
 		seen := map[string]struct{}{}

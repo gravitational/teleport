@@ -34,7 +34,8 @@ import (
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
-	"github.com/gravitational/teleport/lib/ai/model"
+	"github.com/gravitational/teleport/lib/ai/model/tools"
+	"github.com/gravitational/teleport/lib/ai/tokens"
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -337,7 +338,7 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 	return nil, nil
 }
 
-func (h *Handler) reportTokenUsage(usedTokens *model.TokenCount, lookaheadTokens int, conversationID string, authClient auth.ClientI) {
+func (h *Handler) reportTokenUsage(usedTokens *tokens.TokenCount, lookaheadTokens int, conversationID string, authClient auth.ClientI) {
 	// Create a new context to not be bounded by the request timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -525,7 +526,7 @@ func (h *Handler) assistSSHExplainOutputLoop(ctx context.Context, assistClient *
 		return trace.Wrap(err)
 	}
 
-	prompt, completion := model.CountTokens(tokenCount)
+	prompt, completion := tokens.CountTokens(tokenCount)
 
 	usageEventReq := &clientproto.SubmitUsageEventRequest{
 		Event: &usageeventsv1.UsageEventOneOf{
@@ -569,7 +570,7 @@ func (h *Handler) assistGenSSHCommandLoop(ctx context.Context, assistClient *ass
 			return trace.Wrap(err)
 		}
 
-		prompt, completion := model.CountTokens(tokenCount)
+		prompt, completion := tokens.CountTokens(tokenCount)
 
 		usageEventReq := &clientproto.SubmitUsageEventRequest{
 			Event: &usageeventsv1.UsageEventOneOf{
@@ -600,7 +601,7 @@ func (h *Handler) assistChatLoop(ctx context.Context, assistClient *assist.Assis
 		return trace.Wrap(err)
 	}
 
-	toolContext := &model.ToolContext{
+	toolContext := &tools.ToolContext{
 		AssistEmbeddingServiceClient: authClient.EmbeddingClient(),
 		AccessRequestClient:          authClient,
 		AccessChecker:                ac,

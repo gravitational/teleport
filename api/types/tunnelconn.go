@@ -95,6 +95,16 @@ func (r *TunnelConnectionV2) SetResourceID(id int64) {
 	r.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (r *TunnelConnectionV2) GetRevision() string {
+	return r.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (r *TunnelConnectionV2) SetRevision(rev string) {
+	r.Metadata.SetRevision(rev)
+}
+
 // Clone returns a copy of this tunnel connection
 func (r *TunnelConnectionV2) Clone() TunnelConnection {
 	out := *r

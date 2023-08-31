@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -37,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -63,33 +63,28 @@ func (m *MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]e
 	return result, nil
 }
 
-type mockNodeStreamer struct {
-	mu    sync.Mutex
-	nodes []types.Server
+type mockResourceGetter struct {
+	services.Presence
 }
 
-func (m *mockNodeStreamer) UpsertNode(_ context.Context, node types.Server) (*types.KeepAlive, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for i, n := range m.nodes {
-		// update
-		if n.GetName() == node.GetName() {
-			m.nodes[i] = node
-			return nil, nil
-		}
-	}
-
-	// insert
-	m.nodes = append(m.nodes, node)
+func (m *mockResourceGetter) GetDatabaseServers(_ context.Context, _ string, _ ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return nil, nil
 }
 
-func (m *mockNodeStreamer) GetNodeStream(_ context.Context, _ string) stream.Stream[types.Server] {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	nodes := make([]types.Server, 0, len(m.nodes))
-	nodes = append(nodes, m.nodes...)
-	return stream.Slice(nodes)
+func (m *mockResourceGetter) GetKubernetesServers(_ context.Context) ([]types.KubeServer, error) {
+	return nil, nil
+}
+
+func (m *mockResourceGetter) GetApplicationServers(_ context.Context, _ string) ([]types.AppServer, error) {
+	return nil, nil
+}
+
+func (m *mockResourceGetter) GetWindowsDesktops(_ context.Context, _ types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+	return nil, nil
+}
+
+func (m *mockResourceGetter) ListSAMLIdPServiceProviders(_ context.Context, _ int, _ string) ([]types.SAMLIdPServiceProvider, string, error) {
+	return nil, "", nil
 }
 
 func TestNodeEmbeddingGeneration(t *testing.T) {
@@ -111,14 +106,26 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	embedder := MockEmbedder{
 		timesCalled: make(map[string]int),
 	}
-	presence := &mockNodeStreamer{}
+	events := local.NewEventsService(bk)
+	resources := &mockResourceGetter{
+		Presence: local.NewPresenceService(bk),
+	}
+	cache, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		ResourceGetter: resources,
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "resource-watcher",
+			Client:    events,
+		},
+	})
+	require.NoError(t, err)
+
 	embeddings := local.NewEmbeddingsService(bk)
 
 	processor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
 		AIClient:            &embedder,
 		EmbeddingSrv:        embeddings,
 		EmbeddingsRetriever: ai.NewSimpleRetriever(),
-		NodeSrv:             presence,
+		NodeSrv:             cache,
 		Log:                 utils.NewLoggerForTests(),
 		Jitter:              retryutils.NewSeventhJitter(),
 	})
@@ -133,20 +140,23 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	nodes := make([]types.Server, 0, numInitialNodes)
 	for i := 0; i < numInitialNodes; i++ {
 		node := makeNode(i + 1)
-		_, err = presence.UpsertNode(ctx, node)
+		_, err = resources.UpsertNode(ctx, node)
 		require.NoError(t, err)
 		nodes = append(nodes, node)
 	}
 
 	require.Eventually(t, func() bool {
-		items, err := stream.Collect(embeddings.GetEmbeddings(ctx, types.KindNode))
+		items, err := stream.Collect(embeddings.GetAllEmbeddings(ctx))
 		assert.NoError(t, err)
 		return len(items) == numInitialNodes
-	}, 7*time.Second, 200*time.Millisecond)
+	}, 14*time.Second, 200*time.Millisecond)
+
+	nodesAcquired, err := resources.GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
 
 	validateEmbeddings(t,
-		presence.GetNodeStream(ctx, defaults.Namespace),
-		embeddings.GetEmbeddings(ctx, types.KindNode))
+		nodesAcquired,
+		embeddings.GetAllEmbeddings(ctx))
 
 	for k, v := range embedder.timesCalled {
 		require.Equal(t, 1, v, "expected %v to be computed once, was %d", k, v)
@@ -155,16 +165,16 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	// Run once more and verify that only changed or newly inserted nodes get their embeddings calculated
 	node1 := nodes[0]
 	node1.GetMetadata().Labels["foo"] = "bar"
-	_, err = presence.UpsertNode(ctx, node1)
+	_, err = resources.UpsertNode(ctx, node1)
 	require.NoError(t, err)
 	node6 := makeNode(6)
-	_, err = presence.UpsertNode(ctx, node6)
+	_, err = resources.UpsertNode(ctx, node6)
 	require.NoError(t, err)
 
 	// Since nodes are streamed in ascending order by names, when embeddings for node6 are calculated,
 	// we can be sure that our recent changes have been fully processed
 	require.Eventually(t, func() bool {
-		items, err := stream.Collect(embeddings.GetEmbeddings(ctx, types.KindNode))
+		items, err := stream.Collect(embeddings.GetAllEmbeddings(ctx))
 		assert.NoError(t, err)
 		return len(items) == numInitialNodes+1
 	}, 7*time.Second, 200*time.Millisecond)
@@ -177,9 +187,12 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 		require.Equal(t, expected, v, "expected embedding for %q to be computed %d times, got computed %d times", k, expected, v)
 	}
 
+	nodesAcquired, err = resources.GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
 	validateEmbeddings(t,
-		presence.GetNodeStream(ctx, defaults.Namespace),
-		embeddings.GetEmbeddings(ctx, types.KindNode))
+		nodesAcquired,
+		embeddings.GetAllEmbeddings(ctx))
 }
 
 func TestMarshallUnmarshallEmbedding(t *testing.T) {
@@ -210,11 +223,8 @@ func makeNode(num int) types.Server {
 	return node
 }
 
-func validateEmbeddings(t *testing.T, nodesStream stream.Stream[types.Server], embeddingsStream stream.Stream[*embedding.Embedding]) {
+func validateEmbeddings(t *testing.T, nodes []types.Server, embeddingsStream stream.Stream[*embedding.Embedding]) {
 	t.Helper()
-
-	nodes, err := stream.Collect(nodesStream)
-	require.NoError(t, err)
 
 	embeddings, err := stream.Collect(embeddingsStream)
 	require.NoError(t, err)

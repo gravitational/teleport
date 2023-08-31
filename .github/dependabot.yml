@@ -23,7 +23,7 @@ updates:
       - dependency-name: github.com/vulcand/predicate
     open-pull-requests-limit: 10
     groups:
-      api-dependencies:
+      go:
         update-types:
           - "minor"
           - "patch"
@@ -41,7 +41,7 @@ updates:
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
     groups:
-      teleport-dependencies:
+      go:
         update-types:
           - "minor"
           - "patch"
@@ -62,7 +62,7 @@ updates:
       - dependency-name: github.com/alecthomas/kingpin/v2
     open-pull-requests-limit: 10
     groups:
-      assets-aws-dependencies:
+      go:
         update-types:
           - "minor"
           - "patch"
@@ -81,7 +81,7 @@ updates:
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
     groups:
-      assets-backport-dependencies:
+      go:
         update-types:
           - "minor"
           - "patch"
@@ -102,7 +102,7 @@ updates:
       - dependency-name: github.com/alecthomas/kingpin/v2
     open-pull-requests-limit: 10
     groups:
-      build-assets-tooling-dependencies:
+      go:
         update-types:
           - "minor"
           - "patch"
@@ -121,7 +121,7 @@ updates:
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
     groups:
-      kube-agent-updater-dependencies:
+      go:
         update-types:
           - "minor"
           - "patch"
@@ -140,7 +140,7 @@ updates:
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
     groups:
-      rust-dependencies:
+      rust:
         update-types:
           - "minor"
           - "patch"
@@ -159,7 +159,7 @@ updates:
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
     groups:
-      rdpclient-dependencies:
+      rust:
         update-types:
           - "minor"
           - "patch"
@@ -169,3 +169,16 @@ updates:
       - jentfoo
       - rosstimothy
       - zmb3
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    reviewers:
+      - wadells
+      - jentfoo
+      - fheinecke
+      - camscale

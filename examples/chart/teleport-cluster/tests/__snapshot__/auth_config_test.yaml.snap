@@ -445,6 +445,7 @@ matches snapshot for aws-dynamodb-autoscaling.yaml:
           - dynamodb://test-dynamodb-auditlog-table
           audit_sessions_uri: s3://test-s3-session-storage-bucket
           auto_scaling: true
+          billing_mode: provisioned
           continuous_backups: false
           read_max_capacity: 100
           read_min_capacity: 5

@@ -21,10 +21,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
-	"github.com/tiktoken-go/tokenizer/codec"
 
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/ai/model"
+	modeltools "github.com/gravitational/teleport/lib/ai/model/tools"
+	"github.com/gravitational/teleport/lib/ai/tokens"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -50,19 +51,19 @@ func NewClientFromConfig(config openai.ClientConfig) *Client {
 // NewChat creates a new chat. The username is set in the conversation context,
 // so that the AI can use it to personalize the conversation.
 // embeddingServiceClient is used to get the embeddings from the Auth Server.
-func (client *Client) NewChat(toolContext *model.ToolContext) *Chat {
-	tools := []model.Tool{
-		&model.CommandExecutionTool{},
-		&model.EmbeddingRetrievalTool{},
+func (client *Client) NewChat(toolContext *modeltools.ToolContext) *Chat {
+	tools := []modeltools.Tool{
+		&modeltools.CommandExecutionTool{},
+		&modeltools.EmbeddingRetrievalTool{},
 	}
 
 	// The following tools are only available in the enterprise build. They will fail
 	// if included in OSS due to the lack of the required backend APIs.
 	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		tools = append(tools, &model.AccessRequestCreateTool{},
-			&model.AccessRequestsListTool{},
-			&model.AccessRequestListRequestableRolesTool{},
-			&model.AccessRequestListRequestableResourcesTool{})
+		tools = append(tools, &modeltools.AccessRequestCreateTool{},
+			&modeltools.AccessRequestsListTool{},
+			&modeltools.AccessRequestListRequestableRolesTool{},
+			&modeltools.AccessRequestListRequestableResourcesTool{})
 	}
 
 	return &Chat{
@@ -73,15 +74,12 @@ func (client *Client) NewChat(toolContext *model.ToolContext) *Chat {
 				Content: model.PromptCharacter(toolContext.User),
 			},
 		},
-		// Initialize a tokenizer for prompt token accounting.
-		// Cl100k is used by GPT-3 and GPT-4.
-		tokenizer: codec.NewCl100kBase(),
-		agent:     model.NewAgent(toolContext, tools...),
+		agent: model.NewAgent(toolContext, tools...),
 	}
 }
 
 func (client *Client) NewCommand(username string) *Chat {
-	toolContext := &model.ToolContext{User: username}
+	toolContext := &modeltools.ToolContext{User: username}
 	return &Chat{
 		client: client,
 		messages: []openai.ChatCompletionMessage{
@@ -90,10 +88,21 @@ func (client *Client) NewCommand(username string) *Chat {
 				Content: model.PromptCharacter(username),
 			},
 		},
-		// Initialize a tokenizer for prompt token accounting.
-		// Cl100k is used by GPT-3 and GPT-4.
-		tokenizer: codec.NewCl100kBase(),
-		agent:     model.NewAgent(toolContext, &model.CommandGenerationTool{}),
+		agent: model.NewAgent(toolContext, &modeltools.CommandGenerationTool{}),
+	}
+}
+
+func (client *Client) NewAuditQuery(username string) *Chat {
+	toolContext := &modeltools.ToolContext{User: username}
+	return &Chat{
+		client: client,
+		messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: model.PromptCharacter(username),
+			},
+		},
+		agent: model.NewAgent(toolContext, &modeltools.AuditQueryGenerationTool{LLM: client.svc}),
 	}
 }
 
@@ -120,11 +129,11 @@ func (client *Client) Summary(ctx context.Context, message string) (string, erro
 // CommandSummary creates a command summary based on the command output.
 // The message history is also passed to the model in order to keep context
 // and extract relevant information from the output.
-func (client *Client) CommandSummary(ctx context.Context, messages []openai.ChatCompletionMessage, output map[string][]byte) (string, *model.TokenCount, error) {
+func (client *Client) CommandSummary(ctx context.Context, messages []openai.ChatCompletionMessage, output map[string][]byte) (string, *tokens.TokenCount, error) {
 	messages = append(messages, openai.ChatCompletionMessage{
 		Role: openai.ChatMessageRoleUser, Content: model.ConversationCommandResult(output)})
 
-	promptTokens, err := model.NewPromptTokenCounter(messages)
+	promptTokens, err := tokens.NewPromptTokenCounter(messages)
 	if err != nil {
 		return "", nil, trace.Wrap(err)
 	}
@@ -142,9 +151,9 @@ func (client *Client) CommandSummary(ctx context.Context, messages []openai.Chat
 	}
 
 	completion := resp.Choices[0].Message.Content
-	completionTokens, err := model.NewSynchronousTokenCounter(completion)
+	completionTokens, err := tokens.NewSynchronousTokenCounter(completion)
 
-	tc := &model.TokenCount{Prompt: model.TokenCounters{promptTokens}, Completion: model.TokenCounters{completionTokens}}
+	tc := &tokens.TokenCount{Prompt: tokens.TokenCounters{promptTokens}, Completion: tokens.TokenCounters{completionTokens}}
 	return completion, tc, trace.Wrap(err)
 }
 

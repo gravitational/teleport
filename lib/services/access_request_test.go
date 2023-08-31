@@ -2004,6 +2004,8 @@ func TestMaxDuration(t *testing.T) {
 		expectedAccessDuration time.Duration
 		// expectedSessionTTL is the expected session TTL
 		expectedSessionTTL time.Duration
+		// DryRun is true if the request is a dry run
+		dryRun bool
 	}{
 		{
 			desc:                   "role maxDuration is respected",
@@ -2012,6 +2014,15 @@ func TestMaxDuration(t *testing.T) {
 			maxDuration:            7 * day,
 			expectedAccessDuration: 3 * day,
 			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc:                   "dry run allows for longer maxDuration then 7d",
+			requestor:              "alice",
+			roles:                  []string{"requestedRole"},
+			maxDuration:            10 * day,
+			expectedAccessDuration: 3 * day,
+			expectedSessionTTL:     8 * time.Hour,
+			dryRun:                 true,
 		},
 		{
 			desc:                   "maxDuration not set, default maxTTL (8h)",
@@ -2105,9 +2116,11 @@ func TestMaxDuration(t *testing.T) {
 
 			req.SetCreationTime(now)
 			req.SetMaxDuration(now.Add(tt.maxDuration))
+			req.SetDryRun(tt.dryRun)
 
 			require.NoError(t, validator.Validate(context.Background(), req, identity))
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetAccessExpiry())
+			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetMaxDuration())
 			require.Equal(t, now.Add(tt.expectedSessionTTL), req.GetSessionTLL())
 		})
 	}

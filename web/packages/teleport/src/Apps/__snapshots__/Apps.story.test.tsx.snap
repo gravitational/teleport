@@ -51,6 +51,7 @@ exports[`empty state for enterprise, can create 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 224px;
+  text-transform: none;
 }
 
 .c11:hover,
@@ -95,6 +96,7 @@ exports[`empty state for enterprise, can create 1`] = `
   padding: 0px 24px;
   margin-left: 24px;
   width: 224px;
+  text-transform: none;
 }
 
 .c12:hover,
@@ -249,8 +251,7 @@ exports[`empty state for enterprise, can create 1`] = `
               kind="primary"
               width="224px"
             >
-              Add 
-              application
+              Add Resource
             </button>
           </a>
           <a
@@ -341,7 +342,51 @@ exports[`failed state 1`] = `
   cursor: auto;
 }
 
-.c36 {
+.c32 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 90px;
+  text-transform: none;
+}
+
+.c32:hover,
+.c32:focus {
+  background: rgba(255,255,255,0.07);
+}
+
+.c32:active {
+  background: rgba(255,255,255,0.13);
+}
+
+.c32:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c37 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -363,25 +408,25 @@ exports[`failed state 1`] = `
   margin-right: 0px;
 }
 
-.c36:disabled {
+.c37:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c36:disabled {
+.c37:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c36:hover:enabled,
-.c36:focus:enabled {
+.c37:hover:enabled,
+.c37:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c36:active:enabled {
+.c37:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c38 {
+.c39 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -402,21 +447,21 @@ exports[`failed state 1`] = `
   margin-left: 0px;
 }
 
-.c38:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c38:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c38:hover:enabled,
-.c38:focus:enabled {
+.c39:hover:enabled,
+.c39:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c38:active:enabled {
+.c39:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -456,7 +501,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c32 {
+.c33 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -522,7 +567,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c33 {
+.c34 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -533,7 +578,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c35 {
+.c36 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -664,7 +709,7 @@ exports[`failed state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c34 {
+.c35 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -701,11 +746,11 @@ exports[`failed state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 svg {
+.c38 svg {
   font-size: 20px;
 }
 
-.c37 svg:before {
+.c38 svg:before {
   padding-left: 1px;
 }
 
@@ -1334,13 +1379,13 @@ exports[`failed state 1`] = `
               align="right"
             >
               <button
-                class="c29"
+                class="c32"
                 kind="border"
-                width="88px"
+                width="90px"
               >
-                LAUNCH
+                Launch
                 <span
-                  class="c32 icon icon-chevrondown"
+                  class="c33 icon icon-chevrondown"
                   color="text.slightlyMuted"
                 >
                   <svg
@@ -1364,7 +1409,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c33"
+                class="c34"
                 height="32px"
                 width="32px"
               >
@@ -1421,17 +1466,17 @@ exports[`failed state 1`] = `
         </tbody>
       </table>
       <nav
-        class="c34"
+        class="c35"
       >
         <div
-          class="c35"
+          class="c36"
           width="100%"
         >
           <div
             class="c21"
           >
             <button
-              class="c36 c37"
+              class="c37 c38"
               title="Previous page"
             >
               <span
@@ -1455,7 +1500,7 @@ exports[`failed state 1`] = `
               </span>
             </button>
             <button
-              class="c38 c37"
+              class="c39 c38"
               title="Next page"
             >
               <span
@@ -1515,6 +1560,7 @@ exports[`loaded state 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c3:hover,
@@ -1575,7 +1621,51 @@ exports[`loaded state 1`] = `
   cursor: auto;
 }
 
-.c36 {
+.c32 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 90px;
+  text-transform: none;
+}
+
+.c32:hover,
+.c32:focus {
+  background: rgba(255,255,255,0.07);
+}
+
+.c32:active {
+  background: rgba(255,255,255,0.13);
+}
+
+.c32:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c37 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1597,25 +1687,25 @@ exports[`loaded state 1`] = `
   margin-right: 0px;
 }
 
-.c36:disabled {
+.c37:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c36:disabled {
+.c37:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c36:hover:enabled,
-.c36:focus:enabled {
+.c37:hover:enabled,
+.c37:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c36:active:enabled {
+.c37:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c38 {
+.c39 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1636,21 +1726,21 @@ exports[`loaded state 1`] = `
   margin-left: 0px;
 }
 
-.c38:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c38:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c38:hover:enabled,
-.c38:focus:enabled {
+.c39:hover:enabled,
+.c39:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c38:active:enabled {
+.c39:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -1690,7 +1780,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c32 {
+.c33 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1756,7 +1846,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c33 {
+.c34 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -1767,7 +1857,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c35 {
+.c36 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -1898,7 +1988,7 @@ exports[`loaded state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c34 {
+.c35 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1935,11 +2025,11 @@ exports[`loaded state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 svg {
+.c38 svg {
   font-size: 20px;
 }
 
-.c37 svg:before {
+.c38 svg:before {
   padding-left: 1px;
 }
 
@@ -2573,13 +2663,13 @@ exports[`loaded state 1`] = `
               align="right"
             >
               <button
-                class="c29"
+                class="c32"
                 kind="border"
-                width="88px"
+                width="90px"
               >
-                LAUNCH
+                Launch
                 <span
-                  class="c32 icon icon-chevrondown"
+                  class="c33 icon icon-chevrondown"
                   color="text.slightlyMuted"
                 >
                   <svg
@@ -2603,7 +2693,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c33"
+                class="c34"
                 height="32px"
                 width="32px"
               >
@@ -2660,17 +2750,17 @@ exports[`loaded state 1`] = `
         </tbody>
       </table>
       <nav
-        class="c34"
+        class="c35"
       >
         <div
-          class="c35"
+          class="c36"
           width="100%"
         >
           <div
             class="c21"
           >
             <button
-              class="c36 c37"
+              class="c37 c38"
               title="Previous page"
             >
               <span
@@ -2694,7 +2784,7 @@ exports[`loaded state 1`] = `
               </span>
             </button>
             <button
-              class="c38 c37"
+              class="c39 c38"
               title="Next page"
             >
               <span

@@ -15,7 +15,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import styled, { css } from 'styled-components';
+import styled, { css, useTheme } from 'styled-components';
 
 import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
 import { Text } from 'design';
@@ -172,6 +172,7 @@ const DropdownDivider = styled.div`
 
 export function UserMenuNav({ username }: UserMenuNavProps) {
   const [open, setOpen] = useState(false);
+  const theme = useTheme();
 
   const { preferences, updatePreferences } = useUser();
 
@@ -257,21 +258,29 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
 
         <DropdownDivider />
 
-        <DropdownItem
-          open={open}
-          style={{
-            transitionDelay: `${transitionDelay}ms`,
-          }}
-        >
-          <DropdownItemButton onClick={onThemeChange}>
-            <DropdownItemIcon>
-              {preferences.theme === ThemePreference.Light ? <Sun /> : <Moon />}
-            </DropdownItemIcon>
-            Switch to{' '}
-            {preferences.theme === ThemePreference.Dark ? 'Light' : 'Dark'}{' '}
-            Theme
-          </DropdownItemButton>
-        </DropdownItem>
+        {/* Hide ability to switch themes if the theme is a custom theme */}
+        {!theme.isCustomTheme && (
+          <DropdownItem
+            open={open}
+            style={{
+              transitionDelay: `${transitionDelay}ms`,
+            }}
+          >
+            <DropdownItemButton onClick={onThemeChange}>
+              <DropdownItemIcon>
+                {preferences.theme === ThemePreference.Dark ? (
+                  <Sun />
+                ) : (
+                  <Moon />
+                )}
+              </DropdownItemIcon>
+              Switch to{' '}
+              {preferences.theme === ThemePreference.Dark ? 'Light' : 'Dark'}{' '}
+              Theme
+            </DropdownItemButton>
+          </DropdownItem>
+        )}
+
         <DropdownItem
           open={open}
           style={{

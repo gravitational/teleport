@@ -186,7 +186,7 @@ resource availability as possible.
               |                                  | |
               v                                  | |
      +--------+---------------+                  | |
-     |                        |        SNI/ALPN  | | GRPC
+     |                        |        SNI/ALPN  | | gRPC
   +--+----------------------+ |         routing  | |
   |                         | |                  | |
   |     local proxies       +-+                  | |
@@ -205,7 +205,7 @@ resource availability as possible.
                                           +-------------+--------------+        +-------------------------------+
  +--------+-----------------+                           ^                                       ^
  |         Terminal         |                           |                                       |
- |    Electron Main Process |                           |    GRPC API                           |   GRPC API
+ |    Electron Main Process |                           |    gRPC API                           |   gRPC API
  +-----------+--------------+                           | (domain socket)                       |   (domain socket)
              ^                                          |                                       |
              |                                          |                                       |

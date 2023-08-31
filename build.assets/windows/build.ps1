@@ -114,6 +114,43 @@ function Enable-Go {
     }
 }
 
+function Install-Rust {
+    <#
+    .SYNOPSIS
+        Downloads and installs Rust into the supplied toolchain dir
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $ToolchainDir,
+        [string] $RustVersion
+    )
+    begin {
+        New-Item -Path "$ToolchainDir" -ItemType Directory -Force | Out-Null
+        $RustupFile = "$ToolchainDir/rustup-init.exe"
+        Invoke-WebRequest -Uri https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-gnu/rustup-init.exe -OutFile $RustupFile
+        $Env:RUSTUP_HOME = "$ToolchainDir/rustup"
+        $Env:CARGO_HOME = "$ToolchainDir/cargo"
+        & "$ToolchainDir\rustup-init.exe" --profile minimal -y --default-toolchain "$RustVersion-x86_64-pc-windows-gnu"
+        Enable-Rust -ToolchainDir $ToolchainDir
+    }
+}
+
+function Enable-Rust {
+    <#
+    .SYNOPSIS
+        Adds the Rust toolchain to the system search path
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $ToolchainDir
+    )
+    begin {
+        $Env:RUSTUP_HOME = "$ToolchainDir/rustup"
+        $Env:CARGO_HOME = "$ToolchainDir/cargo"
+        $Env:Path = "$ToolchainDir/cargo/bin;$Env:Path"
+    }
+}
+
 function Install-Node {
     <#
     .SYNOPSIS
