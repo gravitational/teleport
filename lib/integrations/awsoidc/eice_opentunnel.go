@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -293,6 +294,17 @@ func dialEC2InstanceUsingEICE(ctx context.Context, req dialEC2InstanceUsingEICER
 
 	conn, resp, err := websocketDialer.DialContext(ctx, signed, http.Header{})
 	if err != nil {
+		if errors.Is(err, websocket.ErrBadHandshake) {
+			defer resp.Body.Close()
+			// resp is non-nil in this case, so we can read the http response body
+			httpResponseBody, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return nil, trace.BadParameter("websocket bad handshake: %s", string(httpResponseBody))
+		}
+
 		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()

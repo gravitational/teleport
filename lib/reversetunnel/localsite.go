@@ -567,7 +567,7 @@ func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetSer
 		EC2Address: targetServer.GetAddr(),
 	})
 	if err != nil {
-		return nil, trace.BadParameter("failed to open aws ec2 instance endpoint connect tunnel: %v", err)
+		return nil, trace.BadParameter("failed to open AWS EC2 Instance Connect Endpoint tunnel: %v", err)
 	}
 
 	// OpenTunnelResp has the tcp connection that should be used to access the EC2 instance directly.
