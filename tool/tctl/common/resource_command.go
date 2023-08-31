@@ -82,6 +82,9 @@ type ResourceCommand struct {
 
 	verbose bool
 
+	// CreateHandlers are the handlers for the `tctl create` command. Except in special
+	// cases, the handler should return a trace.AlreadyExists error if the resource
+	// already exists and the force flag is not set.
 	CreateHandlers map[ResourceKind]ResourceCreateHandler
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
