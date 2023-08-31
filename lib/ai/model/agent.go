@@ -133,6 +133,28 @@ func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHist
 	}
 }
 
+func (a *Agent) DoAction(ctx context.Context, llm *openai.Client, action *AgentAction) (any, *tokens.TokenCount, error) {
+	state := &executionState{
+		llm:        llm,
+		tokenCount: tokens.NewTokenCount(),
+	}
+	out, err := a.doAction(ctx, state, action)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	switch {
+	case out.finish != nil:
+		// If the tool already breaks execution, we don't have to do anything
+		return out.finish.output, state.tokenCount, nil
+	case out.observation != "":
+		// If the tool doesn't break execution and returns a single observation,
+		// we wrap the observation in a Message.
+		return &output.Message{Content: out.observation}, state.tokenCount, nil
+	default:
+		return nil, state.tokenCount, trace.Errorf("action %s did not end execution nor returned an observation", action.Action)
+	}
+}
+
 // stepOutput represents the inputs and outputs of a single thought step.
 type stepOutput struct {
 	// if the agent is done, finish is set.
@@ -189,6 +211,10 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 	// If action is set, the agent is not done and called upon a tool.
 	progressUpdates(action)
 
+	return a.doAction(ctx, state, action)
+}
+
+func (a *Agent) doAction(ctx context.Context, state *executionState, action *AgentAction) (stepOutput, error) {
 	var tool tools.Tool
 	for _, candidate := range a.tools {
 		if candidate.Name() == action.Action {
