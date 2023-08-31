@@ -558,7 +558,7 @@ func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, c
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("maintenance window %q has been %s\n", cmc.GetName(), UpsertVerb(exists, rc.force))
+	fmt.Printf("maintenance window has been %s\n", UpsertVerb(exists, rc.force))
 	return nil
 }
 
