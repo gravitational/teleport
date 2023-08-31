@@ -410,7 +410,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 		}
 	}()
 
-	// the messages are ultimately copied from e.rawServerConn to e.rawClientConn,
+	// the messages are ultimately copied from serverConn to clientConn,
 	// but a copy of that message stream is written to a synchronous pipe,
 	// which is read by the analysis goroutine above.
 	total, err := io.Copy(clientConn, io.TeeReader(serverConn, copyWriter))
