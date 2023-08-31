@@ -33,6 +33,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       onSelect,
       anchorOrigin,
       transformOrigin,
+      alignButtonWidthToMenu = false,
       required = true,
       width,
     } = props;
@@ -75,12 +76,14 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
     return (
       <React.Fragment>
         <ButtonBorder
+          width={alignButtonWidthToMenu ? width : null}
+          textTransform={props.textTransform}
           height="24px"
           size="small"
           setRef={anchorRef}
           onClick={onOpen}
         >
-          CONNECT
+          Connect
           <ChevronDown ml={1} mr={-2} size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
@@ -120,7 +123,7 @@ const LoginItemList = ({
   const content = getLoginItemListContent(getLoginItemsAttempt, onClick);
 
   return (
-    <Flex flexDirection="column" width={width}>
+    <Flex flexDirection="column" minWidth={width}>
       <Input
         p="2"
         m="2"

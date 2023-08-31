@@ -118,6 +118,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindHeadlessAuthentication},
 		{Kind: types.KindAccessList},
 		{Kind: types.KindUserLoginState},
+		{Kind: types.KindAccessListMember},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -2530,6 +2531,32 @@ func (c *Cache) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserL
 	return rg.reader.GetUserLoginStates(ctx)
 }
 
+// ListAccessListMembers returns a paginated list of all access list members.
+func (c *Cache) ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListMembers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAccessListMembers(ctx, accessList, pageSize, pageToken)
+}
+
+// GetAccessListMember returns the specified access list member resource.
+func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListMember")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetAccessListMember(ctx, accessList, memberName)
+}
+
 // GetUserLoginState returns the specified user login state resource.
 func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userloginstate.UserLoginState, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUserLoginState")
@@ -2582,7 +2609,14 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 				return nil, trace.Wrap(err)
 			}
 
-			return local.FakePaginate(servers.AsResources(), req)
+			return local.FakePaginate(servers.AsResources(), local.FakePaginateParams{
+				ResourceType:        req.ResourceType,
+				Limit:               req.Limit,
+				Labels:              req.Labels,
+				SearchKeywords:      req.SearchKeywords,
+				PredicateExpression: req.PredicateExpression,
+				StartKey:            req.StartKey,
+			})
 		}
 	}
 

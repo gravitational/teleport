@@ -15,27 +15,65 @@
  */
 
 import React, {
-  useContext,
-  FC,
   createContext,
-  useState,
-  useEffect,
+  FC,
   useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
 } from 'react';
 
 import { wait } from 'shared/utils/wait';
 
+import { Attempt, makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
+
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+
+import { Server } from 'teleterm/services/tshd/types';
+
+import { assertUnreachable } from '../utils';
+
+import { canUseConnectMyComputer } from './permissions';
 
 import type {
   AgentProcessState,
   MainProcessClient,
 } from 'teleterm/mainProcess/types';
 
+export type CurrentAction =
+  | {
+      kind: 'download';
+      attempt: Attempt<void>;
+    }
+  | {
+      kind: 'start';
+      attempt: Attempt<Server>;
+      agentProcessState: AgentProcessState;
+    }
+  | {
+      kind: 'observe-process';
+      agentProcessState: AgentProcessState;
+    }
+  | {
+      kind: 'kill';
+      attempt: Attempt<void>;
+    };
+
 export interface ConnectMyComputerContext {
-  state: AgentProcessState;
-  runAgentAndWaitForNodeToJoin(): Promise<void>;
+  canUse: boolean;
+  currentAction: CurrentAction;
+  agentProcessState: AgentProcessState;
+  agentNode: Server | undefined;
+  startAgent(): Promise<[Server, Error]>;
+  downloadAgent(): Promise<[void, Error]>;
+  downloadAgentAttempt: Attempt<void>;
+  setDownloadAgentAttempt(attempt: Attempt<void>): void;
+  downloadAndStartAgent(): Promise<void>;
+  killAgent(): Promise<[void, Error]>;
+  isAgentConfiguredAttempt: Attempt<boolean>;
+  markAgentAsConfigured(): void;
 }
 
 const ConnectMyComputerContext = createContext<ConnectMyComputerContext>(null);
@@ -43,8 +81,46 @@ const ConnectMyComputerContext = createContext<ConnectMyComputerContext>(null);
 export const ConnectMyComputerContextProvider: FC<{
   rootClusterUri: RootClusterUri;
 }> = props => {
-  const { mainProcessClient, connectMyComputerService } = useAppContext();
-  const [agentState, setAgentState] = useState<AgentProcessState>(
+  const {
+    mainProcessClient,
+    connectMyComputerService,
+    clustersService,
+    configService,
+    workspacesService,
+  } = useAppContext();
+  clustersService.useState();
+
+  const [
+    isAgentConfiguredAttempt,
+    checkIfAgentIsConfigured,
+    setAgentConfiguredAttempt,
+  ] = useAsync(
+    useCallback(
+      () =>
+        connectMyComputerService.isAgentConfigFileCreated(props.rootClusterUri),
+      [connectMyComputerService, props.rootClusterUri]
+    )
+  );
+
+  const rootCluster = clustersService.findCluster(props.rootClusterUri);
+  const canUse = useMemo(
+    () =>
+      canUseConnectMyComputer(
+        rootCluster,
+        configService,
+        mainProcessClient.getRuntimeSettings()
+      ),
+    [configService, mainProcessClient, rootCluster]
+  );
+
+  const markAgentAsConfigured = useCallback(() => {
+    setAgentConfiguredAttempt(makeSuccessAttempt(true));
+  }, [setAgentConfiguredAttempt]);
+
+  const [currentActionKind, setCurrentActionKind] =
+    useState<CurrentAction['kind']>('observe-process');
+
+  const [agentProcessState, setAgentProcessState] = useState<AgentProcessState>(
     () =>
       mainProcessClient.getAgentState({
         rootClusterUri: props.rootClusterUri,
@@ -53,31 +129,164 @@ export const ConnectMyComputerContextProvider: FC<{
       }
   );
 
-  const runAgentAndWaitForNodeToJoin = useCallback(async () => {
-    await connectMyComputerService.runAgent(props.rootClusterUri);
+  const [downloadAgentAttempt, downloadAgent, setDownloadAgentAttempt] =
+    useAsync(
+      useCallback(async () => {
+        setCurrentActionKind('download');
+        await connectMyComputerService.downloadAgent();
+      }, [connectMyComputerService])
+    );
 
-    // TODO(gzdunek): Replace with waiting for the node to join.
-    const waitForNodeToJoin = wait(1_000);
+  const [startAgentAttempt, startAgent] = useAsync(
+    useCallback(async () => {
+      setCurrentActionKind('start');
+      await connectMyComputerService.runAgent(props.rootClusterUri);
 
-    await Promise.race([
-      waitForNodeToJoin,
-      waitForAgentProcessErrors(mainProcessClient, props.rootClusterUri),
-    ]);
-  }, [connectMyComputerService, mainProcessClient, props.rootClusterUri]);
+      const abortController = new AbortController();
+      try {
+        const server = await Promise.race([
+          connectMyComputerService.waitForNodeToJoin(
+            props.rootClusterUri,
+            abortController.signal
+          ),
+          throwOnAgentProcessErrors(
+            mainProcessClient,
+            props.rootClusterUri,
+            abortController.signal
+          ),
+          wait(20_000, abortController.signal).then(() => {
+            throw new Error(
+              'The agent did not manage to join the cluster within 20 seconds.'
+            );
+          }),
+        ]);
+        setCurrentActionKind('observe-process');
+        workspacesService.setConnectMyComputerAutoStart(
+          props.rootClusterUri,
+          true
+        );
+        return server;
+      } catch (error) {
+        // in case of any error kill the agent
+        await connectMyComputerService.killAgent(props.rootClusterUri);
+        throw error;
+      } finally {
+        abortController.abort();
+      }
+    }, [
+      connectMyComputerService,
+      mainProcessClient,
+      props.rootClusterUri,
+      workspacesService,
+    ])
+  );
+
+  const downloadAndStartAgent = useCallback(async () => {
+    const [, error] = await downloadAgent();
+    if (error) {
+      return;
+    }
+    await startAgent();
+  }, [downloadAgent, startAgent]);
+
+  const [killAgentAttempt, killAgent] = useAsync(
+    useCallback(async () => {
+      setCurrentActionKind('kill');
+      await connectMyComputerService.killAgent(props.rootClusterUri);
+      setCurrentActionKind('observe-process');
+      workspacesService.setConnectMyComputerAutoStart(
+        props.rootClusterUri,
+        false
+      );
+    }, [connectMyComputerService, props.rootClusterUri, workspacesService])
+  );
 
   useEffect(() => {
     const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
       props.rootClusterUri,
-      state => setAgentState(state)
+      setAgentProcessState
     );
     return cleanup;
   }, [mainProcessClient, props.rootClusterUri]);
 
+  let currentAction: CurrentAction;
+  const kind = currentActionKind;
+
+  switch (kind) {
+    case 'download': {
+      currentAction = { kind, attempt: downloadAgentAttempt };
+      break;
+    }
+    case 'start': {
+      currentAction = { kind, attempt: startAgentAttempt, agentProcessState };
+      break;
+    }
+    case 'observe-process': {
+      currentAction = { kind, agentProcessState };
+      break;
+    }
+    case 'kill': {
+      currentAction = { kind, attempt: killAgentAttempt };
+      break;
+    }
+    default: {
+      assertUnreachable(kind);
+    }
+  }
+
+  useEffect(() => {
+    // This call checks if the agent is configured even if the user does not have access to Connect My Computer.
+    // Unfortunately, we cannot call it only if `canUse === true`, because to resolve `canUse` value
+    // we need to fetch some data from the auth server which takes time.
+    // This doesn't work for us, because the information if the agent is configured is needed immediately -
+    // based on this we replace the setup document with the status document.
+    // If we had waited for `canUse` to become true, the user might have seen a setup document
+    // which would have been replaced by the other document after 1-2 seconds.
+    if (isAgentConfiguredAttempt.status === '') {
+      checkIfAgentIsConfigured();
+    }
+  }, [checkIfAgentIsConfigured, isAgentConfiguredAttempt.status]);
+
+  const isAgentConfigured =
+    isAgentConfiguredAttempt.status === 'success' &&
+    isAgentConfiguredAttempt.data;
+  const agentIsNotStarted =
+    currentAction.kind === 'observe-process' &&
+    currentAction.agentProcessState.status === 'not-started';
+
+  useEffect(() => {
+    const shouldAutoStartAgent =
+      isAgentConfigured &&
+      canUse &&
+      workspacesService.getConnectMyComputerAutoStart(props.rootClusterUri) &&
+      agentIsNotStarted;
+    if (shouldAutoStartAgent) {
+      downloadAndStartAgent();
+    }
+  }, [
+    canUse,
+    downloadAndStartAgent,
+    agentIsNotStarted,
+    isAgentConfigured,
+    props.rootClusterUri,
+    workspacesService,
+  ]);
+
   return (
     <ConnectMyComputerContext.Provider
       value={{
-        state: agentState,
-        runAgentAndWaitForNodeToJoin,
+        canUse,
+        currentAction,
+        agentProcessState,
+        agentNode: startAgentAttempt.data,
+        killAgent,
+        startAgent,
+        downloadAgent,
+        downloadAgentAttempt,
+        setDownloadAgentAttempt,
+        downloadAndStartAgent,
+        markAgentAsConfigured,
+        isAgentConfiguredAttempt,
       }}
       children={props.children}
     />
@@ -97,69 +306,49 @@ export const useConnectMyComputerContext = () => {
 };
 
 /**
- * Waits for `error` and `exit` events from the agent process.
- * If none of them happen within 20 seconds, the promise resolves.
+ * Waits for `error` and `exit` events from the agent process and throws when they occur.
  */
-async function waitForAgentProcessErrors(
+function throwOnAgentProcessErrors(
   mainProcessClient: MainProcessClient,
-  rootClusterUri: RootClusterUri
-) {
-  let cleanupFn: () => void;
-
-  try {
-    const errorPromise = new Promise((_, reject) => {
-      const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
-        rootClusterUri,
-        agentProcessState => {
-          const error = isProcessInErrorOrExitState(agentProcessState);
-          if (error) {
-            reject(error);
-          }
-        }
-      );
-
-      // the state may have changed before we started listening, we have to check the current state
-      const agentProcessState = mainProcessClient.getAgentState({
-        rootClusterUri,
-      });
-      const error = isProcessInErrorOrExitState(agentProcessState);
-      if (error) {
-        reject(error);
+  rootClusterUri: RootClusterUri,
+  abortSignal: AbortSignal
+): Promise<never> {
+  return new Promise((_, reject) => {
+    const rejectOnError = (agentProcessState: AgentProcessState) => {
+      if (
+        agentProcessState.status === 'exited' ||
+        // TODO(ravicious): 'error' should not be considered a separate process state. See the
+        // comment above the 'error' status definition.
+        agentProcessState.status === 'error'
+      ) {
+        reject(new AgentProcessError());
+        cleanup();
       }
+    };
 
-      cleanupFn = cleanup;
-    });
-    await Promise.race([errorPromise, wait(20_000)]);
-  } finally {
-    cleanupFn();
-  }
+    const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
+      rootClusterUri,
+      rejectOnError
+    );
+    abortSignal.onabort = () => {
+      cleanup();
+      reject(
+        new DOMException('throwOnAgentProcessErrors was aborted', 'AbortError')
+      );
+    };
+
+    // the state may have changed before we started listening, we have to check the current state
+    rejectOnError(
+      mainProcessClient.getAgentState({
+        rootClusterUri,
+      })
+    );
+  });
 }
 
-function isProcessInErrorOrExitState(
-  agentProcessState: AgentProcessState
-): Error | undefined {
-  if (agentProcessState.status === 'exited') {
-    const { code, signal } = agentProcessState;
-    const codeOrSignal = [
-      // code can be 0, so we cannot just check it the same way as the signal.
-      code != null && `code ${code}`,
-      signal && `signal ${signal}`,
-    ]
-      .filter(Boolean)
-      .join(' ');
-
-    return new Error(
-      [
-        `Agent process exited with ${codeOrSignal}.`,
-        agentProcessState.stackTrace,
-      ]
-        .filter(Boolean)
-        .join('\n')
-    );
-  }
-  if (agentProcessState.status === 'error') {
-    return new Error(
-      ['Agent process failed to start.', agentProcessState.message].join('\n')
-    );
+export class AgentProcessError extends Error {
+  constructor() {
+    super('AgentProcessError');
+    this.name = 'AgentProcessError';
   }
 }

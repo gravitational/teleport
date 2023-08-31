@@ -73,6 +73,7 @@ output:
 
 run:
   go: '1.21'
+  build-tags: []
   skip-dirs:
     - (^|/)node_modules/
     - ^api/gen/
@@ -81,4 +82,4 @@ run:
     - ^rfd/
     - ^web/
   skip-dirs-use-default: false
-  timeout: 5m
+  timeout: 15m

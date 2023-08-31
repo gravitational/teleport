@@ -36,7 +36,7 @@ message AccessList {
 
 // AccessListSpec is the specification for an access list.
 message AccessListSpec {
-  // description is a plaintext description of the access list.
+  // description is an optional plaintext description of the access list.
   string description = 1;
 
   // owners is a list of owners of the access list.
@@ -59,7 +59,11 @@ message AccessListSpec {
   AccessListGrants grants = 6;
 
   // members describes the current members of the access list.
+  // TODO(mdwn): Remove this once members are independent objects.
   repeated AccessListMember members = 7;
+
+  // title is a plaintext short description of the access list.
+  string title = 8;
 }
 
 // AccessListOwner is an owner of an access list.
@@ -75,6 +79,9 @@ message AccessListOwner {
 message AccessListAudit {
   // frequency is a duration that describes how often an access list must be audited.
   google.protobuf.Duration frequency = 1;
+
+  // next_audit_date is when the next audit date should be done by.
+  google.protobuf.Timestamp next_audit_date = 2;
 }
 
 // AccessListRequires describes a requirement section for an access list. A user must
@@ -97,6 +104,7 @@ message AccessListGrants {
 }
 
 // AccessListMember describes a member of an access list.
+// TODO(mdwn): Remove this once members are independent objects.
 message AccessListMember {
   // name is the name of the member of the access list.
   string name = 1;
@@ -112,4 +120,34 @@ message AccessListMember {
 
   // added_by is the user that added this user to the access list.
   string added_by = 5;
+}
+
+// Member describes a member of an access list.
+message Member {
+  // header is the header for the resource.
+  teleport.header.v1.ResourceHeader header = 1;
+
+  // spec is the specification for the access list member.
+  MemberSpec spec = 2;
+}
+
+// MemberSpec is the specification for an access list member.
+message MemberSpec {
+  // associated access list
+  string access_list = 1;
+
+  // name is the name of the member of the access list.
+  string name = 2;
+
+  // joined is when the user joined the access list.
+  google.protobuf.Timestamp joined = 3;
+
+  // expires is when the user's membership to the access list expires.
+  google.protobuf.Timestamp expires = 4;
+
+  // reason is the reason this user was added to the access list.
+  string reason = 5;
+
+  // added_by is the user that added this user to the access list.
+  string added_by = 6;
 }

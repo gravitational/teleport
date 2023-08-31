@@ -417,6 +417,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "Opsgenie",
+              "slug": "/access-controls/access-request-plugins/opsgenie/",
+              "forScopes": ["cloud"]
+            },
+            {
               "title": "Jira",
               "slug": "/access-controls/access-request-plugins/ssh-approval-jira/",
               "forScopes": ["enterprise", "cloud"]
@@ -1554,7 +1559,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.3.2",
+      "version": "13.3.4",
       "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1599,6 +1604,8 @@
     "teleport": {
       "major_version": "14",
       "version": "14.0.0-dev",
+      "git": "api/14.0.0-gd1e081e",
+      "url": "teleport.example.com",
       "golang": "1.21",
       "plugin": {
         "version": "12.1.1"

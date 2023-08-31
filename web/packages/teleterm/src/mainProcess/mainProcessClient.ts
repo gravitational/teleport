@@ -86,6 +86,20 @@ export default function createMainProcessClient(): MainProcessClient {
         clusterProperties
       );
     },
+    isAgentConfigFileCreated(clusterProperties: {
+      rootClusterUri: RootClusterUri;
+    }) {
+      return ipcRenderer.invoke(
+        'main-process-connect-my-computer-is-agent-config-file-created',
+        clusterProperties
+      );
+    },
+    killAgent(clusterProperties: { rootClusterUri: RootClusterUri }) {
+      return ipcRenderer.invoke(
+        'main-process-connect-my-computer-kill-agent',
+        clusterProperties
+      );
+    },
     runAgent(clusterProperties: { rootClusterUri: RootClusterUri }) {
       return ipcRenderer.invoke(
         'main-process-connect-my-computer-run-agent',

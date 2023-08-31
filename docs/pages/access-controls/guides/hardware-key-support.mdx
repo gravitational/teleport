@@ -41,12 +41,12 @@ like `tctl edit`. With touch required, hardware key support provides better secu
     - Standard Teleport API requests such as `tsh ls`, `tctl create`, and so on.
     - Server access.
     - Database access with `tsh proxy db` instead of `tsh db connect`.
+    - Kubernetes access with `tsh proxy kube` instead of `tsh kube login`.
   
   Not yet supported:
 
     - Teleport Web UI (except for user registration and reset password).
     - Agent forwarding functionality such as `tsh ssh -A`, Proxy Recording mode, and OpenSSH integration.
-    - Kubernetes access.
     - Desktop access.
     - Application access.
 
@@ -127,7 +127,8 @@ role or to that cluster must use their hardware key for all Teleport requests.
 Affected users will be prompted to connect and touch their YubiKey to sign in. 
 The first time users sign in with their hardware key they might be required to immediately sign in again.
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 ```code
 $ tsh login --user=dev --proxy=proxy.example.com:3080
@@ -143,26 +144,9 @@ $ tsh login --user=dev --proxy=proxy.example.com:3080
 
 ```
 
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope={["enterprise"]}>
-
-```code
-$ tsh login --user=dev --proxy=proxy.example.com:3080
-# Enter password for Teleport user dev:
-# Unmet private key policy "hardware_key_touch".
-# Relogging in with hardware-backed private key.
-# Enter password for Teleport user dev:
-# Tap your YubiKey
-# > Profile URL:        https://example.com
-#   Logged in as:       dev
-#   Cluster:            example.com
-#   ...
-```
-
-</ScopedBlock>
-
-<ScopedBlock scope={["cloud"]}>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
 ```code
 $ tsh login --user=dev --proxy=proxy.example.com:3080
@@ -177,7 +161,26 @@ $ tsh login --user=dev --proxy=proxy.example.com:3080
 #   ...
 ```
 
-</ScopedBlock>
+</TabItem>
+
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+```code
+$ tsh login --user=dev --proxy=proxy.example.com:3080
+# Enter password for Teleport user dev:
+# Unmet private key policy "hardware_key_touch".
+# Relogging in with hardware-backed private key.
+# Enter password for Teleport user dev:
+# Tap your YubiKey
+# > Profile URL:        https://example.com
+#   Logged in as:       dev
+#   Cluster:            example.com
+#   ...
+```
+
+</TabItem>
+
+</Tabs>
 
 Affected users with existing sessions that aren't backed by a hardware key are prompted to sign in again
 on their next request. For example:
@@ -238,7 +241,7 @@ Yubikey for Hardware Key support, you might get an error on rare occasions.
 Depending on your settings, you might be asked to tap your Yubikey many times.
 Each tap is necessary to safely authenticate you.
 
-For example, if you have `second_factor: webauthn` set in your `cluster_auth_preference, 
+For example, if you have `second_factor: webauthn` set in your `cluster_auth_preference`, 
 and `require_session_mfa: hardware_key_touch` set on your role,
 you'll see the following output when you first sign in:
 

@@ -14,9 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+import { wait } from 'shared/utils/wait';
 import * as Alerts from 'design/Alert';
 import { CircleCheck, CircleCross, CirclePlay, Spinner } from 'design/Icon';
 
@@ -25,8 +32,16 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
+import {
+  AgentProcessError,
+  useConnectMyComputerContext,
+} from 'teleterm/ui/ConnectMyComputer';
 import Logger from 'teleterm/logger';
+import { codeOrSignal } from 'teleterm/ui/utils/process';
+import { RootClusterUri } from 'teleterm/ui/uri';
+
+import { useAgentProperties } from '../useAgentProperties';
+import { Logs } from '../Logs';
 
 interface DocumentConnectMyComputerSetupProps {
   visible: boolean;
@@ -41,6 +56,34 @@ export function DocumentConnectMyComputerSetup(
   const [step, setStep] = useState<'information' | 'agent-setup'>(
     'information'
   );
+  const { isAgentConfiguredAttempt } = useConnectMyComputerContext();
+  const { rootClusterUri, documentsService } = useWorkspaceContext();
+  const shouldRedirectToStatusDocument =
+    isAgentConfiguredAttempt.status === 'success' &&
+    isAgentConfiguredAttempt.data;
+  const isRedirectingRef = useRef(false);
+
+  // useLayoutEffect instead of useEffect to prevent flashing the Setup document just before
+  // opening the Status document.
+  // TODO(ravicious): This is a hack and should be replaced with some other mechanism.
+  useLayoutEffect(() => {
+    // This redirect will happen when reopening the app with a status document,
+    // but also when the setup finishes.
+    if (shouldRedirectToStatusDocument && !isRedirectingRef.current) {
+      isRedirectingRef.current = true;
+
+      const statusDocument =
+        documentsService.createConnectMyComputerStatusDocument({
+          rootClusterUri,
+        });
+      documentsService.replace(props.doc.uri, statusDocument);
+    }
+  }, [
+    documentsService,
+    props.doc.uri,
+    rootClusterUri,
+    shouldRedirectToStatusDocument,
+  ]);
 
   return (
     <Document visible={props.visible}>
@@ -51,30 +94,28 @@ export function DocumentConnectMyComputerSetup(
         {step === 'information' && (
           <Information onSetUpAgentClick={() => setStep('agent-setup')} />
         )}
-        {step === 'agent-setup' && <AgentSetup />}
+        {step === 'agent-setup' && (
+          <AgentSetup rootClusterUri={rootClusterUri} />
+        )}
       </Box>
     </Document>
   );
 }
 
 function Information(props: { onSetUpAgentClick(): void }) {
-  const { rootClusterUri } = useWorkspaceContext();
-  const { clustersService, mainProcessClient } = useAppContext();
-  const cluster = clustersService.findCluster(rootClusterUri);
-  const { username: systemUsername, hostname } =
-    mainProcessClient.getRuntimeSettings();
+  const { systemUsername, hostname, roleName, clusterName } =
+    useAgentProperties();
 
   return (
     <>
       <Text>
         The setup process will download and launch the Teleport agent, making
-        your computer available in the <strong>{cluster.name}</strong> cluster
-        as <strong>{hostname}</strong>.
+        your computer available in the <strong>{clusterName}</strong> cluster as{' '}
+        <strong>{hostname}</strong>.
         <br />
         <br />
-        Cluster users with the role{' '}
-        <strong>connect-my-computer-{cluster.loggedInUser.name}</strong> will be
-        able to access your computer as <strong>{systemUsername}</strong>.
+        Cluster users with the role <strong>{roleName}</strong> will be able to
+        access your computer as <strong>{systemUsername}</strong>.
         <br />
         <br />
         Your computer will be shared while Teleport Connect is open. To stop
@@ -96,10 +137,16 @@ function Information(props: { onSetUpAgentClick(): void }) {
   );
 }
 
-function AgentSetup() {
+function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
   const ctx = useAppContext();
-  const { rootClusterUri } = useWorkspaceContext();
-  const { runAgentAndWaitForNodeToJoin } = useConnectMyComputerContext();
+  const {
+    startAgent,
+    markAgentAsConfigured,
+    downloadAgent: runDownloadAgentAttempt,
+    downloadAgentAttempt,
+    setDownloadAgentAttempt,
+    agentProcessState,
+  } = useConnectMyComputerContext();
   const cluster = ctx.clustersService.findCluster(rootClusterUri);
   const nodeToken = useRef<string>();
 
@@ -132,16 +179,6 @@ function AgentSetup() {
       }, [ctx, rootClusterUri])
     );
   const [
-    downloadAgentAttempt,
-    runDownloadAgentAttempt,
-    setDownloadAgentAttempt,
-  ] = useAsync(
-    useCallback(
-      () => ctx.connectMyComputerService.downloadAgent(),
-      [ctx.connectMyComputerService]
-    )
-  );
-  const [
     generateConfigFileAttempt,
     runGenerateConfigFileAttempt,
     setGenerateConfigFileAttempt,
@@ -159,7 +196,10 @@ function AgentSetup() {
         if (!nodeToken.current) {
           throw new Error('Node token is empty');
         }
-        await runAgentAndWaitForNodeToJoin();
+        const [, error] = await startAgent();
+        if (error) {
+          throw error;
+        }
         try {
           await ctx.connectMyComputerService.deleteToken(
             cluster.uri,
@@ -169,14 +209,11 @@ function AgentSetup() {
           // the user may not have permissions to remove the token, but it will expire in a few minutes anyway
           if (isAccessDeniedError(error)) {
             logger.error('Access denied when deleting a token.', error);
+            return;
           }
           throw error;
         }
-      }, [
-        runAgentAndWaitForNodeToJoin,
-        ctx.connectMyComputerService,
-        cluster.uri,
-      ])
+      }, [startAgent, ctx.connectMyComputerService, cluster.uri])
     );
 
   const steps = [
@@ -195,10 +232,43 @@ function AgentSetup() {
     {
       name: 'Joining the cluster',
       attempt: joinClusterAttempt,
+      customError: () => {
+        if (joinClusterAttempt.status !== 'error') {
+          return;
+        }
+
+        if (joinClusterAttempt.statusText !== AgentProcessError.name) {
+          return <StandardError error={joinClusterAttempt.statusText} />;
+        }
+
+        if (agentProcessState.status === 'error') {
+          return <StandardError error={agentProcessState.message} />;
+        }
+
+        if (agentProcessState.status === 'exited') {
+          const { code, signal } = agentProcessState;
+
+          return (
+            <>
+              <StandardError
+                error={`Agent process exited with ${codeOrSignal(
+                  code,
+                  signal
+                )}.`}
+                mb={1}
+              />
+              <Logs logs={agentProcessState.logs} />
+            </>
+          );
+        }
+      },
     },
   ];
 
   const runSteps = useCallback(async () => {
+    // all steps have to be cleared when starting the setup process;
+    // otherwise we could see old errors on retry
+    // (the error would be cleared when the given step starts, but it would be too late)
     setCreateRoleAttempt(makeEmptyAttempt());
     setDownloadAgentAttempt(makeEmptyAttempt());
     setGenerateConfigFileAttempt(makeEmptyAttempt());
@@ -213,9 +283,13 @@ function AgentSetup() {
     for (const action of actions) {
       const [, error] = await action();
       if (error) {
-        break;
+        return;
       }
     }
+    // Wait before navigating away from the document, so the user has time
+    // to notice that all four steps have completed.
+    await wait(750);
+    markAgentAsConfigured();
   }, [
     setCreateRoleAttempt,
     setDownloadAgentAttempt,
@@ -225,6 +299,7 @@ function AgentSetup() {
     runDownloadAgentAttempt,
     runGenerateConfigFileAttempt,
     runJoinClusterAttempt,
+    markAgentAsConfigured,
   ]);
 
   useEffect(() => {
@@ -257,7 +332,13 @@ function AgentSetup() {
         `}
       >
         {steps.map(step => (
-          <Flex key={step.name} alignItems="baseline" gap={2}>
+          <Flex
+            key={step.name}
+            alignItems="baseline"
+            gap={2}
+            data-testid={step.name}
+            data-teststatus={step.attempt.status}
+          >
             {step.attempt.status === '' && <CirclePlay />}
             {step.attempt.status === 'processing' && (
               <Spinner
@@ -283,14 +364,11 @@ function AgentSetup() {
             <li>
               {step.name}
               {step.attempt.status === 'error' && (
-                <Alerts.Danger
-                  mb={0}
-                  css={`
-                    white-space: pre-wrap;
-                  `}
-                >
-                  {step.attempt.statusText}
-                </Alerts.Danger>
+                <>
+                  {step.customError?.() || (
+                    <StandardError error={step.attempt.statusText} />
+                  )}
+                </>
               )}
             </li>
           </Flex>
@@ -301,6 +379,22 @@ function AgentSetup() {
         <ButtonPrimary onClick={runSteps}>Retry</ButtonPrimary>
       )}
     </>
+  );
+}
+
+function StandardError(props: {
+  error: string;
+  mb?: number | string;
+}): JSX.Element {
+  return (
+    <Alerts.Danger
+      mb={props.mb || 0}
+      css={`
+        white-space: pre-wrap;
+      `}
+    >
+      {props.error}
+    </Alerts.Danger>
   );
 }
 

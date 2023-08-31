@@ -23,8 +23,8 @@ RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_
 
 # protoc
 # eg, "3.20.2"
-ARG PROTOC_VER
-RUN VERSION="$PROTOC_VER" && \
+ARG PROTOC_VERSION
+RUN VERSION="$PROTOC_VERSION" && \
   PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
   PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
   ARCH="$(if [ "$(uname -m)" = aarch64 ]; then echo aarch_64; else uname -m; fi)" && \
@@ -33,12 +33,7 @@ RUN VERSION="$PROTOC_VER" && \
   rm -f "$PB_FILE"
 
 # buf
-# eg, "1.19.0"
-ARG BUF_VERSION
-RUN BIN='/usr/local/bin' && \
-  VERSION="$BUF_VERSION" && \
-  curl -fsSL "https://github.com/bufbuild/buf/releases/download/v$VERSION/buf-$(uname -s)-$(uname -m)" -o "${BIN}/buf" && \
-  chmod +x "$BIN/buf"
+RUN go install github.com/bufbuild/buf/cmd/buf@latest
 
 # Pre-install go-runned binaries.
 # This is meant to be the only step that changes depending on the Teleport

@@ -143,7 +143,8 @@ export default class AppContext implements IAppContext {
     this.headlessAuthenticationService = new HeadlessAuthenticationService(
       mainProcessClient,
       this.modalsService,
-      tshClient
+      tshClient,
+      this.configService
     );
   }
 

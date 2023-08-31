@@ -43,7 +43,10 @@ type AccessList struct {
 
 // Spec is the specification for an access list.
 type Spec struct {
-	// Description is a plaintext description of the access list.
+	// Title is a plaintext short description of the access list.
+	Title string `json:"title" yaml:"title"`
+
+	// Description is an optional plaintext description of the access list.
 	Description string `json:"description" yaml:"description"`
 
 	// Owners is a list of owners of the access list.
@@ -66,6 +69,7 @@ type Spec struct {
 	Grants Grants `json:"grants" yaml:"grants"`
 
 	// Members describes the current members of the access list.
+	// TODO(mdwn): Remove this.
 	Members []Member `json:"members" yaml:"members"`
 }
 
@@ -82,6 +86,9 @@ type Owner struct {
 type Audit struct {
 	// Frequency is a duration that describes how often an access list must be audited.
 	Frequency time.Duration `json:"frequency" yaml:"frequency"`
+
+	// NextAuditDate is the date that the next audit should be performed.
+	NextAuditDate time.Time `json:"next_audit_date" yaml:"next_audit_date"`
 }
 
 // Requires describes a requirement section for an access list. A user must
@@ -144,6 +151,10 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	if a.Spec.Title == "" {
+		return trace.BadParameter("access list title required")
+	}
+
 	if len(a.Spec.Owners) == 0 {
 		return trace.BadParameter("owners are missing")
 	}
@@ -152,15 +163,13 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		if owner.Name == "" {
 			return trace.BadParameter("owner name is missing")
 		}
-
-		if owner.Description == "" {
-			return trace.BadParameter("owner %s description is missing", owner.Name)
-		}
 	}
 
 	if a.Spec.Audit.Frequency == 0 {
 		return trace.BadParameter("audit frequency must be greater than 0")
 	}
+
+	// TODO(mdwn): Next audit date must not be zero.
 
 	if len(a.Spec.Grants.Roles) == 0 && len(a.Spec.Grants.Traits) == 0 {
 		return trace.BadParameter("grants must specify at least one role or trait")
@@ -173,14 +182,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 
 		if member.Joined.IsZero() {
 			return trace.BadParameter("member %s joined is missing", member.Name)
-		}
-
-		if member.Expires.IsZero() {
-			return trace.BadParameter("member %s expires is missing", member.Name)
-		}
-
-		if member.Reason == "" {
-			return trace.BadParameter("member %s reason is missing", member.Name)
 		}
 
 		if member.AddedBy == "" {
@@ -245,12 +246,17 @@ func (a *Audit) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	a.NextAuditDate, err = time.Parse(time.RFC3339Nano, fmt.Sprintf("%v", audit["next_audit_date"]))
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
 func (a *Audit) MarshalJSON() ([]byte, error) {
 	audit := map[string]interface{}{}
 	audit["frequency"] = a.Frequency.String()
+	audit["next_audit_date"] = a.NextAuditDate.Format(time.RFC3339Nano)
 	data, err := json.Marshal(audit)
 	return data, trace.Wrap(err)
 }

@@ -394,25 +394,9 @@ func TestShutdownWithActiveConnections(t *testing.T) {
 	}
 
 	cancelConn()
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		select {
-		case err := <-connErrCh:
-			assert.NoError(c, err, "unexpected connection error")
-		default:
-		}
-	}, time.Second, 100*time.Millisecond)
-
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		select {
-		case err := <-shutdownErrCh:
-			assert.NoError(c, err, "unexpected server shutdown error")
-		default:
-		}
-	}, time.Second, 100*time.Millisecond)
-
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.NoError(c, server.Wait(), "unexpected server Wait error")
-	}, time.Second, 100*time.Millisecond)
+	require.NoError(t, <-connErrCh, "unexpected connection close error")
+	require.NoError(t, <-shutdownErrCh, "unexpected server shutdown error")
+	require.NoError(t, server.Wait(), "unexpected server Wait error")
 }
 
 // TestShutdownWithActiveConnections given that a running database server with
@@ -425,17 +409,14 @@ func TestCloseWithActiveConnections(t *testing.T) {
 	server, connErrCh, _ := databaseServerWithActiveConnection(t, ctx)
 
 	require.NoError(t, server.Close())
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		select {
 		case err := <-connErrCh:
-			assert.ErrorIs(c, err, io.ErrUnexpectedEOF)
+			assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
 		default:
 		}
 	}, time.Second, 100*time.Millisecond)
-
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.NoError(t, server.Wait(), "unexpected error from server Wait")
-	}, time.Second, 100*time.Millisecond)
+	require.NoError(t, server.Wait(), "unexpected server Wait error")
 }
 
 // serverWithActiveConnection starts a server with one active connection that
@@ -451,7 +432,7 @@ func databaseServerWithActiveConnection(t *testing.T, ctx context.Context) (*Ser
 	require.True(t, ok)
 
 	connCtx, cancelConn := context.WithCancel(ctx)
-	t.Cleanup(func() { cancelConn() })
+	t.Cleanup(cancelConn)
 	connErrCh := make(chan error)
 
 	go func() {
@@ -481,12 +462,22 @@ func databaseServerWithActiveConnection(t *testing.T, ctx context.Context) (*Ser
 	}()
 
 	require.Eventually(t, func() bool {
+		select {
+		case err := <-connErrCh:
+			assert.Failf(t, "unexpected connection close", "conn error: %v", err)
+		default:
+		}
 		return testCtx.server.activeConnections.Load() == int32(1)
 	}, time.Second, 100*time.Millisecond, "expected one active connection, but got none")
 
 	// Ensures the first query has been received.
 	require.Eventually(t, func() bool {
-		return dbTestServer.db.QueryCount() > uint32(1)
+		select {
+		case err := <-connErrCh:
+			assert.Failf(t, "unexpected connection close", "conn error: %v", err)
+		default:
+		}
+		return dbTestServer.db.QueryCount() >= uint32(1)
 	}, time.Second, 100*time.Millisecond, "database test server hasn't received queries")
 
 	return testCtx.server, connErrCh, cancelConn

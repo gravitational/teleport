@@ -16,7 +16,7 @@ limitations under the License.
 
 import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
-import { AgentResponse } from 'teleport/services/agents';
+import { ResourcesResponse } from 'teleport/services/agents';
 
 import { makeDesktop, makeDesktopService } from './makeDesktop';
 
@@ -27,7 +27,7 @@ class DesktopService {
     clusterId: string,
     params: UrlResourcesParams,
     signal?: AbortSignal
-  ): Promise<AgentResponse<Desktop>> {
+  ): Promise<ResourcesResponse<Desktop>> {
     return api.get(cfg.getDesktopsUrl(clusterId, params), signal).then(json => {
       const items = json?.items || [];
 
@@ -43,7 +43,7 @@ class DesktopService {
     clusterId: string,
     params: UrlResourcesParams,
     signal?: AbortSignal
-  ): Promise<AgentResponse<WindowsDesktopService>> {
+  ): Promise<ResourcesResponse<WindowsDesktopService>> {
     return api
       .get(cfg.getDesktopServicesUrl(clusterId, params), signal)
       .then(json => {

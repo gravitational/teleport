@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -42,11 +44,15 @@ import (
 // MockEmbedder returns embeddings based on the sha256 hash function. Those
 // embeddings have no semantic meaning but ensure different embedded content
 // provides different embeddings.
-type MockEmbedder struct{}
+type MockEmbedder struct {
+	timesCalled map[string]int
+}
 
-func (m MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]embedding.Vector64, error) {
+func (m *MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]embedding.Vector64, error) {
 	result := make([]embedding.Vector64, len(input))
 	for i, text := range input {
+		name := strings.Split(text, "\n")[0]
+		m.timesCalled[name]++
 		hash := sha256.Sum256([]byte(text))
 		vector := make(embedding.Vector64, len(hash))
 		for j, x := range hash {
@@ -55,6 +61,30 @@ func (m MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]em
 		result[i] = vector
 	}
 	return result, nil
+}
+
+type mockResourceGetter struct {
+	services.Presence
+}
+
+func (m *mockResourceGetter) GetDatabaseServers(_ context.Context, _ string, _ ...services.MarshalOption) ([]types.DatabaseServer, error) {
+	return nil, nil
+}
+
+func (m *mockResourceGetter) GetKubernetesServers(_ context.Context) ([]types.KubeServer, error) {
+	return nil, nil
+}
+
+func (m *mockResourceGetter) GetApplicationServers(_ context.Context, _ string) ([]types.AppServer, error) {
+	return nil, nil
+}
+
+func (m *mockResourceGetter) GetWindowsDesktops(_ context.Context, _ types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+	return nil, nil
+}
+
+func (m *mockResourceGetter) ListSAMLIdPServiceProviders(_ context.Context, _ int, _ string) ([]types.SAMLIdPServiceProvider, string, error) {
+	return nil, "", nil
 }
 
 func TestNodeEmbeddingGeneration(t *testing.T) {
@@ -73,56 +103,96 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	embedder := MockEmbedder{}
-	presence := local.NewPresenceService(bk)
+	embedder := MockEmbedder{
+		timesCalled: make(map[string]int),
+	}
+	events := local.NewEventsService(bk)
+	resources := &mockResourceGetter{
+		Presence: local.NewPresenceService(bk),
+	}
+	cache, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		ResourceGetter: resources,
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "resource-watcher",
+			Client:    events,
+		},
+	})
+	require.NoError(t, err)
+
 	embeddings := local.NewEmbeddingsService(bk)
 
 	processor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
 		AIClient:            &embedder,
 		EmbeddingSrv:        embeddings,
 		EmbeddingsRetriever: ai.NewSimpleRetriever(),
-		NodeSrv:             presence,
+		NodeSrv:             cache,
 		Log:                 utils.NewLoggerForTests(),
 		Jitter:              retryutils.NewSeventhJitter(),
 	})
 
-	done := make(chan struct{})
 	go func() {
 		err := processor.Run(ctx, 100*time.Millisecond, time.Second)
 		assert.ErrorIs(t, context.Canceled, err)
-		close(done)
 	}()
 
 	// Add some node servers.
-	const numNodes = 5
-	nodes := make([]types.Server, 0, numNodes)
-	for i := 0; i < numNodes; i++ {
-		node, _ := types.NewServer(fmt.Sprintf("node%d", i), types.KindNode, types.ServerSpecV2{
-			Addr:     "127.0.0.1:1234",
-			Hostname: fmt.Sprintf("node%d", i),
-			CmdLabels: map[string]types.CommandLabelV2{
-				"version":  {Result: "v8"},
-				"hostname": {Result: fmt.Sprintf("node%d.example.com", i)},
-			},
-		})
-		_, err = presence.UpsertNode(ctx, node)
+	const numInitialNodes = 5
+	nodes := make([]types.Server, 0, numInitialNodes)
+	for i := 0; i < numInitialNodes; i++ {
+		node := makeNode(i + 1)
+		_, err = resources.UpsertNode(ctx, node)
 		require.NoError(t, err)
 		nodes = append(nodes, node)
 	}
 
 	require.Eventually(t, func() bool {
-		items, err := stream.Collect(embeddings.GetEmbeddings(ctx, types.KindNode))
+		items, err := stream.Collect(embeddings.GetAllEmbeddings(ctx))
 		assert.NoError(t, err)
-		return (len(items) == numNodes) && (len(nodes) == numNodes)
-	}, 7*time.Second, 200*time.Millisecond)
+		return len(items) == numInitialNodes
+	}, 14*time.Second, 200*time.Millisecond)
 
-	cancel()
-
-	waitForDone(t, done, "timed out waiting for processor to stop")
+	nodesAcquired, err := resources.GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
 
 	validateEmbeddings(t,
-		presence.GetNodeStream(ctx, defaults.Namespace),
-		embeddings.GetEmbeddings(ctx, types.KindNode))
+		nodesAcquired,
+		embeddings.GetAllEmbeddings(ctx))
+
+	for k, v := range embedder.timesCalled {
+		require.Equal(t, 1, v, "expected %v to be computed once, was %d", k, v)
+	}
+
+	// Run once more and verify that only changed or newly inserted nodes get their embeddings calculated
+	node1 := nodes[0]
+	node1.GetMetadata().Labels["foo"] = "bar"
+	_, err = resources.UpsertNode(ctx, node1)
+	require.NoError(t, err)
+	node6 := makeNode(6)
+	_, err = resources.UpsertNode(ctx, node6)
+	require.NoError(t, err)
+
+	// Since nodes are streamed in ascending order by names, when embeddings for node6 are calculated,
+	// we can be sure that our recent changes have been fully processed
+	require.Eventually(t, func() bool {
+		items, err := stream.Collect(embeddings.GetAllEmbeddings(ctx))
+		assert.NoError(t, err)
+		return len(items) == numInitialNodes+1
+	}, 7*time.Second, 200*time.Millisecond)
+
+	for k, v := range embedder.timesCalled {
+		expected := 1
+		if strings.Contains(k, "node1") {
+			expected = 2
+		}
+		require.Equal(t, expected, v, "expected embedding for %q to be computed %d times, got computed %d times", k, expected, v)
+	}
+
+	nodesAcquired, err = resources.GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	validateEmbeddings(t,
+		nodesAcquired,
+		embeddings.GetAllEmbeddings(ctx))
 }
 
 func TestMarshallUnmarshallEmbedding(t *testing.T) {
@@ -141,21 +211,20 @@ func TestMarshallUnmarshallEmbedding(t *testing.T) {
 	require.Equal(t, initial.Vector, final.Vector)
 }
 
-func waitForDone(t *testing.T, done chan struct{}, errMsg string) {
-	t.Helper()
-
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal(errMsg)
-	}
+func makeNode(num int) types.Server {
+	node, _ := types.NewServer(fmt.Sprintf("node%d", num), types.KindNode, types.ServerSpecV2{
+		Addr:     "127.0.0.1:1234",
+		Hostname: fmt.Sprintf("node%d", num),
+		CmdLabels: map[string]types.CommandLabelV2{
+			"version":  {Result: "v8"},
+			"hostname": {Result: fmt.Sprintf("node%d.example.com", num)},
+		},
+	})
+	return node
 }
 
-func validateEmbeddings(t *testing.T, nodesStream stream.Stream[types.Server], embeddingsStream stream.Stream[*embedding.Embedding]) {
+func validateEmbeddings(t *testing.T, nodes []types.Server, embeddingsStream stream.Stream[*embedding.Embedding]) {
 	t.Helper()
-
-	nodes, err := stream.Collect(nodesStream)
-	require.NoError(t, err)
 
 	embeddings, err := stream.Collect(embeddingsStream)
 	require.NoError(t, err)

@@ -43,8 +43,6 @@ import (
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -62,7 +60,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -178,12 +176,12 @@ func TestMFADeviceManagement(t *testing.T) {
 				authHandler:  devs.webAuthHandler,
 				checkAuthErr: require.NoError,
 				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-					ccr, err := webKey2.SignCredentialCreation(webOrigin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					ccr, err := webKey2.SignCredentialCreation(webOrigin, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
 
 					return &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 						},
 					}
 				},
@@ -205,17 +203,17 @@ func TestMFADeviceManagement(t *testing.T) {
 					require.NoError(t, err)
 					key.PreferRPID = true
 					key.IgnoreAllowedCredentials = true
-					resp, err := key.SignAssertion(webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+					resp, err := key.SignAssertion(webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
 					require.NoError(t, err)
 					return &proto.MFAAuthenticateResponse{
 						Response: &proto.MFAAuthenticateResponse_Webauthn{
-							Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+							Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 						},
 					}
 				},
 				checkAuthErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.Error(t, err)
-					require.Equal(t, codes.PermissionDenied, status.Code(err))
+					require.True(t, trace.IsAccessDenied(err))
 				},
 			},
 		},
@@ -236,17 +234,17 @@ func TestMFADeviceManagement(t *testing.T) {
 					key.PreferRPID = true
 
 					ccr, err := key.SignCredentialCreation(
-						"http://badorigin.com" /* origin */, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+						"http://badorigin.com" /* origin */, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
 					return &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 						},
 					}
 				},
 				checkRegisterErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.Error(t, err)
-					require.Equal(t, codes.InvalidArgument, status.Code(err))
+					require.True(t, trace.IsBadParameter(err))
 				},
 			},
 		},
@@ -268,12 +266,12 @@ func TestMFADeviceManagement(t *testing.T) {
 					key.PreferRPID = true
 					key.SetPasswordless()
 
-					ccr, err := key.SignCredentialCreation(webOrigin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					ccr, err := key.SignCredentialCreation(webOrigin, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
 
 					return &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 						},
 					}
 				},
@@ -356,11 +354,11 @@ func TestMFADeviceManagement(t *testing.T) {
 					require.NoError(t, err)
 					key.PreferRPID = true
 					key.IgnoreAllowedCredentials = true
-					resp, err := key.SignAssertion(webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+					resp, err := key.SignAssertion(webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
 					require.NoError(t, err)
 					return &proto.MFAAuthenticateResponse{
 						Response: &proto.MFAAuthenticateResponse_Webauthn{
-							Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+							Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 						},
 					}
 				},
@@ -405,11 +403,11 @@ func TestMFADeviceManagement(t *testing.T) {
 				},
 				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					resp, err := webKey2.SignAssertion(
-						webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+						webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
 					require.NoError(t, err)
 					return &proto.MFAAuthenticateResponse{
 						Response: &proto.MFAAuthenticateResponse_Webauthn{
-							Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+							Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 						},
 					}
 				},
@@ -459,11 +457,11 @@ func (d *mfaDevices) webAuthHandler(t *testing.T, challenge *proto.MFAAuthentica
 	require.NotNil(t, challenge.WebauthnChallenge)
 
 	resp, err := d.WebKey.SignAssertion(
-		d.webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+		d.webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
 	require.NoError(t, err)
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+			Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 		},
 	}
 }
@@ -542,11 +540,11 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
 					require.NotNil(t, challenge.GetWebauthn())
 
-					ccr, err := mfaDevs.WebKey.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					ccr, err := mfaDevs.WebKey.SignCredentialCreation(origin, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
 					return &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 						},
 					}
 				},
@@ -2352,6 +2350,59 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 
 	// ensure that bg ping routine was successful
 	require.NoError(t, <-pingErr)
+}
+
+func TestGetSSHTargets(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	upper, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "Foo",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+
+	lower, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "foo",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+
+	other, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "bar",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+
+	for _, node := range []types.Server{upper, lower, other} {
+		_, err = clt.UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	rsp, err := clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
+		Host: "foo",
+		Port: "0",
+	})
+	require.NoError(t, err)
+	require.Len(t, rsp.Servers, 1)
+	require.Equal(t, rsp.Servers[0].GetHostname(), "foo")
+
+	cnc := types.DefaultClusterNetworkingConfig()
+	cnc.SetCaseInsensitiveRouting(true)
+	err = clt.SetClusterNetworkingConfig(ctx, cnc)
+	require.NoError(t, err)
+
+	rsp, err = clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
+		Host: "foo",
+		Port: "0",
+	})
+	require.NoError(t, err)
+	require.Len(t, rsp.Servers, 2)
+	require.ElementsMatch(t, []string{rsp.Servers[0].GetHostname(), rsp.Servers[1].GetHostname()}, []string{"foo", "Foo"})
 }
 
 func TestNodesCRUD(t *testing.T) {

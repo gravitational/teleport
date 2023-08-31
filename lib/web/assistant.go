@@ -31,14 +31,23 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
-	"github.com/gravitational/teleport/lib/ai/model"
+	"github.com/gravitational/teleport/lib/ai/model/tools"
+	"github.com/gravitational/teleport/lib/ai/tokens"
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+)
+
+const (
+	// actionSSHGenerateCommand is a name of the action for generating SSH commands.
+	actionSSHGenerateCommand = "ssh-cmdgen"
+	// actionSSHExplainCommand is a name of the action for explaining terminal output in SSH session.
+	actionSSHExplainCommand = "ssh-explain"
 )
 
 // createAssistantConversationResponse is a response for POST /webapi/assistant/conversations.
@@ -315,6 +324,9 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 	return conversationInfo, nil
 }
 
+// assistant is a handler for GET /webapi/sites/:site/assistant.
+// This handler covers the main chat conversation as well as the
+// SSH completition (SSH command generation and output explanation).
 func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params,
 	sctx *SessionContext, site reversetunnelclient.RemoteSite,
 ) (any, error) {
@@ -326,7 +338,8 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 	return nil, nil
 }
 
-func (h *Handler) reportTokenUsage(usedTokens *model.TokenCount, lookaheadTokens int, conversationID string, authClient auth.ClientI) {
+func (h *Handler) reportTokenUsage(usedTokens *tokens.TokenCount, lookaheadTokens int, conversationID string, authClient auth.ClientI) {
+	// Create a new context to not be bounded by the request timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -375,8 +388,9 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 ) (err error) {
 	q := r.URL.Query()
 	conversationID := q.Get("conversation_id")
-	if conversationID == "" {
-		return trace.BadParameter("conversation ID is required")
+	actionParam := r.URL.Query().Get("action")
+	if conversationID == "" && actionParam == "" {
+		return trace.BadParameter("conversation ID or action is required")
 	}
 
 	authClient, err := sctx.GetClient()
@@ -454,8 +468,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	// Update the read deadline upon receiving a pong message.
 	ws.SetPongHandler(func(_ string) error {
-		ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
-		return nil
+		return trace.Wrap(ws.SetReadDeadline(deadlineForInterval(keepAliveInterval)))
 	})
 
 	ws.SetCloseHandler(func(code int, text string) error {
@@ -471,35 +484,144 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		return trace.Wrap(err)
 	}
 
+	switch r.URL.Query().Get("action") {
+	case actionSSHGenerateCommand:
+		err = h.assistGenSSHCommandLoop(ctx, assistClient, ws, sctx.GetUser(), authClient)
+	case actionSSHExplainCommand:
+		err = h.assistSSHExplainOutputLoop(ctx, assistClient, ws, authClient)
+	default:
+		err = h.assistChatLoop(ctx, assistClient, authClient, conversationID, sctx, ws)
+	}
+
+	return trace.Wrap(err)
+}
+
+type usageReporter interface {
+	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
+}
+
+// assistSSHExplainOutputLoop reads the user's input and generates a command summary.
+func (h *Handler) assistSSHExplainOutputLoop(ctx context.Context, assistClient *assist.Assist, ws *websocket.Conn, usageRep usageReporter) error {
+	_, payload, err := ws.ReadMessage()
+	if err != nil {
+		if wsIsClosed(err) {
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	modelMessages := []*assistpb.AssistantMessage{
+		{
+			Type:    string(assist.MessageKindUserMessage),
+			Payload: string(payload),
+		},
+	}
+
+	summary, tokenCount, err := assistClient.GenerateCommandSummary(ctx, modelMessages, map[string][]byte{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := onMessageFn(ws, assist.MessageKindAssistantMessage, []byte(summary), h.clock.Now().UTC()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	prompt, completion := tokens.CountTokens(tokenCount)
+
+	usageEventReq := &clientproto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AssistAction{
+				AssistAction: &usageeventsv1.AssistAction{
+					Action:           actionSSHExplainCommand,
+					TotalTokens:      int64(completion + prompt),
+					PromptTokens:     int64(prompt),
+					CompletionTokens: int64(completion),
+				},
+			},
+		},
+	}
+	if err := usageRep.SubmitUsageEvent(ctx, usageEventReq); err != nil {
+		h.log.WithError(err).Warn("Failed to emit usage event")
+	}
+
+	return nil
+}
+
+// assistSSHCommandLoop reads the user's input and generates a Linux command.
+func (h *Handler) assistGenSSHCommandLoop(ctx context.Context, assistClient *assist.Assist, ws *websocket.Conn, username string, usageRep usageReporter) error {
+	chat, err := assistClient.NewLightweightChat(username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for {
+		_, payload, err := ws.ReadMessage()
+		if err != nil {
+			if wsIsClosed(err) {
+				break
+			}
+			return trace.Wrap(err)
+		}
+
+		tokenCount, err := chat.ProcessComplete(ctx, func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
+			return onMessageFn(ws, kind, payload, createdTime)
+		}, string(payload))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		prompt, completion := tokens.CountTokens(tokenCount)
+
+		usageEventReq := &clientproto.SubmitUsageEventRequest{
+			Event: &usageeventsv1.UsageEventOneOf{
+				Event: &usageeventsv1.UsageEventOneOf_AssistAction{
+					AssistAction: &usageeventsv1.AssistAction{
+						Action:           actionSSHGenerateCommand,
+						TotalTokens:      int64(completion + prompt),
+						PromptTokens:     int64(prompt),
+						CompletionTokens: int64(completion),
+					},
+				},
+			},
+		}
+		if err := usageRep.SubmitUsageEvent(ctx, usageEventReq); err != nil {
+			h.log.WithError(err).Warn("Failed to emit usage event")
+		}
+	}
+	return nil
+}
+
+// assistChatLoop is the main chat loop for the assistant.
+// It reads the user's input from provided WS and generates a response.
+func (h *Handler) assistChatLoop(ctx context.Context, assistClient *assist.Assist, authClient auth.ClientI,
+	conversationID string, sctx *SessionContext, ws *websocket.Conn,
+) error {
 	ac, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	toolsConfig := model.ToolsConfig{
-		EmbeddingsClient: authClient.EmbeddingClient(),
-		AccessChecker:    ac,
-		NodeClient:       h.nodeWatcher,
+	toolContext := &tools.ToolContext{
+		AssistEmbeddingServiceClient: authClient.EmbeddingClient(),
+		AccessRequestClient:          authClient,
+		AccessChecker:                ac,
+		NodeWatcher:                  h.nodeWatcher,
+		ClusterName:                  sctx.cfg.Parent.clusterName,
+		User:                         sctx.GetUser(),
 	}
-	chat, err := assistClient.NewChat(ctx, authClient, conversationID, sctx.GetUser(), toolsConfig)
+
+	chat, err := assistClient.NewChat(ctx, authClient, toolContext, conversationID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// onMessageFn is called when a message is received from the OpenAI API.
-	onMessageFn := func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
-		msg := &assistantMessage{
-			Type:        kind,
-			Payload:     string(payload),
-			CreatedTime: createdTime.Format(time.RFC3339),
-		}
-
-		return trace.Wrap(ws.WriteJSON(msg))
+	onMessage := func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
+		return trace.Wrap(onMessageFn(ws, kind, payload, createdTime))
 	}
 
 	if chat.IsNewConversation() {
 		// new conversation, generate a hello message
-		if _, err := chat.ProcessComplete(ctx, onMessageFn, ""); err != nil {
+		if _, err := chat.ProcessComplete(ctx, onMessage, ""); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -507,8 +629,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 	for {
 		_, payload, err := ws.ReadMessage()
 		if err != nil {
-			if err == io.EOF || websocket.IsCloseError(err, websocket.CloseAbnormalClosure,
-				websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+			if wsIsClosed(err) {
 				break
 			}
 			return trace.Wrap(err)
@@ -519,11 +640,15 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 			return trace.Wrap(err)
 		}
 
+		if wsIncoming.Type == assist.MessageKindAccessRequestCreated {
+			chat.RecordMesssage(ctx, wsIncoming.Type, wsIncoming.Payload)
+		}
+
 		// We can not know how many tokens we will consume in advance.
 		// Try to consume a small amount of tokens first.
 		const lookaheadTokens = 100
 		if !h.assistantLimiter.AllowN(time.Now(), lookaheadTokens) {
-			err := onMessageFn(assist.MessageKindError, []byte("You have reached the rate limit. Please try again later."), h.clock.Now().UTC())
+			err := onMessageFn(ws, assist.MessageKindError, []byte("You have reached the rate limit. Please try again later."), h.clock.Now().UTC())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -531,7 +656,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		}
 
 		//TODO(jakule): Should we sanitize the payload?
-		usedTokens, err := chat.ProcessComplete(ctx, onMessageFn, wsIncoming.Payload)
+		usedTokens, err := chat.ProcessComplete(ctx, onMessage, wsIncoming.Payload)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -543,4 +668,21 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	h.log.Debug("end assistant conversation loop")
 	return nil
+}
+
+// wsIsClosed returns true if the error is caused by a closed websocket.
+func wsIsClosed(err error) bool {
+	return err == io.EOF || websocket.IsCloseError(err, websocket.CloseAbnormalClosure,
+		websocket.CloseGoingAway, websocket.CloseNormalClosure)
+}
+
+// onMessageFn is called when a message is received from the OpenAI API.
+func onMessageFn(ws *websocket.Conn, kind assist.MessageType, payload []byte, createdTime time.Time) error {
+	msg := &assistantMessage{
+		Type:        kind,
+		Payload:     string(payload),
+		CreatedTime: createdTime.Format(time.RFC3339),
+	}
+
+	return trace.Wrap(ws.WriteJSON(msg))
 }

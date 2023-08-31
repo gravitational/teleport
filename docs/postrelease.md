@@ -4,11 +4,16 @@ This checklist is to be run after cutting a release.
 
 ### All releases
 
-- [ ] Create PR to update default Teleport version in Teleport docs
-  - Example: https://github.com/gravitational/teleport/pull/7033
-- [ ] Create PR to update default AMI versions in Makefile and AMIs.md. This can
-  be done by manually triggering the
-  [GitHub Action](https://github.com/gravitational/teleport/actions/workflows/update-ami-ids.yaml)
+Our GitHub Actions workflows will create two PRs when a release is published:
+
+1. A PR against the release branch that updates the default version in our docs.
+2. A PR that updates the AWS AMI IDs for the new release. (This job only runs
+   for releases on the latest release branch)
+
+The AWS AMI ID PR can be merged right away.
+
+The docs version PR should be merged after the `gravitational/teleport-plugins` release
+is published, since the PR will include an update to the plugins version as well.
 
 ### Major releases only
 

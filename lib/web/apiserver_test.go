@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
@@ -98,7 +99,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
@@ -728,7 +729,7 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 	})
 	require.NoError(t, err)
 
-	cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
 	// use passwordless as auth method
 	device, err := mocku2f.Create()
@@ -744,7 +745,7 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 		NewPassword: []byte(password),
 		NewMFARegisterResponse: &authproto.MFARegisterResponse{
 			Response: &authproto.MFARegisterResponse_Webauthn{
-				Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 			},
 		},
 	})
@@ -1105,6 +1106,8 @@ func TestClusterNodesGet(t *testing.T) {
 	require.Equal(t, 2, res.TotalCount)
 	require.ElementsMatch(t, res.Items, []ui.Server{
 		{
+			Kind:        types.KindNode,
+			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
 			Name:        server1.GetName(),
 			Hostname:    server1.GetHostname(),
@@ -1114,6 +1117,8 @@ func TestClusterNodesGet(t *testing.T) {
 			SSHLogins:   []string{pack.login},
 		},
 		{
+			Kind:        types.KindNode,
+			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
 			Name:        "server2",
 			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
@@ -1132,12 +1137,111 @@ func TestClusterNodesGet(t *testing.T) {
 	require.Equal(t, res, res2)
 }
 
+func TestUnifiedResourcesGet(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil)
+
+	// Add nodes
+	for i := 0; i < 20; i++ {
+		name := fmt.Sprintf("server-%d", i)
+		node, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
+			Hostname: name,
+		})
+		require.NoError(t, err)
+		_, err = env.server.Auth().UpsertNode(context.Background(), node)
+		require.NoError(t, err)
+	}
+	// add db
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dbdb",
+		Labels: map[string]string{
+			"env": "prod",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: "test-protocol",
+		URI:      "test-uri",
+	})
+	require.NoError(t, err)
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "dddb1",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "dddb1",
+		HostID:   uuid.NewString(),
+		Database: db,
+	})
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
+	require.NoError(t, err)
+
+	// add windows desktop
+	win, err := types.NewWindowsDesktopV3(
+		"zzzz9",
+		nil,
+		types.WindowsDesktopSpecV3{Addr: "localhost", HostID: "win1-host-id"},
+	)
+	require.NoError(t, err)
+	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), win)
+	require.NoError(t, err)
+
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
+
+	// test sort type ascend
+	query := url.Values{"sort": []string{"kind:asc"}}
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, types.KindDatabase, res.Items[0].Kind)
+
+	// test sort type desc
+	query = url.Values{"sort": []string{"kind:desc"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, types.KindNode, res.Items[0].Kind)
+
+	// test with no access
+	noAccessRole, err := types.NewRole(services.RoleNameForUser("test-no-access@example.com"), types.RoleSpecV6{})
+	require.NoError(t, err)
+	noAccessPack := proxy.authPack(t, "test-no-access@example.com", []types.Role{noAccessRole})
+
+	// shouldnt get any results with no access
+	query = url.Values{}
+	re, err = noAccessPack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 0)
+
+	// should return first page and have a second page
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 15)
+	require.NotEqual(t, "", res.StartKey)
+
+	// should return second page and have no third page
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	query.Add("startKey", res.StartKey)
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 8)
+	require.Equal(t, "", res.StartKey)
+}
+
 type clusterAlertsGetResponse struct {
 	Alerts []types.ClusterAlert `json:"alerts"`
 }
 
 func TestClusterAlertsGet(t *testing.T) {
-	t.Parallel()
 	env := newWebPack(t, 1)
 
 	// generate alert
@@ -1541,7 +1645,13 @@ func TestResizeTerminal(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws1.Close()) })
 
-	// Create a new user "bar", open a terminal to the session created above
+	// Wait for session to have started
+	require.Eventually(t, func() bool {
+		_, err := s.server.Auth().GetSessionTracker(context.Background(), sess.ID.String())
+		return err == nil
+	}, 3*time.Second, 200*time.Millisecond, "session not available")
+
+	// Create a new user "bar" and join the session created above
 	pack2 := s.authPack(t, "bar")
 	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID), withParticipantMode(types.SessionPeerMode))
 	require.NoError(t, err)
@@ -1587,7 +1697,7 @@ t1ready:
 	select {
 	case e := <-ws2Messages:
 		if isResizeEventEnvelope(e) {
-			require.FailNow(t, "terminal 2 should not have received a resize event")
+			require.FailNow(t, "terminal 2 should not have received a resize event: %v", e)
 		}
 	case err := <-errs:
 		require.NoError(t, err)
@@ -1826,9 +1936,9 @@ func TestTerminalNameResolution(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Wait for the node to be registered as the registration is asynchronous.
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		nodes, err := s.proxyClient.GetNodes(ctx, "default")
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		return len(nodes) == 2 // one created by default and llama
 	}, 5*time.Second, 200*time.Millisecond, "failed to register node")
@@ -1850,7 +1960,7 @@ func TestTerminalNameResolution(t *testing.T) {
 			name:           "registered node by address",
 			target:         llama.Addr(),
 			serverID:       llama.ID(),
-			serverHostname: llama.Addr(),
+			serverHostname: "llama",
 		},
 		{
 			name:           "direct dial",
@@ -1921,11 +2031,11 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			},
 			getChallengeResponseBytes: func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
 				res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-					WebauthnChallenge: wanlib.CredentialAssertionToProto(chals.WebauthnChallenge),
+					WebauthnChallenge: wantypes.CredentialAssertionToProto(chals.WebauthnChallenge),
 				})
 				require.NoError(t, err)
 
-				webauthnResBytes, err := json.Marshal(wanlib.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+				webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
 				require.NoError(t, err)
 
 				envelope := &Envelope{
@@ -2132,7 +2242,7 @@ func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *au
 	mfaChallange, err := tdp.DecodeMFAChallenge(br)
 	require.NoError(t, err)
 	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-		WebauthnChallenge: wanlib.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
+		WebauthnChallenge: wantypes.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
 	err = tdp.NewConn(&WebsocketIO{Conn: ws}).WriteMessage(tdp.MFA{
@@ -3537,7 +3647,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 			insertResource: func() {
 				resource := &types.AppServerV3{
 					Metadata: types.Metadata{Name: "test-app"},
-					Kind:     types.KindAppServer,
+					Kind:     types.KindApp,
 					Version:  types.V2,
 					Spec: types.AppServerSpecV3{
 						HostID: "hostid",
@@ -3759,9 +3869,7 @@ func authExportTestByEndpoint(t *testing.T, endpointExport, authType string, exp
 	}
 }
 
-func TestClusterDatabasesGet(t *testing.T) {
-	t.Parallel()
-
+func TestClusterDatabasesGet_NoRole(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
@@ -3770,18 +3878,62 @@ func TestClusterDatabasesGet(t *testing.T) {
 
 	query := url.Values{"sort": []string{"name"}}
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
-	re, err := pack.clt.Get(context.Background(), endpoint, query)
-	require.NoError(t, err)
 
 	type testResponse struct {
 		Items      []ui.Database `json:"items"`
 		TotalCount int           `json:"totalCount"`
 	}
 
-	// No db registered.
+	// add db
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dbdb",
+		Labels: map[string]string{
+			"env": "prod",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: "test-protocol",
+		URI:      "test-uri:1234",
+	})
+	require.NoError(t, err)
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "dddb1",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "dddb1",
+		HostID:   uuid.NewString(),
+		Database: db,
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
+	require.NoError(t, err)
+
+	// Test without defined database names or users in role.
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 0)
+	require.Len(t, resp.Items, 1)
+	require.ElementsMatch(t, resp.Items, []ui.Database{{
+		Kind:     types.KindDatabase,
+		Name:     "dbdb",
+		Type:     types.DatabaseTypeSelfHosted,
+		Labels:   []ui.Label{{Name: "env", Value: "prod"}},
+		Protocol: "test-protocol",
+		Hostname: "test-uri",
+		URI:      "test-uri:1234",
+	}})
+}
+
+func TestClusterDatabasesGet_WithRole(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+
+	type testResponse struct {
+		Items      []ui.Database `json:"items"`
+		TotalCount int           `json:"totalCount"`
+	}
 
 	// Register databases.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
@@ -3793,71 +3945,18 @@ func TestClusterDatabasesGet(t *testing.T) {
 			Metadata: types.Metadata{
 				Name:        "db1",
 				Description: "test-description",
-				Labels:      map[string]string{"test-field": "test-value"},
 			},
 			Spec: types.DatabaseSpecV3{
 				Protocol: "test-protocol",
 				URI:      "test-uri:1234",
-				AWS: types.AWS{
-					IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
-					Region:          "us-west-2",
-				},
 			},
 		},
 	})
 	require.NoError(t, err)
-	db2, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: "dbServer2",
-	}, types.DatabaseServerSpecV3{
-		Hostname: "test-hostname",
-		HostID:   "test-hostID",
-		Database: &types.DatabaseV3{
-			Metadata: types.Metadata{
-				Name: "db2",
-			},
-			Spec: types.DatabaseSpecV3{
-				Protocol: "test-protocol",
-				URI:      "test-uri:1234",
-			},
-		},
-	})
 	require.NoError(t, err)
 
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db)
 	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db2)
-	require.NoError(t, err)
-
-	// Test without defined database names or users in role.
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
-	require.NoError(t, err)
-
-	resp = testResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 2)
-	require.Equal(t, 2, resp.TotalCount)
-	require.ElementsMatch(t, resp.Items, []ui.Database{{
-		Name:     "db1",
-		Desc:     "test-description",
-		Protocol: "test-protocol",
-		Type:     types.DatabaseTypeRDS,
-		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
-		Hostname: "test-uri",
-		URI:      "test-uri:1234",
-		AWS: &ui.AWS{
-			AWS: types.AWS{
-				IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
-				Region:          "us-west-2",
-			},
-		},
-	}, {
-		Name:     "db2",
-		Type:     types.DatabaseTypeSelfHosted,
-		Labels:   []ui.Label{},
-		Protocol: "test-protocol",
-		Hostname: "test-uri",
-		URI:      "test-uri:1234",
-	}})
 
 	// Test with a role that defines database names and users.
 	extraRole := &types.RoleV6{
@@ -3873,215 +3972,15 @@ func TestClusterDatabasesGet(t *testing.T) {
 		},
 	}
 
-	pack = proxy.authPack(t, "test-user2@example.com", services.NewRoleSet(extraRole))
-	endpoint = pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	query := url.Values{"sort": []string{"name"}}
+	pack := proxy.authPack(t, "test-user2@example.com", services.NewRoleSet(extraRole))
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 
-	resp = testResponse{}
+	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 2)
-	require.Equal(t, 2, resp.TotalCount)
-	require.ElementsMatch(t, resp.Items, []ui.Database{{
-		Name:          "db1",
-		Desc:          "test-description",
-		Protocol:      "test-protocol",
-		Type:          types.DatabaseTypeRDS,
-		Labels:        []ui.Label{{Name: "test-field", Value: "test-value"}},
-		Hostname:      "test-uri",
-		DatabaseUsers: []string{"user1"},
-		DatabaseNames: []string{"name1"},
-		URI:           "test-uri:1234",
-		AWS: &ui.AWS{
-			AWS: types.AWS{
-				IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
-				Region:          "us-west-2",
-			},
-		},
-	}, {
-		Name:          "db2",
-		Type:          types.DatabaseTypeSelfHosted,
-		Labels:        []ui.Label{},
-		Protocol:      "test-protocol",
-		Hostname:      "test-uri",
-		DatabaseUsers: []string{"user1"},
-		DatabaseNames: []string{"name1"},
-		URI:           "test-uri:1234",
-	}})
-}
-
-func TestClusterDatabaseGet(t *testing.T) {
-	env := newWebPack(t, 1)
-	ctx := context.Background()
-
-	proxy := env.proxies[0]
-
-	dbNames := []string{"db1", "db2"}
-	dbUsers := []string{"user1", "user2"}
-
-	for _, tt := range []struct {
-		name            string
-		preRegisterDB   bool
-		databaseName    string
-		userRoles       func(*testing.T) []types.Role
-		expectedDBUsers []string
-		expectedDBNames []string
-		requireError    require.ErrorAssertionFunc
-	}{
-		{
-			name:          "valid",
-			preRegisterDB: true,
-			databaseName:  "valid",
-			requireError:  require.NoError,
-		},
-		{
-			name:          "notfound",
-			preRegisterDB: true,
-			databaseName:  "otherdb",
-			requireError: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
-			},
-		},
-		{
-			name:          "notauthorized",
-			preRegisterDB: true,
-			databaseName:  "notauthorized",
-			userRoles: func(tt *testing.T) []types.Role {
-				role, err := types.NewRole(
-					"myrole",
-					types.RoleSpecV6{
-						Allow: types.RoleConditions{
-							DatabaseLabels: types.Labels{
-								"env": apiutils.Strings{"staging"},
-							},
-						},
-					},
-				)
-				require.NoError(tt, err)
-				return []types.Role{role}
-			},
-			requireError: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
-			},
-		},
-		{
-			name:          "nodb",
-			preRegisterDB: false,
-			databaseName:  "nodb",
-			userRoles: func(tt *testing.T) []types.Role {
-				roleWithDBName, err := types.NewRole(
-					"myroleWithDBName",
-					types.RoleSpecV6{
-						Allow: types.RoleConditions{
-							DatabaseLabels: types.Labels{
-								"env": apiutils.Strings{"prod"},
-							},
-							DatabaseNames: dbNames,
-						},
-					},
-				)
-				require.NoError(tt, err)
-
-				return []types.Role{roleWithDBName}
-			},
-			expectedDBNames: dbNames,
-			expectedDBUsers: dbUsers,
-			requireError: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
-			},
-		},
-		{
-			name:          "authorizedDBNamesUsers",
-			preRegisterDB: true,
-			databaseName:  "authorizedDBNamesUsers",
-			userRoles: func(tt *testing.T) []types.Role {
-				roleWithDBName, err := types.NewRole(
-					"myroleWithDBName",
-					types.RoleSpecV6{
-						Allow: types.RoleConditions{
-							DatabaseLabels: types.Labels{
-								"env": apiutils.Strings{"prod"},
-							},
-							DatabaseNames: dbNames,
-						},
-					},
-				)
-				require.NoError(tt, err)
-
-				roleWithDBUser, err := types.NewRole(
-					"myroleWithDBUser",
-					types.RoleSpecV6{
-						Allow: types.RoleConditions{
-							DatabaseLabels: types.Labels{
-								"env": apiutils.Strings{"prod"},
-							},
-							DatabaseUsers: dbUsers,
-						},
-					},
-				)
-				require.NoError(tt, err)
-
-				return []types.Role{roleWithDBUser, roleWithDBName}
-			},
-			expectedDBNames: dbNames,
-			expectedDBUsers: dbUsers,
-			requireError:    require.NoError,
-		},
-	} {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Create default pre-registerDB
-			if tt.preRegisterDB {
-				db, err := types.NewDatabaseV3(types.Metadata{
-					Name: tt.name,
-					Labels: map[string]string{
-						"env": "prod",
-					},
-				}, types.DatabaseSpecV3{
-					Protocol: "test-protocol",
-					URI:      "test-uri",
-				})
-				require.NoError(t, err)
-
-				dbServer, err := types.NewDatabaseServerV3(types.Metadata{
-					Name: tt.name,
-				}, types.DatabaseServerSpecV3{
-					Hostname: tt.name,
-					HostID:   uuid.NewString(),
-					Database: db,
-				})
-				require.NoError(t, err)
-
-				_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
-				require.NoError(t, err)
-			}
-
-			var roles []types.Role
-			if tt.userRoles != nil {
-				roles = tt.userRoles(t)
-			}
-
-			pack := proxy.authPack(t, tt.name+"_user@example.com", roles)
-
-			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases", tt.databaseName)
-			re, err := pack.clt.Get(ctx, endpoint, nil)
-			tt.requireError(t, err)
-			if err != nil {
-				return
-			}
-
-			resp := ui.Database{}
-			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-
-			require.Equal(t, tt.databaseName, resp.Name, "database name")
-			require.Equal(t, types.DatabaseTypeSelfHosted, resp.Type, "database type")
-			require.EqualValues(t, []ui.Label{{Name: "env", Value: "prod"}}, resp.Labels)
-			require.ElementsMatch(t, tt.expectedDBUsers, resp.DatabaseUsers)
-			require.ElementsMatch(t, tt.expectedDBNames, resp.DatabaseNames)
-		})
-	}
+	require.Len(t, resp.Items, 1)
 }
 
 func TestClusterKubesGet(t *testing.T) {
@@ -4269,7 +4168,7 @@ func TestClusterKubePodsGet(t *testing.T) {
 	proxy := env.proxies[0]
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	// Init fake grpc Kube service.
+	// Init fake gRPC Kube service.
 	initGRPCServer(t, env, listener)
 	addr := utils.MustParseAddr(listener.Addr().String())
 	proxy.handler.handler.cfg.ProxyWebAddr = *addr
@@ -4321,7 +4220,7 @@ func TestClusterAppsGet(t *testing.T) {
 
 	resource := &types.AppServerV3{
 		Metadata: types.Metadata{Name: "test-app"},
-		Kind:     types.KindAppServer,
+		Kind:     types.KindApp,
 		Version:  types.V2,
 		Spec: types.AppServerSpecV3{
 			HostID: "hostid",
@@ -4383,6 +4282,7 @@ func TestClusterAppsGet(t *testing.T) {
 	require.Len(t, resp.Items, 3)
 	require.Equal(t, 3, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.App{{
+		Kind:        types.KindApp,
 		Name:        "app1",
 		Description: resource.Spec.App.GetDescription(),
 		URI:         resource.Spec.App.GetURI(),
@@ -4393,6 +4293,7 @@ func TestClusterAppsGet(t *testing.T) {
 		AWSConsole:  true,
 		UserGroups:  []ui.UserGroupAndDescription{{Name: "ug1", Description: "ug1-description"}},
 	}, {
+		Kind:       types.KindApp,
 		Name:       "app2",
 		URI:        "uri",
 		Labels:     []ui.Label{},
@@ -4401,6 +4302,7 @@ func TestClusterAppsGet(t *testing.T) {
 		PublicAddr: "publicaddrs",
 		AWSConsole: false,
 	}, {
+		Kind:        types.KindApp,
 		Name:        "test-saml-app",
 		Description: "SAML Application",
 		URI:         "",
@@ -4712,7 +4614,7 @@ func TestAddMFADevice(t *testing.T) {
 		name            string
 		deviceName      string
 		getTOTPCode     func() string
-		getWebauthnResp func() *wanlib.CredentialCreationResponse
+		getWebauthnResp func() *wantypes.CredentialCreationResponse
 	}{
 		{
 			name:       "new TOTP device",
@@ -4734,7 +4636,7 @@ func TestAddMFADevice(t *testing.T) {
 		{
 			name:       "new Webauthn device",
 			deviceName: "new-webauthn",
-			getWebauthnResp: func() *wanlib.CredentialCreationResponse {
+			getWebauthnResp: func() *wantypes.CredentialCreationResponse {
 				// Get webauthn register challenge.
 				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
 					TokenID:    privilegeToken,
@@ -4745,7 +4647,7 @@ func TestAddMFADevice(t *testing.T) {
 				_, regRes, err := auth.NewTestDeviceFromChallenge(res)
 				require.NoError(t, err)
 
-				return wanlib.CredentialCreationResponseFromProto(regRes.GetWebauthn())
+				return wantypes.CredentialCreationResponseFromProto(regRes.GetWebauthn())
 			},
 		},
 	}
@@ -4755,7 +4657,7 @@ func TestAddMFADevice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var totpCode string
-			var webauthnRegResp *wanlib.CredentialCreationResponse
+			var webauthnRegResp *wantypes.CredentialCreationResponse
 
 			if tc.getWebauthnResp != nil {
 				webauthnRegResp = tc.getWebauthnResp()
@@ -5669,7 +5571,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		})
 		require.NoError(t, err)
 
-		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+		cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
 		// use passwordless as auth method
 		device, err := mocku2f.Create()
@@ -5822,12 +5724,14 @@ func TestClusterDesktopsGet(t *testing.T) {
 	require.Len(t, resp.Items, 2)
 	require.Equal(t, 2, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.Desktop{{
+		Kind:   types.KindWindowsDesktop,
 		OS:     constants.WindowsOS,
 		Name:   "desktop1",
 		Addr:   "addr",
 		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
 		HostID: "host",
 	}, {
+		Kind:   types.KindWindowsDesktop,
 		OS:     constants.WindowsOS,
 		Name:   "desktop2",
 		Addr:   "addr",
@@ -6112,7 +6016,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
-					Error:   "Teleport proxy failed to connect to",
+					Error:   "direct dialing to nodes not found in inventory is not supported",
 				},
 			},
 		},
@@ -6940,6 +6844,7 @@ func TestCreateDatabase(t *testing.T) {
 			result := ui.Database{}
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &result))
 			require.Equal(t, result, ui.Database{
+				Kind:          types.KindDatabase,
 				Name:          tt.req.Name,
 				Protocol:      tt.req.Protocol,
 				Type:          types.DatabaseTypeSelfHosted,
@@ -7104,6 +7009,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				CACert: &fakeValidTLSCert,
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "self-hosted",
@@ -7118,6 +7024,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				URI: "something-else:3306",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "self-hosted",
@@ -7140,6 +7047,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				ResourceID: "db-1234",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "rds",
@@ -7168,6 +7076,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				ResourceID: "db-1234",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "rds",
@@ -7200,6 +7109,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				ResourceID: "db-0000",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "rds",
@@ -7341,7 +7251,14 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 
 	ws, resp, err := dialer.Dial(u.String(), header)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		var sb strings.Builder
+		sb.WriteString("websocket dial")
+		if resp != nil {
+			fmt.Fprintf(&sb, "; status code %v;", resp.StatusCode)
+			fmt.Fprintf(&sb, "headers: %v; body: ", resp.Header)
+			io.Copy(&sb, resp.Body)
+		}
+		return nil, nil, trace.Wrap(err, sb.String())
 	}
 
 	ty, raw, err := ws.ReadMessage()
@@ -7648,7 +7565,10 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	require.NoError(t, err)
 
 	require.NoError(t, node.Start())
-	t.Cleanup(func() { require.NoError(t, node.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, node.Close())
+		node.Wait()
+	})
 
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
@@ -7832,11 +7752,11 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	sshGRPCServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			utils.GRPCServerUnaryErrorInterceptor,
+			interceptors.GRPCServerUnaryErrorInterceptor,
 			otelgrpc.UnaryServerInterceptor(),
 		),
 		grpc.ChainStreamInterceptor(
-			utils.GRPCServerStreamErrorInterceptor,
+			interceptors.GRPCServerStreamErrorInterceptor,
 			otelgrpc.StreamServerInterceptor(),
 		),
 		grpc.Creds(creds),
@@ -9092,7 +9012,7 @@ func TestGetIsDashboard(t *testing.T) {
 	}
 }
 
-// initGRPCServer creates a grpc server serving on the provided listener.
+// initGRPCServer creates a gRPC server serving on the provided listener.
 func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	clusterName := env.server.ClusterName()
 	// Auth client, lock watcher and authorizer for Kube proxy.
@@ -9123,12 +9043,8 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			authMiddleware.UnaryInterceptor(),
-		),
-		grpc.ChainStreamInterceptor(
-			authMiddleware.StreamInterceptor(),
-		),
+		grpc.ChainUnaryInterceptor(authMiddleware.UnaryInterceptors()...),
+		grpc.ChainStreamInterceptor(authMiddleware.StreamInterceptors()...),
 		grpc.Creds(creds),
 	)
 
@@ -9451,7 +9367,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		res, err := moderator.device.SolveAuthn(challenge)
 		require.NoError(t, err)
 
-		webauthnResBytes, err := json.Marshal(wanlib.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+		webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
 		require.NoError(t, err)
 
 		envelope := &Envelope{
@@ -9485,11 +9401,11 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 	require.NoError(t, json.Unmarshal([]byte(env.Payload), &challenge))
 
 	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-		WebauthnChallenge: wanlib.CredentialAssertionToProto(challenge.WebauthnChallenge),
+		WebauthnChallenge: wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge),
 	})
 	require.NoError(t, err)
 
-	webauthnResBytes, err := json.Marshal(wanlib.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+	webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
 	require.NoError(t, err)
 
 	envelope := &Envelope{
