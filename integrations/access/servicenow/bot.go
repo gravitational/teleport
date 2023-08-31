@@ -45,7 +45,7 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 
 // Broadcast creates an alert for the provided rotas
 func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data common.SentMessages, err error) {
-	rotaIDs := []string{}
+	rotaIDs := make([]string, 0, len(recipients))
 	for _, rota := range recipients {
 		rotaIDs = append(rotaIDs, rota.ID)
 	}
@@ -102,9 +102,7 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 		Reason:    data.ResolutionReason,
 	}
 	for _, incident := range incidentData {
-
-		err := b.client.ResolveIncident(ctx, incident.MessageID, resolution)
-		if err != nil {
+		if err := b.client.ResolveIncident(ctx, incident.MessageID, resolution); err != nil {
 			errs = append(errs, err)
 		}
 	}
