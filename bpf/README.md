@@ -57,7 +57,7 @@ Remember that the library must be installed in `/opt` directory not in `/usr/loc
 
 BPF programs are compiled into ELF files. ELF files have a license field that is used to verify that the BPF program
 is allowed to run in the kernel. The license field is set to `GPL` by default. Teleport uses `Dual BSD/GPL` which 
-disables some BPF features (like logging). To enable all BPF features to set the license to `GPL` in the BPF program
+disables some BPF features (like logging). To enable all BPF features set the license to `GPL` in the BPF program
 and revert back before merging the code.
 
 ### Logging
