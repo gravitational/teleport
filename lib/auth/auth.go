@@ -4357,8 +4357,11 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 	}
 
 	kind := usagereporter.ResourceKindNode
-	if server.GetSubKind() == types.SubKindOpenSSHNode {
+	switch server.GetSubKind() {
+	case types.SubKindOpenSSHNode:
 		kind = usagereporter.ResourceKindNodeOpenSSH
+	case types.SubKindOpenSSHEICENode:
+		kind = usagereporter.ResourceKindNodeOpenSSHEICE
 	}
 
 	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
