@@ -55,7 +55,9 @@ export const StickyTooltip = () => (
     I'm a sample container
     <ToolTipNoPermBadge
       sticky={true}
-      children={<Box p={3}>I will only disappear after this component is unhovered</Box>}
+      children={
+        <Box p={3}>I will only disappear after this component is unhovered</Box>
+      }
     />
   </SomeBox>
 );
