@@ -583,7 +583,10 @@ func (a *App) getPluginData(ctx context.Context, reqID string) (*PluginData, err
 	if entry == nil {
 		return nil, trace.NotFound("plugin data entry not found")
 	}
-	data := DecodePluginData(entry.Data)
+	data, err := DecodePluginData(entry.Data)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &data, nil
 }
 

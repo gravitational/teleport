@@ -18,19 +18,24 @@ package servicenow
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gravitational/trace"
 )
 
 // DecodePluginData deserializes a string map to PluginData struct.
-func DecodePluginData(dataMap map[string]string) (data PluginData) {
+func DecodePluginData(dataMap map[string]string) (data PluginData, err error) {
 	data.User = dataMap["user"]
 	if str := dataMap["roles"]; str != "" {
 		data.Roles = strings.Split(str, ",")
 	}
 	if str := dataMap["created"]; str != "" {
-		var created int64
-		fmt.Sscanf(dataMap["created"], "%d", &created)
+		created, err := strconv.ParseInt(dataMap["created"], 10, 64)
+		if err != nil {
+			return PluginData{}, trace.Wrap(err)
+		}
 		data.Created = time.Unix(created, 0)
 	}
 	data.RequestReason = dataMap["request_reason"]
