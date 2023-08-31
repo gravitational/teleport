@@ -14,7 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { Suspense, useEffect, useMemo } from 'react';
+import React, {
+  ReactNode,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import styled from 'styled-components';
 import { Indicator } from 'design';
 import { Failed } from 'design/CardError';
@@ -22,6 +28,8 @@ import { Failed } from 'design/CardError';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { matchPath, useHistory } from 'react-router';
+
+import Dialog from 'design/Dialog';
 
 import { Redirect, Route, Switch } from 'teleport/components/Router';
 import { CatchError } from 'teleport/components/CatchError';
@@ -39,20 +47,28 @@ import { useAlerts } from 'teleport/components/BannerList/useAlerts';
 
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
 
-import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
+import {
+  getFirstRouteForCategory,
+  NavigationProps,
+} from 'teleport/Navigation/Navigation';
 
 import { NavigationCategory } from 'teleport/Navigation/categories';
+
+import { QuestionnaireProps } from 'teleport/Welcome/NewCredentials';
 
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
 
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
-import type { TeleportFeature } from 'teleport/types';
+import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 
-interface MainProps {
+export interface MainProps {
   initialAlerts?: ClusterAlert[];
-  customBanners?: React.ReactNode[];
+  customBanners?: ReactNode[];
   features: TeleportFeature[];
+  billingBanners?: ReactNode[];
+  Questionnaire?: (props: QuestionnaireProps) => React.ReactElement;
+  navigationProps?: NavigationProps;
 }
 
 export function Main(props: MainProps) {
@@ -79,7 +95,10 @@ export function Main(props: MainProps) {
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
-  const [showOnboardDiscover, setShowOnboardDiscover] = React.useState(true);
+  const [showOnboardDiscover, setShowOnboardDiscover] = useState(true);
+  const [showOnboardSurvey, setShowOnboardSurvey] = useState<boolean>(
+    !!props.Questionnaire
+  );
 
   if (attempt.status === 'failed') {
     return <Failed message={attempt.statusText} />;
@@ -148,15 +167,16 @@ export function Main(props: MainProps) {
       <BannerList
         banners={banners}
         customBanners={props.customBanners}
+        billingBanners={featureFlags.billing && props.billingBanners}
         onBannerDismiss={dismissAlert}
       >
         <MainContainer>
-          <Navigation />
+          <Navigation {...props.navigationProps} />
           <HorizontalSplit>
             <ContentMinWidth>
               <Suspense fallback={null}>
                 <TopBar />
-                <FeatureRoutes />
+                <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
               </Suspense>
             </ContentMinWidth>
           </HorizontalSplit>
@@ -165,17 +185,59 @@ export function Main(props: MainProps) {
       {requiresOnboarding && showOnboardDiscover && (
         <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
       )}
+      {showOnboardSurvey && (
+        <Dialog open={showOnboardSurvey}>
+          <props.Questionnaire
+            onSubmit={() => setShowOnboardSurvey(false)}
+            onboard={false}
+          />
+        </Dialog>
+      )}
     </FeaturesContextProvider>
   );
 }
 
-function renderRoutes(features: TeleportFeature[]) {
+function renderRoutes(
+  features: TeleportFeature[],
+  lockedFeatures: LockedFeatures
+) {
   const routes = [];
 
   for (const [index, feature] of features.entries()) {
+    const isParentLocked =
+      feature.parent && new feature.parent().isLocked?.(lockedFeatures);
+
+    // remove features with parents locked.
+    // The parent itself will be rendered if it has a lockedRoute,
+    // but the children shouldn't be.
+    if (isParentLocked) {
+      continue;
+    }
+
+    // add the route of the 'locked' variants of the features
+    if (feature.isLocked?.(lockedFeatures)) {
+      if (!feature.lockedRoute) {
+        throw new Error('a locked feature without a locked route was found');
+      }
+
+      const { path, title, exact, component: Component } = feature.lockedRoute;
+      routes.push(
+        <Route title={title} key={index} path={path} exact={exact}>
+          <CatchError>
+            <Suspense fallback={null}>
+              <Component />
+            </Suspense>
+          </CatchError>
+        </Route>
+      );
+
+      // return early so we don't add the original route
+      continue;
+    }
+
+    // add regular feature routes
     if (feature.route) {
       const { path, title, exact, component: Component } = feature.route;
-
       routes.push(
         <Route title={title} key={index} path={path} exact={exact}>
           <CatchError>
@@ -191,9 +253,9 @@ function renderRoutes(features: TeleportFeature[]) {
   return routes;
 }
 
-function FeatureRoutes() {
+function FeatureRoutes({ lockedFeatures }: { lockedFeatures: LockedFeatures }) {
   const features = useFeatures();
-  const routes = renderRoutes(features);
+  const routes = renderRoutes(features, lockedFeatures);
 
   return <Switch>{routes}</Switch>;
 }

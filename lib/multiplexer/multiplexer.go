@@ -39,7 +39,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -436,8 +435,8 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				continue
 			}
 
-			// If TLVs are empty we know it can't be signed, so we don't try to verify to avoid unnecessary load
-			if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && len(newProxyLine.TLVs) > 0 {
+			// If proxyline is not signed, so we don't try to verify to avoid unnecessary load
+			if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && newProxyLine.IsSigned() {
 				err = newProxyLine.VerifySignature(m.context, m.CertAuthorityGetter, m.LocalClusterName, m.Clock)
 				if errors.Is(err, ErrNoHostCA) {
 					m.WithFields(log.Fields{
@@ -496,18 +495,12 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 			proxyLine = newProxyLine
 			// repeat the cycle to detect the protocol
-		case ProtoTLS, ProtoSSH, ProtoHTTP:
+		case ProtoTLS, ProtoSSH, ProtoHTTP, ProtoPostgres:
 			return &Conn{
 				protocol:  proto,
 				Conn:      conn,
 				reader:    reader,
 				proxyLine: proxyLine,
-			}, nil
-		case ProtoPostgres:
-			return &Conn{
-				protocol: proto,
-				Conn:     conn,
-				reader:   reader,
 			}, nil
 		}
 	}
@@ -553,11 +546,10 @@ func (p Protocol) String() string {
 }
 
 var (
-	proxyPrefix      = []byte{'P', 'R', 'O', 'X', 'Y'}
-	ProxyV2Prefix    = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
-	sshPrefix        = []byte{'S', 'S', 'H'}
-	tlsPrefix        = []byte{0x16}
-	proxyHelloPrefix = []byte(constants.ProxyHelloSignature)
+	proxyPrefix   = []byte{'P', 'R', 'O', 'X', 'Y'}
+	ProxyV2Prefix = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
+	sshPrefix     = []byte{'S', 'S', 'H'}
+	tlsPrefix     = []byte{0x16}
 )
 
 // This section defines Postgres wire protocol messages detected by Teleport:
@@ -627,16 +619,6 @@ func detectProto(r *bufio.Reader) (Protocol, error) {
 		}
 		if bytes.HasPrefix(in, ProxyV2Prefix) {
 			return ProtoProxyV2, nil
-		}
-	case bytes.HasPrefix(in, proxyHelloPrefix[:8]):
-		// Support for SSH connections opened with the ProxyHelloSignature for
-		// Teleport to Teleport connections.
-		in, err = r.Peek(len(proxyHelloPrefix))
-		if err != nil {
-			return ProtoUnknown, trace.Wrap(err, failedToPeekConnectionError)
-		}
-		if bytes.HasPrefix(in, proxyHelloPrefix) {
-			return ProtoSSH, nil
 		}
 	case bytes.HasPrefix(in, sshPrefix):
 		return ProtoSSH, nil

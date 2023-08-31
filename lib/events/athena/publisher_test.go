@@ -88,8 +88,10 @@ func Test_EmitAuditEvent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fq := newFakeQueue()
 			p := &publisher{
-				snsPublisher: fq,
-				uploader:     tt.uploader,
+				PublisherConfig: PublisherConfig{
+					SNSPublisher: fq,
+					Uploader:     tt.uploader,
+				},
 			}
 			err := p.EmitAuditEvent(context.Background(), tt.in)
 			require.NoError(t, err)

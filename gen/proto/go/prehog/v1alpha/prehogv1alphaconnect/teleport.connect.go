@@ -61,8 +61,19 @@ const (
 // TeleportReportingServiceClient is a client for the prehog.v1alpha.TeleportReportingService
 // service.
 type TeleportReportingServiceClient interface {
+	// equivalent to SubmitEvents with a single event, should be unused by now
+	//
 	// Deprecated: do not use.
 	SubmitEvent(context.Context, *connect_go.Request[v1alpha.SubmitEventRequest]) (*connect_go.Response[v1alpha.SubmitEventResponse], error)
+	// encodes and forwards usage events to the PostHog event database; each
+	// event is annotated with some properties that depend on the identity of the
+	// caller:
+	//   - tp.account_id (UUID in string form, can be empty if missing from the
+	//     license)
+	//   - tp.license_name (should always be a UUID)
+	//   - tp.license_authority (name of the authority that signed the license file
+	//     used for authentication)
+	//   - tp.is_cloud (boolean)
 	SubmitEvents(context.Context, *connect_go.Request[v1alpha.SubmitEventsRequest]) (*connect_go.Response[v1alpha.SubmitEventsResponse], error)
 	HelloTeleport(context.Context, *connect_go.Request[v1alpha.HelloTeleportRequest]) (*connect_go.Response[v1alpha.HelloTeleportResponse], error)
 }
@@ -122,8 +133,19 @@ func (c *teleportReportingServiceClient) HelloTeleport(ctx context.Context, req 
 // TeleportReportingServiceHandler is an implementation of the
 // prehog.v1alpha.TeleportReportingService service.
 type TeleportReportingServiceHandler interface {
+	// equivalent to SubmitEvents with a single event, should be unused by now
+	//
 	// Deprecated: do not use.
 	SubmitEvent(context.Context, *connect_go.Request[v1alpha.SubmitEventRequest]) (*connect_go.Response[v1alpha.SubmitEventResponse], error)
+	// encodes and forwards usage events to the PostHog event database; each
+	// event is annotated with some properties that depend on the identity of the
+	// caller:
+	//   - tp.account_id (UUID in string form, can be empty if missing from the
+	//     license)
+	//   - tp.license_name (should always be a UUID)
+	//   - tp.license_authority (name of the authority that signed the license file
+	//     used for authentication)
+	//   - tp.is_cloud (boolean)
 	SubmitEvents(context.Context, *connect_go.Request[v1alpha.SubmitEventsRequest]) (*connect_go.Response[v1alpha.SubmitEventsResponse], error)
 	HelloTeleport(context.Context, *connect_go.Request[v1alpha.HelloTeleportRequest]) (*connect_go.Response[v1alpha.HelloTeleportResponse], error)
 }
@@ -134,23 +156,33 @@ type TeleportReportingServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewTeleportReportingServiceHandler(svc TeleportReportingServiceHandler, opts ...connect_go.HandlerOption) (string, http.Handler) {
-	mux := http.NewServeMux()
-	mux.Handle(TeleportReportingServiceSubmitEventProcedure, connect_go.NewUnaryHandler(
+	teleportReportingServiceSubmitEventHandler := connect_go.NewUnaryHandler(
 		TeleportReportingServiceSubmitEventProcedure,
 		svc.SubmitEvent,
 		opts...,
-	))
-	mux.Handle(TeleportReportingServiceSubmitEventsProcedure, connect_go.NewUnaryHandler(
+	)
+	teleportReportingServiceSubmitEventsHandler := connect_go.NewUnaryHandler(
 		TeleportReportingServiceSubmitEventsProcedure,
 		svc.SubmitEvents,
 		opts...,
-	))
-	mux.Handle(TeleportReportingServiceHelloTeleportProcedure, connect_go.NewUnaryHandler(
+	)
+	teleportReportingServiceHelloTeleportHandler := connect_go.NewUnaryHandler(
 		TeleportReportingServiceHelloTeleportProcedure,
 		svc.HelloTeleport,
 		opts...,
-	))
-	return "/prehog.v1alpha.TeleportReportingService/", mux
+	)
+	return "/prehog.v1alpha.TeleportReportingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case TeleportReportingServiceSubmitEventProcedure:
+			teleportReportingServiceSubmitEventHandler.ServeHTTP(w, r)
+		case TeleportReportingServiceSubmitEventsProcedure:
+			teleportReportingServiceSubmitEventsHandler.ServeHTTP(w, r)
+		case TeleportReportingServiceHelloTeleportProcedure:
+			teleportReportingServiceHelloTeleportHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
 }
 
 // UnimplementedTeleportReportingServiceHandler returns CodeUnimplemented from all methods.

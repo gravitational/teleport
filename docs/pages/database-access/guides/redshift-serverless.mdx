@@ -3,17 +3,22 @@ title: Database Access with Redshift Serverless on AWS
 description: How to configure Teleport database access with AWS Redshift Serverless.
 ---
 
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS Redshift Serverless" dbConfigure="AWS Redshift Serverless database with IAM authentication" dbName="AWS Redshift Serverless" !)
+
 This guide will help you to:
 
 - Set up Teleport to access your AWS Redshift Serverless workgroups.
 - Connect to your databases through Teleport.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Redshift Self-Hosted](../../../img/database-access/guides/redshift_selfhosted_serverless.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access Redshift Cloud](../../../img/database-access/guides/redshift_cloud_serverless.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -189,6 +194,8 @@ role 'redshift-serverless-access' has been created
 
 (!docs/pages/includes/database-access/token.mdx!)
 
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
+
 Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
@@ -196,7 +203,7 @@ Install Teleport on the host where you will run the Teleport Database Service:
 On the same host, create a Teleport configuration file:
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --proxy=teleport.example.com:443 \
    --token=/tmp/token \
@@ -298,7 +305,7 @@ my-redshift Redshift cluster in us-east-1  ...
 
 <Admonition type="note" title="Note">
 
-You can override the database name by applying the `teleport.dev/database_name`
+You can override the database name by applying the `TeleportDatabaseName`
 AWS tag to the resource. The value of the tag will be used as the database name.
 
 </Admonition>
@@ -338,7 +345,7 @@ prior to logging in as this new IAM role to avoid or resolve user permission iss
    CREATE USER "IAMR:teleport-redshift-serverless-access" WITH PASSWORD DISABLE;
    ```
 
-2. Grant this user appropriate in-database permissions. For example:
+1. Grant this user appropriate in-database permissions. For example:
 
    ```sql
    GRANT SELECT ON TABLE users  TO "IAMR:teleport-redshift-serverless-access";
@@ -353,3 +360,4 @@ prior to logging in as this new IAM role to avoid or resolve user permission iss
 - Learn how to [restrict access](../rbac.mdx) to certain users and databases.
 - View the [High Availability (HA)](../guides/ha.mdx) guide.
 - Take a look at the YAML configuration [reference](../reference/configuration.mdx).
+

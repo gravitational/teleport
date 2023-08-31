@@ -19,6 +19,7 @@ package srv
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -75,6 +76,10 @@ type Exec interface {
 	// Wait will block while the command executes.
 	Wait() *ExecResult
 
+	// WaitForChild blocks until the child process has completed any required
+	// setup operations before proceeding with execution.
+	WaitForChild() error
+
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
 	Continue()
@@ -94,10 +99,10 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 		}, nil
 	}
 
-	// If this is a unregistered OpenSSH node or proxy recoding mode is
+	// If this is a registered OpenSSH node or proxy recoding mode is
 	// enabled, execute the command on a remote host. This is used by
 	// in-memory forwarding nodes.
-	if ctx.ServerSubKind == types.SubKindOpenSSHNode || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,
@@ -153,7 +158,13 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 
 	// Connect stdout and stderr to the channel so the user can interact with the command.
 	e.Cmd.Stderr = channel.Stderr()
-	e.Cmd.Stdout = channel
+
+	if e.Ctx.recordNonInteractiveSession {
+		e.Ctx.Tracef("Starting local exec and recording non-interactive session")
+		e.Cmd.Stdout = io.MultiWriter(e.Ctx.multiWriter, channel)
+	} else {
+		e.Cmd.Stdout = channel
+	}
 
 	// Copy from the channel (client input) into stdin of the process.
 	inputWriter, err := e.Cmd.StdinPipe()
@@ -174,6 +185,12 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 			Code:    exitCode(err),
 		}, trace.ConvertSystemError(err)
 	}
+	// Close our half of the write pipe since it is only to be used by the child process.
+	// Not closing prevents being signaled when the child closes its half.
+	if err := e.Ctx.readyw.Close(); err != nil {
+		e.Ctx.Logger.WithError(err).Warn("Failed to close parent process ready signal write fd")
+	}
+	e.Ctx.readyw = nil
 
 	go func() {
 		if _, err := io.Copy(inputWriter, channel); err != nil {
@@ -212,6 +229,14 @@ func (e *localExec) Wait() *ExecResult {
 	return execResult
 }
 
+func (e *localExec) WaitForChild() error {
+	err := waitForSignal(e.Ctx.readyr, 20*time.Second)
+	closeErr := e.Ctx.readyr.Close()
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	e.Ctx.readyr = nil
+	return trace.NewAggregate(err, closeErr)
+}
+
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (e *localExec) Continue() {
@@ -231,21 +256,16 @@ func (e *localExec) String() string {
 }
 
 func (e *localExec) transformSecureCopy() error {
-	// split up command by space to grab the first word. if we don't have anything
-	// it's an interactive shell the user requested and not scp, return
-	args := strings.Split(e.GetCommand(), " ")
-	if len(args) == 0 {
-		return nil
-	}
-
-	// see the user is not requesting scp, return
-	_, f := filepath.Split(args[0])
-	if f != teleport.SCP {
-		return nil
-	}
-
-	if err := e.Ctx.CheckFileCopyingAllowed(); err != nil {
+	isSCPCmd, err := checkSCPAllowed(e.Ctx, e.GetCommand())
+	if err != nil {
 		return trace.Wrap(err)
+	}
+	if !isSCPCmd {
+		return nil
+	}
+	_, scpArgs, ok := strings.Cut(e.GetCommand(), " ")
+	if !ok {
+		return nil
 	}
 
 	// for scp requests update the command to execute to launch teleport with
@@ -258,33 +278,50 @@ func (e *localExec) transformSecureCopy() error {
 		teleportBin,
 		e.Ctx.ServerConn.RemoteAddr().String(),
 		e.Ctx.ServerConn.LocalAddr().String(),
-		strings.Join(args[1:], " "))
+		scpArgs,
+	)
 
 	return nil
 }
 
-// waitForContinue will wait 10 seconds for the continue signal, if not
+// checkSCPAllowed will return false if the command is not a SCP command,
+// and if it is it will return true and potentially an error if file
+// copying is not allowed.
+func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
+	// split up command by space to grab the first word. if we don't have anything
+	// it's an interactive shell the user requested and not scp, return
+	args := strings.Split(command, " ")
+	if len(args) == 0 {
+		return false, nil
+	}
+	// see the user is not requesting scp, return
+	if _, f := filepath.Split(args[0]); f != teleport.SCP {
+		return false, nil
+	}
+
+	return true, trace.Wrap(scx.CheckFileCopyingAllowed())
+}
+
+// waitForSignal will wait 10 seconds for the other side of the pipe to signal, if not
 // received, it will stop waiting and exit.
-func waitForContinue(contfd *os.File) error {
+func waitForSignal(fd *os.File, timeout time.Duration) error {
 	waitCh := make(chan error, 1)
 	go func() {
-		// Reading from the continue file descriptor will block until it's closed. It
-		// won't be closed until the parent has placed it in a cgroup.
-		buf := make([]byte, 1)
-		_, err := contfd.Read(buf)
-		if err == io.EOF {
+		// Reading from the file descriptor will block until it's closed.
+		_, err := fd.Read(make([]byte, 1))
+		if errors.Is(err, io.EOF) {
 			err = nil
 		}
 		waitCh <- err
 	}()
 
-	// Wait for 10 seconds and then timeout if no continue signal has been sent.
-	timeout := time.NewTimer(10 * time.Second)
-	defer timeout.Stop()
+	// Timeout if no signal has been sent within the provided duration.
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 
 	select {
-	case <-timeout.C:
-		return trace.BadParameter("timed out waiting for continue signal")
+	case <-timer.C:
+		return trace.LimitExceeded("timed out waiting for continue signal")
 	case err := <-waitCh:
 		return err
 	}
@@ -315,8 +352,18 @@ func (e *remoteExec) SetCommand(command string) {
 // Start launches the given command returns (nil, nil) if successful.
 // ExecResult is only used to communicate an error while launching.
 func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, error) {
+	if _, err := checkSCPAllowed(e.ctx, e.GetCommand()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// hook up stdout/err the channel so the user can interact with the command
-	e.session.Stdout = ch
+	if e.ctx.recordNonInteractiveSession {
+		e.ctx.Tracef("Starting remote exec and recording non-interactive session")
+		e.session.Stdout = io.MultiWriter(e.ctx.multiWriter, ch)
+	} else {
+		e.session.Stdout = ch
+	}
+
 	e.session.Stderr = ch.Stderr()
 	inputWriter, err := e.session.StdinPipe()
 	if err != nil {
@@ -357,6 +404,8 @@ func (e *remoteExec) Wait() *ExecResult {
 		Code:    exitCode(err),
 	}
 }
+
+func (e *remoteExec) WaitForChild() error { return nil }
 
 // Continue does nothing for remote command execution.
 func (e *remoteExec) Continue() {}
@@ -543,7 +592,7 @@ func parseSecureCopy(path string) (string, string, bool, error) {
 		action = events.SCPActionUpload
 	}
 
-	// Exract the name of the Teleport executable on disk.
+	// Extract the name of the Teleport executable on disk.
 	teleportPath, err := os.Executable()
 	if err != nil {
 		return "", "", false, trace.Wrap(err)

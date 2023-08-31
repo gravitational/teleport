@@ -216,7 +216,7 @@ function SearchableBasicTable<T>({
 }: SearchableBasicTableProps<T>) {
   return (
     <>
-      <StyledPanel borderTopLeftRadius={3} borderTopRightRadius={3}>
+      <StyledPanel>
         <InputSearch
           searchValue={searchValue}
           setSearchValue={setSearchValue}
@@ -268,7 +268,7 @@ function PagedTable<T>({
   return (
     <>
       {isTopPager && (
-        <StyledPanel borderTopLeftRadius={3} borderTopRightRadius={3}>
+        <StyledPanel>
           <InputSearch
             searchValue={searchValue}
             setSearchValue={setSearchValue}
@@ -287,7 +287,11 @@ function PagedTable<T>({
         {renderBody(paginatedData[currentPage])}
       </StyledTable>
       {!isTopPager && (
-        <StyledPanel borderBottomLeftRadius={3} borderBottomRightRadius={3}>
+        <StyledPanel
+          borderBottomLeftRadius={3}
+          borderBottomRightRadius={3}
+          showTopBorder={true}
+        >
           <ClientSidePager
             nextPage={nextPage}
             prevPage={prevPage}
@@ -317,7 +321,7 @@ function ServersideTable<T>({
         {renderHeaders()}
         {renderBody(data)}
       </StyledTable>
-      <StyledPanel>
+      <StyledPanel showTopBorder={true}>
         <ServerSidePager nextPage={nextPage} prevPage={prevPage} />
       </StyledPanel>
     </>
@@ -337,14 +341,14 @@ const EmptyIndicator = ({
         <Text
           typography="paragraph"
           m="4"
-          color="text.primary"
+          color="text.main"
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Icons.Database mr="2" />
+          <Icons.Database mr={2} />
           {emptyText}
         </Text>
       </td>

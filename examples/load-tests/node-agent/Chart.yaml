@@ -1,9 +1,0 @@
-apiVersion: v2
-name: node-agent
-description: Deploys node load-test agents (Teleport nodes running SSH Service)
-
-type: application
-
-version: 0.1.0
-
-appVersion: "12.0.0-dev"

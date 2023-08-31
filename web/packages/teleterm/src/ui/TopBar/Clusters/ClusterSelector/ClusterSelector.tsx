@@ -15,7 +15,7 @@
  */
 
 import React, { forwardRef } from 'react';
-import { SortAsc, SortDesc } from 'design/Icon';
+import { ChevronUp, ChevronDown } from 'design/Icon';
 import styled from 'styled-components';
 import { Text } from 'design';
 
@@ -31,7 +31,7 @@ interface ClusterSelectorProps {
 export const ClusterSelector = forwardRef<HTMLDivElement, ClusterSelectorProps>(
   (props, ref) => {
     const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
-    const SortIcon = props.isOpened ? SortAsc : SortDesc;
+    const SortIcon = props.isOpened ? ChevronUp : ChevronDown;
     const text = props.clusterName || 'Select Cluster';
 
     return (
@@ -52,7 +52,7 @@ export const ClusterSelector = forwardRef<HTMLDivElement, ClusterSelectorProps>(
         >
           {text}
         </Text>
-        <SortIcon fontSize={12} ml={3} />
+        <SortIcon size="small" ml={3} />
       </Container>
     );
   }
@@ -66,7 +66,7 @@ const Container = styled.button`
   flex-shrink: 2;
   min-width: calc(${props => props.theme.space[7]}px * 2);
   height: 100%;
-  border: 0.5px ${props => props.theme.colors.action.disabledBackground} solid;
+  border: 1px ${props => props.theme.colors.buttons.border.border} solid;
   border-radius: 4px;
   display: flex;
   justify-content: space-between;
@@ -78,15 +78,6 @@ const Container = styled.button`
   &:hover,
   &:focus {
     opacity: 1;
-    border-color: ${props => props.theme.colors.light};
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
-
-  ${props => {
-    if (props.isOpened) {
-      return {
-        borderColor: props.theme.colors.brand,
-        opacity: 1,
-      };
-    }
-  }}
 `;

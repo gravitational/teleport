@@ -1,75 +1,78 @@
-SOAK_TEST_DURATION ?= 30m
-USE_CERT_MANAGER ?= yes
-TELEPORT_IMAGE ?= public.ecr.aws/gravitational/teleport-ent:12.0.0
-NAMESPACE ?= loadtest
+# creates an eks cluster
+.PHONY: create-aws-cluster
+create-aws-cluster:
+	$(MAKE) -C cluster/aws create-cluster
 
-.PHONY: reserve-ips
-reserve-ips:
-	@make -C network apply
+# creates an gks cluster
+.PHONY: create-gcp-cluster
+create-gcp-cluster:
+	$(MAKE) -C cluster/gcp create-cluster
 
-# create gke cluster 
-.PHONY: create-cluster
-create-cluster:
-	@make -C ./cluster apply
-	@make -C ./cluster get-creds
+# deletes an eks cluster
+.PHONY: delete-aws-cluster
+delete-aws-cluster:
+	$(MAKE) -C cluster/aws destroy
 
-# delete gke cluster
-.PHONY: delete-cluster
-delete-cluster:
-	@make -C cluster destroy USE_CERT_MANAGER=$(USE_CERT_MANAGER)
+# deletes a gks cluster
+.PHONY: delete-gcp-cluster
+delete-gcp-cluster:
+	$(MAKE) -C cluster/gcp destroy
 
-# deploy teleport with etcd backend to loadtest namespace
-.PHONY: deploy-etcd-cluster
-deploy-etcd-cluster:
-	@make -C k8s apply BACKEND=etcd USE_CERT_MANAGER=$(USE_CERT_MANAGER) TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+# cleans up all deployed resources in the cluster and
+# any resources created in the cloud provider
+.PHONY: destroy-deploy
+destroy-deploy:
+	$(MAKE) -C control-plane destroy
 
-# deploy teleport with firestore backend to loadtest namespace
-.PHONY: deploy-firestore-cluster
-deploy-firestore-cluster:
-	@make -C k8s apply BACKEND=firestore USE_CERT_MANAGER=$(USE_CERT_MANAGER) TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+# deploys teleport auth and proxy
+.PHONY: deploy-control-plane
+deploy-control-plane:
+	$(MAKE) -C control-plane deploy
 
-# deploy teleport with dynamo backend to loadtest namespace
-.PHONY: deploy-dynamo-cluster
-deploy-dynamo-cluster:
-	@make -C k8s apply BACKEND=dynamo USE_CERT_MANAGER=$(USE_CERT_MANAGER) TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+# deletes the teleport auth and proxy deployments
+.PHONY: delete-teleport
+delete-teleport:
+	$(MAKE) -C control-plane delete-teleport
 
-# delete the loadtest namespace
-.PHONY: delete-deploy
-delete-deploy:
-	@make -C k8s clean USE_CERT_MANAGER=$(USE_CERT_MANAGER)
+# deploys teleport auth and proxy to the cluster
+.PHONY: deploy-teleport
+deploy-teleport:
+	$(MAKE) -C control-plane deploy-teleport
 
-# run soak tests
-.PHONY: run-soak-tests
-run-soak-tests:
-	@make -C k8s run-soak-tests SOAK_TEST_DURATION=$(SOAK_TEST_DURATION) TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+NODE_REPLICAS ?= 1000
+PROXY_SERVER ?=
+NODE_TOKEN ?=
 
-# run 500 node trusted cluster scaling test
-# This installs 500 trusted clusters, waits for a period of time and then
-# deletes all 500. When they are all removed from auth the process is repeated once more.
-# The test helps identify any potential memory leaks caused by remote clusters
-.PHONY: run-tc-scaling-test
-run-tc-scaling-test:
-	@make -C k8s run-tc-scaling-test TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+# deploys nodes and adds them to the teleport cluster
+.PHONY: deploy-nodes
+deploy-nodes:
+	helm upgrade --install node-agents -n agents --create-namespace ./helm/node-agent/ --values ./helm/values/node-agents.yaml --set replicaCount=${NODE_REPLICAS} --set agentsPerPod=10 --set proxyServer=${PROXY_SERVER} --set joinParams.token_name=${NODE_TOKEN}
 
-# run the 10k scaling test
-# This tests installs 10,000 IoT nodes and then removes all 10,000 nodes after a fixed period of time.
-# The process repeats once more and then the same is done for non-IoT nodes. The test helps identify any
-# potential memory leaks caused by large clusters for both non-IoT and IoT nodes.
-.PHONY: run-scaling-test
-run-scaling-test:
-	@make -C k8s run-scaling-test TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+# deletes all nodes
+.PHONY: delete-nodes
+delete-nodes:
+	helm delete -n agents node-agents
 
-# list pods in loadtest namespace
-.PHONY: pods
-pods:
-	@make -C k8s pods NAMESPACE=$(NAMESPACE)
+TELEPORT_USER ?= test
 
-# get cluster credentials
-.PHONY: get-creds
-get-creds:
-	@make -C cluster get-creds
+# creates a local teleport user
+.PHONY: create-user
+create-user:
+	kubectl --namespace teleport exec deploy/teleport-auth -- tctl users add ${TELEPORT_USER} --roles=access,editor,auditor
 
-# collect heap and goroutine profiles
-.PHONY: collect-profiles
-collect-profiles:
-	@make -C k8s collect-profiles PROFILE_LOCATION=$(shell pwd) NAMESPACE=$(NAMESPACE)
+# creates a token that can be used by nodes to join the
+# teleport cluster
+.PHONY: create-token
+create-token:
+	kubectl --namespace teleport exec deploy/teleport-auth -- tctl tokens add --type=node --ttl=8h
+
+# forwards the grafana web app to localhost:6060
+.PHONY: forward-grafana
+forward-grafana:
+	$(MAKE) -C control-plane forward-monitor
+
+# scales teleport auth pods up/down
+.PHONY: scale-auth
+scale-auth:
+	kubectl scale deployment/teleport-auth --replicas=$(REPLICAS) -n teleport
+

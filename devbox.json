@@ -1,0 +1,44 @@
+{
+  "packages": [
+    "addlicense@latest",
+    "bash@latest",
+    "bats@latest",
+    "buf@latest",
+    "gci@latest",
+    "git@latest",
+    "golangci-lint@latest",
+    "gotestsum@latest",
+    "libiconvReal@latest",
+    "openssl@latest",
+    "patchelf@latest",
+    "python@latest",
+    "shellcheck@latest",
+    "yamllint@latest",
+    "zlib@latest",
+
+    "go@1.21.0",
+    "libfido2@1.13.0",
+    "llvmPackages_14.clangUseLLVM@14.0.6",
+    "nodejs@18.16.1",
+    "protobuf3_20@3.20.3",
+    "rustc@1.70.0",
+    "yarn@1.22.19",
+
+    "path:build.assets/flake#conditional",
+    "path:build.assets/flake#grpc-tools",
+    "path:build.assets/flake#helm",
+    "path:build.assets/flake#libpcsclite",
+    "path:build.assets/flake#node-protoc-ts",
+    "path:build.assets/flake#protoc-gen-gogo"
+  ],
+  "shell": {
+    "init_hook": [
+      "export TELEPORT_DEVBOX=1",
+      "export PATH=\"$HOME/.cargo/bin:$PATH\"",
+      "type unset 2>/dev/null && unset GOROOT"
+    ]
+  },
+  "nixpkgs": {
+    "commit": "b3f5bcf0be3e15226b0e9d698aa734ee098aa08f"
+  }
+}

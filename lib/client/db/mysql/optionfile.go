@@ -17,6 +17,7 @@ limitations under the License.
 package mysql
 
 import (
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -42,13 +43,20 @@ type OptionFile struct {
 	path string
 }
 
+// DefaultConfigPath returns the default config path, which is .my.cnf file in
+// the user's home directory. Home dir is determined by environment if not
+// supplied as an argument.
 func DefaultConfigPath() (string, error) {
-	// Default location is .my.cnf file in the user's home directory.
-	usr, err := utils.CurrentUser()
-	if err != nil {
-		return "", trace.ConvertSystemError(err)
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		usr, err := utils.CurrentUser()
+		if err != nil {
+			return "", trace.ConvertSystemError(err)
+		}
+		home = usr.HomeDir
 	}
-	return filepath.Join(usr.HomeDir, mysqlOptionFile), nil
+
+	return filepath.Join(home, mysqlOptionFile), nil
 }
 
 // Load loads MySQL option file from the default location.

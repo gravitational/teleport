@@ -7,9 +7,6 @@ h1: Teleport Enterprise
 Teleport Enterprise is a commercial product built around Teleport's open source
 core.
 
-For those that want to jump right in, you can play with the
-[Getting Started Guide for Teleport Enterprise](getting-started.mdx).
-
 The table below gives a quick overview of the benefits of Teleport Enterprise.
 
 | Teleport Enterprise Feature | Description |
@@ -25,7 +22,14 @@ The table below gives a quick overview of the benefits of Teleport Enterprise.
   type="tip"
   title="Contact Information"
 >
-  Try Teleport Enterprise for [free in the cloud](https://goteleport.com/signup/) or [contact sales](https://goteleport.com/signup/enterprise/).
+
+  To get started with self-hosted Teleport Enterprise, [contact
+  sales](https://goteleport.com/signup/enterprise/).
+
+  You can also sign up for a [free trial](https://goteleport.com/signup) of
+  Teleport Team, which manages the Auth Service and Proxy Service for you. You
+  can then upgrade your account to Teleport Enterprise Cloud.
+
 </Admonition>
 
 ## SSO
@@ -56,18 +60,12 @@ Moreover, SSO can be used in combination with role-based access control (RBAC)
 to enforce SSH access policies like *"developers must not touch production data"*.
 See the [SSO](../../access-controls/sso.mdx) chapter for more details.
 
-<Admonition
-  type="tip"
-  title="Contact Information"
->
-  Try Teleport Enterprise for [free in the cloud](https://goteleport.com/signup/) or [contact sales](https://goteleport.com/signup/enterprise/).
-</Admonition>
-
 ## FedRAMP/FIPS
 
 With Teleport we have built the foundation to meet FedRAMP requirements for the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS\_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules.
 
-Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/).
+Enterprise customers can download the custom FIPS package from their [Teleport account](https://teleport.sh).
+
 Look for `Linux 64-bit (FedRAMP/FIPS)`.
 
 Using `teleport start --fips` Teleport will start in FIPS mode, Teleport will
@@ -114,3 +112,16 @@ See [Moderated Sessions](../../access-controls/guides/moderated-sessions.mdx) fo
 ## License file
 
 Commercial Teleport subscriptions require a valid license. See [Enterprise License File](./license.mdx) for how to manage the file in your Teleport Enterprise deployment.
+
+## Next steps
+
+To get started with Teleport Enterprise, read our [deployment
+guides](../../deploy-a-cluster/introduction.mdx). You will learn how to deploy a
+high-availability, self-hosted Teleport cluster on your platform.
+
+Unless your organization requires the Enterprise-specific features we outlined
+above, you can use Teleport Enterprise Cloud to achieve secure access to your
+infrastructure without needing to maintain the Auth and Proxy Services. 
+
+[Sign up for a free trial of Teleport Team](https://goteleport.com/signup/),
+which you can upgrade to a Teleport Enterprise Cloud account.

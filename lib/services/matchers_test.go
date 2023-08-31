@@ -139,8 +139,9 @@ func TestMatchResourceByFilters_Helper(t *testing.T) {
 	t.Parallel()
 
 	server, err := types.NewServerWithLabels("banana", types.KindNode, types.ServerSpecV2{
-		Hostname: "foo",
-		Addr:     "bar",
+		Hostname:    "foo",
+		Addr:        "bar",
+		PublicAddrs: []string{"foo.example.com:3080"},
 	}, map[string]string{"env": "prod", "os": "mac"})
 	require.NoError(t, err)
 
@@ -176,6 +177,30 @@ func TestMatchResourceByFilters_Helper(t *testing.T) {
 			},
 			assertErr:   require.NoError,
 			assertMatch: require.False,
+		},
+		{
+			name: "search keywords hostname match",
+			filters: MatchResourceFilter{
+				SearchKeywords: []string{"foo"},
+			},
+			assertErr:   require.NoError,
+			assertMatch: require.True,
+		},
+		{
+			name: "search keywords addr match",
+			filters: MatchResourceFilter{
+				SearchKeywords: []string{"bar"},
+			},
+			assertErr:   require.NoError,
+			assertMatch: require.True,
+		},
+		{
+			name: "search keywords public addr match",
+			filters: MatchResourceFilter{
+				SearchKeywords: []string{"foo.example.com"},
+			},
+			assertErr:   require.NoError,
+			assertMatch: require.True,
 		},
 		{
 			name: "expression match",
@@ -407,8 +432,15 @@ func TestMatchResourceByFilters(t *testing.T) {
 			filters: MatchResourceFilter{ResourceKind: types.KindNode},
 		},
 		{
-			name:     "unsupported resource kind",
-			resource: func() types.ResourceWithLabels { return nil },
+			name: "unsupported resource kind",
+			resource: func() types.ResourceWithLabels {
+				badResource, err := types.NewConnectionDiagnosticV1("123", map[string]string{},
+					types.ConnectionDiagnosticSpecV1{
+						Message: types.DiagnosticMessageSuccess,
+					})
+				require.NoError(t, err)
+				return badResource
+			},
 			filters: MatchResourceFilter{
 				ResourceKind:   "unsupported",
 				SearchKeywords: []string{"nothing"},
@@ -495,6 +527,39 @@ func TestMatchResourceByFilters(t *testing.T) {
 			},
 			filters: MatchResourceFilter{
 				ResourceKind:        types.KindWindowsDesktop,
+				PredicateExpression: filterExpression,
+			},
+		},
+
+		{
+			name: "AppServerOrSAMLIdPServiceProvider (App Server)r",
+			resource: func() types.ResourceWithLabels {
+				appServer, err := types.NewAppServerV3(types.Metadata{
+					Name: "_",
+				}, types.AppServerSpecV3{
+					HostID: "_",
+					App: &types.AppV3{
+						Metadata: types.Metadata{Name: "foo"},
+						Spec:     types.AppSpecV3{URI: "_"},
+					},
+				})
+				require.NoError(t, err)
+				return appServer
+			},
+			filters: MatchResourceFilter{
+				ResourceKind:        types.KindAppOrSAMLIdPServiceProvider,
+				PredicateExpression: filterExpression,
+			},
+		},
+		{
+			name: "AppServerOrSAMLIdPServiceProvider (Service Provider)",
+			resource: func() types.ResourceWithLabels {
+				appOrSP, err := types.NewSAMLIdPServiceProvider(types.Metadata{Name: "foo"}, types.SAMLIdPServiceProviderSpecV1{EntityDescriptor: "<></>", EntityID: "_"})
+				require.NoError(t, err)
+				return appOrSP
+			},
+			filters: MatchResourceFilter{
+				ResourceKind:        types.KindAppOrSAMLIdPServiceProvider,
 				PredicateExpression: filterExpression,
 			},
 		},

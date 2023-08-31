@@ -1,4 +1,5 @@
 const { env, platform } = require('process');
+const fs = require('fs');
 
 const isMac = platform === 'darwin';
 
@@ -28,6 +29,9 @@ if (!isMac && env.CONNECT_TSH_BIN_PATH === undefined) {
   throw new Error('You must provide CONNECT_TSH_BIN_PATH');
 }
 
+// Holds tsh.app Info.plist during build. Used in afterPack.
+let tshAppPlist;
+
 /**
  * @type { import('electron-builder').Configuration }
  */
@@ -36,7 +40,41 @@ module.exports = {
   asar: true,
   asarUnpack: '**\\*.{node,dll}',
   afterSign: 'notarize.js',
-  files: ['build/app/dist'],
+  afterPack: packed => {
+    // @electron-universal adds the `ElectronAsarIntegrity` key to every .plist
+    // file it finds, causing signature verification to fail for tsh.app that gets
+    // embedded in Teleport Connect. This causes the error "invalid Info.plist (plist
+    // or signature have been modified)".
+    // Workaround this by copying the tsp.app plist file before adding the key and
+    // replace it after it is done.
+
+    if (!env.CONNECT_TSH_APP_PATH) {
+      // Not embedding tsh.app
+      return;
+    }
+
+    const path = `${packed.appOutDir}/Teleport Connect.app/Contents/MacOS/tsh.app/Contents/Info.plist`;
+    if (packed.appOutDir.endsWith('mac-universal-x64-temp')) {
+      tshAppPlist = fs.readFileSync(path);
+    }
+    if (packed.appOutDir.endsWith('mac-universal')) {
+      if (!tshAppPlist) {
+        throw new Error(
+          'Failed to copy tsh.app Info.plist file from the x64 build. Check if the path "mac-universal-x64-temp" was not changed by electron-builder.'
+        );
+      }
+      fs.writeFileSync(path, tshAppPlist);
+    }
+  },
+  files: [
+    'build/app/dist',
+    // node-pty creates some files that differ across architecture builds causing
+    // the error "can't reconcile the non-macho files" as they cant be combined
+    // with lipo for a universal build. They aren't needed so skip them.
+    '!node_modules/node-pty/build/*/.forge-meta',
+    '!node_modules/node-pty/build/Debug/.deps/**',
+    '!node_modules/node-pty/bin',
+  ],
   mac: {
     target: 'dmg',
     category: 'public.app-category.developer-tools',
@@ -46,6 +84,8 @@ module.exports = {
     // If CONNECT_TSH_APP_PATH is provided, we assume that tsh.app is already signed.
     signIgnore: env.CONNECT_TSH_APP_PATH && ['tsh.app'],
     icon: 'build_resources/icon-mac.png',
+    // x64ArchFiles is for x64 and universal files (lipo tool should skip them)
+    x64ArchFiles: 'Contents/MacOS/tsh.app/Contents/MacOS/tsh',
     // On macOS, helper apps (such as tsh.app) should be under Contents/MacOS, hence using
     // `extraFiles` instead of `extraResources`.
     // https://developer.apple.com/documentation/bundleresources/placing_content_in_a_bundle
@@ -67,6 +107,7 @@ module.exports = {
     ].filter(Boolean),
   },
   dmg: {
+    artifactName: '${productName}-${version}-${arch}.${ext}',
     contents: [
       {
         x: 130,

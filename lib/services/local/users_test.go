@@ -22,6 +22,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"testing"
 	"time"
 
@@ -30,10 +31,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -611,16 +613,16 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	const user2 = "alpaca"
 	// Prepare a few different objects so we can assert that both "user" and
 	// "session" key components are used correctly.
-	user1Reg := &wantypes.SessionData{
+	user1Reg := &wanpb.SessionData{
 		Challenge: []byte("challenge1-reg"),
 		UserId:    []byte("llamaid"),
 	}
-	user1Login := &wantypes.SessionData{
+	user1Login := &wanpb.SessionData{
 		Challenge:        []byte("challenge1-login"),
 		UserId:           []byte("llamaid"),
 		AllowCredentials: [][]byte{[]byte("cred1"), []byte("cred2")},
 	}
-	user2Login := &wantypes.SessionData{
+	user2Login := &wanpb.SessionData{
 		Challenge: []byte("challenge2"),
 		UserId:    []byte("alpacaid"),
 	}
@@ -630,7 +632,7 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	const loginSession = "login"
 	params := []struct {
 		user, session string
-		sd            *wantypes.SessionData
+		sd            *wanpb.SessionData
 	}{
 		{user: user1, session: registerSession, sd: user1Reg},
 		{user: user1, session: loginSession, sd: user1Login},
@@ -654,7 +656,7 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	}
 
 	// Verify upsert/update.
-	user1Reg = &wantypes.SessionData{
+	user1Reg = &wanpb.SessionData{
 		Challenge: []byte("challenge1reg--another"),
 		UserId:    []byte("llamaid"),
 	}
@@ -682,23 +684,23 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 	t.Parallel()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 
-	user1Login1 := &wantypes.SessionData{
+	user1Login1 := &wanpb.SessionData{
 		Challenge:        []byte("challenge1"),
 		UserId:           []byte("user1-web-id"),
 		UserVerification: string(protocol.VerificationRequired),
 	}
-	user1Login2 := &wantypes.SessionData{
+	user1Login2 := &wanpb.SessionData{
 		Challenge:        []byte("challenge2"),
 		UserId:           []byte("user1-web-id"),
 		UserVerification: string(protocol.VerificationRequired),
 	}
-	user1Registration := &wantypes.SessionData{
+	user1Registration := &wanpb.SessionData{
 		Challenge:        []byte("challenge3"),
 		UserId:           []byte("user1-web-id"),
 		ResidentKey:      true,
 		UserVerification: string(protocol.VerificationRequired),
 	}
-	user2Login := &wantypes.SessionData{
+	user2Login := &wanpb.SessionData{
 		Challenge:        []byte("challenge4"),
 		UserId:           []byte("user2-web-id"),
 		ResidentKey:      true,
@@ -711,7 +713,7 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 	const scopeRegister = "register"
 	params := []struct {
 		scope, id string
-		sd        *wantypes.SessionData
+		sd        *wanpb.SessionData
 	}{
 		{scope: scopeLogin, id: base64.RawURLEncoding.EncodeToString(user1Login1.Challenge), sd: user1Login1},
 		{scope: scopeLogin, id: base64.RawURLEncoding.EncodeToString(user1Login2.Challenge), sd: user1Login2},
@@ -778,7 +780,7 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 	const id2 = "challenge2"
 	const id3 = "challenge3"
 	const id4 = "challenge4"
-	sd := &wantypes.SessionData{
+	sd := &wanpb.SessionData{
 		Challenge:        []byte("supersecretchallenge"), // typically matches the key
 		UserVerification: "required",
 	}
@@ -937,4 +939,151 @@ func TestIdentityService_GetKeyAttestationDataV11Fingerprint(t *testing.T) {
 	retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, key.Public())
 	require.NoError(t, err)
 	require.Equal(t, attestationData, retrievedAttestationData)
+}
+
+func TestIdentityService_UpdateAndSwapUser(t *testing.T) {
+	t.Parallel()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	type updateParams struct {
+		user        string
+		withSecrets bool
+		fn          func(u types.User) (changed bool, err error)
+	}
+
+	tests := []struct {
+		name     string
+		makeUser func() (types.User, error) // if not nil, the user is created
+		updateParams
+		wantErr  string
+		wantNoop bool
+	}{
+		{
+			name: "update without secrets",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("updateNoSecrets1")
+			},
+			updateParams: updateParams{
+				fn: func(u types.User) (bool, error) {
+					u.SetLogins([]string{"llama", "alpaca"})
+					return true, nil
+				},
+			},
+		},
+		{
+			name: "update without secrets can't write secrets",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("updateNoSecrets2")
+			},
+			updateParams: updateParams{
+				fn: func(u types.User) (bool, error) {
+					u.SetLogins([]string{"llama", "alpaca"})
+					u.SetLocalAuth(&types.LocalAuthSecrets{
+						Webauthn: &types.WebauthnLocalAuth{
+							UserID: []byte("superwebllama"),
+						},
+					})
+					return true, nil
+				},
+			},
+		},
+		{
+			name: "update with secrets",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("updateWithSecrets")
+			},
+			updateParams: updateParams{
+				withSecrets: true,
+				fn: func(u types.User) (bool, error) {
+					u.SetLogins([]string{"llama", "alpaca"})
+					u.SetLocalAuth(&types.LocalAuthSecrets{
+						Webauthn: &types.WebauthnLocalAuth{
+							UserID: []byte("superwebllama"),
+						},
+					})
+					return true, nil
+				},
+			},
+		},
+		{
+			name: "noop fn",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("noop1")
+			},
+			updateParams: updateParams{
+				fn: func(u types.User) (changed bool, err error) {
+					u.SetLogins([]string{"llama"}) // not written to storage!
+					return false, nil
+				},
+			},
+			wantNoop: true,
+		},
+		{
+			name: "user not found",
+			updateParams: updateParams{
+				user: "unknown",
+				fn:   func(u types.User) (changed bool, err error) { return false, nil },
+			},
+			wantErr: "not found",
+		},
+		{
+			name: "fn error surfaced",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("fnErr")
+			},
+			updateParams: updateParams{
+				fn: func(u types.User) (changed bool, err error) {
+					return false, errors.New("something really terrible happened")
+				},
+			},
+			wantErr: "something really terrible",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var before types.User
+
+			// Create user?
+			if test.makeUser != nil {
+				var err error
+				before, err = test.makeUser()
+				require.NoError(t, err, "makeUser failed")
+				require.NoError(t, identity.CreateUser(before), "CreateUser failed")
+
+				if test.user == "" {
+					test.user = before.GetName()
+				} else if test.user != before.GetName() {
+					t.Fatal("Test has both makeUser and updateParams.user, but they don't match")
+				}
+			}
+
+			updated, err := identity.UpdateAndSwapUser(ctx, test.user, test.withSecrets, test.fn)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "UpdateAndSwapUser didn't error")
+				return
+			}
+
+			// Determine wanted user based on `before` and params.
+			want := before
+			if !test.wantNoop {
+				test.fn(want)
+			}
+			if !test.withSecrets {
+				want = want.WithoutSecrets().(types.User)
+			}
+
+			// Assert update response.
+			if diff := cmp.Diff(want, updated); diff != "" {
+				t.Errorf("UpdateAndSwapUser return mismatch (-want +got)\n%s", diff)
+			}
+
+			// Assert stored.
+			stored, err := identity.GetUser(test.user, test.withSecrets)
+			require.NoError(t, err, "GetUser failed")
+			if diff := cmp.Diff(want, stored); diff != "" {
+				t.Errorf("UpdateAndSwapUser storage mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
 }

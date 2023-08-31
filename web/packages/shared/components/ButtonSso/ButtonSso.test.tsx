@@ -23,11 +23,11 @@ import ButtonSso from '.';
 
 test.each`
   ssoType           | expectedIcon
-  ${'default type'} | ${'icon-openid'}
+  ${'default type'} | ${'icon-key'}
   ${'Microsoft'}    | ${'icon-windows'}
   ${'github'}       | ${'icon-github'}
-  ${'bitbucket'}    | ${'icon-bitbucket'}
-  ${'google'}       | ${'icon-google-plus'}
+  ${'bitbucket'}    | ${'icon-key'}
+  ${'google'}       | ${'icon-google'}
 `('rendering of $ssoType', ({ ssoType, expectedIcon }) => {
   render(<ButtonSso ssoType={ssoType} title="hello" />);
 

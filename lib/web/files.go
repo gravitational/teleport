@@ -30,10 +30,10 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 )
 
@@ -60,7 +60,7 @@ type fileTransferRequest struct {
 	moderatedSessionID string
 }
 
-func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	query := r.URL.Query()
 	req := fileTransferRequest{
 		cluster:               site.GetName(),
@@ -70,13 +70,13 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		filename:              query.Get("filename"),
 		namespace:             defaults.Namespace,
 		webauthn:              query.Get("webauthn"),
-		fileTransferRequestID: query.Get("file_transfer_request_id"),
-		moderatedSessionID:    query.Get("moderated_session_id"),
+		fileTransferRequestID: query.Get("fileTransferRequestId"),
+		moderatedSessionID:    query.Get("moderatedSessionId"),
 	}
 
 	// Send an error if only one of these params has been sent. Both should exist or not exist together
 	if (req.fileTransferRequestID != "") != (req.moderatedSessionID != "") {
-		return nil, trace.BadParameter("file_transfer_request_id and moderated_session_id must both be included in the same request.")
+		return nil, trace.BadParameter("fileTransferRequestId and moderatedSessionId must both be included in the same request.")
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), site)
@@ -206,7 +206,7 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 
 type mfaRequest struct {
 	// WebauthnResponse is the response from authenticators.
-	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // issueSingleUseCert will take an assertion response sent from a solved challenge in the web UI
@@ -231,7 +231,7 @@ func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request
 		Expires:   time.Now().Add(time.Minute).UTC(),
 		MFAResponse: &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wanlib.CredentialAssertionResponseToProto(mfaReq.WebauthnAssertionResponse),
+				Webauthn: wantypes.CredentialAssertionResponseToProto(mfaReq.WebauthnAssertionResponse),
 			},
 		},
 	})

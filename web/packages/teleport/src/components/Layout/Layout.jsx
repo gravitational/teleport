@@ -89,7 +89,7 @@ const AppHorizontalSplit = styled.div`
 `;
 
 const TabItem = styled.button`
-  color: ${props => props.theme.colors.text.secondary};
+  color: ${props => props.theme.colors.text.slightlyMuted};
   cursor: pointer;
   display: inline-flex;
   font-size: 14px;
@@ -106,7 +106,7 @@ const TabItem = styled.button`
   }
 
   &.active {
-    color: ${props => props.theme.colors.text.primary};
+    color: ${props => props.theme.colors.text.main};
   }
 
   &.active:after {

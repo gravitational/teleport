@@ -114,6 +114,31 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 				},
 			}},
 		},
+		{
+			name:     uiDiscoverDeployServiceEvent + "/success_test_deployed_method_type_setting",
+			event:    uiDiscoverDeployServiceEvent,
+			errCheck: require.NoError,
+			req: DiscoverEventData{
+				ID:         "someid",
+				Resource:   "DISCOVER_RESOURCE_SERVER",
+				StepStatus: "DISCOVER_STATUS_SUCCESS",
+				ServiceDeploy: discoverServiceDeploy{
+					Method: "DEPLOY_METHOD_AUTO",
+					Type:   "DEPLOY_TYPE_AMAZON_ECS",
+				},
+			},
+			expected: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
+				UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource: &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status: &usageeventsv1.DiscoverStepStatus{
+						Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS,
+					},
+					DeployMethod: usageeventsv1.UIDiscoverDeployServiceEvent_DEPLOY_METHOD_AUTO,
+					DeployType:   usageeventsv1.UIDiscoverDeployServiceEvent_DEPLOY_TYPE_AMAZON_ECS,
+				},
+			}},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt

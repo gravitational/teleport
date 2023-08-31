@@ -26,6 +26,7 @@ import * as uri from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
   Cluster,
+  Gateway,
   CreateAccessRequestParams,
   GetRequestableRolesParams,
   ReviewAccessRequestParams,
@@ -148,10 +149,8 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
    * syncRootCluster is useful in situations where we want to sync the cluster _and_ propagate any
    * errors up.
    */
-  private async syncRootCluster(clusterUri: uri.RootClusterUri) {
+  async syncRootCluster(clusterUri: uri.RootClusterUri) {
     await Promise.all([
-      // syncClusterInfo never fails with a retryable error since it reads data from disk.
-      // syncLeafClusters reaches out to the proxy so it might return a retryable error.
       this.syncClusterInfo(clusterUri),
       this.syncLeafClustersList(clusterUri),
     ]);
@@ -327,6 +326,22 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       });
     });
     await this.removeClusterKubeConfigs(clusterUri);
+    await this.removeClusterGateways(clusterUri);
+  }
+
+  // TODO(ravicious): Create a single RPC for this rather than sending a separate request for each
+  // gateway.
+  private async removeClusterGateways(clusterUri: uri.RootClusterUri) {
+    for (const [, gateway] of this.state.gateways) {
+      if (routing.belongsToProfile(clusterUri, gateway.targetUri)) {
+        try {
+          await this.removeGateway(gateway.uri);
+        } catch {
+          // Ignore errors as removeGateway already creates a notification for each error.
+          // Any gateways that we failed to remove will be forcibly closed on tshd exit.
+        }
+      }
+    }
   }
 
   async getAuthSettings(clusterUri: uri.RootClusterUri) {
@@ -361,6 +376,13 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         description: error.message,
       });
       throw error;
+    }
+  }
+
+  async removeKubeGateway(kubeUri: uri.KubeUri) {
+    const gateway = this.findGatewayByConnectionParams(kubeUri, '');
+    if (gateway) {
+      await this.removeGateway(gateway.uri);
     }
   }
 
@@ -407,6 +429,25 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   findGateway(gatewayUri: uri.GatewayUri) {
     return this.state.gateways.get(gatewayUri);
+  }
+
+  findGatewayByConnectionParams(
+    targetUri: uri.DatabaseUri | uri.KubeUri,
+    targetUser: string
+  ) {
+    let found: Gateway;
+
+    for (const [, gateway] of this.state.gateways) {
+      if (
+        gateway.targetUri === targetUri &&
+        gateway.targetUser === targetUser
+      ) {
+        found = gateway;
+        break;
+      }
+    }
+
+    return found;
   }
 
   /**

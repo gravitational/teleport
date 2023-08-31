@@ -1,5 +1,5 @@
 ---
-title: Teleport EKS Auto-Discovery (Preview)
+title: Teleport EKS Auto-Discovery
 description: How to configure auto-discovery of AWS EKS clusters in Teleport.
 ---
 
@@ -256,13 +256,12 @@ the Kubernetes Service listen to the dynamic resources created by the Discovery
 Service.
 
 ```yaml
-version: v2
+version: v3
 teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  auth_servers:
-  - "teleport.example.com:3080"
+  proxy_server: <Var name="teleport.example.com" />:443
 auth_service:
   enabled: off
 proxy_service:

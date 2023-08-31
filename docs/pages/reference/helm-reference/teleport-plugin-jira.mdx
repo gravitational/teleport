@@ -22,19 +22,12 @@ This reference details available values for the `teleport-plugin-jira` chart.
 This parameter contains the host/port combination of the Teleport Auth Service
 or Proxy Service.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   teleport:
     address: "teleport.example.com:3025"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set teleport.address="teleport.example.com:3025"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `teleport.identitySecretName`
 
@@ -61,19 +54,12 @@ Check out the [Jira Helm Chart
 documentation](../../access-controls/access-request-plugins/ssh-approval-jira.mdx)
 for more information about how to acquire these credentials.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   teleport:
     identitySecretName: "teleport-plugin-jira-identity"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretName="teleport-plugin-jira-identity"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `teleport.identitySecretPath`
 
@@ -85,19 +71,12 @@ Name of the key in the Kubernetes secret that holds the credentials for the
 connection to the Auth Service. If the secret follows the format above, it can
 be omitted.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   teleport:
     identitySecretPath: "auth_id"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretPath="auth_id"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `jira.apiTokenFromSecret`
 
@@ -107,19 +86,12 @@ be omitted.
 
 Secret containing the Jira token of the bot user.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   jira:
     apiTokenFromSecret: "teleport-jira-plugin-token"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set jira.apiTokenFromSecret="teleport-jira-plugin-token"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `jira.apiTokenSecretPath`
 
@@ -129,19 +101,12 @@ Secret containing the Jira token of the bot user.
 
 Key where the token is located inside the secret specified by `jira.apiTokenFromSecret`.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   jira:
     apiTokenSecretPath: "token"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set jira.apiTokenSecretPath="token"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `jira.issueType`
 
@@ -151,19 +116,12 @@ Key where the token is located inside the secret specified by `jira.apiTokenFrom
 
 Issue type to be created when a new Access Request is made.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   jira:
     issueType: Task
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set jira.issueType=Task
-  ```
-  </TabItem>
-</Tabs>
 
 ## `jira.project`
 
@@ -173,19 +131,12 @@ Issue type to be created when a new Access Request is made.
 
 List of project who will receive notifications about Access Requests.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   jira:
     project: MYPROJ
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set jira.project=MYPROJ
-  ```
-  </TabItem>
-</Tabs>
 
 ## `jira.recipients`
 
@@ -195,21 +146,14 @@ List of project who will receive notifications about Access Requests.
 
 List of recipients who will receive notifications about Access Requests.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   jira:
     recipients:
       - user1@example.com
       - user2@example.com
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set jira.recipients[0]="user1@example.com",jira.recipients[0]="user1@example.com"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `jira.token`
 
@@ -221,19 +165,12 @@ Jira token of the bot user to impersonate when sending Access Request
 messages. It's only recommended for testing purposes. Please use
 [`jira.apiTokenFromSecret`](#jiraapitokenfromsecret) instead.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   jira:
     token: "jiraapitoken"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set jira.token="jiraapitoken"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `jira.url`
 
@@ -243,19 +180,12 @@ messages. It's only recommended for testing purposes. Please use
 
 Base URL of the Jira instance.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   jira:
     url: "https://jira.example.com/"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set jira.url="https://jira.example.com/"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `jira.username`
 
@@ -265,19 +195,12 @@ Base URL of the Jira instance.
 
 Jira username or email address associated with the token.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   jira:
     username: "user@example.com"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set jira.username="user@example.com"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `log.output`
 
@@ -287,19 +210,12 @@ Jira username or email address associated with the token.
 
 Logger output. Can be `stdout`, `stderr` or a file name, eg. `/var/log/teleport/jira.log`
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   log:
     output: /var/log/teleport/jira.log
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set log.output="/var/log/teleport/jira.log"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `log.severity`
 
@@ -309,16 +225,9 @@ Logger output. Can be `stdout`, `stderr` or a file name, eg. `/var/log/teleport/
 
 Logger severity. Possible values are `INFO`, `ERROR`, `DEBUG` or `WARN`.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   log:
     severity: DEBUG
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set log.severity="DEBUG"
-  ```
-  </TabItem>
-</Tabs>

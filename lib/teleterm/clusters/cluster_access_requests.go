@@ -30,7 +30,8 @@ import (
 )
 
 type ResourceDetails struct {
-	Hostname string
+	Hostname     string
+	FriendlyName string
 }
 
 type AccessRequest struct {
@@ -49,7 +50,7 @@ func (c *Cluster) GetAccessRequest(ctx context.Context, req types.AccessRequestF
 		err             error
 	)
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -95,7 +96,7 @@ func (c *Cluster) GetAccessRequests(ctx context.Context, req types.AccessRequest
 		requests []types.AccessRequest
 		err      error
 	)
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		requests, err = c.clusterClient.GetAccessRequests(ctx, req)
 		return err
 	})
@@ -144,7 +145,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	request.SetRequestReason(req.Reason)
 	request.SetSuggestedReviewers(req.SuggestedReviewers)
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		return c.clusterClient.CreateAccessRequest(ctx, request)
 	})
 	if err != nil {
@@ -170,7 +171,7 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 		return nil, trace.Wrap(err)
 	}
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -214,7 +215,7 @@ func (c *Cluster) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 		proxyClient *client.ProxyClient
 	)
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -239,7 +240,7 @@ func (c *Cluster) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) error {
 	var err error
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		params := client.ReissueParams{
 			AccessRequests:     req.AccessRequestIds,
 			DropAccessRequests: req.DropRequestIds,
@@ -252,8 +253,9 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 				params.AccessRequests = append(params.AccessRequests, reqID)
 			}
 		}
-
-		return c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, params)
+		// When assuming a role, we want to drop all cached certs otherwise
+		// tsh will continue to use the old certs.
+		return c.clusterClient.ReissueUserCerts(ctx, client.CertCacheDrop, params)
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -268,7 +270,7 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 }
 
 func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.ClientI) (map[string]ResourceDetails, error) {
-	resourceIDsByCluster := services.GetNodeResourceIDsByCluster(req)
+	resourceIDsByCluster := services.GetResourceIDsByCluster(req)
 
 	resourceDetails := make(map[string]ResourceDetails)
 	for clusterName, resourceIDs := range resourceIDsByCluster {
@@ -278,7 +280,7 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.C
 		}
 		for id, d := range details {
 			resourceDetails[id] = ResourceDetails{
-				Hostname: d.Hostname,
+				FriendlyName: d.FriendlyName,
 			}
 		}
 	}

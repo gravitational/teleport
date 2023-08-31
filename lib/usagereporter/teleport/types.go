@@ -54,6 +54,22 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 	}
 }
 
+// BotJoinEvent is an event emitted when a user logs into Teleport,
+// potentially via SSO.
+type BotJoinEvent prehogv1a.BotJoinEvent
+
+func (u *BotJoinEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BotJoin{
+			BotJoin: &prehogv1a.BotJoinEvent{
+				BotName:       a.AnonymizeString(u.BotName),
+				JoinTokenName: a.AnonymizeString(u.JoinTokenName),
+				JoinMethod:    u.JoinMethod,
+			},
+		},
+	}
+}
+
 // SSOCreateEvent is emitted when an SSO connector has been created.
 type SSOCreateEvent prehogv1a.SSOCreateEvent
 
@@ -72,12 +88,20 @@ func (u *SSOCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 type SessionStartEvent prehogv1a.SessionStartEvent
 
 func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	sessionStart := &prehogv1a.SessionStartEvent{
+		UserName:    a.AnonymizeString(u.UserName),
+		SessionType: u.SessionType,
+	}
+	if u.Database != nil {
+		sessionStart.Database = &prehogv1a.SessionStartDatabaseMetadata{
+			DbType:     u.Database.DbType,
+			DbProtocol: u.Database.DbProtocol,
+			DbOrigin:   u.Database.DbOrigin,
+		}
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
-			SessionStartV2: &prehogv1a.SessionStartEvent{
-				UserName:    a.AnonymizeString(u.UserName),
-				SessionType: u.SessionType,
-			},
+			SessionStartV2: sessionStart,
 		},
 	}
 }
@@ -87,10 +111,89 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 type ResourceCreateEvent prehogv1a.ResourceCreateEvent
 
 func (u *ResourceCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	event := &prehogv1a.ResourceCreateEvent{
+		ResourceType:   u.ResourceType,
+		ResourceOrigin: u.ResourceOrigin,
+		CloudProvider:  u.CloudProvider,
+	}
+	if db := u.Database; db != nil {
+		event.Database = &prehogv1a.DiscoveredDatabaseMetadata{
+			DbType:     db.DbType,
+			DbProtocol: db.DbProtocol,
+		}
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_ResourceCreate{
-			ResourceCreate: &prehogv1a.ResourceCreateEvent{
-				ResourceType: u.ResourceType,
+			ResourceCreate: event,
+		},
+	}
+}
+
+func integrationEnrollMetadataToPrehog(u *usageeventsv1.IntegrationEnrollMetadata, userMD UserMetadata) *prehogv1a.IntegrationEnrollMetadata {
+	return &prehogv1a.IntegrationEnrollMetadata{
+		Id:       u.Id,
+		Kind:     prehogv1a.IntegrationEnrollKind(u.Kind),
+		UserName: userMD.Username,
+	}
+}
+
+func validateIntegrationEnrollMetadata(u *prehogv1a.IntegrationEnrollMetadata) error {
+	if u == nil {
+		return trace.BadParameter("metadata is required")
+	}
+
+	if len(u.UserName) == 0 {
+		return trace.BadParameter("metadata.user_name is required")
+	}
+
+	if len(u.Id) == 0 {
+		return trace.BadParameter("metadata.id is required")
+	}
+
+	if u.Kind == prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_UNSPECIFIED {
+		return trace.BadParameter("metadata.kind is required")
+	}
+
+	return nil
+}
+
+// UIIntegrationEnrollStartEvent is a UI event sent when a user starts enrolling a integration.
+type UIIntegrationEnrollStartEvent prehogv1a.UIIntegrationEnrollStartEvent
+
+func (u *UIIntegrationEnrollStartEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateIntegrationEnrollMetadata(u.Metadata))
+}
+
+func (u *UIIntegrationEnrollStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollStartEvent{
+			UiIntegrationEnrollStartEvent: &prehogv1a.UIIntegrationEnrollStartEvent{
+				Metadata: &prehogv1a.IntegrationEnrollMetadata{
+					Id:       u.Metadata.Id,
+					Kind:     u.Metadata.Kind,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+			},
+		},
+	}
+}
+
+// UIIntegrationEnrollCompleteEvent is a UI event sent when a user completes enrolling an integration.
+type UIIntegrationEnrollCompleteEvent prehogv1a.UIIntegrationEnrollCompleteEvent
+
+func (u *UIIntegrationEnrollCompleteEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateIntegrationEnrollMetadata(u.Metadata))
+}
+
+func (u *UIIntegrationEnrollCompleteEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollCompleteEvent{
+			UiIntegrationEnrollCompleteEvent: &prehogv1a.UIIntegrationEnrollCompleteEvent{
+				Metadata: &prehogv1a.IntegrationEnrollMetadata{
+					Id:       u.Metadata.Id,
+					Kind:     u.Metadata.Kind,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
 			},
 		},
 	}
@@ -160,6 +263,20 @@ func (u *UIOnboardSetCredentialSubmitEvent) Anonymize(a utils.Anonymizer) prehog
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiOnboardSetCredentialSubmit{
 			UiOnboardSetCredentialSubmit: &prehogv1a.UIOnboardSetCredentialSubmitEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
+// UIOnboardQuestionnaireSubmitEvent is a UI event sent during registration when
+// user submit their onboarding questionnaire.
+type UIOnboardQuestionnaireSubmitEvent prehogv1a.UIOnboardQuestionnaireSubmitEvent
+
+func (u *UIOnboardQuestionnaireSubmitEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiOnboardQuestionnaireSubmit{
+			UiOnboardQuestionnaireSubmit: &prehogv1a.UIOnboardQuestionnaireSubmitEvent{
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
@@ -240,6 +357,24 @@ func (u *RoleCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventReq
 	}
 }
 
+// BotCreateEvent is an event emitted when a Machine ID bot is created.
+type BotCreateEvent prehogv1a.BotCreateEvent
+
+func (u *BotCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BotCreate{
+			BotCreate: &prehogv1a.BotCreateEvent{
+				UserName:    a.AnonymizeString(u.UserName),
+				RoleName:    a.AnonymizeString(u.RoleName),
+				BotUserName: a.AnonymizeString(u.BotUserName),
+				BotName:     a.AnonymizeString(u.BotName),
+				RoleCount:   u.RoleCount,
+				JoinMethod:  u.JoinMethod,
+			},
+		},
+	}
+}
+
 // UICreateNewRoleClickEvent is a UI event sent when a user prints recovery codes.
 type UICreateNewRoleClickEvent prehogv1a.UICreateNewRoleClickEvent
 
@@ -286,6 +421,20 @@ func (u *UICreateNewRoleViewDocumentationClickEvent) Anonymize(a utils.Anonymize
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiCreateNewRoleViewDocumentationClick{
 			UiCreateNewRoleViewDocumentationClick: &prehogv1a.UICreateNewRoleViewDocumentationClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
+// UICallToActionClickEvent is a UI event sent when a user prints recovery codes.
+type UICallToActionClickEvent prehogv1a.UICallToActionClickEvent
+
+func (u *UICallToActionClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiCallToActionClickEvent{
+			UiCallToActionClickEvent: &prehogv1a.UICallToActionClickEvent{
+				Cta:      u.Cta,
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
@@ -358,6 +507,7 @@ func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEvent
 				ContainerRuntime:      u.ContainerRuntime,
 				ContainerOrchestrator: u.ContainerOrchestrator,
 				CloudEnvironment:      u.CloudEnvironment,
+				ExternalUpgrader:      u.ExternalUpgrader,
 			},
 		},
 	}
@@ -366,12 +516,13 @@ func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEvent
 type ResourceKind = prehogv1a.ResourceKind
 
 const (
-	ResourceKindNode           = prehogv1a.ResourceKind_RESOURCE_KIND_NODE
-	ResourceKindAppServer      = prehogv1a.ResourceKind_RESOURCE_KIND_APP_SERVER
-	ResourceKindKubeServer     = prehogv1a.ResourceKind_RESOURCE_KIND_KUBE_SERVER
-	ResourceKindDBServer       = prehogv1a.ResourceKind_RESOURCE_KIND_DB_SERVER
-	ResourceKindWindowsDesktop = prehogv1a.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
-	ResourceKindNodeOpenSSH    = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
+	ResourceKindNode            = prehogv1a.ResourceKind_RESOURCE_KIND_NODE
+	ResourceKindAppServer       = prehogv1a.ResourceKind_RESOURCE_KIND_APP_SERVER
+	ResourceKindKubeServer      = prehogv1a.ResourceKind_RESOURCE_KIND_KUBE_SERVER
+	ResourceKindDBServer        = prehogv1a.ResourceKind_RESOURCE_KIND_DB_SERVER
+	ResourceKindWindowsDesktop  = prehogv1a.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
+	ResourceKindNodeOpenSSH     = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
+	ResourceKindNodeOpenSSHEICE = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH_EICE
 )
 
 func ResourceKindFromKeepAliveType(t types.KeepAlive_KeepAliveType) ResourceKind {
@@ -407,12 +558,138 @@ func (u *ResourceHeartbeatEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitE
 	}
 }
 
+// AssistCompletionEvent is an event emitted after each completion by the Assistant
+type AssistCompletionEvent prehogv1a.AssistCompletionEvent
+
+func (e *AssistCompletionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistCompletion{
+			AssistCompletion: &prehogv1a.AssistCompletionEvent{
+				UserName:         a.AnonymizeString(e.UserName),
+				ConversationId:   e.ConversationId,
+				TotalTokens:      e.TotalTokens,
+				PromptTokens:     e.PromptTokens,
+				CompletionTokens: e.CompletionTokens,
+			},
+		},
+	}
+}
+
+// EditorChangeEvent is an event emitted when the default editor is added or removed to an user
+type EditorChangeEvent prehogv1a.EditorChangeEvent
+
+func (e *EditorChangeEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_EditorChangeEvent{
+			EditorChangeEvent: &prehogv1a.EditorChangeEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Status:   e.Status,
+			},
+		},
+	}
+}
+
+type AssistExecutionEvent prehogv1a.AssistExecutionEvent
+
+func (e *AssistExecutionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistExecution{
+			AssistExecution: &prehogv1a.AssistExecutionEvent{
+				UserName:         a.AnonymizeString(e.UserName),
+				ConversationId:   e.ConversationId,
+				NodeCount:        e.NodeCount,
+				TotalTokens:      e.TotalTokens,
+				PromptTokens:     e.PromptTokens,
+				CompletionTokens: e.CompletionTokens,
+			},
+		},
+	}
+}
+
+type AssistNewConversationEvent prehogv1a.AssistNewConversationEvent
+
+func (e *AssistNewConversationEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistNewConversation{
+			AssistNewConversation: &prehogv1a.AssistNewConversationEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Category: e.Category,
+			},
+		},
+	}
+}
+
+type AssistAccessRequestEvent prehogv1a.AssistAccessRequestEvent
+
+// Anonymize anonymizes the event.
+func (e *AssistAccessRequestEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistAccessRequest{
+			AssistAccessRequest: &prehogv1a.AssistAccessRequestEvent{
+				UserName:         a.AnonymizeString(e.UserName),
+				ResourceType:     e.ResourceType,
+				TotalTokens:      e.TotalTokens,
+				PromptTokens:     e.PromptTokens,
+				CompletionTokens: e.CompletionTokens,
+			},
+		},
+	}
+}
+
+type AssistActionEvent prehogv1a.AssistActionEvent
+
+// Anonymize anonymizes the event.
+func (e *AssistActionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistAction{
+			AssistAction: &prehogv1a.AssistActionEvent{
+				UserName:         a.AnonymizeString(e.UserName),
+				Action:           e.Action,
+				TotalTokens:      e.TotalTokens,
+				PromptTokens:     e.PromptTokens,
+				CompletionTokens: e.CompletionTokens,
+			},
+		},
+	}
+}
+
 // UserMetadata contains user metadata information which is used to contextualize events with user information.
 type UserMetadata struct {
 	// Username contains the user's name.
 	Username string
 	// IsSSO indicates if the user was created by an SSO provider.
 	IsSSO bool
+}
+
+// DeviceAuthenticateEvent event is emitted after a successful device authentication ceremony.
+type DeviceAuthenticateEvent prehogv1a.DeviceAuthenticateEvent
+
+func (d *DeviceAuthenticateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DeviceAuthenticateEvent{
+			DeviceAuthenticateEvent: &prehogv1a.DeviceAuthenticateEvent{
+				DeviceId:     a.AnonymizeString(d.DeviceId),
+				UserName:     a.AnonymizeString(d.UserName),
+				DeviceOsType: d.DeviceOsType,
+			},
+		},
+	}
+}
+
+// FeatureRecommendationEvent emitted when a feature is recommended to user or
+// when user completes the desired CTA for the feature.
+type FeatureRecommendationEvent prehogv1a.FeatureRecommendationEvent
+
+func (e *FeatureRecommendationEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_FeatureRecommendationEvent{
+			FeatureRecommendationEvent: &prehogv1a.FeatureRecommendationEvent{
+				UserName:                    a.AnonymizeString(e.UserName),
+				Feature:                     e.Feature,
+				FeatureRecommendationStatus: e.FeatureRecommendationStatus,
+			},
+		},
+	}
 }
 
 // ConvertUsageEvent converts a usage event from an API object into an
@@ -445,6 +722,10 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 	case *usageeventsv1.UsageEventOneOf_UiOnboardSetCredentialSubmit:
 		return &UIOnboardSetCredentialSubmitEvent{
 			UserName: e.UiOnboardSetCredentialSubmit.Username,
+		}, nil
+	case *usageeventsv1.UsageEventOneOf_UiOnboardQuestionnaireSubmit:
+		return &UIOnboardQuestionnaireSubmitEvent{
+			UserName: e.UiOnboardQuestionnaireSubmit.Username,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiOnboardRegisterChallengeSubmit:
 		return &UIOnboardRegisterChallengeSubmitEvent{
@@ -480,6 +761,24 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		return &UICreateNewRoleViewDocumentationClickEvent{
 			UserName: userMD.Username,
 		}, nil
+	case *usageeventsv1.UsageEventOneOf_UiIntegrationEnrollStartEvent:
+		ret := &UIIntegrationEnrollStartEvent{
+			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollStartEvent.Metadata, userMD),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiIntegrationEnrollCompleteEvent:
+		ret := &UIIntegrationEnrollCompleteEvent{
+			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollCompleteEvent.Metadata, userMD),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverStartedEvent:
 		ret := &UIDiscoverStartedEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverStartedEvent.Metadata, userMD),
@@ -524,11 +823,19 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiCallToActionClickEvent:
+		return &UICallToActionClickEvent{
+			UserName: userMD.Username,
+			Cta:      prehogv1a.CTA(e.UiCallToActionClickEvent.Cta),
+		}, nil
+
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent:
 		ret := &UIDiscoverDeployServiceEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, userMD),
-			Resource: discoverResourceToPrehog(e.UiDiscoverDeployServiceEvent.Resource),
-			Status:   discoverStatusToPrehog(e.UiDiscoverDeployServiceEvent.Status),
+			Metadata:     discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, userMD),
+			Resource:     discoverResourceToPrehog(e.UiDiscoverDeployServiceEvent.Resource),
+			Status:       discoverStatusToPrehog(e.UiDiscoverDeployServiceEvent.Status),
+			DeployMethod: prehogv1a.UIDiscoverDeployServiceEvent_DeployMethod(e.UiDiscoverDeployServiceEvent.DeployMethod),
+			DeployType:   prehogv1a.UIDiscoverDeployServiceEvent_DeployType(e.UiDiscoverDeployServiceEvent.DeployType),
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -634,6 +941,69 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			return nil, trace.Wrap(err)
 		}
 
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistCompletion:
+		ret := &AssistCompletionEvent{
+			UserName:         userMD.Username,
+			ConversationId:   e.AssistCompletion.ConversationId,
+			TotalTokens:      e.AssistCompletion.TotalTokens,
+			PromptTokens:     e.AssistCompletion.PromptTokens,
+			CompletionTokens: e.AssistCompletion.CompletionTokens,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistExecution:
+		ret := &AssistExecutionEvent{
+			UserName:         userMD.Username,
+			ConversationId:   e.AssistExecution.ConversationId,
+			NodeCount:        e.AssistExecution.NodeCount,
+			TotalTokens:      e.AssistExecution.TotalTokens,
+			PromptTokens:     e.AssistExecution.PromptTokens,
+			CompletionTokens: e.AssistExecution.CompletionTokens,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistNewConversation:
+		ret := &AssistNewConversationEvent{
+			UserName: userMD.Username,
+			Category: e.AssistNewConversation.Category,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_ResourceCreateEvent:
+		ret := &ResourceCreateEvent{
+			ResourceType:   e.ResourceCreateEvent.ResourceType,
+			ResourceOrigin: e.ResourceCreateEvent.ResourceOrigin,
+			CloudProvider:  e.ResourceCreateEvent.CloudProvider,
+		}
+		if db := e.ResourceCreateEvent.Database; db != nil {
+			ret.Database = &prehogv1a.DiscoveredDatabaseMetadata{
+				DbType:     db.DbType,
+				DbProtocol: db.DbProtocol,
+			}
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_FeatureRecommendationEvent:
+		ret := &FeatureRecommendationEvent{
+			UserName:                    userMD.Username,
+			Feature:                     prehogv1a.Feature(e.FeatureRecommendationEvent.Feature),
+			FeatureRecommendationStatus: prehogv1a.FeatureRecommendationStatus(e.FeatureRecommendationEvent.FeatureRecommendationStatus),
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistAccessRequest:
+		ret := &AssistAccessRequestEvent{
+			UserName:         userMD.Username,
+			ResourceType:     e.AssistAccessRequest.ResourceType,
+			TotalTokens:      e.AssistAccessRequest.TotalTokens,
+			PromptTokens:     e.AssistAccessRequest.PromptTokens,
+			CompletionTokens: e.AssistAccessRequest.CompletionTokens,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistAction:
+		ret := &AssistActionEvent{
+			UserName:         userMD.Username,
+			Action:           e.AssistAction.Action,
+			TotalTokens:      e.AssistAction.TotalTokens,
+			PromptTokens:     e.AssistAction.PromptTokens,
+			CompletionTokens: e.AssistAction.CompletionTokens,
+		}
 		return ret, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())

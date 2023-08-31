@@ -40,6 +40,10 @@ adds operator permissions to ClusterRole:
       - teleportsamlconnectors/status
       - teleportloginrules
       - teleportloginrules/status
+      - teleportprovisiontokens
+      - teleportprovisiontokens/status
+      - teleportoktaimportrules
+      - teleportoktaimportrules/status
       verbs:
       - get
       - list

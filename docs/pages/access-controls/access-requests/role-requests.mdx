@@ -10,7 +10,7 @@ via ChatOps or anywhere else via our flexible Authorization Workflow API.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -18,9 +18,9 @@ via ChatOps or anywhere else via our flexible Authorization Workflow API.
 
 In this example, we will define three roles:
 
-1. `contractor`: users with this role can request elevated access to the `dba` role
-2. `dba`: this role grants access to databases
-3. `approver`: users with this role can approve requests for access to the `dba` role
+- `contractor`: users with this role can request elevated access to the `dba` role
+- `dba`: this role grants access to databases
+- `approver`: users with this role can approve requests for access to the `dba` role
 
 **Contractor Role**
 
@@ -154,6 +154,10 @@ to the original set of roles.
 ## Next Steps
 
 ### Integrating with an external tool
+
+With Teleport's Access Request plugins, users can manage Access Requests from
+within your organization's existing messaging and project management solutions.
+
 (!docs/pages/includes/access-request-integrations.mdx!)
 
 ### Advanced RBAC
@@ -212,5 +216,5 @@ spec:
 Users can also create Access Requests with the `tsh request create` command.
 `tsh request create` supports flags to control TTLs for the request and
 elevated access. See the [CLI
-Reference](../../reference/cli.mdx#tsh-request-create) for more
+Reference](../../reference/cli/tsh.mdx#tsh-request-create) for more
 details.

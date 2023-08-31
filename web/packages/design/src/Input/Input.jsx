@@ -34,7 +34,7 @@ function error({ hasError, theme }) {
 
 const Input = styled.input`
   appearance: none;
-  border: 1px solid ${props => props.theme.colors.text.placeholder};
+  border: 1px solid ${props => props.theme.colors.text.muted};
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -44,12 +44,12 @@ const Input = styled.input`
   outline: none;
   width: 100%;
   background: ${props => props.theme.colors.levels.surface};
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
 
   &:hover,
   &:focus,
   &:active {
-    border: 1px solid ${props => props.theme.colors.text.secondary};
+    border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
   }
 
   ::-ms-clear {
@@ -57,7 +57,8 @@ const Input = styled.input`
   }
 
   ::placeholder {
-    color: ${props => props.theme.colors.text.placeholder};
+    color: ${props => props.theme.colors.text.muted};
+    opacity: 1;
   }
 
   :read-only {

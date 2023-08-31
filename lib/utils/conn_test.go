@@ -19,6 +19,7 @@ package utils
 import (
 	"bytes"
 	"io"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -34,4 +35,28 @@ func TestTrackingReaderEOF(t *testing.T) {
 	buf := make([]byte, 64)
 	_, err := tr.Read(buf)
 	require.Equal(t, io.EOF, err)
+}
+
+func TestConnWithSrcAddr(t *testing.T) {
+	t.Parallel()
+
+	orgConn, _ := net.Pipe()
+
+	t.Run("nil clientSrcAddr", func(t *testing.T) {
+		conn := NewConnWithSrcAddr(orgConn, nil)
+
+		require.Equal(t, orgConn.RemoteAddr().String(), conn.RemoteAddr().String())
+		require.Equal(t, orgConn.LocalAddr().String(), conn.LocalAddr().String())
+		require.Equal(t, orgConn, conn.NetConn())
+	})
+
+	t.Run("valid clientSrcAddr", func(t *testing.T) {
+		addr := MustParseAddr("11.22.33.44:5566")
+		conn := NewConnWithSrcAddr(orgConn, addr)
+
+		require.NotEqual(t, orgConn.RemoteAddr().String(), conn.RemoteAddr().String())
+		require.Equal(t, "11.22.33.44:5566", conn.RemoteAddr().String())
+		require.Equal(t, orgConn.LocalAddr().String(), conn.LocalAddr().String())
+		require.Equal(t, orgConn, conn.NetConn())
+	})
 }

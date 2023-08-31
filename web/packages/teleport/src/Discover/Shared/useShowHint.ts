@@ -16,7 +16,7 @@
 
 import { useEffect, useState } from 'react';
 
-const SHOW_HINT_TIMEOUT = 1000 * 60 * 5; // 5 minutes
+export const SHOW_HINT_TIMEOUT = 1000 * 60 * 5; // 5 minutes
 
 export function useShowHint(enabled: boolean) {
   const [showHint, setShowHint] = useState(false);

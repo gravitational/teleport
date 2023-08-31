@@ -142,7 +142,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	uploadPath := h.path(upload.SessionID)
 
 	// Prevent other processes from accessing this file until the write is completed
-	f, err := GetOpenFileFunc()(uploadPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	f, err := GetOpenFileFunc()(uploadPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -325,7 +325,7 @@ func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpl
 // openReservationPart opens a reservation upload part file.
 func (h *Handler) openReservationPart(upload events.StreamUpload, partNumber int64) (*os.File, string, error) {
 	partPath := h.reservationPath(upload, partNumber)
-	file, err := GetOpenFileFunc()(partPath, os.O_RDWR|os.O_CREATE, 0600)
+	file, err := GetOpenFileFunc()(partPath, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		return nil, partPath, trace.ConvertSystemError(err)
 	}

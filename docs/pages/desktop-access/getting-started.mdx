@@ -20,8 +20,6 @@ with the static host definitions described below.
 <Details
   title="Version warning"
   opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
   min="12.0"
 >
 Passwordless access for local users is available starting from Teleport `v12`.
@@ -46,18 +44,19 @@ to your Windows system, and prepare it for passwordless access through Teleport.
 
 ### Import the Teleport root certificate
 
-Export the Teleport user certificate authority by running the following from your Windows system:
+Export the Teleport user certificate authority by running the following from
+`cmd.exe` on your Windows system:
 
 ```code
-$ curl 'https://teleport-proxy.example.com:443/webapi/auth/export?type=windows' > teleport.cer
+$ curl -o teleport.cer https://teleport-proxy.example.com/webapi/auth/export?type=windows
 ```
 
 ### Install the Teleport service for Windows
 
 From the Windows system, download the [Teleport Windows Auth
-Setup](https://github.com/gravitational/teleport/releases/tag/v12.1.1-passwordless-windows).
-Extract the `.exe` file from the archive and run it. When prompted, select the
-Teleport certificate file from the previous step. Once complete, reboot the system.
+Setup](https://cdn.teleport.dev/teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe).
+Run the installer. When prompted, select the Teleport certificate file from the previous step.
+Once complete, reboot the system.
 
 <Admonition type="tip" title="Headless Installation">
 The Teleport Windows Auth Setup can be run in a shell environment with elevated
@@ -90,7 +89,7 @@ for detailed information on configuring Teleport Desktop Access with this token.
 
 Copy the token to the Linux host where you will run the Desktop service as `/tmp/token`.
 
-(!docs/pages/includes/install-linux.mdx!)
+(!docs/pages/includes/install-linux-enterprise.mdx!)
 
 Create `/etc/teleport.yaml` and configure it for desktop access. Update the `proxy_server`
 value to your Teleport proxy service or cloud tenant, and put the Windows machine address

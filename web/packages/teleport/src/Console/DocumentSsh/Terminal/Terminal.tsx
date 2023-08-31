@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,9 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import { ThemeContext } from 'styled-components';
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import { Flex } from 'design';
+import { ITheme } from 'xterm';
 
 import { getPlatform } from 'design/theme/utils';
 
@@ -24,49 +30,140 @@ import Tty from 'teleport/lib/term/tty';
 import XTermCtrl from 'teleport/lib/term/terminal';
 import { getMappedAction } from 'teleport/Console/useKeyboardNav';
 
+import { TerminalAssist } from 'teleport/Console/DocumentSsh/TerminalAssist/TerminalAssist';
+import { ActionBar } from 'teleport/Console/DocumentSsh/TerminalAssist/ActionBar';
+import { useTerminalAssist } from 'teleport/Console/DocumentSsh/TerminalAssist/TerminalAssistContext';
+
 import StyledXterm from '../../StyledXterm';
 
-export default class Terminal extends React.Component<{ tty: Tty }> {
-  static contextType = ThemeContext;
+export interface TerminalRef {
+  focus(): void;
+}
 
-  terminal: XTermCtrl;
+export interface TerminalProps {
+  tty: Tty;
+  fontFamily: string;
+  theme: ITheme;
+  assistEnabled: boolean;
+}
 
-  refTermContainer = React.createRef<HTMLElement>();
+interface ActionBarState {
+  visible: boolean;
+  left: number;
+  top: number;
+}
 
-  componentDidMount() {
+export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
+  const termCtrlRef = useRef<XTermCtrl>();
+  const elementRef = useRef<HTMLElement>();
+
+  const assist = useTerminalAssist();
+
+  const [actionBarState, setActionBarState] = useState<ActionBarState | null>({
+    top: 0,
+    left: 0,
+    visible: false,
+  });
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => termCtrlRef.current.term.focus(),
+    }),
+    []
+  );
+
+  useEffect(() => {
     const platform = getPlatform();
     const fontSize = platform.isMac ? 12 : 14;
 
-    this.terminal = new XTermCtrl(this.props.tty, {
-      el: this.refTermContainer.current,
-      fontFamily: this.context.fonts.mono,
+    const termCtrl = new XTermCtrl(props.tty, {
+      el: elementRef.current,
+      fontFamily: props.fontFamily,
       fontSize,
+      theme: props.theme,
     });
+    termCtrlRef.current = termCtrl;
 
-    this.terminal.open();
+    termCtrl.open();
 
-    this.terminal.term.attachCustomKeyEventHandler(event => {
+    termCtrl.term.attachCustomKeyEventHandler(event => {
       const { tabSwitch } = getMappedAction(event);
       if (tabSwitch) {
         return false;
       }
     });
+
+    if (props.assistEnabled) {
+      termCtrl.term.onSelectionChange(() => {
+        const term = termCtrl.term;
+
+        const position = term.getSelectionPosition();
+        const selection = term.getSelection().trim();
+
+        if (position && selection) {
+          const charWidth = Math.ceil(term.element.offsetWidth / term.cols);
+          const charHeight = Math.ceil(term.element.offsetHeight / term.rows);
+
+          const left = Math.round(
+            ((position.start.x + position.end.x) / 2) * charWidth
+          );
+          const top = Math.round((position.end.y + 2) * charHeight) + 15;
+
+          setActionBarState({
+            visible: true,
+            left,
+            top,
+          });
+
+          return;
+        }
+
+        setActionBarState(position => ({
+          ...position,
+          visible: false,
+        }));
+      });
+    }
+
+    return () => termCtrl.destroy();
+    // do not re-initialize xterm when theme changes, use specialized handlers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.assistEnabled]);
+
+  function handleUseCommand(command: string) {
+    termCtrlRef.current.term.paste(command);
   }
 
-  componentWillUnmount() {
-    this.terminal.destroy();
+  function handleAssistClose() {
+    termCtrlRef.current.term.focus();
   }
 
-  shouldComponentUpdate() {
-    return false;
+  function handleAskAssist() {
+    assist.explainSelection(termCtrlRef.current.term.getSelection());
   }
 
-  focus() {
-    this.terminal.term.focus();
+  function handleActionBarClose() {
+    setActionBarState(position => ({
+      ...position,
+      visible: false,
+    }));
   }
 
-  render() {
-    return (
+  function handleActionBarCopy() {
+    const selection = termCtrlRef.current.term.getSelection();
+
+    if (selection) {
+      void navigator.clipboard.writeText(selection);
+    }
+  }
+
+  useEffect(() => {
+    termCtrlRef.current?.updateTheme(props.theme);
+  }, [props.theme]);
+
+  return (
+    <>
       <Flex
         flexDirection="column"
         height="100%"
@@ -74,8 +171,25 @@ export default class Terminal extends React.Component<{ tty: Tty }> {
         px="2"
         style={{ overflow: 'auto' }}
       >
-        <StyledXterm ref={this.refTermContainer} />
+        <StyledXterm ref={elementRef} />
       </Flex>
-    );
-  }
-}
+
+      {props.assistEnabled && (
+        <>
+          <ActionBar
+            position={actionBarState}
+            visible={actionBarState.visible}
+            onClose={handleActionBarClose}
+            onCopy={handleActionBarCopy}
+            onAskAssist={handleAskAssist}
+          />
+
+          <TerminalAssist
+            onUseCommand={handleUseCommand}
+            onClose={handleAssistClose}
+          />
+        </>
+      )}
+    </>
+  );
+});

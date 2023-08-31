@@ -17,7 +17,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Box, Text, Flex, Link } from 'design';
-import { InfoFilled } from 'design/Icon';
+import { Info as InfoIcon } from 'design/Icon';
 
 import {
   SelectCreatable,
@@ -29,6 +29,7 @@ import {
 } from 'teleport/Discover/Shared/SetupAccess';
 import { Mark } from 'teleport/Discover/Shared';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { DbMeta } from 'teleport/Discover/useDiscover';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 
@@ -47,6 +48,8 @@ export function SetupAccess(props: State) {
     getFixedOptions,
     getSelectableOptions,
     resourceSpec,
+    onPrev,
+    agentMeta,
     ...restOfProps
   } = props;
   const [nameInputValue, setNameInputValue] = useState('');
@@ -105,6 +108,8 @@ export function SetupAccess(props: State) {
   const headerSubtitle =
     'Allow access from your Database names and users to interact with your Database.';
 
+  const dbMeta = agentMeta as DbMeta;
+
   return (
     <SetupAccessWrapper
       {...restOfProps}
@@ -114,6 +119,9 @@ export function SetupAccess(props: State) {
       hasTraits={hasTraits}
       onProceed={handleOnProceed}
       infoContent={<Info dbEngine={engine} dbLocation={location} />}
+      // Don't allow going back to previous screen when deploy db
+      // service got skipped or user auto deployed the db service.
+      onPrev={dbMeta.serviceDeployedMethod === 'manual' ? onPrev : null}
     >
       <Box mb={4}>
         Database Users
@@ -166,7 +174,7 @@ const Info = (props: {
 }) => (
   <StyledBox mt={5}>
     <Flex mb={2}>
-      <InfoFilled fontSize={18} mr={1} mt="2px" />
+      <InfoIcon size="medium" mr={1} />
       <Text bold>To allow access using your Database Users</Text>
     </Flex>
     <DbEngineInstructions {...props} />
@@ -376,7 +384,7 @@ function DbEngineInstructions({
 
 const StyledBox = styled(Box)`
   max-width: 800px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 8px;
   padding: 20px;
 `;

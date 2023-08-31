@@ -610,7 +610,7 @@ else
 fi
 
 # use OSTYPE variable to figure out host type/arch
-if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
+if [[ "${OSTYPE}" == "linux"* ]]; then
     # linux host, now detect arch
     TELEPORT_BINARY_TYPE="linux"
     ARCH=$(uname -m)
@@ -661,7 +661,8 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
             fi
             if [[ ${DISTRO_TYPE} =~ "debian" ]]; then
                 TELEPORT_FORMAT="deb"
-            elif [[ ${DISTRO_TYPE} =~ "centos"* ]] || [[ ${DISTRO_TYPE} =~ "rhel" ]] || [[ ${DISTRO_TYPE} =~ "fedora"* ]]; then
+            elif [[ "$DISTRO_TYPE" =~ "amzn"* ]] || [[ ${DISTRO_TYPE} =~ "centos"* ]] || [[ ${DISTRO_TYPE} =~ "rhel" ]] || [[ ${DISTRO_TYPE} =~ "fedora"* ]] || \
+                     [[ ${DISTRO_TYPE} == *"suse"* ]] || [[ ${DISTRO_TYPE} =~ "sles"* ]]; then
                 TELEPORT_FORMAT="rpm"
             else
                 log "Couldn't match a distro type using /etc/os-release, falling back to tarball installer"
@@ -679,10 +680,8 @@ elif [[ "${OSTYPE}" == "darwin"* ]]; then
     TELEPORT_BINARY_TYPE="darwin"
     ARCH=$(uname -m)
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
-    if [[ ${ARCH} == "aarch64" || ${ARCH} == "arm64" ]]; then
+    if [[ ${ARCH} == "arm64" ]]; then
         TELEPORT_ARCH="arm64"
-        log_important "Error: detected ${ARCH} but Teleport doesn't build binaries for this architecture yet, exiting"
-        exit 1
     elif [[ ${ARCH} == "x86_64" ]]; then
         TELEPORT_ARCH="amd64"
     else
@@ -819,6 +818,9 @@ install_from_file() {
         elif check_exists yum; then
             log "Found 'yum' package manager, using it"
             PACKAGE_MANAGER_COMMAND="yum -y localinstall"
+        elif check_exists zypper; then
+            log "Found 'zypper' package manager, using it"
+            PACKAGE_MANAGER_COMMAND="zypper --non-interactive install"
         else
             PACKAGE_MANAGER_COMMAND=""
             log "Cannot find 'yum' or 'dnf' package manager commands, will try installing the rpm manually instead"
@@ -855,6 +857,7 @@ install_from_repo() {
     # shellcheck disable=SC1091
     . /etc/os-release
 
+    PACKAGE_LIST=$(package_list)
     if [ "$ID" == "debian" ] || [ "$ID" == "ubuntu" ]; then
         # old versions of ubuntu require that keys get added by `apt-key add`, without
         # adding the key apt shows a key signing error when installing teleport.
@@ -872,7 +875,7 @@ install_from_repo() {
             https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         fi
         apt-get update
-        apt-get install -y ${TELEPORT_PACKAGE_NAME}
+        apt-get install -y ${PACKAGE_LIST}
     elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ] ; then
         if [ "$ID" = "rhel" ]; then
             VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
@@ -884,16 +887,53 @@ install_from_repo() {
         # Remove metadata cache to prevent cache from other channel (eg, prior version)
         # See: https://github.com/gravitational/teleport/issues/22581
         yum --disablerepo="*" --enablerepo="teleport" clean metadata
-        
-        yum install -y ${TELEPORT_PACKAGE_NAME}
+
+        yum install -y ${PACKAGE_LIST}
+    elif [ "$ID" = "sles" ] || [ "$ID" = "opensuse-tumbleweed" ] || [ "$ID" = "opensuse-leap" ]; then
+        if [ "$ID" = "opensuse-tumbleweed" ]; then
+          VERSION_ID="15" # tumbleweed uses dated VERSION_IDs like 20230702
+        else
+          VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
+        fi
+        sudo rpm --import "https://zypper.releases.teleport.dev/gpg"
+        sudo zypper --non-interactive addrepo "$(rpm --eval "https://zypper.releases.teleport.dev/sles/$VERSION_ID/Teleport/%{_arch}/${REPO_CHANNEL}/teleport.repo")"
+        sudo zypper --gpg-auto-import-keys refresh
+        sudo zypper --non-interactive install ${PACKAGE_LIST}
     else
         echo "Unsupported distro: $ID"
         exit 1
     fi
 }
 
+# package_list returns the list of packages to install.
+# The list of packages can be fed into yum or apt because they already have the expected format when pinning versions.
+package_list() {
+    TELEPORT_PACKAGE_PIN_VERSION=${TELEPORT_PACKAGE_NAME}
+    TELEPORT_UPDATER_PIN_VERSION="${TELEPORT_PACKAGE_NAME}-updater"
+
+    if [[ "${TELEPORT_FORMAT}" == "deb" ]]; then
+        TELEPORT_PACKAGE_PIN_VERSION+="=${TELEPORT_VERSION}"
+        TELEPORT_UPDATER_PIN_VERSION+="=${TELEPORT_VERSION}"
+
+    elif [[ "${TELEPORT_FORMAT}" == "rpm" ]]; then
+        TELEPORT_YUM_VERSION="${TELEPORT_VERSION//-/_}"
+        TELEPORT_PACKAGE_PIN_VERSION+="-${TELEPORT_YUM_VERSION}"
+        TELEPORT_UPDATER_PIN_VERSION+="-${TELEPORT_YUM_VERSION}"
+    fi
+
+    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}
+    # (warning): This expression is constant. Did you forget the $ on a variable?
+    # Disabling the warning above because expression is templated.
+    # shellcheck disable=SC2050
+    if is_using_systemd && [[ "{{.installUpdater}}" == "true" ]]; then
+        # Teleport Updater requires systemd.
+        PACKAGE_LIST+=" ${TELEPORT_UPDATER_PIN_VERSION}"
+    fi
+    echo ${PACKAGE_LIST}
+}
+
 is_repo_available() {
-    if [[ "${OSTYPE}" != "linux-gnu" ]]; then
+    if [[ "${OSTYPE}" != "linux"* ]]; then
         return 1
     fi
 
@@ -907,7 +947,8 @@ is_repo_available() {
         debian-9* | debian-10* | debian-11* | \
         rhel-7* | rhel-8* | rhel-9* | \
         centos-7* | centos-8* | centos-9* | \
-        amzn-2)
+        amzn-2 | amzn-2023 | \
+        opensuse-tumbleweed* | sles-12* | sles-15* | opensuse-leap-15*)
             return 0;;
     esac
 

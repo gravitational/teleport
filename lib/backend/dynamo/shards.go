@@ -90,7 +90,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 			return false
 		}
 		if _, ok := set[aws.StringValue(shard.ParentShardId)]; ok {
-			b.Debugf("Skipping child shard: %s, still polling parent %s", sid, aws.StringValue(shard.ParentShardId))
+			b.Tracef("Skipping child shard: %s, still polling parent %s", sid, aws.StringValue(shard.ParentShardId))
 			// still processing parent
 			return false
 		}
@@ -116,7 +116,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 				continue
 			}
 			shardID := aws.StringValue(shards[i].ShardId)
-			b.Debugf("Adding active shard %v.", shardID)
+			b.Tracef("Adding active shard %v.", shardID)
 			set[shardID] = struct{}{}
 			go b.asyncPollShard(ctx, streamArn, shards[i], eventsC, initC)
 			started++
@@ -165,7 +165,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 					b.Debugf("Shard ID %v closed with error: %v, reseting buffers.", event.shardID, event.err)
 					return trace.Wrap(event.err)
 				}
-				b.Debugf("Shard ID %v exited gracefully.", event.shardID)
+				b.Tracef("Shard ID %v exited gracefully.", event.shardID)
 			} else {
 				b.buf.Emit(event.events...)
 			}
@@ -174,7 +174,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 				return trace.Wrap(err)
 			}
 		case <-ctx.Done():
-			b.Debugf("Context is closing, returning.")
+			b.Tracef("Context is closing, returning.")
 			return nil
 		}
 	}
@@ -227,18 +227,18 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynam
 				return convertError(err)
 			}
 			if len(out.Records) > 0 {
-				b.Debugf("Got %v new stream shard records.", len(out.Records))
+				b.Tracef("Got %v new stream shard records.", len(out.Records))
 			}
 			if len(out.Records) == 0 {
 				if out.NextShardIterator == nil {
-					b.Debugf("Shard is closed: %v.", aws.StringValue(shard.ShardId))
+					b.Tracef("Shard is closed: %v.", aws.StringValue(shard.ShardId))
 					return io.EOF
 				}
 				iterator = out.NextShardIterator
 				continue
 			}
 			if out.NextShardIterator == nil {
-				b.Debugf("Shard is closed: %v.", aws.StringValue(shard.ShardId))
+				b.Tracef("Shard is closed: %v.", aws.StringValue(shard.ShardId))
 				return io.EOF
 			}
 			events := make([]backend.Event, 0, len(out.Records))

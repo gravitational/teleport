@@ -34,6 +34,10 @@ func NewFakeReader() *FakeReader {
 	return &FakeReader{}
 }
 
+func (r *FakeReader) IsTerminal() bool {
+	return true
+}
+
 func (r *FakeReader) AddReply(fn FakeReplyFunc) *FakeReader {
 	r.mu.Lock()
 	defer r.mu.Unlock()

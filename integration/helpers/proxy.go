@@ -15,89 +15,27 @@
 package helpers
 
 import (
+	"context"
+	"crypto/tls"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/fixtures"
+	apitesthelpers "github.com/gravitational/teleport/api/testhelpers"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-type ProxyHandler struct {
-	sync.Mutex
-	count int
-}
-
-// ServeHTTP only accepts the CONNECT verb and will tunnel your connection to
-// the specified host. Also tracks the number of connections that it proxies for
-// debugging purposes.
-func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Validate http connect parameters.
-	if r.Method != http.MethodConnect {
-		trace.WriteError(w, trace.BadParameter("%v not supported", r.Method))
-		return
-	}
-	if r.Host == "" {
-		trace.WriteError(w, trace.BadParameter("host not set"))
-		return
-	}
-
-	// Dial to the target host, this is done before hijacking the connection to
-	// ensure the target host is accessible.
-	dconn, err := net.Dial("tcp", r.Host)
-	if err != nil {
-		trace.WriteError(w, err)
-		return
-	}
-	defer dconn.Close()
-
-	// Once the client receives 200 OK, the rest of the data will no longer be
-	// http, but whatever protocol is being tunneled.
-	w.WriteHeader(http.StatusOK)
-
-	// Hijack request so we can get underlying connection.
-	hj, ok := w.(http.Hijacker)
-	if !ok {
-		trace.WriteError(w, trace.AccessDenied("unable to hijack connection"))
-		return
-	}
-	sconn, _, err := hj.Hijack()
-	if err != nil {
-		trace.WriteError(w, err)
-		return
-	}
-	defer sconn.Close()
-
-	// Success, we're proxying data now.
-	p.Lock()
-	p.count++
-	p.Unlock()
-
-	// Copy from src to dst and dst to src.
-	errc := make(chan error, 2)
-	replicate := func(dst io.Writer, src io.Reader) {
-		_, err := io.Copy(dst, src)
-		errc <- err
-	}
-	go replicate(sconn, dconn)
-	go replicate(dconn, sconn)
-
-	// Wait until done, error, or 10 second.
-	select {
-	case <-time.After(10 * time.Second):
-	case <-errc:
-	}
-}
-
-// Count returns the number of requests that have been proxied.
-func (p *ProxyHandler) Count() int {
-	p.Lock()
-	defer p.Unlock()
-	return p.count
-}
+// ProxyHandler is a http.Handler that implements a simple HTTP proxy server.
+type ProxyHandler = apitesthelpers.ProxyHandler
 
 type ProxyAuthorizer struct {
 	next     http.Handler
@@ -200,4 +138,74 @@ func parseProxyAuth(proxyAuth string) (user, password string, ok bool) {
 func MakeProxyAddr(user, pass, host string) string {
 	userPass := url.UserPassword(user, pass).String()
 	return fmt.Sprintf("%v@%v", userPass, host)
+}
+
+// MockAWSALBProxy is a mock proxy server that simulates an AWS application
+// load balancer where ALPN is not supported. Note that this mock does not
+// actually balance traffic.
+type MockAWSALBProxy struct {
+	net.Listener
+	proxyAddr string
+	cert      tls.Certificate
+}
+
+func (m *MockAWSALBProxy) serve(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		conn, err := m.Accept()
+		if err != nil {
+			logrus.WithError(err).Debugf("Failed to accept conn.")
+			return
+		}
+
+		go func() {
+			defer conn.Close()
+
+			// Handshake with incoming client and drops ALPN.
+			downstreamConn := tls.Server(conn, &tls.Config{
+				Certificates: []tls.Certificate{m.cert},
+			})
+
+			// api.Client may try different connection methods. Just close the
+			// connection when something goes wrong.
+			if err := downstreamConn.HandshakeContext(ctx); err != nil {
+				logrus.WithError(err).Debugf("Failed to handshake.")
+				return
+			}
+
+			// Make a connection to the proxy server with ALPN protos.
+			upstreamConn, err := tls.Dial("tcp", m.proxyAddr, &tls.Config{
+				InsecureSkipVerify: true,
+			})
+			if err != nil {
+				logrus.WithError(err).Debugf("Failed to dial upstream.")
+				return
+			}
+			utils.ProxyConn(ctx, downstreamConn, upstreamConn)
+		}()
+	}
+}
+
+// MustStartMockALBProxy creates and starts a MockAWSALBProxy.
+func MustStartMockALBProxy(t *testing.T, proxyAddr string) *MockAWSALBProxy {
+	t.Helper()
+
+	cert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	m := &MockAWSALBProxy{
+		proxyAddr: proxyAddr,
+		Listener:  MustCreateListener(t),
+		cert:      cert,
+	}
+	go m.serve(ctx)
+	return m
 }

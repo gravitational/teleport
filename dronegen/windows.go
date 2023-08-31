@@ -23,8 +23,8 @@ const (
 	toolchainDir      = `/toolchains`
 	teleportSrc       = `/go/src/github.com/gravitational/teleport`
 
-	relcliURL    = `https://cdn.teleport.dev/relcli-master-e148541-20230331T1403513-windows.exe`
-	relcliSha256 = `6e2ba2275d5d2bdd1c29def84d2de7d11149a9044c4fdca7c8d87c8e3fb8a91c`
+	relcliURL    = `https://cdn.teleport.dev/relcli-master-93a9f40-20230504T2005101-windows.exe`
+	relcliSha256 = `22d32a57a4b999e619162bebb96d0adf4b3df2596ef4c89b77154e7f96abbf30`
 )
 
 func newWindowsPipeline(name string) pipeline {
@@ -46,6 +46,7 @@ func windowsTagPipeline() pipeline {
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),
+		installWindowsRustToolchainStep(p.Workspace.Path),
 		installWindowsNodeToolchainStep(p.Workspace.Path),
 		installWindowsGoToolchainStep(p.Workspace.Path),
 		buildWindowsAuthenticationPackageStep(p.Workspace.Path),
@@ -111,6 +112,7 @@ func windowsPushPipeline() pipeline {
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),
+		installWindowsRustToolchainStep(p.Workspace.Path),
 		installWindowsNodeToolchainStep(p.Workspace.Path),
 		installWindowsGoToolchainStep(p.Workspace.Path),
 		buildWindowsTshStep(p.Workspace.Path),
@@ -172,6 +174,24 @@ func updateWindowsSubreposStep(workspace string) step {
 			`cd $TeleportSrc`,
 			`git submodule update --init e`,
 			`Reset-Git -Workspace $Workspace`,
+		},
+	}
+}
+
+func installWindowsRustToolchainStep(workspacePath string) step {
+	return step{
+		Name:        "Install Rust Toolchain",
+		Environment: map[string]value{"WORKSPACE_DIR": {raw: workspacePath}},
+		Commands: []string{
+			`$ProgressPreference = 'SilentlyContinue'`,
+			`$ErrorActionPreference = 'Stop'`,
+			`$Workspace = "` + perBuildWorkspace + `"`,
+			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
+			`Push-Location "$TeleportSrc/build.assets"`,
+			`$RustVersion = $(make print-rust-version).Trim()`,
+			`Pop-Location`,
+			`Install-Rust -RustVersion $RustVersion -ToolchainDir "$Workspace` + toolchainDir + `"`,
 		},
 	}
 }
@@ -290,6 +310,7 @@ func buildWindowsAuthenticationPackageStep(workspace string) step {
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Go -ToolchainDir "$Workspace` + toolchainDir + `"`,
+			`Enable-Rust -ToolchainDir "$Workspace` + toolchainDir + `"`,
 			`cd $TeleportSrc`,
 			`$TeleportVersion=$(make print-version).Trim()`,
 			`cd "$TeleportSrc\e\windowsauth"`,

@@ -18,14 +18,16 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
@@ -126,15 +128,17 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindDevice:                   rc.createDevice,
 		types.KindOktaImportRule:           rc.createOktaImportRule,
 		types.KindIntegration:              rc.createIntegration,
+		types.KindWindowsDesktop:           rc.createWindowsDesktop,
+		types.KindAccessList:               rc.createAccessList,
 	}
 	rc.config = config
 
-	rc.createCmd = app.Command("create", "Create or update a Teleport resource from a YAML file")
+	rc.createCmd = app.Command("create", "Create or update a Teleport resource from a YAML file.")
 	rc.createCmd.Arg("filename", "resource definition file, empty for stdin").StringVar(&rc.filename)
 	rc.createCmd.Flag("force", "Overwrite the resource if already exists").Short('f').BoolVar(&rc.force)
 	rc.createCmd.Flag("confirm", "Confirm an unsafe or temporary resource update").Hidden().BoolVar(&rc.confirm)
 
-	rc.updateCmd = app.Command("update", "Update resource fields")
+	rc.updateCmd = app.Command("update", "Update resource fields.")
 	rc.updateCmd.Arg("resource type/resource name", `Resource to update
 	<resource type>  Type of a resource [for example: rc]
 	<resource name>  Resource name to update
@@ -144,7 +148,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 	rc.updateCmd.Flag("set-labels", "Set labels").StringVar(&rc.labels)
 	rc.updateCmd.Flag("set-ttl", "Set TTL").StringVar(&rc.ttl)
 
-	rc.deleteCmd = app.Command("rm", "Delete a resource").Alias("del")
+	rc.deleteCmd = app.Command("rm", "Delete a resource.").Alias("del")
 	rc.deleteCmd.Arg("resource type/resource name", `Resource to delete
 	<resource type>  Type of a resource [for example: connector,user,cluster,token]
 	<resource name>  Resource name to delete
@@ -153,7 +157,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 	$ tctl rm connector/github
 	$ tctl rm cluster/main`).SetValue(&rc.ref)
 
-	rc.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources")
+	rc.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources.")
 	rc.getCmd.Arg("resources", "Resource spec: 'type/[name][,...]' or 'all'").Required().SetValue(&rc.refs)
 	rc.getCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&rc.format)
 	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(apidefaults.Namespace).StringVar(&rc.namespace)
@@ -218,7 +222,7 @@ func (rc *ResourceCommand) Get(ctx context.Context, client auth.ClientI) error {
 	// is experimental.
 	switch rc.format {
 	case teleport.Text:
-		return collection.writeText(rc.stdout)
+		return collection.writeText(rc.stdout, rc.verbose)
 	case teleport.YAML:
 		return writeYAML(collection, rc.stdout)
 	case teleport.JSON:
@@ -279,7 +283,7 @@ func (rc *ResourceCommand) Create(ctx context.Context, client auth.ClientI) (err
 		var raw services.UnknownResource
 		err := decoder.Decode(&raw)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				if count == 0 {
 					return trace.BadParameter("no resources found, empty input?")
 				}
@@ -396,6 +400,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 		return trace.Wrap(err)
 	}
 
+	warnAboutKubernetesResources(rc.config.Log, role)
 	roleName := role.GetName()
 	_, err = client.GetRole(ctx, roleName)
 	if err != nil && !trace.IsNotFound(err) {
@@ -410,6 +415,26 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 	}
 	fmt.Printf("role '%s' has been %s\n", roleName, UpsertVerb(roleExists, rc.IsForced()))
 	return nil
+}
+
+// warnAboutKubernetesResources warns about kubernetes resources
+// if kubernetes_labels are set but kubernetes_resources are not.
+func warnAboutKubernetesResources(logger utils.Logger, r types.Role) {
+	role, ok := r.(*types.RoleV6)
+	// only warn about kubernetes resources for v6 roles
+	if !ok || role.Version != types.V6 {
+		return
+	}
+	if len(role.Spec.Allow.KubernetesLabels) > 0 && len(role.Spec.Allow.KubernetesResources) == 0 {
+		logger.Warningf("role %q has allow.kubernetes_labels set but no allow.kubernetes_resources, this is probably a mistake. Teleport will restrict access to pods.", role.Metadata.Name)
+	}
+	if len(role.Spec.Allow.KubernetesLabels) == 0 && len(role.Spec.Allow.KubernetesResources) > 0 {
+		logger.Warningf("role %q has allow.kubernetes_resources set but no allow.kubernetes_labels, this is probably a mistake. kubernetes_resources won't be effective.", role.Metadata.Name)
+	}
+
+	if len(role.Spec.Deny.KubernetesLabels) > 0 && len(role.Spec.Deny.KubernetesResources) > 0 {
+		logger.Warningf("role %q has deny.kubernetes_labels set but also has deny.kubernetes_resources set, this is probably a mistake. deny.kubernetes_resources won't be effective.", role.Metadata.Name)
+	}
 }
 
 // createUser implements `tctl create user.yaml` command.
@@ -576,6 +601,20 @@ func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client
 		return trace.Wrap(err)
 	}
 	fmt.Printf("network restrictions have been updated\n")
+	return nil
+}
+
+func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	wd, err := services.UnmarshalWindowsDesktop(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.UpsertWindowsDesktop(ctx, wd); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("windows desktop %q has been updated\n", wd.GetName())
 	return nil
 }
 
@@ -809,7 +848,7 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 }
 
 func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	res, err := types.UnmarshalDevice(raw.Raw)
+	res, err := services.UnmarshalDevice(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -921,10 +960,35 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client auth.Cl
 	return nil
 }
 
+func (rc *ResourceCommand) createAccessList(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	accessList, err := services.UnmarshalAccessList(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = client.AccessListClient().GetAccessList(ctx, accessList.GetName())
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+
+	if exists && !rc.IsForced() {
+		return trace.AlreadyExists("Access list %q already exists", accessList.GetName())
+	}
+
+	if _, err := client.AccessListClient().UpsertAccessList(ctx, accessList); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Access list %q has been %s\n", accessList.GetName(), UpsertVerb(exists, rc.IsForced()))
+
+	return nil
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err error) {
 	singletonResources := []string{
 		types.KindClusterAuthPreference,
+		types.KindClusterMaintenanceConfig,
 		types.KindClusterNetworkingConfig,
 		types.KindSessionRecordingConfig,
 		types.KindInstaller,
@@ -1005,6 +1069,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("cluster auth preference has been reset to defaults\n")
+	case types.KindClusterMaintenanceConfig:
+		if err := client.DeleteClusterMaintenanceConfig(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("cluster maintenance configuration has been deleted\n")
 	case types.KindClusterNetworkingConfig:
 		if err = resetClusterNetworkingConfig(ctx, client); err != nil {
 			return trace.Wrap(err)
@@ -1025,23 +1094,23 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		}
 		fmt.Printf("lock %q has been deleted\n", name)
 	case types.KindDatabaseServer:
-		dbServers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
+		servers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		deleted := false
-		for _, server := range dbServers {
-			if server.GetName() == rc.ref.Name {
-				if err := client.DeleteDatabaseServer(ctx, apidefaults.Namespace, server.GetHostID(), server.GetName()); err != nil {
-					return trace.Wrap(err)
-				}
-				deleted = true
+		resDesc := "database server"
+		servers = filterByNameOrPrefix(servers, rc.ref.Name)
+		name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, s := range servers {
+			err := client.DeleteDatabaseServer(ctx, apidefaults.Namespace, s.GetHostID(), name)
+			if err != nil {
+				return trace.Wrap(err)
 			}
 		}
-		if !deleted {
-			return trace.NotFound("database server %q not found", rc.ref.Name)
-		}
-		fmt.Printf("database server %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindNetworkRestrictions:
 		if err = resetNetworkRestrictions(ctx, client); err != nil {
 			return trace.Wrap(err)
@@ -1053,15 +1122,35 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		}
 		fmt.Printf("application %q has been deleted\n", rc.ref.Name)
 	case types.KindDatabase:
-		if err = client.DeleteDatabase(ctx, rc.ref.Name); err != nil {
+		databases, err := client.GetDatabases(ctx)
+		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("database %q has been deleted\n", rc.ref.Name)
+		resDesc := "database"
+		databases = filterByNameOrPrefix(databases, rc.ref.Name)
+		name, err := getOneResourceNameToDelete(databases, rc.ref, resDesc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := client.DeleteDatabase(ctx, name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindKubernetesCluster:
-		if err = client.DeleteKubernetesCluster(ctx, rc.ref.Name); err != nil {
+		clusters, err := client.GetKubernetesClusters(ctx)
+		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("kubernetes cluster %q has been deleted\n", rc.ref.Name)
+		resDesc := "kubernetes cluster"
+		clusters = filterByNameOrPrefix(clusters, rc.ref.Name)
+		name, err := getOneResourceNameToDelete(clusters, rc.ref, resDesc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := client.DeleteKubernetesCluster(ctx, name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindWindowsDesktopService:
 		if err = client.DeleteWindowsDesktopService(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1114,23 +1203,23 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		}
 		fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, rc.ref.SubKind, rc.ref.Name)
 	case types.KindKubeServer:
-		kubeServers, err := client.GetKubernetesServers(ctx)
+		servers, err := client.GetKubernetesServers(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		deleted := false
-		for _, server := range kubeServers {
-			if server.GetName() == rc.ref.Name {
-				if err := client.DeleteKubernetesServer(ctx, server.GetHostID(), server.GetName()); err != nil {
-					return trace.Wrap(err)
-				}
-				deleted = true
+		resDesc := "kubernetes server"
+		servers = filterByNameOrPrefix(servers, rc.ref.Name)
+		name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, s := range servers {
+			err := client.DeleteKubernetesServer(ctx, s.GetHostID(), name)
+			if err != nil {
+				return trace.Wrap(err)
 			}
 		}
-		if !deleted {
-			return trace.NotFound("kubernetes server %q not found", rc.ref.Name)
-		}
-		fmt.Printf("kubernetes server %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindUIConfig:
 		err := client.DeleteUIConfig(ctx)
 		if err != nil {
@@ -1204,16 +1293,21 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Okta import rule %q has been deleted\n", rc.ref.Name)
-	case types.KindOktaAssignment:
-		if err := client.OktaClient().DeleteOktaAssignment(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Okta assignment %q has been deleted\n", rc.ref.Name)
 	case types.KindUserGroup:
 		if err := client.DeleteUserGroup(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("User group %q has been deleted\n", rc.ref.Name)
+	case types.KindProxy:
+		if err := client.DeleteProxy(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Proxy %q has been deleted\n", rc.ref.Name)
+	case types.KindAccessList:
+		if err := client.AccessListClient().DeleteAccessList(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Access list %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -1466,13 +1560,13 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &roleCollection{roles: roles, verbose: rc.verbose}, nil
+			return &roleCollection{roles: roles}, nil
 		}
 		role, err := client.GetRole(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &roleCollection{roles: []types.Role{role}, verbose: rc.verbose}, nil
+		return &roleCollection{roles: []types.Role{role}}, nil
 	case types.KindNamespace:
 		if rc.ref.Name == "" {
 			namespaces, err := client.GetNamespaces()
@@ -1585,16 +1679,11 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return &databaseServerCollection{servers: servers}, nil
 		}
 
-		var out []types.DatabaseServer
-		for _, server := range servers {
-			if server.GetName() == rc.ref.Name {
-				out = append(out, server)
-			}
-		}
-		if len(out) == 0 {
+		servers = filterByNameOrPrefix(servers, rc.ref.Name)
+		if len(servers) == 0 {
 			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
 		}
-		return &databaseServerCollection{servers: out}, nil
+		return &databaseServerCollection{servers: servers}, nil
 	case types.KindKubeServer:
 		servers, err := client.GetKubernetesServers(ctx)
 		if err != nil {
@@ -1603,17 +1692,14 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		if rc.ref.Name == "" {
 			return &kubeServerCollection{servers: servers}, nil
 		}
-
-		var out []types.KubeServer
-		for _, server := range servers {
-			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-				out = append(out, server)
-			}
+		altNameFn := func(r types.KubeServer) string {
+			return r.GetHostname()
 		}
-		if len(out) == 0 {
+		servers = filterByNameOrPrefix(servers, rc.ref.Name, altNameFn)
+		if len(servers) == 0 {
 			return nil, trace.NotFound("kubernetes server %q not found", rc.ref.Name)
 		}
-		return &kubeServerCollection{servers: out}, nil
+		return &kubeServerCollection{servers: servers}, nil
 
 	case types.KindAppServer:
 		servers, err := client.GetApplicationServers(ctx, rc.namespace)
@@ -1654,31 +1740,31 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		}
 		return &appCollection{apps: []types.Application{app}}, nil
 	case types.KindDatabase:
+		databases, err := client.GetDatabases(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if rc.ref.Name == "" {
-			databases, err := client.GetDatabases(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			return &databaseCollection{databases: databases}, nil
 		}
-		database, err := client.GetDatabase(ctx, rc.ref.Name)
+		databases = filterByNameOrPrefix(databases, rc.ref.Name)
+		if len(databases) == 0 {
+			return nil, trace.NotFound("database %q not found", rc.ref.Name)
+		}
+		return &databaseCollection{databases: databases}, nil
+	case types.KindKubernetesCluster:
+		clusters, err := client.GetKubernetesClusters(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &databaseCollection{databases: []types.Database{database}}, nil
-	case types.KindKubernetesCluster:
 		if rc.ref.Name == "" {
-			clusters, err := client.GetKubernetesClusters(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			return &kubeClusterCollection{clusters: clusters}, nil
 		}
-		cluster, err := client.GetKubernetesCluster(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		clusters = filterByNameOrPrefix(clusters, rc.ref.Name)
+		if len(clusters) == 0 {
+			return nil, trace.NotFound("kubernetes cluster %q not found", rc.ref.Name)
 		}
-		return &kubeClusterCollection{clusters: []types.KubeCluster{cluster}}, nil
+		return &kubeClusterCollection{clusters: clusters}, nil
 	case types.KindWindowsDesktopService:
 		services, err := client.GetWindowsDesktopServices(ctx)
 		if err != nil {
@@ -2056,4 +2142,112 @@ func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustService
 	}
 
 	return nil, trace.BadParameter("found multiple devices for asset tag %q, please retry using the device ID instead", idOrTag)
+}
+
+// keepFn is a predicate function that returns true if a resource should be
+// retained by filterResources.
+type keepFn[T types.ResourceWithLabels] func(T) bool
+
+// filterResources takes a list of resources and returns a filtered list of
+// resources for which the `keep` predicate function returns true.
+func filterResources[T types.ResourceWithLabels](resources []T, keep keepFn[T]) []T {
+	out := make([]T, 0, len(resources))
+	for _, r := range resources {
+		if keep(r) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// altNameFn is a func that returns an alternative name for a resource.
+type altNameFn[T types.ResourceWithLabels] func(T) string
+
+// filterByNameOrPrefix filters resources by name or a prefix of the name.
+// It prefers exact name filtering first - if none of the resource names match
+// exactly (i.e. all of the resources are filtered out), then it retries and
+// filters the resources by prefix of resource name instead.
+// This is to avoid an annoying UX, for example:
+// resources: [foo, foobar]
+// $ tctl rm foo <- should select foo by exact name instead of matching both by
+// prefix "foo".
+func filterByNameOrPrefix[T types.ResourceWithLabels](resources []T, prefixOrName string, extra ...altNameFn[T]) []T {
+	// prefer exact names
+	out := filterByName(resources, prefixOrName, extra...)
+	if len(out) == 0 {
+		// fallback to looking for prefixes
+		out = filterByPrefix(resources, prefixOrName, extra...)
+	}
+	return out
+}
+
+// filterByName filters resources by exact name match.
+func filterByName[T types.ResourceWithLabels](resources []T, name string, altNameFns ...altNameFn[T]) []T {
+	return filterResources(resources, func(r T) bool {
+		if r.GetName() == name {
+			return true
+		}
+		for _, altName := range altNameFns {
+			if altName(r) == name {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+// filterByPrefix filters resources by a prefix of the resource name.
+func filterByPrefix[T types.ResourceWithLabels](resources []T, prefix string, altNameFns ...altNameFn[T]) []T {
+	return filterResources(resources, func(r T) bool {
+		if strings.HasPrefix(r.GetName(), prefix) {
+			return true
+		}
+		for _, altName := range altNameFns {
+			if strings.HasPrefix(altName(r), prefix) {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+// getOneResourceNameToDelete checks a list of resources to ensure there is
+// exactly one resource name among them, and returns that name or an error.
+// Heartbeat resources can have the same name but different host ID, so this
+// still allows a user to delete multiple heartbeats of the same name, for
+// example `$ tctl rm db_server/someDB`.
+func getOneResourceNameToDelete[T types.ResourceWithLabels](rs []T, ref services.Ref, resDesc string) (string, error) {
+	seen := make(map[string]struct{})
+	for _, r := range rs {
+		seen[r.GetName()] = struct{}{}
+	}
+	switch len(seen) {
+	case 1: // need exactly one.
+		return rs[0].GetName(), nil
+	case 0:
+		return "", trace.NotFound("%v %q not found", resDesc, ref.Name)
+	default:
+		names := make([]string, 0, len(rs))
+		for _, r := range rs {
+			names = append(names, r.GetName())
+		}
+		msg := formatAmbiguousDeleteMessage(ref, resDesc, names)
+		return "", trace.BadParameter(msg)
+	}
+}
+
+// formatAmbiguousDeleteMessage returns a formatted message when a user is
+// attempting to delete multiple resources by an ambiguous prefix of the
+// resource names.
+func formatAmbiguousDeleteMessage(ref services.Ref, resDesc string, names []string) string {
+	slices.Sort(names)
+	// choose an actual resource for the example in the error.
+	exampleRef := ref
+	exampleRef.Name = names[0]
+	return fmt.Sprintf(`%s matches multiple %vs as a name prefix:
+%v
+
+Use either a full resource name or an unambiguous prefix, for example:
+$ tctl rm %s`,
+		ref.String(), resDesc, strings.Join(names, "\n"), exampleRef.String())
 }

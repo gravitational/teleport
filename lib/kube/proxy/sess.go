@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/gravitational/teleport"
@@ -38,6 +39,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -327,7 +329,7 @@ type session struct {
 
 	accessEvaluator auth.SessionAccessEvaluator
 
-	recorder events.StreamWriter
+	recorder events.SessionPreparerRecorder
 
 	emitter apievents.Emitter
 
@@ -375,12 +377,9 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	id := uuid.New()
 	log := forwarder.log.WithField("session", id.String())
 	log.Debug("Creating session")
-	roles, err := getRolesByName(forwarder, ctx.Context.Identity.GetIdentity().Groups)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	var policySets []*types.SessionTrackerPolicySet
+	roles := ctx.Checker.Roles()
 	for _, role := range roles {
 		policySet := role.GetSessionPolicySet()
 		policySets = append(policySets, &policySet)
@@ -536,7 +535,7 @@ func (s *session) launch() error {
 		H: 100,
 	}
 
-	sessionStartEvent := &apievents.SessionStart{
+	sessionStartEvent, err := s.recorder.PrepareSessionEvent(&apievents.SessionStart{
 		Metadata: apievents.Metadata{
 			Type:        events.SessionStartEvent,
 			Code:        events.SessionStartCode,
@@ -559,14 +558,20 @@ func (s *session) launch() error {
 			Protocol:   events.EventProtocolKube,
 		},
 		TerminalSize:              termParams.Serialize(),
-		KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+		KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 		KubernetesPodMetadata:     eventPodMeta,
 		InitialCommand:            q["command"],
 		SessionRecording:          s.ctx.recordingConfig.GetMode(),
-	}
-
-	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
-		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
+	})
+	if err == nil {
+		if err := s.recorder.RecordEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
+			s.forwarder.log.WithError(err).Warn("Failed to record session start event.")
+		}
+		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionStartEvent.GetAuditEvent()); err != nil {
+			s.forwarder.log.WithError(err).Warn("Failed to emit session start event.")
+		}
+	} else {
+		s.forwarder.log.WithError(err).Warn("Failed to set up session start event - event will not be recorded")
 	}
 
 	s.eventsWaiter.Add(1)
@@ -639,7 +644,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 				H: int(resize.Height),
 			}
 
-			resizeEvent := &apievents.Resize{
+			resizeEvent, err := s.recorder.PrepareSessionEvent(&apievents.Resize{
 				Metadata: apievents.Metadata{
 					Type:        events.ResizeEvent,
 					Code:        events.TerminalResizeCode,
@@ -658,44 +663,43 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 				},
 				UserMetadata:              s.ctx.eventUserMeta(),
 				TerminalSize:              params.Serialize(),
-				KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+				KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 				KubernetesPodMetadata:     eventPodMeta,
-			}
-
-			// Report the updated window size to the event log (this is so the sessions
-			// can be replayed correctly).
-			if err := s.recorder.EmitAuditEvent(s.forwarder.ctx, resizeEvent); err != nil {
-				s.forwarder.log.WithError(err).Warn("Failed to emit terminal resize event.")
+			})
+			if err == nil {
+				// Report the updated window size to the event log (this is so the sessions
+				// can be replayed correctly).
+				if err := s.recorder.RecordEvent(s.forwarder.ctx, resizeEvent); err != nil {
+					s.forwarder.log.WithError(err).Warn("Failed to emit terminal resize event.")
+				}
+			} else {
+				s.forwarder.log.WithError(err).Warn("Failed to set up terminal resize event - event will not be recorded")
 			}
 		}
 	} else {
 		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {}
 	}
 
-	streamer, err := s.forwarder.newStreamer(&s.ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	recorder, err := events.NewAuditWriter(events.AuditWriterConfig{
-		// Audit stream is using server context, not session context,
-		// to make sure that session is uploaded even after it is closed
-		Context:      s.forwarder.ctx,
-		Streamer:     streamer,
-		Clock:        s.forwarder.cfg.Clock,
+	recorder, err := recorder.New(recorder.Config{
 		SessionID:    tsession.ID(s.id.String()),
 		ServerID:     s.forwarder.cfg.HostID,
 		Namespace:    s.forwarder.cfg.Namespace,
-		RecordOutput: s.ctx.recordingConfig.GetMode() != types.RecordOff,
-		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+		Clock:        s.forwarder.cfg.Clock,
 		ClusterName:  s.forwarder.cfg.ClusterName,
+		RecordingCfg: s.ctx.recordingConfig,
+		SyncStreamer: s.forwarder.cfg.AuthClient,
+		DataDir:      s.forwarder.cfg.DataDir,
+		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+		// Session stream is using server context, not session context,
+		// to make sure that session is uploaded even after it is closed
+		Context: s.forwarder.ctx,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	s.recorder = recorder
-	s.emitter = recorder
+	s.emitter = s.forwarder.cfg.Emitter
 
 	s.io.AddWriter(sessionRecorderID, recorder)
 
@@ -772,7 +776,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			CommandMetadata: apievents.CommandMetadata{
 				Command: strings.Join(request.cmd, " "),
 			},
-			KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+			KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 			KubernetesPodMetadata:     eventPodMeta,
 		}
 
@@ -806,7 +810,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			s.forwarder.log.WithError(err).Warn("Failed to emit session data event.")
 		}
 
-		sessionEndEvent := &apievents.SessionEnd{
+		sessionEndEvent, err := s.recorder.PrepareSessionEvent(&apievents.SessionEnd{
 			Metadata: apievents.Metadata{
 				Type:        events.SessionEndEvent,
 				Code:        events.SessionEndCode,
@@ -820,14 +824,20 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			Participants:              s.allParticipants(),
 			StartTime:                 sessionStart,
 			EndTime:                   s.forwarder.cfg.Clock.Now().UTC(),
-			KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+			KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 			KubernetesPodMetadata:     eventPodMeta,
 			InitialCommand:            request.cmd,
 			SessionRecording:          s.ctx.recordingConfig.GetMode(),
-		}
-
-		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
-			s.forwarder.log.WithError(err).Warn("Failed to emit session end event.")
+		})
+		if err == nil {
+			if err := s.recorder.RecordEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
+				s.forwarder.log.WithError(err).Warn("Failed to record session end event.")
+			}
+			if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionEndEvent.GetAuditEvent()); err != nil {
+				s.forwarder.log.WithError(err).Warn("Failed to emit session end event.")
+			}
+		} else {
+			s.forwarder.log.WithError(err).Warn("Failed to set up session end event - event will not be recorded")
 		}
 	}, nil
 }
@@ -843,7 +853,7 @@ func (s *session) join(p *party) error {
 		}
 
 		modes := s.accessEvaluator.CanJoin(accessContext)
-		if !auth.SliceContainsMode(modes, p.Mode) {
+		if !slices.Contains(modes, p.Mode) {
 			return trace.AccessDenied("insufficient permissions to join session")
 		}
 	}
@@ -1192,16 +1202,40 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		HostUser:          p.Ctx.User.GetName(),
 		HostPolicies:      policySet,
 		Login:             "root",
-		Created:           time.Now(),
+		Created:           s.forwarder.cfg.Clock.Now(),
 		Reason:            s.reason,
 		Invited:           s.invitedUsers,
+		HostID:            s.forwarder.cfg.HostID,
 	}
 
 	s.log.Debug("Creating session tracker")
-	var err error
-	s.tracker, err = srv.NewSessionTracker(s.forwarder.ctx, trackerSpec, s.forwarder.cfg.AuthClient)
-	if err != nil {
+	sessionTrackerService := s.forwarder.cfg.AuthClient
+
+	ctx := s.req.Context()
+
+	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, sessionTrackerService)
+	switch {
+	// there was an error creating the tracker for a moderated session - terminate the session
+	case err != nil && s.accessEvaluator.IsModerated():
+		s.log.WithError(err).Warn("Failed to create session tracker, unable to proceed for moderated session")
 		return trace.Wrap(err)
+	// there was an error creating the tracker for a non-moderated session - permit the session with a local tracker
+	case err != nil && !s.accessEvaluator.IsModerated():
+		s.log.Warn("Failed to create session tracker, proceeding with local session tracker for non-moderated session")
+
+		localTracker, err := srv.NewSessionTracker(ctx, trackerSpec, nil)
+		// this error means there are problems with the trackerSpec, we need to return it
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s.tracker = localTracker
+	// there was an error even though the tracker wasn't being propagated - return it
+	case err != nil:
+		return trace.Wrap(err)
+	// the tracker was created successfully
+	case err == nil:
+		s.tracker = tracker
 	}
 
 	go func() {

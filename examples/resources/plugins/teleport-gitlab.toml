@@ -1,8 +1,8 @@
 # example teleport-gitlab configuration TOML file
 [teleport]
-auth_server = "example.com:3025"                         # Teleport Auth Server GRPC API address
-client_key = "/var/lib/teleport/plugins/gitlab/auth.key" # Teleport GRPC API client secret key
-client_crt = "/var/lib/teleport/plugins/gitlab/auth.crt" # Teleport GRPC client certificate
+auth_server = "example.com:3025"                         # Teleport Auth Server gRPC API address
+client_key = "/var/lib/teleport/plugins/gitlab/auth.key" # Teleport gRPC API client secret key
+client_crt = "/var/lib/teleport/plugins/gitlab/auth.crt" # Teleport gRPC client certificate
 root_cas = "/var/lib/teleport/plugins/gitlab/auth.cas"   # Teleport cluster CA certs
 
 [db]

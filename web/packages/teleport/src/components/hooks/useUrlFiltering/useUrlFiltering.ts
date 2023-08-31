@@ -19,13 +19,24 @@ import { useLocation } from 'react-router';
 import { SortType } from 'design/DataTable/types';
 
 import history from 'teleport/services/history';
-import { AgentFilter, AgentLabel } from 'teleport/services/agents';
+import { ResourceFilter, ResourceLabel } from 'teleport/services/agents';
 
 import { encodeUrlQueryParams } from './encodeUrlQueryParams';
 
-export function useUrlFiltering(initialSort: SortType) {
+export interface UrlFilteringState {
+  isSearchEmpty: boolean;
+  params: ResourceFilter;
+  setParams: (params: ResourceFilter) => void;
+  pathname: string;
+  setSort: (sort: SortType) => void;
+  onLabelClick: (label: ResourceLabel) => void;
+  replaceHistory: (path: string) => void;
+  search: string;
+}
+
+export function useUrlFiltering(initialSort: SortType): UrlFilteringState {
   const { search, pathname } = useLocation();
-  const [params, setParams] = useState<AgentFilter>({
+  const [params, setParams] = useState<ResourceFilter>({
     sort: initialSort,
     ...getResourceUrlQueryParams(search),
   });
@@ -38,12 +49,18 @@ export function useUrlFiltering(initialSort: SortType) {
     setParams({ ...params, sort });
   }
 
-  const onLabelClick = (label: AgentLabel) => {
+  const onLabelClick = (label: ResourceLabel) => {
     const queryAfterLabelClick = labelClickQuery(label, params);
 
     setParams({ ...params, search: '', query: queryAfterLabelClick });
     replaceHistory(
-      encodeUrlQueryParams(pathname, queryAfterLabelClick, params.sort, true)
+      encodeUrlQueryParams(
+        pathname,
+        queryAfterLabelClick,
+        params.sort,
+        params.kinds,
+        true /*isAdvancedSearch*/
+      )
     );
   };
 
@@ -63,11 +80,12 @@ export function useUrlFiltering(initialSort: SortType) {
 
 export default function getResourceUrlQueryParams(
   searchPath: string
-): AgentFilter {
+): ResourceFilter {
   const searchParams = new URLSearchParams(searchPath);
   const query = searchParams.get('query');
   const search = searchParams.get('search');
   const sort = searchParams.get('sort');
+  const kinds = searchParams.has('kinds') ? searchParams.getAll('kinds') : null;
 
   const sortParam = sort ? sort.split(':') : null;
 
@@ -82,12 +100,13 @@ export default function getResourceUrlQueryParams(
   return {
     query,
     search,
+    kinds,
     // Conditionally adds the sort field based on whether it exists or not
     ...(!!processedSortParam && { sort: processedSortParam }),
   };
 }
 
-function labelClickQuery(label: AgentLabel, params: AgentFilter) {
+function labelClickQuery(label: ResourceLabel, params: ResourceFilter) {
   const queryParts: string[] = [];
 
   // Add existing query

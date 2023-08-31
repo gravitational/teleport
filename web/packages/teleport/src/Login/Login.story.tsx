@@ -52,4 +52,7 @@ const sample: State = {
   isPasswordlessEnabled: false,
   primaryAuthType: 'local',
   privateKeyPolicyEnabled: false,
+  motd: '',
+  showMotd: false,
+  acknowledgeMotd: () => null,
 };

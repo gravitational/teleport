@@ -16,27 +16,30 @@ limitations under the License.
 
 import { unique } from 'teleterm/ui/utils/uid';
 import {
-  ClusterUri,
   DocumentUri,
   ServerUri,
   paths,
   routing,
+  RootClusterUri,
+  KubeUri,
 } from 'teleterm/ui/uri';
 
 import {
   CreateAccessRequestDocumentOpts,
   CreateClusterDocumentOpts,
   CreateGatewayDocumentOpts,
-  CreateNewTerminalOpts,
   CreateTshKubeDocumentOptions,
   Document,
   DocumentAccessRequests,
   DocumentCluster,
+  DocumentConnectMyComputerSetup,
+  DocumentConnectMyComputerStatus,
   DocumentGateway,
+  DocumentGatewayKube,
+  DocumentGatewayCliClient,
   DocumentOrigin,
   DocumentTshKube,
   DocumentTshNode,
-  DocumentTshNodeWithLoginHost,
   DocumentTshNodeWithServerId,
 } from './types';
 
@@ -85,6 +88,10 @@ export class DocumentsService {
     };
   }
 
+  /**
+   * @deprecated Use createGatewayKubeDocument instead.
+   * DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+   */
   createTshKubeDocument(
     options: CreateTshKubeDocumentOptions
   ): DocumentTshKube {
@@ -131,37 +138,6 @@ export class DocumentsService {
   }
 
   /**
-   * createTshNodeDocumentFromLoginHost handles creation of the doc when the server URI is not
-   * available, for example when executing `tsh ssh user@host` from the command bar.
-   *
-   * @param clusterUri - the URI of the cluster which should be used for hostname lookup. That is,
-   * the command will succeed only if the given cluster has only a single server with the hostname
-   * matching `host`.
-   * @param loginHost - the "user@host" pair.
-   * @param params - additional parameters.
-   * @param params.origin - where the document was opened from.
-   */
-  createTshNodeDocumentFromLoginHost(
-    clusterUri: ClusterUri,
-    loginHost: string,
-    params: { origin: DocumentOrigin }
-  ): DocumentTshNodeWithLoginHost {
-    const { params: routingParams } = routing.parseClusterUri(clusterUri);
-    const uri = routing.getDocUri({ docId: unique() });
-
-    return {
-      uri,
-      kind: 'doc.terminal_tsh_node',
-      title: loginHost,
-      status: 'connecting',
-      rootClusterId: routingParams.rootClusterId,
-      leafClusterId: routingParams.leafClusterId,
-      loginHost,
-      origin: params.origin,
-    };
-  }
-
-  /**
    * If title is not present in opts, createGatewayDocument will create one based on opts.
    */
   createGatewayDocument(opts: CreateGatewayDocumentOpts): DocumentGateway {
@@ -191,11 +167,124 @@ export class DocumentsService {
     };
   }
 
-  openNewTerminal(opts: CreateNewTerminalOpts) {
+  createGatewayCliDocument({
+    title,
+    targetUri,
+    targetUser,
+    targetName,
+    targetProtocol,
+  }: Pick<
+    DocumentGatewayCliClient,
+    'title' | 'targetUri' | 'targetUser' | 'targetName' | 'targetProtocol'
+  >): DocumentGatewayCliClient {
+    const clusterUri = routing.ensureClusterUri(targetUri);
+    const { rootClusterId, leafClusterId } =
+      routing.parseClusterUri(clusterUri).params;
+
+    return {
+      kind: 'doc.gateway_cli_client',
+      uri: routing.getDocUri({ docId: unique() }),
+      title,
+      status: 'connecting',
+      rootClusterId,
+      leafClusterId,
+      targetUri,
+      targetUser,
+      targetName,
+      targetProtocol,
+    };
+  }
+
+  createGatewayKubeDocument({
+    targetUri,
+    origin,
+  }: {
+    targetUri: KubeUri;
+    origin: DocumentOrigin;
+  }): DocumentGatewayKube {
+    const uri = routing.getDocUri({ docId: unique() });
+    const { params } = routing.parseKubeUri(targetUri);
+
+    return {
+      uri,
+      kind: 'doc.gateway_kube',
+      rootClusterId: params.rootClusterId,
+      leafClusterId: params.leafClusterId,
+      targetUri,
+      title: `${params.kubeId}`,
+      origin,
+    };
+  }
+
+  openConnectMyComputerSetupDocument(opts: {
+    // URI of the root cluster could be passed to the `DocumentsService`
+    // constructor and then to the document, instead of being taken from the parameter.
+    // However, we decided not to do so because other documents are based only on the provided parameters.
+    rootClusterUri: RootClusterUri;
+  }): void {
+    const existingDoc = this.findFirstOfKind('doc.connect_my_computer_setup');
+    if (existingDoc) {
+      this.open(existingDoc.uri);
+      return;
+    }
+
+    const doc = this.createConnectMyComputerSetupDocument(opts);
+    this.add(doc);
+    this.open(doc.uri);
+  }
+
+  createConnectMyComputerSetupDocument(opts: {
+    // URI of the root cluster could be passed to the `DocumentsService`
+    // constructor and then to the document, instead of being taken from the parameter.
+    // However, we decided not to do so because other documents are based only on the provided parameters.
+    rootClusterUri: RootClusterUri;
+  }): DocumentConnectMyComputerSetup {
+    return {
+      uri: routing.getDocUri({ docId: unique() }),
+      kind: 'doc.connect_my_computer_setup' as const,
+      title: 'Connect My Computer',
+      rootClusterUri: opts.rootClusterUri,
+    };
+  }
+
+  //TODO(gzdunek): Instead of having this method, consider something like openOrSwitch(document) to allow only one instance of a document.
+  openConnectMyComputerStatusDocument(opts: {
+    // URI of the root cluster could be passed to the `DocumentsService`
+    // constructor and then to the document, instead of being taken from the parameter.
+    // However, we decided not to do so because other documents are based only on the provided parameters.
+    rootClusterUri: RootClusterUri;
+  }): void {
+    const existingDoc = this.findFirstOfKind('doc.connect_my_computer_status');
+    if (existingDoc) {
+      this.open(existingDoc.uri);
+      return;
+    }
+
+    const doc = this.createConnectMyComputerStatusDocument(opts);
+    this.add(doc);
+    this.open(doc.uri);
+  }
+
+  createConnectMyComputerStatusDocument(opts: {
+    // URI of the root cluster could be passed to the `DocumentsService`
+    // constructor and then to the document, instead of being taken from the parameter.
+    // However, we decided not to do so because other documents are based only on the provided parameters.
+    rootClusterUri: RootClusterUri;
+  }): DocumentConnectMyComputerStatus {
+    return {
+      uri: routing.getDocUri({ docId: unique() }),
+      kind: 'doc.connect_my_computer_status',
+      title: 'Connect My Computer',
+      rootClusterUri: opts.rootClusterUri,
+    };
+  }
+
+  openNewTerminal(opts: { rootClusterId: string; leafClusterId?: string }) {
     const doc = ((): Document => {
       const activeDocument = this.getActive();
 
       if (activeDocument && activeDocument.kind == 'doc.terminal_shell') {
+        // Copy activeDocument to use the same cwd in the new doc.
         return {
           ...activeDocument,
           uri: routing.getDocUri({ docId: unique() }),
@@ -221,6 +310,10 @@ export class DocumentsService {
 
   getDocument(uri: string) {
     return this.getState().documents.find(i => i.uri === uri);
+  }
+
+  findFirstOfKind(documentKind: Document['kind']): Document | undefined {
+    return this.getState().documents.find(d => d.kind === documentKind);
   }
 
   getActive() {
@@ -272,7 +365,10 @@ export class DocumentsService {
 
   isActive(uri: string) {
     const location = this.getLocation();
-    return !!routing.parseUri(location, { exact: true, path: uri });
+    return !!routing.parseUri(location, {
+      exact: true,
+      path: uri,
+    });
   }
 
   add(doc: Document, position?: number) {
@@ -290,6 +386,18 @@ export class DocumentsService {
       const toUpdate = draft.documents.find(doc => doc.uri === uri);
       Object.assign(toUpdate, partialDoc);
     });
+  }
+
+  replace(uri: DocumentUri, document: Document): void {
+    const documentToCloseIndex = this.getDocuments().findIndex(
+      doc => doc.uri === uri
+    );
+    const documentToClose = this.getDocuments().at(documentToCloseIndex);
+    if (documentToClose) {
+      this.close(documentToClose.uri);
+    }
+    this.add(document, documentToClose ? documentToCloseIndex : undefined);
+    this.open(document.uri);
   }
 
   filter(uri: string) {

@@ -19,7 +19,6 @@ import ace from 'ace-builds/src-min-noconflict/ace';
 
 import 'ace-builds/src-noconflict/mode-json';
 import 'ace-builds/src-noconflict/mode-yaml';
-import 'ace-builds/src-noconflict/theme-monokai';
 import 'ace-builds/src-noconflict/ext-searchbox';
 import StyledTextEditor from './StyledTextEditor';
 
@@ -79,7 +78,7 @@ class TextEditor extends React.Component {
   }
 
   componentDidMount() {
-    const { data, readOnly, theme = 'ace/theme/monokai' } = this.props;
+    const { data, readOnly } = this.props;
     this.editor = ace.edit(this.ace_viewer);
     this.editor.setFadeFoldWidgets(true);
     this.editor.setWrapBehavioursEnabled(true);
@@ -90,7 +89,7 @@ class TextEditor extends React.Component {
     this.editor.renderer.setShowGutter(true);
     this.editor.on('input', this.onChange);
     this.editor.setReadOnly(readOnly);
-    this.editor.setTheme(theme);
+    this.editor.setTheme({ cssClass: 'ace-teleport' });
     this.initSessions(data);
     this.editor.focus();
   }
@@ -102,8 +101,9 @@ class TextEditor extends React.Component {
   }
 
   render() {
+    const { bg = 'levels.sunken' } = this.props;
     return (
-      <StyledTextEditor>
+      <StyledTextEditor bg={bg}>
         <div ref={e => (this.ace_viewer = e)} />
       </StyledTextEditor>
     );

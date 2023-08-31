@@ -29,7 +29,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -193,6 +193,7 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	attrs = append(attrs, cfg.Attributes...)
 
 	res, err := resource.New(ctx,
+		resource.WithSchemaURL(semconv.SchemaURL),
 		resource.WithFromEnv(),
 		resource.WithProcessPID(),
 		resource.WithProcessExecutableName(),
@@ -225,6 +226,7 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 			sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exporter)),
 		),
 	}
+
 	otel.SetTracerProvider(provider)
 
 	return provider, nil

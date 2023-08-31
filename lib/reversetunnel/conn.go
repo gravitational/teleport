@@ -276,7 +276,7 @@ func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 
 	// Log the discovery request being sent. Useful for debugging to know what
 	// proxies the tunnel server thinks exist.
-	c.log.Debugf("Sending discovery request with proxies %q to %v.", req.ProxyNames(), c.sconn.RemoteAddr())
+	c.log.Debugf("Sending discovery request with proxies %v to %v.", req, c.sconn.RemoteAddr())
 
 	if _, err := discoveryCh.SendRequest(chanDiscoveryReq, false, payload); err != nil {
 		c.markInvalid(err)

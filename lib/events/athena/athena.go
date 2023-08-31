@@ -16,7 +16,7 @@ package athena
 
 import (
 	"context"
-	"math"
+	"io"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -27,12 +27,17 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -81,9 +86,14 @@ type Config struct {
 	// GetQueryResultsInterval is used to define how long query will wait before
 	// checking again for results status if previous status was not ready (optional).
 	GetQueryResultsInterval time.Duration
-	// LimiterRate defines rate at which search_event rate limiter is filled (optional).
-	LimiterRate float64
-	// LimiterBurst defines rate limit bucket capacity (optional).
+
+	// LimiterRefillTime determines the duration of time between the addition of tokens to the bucket (optional).
+	LimiterRefillTime time.Duration
+	// LimiterRefillAmount is the number of tokens that are added to the bucket during interval
+	// specified by LimiterRefillTime (optional).
+	LimiterRefillAmount int
+	// Burst defines number of available tokens. It's initially full and refilled
+	// based on LimiterRefillAmount and LimiterRefillTime (optional).
 	LimiterBurst int
 
 	// Batcher settings.
@@ -108,6 +118,9 @@ type Config struct {
 	AWSConfig *aws.Config
 
 	Backend backend.Backend
+
+	// Tracer is used to create spans
+	Tracer oteltrace.Tracer
 
 	// TODO(tobiaszheller): add FIPS config in later phase.
 }
@@ -198,19 +211,23 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		return trace.BadParameter("BatchMaxInterval too short, must be greater than 5s")
 	}
 
-	if cfg.LimiterRate < 0 {
-		return trace.BadParameter("LimiterRate cannot be negative")
+	if cfg.LimiterRefillAmount < 0 {
+		return trace.BadParameter("LimiterRefillAmount cannot be nagative")
 	}
 	if cfg.LimiterBurst < 0 {
 		return trace.BadParameter("LimiterBurst cannot be negative")
 	}
 
-	if cfg.LimiterRate > 0 && cfg.LimiterBurst == 0 {
-		return trace.BadParameter("LimiterBurst must be greater than 0 if LimiterRate is used")
+	if cfg.LimiterRefillAmount > 0 && cfg.LimiterBurst == 0 {
+		return trace.BadParameter("LimiterBurst must be greater than 0 if LimiterRefillAmount is used")
 	}
 
-	if cfg.LimiterBurst > 0 && math.Abs(cfg.LimiterRate) < 1e-9 {
-		return trace.BadParameter("LimiterRate must be greater than 0 if LimiterBurst is used")
+	if cfg.LimiterBurst > 0 && cfg.LimiterRefillAmount == 0 {
+		return trace.BadParameter("LimiterRefillAmount must be greater than 0 if LimiterBurst is used")
+	}
+
+	if cfg.LimiterRefillAmount > 0 && cfg.LimiterRefillTime == 0 {
+		cfg.LimiterRefillTime = time.Second
 	}
 
 	if cfg.Clock == nil {
@@ -236,11 +253,16 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		if cfg.Region != "" {
 			awsCfg.Region = cfg.Region
 		}
+		otelaws.AppendMiddlewares(&awsCfg.APIOptions)
 		cfg.AWSConfig = &awsCfg
 	}
 
 	if cfg.Backend == nil {
 		return trace.BadParameter("Backend cannot be nil")
+	}
+
+	if cfg.Tracer == nil {
+		cfg.Tracer = tracing.NoopTracer(teleport.ComponentAthena)
 	}
 
 	return nil
@@ -254,6 +276,9 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	}
 	cfg.Database, cfg.TableName = splitted[0], splitted[1]
 
+	if region := url.Query().Get("region"); region != "" {
+		cfg.Region = region
+	}
 	topicARN := url.Query().Get("topicArn")
 	if topicARN != "" {
 		cfg.TopicARN = topicARN
@@ -283,13 +308,21 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 		}
 		cfg.GetQueryResultsInterval = dur
 	}
-	rateInString := url.Query().Get("limiterRate")
-	if rateInString != "" {
-		rate, err := strconv.ParseFloat(rateInString, 32)
+	refillAmountInString := url.Query().Get("limiterRefillAmount")
+	if refillAmountInString != "" {
+		refillAmount, err := strconv.Atoi(refillAmountInString)
 		if err != nil {
-			return trace.BadParameter("invalid limiterRate value (it must be float32): %v", err)
+			return trace.BadParameter("invalid limiterRefillAmount value (it must be int): %v", err)
 		}
-		cfg.LimiterRate = rate
+		cfg.LimiterRefillAmount = refillAmount
+	}
+	refillTimeInString := url.Query().Get("limiterRefillTime")
+	if refillTimeInString != "" {
+		dur, err := time.ParseDuration(refillTimeInString)
+		if err != nil {
+			return trace.BadParameter("invalid limiterRefillTime value: %v", err)
+		}
+		cfg.LimiterRefillTime = dur
 	}
 	burstInString := url.Query().Get("limiterBurst")
 	if burstInString != "" {
@@ -332,9 +365,9 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 // Parquet and send it to S3 for long term storage.
 // Athena is used for quering Parquet files on S3.
 type Log struct {
-	publisher    *publisher
-	querier      *querier
-	consumerStop context.CancelFunc
+	publisher      *publisher
+	querier        *querier
+	consumerCloser io.Closer
 }
 
 // New creates an instance of an Athena based audit log.
@@ -344,14 +377,15 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	consumerCtx, consumerCancel := context.WithCancel(ctx)
+	// metricConsumerBatchProcessingDuration is defined after checking config, because
+	// its bucket depends on batchMaxInterval.
+	metricConsumerBatchProcessingDuration := metricConsumerBatchProcessingDuration(cfg.BatchMaxInterval)
 
-	l := &Log{
-		publisher:    newPublisher(cfg),
-		consumerStop: consumerCancel,
+	if err := metrics.RegisterPrometheusCollectors(append(prometheusCollectors, metricConsumerBatchProcessingDuration)...); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	l.querier, err = newQuerier(querierConfig{
+	querier, err := newQuerier(querierConfig{
 		tablename:               cfg.TableName,
 		database:                cfg.Database,
 		workgroup:               cfg.Workgroup,
@@ -360,14 +394,23 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		awsCfg:                  cfg.AWSConfig,
 		logger:                  cfg.LogEntry,
 		clock:                   cfg.Clock,
+		tracer:                  cfg.Tracer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	consumer, err := newConsumer(cfg)
+	consumerCtx, consumerCancel := context.WithCancel(ctx)
+
+	consumer, err := newConsumer(cfg, consumerCancel, metricConsumerBatchProcessingDuration)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	l := &Log{
+		publisher:      newPublisherFromAthenaConfig(cfg),
+		querier:        querier,
+		consumerCloser: consumer,
 	}
 
 	go consumer.run(consumerCtx)
@@ -379,17 +422,16 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 	return trace.Wrap(l.publisher.EmitAuditEvent(ctx, in))
 }
 
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	return l.querier.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	return l.querier.SearchEvents(ctx, req)
 }
 
-func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
-	return l.querier.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+	return l.querier.SearchSessionEvents(ctx, req)
 }
 
 func (l *Log) Close() error {
-	l.consumerStop()
-	return nil
+	return trace.Wrap(l.consumerCloser.Close())
 }
 
 var isAlphanumericOrUnderscoreRe = regexp.MustCompile("^[a-zA-Z0-9_]+$")
@@ -408,3 +450,91 @@ func isValidUrlWithScheme(s string) (string, bool) {
 	}
 	return u.Scheme, true
 }
+
+func metricConsumerBatchProcessingDuration(batchInterval time.Duration) prometheus.Histogram {
+	batchSeconds := batchInterval.Seconds()
+	return prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerBatchPorcessingDuration,
+			Help:      "Duration of processing single batch of events in parquetlog",
+			// For 60s batch interval it will look like:
+			// 6.00, 12.00, 30.00, 45.00, 54.00, 59.01, 64.48, 70.47, 77.01, 84.15, 91.96, 100.49, 109.81, 120.00
+			// We want some visibility if batch takes very small amount of time, but we are mostly interested
+			// in range from 0.9*batch to 2*batch.
+			Buckets: append([]float64{0.1 * batchSeconds, 0.2 * batchSeconds, 0.5 * batchSeconds, 0.75 * batchSeconds}, prometheus.ExponentialBucketsRange(0.9*batchSeconds, 2*batchSeconds, 10)...),
+		},
+	)
+}
+
+var (
+	consumerS3parquetFlushDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerS3FlushDuration,
+			Help:      "Duration of flush and close of s3 parquet files in parquetlog",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+	)
+
+	consumerDeleteMessageDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerDeleteEventsDuration,
+			Help:      "Duration of delation of events on SQS in parquetlog",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+	)
+
+	consumerBatchSize = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerBatchSize,
+			Help:      "Size of single batch of events in parquetlog",
+			Buckets:   prometheus.ExponentialBucketsRange(200, 100*1024*1024 /* 100 MB*/, 10),
+		},
+	)
+
+	consumerBatchCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerBatchCount,
+			Help:      "Number of events in single batch in parquetlog",
+		},
+	)
+
+	consumerLastProcessedTimestamp = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerLastProcessedTimestamp,
+			Help:      "Timestamp of last finished consumer execution",
+		},
+	)
+
+	consumerAgeOfOldestProcessedMessage = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerOldestProcessedMessage,
+			Help:      "Age of oldest processed message in seconds",
+		},
+	)
+
+	consumerNumberOfErrorsFromSQSCollect = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerCollectFailed,
+			Help:      "Number of errors received from sqs collect",
+		},
+	)
+
+	prometheusCollectors = []prometheus.Collector{
+		consumerS3parquetFlushDuration, consumerDeleteMessageDuration,
+		consumerBatchSize, consumerBatchCount,
+		consumerLastProcessedTimestamp, consumerAgeOfOldestProcessedMessage,
+		consumerNumberOfErrorsFromSQSCollect,
+	}
+)

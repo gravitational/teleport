@@ -157,82 +157,85 @@ const ColorsComponent = () => {
         <Flex width="fit-content" flexDirection="row">
           <Flex
             flexDirection="column"
-            border={`1px solid ${theme.colors.text.placeholder}`}
+            border={`1px solid ${theme.colors.text.muted}`}
             bg={theme.colors.levels.surface}
             py={3}
             px={3}
             mr={3}
           >
-            <Text>theme.colors.text.primary</Text>
-            <Text typography="h1" color={theme.colors.text.primary}>
+            <Text>theme.colors.text.main</Text>
+            <Text typography="h1" color={theme.colors.text.main}>
               Primary
             </Text>
-            <Text typography="h2" color={theme.colors.text.primary}>
+            <Text typography="h2" color={theme.colors.text.main}>
               Primary
             </Text>
-            <Text typography="h3" color={theme.colors.text.primary}>
+            <Text typography="h3" color={theme.colors.text.main}>
               Primary
             </Text>
-            <Text typography="h4" color={theme.colors.text.primary}>
+            <Text typography="h4" color={theme.colors.text.main}>
               Primary
             </Text>
-            <Text typography="paragraph" color={theme.colors.text.primary}>
+            <Text typography="paragraph" color={theme.colors.text.main}>
               Primary
             </Text>
           </Flex>
           <Flex
             flexDirection="column"
-            border={`1px solid ${theme.colors.text.placeholder}`}
+            border={`1px solid ${theme.colors.text.muted}`}
             bg={theme.colors.levels.surface}
             py={3}
             px={3}
             mr={3}
           >
-            <Text>theme.colors.text.secondary</Text>
-            <Text typography="h1" color={theme.colors.text.secondary}>
+            <Text>theme.colors.text.slightlyMuted</Text>
+            <Text typography="h1" color={theme.colors.text.slightlyMuted}>
               Secondary
             </Text>
-            <Text typography="h2" color={theme.colors.text.secondary}>
+            <Text typography="h2" color={theme.colors.text.slightlyMuted}>
               Secondary
             </Text>
-            <Text typography="h3" color={theme.colors.text.secondary}>
+            <Text typography="h3" color={theme.colors.text.slightlyMuted}>
               Secondary
             </Text>
-            <Text typography="h4" color={theme.colors.text.secondary}>
+            <Text typography="h4" color={theme.colors.text.slightlyMuted}>
               Secondary
             </Text>
-            <Text typography="paragraph" color={theme.colors.text.secondary}>
+            <Text
+              typography="paragraph"
+              color={theme.colors.text.slightlyMuted}
+            >
               Secondary
             </Text>
           </Flex>
           <Flex
             flexDirection="column"
-            border={`1px solid ${theme.colors.text.placeholder}`}
+            border={`1px solid ${theme.colors.text.muted}`}
             bg={theme.colors.levels.surface}
             py={3}
             px={3}
             mr={3}
           >
-            <Text>theme.colors.text.placeholder</Text>
-            <Text typography="h1" color={theme.colors.text.placeholder}>
+            <Text>theme.colors.text.muted</Text>
+            <Text typography="h1" color={theme.colors.text.muted}>
               Placeholder
             </Text>
-            <Text typography="h2" color={theme.colors.text.placeholder}>
+            <Text typography="h2" color={theme.colors.text.muted}>
               Placeholder
             </Text>
-            <Text typography="h3" color={theme.colors.text.placeholder}>
+            <Text typography="h3" color={theme.colors.text.muted}>
               Placeholder
             </Text>
-            <Text typography="h4" color={theme.colors.text.placeholder}>
+            <Text typography="h4" color={theme.colors.text.muted}>
               Placeholder
             </Text>
-            <Text typography="paragraph" color={theme.colors.text.placeholder}>
+            <Text typography="paragraph" color={theme.colors.text.muted}>
               Placeholder
             </Text>
           </Flex>
           <Flex
             flexDirection="column"
-            border={`1px solid ${theme.colors.text.placeholder}`}
+            border={`1px solid ${theme.colors.text.muted}`}
             bg={theme.colors.levels.surface}
             py={3}
             px={3}
@@ -257,8 +260,8 @@ const ColorsComponent = () => {
           </Flex>
           <Flex
             flexDirection="column"
-            border={`1px solid ${theme.colors.text.placeholder}`}
-            bg={theme.colors.text.primary}
+            border={`1px solid ${theme.colors.text.muted}`}
+            bg={theme.colors.text.main}
             py={3}
             px={3}
             mr={3}
@@ -301,7 +304,7 @@ function ColorsBox({ colors, themeType = null, ...styles }) {
       <Flex flexWrap="wrap" key={key} width="260px" mb={3}>
         <Box
           css={`
-            color: ${props => props.theme.colors.text.secondary};
+            color: ${props => props.theme.colors.text.slightlyMuted};
           `}
         >
           {fullPath}
@@ -332,7 +335,7 @@ function SingleColorBox({ color, path, ...styles }) {
     <Flex flexWrap="wrap" key={path} width="260px" mb={3}>
       <Box
         css={`
-          color: ${props => props.theme.colors.text.secondary};
+          color: ${props => props.theme.colors.text.slightlyMuted};
         `}
       >
         {path}

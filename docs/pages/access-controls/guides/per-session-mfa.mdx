@@ -24,7 +24,6 @@ their on-disk Teleport certificates.
 
 <Details
   title="Version warning"
-  opened={false}
   scope={["oss", "enterprise"]}
   scopeOnly={true}
   min="6.1"
@@ -71,7 +70,8 @@ Per-session MFA can be enforced cluster-wide or only for some specific roles.
 
 ### Cluster-wide
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 To enforce MFA checks for all roles, edit your cluster authentication
 configuration:
@@ -119,8 +119,8 @@ $ tctl create -f cap.yaml
 </TabItem>
 </Tabs>
 
-</ScopedBlock>
-<ScopedBlock scope="cloud">
+</TabItem>
+<TabItem scope="cloud" label="Teleport Enterprise Cloud">
 
 Obtain your existing `cluster_auth_preference` resource:
 
@@ -147,7 +147,9 @@ Create the resource:
 $ tctl create -f cap.yaml
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ### Per role
 

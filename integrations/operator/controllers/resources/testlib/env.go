@@ -29,8 +29,9 @@ import (
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apiruntime "k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
-	"k8s.io/kubectl/pkg/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -47,6 +48,18 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
+
+// scheme is our own test-specific scheme to avoid using the global
+// unprotected scheme.Scheme that triggers the race detector
+var scheme = apiruntime.NewScheme()
+
+func init() {
+	utilruntime.Must(core.AddToScheme(scheme))
+	utilruntime.Must(resourcesv1.AddToScheme(scheme))
+	utilruntime.Must(resourcesv2.AddToScheme(scheme))
+	utilruntime.Must(resourcesv3.AddToScheme(scheme))
+	utilruntime.Must(resourcesv5.AddToScheme(scheme))
+}
 
 func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
 	ns := &core.Namespace{
@@ -103,10 +116,12 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 	role, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
-				types.NewRule("role", unrestricted),
-				types.NewRule("user", unrestricted),
-				types.NewRule("auth_connector", unrestricted),
-				types.NewRule("login_rule", unrestricted),
+				types.NewRule(types.KindRole, unrestricted),
+				types.NewRule(types.KindUser, unrestricted),
+				types.NewRule(types.KindAuthConnector, unrestricted),
+				types.NewRule(types.KindLoginRule, unrestricted),
+				types.NewRule(types.KindToken, unrestricted),
+				types.NewRule(types.KindOktaImportRule, unrestricted),
 			},
 		},
 	})
@@ -163,7 +178,7 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	}
 
 	k8sManager, err := ctrl.NewManager(s.K8sRestConfig, ctrl.Options{
-		Scheme:             scheme.Scheme,
+		Scheme:             scheme,
 		MetricsBindAddress: "0",
 	})
 	require.NoError(t, err)
@@ -188,6 +203,12 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	require.NoError(t, err)
 
 	err = resources.NewLoginRuleReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	require.NoError(t, err)
+
+	err = resources.NewProvisionTokenReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	require.NoError(t, err)
+
+	err = resources.NewOktaImportRuleReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -259,19 +280,7 @@ func SetupTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
-	err = resourcesv1.AddToScheme(scheme.Scheme)
-	require.NoError(t, err)
-
-	err = resourcesv5.AddToScheme(scheme.Scheme)
-	require.NoError(t, err)
-
-	err = resourcesv2.AddToScheme(scheme.Scheme)
-	require.NoError(t, err)
-
-	err = resourcesv3.AddToScheme(scheme.Scheme)
-	require.NoError(t, err)
-
-	k8sClient, err := kclient.New(cfg, kclient.Options{Scheme: scheme.Scheme})
+	k8sClient, err := kclient.New(cfg, kclient.Options{Scheme: scheme})
 	require.NoError(t, err)
 	require.NotNil(t, k8sClient)
 

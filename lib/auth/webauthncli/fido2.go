@@ -37,7 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // User-friendly device filter errors.
@@ -95,7 +95,7 @@ func isLibfido2Enabled() bool {
 // fido2Login implements FIDO2Login.
 func fido2Login(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *wantypes.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	switch {
 	case origin == "":
@@ -116,7 +116,7 @@ func fido2Login(
 	// Presence of any allowed credential is interpreted as the user identity
 	// being partially established, aka non-passwordless.
 	passwordless := len(allowedCreds) == 0
-	log.Debugf("FIDO2: assertion: passwordless=%v, uv=%v", passwordless, uv)
+	log.Debugf("FIDO2: assertion: passwordless=%v, uv=%v, %v allowed credentials", passwordless, uv, len(allowedCreds))
 
 	// Prepare challenge data for the device.
 	ccdJSON, err := json.Marshal(&CollectedClientData{
@@ -131,7 +131,7 @@ func fido2Login(
 
 	rpID := assertion.Response.RelyingPartyID
 	var appID string
-	if val, ok := assertion.Response.Extensions[wanlib.AppIDExtension]; ok {
+	if val, ok := assertion.Response.Extensions[wantypes.AppIDExtension]; ok {
 		appID = fmt.Sprint(val)
 	}
 
@@ -330,7 +330,7 @@ func pickAssertion(
 // fido2Register implements FIDO2Register.
 func fido2Register(
 	ctx context.Context,
-	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt,
+	origin string, cc *wantypes.CredentialCreation, prompt RegisterPrompt,
 ) (*proto.MFARegisterResponse, error) {
 	switch {
 	case origin == "":
@@ -380,7 +380,6 @@ func fido2Register(
 		ID:          cc.Response.User.ID,
 		Name:        cc.Response.User.Name,
 		DisplayName: cc.Response.User.DisplayName,
-		Icon:        cc.Response.User.Icon,
 	}
 	plat := cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.Platform
 	uv := cc.Response.AuthenticatorSelection.UserVerification == protocol.VerificationRequired
@@ -726,7 +725,12 @@ func withInteractiveError(filter deviceFilterFunc, cb pinAwareCallbackFunc) pinA
 			// Device not chosen.
 			return false, &nonInteractiveError{filterErr}
 		case errors.Is(waitErr, libfido2.ErrNoCredentials):
-			// Device chosen, error is useful in this case.
+			// Device chosen.
+			// Escalate error to ErrUsingNonRegisteredDevice, if appropriate, so we
+			// send a better message to the user.
+			if errors.Is(filterErr, errNoRegisteredCredentials) {
+				filterErr = ErrUsingNonRegisteredDevice
+			}
 		default:
 			log.Warnf("FIDO2: Device %v: unexpected wait error: %q", info.path, waitErr)
 		}

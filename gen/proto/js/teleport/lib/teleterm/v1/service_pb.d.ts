@@ -11,6 +11,7 @@ import * as teleport_lib_teleterm_v1_cluster_pb from "../../../../teleport/lib/t
 import * as teleport_lib_teleterm_v1_database_pb from "../../../../teleport/lib/teleterm/v1/database_pb";
 import * as teleport_lib_teleterm_v1_gateway_pb from "../../../../teleport/lib/teleterm/v1/gateway_pb";
 import * as teleport_lib_teleterm_v1_kube_pb from "../../../../teleport/lib/teleterm/v1/kube_pb";
+import * as teleport_lib_teleterm_v1_label_pb from "../../../../teleport/lib/teleterm/v1/label_pb";
 import * as teleport_lib_teleterm_v1_server_pb from "../../../../teleport/lib/teleterm/v1/server_pb";
 import * as teleport_lib_teleterm_v1_usage_events_pb from "../../../../teleport/lib/teleterm/v1/usage_events_pb";
 
@@ -1314,6 +1315,184 @@ export namespace UpdateTshdEventsServerAddressResponse {
     }
 }
 
+export class UpdateHeadlessAuthenticationStateRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): UpdateHeadlessAuthenticationStateRequest;
+
+    getHeadlessAuthenticationId(): string;
+    setHeadlessAuthenticationId(value: string): UpdateHeadlessAuthenticationStateRequest;
+
+    getState(): HeadlessAuthenticationState;
+    setState(value: HeadlessAuthenticationState): UpdateHeadlessAuthenticationStateRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UpdateHeadlessAuthenticationStateRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: UpdateHeadlessAuthenticationStateRequest): UpdateHeadlessAuthenticationStateRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UpdateHeadlessAuthenticationStateRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UpdateHeadlessAuthenticationStateRequest;
+    static deserializeBinaryFromReader(message: UpdateHeadlessAuthenticationStateRequest, reader: jspb.BinaryReader): UpdateHeadlessAuthenticationStateRequest;
+}
+
+export namespace UpdateHeadlessAuthenticationStateRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+        headlessAuthenticationId: string,
+        state: HeadlessAuthenticationState,
+    }
+}
+
+export class UpdateHeadlessAuthenticationStateResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UpdateHeadlessAuthenticationStateResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: UpdateHeadlessAuthenticationStateResponse): UpdateHeadlessAuthenticationStateResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UpdateHeadlessAuthenticationStateResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UpdateHeadlessAuthenticationStateResponse;
+    static deserializeBinaryFromReader(message: UpdateHeadlessAuthenticationStateResponse, reader: jspb.BinaryReader): UpdateHeadlessAuthenticationStateResponse;
+}
+
+export namespace UpdateHeadlessAuthenticationStateResponse {
+    export type AsObject = {
+    }
+}
+
+export class CreateConnectMyComputerRoleRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): CreateConnectMyComputerRoleRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): CreateConnectMyComputerRoleRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: CreateConnectMyComputerRoleRequest): CreateConnectMyComputerRoleRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: CreateConnectMyComputerRoleRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): CreateConnectMyComputerRoleRequest;
+    static deserializeBinaryFromReader(message: CreateConnectMyComputerRoleRequest, reader: jspb.BinaryReader): CreateConnectMyComputerRoleRequest;
+}
+
+export namespace CreateConnectMyComputerRoleRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+    }
+}
+
+export class CreateConnectMyComputerRoleResponse extends jspb.Message { 
+    getCertsReloaded(): boolean;
+    setCertsReloaded(value: boolean): CreateConnectMyComputerRoleResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): CreateConnectMyComputerRoleResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: CreateConnectMyComputerRoleResponse): CreateConnectMyComputerRoleResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: CreateConnectMyComputerRoleResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): CreateConnectMyComputerRoleResponse;
+    static deserializeBinaryFromReader(message: CreateConnectMyComputerRoleResponse, reader: jspb.BinaryReader): CreateConnectMyComputerRoleResponse;
+}
+
+export namespace CreateConnectMyComputerRoleResponse {
+    export type AsObject = {
+        certsReloaded: boolean,
+    }
+}
+
+export class CreateConnectMyComputerNodeTokenRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): CreateConnectMyComputerNodeTokenRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): CreateConnectMyComputerNodeTokenRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: CreateConnectMyComputerNodeTokenRequest): CreateConnectMyComputerNodeTokenRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: CreateConnectMyComputerNodeTokenRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): CreateConnectMyComputerNodeTokenRequest;
+    static deserializeBinaryFromReader(message: CreateConnectMyComputerNodeTokenRequest, reader: jspb.BinaryReader): CreateConnectMyComputerNodeTokenRequest;
+}
+
+export namespace CreateConnectMyComputerNodeTokenRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+    }
+}
+
+export class CreateConnectMyComputerNodeTokenResponse extends jspb.Message { 
+    getToken(): string;
+    setToken(value: string): CreateConnectMyComputerNodeTokenResponse;
+
+    clearLabelsList(): void;
+    getLabelsList(): Array<teleport_lib_teleterm_v1_label_pb.Label>;
+    setLabelsList(value: Array<teleport_lib_teleterm_v1_label_pb.Label>): CreateConnectMyComputerNodeTokenResponse;
+    addLabels(value?: teleport_lib_teleterm_v1_label_pb.Label, index?: number): teleport_lib_teleterm_v1_label_pb.Label;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): CreateConnectMyComputerNodeTokenResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: CreateConnectMyComputerNodeTokenResponse): CreateConnectMyComputerNodeTokenResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: CreateConnectMyComputerNodeTokenResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): CreateConnectMyComputerNodeTokenResponse;
+    static deserializeBinaryFromReader(message: CreateConnectMyComputerNodeTokenResponse, reader: jspb.BinaryReader): CreateConnectMyComputerNodeTokenResponse;
+}
+
+export namespace CreateConnectMyComputerNodeTokenResponse {
+    export type AsObject = {
+        token: string,
+        labelsList: Array<teleport_lib_teleterm_v1_label_pb.Label.AsObject>,
+    }
+}
+
+export class DeleteConnectMyComputerTokenRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): DeleteConnectMyComputerTokenRequest;
+
+    getToken(): string;
+    setToken(value: string): DeleteConnectMyComputerTokenRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeleteConnectMyComputerTokenRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: DeleteConnectMyComputerTokenRequest): DeleteConnectMyComputerTokenRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeleteConnectMyComputerTokenRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeleteConnectMyComputerTokenRequest;
+    static deserializeBinaryFromReader(message: DeleteConnectMyComputerTokenRequest, reader: jspb.BinaryReader): DeleteConnectMyComputerTokenRequest;
+}
+
+export namespace DeleteConnectMyComputerTokenRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+        token: string,
+    }
+}
+
+export class DeleteConnectMyComputerTokenResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeleteConnectMyComputerTokenResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: DeleteConnectMyComputerTokenResponse): DeleteConnectMyComputerTokenResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeleteConnectMyComputerTokenResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeleteConnectMyComputerTokenResponse;
+    static deserializeBinaryFromReader(message: DeleteConnectMyComputerTokenResponse, reader: jspb.BinaryReader): DeleteConnectMyComputerTokenResponse;
+}
+
+export namespace DeleteConnectMyComputerTokenResponse {
+    export type AsObject = {
+    }
+}
+
 export enum PasswordlessPrompt {
     PASSWORDLESS_PROMPT_UNSPECIFIED = 0,
     PASSWORDLESS_PROMPT_PIN = 1,
@@ -1325,4 +1504,11 @@ export enum FileTransferDirection {
     FILE_TRANSFER_DIRECTION_UNSPECIFIED = 0,
     FILE_TRANSFER_DIRECTION_DOWNLOAD = 1,
     FILE_TRANSFER_DIRECTION_UPLOAD = 2,
+}
+
+export enum HeadlessAuthenticationState {
+    HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED = 0,
+    HEADLESS_AUTHENTICATION_STATE_PENDING = 1,
+    HEADLESS_AUTHENTICATION_STATE_DENIED = 2,
+    HEADLESS_AUTHENTICATION_STATE_APPROVED = 3,
 }

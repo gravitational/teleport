@@ -55,6 +55,7 @@ auth_service:
   proxy_listener_mode: {{ .Values.proxyListenerMode }}
 {{- end }}
 teleport:
+  auth_server: 127.0.0.1:3025
   log:
     severity: {{ $logLevel }}
     output: {{ .Values.log.output }}

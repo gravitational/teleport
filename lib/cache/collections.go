@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -71,6 +73,9 @@ type executor[T types.Resource, R any] interface {
 	// Note that cacheOK set to true means that cache is overall healthy and the collection was confirmed as supported.
 	getReader(c *Cache, cacheOK bool) R
 }
+
+// noReader is returned by getReader for resources which aren't directly used by the cache, and therefore have no associated reader.
+type noReader struct{}
 
 // genericCollection is a generic collection implementation for resource type T with collection-specific logic
 // encapsulated in executor type E. Type R provides getter methods related to the collection, e.g. GetNodes(),
@@ -167,6 +172,8 @@ type cacheCollections struct {
 	// byKind is a map of registered collections by resource Kind/SubKind
 	byKind map[resourceKind]collection
 
+	accessLists              collectionReader[services.AccessListsGetter]
+	accessListMembers        collectionReader[services.AccessListMembersGetter]
 	apps                     collectionReader[services.AppGetter]
 	nodes                    collectionReader[nodeGetter]
 	tunnelConnections        collectionReader[tunnelConnectionGetter]
@@ -202,6 +209,7 @@ type cacheCollections struct {
 	uiConfigs                collectionReader[uiConfigGetter]
 	users                    collectionReader[userGetter]
 	userGroups               collectionReader[userGroupGetter]
+	userLoginStates          collectionReader[services.UserLoginStatesGetter]
 	webSessions              collectionReader[webSessionGetter]
 	webTokens                collectionReader[webTokenGetter]
 	windowsDesktops          collectionReader[windowsDesktopsGetter]
@@ -395,8 +403,7 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			if c.DynamicAccess == nil {
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
 			}
-			// access request resources aren't directly used by Cache so there's no associated reader type
-			collections.byKind[resourceKind] = &genericCollection[types.AccessRequest, any, accessRequestExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = &genericCollection[types.AccessRequest, noReader, accessRequestExecutor]{cache: c, watch: watch}
 		case types.KindAppServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -479,8 +486,7 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			// database service resources aren't directly used by Cache so there's no associated reader type
-			collections.byKind[resourceKind] = &genericCollection[types.DatabaseService, any, databaseServiceExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = &genericCollection[types.DatabaseService, noReader, databaseServiceExecutor]{cache: c, watch: watch}
 		case types.KindApp:
 			if c.Apps == nil {
 				return nil, trace.BadParameter("missing parameter Apps")
@@ -589,6 +595,27 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.integrations
+		case types.KindHeadlessAuthentication:
+			// For headless authentications, we need only process events. We don't need to keep the cache up to date.
+			collections.byKind[resourceKind] = &genericCollection[*types.HeadlessAuthentication, noReader, noopExecutor]{cache: c, watch: watch}
+		case types.KindAccessList:
+			if c.AccessLists == nil {
+				return nil, trace.BadParameter("missing parameter AccessLists")
+			}
+			collections.accessLists = &genericCollection[*accesslist.AccessList, services.AccessListsGetter, accessListsExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.accessLists
+		case types.KindUserLoginState:
+			if c.UserLoginStates == nil {
+				return nil, trace.BadParameter("missing parameter UserLoginStates")
+			}
+			collections.userLoginStates = &genericCollection[*userloginstate.UserLoginState, services.UserLoginStatesGetter, userLoginStateExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.userLoginStates
+		case types.KindAccessListMember:
+			if c.AccessLists == nil {
+				return nil, trace.BadParameter("missing parameter AccessLists")
+			}
+			collections.accessListMembers = &genericCollection[*accesslist.AccessListMember, services.AccessListMembersGetter, accessListMembersExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.accessLists
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -658,12 +685,11 @@ func (accessRequestExecutor) delete(ctx context.Context, cache *Cache, resource 
 
 func (accessRequestExecutor) isSingleton() bool { return false }
 
-func (accessRequestExecutor) getReader(_ *Cache, _ bool) any {
-	// access request resources aren't directly used by Cache so there's no associated reader type
-	return nil
+func (accessRequestExecutor) getReader(_ *Cache, _ bool) noReader {
+	return noReader{}
 }
 
-var _ executor[types.AccessRequest, any] = accessRequestExecutor{}
+var _ executor[types.AccessRequest, noReader] = accessRequestExecutor{}
 
 type tunnelConnectionExecutor struct{}
 
@@ -780,7 +806,7 @@ func (proxyExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool)
 }
 
 func (proxyExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	return cache.presenceCache.UpsertProxy(resource)
+	return cache.presenceCache.UpsertProxy(ctx, resource)
 }
 
 func (proxyExecutor) deleteAll(ctx context.Context, cache *Cache) error {
@@ -788,7 +814,7 @@ func (proxyExecutor) deleteAll(ctx context.Context, cache *Cache) error {
 }
 
 func (proxyExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteProxy(resource.GetName())
+	return cache.presenceCache.DeleteProxy(ctx, resource.GetName())
 }
 
 func (proxyExecutor) isSingleton() bool { return false }
@@ -809,7 +835,7 @@ func (authServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets 
 }
 
 func (authServerExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	return cache.presenceCache.UpsertAuthServer(resource)
+	return cache.presenceCache.UpsertAuthServer(ctx, resource)
 }
 
 func (authServerExecutor) deleteAll(ctx context.Context, cache *Cache) error {
@@ -879,8 +905,9 @@ func (namespaceExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets b
 	}
 
 	derefNamespaces := make([]*types.Namespace, len(namespaces))
-	for i, namespace := range namespaces {
-		derefNamespaces[i] = &namespace
+	for i := range namespaces {
+		ns := namespaces[i]
+		derefNamespaces[i] = &ns
 	}
 	return derefNamespaces, nil
 }
@@ -1231,12 +1258,11 @@ func (databaseServiceExecutor) delete(ctx context.Context, cache *Cache, resourc
 
 func (databaseServiceExecutor) isSingleton() bool { return false }
 
-func (databaseServiceExecutor) getReader(_ *Cache, _ bool) any {
-	// database service resources aren't directly used by Cache so there's no associated reader
-	return nil
+func (databaseServiceExecutor) getReader(_ *Cache, _ bool) noReader {
+	return noReader{}
 }
 
-var _ executor[types.DatabaseService, any] = databaseServiceExecutor{}
+var _ executor[types.DatabaseService, noReader] = databaseServiceExecutor{}
 
 type databaseExecutor struct{}
 
@@ -2299,3 +2325,181 @@ func (integrationsExecutor) getReader(cache *Cache, cacheOK bool) services.Integ
 }
 
 var _ executor[types.Integration, services.IntegrationsGetter] = integrationsExecutor{}
+
+type accessListsExecutor struct{}
+
+func (accessListsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessList, error) {
+	var accessLists []*accesslist.AccessList
+	var nextToken string
+	for {
+		var page []*accesslist.AccessList
+		var err error
+
+		page, nextToken, err = cache.AccessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		accessLists = append(accessLists, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return accessLists, nil
+}
+
+func (accessListsExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessList) error {
+	_, err := cache.accessListsCache.UpsertAccessList(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (accessListsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.accessListsCache.DeleteAllAccessLists(ctx)
+}
+
+func (accessListsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.accessListsCache.DeleteAccessList(ctx, resource.GetName())
+}
+
+func (accessListsExecutor) isSingleton() bool { return false }
+
+func (accessListsExecutor) getReader(cache *Cache, cacheOK bool) services.AccessListsGetter {
+	if cacheOK {
+		return cache.accessListsCache
+	}
+	return cache.Config.AccessLists
+}
+
+var _ executor[*accesslist.AccessList, services.AccessListsGetter] = accessListsExecutor{}
+
+// noopExecutor can be used when a resource's events do not need to processed by
+// the cache itself, only passed on to other watchers.
+type noopExecutor struct{}
+
+func (noopExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*types.HeadlessAuthentication, error) {
+	return nil, nil
+}
+
+func (noopExecutor) upsert(ctx context.Context, cache *Cache, resource *types.HeadlessAuthentication) error {
+	return nil
+}
+
+func (noopExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return nil
+}
+
+func (noopExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return nil
+}
+
+func (noopExecutor) isSingleton() bool { return false }
+
+func (noopExecutor) getReader(_ *Cache, _ bool) noReader {
+	return noReader{}
+}
+
+var _ executor[*types.HeadlessAuthentication, noReader] = noopExecutor{}
+
+type userLoginStateExecutor struct{}
+
+func (userLoginStateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*userloginstate.UserLoginState, error) {
+	resources, err := cache.UserLoginStates.GetUserLoginStates(ctx)
+	return resources, trace.Wrap(err)
+}
+
+func (userLoginStateExecutor) upsert(ctx context.Context, cache *Cache, resource *userloginstate.UserLoginState) error {
+	_, err := cache.userLoginStateCache.UpsertUserLoginState(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (userLoginStateExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.userLoginStateCache.DeleteAllUserLoginStates(ctx)
+}
+
+func (userLoginStateExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.userLoginStateCache.DeleteUserLoginState(ctx, resource.GetName())
+}
+
+func (userLoginStateExecutor) isSingleton() bool { return false }
+
+func (userLoginStateExecutor) getReader(cache *Cache, cacheOK bool) services.UserLoginStatesGetter {
+	if cacheOK {
+		return cache.userLoginStateCache
+	}
+	return cache.Config.UserLoginStates
+}
+
+var _ executor[*userloginstate.UserLoginState, services.UserLoginStatesGetter] = userLoginStateExecutor{}
+
+type accessListMembersExecutor struct{}
+
+func (accessListMembersExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessListMember, error) {
+	// Get all access lists
+	var accessLists []*accesslist.AccessList
+	var nextToken string
+	for {
+		var page []*accesslist.AccessList
+		var err error
+
+		page, nextToken, err = cache.AccessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		accessLists = append(accessLists, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+
+	// Get the members of each access list.
+	var members []*accesslist.AccessListMember
+	for _, accessList := range accessLists {
+		for {
+			var page []*accesslist.AccessListMember
+			var err error
+
+			page, nextToken, err = cache.AccessLists.ListAccessListMembers(ctx, accessList.GetName(), 0 /* default page size */, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			members = append(members, page...)
+
+			if nextToken == "" {
+				break
+			}
+		}
+	}
+	return members, nil
+}
+
+func (accessListMembersExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessListMember) error {
+	_, err := cache.accessListsCache.UpsertAccessListMember(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (accessListMembersExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.accessListsCache.DeleteAllAccessListMembers(ctx)
+}
+
+func (accessListMembersExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	member, ok := resource.(*accesslist.AccessListMember)
+	if !ok {
+		return trace.BadParameter("expected *accesslist.AccessListMember, got %T", resource)
+	}
+	return cache.accessListsCache.DeleteAccessListMember(ctx, member.Spec.AccessList, member.GetName())
+}
+
+func (accessListMembersExecutor) isSingleton() bool { return false }
+
+func (accessListMembersExecutor) getReader(cache *Cache, cacheOK bool) services.AccessListMembersGetter {
+	if cacheOK {
+		return cache.accessListsCache
+	}
+	return cache.AccessLists
+}
+
+var _ executor[*accesslist.AccessListMember, services.AccessListMembersGetter] = accessListMembersExecutor{}

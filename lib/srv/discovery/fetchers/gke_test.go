@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestGKEFetcher(t *testing.T) {
@@ -178,6 +179,7 @@ func gkeClustersToResources(t *testing.T, clusters ...gcp.GKECluster) types.Reso
 		kubeCluster, err := services.NewKubeClusterFromGCPGKE(cluster)
 		require.NoError(t, err)
 		require.True(t, kubeCluster.IsGCP())
+		common.ApplyGKENameSuffix(kubeCluster)
 		kubeClusters = append(kubeClusters, kubeCluster)
 	}
 	return kubeClusters.AsResources()

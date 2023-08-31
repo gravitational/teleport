@@ -24,7 +24,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdsTypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/google/uuid"
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -99,7 +99,7 @@ func TestListDatabases(t *testing.T) {
 		for i := 0; i < totalDBs; i++ {
 			allInstances = append(allInstances, rdsTypes.DBInstance{
 				DBInstanceStatus:     stringPointer("available"),
-				DBInstanceIdentifier: stringPointer(uuid.NewString()),
+				DBInstanceIdentifier: stringPointer(fmt.Sprintf("db-%v", i)),
 				DbiResourceId:        stringPointer("db-123"),
 				DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
 				Engine:               stringPointer("postgres"),
@@ -188,13 +188,13 @@ func TestListDatabases(t *testing.T) {
 						Name:        "my-db",
 						Description: "RDS instance in ",
 						Labels: map[string]string{
-							"account-id":          "123456789012",
-							"endpoint-type":       "instance",
-							"engine":              "postgres",
-							"engine-version":      "",
-							"region":              "",
-							"teleport.dev/origin": "cloud",
-							"status":              "available",
+							"account-id":         "123456789012",
+							"endpoint-type":      "instance",
+							"engine":             "postgres",
+							"engine-version":     "",
+							"region":             "",
+							"status":             "available",
+							"teleport.dev/cloud": "AWS",
 						},
 					},
 					types.DatabaseSpecV3{
@@ -210,7 +210,7 @@ func TestListDatabases(t *testing.T) {
 					},
 				)
 				require.NoError(t, err)
-				require.Equal(t, expectedDB, ldr.Databases[0])
+				require.Empty(t, cmp.Diff(expectedDB, ldr.Databases[0]))
 			},
 			errCheck: noErrorFunc,
 		},
@@ -252,13 +252,13 @@ func TestListDatabases(t *testing.T) {
 						Name:        "my-db",
 						Description: "RDS instance in ",
 						Labels: map[string]string{
-							"account-id":          "123456789012",
-							"endpoint-type":       "instance",
-							"engine":              "postgres",
-							"engine-version":      "",
-							"region":              "",
-							"teleport.dev/origin": "cloud",
-							"status":              "available",
+							"account-id":         "123456789012",
+							"endpoint-type":      "instance",
+							"engine":             "postgres",
+							"engine-version":     "",
+							"region":             "",
+							"status":             "available",
+							"teleport.dev/cloud": "AWS",
 						},
 					},
 					types.DatabaseSpecV3{
@@ -274,7 +274,7 @@ func TestListDatabases(t *testing.T) {
 					},
 				)
 				require.NoError(t, err)
-				require.Equal(t, expectedDB, ldr.Databases[0])
+				require.Empty(t, cmp.Diff(expectedDB, ldr.Databases[0]))
 			},
 			errCheck: noErrorFunc,
 		},
@@ -303,13 +303,13 @@ func TestListDatabases(t *testing.T) {
 						Name:        "my-dbc",
 						Description: "Aurora cluster in ",
 						Labels: map[string]string{
-							"account-id":          "123456789012",
-							"endpoint-type":       "primary",
-							"engine":              "aurora-postgresql",
-							"engine-version":      "",
-							"region":              "",
-							"teleport.dev/origin": "cloud",
-							"status":              "available",
+							"account-id":         "123456789012",
+							"endpoint-type":      "primary",
+							"engine":             "aurora-postgresql",
+							"engine-version":     "",
+							"region":             "",
+							"status":             "available",
+							"teleport.dev/cloud": "AWS",
 						},
 					},
 					types.DatabaseSpecV3{
@@ -326,7 +326,7 @@ func TestListDatabases(t *testing.T) {
 					},
 				)
 				require.NoError(t, err)
-				require.Equal(t, expectedDB, ldr.Databases[0])
+				require.Empty(t, cmp.Diff(expectedDB, ldr.Databases[0]))
 			},
 			errCheck: noErrorFunc,
 		},
@@ -338,9 +338,7 @@ func TestListDatabases(t *testing.T) {
 				Engines:   []string{"postgres"},
 				NextToken: "",
 			},
-			errCheck: func(err error) bool {
-				return trace.IsBadParameter(err)
-			},
+			errCheck: trace.IsBadParameter,
 		},
 		{
 			name: "invalid rds type",
@@ -350,9 +348,7 @@ func TestListDatabases(t *testing.T) {
 				Engines:   []string{"postgres"},
 				NextToken: "",
 			},
-			errCheck: func(err error) bool {
-				return trace.IsBadParameter(err)
-			},
+			errCheck: trace.IsBadParameter,
 		},
 		{
 			name: "empty engines list",
@@ -362,9 +358,7 @@ func TestListDatabases(t *testing.T) {
 				Engines:   []string{},
 				NextToken: "",
 			},
-			errCheck: func(err error) bool {
-				return trace.IsBadParameter(err)
-			},
+			errCheck: trace.IsBadParameter,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

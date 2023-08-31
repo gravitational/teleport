@@ -28,9 +28,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
@@ -60,7 +62,6 @@ Find out more at https://goteleport.com/docs/machine-id/introduction/`
 
 func Run(args []string, stdout io.Writer) error {
 	var cf config.CLIConf
-	utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
 
 	app := utils.InitCLIParser("tbot", appHelp).Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&cf.Debug)
@@ -77,14 +78,18 @@ func Run(args []string, stdout io.Writer) error {
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
 	startCmd.Flag("auth-server", "Address of the Teleport Auth Server or Proxy Server.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
-	startCmd.Flag("token", "A bot join token, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
+	startCmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
 	startCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
 	startCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
 	startCmd.Flag("destination-dir", "Directory to write short-lived machine certificates.").StringVar(&cf.DestinationDir)
 	startCmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&cf.CertificateTTL)
 	startCmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewalInterval)
-	startCmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, config.SupportedJoinMethods...)
+	startCmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&cf.JoinMethod, config.SupportedJoinMethods...)
 	startCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
+	startCmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&cf.DiagAddr)
+	startCmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
+		Default(config.LogFormatText).
+		EnumVar(&cf.LogFormat, config.LogFormatJSON, config.LogFormatText)
 
 	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
 	initCmd.Flag("destination-dir", "Directory to write short-lived machine certificates to.").StringVar(&cf.DestinationDir)
@@ -93,19 +98,26 @@ func Run(args []string, stdout io.Writer) error {
 	initCmd.Flag("reader-user", "Enables POSIX ACLs and defines Linux user that will read short-lived certificates from \"--destination-dir\".").StringVar(&cf.ReaderUser)
 	initCmd.Flag("init-dir", "If using a config file and multiple destinations are configured, controls which destination dir to configure.").StringVar(&cf.InitDir)
 	initCmd.Flag("clean", "If set, remove unexpected files and directories from the destination.").BoolVar(&cf.Clean)
+	initCmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
+		Default(config.LogFormatText).
+		EnumVar(&cf.LogFormat, config.LogFormatJSON, config.LogFormatText)
 
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
 	configureCmd.Flag("auth-server", "Address of the Teleport Auth Server (On-Prem installs) or Proxy Server (Cloud installs).").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
 	configureCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
 	configureCmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").Default("60m").DurationVar(&cf.CertificateTTL)
 	configureCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
-	configureCmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, config.SupportedJoinMethods...)
+	configureCmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&cf.JoinMethod, config.SupportedJoinMethods...)
 	configureCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
 	configureCmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewalInterval)
 	configureCmd.Flag("token", "A bot join token, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
 	configureCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&cf.ConfigureOutput)
+	configureCmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
+		Default(config.LogFormatText).
+		EnumVar(&cf.LogFormat, config.LogFormatJSON, config.LogFormatText)
 
-	watchCmd := app.Command("watch", "Watch a destination directory for changes.").Hidden()
+	migrateCmd := app.Command("migrate", "Migrates a config file from an older version to the newest version. Outputs to stdout by default.")
+	migrateCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&cf.ConfigureOutput)
 
 	dbCmd := app.Command("db", "Execute database commands through tsh.")
 	dbCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Required().StringVar(&cf.Proxy)
@@ -145,9 +157,14 @@ func Run(args []string, stdout io.Writer) error {
 		cf.RemainingArgs = *proxyRemaining
 	}
 
-	// While in debug mode, send logs to stdout.
-	if cf.Debug {
-		utils.InitLogger(utils.LoggingForDaemon, logrus.DebugLevel)
+	if err := setupLogger(cf.Debug, cf.LogFormat); err != nil {
+		return trace.Wrap(err, "setting up logger")
+	}
+
+	// If migration is specified, we want to run this before the config is
+	// loaded normally.
+	if migrateCmd.FullCommand() == command {
+		return onMigrate(cf, stdout)
 	}
 
 	botConfig, err := config.FromCLIConf(&cf)
@@ -164,14 +181,12 @@ func Run(args []string, stdout io.Writer) error {
 		err = onConfigure(cf, stdout)
 	case initCmd.FullCommand():
 		err = onInit(botConfig, &cf)
-	case watchCmd.FullCommand():
-		err = onWatch(botConfig)
 	case dbCmd.FullCommand():
 		err = onDBCommand(botConfig, &cf)
 	case proxyCmd.FullCommand():
 		err = onProxyCommand(botConfig, &cf)
 	case kubeCredentialsCmd.FullCommand():
-		err = onKubeCredentialsCommand(botConfig, &cf)
+		err = onKubeCredentialsCommand(botConfig)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -181,7 +196,7 @@ func Run(args []string, stdout io.Writer) error {
 }
 
 func onVersion() error {
-	utils.PrintVersion()
+	modules.GetModules().PrintVersion()
 	return nil
 }
 
@@ -207,10 +222,15 @@ func onConfigure(
 	if err != nil {
 		return nil
 	}
+	// Ensure they have provided a join method to use in the configuration.
+	if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
+		return trace.BadParameter("join method must be provided")
+	}
 
 	fmt.Fprintln(out, "# tbot config file generated by `configure` command")
 
 	enc := yaml.NewEncoder(out)
+	enc.SetIndent(2)
 	if err := enc.Encode(cfg); err != nil {
 		return trace.Wrap(err)
 	}
@@ -228,15 +248,67 @@ func onConfigure(
 	return nil
 }
 
-func onWatch(botConfig *config.BotConfig) error {
-	return trace.NotImplemented("watch not yet implemented")
+func onMigrate(
+	cf config.CLIConf,
+	stdout io.Writer,
+) error {
+	if cf.ConfigPath == "" {
+		return trace.BadParameter("source config file must be provided with -c")
+	}
+
+	out := stdout
+	outPath := cf.ConfigureOutput
+	if outPath != "" {
+		if outPath == cf.ConfigPath {
+			return trace.BadParameter("migrated config output path should not be the same as the source config path")
+		}
+
+		f, err := os.Create(outPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer f.Close()
+		out = f
+	}
+
+	// We do not want to load an existing configuration file as this will cause
+	// it to be merged with the provided flags and defaults.
+	cfg, err := config.ReadConfigFromFile(cf.ConfigPath, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating new config")
+	}
+
+	fmt.Fprintln(out, "# tbot config file generated by `migrate` command")
+
+	enc := yaml.NewEncoder(out)
+	enc.SetIndent(2)
+	if err := enc.Encode(cfg); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := enc.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if outPath != "" {
+		log.Infof(
+			"Generated config file written to file: %s", outPath,
+		)
+	}
+
+	return nil
 }
 
 func onStart(botConfig *config.BotConfig) error {
-	reloadChan := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go handleSignals(log, reloadChan, cancel)
+
+	reloadCh := make(chan struct{})
+	botConfig.ReloadCh = reloadCh
+	go handleSignals(log, cancel, reloadCh)
 
 	telemetrySentCh := make(chan struct{})
 	go func() {
@@ -275,24 +347,48 @@ func onStart(botConfig *config.BotConfig) error {
 		}
 	}()
 
-	b := tbot.New(botConfig, log, reloadChan)
+	b := tbot.New(botConfig, log)
 	return trace.Wrap(b.Run(ctx))
 }
 
 // handleSignals handles incoming Unix signals.
-func handleSignals(log logrus.FieldLogger, reload chan struct{}, cancel context.CancelFunc) {
+func handleSignals(log logrus.FieldLogger, cancel context.CancelFunc, reloadCh chan<- struct{}) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
 
-	for signal := range signals {
-		switch signal {
+	for sig := range signals {
+		switch sig {
 		case syscall.SIGINT:
-			log.Info("Received interrupt, canceling...")
+			log.Info("Received interrupt, triggering shutdown.")
 			cancel()
 			return
 		case syscall.SIGHUP, syscall.SIGUSR1:
-			log.Info("Received reload signal, reloading...")
-			reload <- struct{}{}
+			log.Info("Received reload signal, queueing reload.")
+			select {
+			case reloadCh <- struct{}{}:
+			default:
+				log.Warn("Unable to queue reload, reload already queued.")
+			}
 		}
 	}
+}
+
+func setupLogger(debug bool, format string) error {
+	level := logrus.InfoLevel
+	if debug {
+		level = logrus.DebugLevel
+	}
+	utils.InitLogger(utils.LoggingForDaemon, level)
+
+	switch format {
+	case config.LogFormatJSON:
+		formatter := &utils.JSONFormatter{}
+		logrus.SetFormatter(formatter)
+	case config.LogFormatText, "":
+	// Nothing to do, this is the default set up by utils.InitLogger
+	default:
+		return trace.BadParameter("unsupported log format %q", format)
+	}
+
+	return nil
 }

@@ -85,7 +85,7 @@ const ValueContainer = ({ children, ...props }) => {
   if (isCustom) {
     return (
       <components.ValueContainer {...props}>
-        <Text color="text.primary">
+        <Text color="text.main">
           {`${displayDate(from)} - ${displayDate(to)}`}
         </Text>
         {children}

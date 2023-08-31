@@ -428,50 +428,6 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	return a
 }
 
-func TestRemoteDBCAMigration(t *testing.T) {
-	const (
-		localClusterName  = "localcluster"
-		remoteClusterName = "trustedcluster"
-	)
-	ctx := context.Background()
-
-	testAuth, err := NewTestAuthServer(TestAuthServerConfig{
-		ClusterName: localClusterName,
-		Dir:         t.TempDir(),
-	})
-	require.NoError(t, err)
-	a := testAuth.AuthServer
-
-	trustedCluster, err := types.NewTrustedCluster(remoteClusterName,
-		types.TrustedClusterSpecV2{Roles: []string{"nonempty"}})
-	require.NoError(t, err)
-	// use the UpsertTrustedCluster in Uncached as we just want the resource in
-	// the backend, we don't want to actually connect
-	_, err = a.Services.UpsertTrustedCluster(ctx, trustedCluster)
-	require.NoError(t, err)
-
-	// Generate remote HostCA and remove private key as remote CA should have only public cert.
-	remoteHostCA := suite.NewTestCA(types.HostCA, remoteClusterName)
-	types.RemoveCASecrets(remoteHostCA)
-
-	err = a.UpsertCertAuthority(ctx, remoteHostCA)
-	require.NoError(t, err)
-
-	// Run the migration
-	err = migrateDBAuthority(ctx, a)
-	require.NoError(t, err)
-
-	dbCAs, err := a.GetCertAuthority(context.Background(), types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: remoteClusterName,
-	}, true)
-	require.NoError(t, err)
-	// Certificate should be copied.
-	require.Equal(t, remoteHostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs.GetActiveKeys().TLS[0].Cert)
-	// Private key should be empty.
-	require.Nil(t, dbCAs.GetActiveKeys().TLS[0].Key)
-}
-
 func TestUpsertTrustedCluster(t *testing.T) {
 	ctx := context.Background()
 	testAuth, err := NewTestAuthServer(TestAuthServerConfig{

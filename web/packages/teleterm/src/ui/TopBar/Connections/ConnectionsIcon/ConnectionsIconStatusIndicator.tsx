@@ -31,11 +31,13 @@ const StyledStatus = styled<Props>(Box)`
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   ${props => {
     const { $connected, theme } = props;
     const backgroundColor = $connected ? theme.colors.success : null;
-    const border = $connected ? null : `1px solid ${theme.colors.light}`;
+    const border = $connected
+      ? null
+      : `1px solid ${theme.colors.text.slightlyMuted}`;
     return {
       backgroundColor,
       border,

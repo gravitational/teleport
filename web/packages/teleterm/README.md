@@ -115,6 +115,7 @@ When running `yarn package-term`, you need to provide these environment variable
 - `APPLE_PASSWORD`
 - `CONNECT_TSH_APP_PATH`
 - `CSC_NAME` (optional, developer certificate ID)
+- `TEAMID`
 
 The details behind those vars are described below.
 
@@ -151,6 +152,11 @@ On top of that, you must provide env vars that will be used for notarization. `A
 be set to the account email address associated with the developer ID. `APPLE_PASSWORD` must be [an
 app-specific password](https://support.apple.com/en-us/HT204397), not the account password.
 
+The Team ID needed as an input for notarization must be provided via the `TEAMID` environment
+variable. The top-level `Makefile` exports this when `yarm package-term` is called from `make
+release-connect` with either the developer or production Team ID depending on the `ENVIRONMENT_NAME`
+environment variable. See the top-level `darwin-signing.mk` for details.
+
 ## Architecture
 
 ### Resource lifecycle
@@ -180,7 +186,7 @@ resource availability as possible.
               |                                  | |
               v                                  | |
      +--------+---------------+                  | |
-     |                        |        SNI/ALPN  | | GRPC
+     |                        |        SNI/ALPN  | | gRPC
   +--+----------------------+ |         routing  | |
   |                         | |                  | |
   |     local proxies       +-+                  | |
@@ -199,7 +205,7 @@ resource availability as possible.
                                           +-------------+--------------+        +-------------------------------+
  +--------+-----------------+                           ^                                       ^
  |         Terminal         |                           |                                       |
- |    Electron Main Process |                           |    GRPC API                           |   GRPC API
+ |    Electron Main Process |                           |    gRPC API                           |   gRPC API
  +-----------+--------------+                           | (domain socket)                       |   (domain socket)
              ^                                          |                                       |
              |                                          |                                       |

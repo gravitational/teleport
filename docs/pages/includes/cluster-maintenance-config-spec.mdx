@@ -1,0 +1,16 @@
+```yaml
+kind: cluster_maintenance_config
+spec:
+  agent_upgrades:
+    # Maintenance window start hour in UTC.
+    # The maintenance window lasts 1 hour.
+    utc_start_hour: 2
+    # Week days when maintenance is allowed
+    # Possible values are:
+    # - Short names: Sun, Mon, Tue, Wed, Thu, Fri, Sat
+    # - Long names: Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday
+    weekdays:
+      - Mon
+      - Wed
+      - Fri
+```

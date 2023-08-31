@@ -108,10 +108,13 @@ export function IAMCreateNewPolicy(props: CommonIAMProps) {
     "Version": "2012-10-17",
     "Statement": [
         {
-            "Effect": "Allow",
-            "Action": "rds:DescribeDBInstances",
-            "Resource": "*"
-        }
+          "Effect": "Allow",
+          "Action": [
+              "rds:DescribeDBInstances",
+              "rds:DescribeDBClusters"
+          ],
+          "Resource": "*"
+      }
     ]
 }`;
     }

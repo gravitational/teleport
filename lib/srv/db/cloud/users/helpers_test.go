@@ -77,6 +77,18 @@ func TestLookupMap(t *testing.T) {
 			"userID3": user3,
 		}, lookup.usersByID())
 	})
+
+	t.Run("removeIfURIChanged", func(t *testing.T) {
+		// URI does not change. No users should be removed.
+		lookup.removeIfURIChanged(db3)
+		require.Equal(t, map[string]User{
+			"userID3": user3,
+		}, lookup.usersByID())
+
+		// Now replace with a RDS.
+		lookup.removeIfURIChanged(mustCreateRDSDatabase(t, "db3"))
+		require.Empty(t, lookup.usersByID())
+	})
 }
 
 func TestGenRandomPassword(t *testing.T) {

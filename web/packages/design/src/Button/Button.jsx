@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import PropTypes from 'prop-types';
+import { bool, string } from 'prop-types';
 
 import { space, width, height } from 'design/system';
 
@@ -56,13 +56,25 @@ const themedStyles = props => {
   const { colors } = props.theme;
   const { kind } = props;
 
-  const style = {
-    '&:disabled': {
-      background: kind === 'text' ? 'none' : colors.buttons.bgDisabled,
-      color: colors.buttons.textDisabled,
-      cursor: 'auto',
-    },
+  let disabledStyle = {
+    background: kind === 'text' ? 'none' : colors.buttons.bgDisabled,
+    color: colors.buttons.textDisabled,
+    cursor: 'auto',
   };
+
+  let style = {
+    '&:disabled': disabledStyle,
+  };
+
+  // Using the pseudo class `:disabled` to style disabled state
+  // doesn't work for non form elements (e.g. anchor). So
+  // we target by attribute with square brackets. Only true
+  // when we change the underlying type for this component (button)
+  // using the `as` prop (eg: a, NavLink, Link).
+  if (props.as && props.disabled) {
+    disabledStyle.pointerEvents = 'none';
+    style = { '&[disabled]': disabledStyle };
+  }
 
   return {
     ...kinds(props),
@@ -72,6 +84,7 @@ const themedStyles = props => {
     ...width(props),
     ...block(props),
     ...height(props),
+    ...textTransform(props),
   };
 };
 
@@ -96,7 +109,6 @@ export const kinds = props => {
         border: '1px solid ' + theme.colors.buttons.border.border,
         '&:hover, &:focus': {
           background: theme.colors.buttons.border.hover,
-          border: '1px solid ' + theme.colors.buttons.border.borderHover,
         },
         '&:active': {
           background: theme.colors.buttons.border.active,
@@ -145,6 +157,9 @@ const block = props =>
       }
     : null;
 
+const textTransform = props =>
+  props.textTransform ? { textTransform: props.textTransform } : null;
+
 const StyledButton = styled.button`
   line-height: 1.5;
   margin: 0;
@@ -173,19 +188,29 @@ Button.propTypes = {
    * block specifies if an element's display is set to block or not.
    * Set to true to set display to block.
    */
-  block: PropTypes.bool,
+  block: bool,
 
   /**
    * kind specifies the styling a button takes.
    * Select from primary (default), secondary, warning.
    */
-  kind: PropTypes.string,
+  kind: string,
 
   /**
    * size specifies the size of button.
    * Select from small, medium (default), large
    */
-  size: PropTypes.string,
+  size: string,
+
+  /**
+   * textTransform specifies the case transform of the button text.
+   * default is UPPERCASE
+   *
+   * TODO (avatus): eventually, we will move away from every button being
+   * uppercase and this probably won't be needed anymore. This is a temporary
+   * fix before we audit the whole site and migrate
+   */
+  textTransform: string,
 
   /**
    * styled-system

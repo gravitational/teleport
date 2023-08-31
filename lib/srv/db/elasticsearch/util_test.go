@@ -132,7 +132,6 @@ func TestEngineGetQueryFromRequestBody(t *testing.T) {
 			e.Log = logrus.StandardLogger()
 
 			result := GetQueryFromRequestBody(e.EngineConfig, tt.contentType, []byte(tt.body))
-			t.Log(result)
 			require.Equal(t, tt.want, result)
 		})
 	}

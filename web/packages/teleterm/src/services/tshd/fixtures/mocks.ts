@@ -34,6 +34,9 @@ import {
   TshAbortSignal,
   TshClient,
   GetRequestableRolesResponse,
+  CreateConnectMyComputerRoleResponse,
+  CreateConnectMyComputerNodeTokenResponse,
+  UpdateHeadlessAuthenticationStateParams,
 } from '../types';
 
 export class MockTshClient implements TshClient {
@@ -97,16 +100,12 @@ export class MockTshClient implements TshClient {
   logout = () => Promise.resolve();
   transferFile: () => undefined;
   reportUsageEvent: () => undefined;
-}
 
-export const gateway: Gateway = {
-  uri: '/gateways/gateway1',
-  targetName: 'postgres',
-  targetUri: '/clusters/teleport-local/dbs/postgres',
-  targetUser: 'alice',
-  targetSubresourceName: '',
-  localAddress: 'localhost',
-  localPort: '59116',
-  protocol: 'postgres',
-  cliCommand: 'psql postgres://alice@localhost:59116',
-};
+  createConnectMyComputerRole: () => Promise<CreateConnectMyComputerRoleResponse>;
+  createConnectMyComputerNodeToken: () => Promise<CreateConnectMyComputerNodeTokenResponse>;
+  deleteConnectMyComputerToken: () => Promise<void>;
+
+  updateHeadlessAuthenticationState: (
+    params: UpdateHeadlessAuthenticationStateParams
+  ) => Promise<void>;
+}

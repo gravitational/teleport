@@ -1,5 +1,5 @@
 # This workflow is required to ensure that required Github check passes even if
-# the actual "Unit Tests (Operator)" workflow skipped due to path filtering. Otherwise
+# the actual "Unit Tests (Integrations)" workflow skipped due to path filtering. Otherwise
 # it will stay forever pending.
 #
 # See "Handling skipped but required checks" for more info:

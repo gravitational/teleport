@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os/exec"
 	"regexp"
@@ -146,7 +147,7 @@ func (auth *AuthService) Run(ctx context.Context) error {
 		stdout := bufio.NewReader(stdoutPipe)
 		for {
 			line, err := stdout.ReadString('\n')
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return
 			}
 			if err := trace.Wrap(err); err != nil {
@@ -177,7 +178,7 @@ func (auth *AuthService) Run(ctx context.Context) error {
 		for {
 			n, err := stderr.Read(data)
 			auth.saveStderr(data[:n])
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return
 			}
 			if err := trace.Wrap(err); err != nil {

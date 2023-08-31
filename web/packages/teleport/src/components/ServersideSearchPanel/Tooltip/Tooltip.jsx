@@ -81,7 +81,7 @@ const PopoverContent = styled(Box)`
 const TooltipButton = ({ setRef, ...props }) => {
   return (
     <div ref={setRef} style={{ lineHeight: '0px' }}>
-      <Info {...props} />
+      <Info {...props} size={20} />
     </div>
   );
 };

@@ -16,10 +16,12 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'examples/**'
+      - 'CHANGELOG.md'
   merge_group:
     paths-ignore:
       - 'docs/**'
-      - 'examples/**'      
+      - 'examples/**'
+      - 'CHANGELOG.md'
 
 jobs:
   lint:

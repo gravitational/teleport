@@ -21,6 +21,7 @@
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --noEmit",
     "prettier-check": "yarn prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx}'",
     "prettier-write": "yarn prettier --write --loglevel silent '+(e|web)/**/*.{ts,tsx,js,jsx}'",
+    "process-icons": "node web/packages/design/src/Icon/script/script.js & yarn prettier --loglevel silent --write 'web/packages/design/src/Icon/Icons/*.tsx'",
     "nop": "exit 0"
   },
   "private": true,
@@ -31,14 +32,14 @@
     "webpack": "^5.76.2",
     "x-default-browser": "^0.5.2"
   },
+  "devDependencies": {
+    "prettier": "^2.5.0",
+    "typescript": "^5.1.3"
+  },
   "workspaces": {
     "packages": [
-      "web/packages/build/**",
-      "web/packages/design/**",
-      "web/packages/shared/**",
-      "web/packages/teleport",
-      "web/packages/teleterm",
-      "e/web/**"
+      "web/packages/*",
+      "e/web/*"
     ]
   }
 }

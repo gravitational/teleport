@@ -26,7 +26,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
 
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 var (
@@ -100,7 +100,7 @@ func (n *nativeImpl) CheckSupport() CheckSupportResult {
 // either security key or Windows Hello).
 // It does not accept username - during passwordless login webauthn.dll provides
 // its own dialog with credentials selection.
-func (n *nativeImpl) GetAssertion(origin string, in *getAssertionRequest) (*wanlib.CredentialAssertionResponse, error) {
+func (n *nativeImpl) GetAssertion(origin string, in *getAssertionRequest) (*wantypes.CredentialAssertionResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -132,19 +132,19 @@ func (n *nativeImpl) GetAssertion(origin string, in *getAssertionRequest) (*wanl
 	credential := bytesFromCBytes(out.Credential.cbID, out.Credential.pbID)
 	credType := windows.UTF16PtrToString(out.Credential.pwszCredentialType)
 
-	return &wanlib.CredentialAssertionResponse{
-		PublicKeyCredential: wanlib.PublicKeyCredential{
+	return &wantypes.CredentialAssertionResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
 			RawID: credential,
-			Credential: wanlib.Credential{
+			Credential: wantypes.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(credential),
 				Type: credType,
 			},
 		},
-		AssertionResponse: wanlib.AuthenticatorAssertionResponse{
+		AssertionResponse: wantypes.AuthenticatorAssertionResponse{
 			AuthenticatorData: authData,
 			Signature:         signature,
 			UserHandle:        userID,
-			AuthenticatorResponse: wanlib.AuthenticatorResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
 				ClientDataJSON: in.jsonEncodedClientData,
 			},
 		},
@@ -157,7 +157,7 @@ func (n *nativeImpl) GetAssertion(origin string, in *getAssertionRequest) (*wanl
 // (using auto starts with Windows Hello but there is
 // option to select other devices).
 // Windows Hello keys are always resident.
-func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*wanlib.CredentialCreationResponse, error) {
+func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*wantypes.CredentialCreationResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -187,16 +187,16 @@ func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*
 
 	credential := bytesFromCBytes(out.cbCredentialID, out.pbCredentialID)
 
-	return &wanlib.CredentialCreationResponse{
-		PublicKeyCredential: wanlib.PublicKeyCredential{
-			Credential: wanlib.Credential{
+	return &wantypes.CredentialCreationResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
+			Credential: wantypes.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(credential),
 				Type: string(protocol.PublicKeyCredentialType),
 			},
 			RawID: credential,
 		},
-		AttestationResponse: wanlib.AuthenticatorAttestationResponse{
-			AuthenticatorResponse: wanlib.AuthenticatorResponse{
+		AttestationResponse: wantypes.AuthenticatorAttestationResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
 				ClientDataJSON: in.jsonEncodedClientData,
 			},
 			AttestationObject: bytesFromCBytes(out.cbAttestationObject, out.pbAttestationObject),

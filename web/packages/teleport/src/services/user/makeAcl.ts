@@ -18,6 +18,7 @@ import { Acl } from './types';
 
 export function makeAcl(json): Acl {
   json = json || {};
+  const accessList = json.accessList || defaultAccess;
   const authConnectors = json.authConnectors || defaultAccess;
   const trustedClusters = json.trustedClusters || defaultAccess;
   const roles = json.roles || defaultAccess;
@@ -30,6 +31,7 @@ export function makeAcl(json): Acl {
   const tokens = json.tokens || defaultAccess;
   const accessRequests = json.accessRequests || defaultAccess;
   const billing = json.billing || defaultAccess;
+  const lock = json.lock || defaultAccess;
   const plugins = json.plugins || defaultAccess;
   const integrations = json.integrations || defaultAccessWithUse;
   const dbServers = json.dbServers || defaultAccess;
@@ -56,8 +58,12 @@ export function makeAcl(json): Acl {
   const download = json.download || defaultAccess;
 
   const deviceTrust = json.deviceTrust || defaultAccess;
+  const assist = json.assist || defaultAccess;
+
+  const samlIdpServiceProvider = json.samlIdpServiceProvider || defaultAccess;
 
   return {
+    accessList,
     authConnectors,
     trustedClusters,
     roles,
@@ -83,6 +89,9 @@ export function makeAcl(json): Acl {
     license,
     download,
     deviceTrust,
+    lock,
+    assist,
+    samlIdpServiceProvider,
   };
 }
 

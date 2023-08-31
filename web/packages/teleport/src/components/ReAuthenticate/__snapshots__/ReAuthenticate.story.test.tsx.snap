@@ -98,7 +98,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -135,16 +135,14 @@ exports[`render failed state for re-authentication dialog 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
 .c11 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -240,20 +238,20 @@ exports[`render failed state for re-authentication dialog 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c12 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__control:hover,
 .c12 .react-select__control:focus,
 .c12 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -274,7 +272,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
 }
 
 .c12 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -288,7 +286,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
 }
 
 .c12 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__multi-value {
@@ -334,7 +332,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
 }
 
 .c12 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c12 .react-select__clear-indicator:hover,
@@ -368,20 +366,24 @@ exports[`render failed state for re-authentication dialog 1`] = `
 
 .c12 .react-select--is-disabled,
 .c12 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__single-value,
 .c12 .react-select__control--is-disabled .react-select__single-value,
 .c12 .react-select--is-disabled .react-select__placeholder,
 .c12 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__indicator,
 .c12 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+}
+
+.c12 .react-select__input {
+  color: #FFFFFF;
 }
 
 <div
@@ -407,13 +409,13 @@ exports[`render failed state for re-authentication dialog 1`] = `
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             Verify your identity
           </div>
           <div
             class="c6"
-            color="text.secondary"
+            color="text.slightlyMuted"
           >
             You must verify your identity with one of your existing two-factor devices before 
             performing this action
@@ -443,7 +445,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
                 font-size="0"
                 for="select"
               >
-                Two-factor type
+                Two-factor Type
               </label>
               <div
                 class="c12"
@@ -603,7 +605,7 @@ exports[`render re-authentication dialog 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -640,16 +642,14 @@ exports[`render re-authentication dialog 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
 .c10 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -745,20 +745,20 @@ exports[`render re-authentication dialog 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c11 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c11 .react-select__control:hover,
 .c11 .react-select__control:focus,
 .c11 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -779,7 +779,7 @@ exports[`render re-authentication dialog 1`] = `
 }
 
 .c11 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -793,7 +793,7 @@ exports[`render re-authentication dialog 1`] = `
 }
 
 .c11 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c11 .react-select__multi-value {
@@ -839,7 +839,7 @@ exports[`render re-authentication dialog 1`] = `
 }
 
 .c11 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c11 .react-select__clear-indicator:hover,
@@ -873,20 +873,24 @@ exports[`render re-authentication dialog 1`] = `
 
 .c11 .react-select--is-disabled,
 .c11 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c11 .react-select--is-disabled .react-select__single-value,
 .c11 .react-select__control--is-disabled .react-select__single-value,
 .c11 .react-select--is-disabled .react-select__placeholder,
 .c11 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c11 .react-select--is-disabled .react-select__indicator,
 .c11 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+}
+
+.c11 .react-select__input {
+  color: #FFFFFF;
 }
 
 <div
@@ -912,13 +916,13 @@ exports[`render re-authentication dialog 1`] = `
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             Verify your identity
           </div>
           <div
             class="c6"
-            color="text.secondary"
+            color="text.slightlyMuted"
           >
             You must verify your identity with one of your existing two-factor devices before 
             performing this action
@@ -941,7 +945,7 @@ exports[`render re-authentication dialog 1`] = `
                 font-size="0"
                 for="select"
               >
-                Two-factor type
+                Two-factor Type
               </label>
               <div
                 class="c11"

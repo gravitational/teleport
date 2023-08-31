@@ -31,6 +31,18 @@ export const apps = [
     fqdn: 'jenkins.one',
   },
   {
+    name: 'saml_app',
+    uri: '',
+    publicAddr: '',
+    description: 'SAML Application',
+    awsConsole: false,
+    labels: [],
+    clusterId: 'one',
+    fqdn: '',
+    samlApp: true,
+    samlAppSSOUrl: '',
+  },
+  {
     name: 'Mattermost1',
     uri: 'https://mattermost1.teleport-proxy.com',
     publicAddr: 'mattermost.teleport-proxy.com',

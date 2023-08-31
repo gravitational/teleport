@@ -93,6 +93,25 @@ const (
 
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
+
+	// MetricTotalInstances provides an instance count
+	MetricTotalInstances = "total_instances"
+
+	// MetricEnrolledInUpgrades provides total number of instances that advertise an upgrader.
+	MetricEnrolledInUpgrades = "enrolled_in_upgrades"
+
+	// MetricUpgraderCounts provides instance count per-upgrader.
+	MetricUpgraderCounts = "upgrader_counts"
+
+	// TagUpgrader is a metric tag for upgraders.
+	TagUpgrader = "upgrader"
+
+	// MetricsAccessRequestsCreated provides total number of created access requests.
+	MetricAccessRequestsCreated = "access_requests_created"
+	// TagRoles is a number of roles requested as a part of access request.
+	TagRoles = "roles"
+	// TagResources is a number of resources requested as a part of access request.
+	TagResources = "resources"
 )
 
 const (
@@ -207,6 +226,10 @@ const (
 	// MetricRegisteredServers tracks the number of Teleport servers that have successfully registered with the Teleport cluster and have not reached the end of their ttl
 	MetricRegisteredServers = "registered_servers"
 
+	// MetricRegisteredServersByInstallMethods tracks the number of Teleport servers, and their installation method,
+	// that have successfully registered with the Teleport cluster and have not reached the end of their ttl
+	MetricRegisteredServersByInstallMethods = "registered_servers_by_install_methods"
+
 	// MetricReverseSSHTunnels defines the number of connected SSH reverse tunnels to the proxy
 	MetricReverseSSHTunnels = "reverse_tunnels_connected"
 
@@ -249,6 +272,11 @@ const (
 
 	// TagClient is a prometheus label to indicate what client the metric is tied to
 	TagClient = "client"
+
+	// TagInstallMethods is a prometheus label to indicate what installation methods
+	// were used for the agent.
+	// This value comes from UpstreamInventoryAgentMetadata (sourced in lib/inventory/metadata.fetchInstallMethods).
+	TagInstallMethods = "install_methods"
 )
 
 const (
@@ -277,4 +305,27 @@ const (
 	// MetricUsageEventsDropped is a count of events dropped due to the
 	// submission buffer reaching a length limit.
 	MetricUsageEventsDropped = "usage_events_dropped_total"
+)
+
+// athena audit log metrics
+const (
+	// MetricParquetlogConsumerBatchPorcessingDuration is a histogram of durations it
+	// took to process single batch of events.
+	MetricParquetlogConsumerBatchPorcessingDuration = "audit_parquetlog_batch_processing_seconds"
+	// MetricParquetlogConsumerS3FlushDuration is a histogram of durations it took to
+	// flush and close parquet files on s3.
+	MetricParquetlogConsumerS3FlushDuration = "audit_parquetlog_s3_flush_seconds"
+	// MetricParquetlogConsumerDeleteEventsDuration is a histogram of durations it
+	// took to delete events from SQS.
+	MetricParquetlogConsumerDeleteEventsDuration = "audit_parquetlog_delete_events_seconds"
+	// MetricParquetlogConsumerBatchSize is a histogram of sizes of single batch of events.
+	MetricParquetlogConsumerBatchSize = "audit_parquetlog_batch_size"
+	// MetricParquetlogConsumerBatchCount is a count of number of events in single batch.
+	MetricParquetlogConsumerBatchCount = "audit_parquetlog_batch_count"
+	// MetricParquetlogConsumerLastProcessedTimestamp is a timestamp of last finished consumer execution.
+	MetricParquetlogConsumerLastProcessedTimestamp = "audit_parquetlog_last_processed_timestamp"
+	// MetricParquetlogConsumerOldestProcessedMessage is age of oldest processed message.
+	MetricParquetlogConsumerOldestProcessedMessage = "audit_parquetlog_age_oldest_processed_message"
+	// MetricAthenaConsumerCollectFailed is a count of number of errors received from sqs collect.
+	MetricParquetlogConsumerCollectFailed = "audit_parquetlog_errors_from_collect_count"
 )

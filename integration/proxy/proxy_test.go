@@ -41,13 +41,13 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/appaccess"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -142,7 +142,7 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 			if tc.testALPNConnUpgrade {
 				t.Run("ALPN conn upgrade", func(t *testing.T) {
 					// Make a mock ALB which points to the Teleport Proxy Service.
-					albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+					albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
 
 					// Run command in root through ALB address.
 					suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
@@ -339,7 +339,7 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 // SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
 func TestALPNSNIProxyKube(t *testing.T) {
 	const (
-		localK8SNI = "kube.teleport.cluster.local"
+		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 		k8User     = "alice@example.com"
 		k8RoleName = "kubemaster"
 	)
@@ -356,7 +356,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 			KubeUsers:        []string{k8User},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -391,7 +391,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 
 	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
-	require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+	require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
 
 	// Simulate how tsh uses a kube local proxy to send kube requests to
 	// Teleport Proxy with a L7 LB in front.
@@ -401,7 +401,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
 		// ALPN local proxies will point to this ALB instead.
-		albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+		albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
 
 		// Generate a self-signed CA for kube local proxy.
 		localCAKey, localCACert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
@@ -435,9 +435,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
-		require.NoError(t, err)
-		require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+		mustGetKubePod(t, k8Client)
 	})
 }
 
@@ -448,7 +446,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	const (
-		localK8SNI = "kube.teleport.cluster.local"
+		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 		k8User     = "alice@example.com"
 		k8RoleName = "kubemaster"
 	)
@@ -465,7 +463,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 			KubeUsers:        []string{k8User},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -508,9 +506,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
-	require.NoError(t, err)
-	require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+	mustGetKubePod(t, k8Client)
 }
 
 func TestKubeIPPinning(t *testing.T) {
@@ -518,7 +514,7 @@ func TestKubeIPPinning(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	const (
-		kubeCluster = "kube.teleport.cluster.local"
+		kubeCluster = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 		k8User      = "alice@example.com"
 		k8RoleName  = "kubemaster"
 	)
@@ -537,7 +533,7 @@ func TestKubeIPPinning(t *testing.T) {
 			KubeUsers:        []string{k8User},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -633,7 +629,7 @@ func TestKubeIPPinning(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+			require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
 		})
 	}
 }
@@ -889,7 +885,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	t.Run("ALPN connection upgrade", func(t *testing.T) {
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
 		// ALPN local proxies will point to this ALB instead.
-		albProxy := mustStartMockALBProxy(t, pack.Root.Cluster.Web)
+		albProxy := helpers.MustStartMockALBProxy(t, pack.Root.Cluster.Web)
 
 		// Test a protocol in the alpncommon.IsDBTLSProtocol list where
 		// the database client will perform a native TLS handshake.
@@ -1105,7 +1101,7 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
 		// ALPN local proxies will point to this ALB instead.
-		albProxy := mustStartMockALBProxy(t, pack.RootWebAddr())
+		albProxy := helpers.MustStartMockALBProxy(t, pack.RootWebAddr())
 
 		lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
 			RemoteProxyAddr:         albProxy.Addr().String(),
@@ -1215,7 +1211,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 
 	// Make a mock ALB which points to the Teleport Proxy Service. Then
 	// client can point to this ALB instead.
-	albProxy := mustStartMockALBProxy(t, rc.Web)
+	albProxy := helpers.MustStartMockALBProxy(t, rc.Web)
 
 	tests := []struct {
 		name         string
@@ -1498,11 +1494,18 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	}()
 	require.ErrorIs(t, authorizer.WaitForRequest(timeout), trace.AccessDenied("bad credentials"))
 	require.Zero(t, ph.Count())
+	// stop the node so it doesn't keep trying to join the cluster with bad credentials.
+	require.NoError(t, rc.StopNodes())
+	require.Error(t, <-startErrC)
 
 	// set the auth credentials to match our environment
 	authorizer.SetCredentials(user, pass)
 
-	// with env set correctly and authorized, the node should register.
+	// with env set correctly and authorized, the node should be able to register.
+	go func() {
+		_, err := rc.StartNode(nodeCfg)
+		startErrC <- err
+	}()
 	require.NoError(t, <-startErrC)
 	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
 	require.Greater(t, ph.Count(), 0)
@@ -1522,11 +1525,11 @@ func TestALPNSNIProxyGRPCInsecure(t *testing.T) {
 	suite := newSuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t), func(config *servicecfg.Config) {
 			config.Auth.BootstrapResources = []types.Resource{provisionToken}
-			config.Auth.ServerOptions = []auth.ServerOption{auth.WithHTTPClientForAWSSTS(fakeSTSClient{
+			config.Auth.HTTPClientForAWSSTS = fakeSTSClient{
 				accountID:   nodeAccount,
 				arn:         nodeRoleARN,
 				credentials: nodeCredentials,
-			})}
+			}
 		}),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 	)
@@ -1536,10 +1539,82 @@ func TestALPNSNIProxyGRPCInsecure(t *testing.T) {
 
 	// Test register through Proxy behind a L7 load balancer.
 	t.Run("ALPN conn upgrade", func(t *testing.T) {
-		albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+		albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
 		albAddr, err := utils.ParseAddr(albProxy.Addr().String())
 		require.NoError(t, err)
 
 		mustRegisterUsingIAMMethod(t, *albAddr, provisionToken.GetName(), nodeCredentials)
+	})
+}
+
+// TestALPNSNIProxyGRPCSecure tests ALPN protocol ProtocolProxyGRPCSecure
+// by creating a KubeServiceClient for pod search.
+func TestALPNSNIProxyGRPCSecure(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	const (
+		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
+		k8User     = "alice@example.com"
+		k8RoleName = "kubemaster"
+	)
+
+	kubeAPIMockSvr := startKubeAPIMock(t)
+	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvr.URL, localK8SNI))
+
+	username := helpers.MustGetCurrentUser(t).Username
+	kubeRoleSpec := types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:           []string{username},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubeGroups:       []string{kube.TestImpersonationGroup},
+			KubeUsers:        []string{k8User},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+				},
+			},
+		},
+	}
+	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
+	require.NoError(t, err)
+
+	suite := newSuite(t,
+		withRootClusterConfig(rootClusterStandardConfig(t), func(config *servicecfg.Config) {
+			config.Proxy.Kube.Enabled = true
+			config.Version = defaults.TeleportConfigVersionV3
+			config.Kube.Enabled = true
+			config.Kube.KubeconfigPath = kubeConfigPath
+			config.Kube.ListenAddr = utils.MustParseAddr(
+				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
+		}),
+		withLeafClusterConfig(leafClusterStandardConfig(t)),
+		withRootAndLeafClusterRoles(kubeRole),
+		withStandardRoleMapping(),
+	)
+
+	t.Run("root", func(t *testing.T) {
+		tc, err := suite.root.NewClient(helpers.ClientConfig{
+			Login:   username,
+			Cluster: suite.root.Secrets.SiteName,
+			Host:    helpers.Loopback,
+			Port:    helpers.Port(t, suite.root.SSH),
+		})
+		require.NoError(t, err)
+		mustFindKubePod(t, tc)
+	})
+	t.Run("ALPN conn upgrade", func(t *testing.T) {
+		// Make a mock ALB which points to the Teleport Proxy Service.
+		albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+
+		tc, err := suite.root.NewClient(helpers.ClientConfig{
+			Login:   username,
+			Cluster: suite.root.Secrets.SiteName,
+			Host:    helpers.Loopback,
+			Port:    helpers.Port(t, suite.root.SSH),
+			ALBAddr: albProxy.Addr().String(),
+		})
+		require.NoError(t, err)
+		mustFindKubePod(t, tc)
 	})
 }

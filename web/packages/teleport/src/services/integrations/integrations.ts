@@ -20,12 +20,15 @@ import cfg from 'teleport/config';
 import {
   Integration,
   IntegrationCreateRequest,
+  IntegrationUpdateRequest,
   IntegrationStatusCode,
   IntegrationListResponse,
   AwsOidcListDatabasesRequest,
   AwsRdsDatabase,
   ListAwsRdsDatabaseResponse,
   RdsEngineIdentifier,
+  AwsOidcDeployServiceRequest,
+  AwsOidcDeployServiceResponse,
 } from './types';
 
 export const integrationService = {
@@ -43,16 +46,23 @@ export const integrationService = {
     });
   },
 
-  createIntegration(req: IntegrationCreateRequest): Promise<void> {
-    return api.post(cfg.getIntegrationsUrl(), req);
+  createIntegration(req: IntegrationCreateRequest): Promise<Integration> {
+    return api.post(cfg.getIntegrationsUrl(), req).then(makeIntegration);
   },
 
-  updateIntegration(name: string): Promise<void> {
-    return api.put(cfg.getIntegrationsUrl(name));
+  updateIntegration(
+    name: string,
+    req: IntegrationUpdateRequest
+  ): Promise<Integration> {
+    return api.put(cfg.getIntegrationsUrl(name), req).then(makeIntegration);
   },
 
   deleteIntegration(name: string): Promise<void> {
     return api.delete(cfg.getIntegrationsUrl(name));
+  },
+
+  fetchThumbprint(): Promise<string> {
+    return api.get(cfg.api.thumbprintPath);
   },
 
   fetchAwsRdsDatabases(
@@ -83,7 +93,7 @@ export const integrationService = {
         body = {
           ...req,
           rdsType: 'cluster',
-          engines: ['aurora', 'aurora-mysql'],
+          engines: ['aurora-mysql'],
         };
         break;
       case 'aurora-postgres':
@@ -104,6 +114,13 @@ export const integrationService = {
           nextToken: json?.nextToken,
         };
       });
+  },
+
+  deployAwsOidcService(
+    integrationName,
+    req: AwsOidcDeployServiceRequest
+  ): Promise<AwsOidcDeployServiceResponse> {
+    return api.post(cfg.getAwsDeployTeleportServiceUrl(integrationName), req);
   },
 };
 
@@ -141,7 +158,9 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
     uri,
     status: aws?.status,
     labels: labels ?? [],
+    subnets: aws?.rds?.subnets,
     resourceId: aws?.rds?.resource_id,
     accountId: aws?.account_id,
+    region: aws?.region,
   };
 }

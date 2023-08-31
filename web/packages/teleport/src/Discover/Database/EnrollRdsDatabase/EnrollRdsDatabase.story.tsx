@@ -16,10 +16,9 @@
 
 import React from 'react';
 
-import { AwsRdsDatabase } from 'teleport/services/integrations';
-
 import { AwsRegionSelector } from './AwsRegionSelector';
 import { DatabaseList } from './RdsDatabaseList';
+import { CheckedAwsRdsDatabase } from './EnrollRdsDatabase';
 
 export default {
   title: 'Teleport/Discover/Database/EnrollRds',
@@ -28,7 +27,6 @@ export default {
 export const AwsRegionsSelectorDisabled = () => (
   <AwsRegionSelector
     onFetch={() => null}
-    disableFetch={true}
     onRefresh={() => null}
     disableSelector={true}
     clear={() => null}
@@ -38,7 +36,6 @@ export const AwsRegionsSelectorDisabled = () => (
 export const AwsRegionsSelectorEnabled = () => (
   <AwsRegionSelector
     onFetch={() => null}
-    disableFetch={false}
     onRefresh={() => null}
     disableSelector={false}
     clear={() => null}
@@ -48,7 +45,6 @@ export const AwsRegionsSelectorEnabled = () => (
 export const AwsRegionsSelectorRefreshEnabled = () => (
   <AwsRegionSelector
     onFetch={() => null}
-    disableFetch={true}
     onRefresh={() => null}
     disableSelector={false}
     clear={() => null}
@@ -85,7 +81,7 @@ export const RdsDatabaseListLoading = () => (
   />
 );
 
-const fixtures: AwsRdsDatabase[] = [
+const fixtures: CheckedAwsRdsDatabase[] = [
   {
     name: 'postgres-name',
     engine: 'postgres',
@@ -94,6 +90,8 @@ const fixtures: AwsRdsDatabase[] = [
     status: 'available',
     accountId: '',
     resourceId: '',
+    region: 'us-west-2',
+    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'mysql-name',
@@ -103,10 +101,13 @@ const fixtures: AwsRdsDatabase[] = [
     status: 'available',
     accountId: '',
     resourceId: '',
+    dbServerExists: true,
+    region: 'us-west-2',
+    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'alpaca',
-    engine: 'aurora',
+    engine: 'aurora-mysql',
     uri: '',
     labels: [
       { name: 'env', value: 'prod' },
@@ -115,6 +116,8 @@ const fixtures: AwsRdsDatabase[] = [
     status: 'deleting',
     accountId: '',
     resourceId: '',
+    region: 'us-west-2',
+    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'banana',
@@ -124,6 +127,8 @@ const fixtures: AwsRdsDatabase[] = [
     status: 'failed',
     accountId: '',
     resourceId: '',
+    region: 'us-west-2',
+    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'watermelon',
@@ -137,6 +142,9 @@ const fixtures: AwsRdsDatabase[] = [
     status: 'Unknown' as any,
     accountId: '',
     resourceId: '',
+    dbServerExists: true,
+    region: 'us-west-2',
+    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'llama',
@@ -146,5 +154,7 @@ const fixtures: AwsRdsDatabase[] = [
     status: 'available',
     accountId: '',
     resourceId: '',
+    region: 'us-west-2',
+    subnets: ['subnet1', 'subnet2'],
   },
 ];

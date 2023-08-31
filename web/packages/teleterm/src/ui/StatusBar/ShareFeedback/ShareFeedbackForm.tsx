@@ -17,7 +17,7 @@
 import React from 'react';
 import { ButtonIcon, ButtonPrimary, Flex, Link, Text } from 'design';
 import Validation from 'shared/components/Validation';
-import { Close } from 'design/Icon';
+import { Cross } from 'design/Icon';
 
 import { Attempt } from 'shared/hooks/useAsync';
 import * as Alerts from 'design/Alert';
@@ -42,7 +42,7 @@ export function ShareFeedbackForm(props: ShareFeedbackProps) {
     props.submitFeedbackAttempt.status === 'processing';
 
   return (
-    <Flex bg="levels.surfaceSecondary" p={3} borderRadius={3} maxWidth="370px">
+    <Flex bg="levels.elevated" p={3} maxWidth="370px">
       <Validation>
         {({ validator }) => (
           <Flex
@@ -56,16 +56,16 @@ export function ShareFeedbackForm(props: ShareFeedbackProps) {
             }}
           >
             <Flex justifyContent="space-between" mb={2}>
-              <Text typography="h4" bold color="text.primary">
+              <Text typography="h4" bold color="text.main">
                 Provide your feedback
               </Text>
               <ButtonIcon
                 type="button"
                 onClick={props.onClose}
                 title="Close"
-                color="text.secondary"
+                color="text.slightlyMuted"
               >
-                <Close fontSize={5} />
+                <Cross size="medium" />
               </ButtonIcon>
             </Flex>
             <Link

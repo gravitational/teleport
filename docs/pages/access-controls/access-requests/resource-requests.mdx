@@ -13,15 +13,11 @@ under the hood.
 The Access Request API makes it easy to dynamically approve or deny these
 requests.
 
-<ScopedBlock scope={["oss"]}>
-
 Just-in-time Access Requests are a feature of Teleport Enterprise.
 Open-source Teleport users can get a preview of how Access Requests work by
 requesting a role via the Teleport CLI. Full Access Request functionality,
 including Resource Access Requests and an intuitive and searchable UI are
 available in Teleport Enterprise.
-
-</ScopedBlock>
 
 ## Prerequisites
 
@@ -40,6 +36,14 @@ upgraded to version 10.
 </Admonition>
 
 ## Step 1/8. Create the requester role
+
+<Admonition type="note">
+As of version 13.1.2, Teleport comes with built-in `reviewer` and `requester` roles that
+are defined similarly to the ones presented here. If you are looking to quickly try out
+Access Requests, you can skip to step 3 and use these built-in roles. However, if you are
+using an earlier version of Teleport or you are looking to get general guidance for creating
+roles for Access Requests, steps 1 and 2 are still useful.
+</Admonition>
 
 This role allows the requester to search for resources accessible by the
 `access` role (all resources by default) and request access to them.
@@ -571,11 +575,15 @@ the requested node, the hostname will be displayed in the Review Request page of
 the Teleport Web UI.
 
 ### Integrating with an external tool
+
+With Teleport's Access Request plugins, users can manage Access Requests from
+within your organization's existing messaging and project management solutions.
+
 (!docs/pages/includes/access-request-integrations.mdx!)
 
 ### Using TTLs with Access Requests
 
 `tsh request create` supports flags to control TTLs for the request and
 elevated access. See the [CLI
-Reference](../../reference/cli.mdx#tsh-request-create) for more
+Reference](../../reference/cli/tsh.mdx#tsh-request-create) for more
 details.

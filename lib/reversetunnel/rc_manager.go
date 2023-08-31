@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -71,7 +72,7 @@ type RemoteClusterTunnelManagerConfig struct {
 	LocalCluster string
 	// Local ReverseTunnelServer to reach other cluster members connecting to
 	// this proxy over a tunnel.
-	ReverseTunnelServer Server
+	ReverseTunnelServer reversetunnelclient.Server
 	// Clock is a mock-able clock.
 	Clock clockwork.Clock
 	// KubeDialAddr is an optional address of a local kubernetes proxy.
@@ -235,7 +236,7 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 
 		// Configs for remote cluster.
 		Cluster:         cluster,
-		Resolver:        StaticResolver(addr, apitypes.ProxyListenerMode_Separate),
+		Resolver:        reversetunnelclient.StaticResolver(addr, apitypes.ProxyListenerMode_Separate),
 		IsRemoteCluster: true,
 		PROXYSigner:     cfg.PROXYSigner,
 	})

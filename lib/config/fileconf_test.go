@@ -19,6 +19,7 @@ package config
 import (
 	"bytes"
 	"math"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -375,6 +376,9 @@ func TestAuthenticationSection(t *testing.T) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"device_trust": cfgMap{
 						"mode": "required",
+						"ekcert_allowed_cas": []string{
+							"-----BEGIN CERTIFICATE-----\nfake certificate1\n-----END CERTIFICATE-----",
+						},
 					},
 				}
 			},
@@ -382,6 +386,9 @@ func TestAuthenticationSection(t *testing.T) {
 			expected: &AuthenticationConfig{
 				DeviceTrust: &DeviceTrust{
 					Mode: "required",
+					EKCertAllowedCAs: []string{
+						"-----BEGIN CERTIFICATE-----\nfake certificate1\n-----END CERTIFICATE-----",
+					},
 				},
 			},
 		}, {
@@ -641,6 +648,10 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 	})
 
+	tpmEKCertPath := "testdata/tpm_ekcert_ca.pem"
+	tpmEKCertPEM, err := os.ReadFile(tpmEKCertPath)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name       string
 		configYAML []byte
@@ -671,13 +682,50 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 					"device_trust": cfgMap{
 						"mode":        "required",
 						"auto_enroll": "yes",
+						"ekcert_allowed_cas": []string{
+							string(tpmEKCertPEM),
+						},
 					},
 				}
 			}),
 			wantPB: &types.DeviceTrust{
 				Mode:       "required",
 				AutoEnroll: true,
+				EKCertAllowedCAs: []string{
+					string(tpmEKCertPEM),
+				},
 			},
+		},
+		{
+			name: "reads ekcert_allowed_cas from path",
+			configYAML: editConfig(t, func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"device_trust": cfgMap{
+						"ekcert_allowed_cas": []string{
+							tpmEKCertPath,
+						},
+					},
+				}
+			}),
+			wantPB: &types.DeviceTrust{
+				EKCertAllowedCAs: []string{
+					string(tpmEKCertPEM),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid ekcert_allowed_cas entry",
+			configYAML: editConfig(t, func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"device_trust": cfgMap{
+						"ekcert_allowed_cas": []string{
+							"this is not a pem encoded CA",
+						},
+					},
+				}
+			}),
+			wantErr: true,
 		},
 		{
 			name: "auto-enroll invalid",
@@ -900,6 +948,45 @@ func TestDiscoveryConfig(t *testing.T) {
 							"discover_teleport": []string{"yes"},
 						},
 						ProjectIDs: []string{"p1", "p2"},
+					},
+				},
+			},
+		},
+		{
+			desc:          "GCP section is filled with installer",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"gce"},
+						"locations": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"project_ids":      []string{"p1", "p2"},
+						"service_accounts": []string{"a@example.com", "b@example.com"},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				GCPMatchers: []GCPMatcher{
+					{
+						Types:     []string{"gke"},
+						Locations: []string{"eucentral1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+						ProjectIDs:      []string{"p1", "p2"},
+						ServiceAccounts: []string{"a@example.com", "b@example.com"},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: defaults.GCPInviteTokenName,
+								Method:    types.JoinMethodGCP,
+							},
+							ScriptName: installers.InstallerScriptName,
+						},
 					},
 				},
 			},

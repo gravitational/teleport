@@ -25,8 +25,8 @@ import (
 // *************************************************************
 // These should match up when a feature branch is cut, but should be off by
 // one on master
-const branchMajorVersion int = 13
-const latestReleaseVersion int = 12
+const branchMajorVersion int = 14
+const latestReleaseVersion int = 13
 
 func buildPipelineVersions() (string, []string) {
 	branchMajorSemver := fmt.Sprintf("v%d", branchMajorVersion)

@@ -20,12 +20,12 @@ import { Link } from 'react-router-dom';
 import { Text, Box, Flex, ButtonPrimary, ButtonBorder } from 'design';
 import Image from 'design/Image';
 
-import cfg from 'teleport/config';
+import application from 'design/assets/resources/appplication.png';
+import database from 'design/assets/resources/database.png';
+import desktop from 'design/assets/resources/desktop.png';
+import stack from 'design/assets/resources/stack.png';
 
-import application from './assets/appplication.png';
-import database from './assets/database.png';
-import desktop from './assets/desktop.png';
-import stack from './assets/stack.png';
+import cfg from 'teleport/config';
 
 type ResourceType =
   | 'application'
@@ -41,6 +41,8 @@ function getAccentImage(resourceType: ResourceType): string {
     desktop: desktop,
     kubernetes: stack,
     server: stack,
+    // TODO (avatus) update once we have a dedicated image for unified resources
+    unified_resource: stack,
   };
   return accentImages[resourceType];
 }
@@ -58,7 +60,7 @@ export default function Empty(props: Props) {
         mx="auto"
         maxWidth="664px"
         textAlign="center"
-        color="text.primary"
+        color="text.main"
         borderRadius="12px"
       >
         <Text typography="h2" mb="3">
@@ -105,23 +107,30 @@ export default function Empty(props: Props) {
           <Link
             to={{
               pathname: `${cfg.routes.root}/discover`,
-              state: { entity: resourceType },
+              state: {
+                entity: resourceType,
+              },
             }}
             style={{ textDecoration: 'none' }}
           >
-            <ButtonPrimary width="224px">Add {resourceType}</ButtonPrimary>
+            <ButtonPrimary width="224px" textTransform="none">
+              Add Resource
+            </ButtonPrimary>
           </Link>
-          <ButtonBorder
-            size="medium"
-            as="a"
-            href={docsURL}
-            target="_blank"
-            width="224px"
-            ml={4}
-            rel="noreferrer"
-          >
-            View Documentation
-          </ButtonBorder>
+          {docsURL && (
+            <ButtonBorder
+              textTransform="none"
+              size="medium"
+              as="a"
+              href={docsURL}
+              target="_blank"
+              width="224px"
+              ml={4}
+              rel="noreferrer"
+            >
+              View Documentation
+            </ButtonBorder>
+          )}
         </Box>
       </Box>
     </Box>
@@ -130,8 +139,8 @@ export default function Empty(props: Props) {
 
 export type EmptyStateInfo = {
   byline: string;
-  docsURL: string;
-  resourceType: ResourceType;
+  docsURL?: string;
+  resourceType?: ResourceType;
   readOnly: {
     title: string;
     resource: string;

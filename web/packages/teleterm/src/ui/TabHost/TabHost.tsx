@@ -106,7 +106,6 @@ export function TabHost({ ctx }: { ctx: IAppContext }) {
           onContextMenu={handleTabContextMenu}
           activeTab={activeDocument?.uri}
           onMoved={handleTabMoved}
-          disableNew={false}
           onNew={openClusterTab}
           newTabTooltip={getLabelWithAccelerator('New Tab', 'newTab')}
           closeTabTooltip={getLabelWithAccelerator('Close', 'closeTab')}

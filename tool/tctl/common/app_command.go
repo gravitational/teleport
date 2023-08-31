@@ -21,7 +21,7 @@ import (
 	"os"
 	"text/template"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -104,11 +104,11 @@ func (c *AppsCommand) ListApps(ctx context.Context, clt auth.ClientI) error {
 		}
 	}
 
-	coll := &appServerCollection{servers: servers, verbose: c.verbose}
+	coll := &appServerCollection{servers: servers}
 
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout))
+		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
 	case teleport.JSON:
 		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:

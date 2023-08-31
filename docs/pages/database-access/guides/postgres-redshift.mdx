@@ -4,18 +4,17 @@ description: How to configure Teleport database access with AWS Redshift Postgre
 videoBanner: UFhT52d5bYg
 ---
 
-This guide will help you to:
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS Redshift" dbConfigure="AWS Redshift database with IAM authentication" dbName="AWS Redshift" !)
 
-- Install Teleport `(=teleport.version=)`.
-- Set up Teleport to access your AWS Redshift instances.
-- Connect to your databases through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Redshift Self-Hosted](../../../img/database-access/guides/redshift_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access Redshift Cloud](../../../img/database-access/guides/redshift_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -36,34 +35,39 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/token.mdx!)
 
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
+
 Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
 On the node that is running the Database Service, create a configuration file:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --proxy=teleport.example.com:3080 \
    --token=/tmp/token \
    --redshift-discovery=us-west-1
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --proxy=mytenant.teleport.sh:443 \
    --token=/tmp/token \
    --redshift-discovery=us-west-1
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 The command will generate a Database Service configuration with Redshift
 database auto-discovery enabled on the `us-west-1` region and place it at the
@@ -94,7 +98,8 @@ may not propagate immediately and can take a few minutes to come into effect.
 
 ## Step 5/5. Connect
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 Once the Database Service has started and joined the cluster, log in to see the
 registered databases. Replace `--proxy` with the address of your Teleport Proxy
@@ -108,8 +113,8 @@ $ tsh db ls
 # my-redshift Redshift cluster in us-east-1  ...
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 Once the Database Service has started and joined the cluster, log in to see the
 registered databases. Replace `--proxy` with the address of your Teleport Cloud
@@ -123,10 +128,12 @@ $ tsh db ls
 # my-redshift Redshift cluster in us-east-1  ...
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 <Admonition type="note" title="Note">
-  You can override the database name by applying the `teleport.dev/database_name` AWS tag to the resource. The value of the tag will be used as the database name.
+  You can override the database name by applying the `TeleportDatabaseName` AWS tag to the resource. The value of the tag will be used as the database name.
 </Admonition>
 
 To retrieve credentials for a database and connect to it:
@@ -166,3 +173,4 @@ $ tsh db logout my-redshift
 - Learn how to [restrict access](../rbac.mdx) to certain users and databases.
 - View the [High Availability (HA)](../guides/ha.mdx) guide.
 - Take a look at the YAML configuration [reference](../reference/configuration.mdx).
+

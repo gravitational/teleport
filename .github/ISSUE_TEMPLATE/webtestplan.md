@@ -572,15 +572,14 @@ Use Discover Wizard to enroll new resources and access them:
       - Run the program: `$ mc`
       - Resize Teleport Connect to see if the panels resize with it
    - [ ] Verify that the tab automatically closes on `$ exit` command.
-   - [ ] Execute `tsh ssh nonexistent-node` in the command bar. Verify that you see a new tab with an
-     error from tsh ssh.
 - Kubernetes access
    - [ ] Open a new kubernetes tab, run `echo $KUBECONFIG` and check if it points to the file within Connect's app data directory.
-   - [ ] Close the tab and open it again (to the same resource). Verify if the kubeconfig path didn't change.
+   - [ ] Close the tab and open it again (to the same resource). Verify that the kubeconfig path didn't change.
    - [ ] Run `kubectl get pods` and see if the command succeeds.
-   - Verify if the kubeconfig file is removed when the user:
+   - Verify that the kubeconfig file is removed when the user:
       - [ ] Removes the connection
       - [ ] Logs out of the cluster
+      - [ ] Closes Teleport Connect
 - State restoration from disk
    - [ ] Verify that the app asks about restoring previous tabs when launched and restores them
          properly.
@@ -634,23 +633,24 @@ Use Discover Wizard to enroll new resources and access them:
    - [ ] Click "Add another cluster", provide an address to a new cluster and submit the form. Close
      the modal when asked for credentials. Verify that the cluster was still added and is visible in
      the profile selector.
-- Command bar & autocomplete
-   - Do the steps for the root cluster, then switch to a leaf cluster and repeat them.
-   - [ ] Verify that the autocomplete for tsh ssh filters SSH logins and autocompletes them.
-   - [ ] Verify that the autocomplete for tsh ssh filters SSH hosts by name and label and
-     autocompletes them.
-   - [ ] Verify that launching an invalid tsh ssh command shows the error in a new tab.
-   - [ ] Verify that launching a valid tsh ssh command opens a new tab with the session opened.
-   - [ ] Verify that the autocomplete for tsh proxy db filters databases by name and label and
-     autocompletes them.
-   - [ ] Verify that launching a tsh proxy db command opens a new local shell with the command
-     running.
-   - [ ] Verify that the autocomplete for tsh ssh doesn't break when you cut/paste commands in
-     various points.
-   - [ ] Verify that manually typing out what the autocomplete would suggest doesn't break the
-     command bar.
-   - [ ] Verify that launching any other command that's not supported by the autocomplete opens a
-     new local shell with that command running.
+- Search bar
+   - [ ] Verify that you can connect to all three resources types on root clusters and leaf
+     clusters.
+   - [ ] Verify that picking a resource filter and a cluster filter at the same time works as
+     expected.
+   - [ ] Verify that connecting to a resource from a different root cluster switches to the
+     workspace of that root cluster.
+   - Shut down a root cluster.
+      - [ ] Verify that attempting to search returns "Some of the search results are incomplete" in
+        the search bar.
+      - [ ] Verify that clicking "Show details" next to the error message and then closing the modal
+        by clicking one of the buttons or by pressing Escape does not close the search bar.
+   - Log in as a user with a short TTL. Make sure you're not logged in to any other cluster. Wait for
+     the cert to expire. Enter a search term that usually returns some results.
+      - [ ] Relogin when asked. Verify that the search bar is not collapsed and shows search
+        results.
+      - [ ] Close the login modal instead of logging in. Verify that the search bar is not collapsed
+        and shows "No matching results found".
 - Resilience when resources become unavailable
    - DocumentCluster
       - For each scenario, create at least one DocumentCluster tab for each available resource kind.
@@ -701,7 +701,8 @@ Use Discover Wizard to enroll new resources and access them:
       - [ ] Verify that closing the login modal without logging in shows an appropriate error.
    - Log in, create a db connection, then remove access to that db server for that user; wait for
      the cert to expire, then attempt to make a connection through the proxy; log in.
-      - [ ] Verify that the db tab shows an appropriate error.
+      - [ ] Verify that psql shows an appropriate access denied error ("access to db denied. User
+        does not have permissions. Confirm database user and name").
    - Log in, open a cluster tab, wait for the cert to expire. Switch from a servers view to
      databases view.
       - [ ] Verify that a login modal was shown.
@@ -774,6 +775,37 @@ Use Discover Wizard to enroll new resources and access them:
     - Make a syntax error in the file (for example, set `"keymap.tab1": not a string`).
       - [ ] Verify that a notification is displayed saying that the config file was not loaded correctly.
       - [ ] Verify that your config changes were not overridden.
+- Headless auth
+   - Headless auth modal in Connect can be triggered by calling `tsh ls --headless --user=<username>
+     --proxy=<proxy>`. The cluster needs to have webauthn enabled for it to work.
+   - [ ] Verify the basic operations (approve, reject, ignore then accept in the Web UI).
+   - [ ] Make a headless request then cancel the command. Verify that the modal in Connect was
+     closed automatically.
+   - [ ] Make a headless request then accept it in the Web UI. Verify that the modal in Connect was
+     closed automatically.
+   - [ ] Make two concurrent headless requests for the same cluster. Verify that Connect shows the
+     second one after closing the modal for the first request.
+   - [ ] Make two concurrent headless requests for two different clusters. Verify that Connect shows
+     the second one after closing the modal for the first request.
+- tshd-initiated communication
+   - [ ] Create a db connection, wait for the cert to expire. Attempt to connect to the database
+     through CLI. While the login modal is shown, make a headless request. Verify that after logging
+     in again, the app shows the modal for the headless request.
+- Connect My Computer
+   - [ ] Verify the happy path from clean slate (no existing role) setup: set up the node and then
+     connect to it.
+   - Kill the agent while its joining the cluster and verify that the logs from the agent process
+     are shown in the UI.
+      - The easiest way to do this is by following the agent cleanup daemon logs (`tail -F ~/Library/Application\ Support/Teleport\
+        Connect/logs/cleanup.log`) and then `kill -s KILL <agent PID>`.
+      - [ ] During setup.
+      - [ ] After setup in the status view. Verify that the page says that the process exited with
+        SIGKILL.
+   - [ ] Open the node config, change the proxy address to an incorrect one to simulate problems
+     with connection. Verify that the app kills the agent after the agent is not able to join the
+     cluster within the timeout.
+   - [ ] Verify autostart behavior. The agent should automatically start on app start unless it was
+     manually stopped before exiting the app.
 - [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
   `~/Library/Application\ Support/Teleport\ Connect/logs`.
 - [ ] Verify that the password from the login form is not saved in the renderer log.

@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -36,12 +36,6 @@ import (
 func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-
-	svr := newTestTLSServer(t)
-	authServer := svr.Auth()
-	mfa := configureForMFA(t, svr)
-	username := mfa.User
-	password := mfa.Password
 
 	tests := []struct {
 		name            string
@@ -107,13 +101,13 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 					AppID: "https://myoldappid.com",
 				},
 				Webauthn: &types.Webauthn{
-					RPID: "myexplicitid",
+					RPID: "localhost",
 				},
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
-				require.Equal(t, "myexplicitid", challenge.GetWebauthnChallenge().GetPublicKey().GetRpId())
+				require.Equal(t, "localhost", challenge.GetWebauthnChallenge().GetPublicKey().GetRpId())
 			},
 		},
 		{
@@ -146,7 +140,16 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			svr := newTestTLSServer(t)
+			authServer := svr.Auth()
+			mfa := configureForMFA(t, svr)
+			username := mfa.User
+			password := mfa.Password
+
 			authPreference, err := types.NewAuthPreference(*test.spec)
 			require.NoError(t, err)
 			require.NoError(t, authServer.SetAuthPreference(ctx, authPreference))
@@ -450,7 +453,7 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 
 				switch {
 				case resp.GetWebauthn() != nil:
-					authReq.Webauthn = wanlib.CredentialAssertionResponseFromProto(resp.GetWebauthn())
+					authReq.Webauthn = wantypes.CredentialAssertionResponseFromProto(resp.GetWebauthn())
 				case resp.GetTOTP() != nil:
 					authReq.OTP = &OTPCreds{
 						Password: []byte(password),
@@ -534,14 +537,14 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	require.NoError(t, err)
 	pwdKey.SetPasswordless()
 	const origin = "https://localhost"
-	ccr, err := pwdKey.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(registerChallenge.GetWebauthn()))
+	ccr, err := pwdKey.SignCredentialCreation(origin, wantypes.CredentialCreationFromProto(registerChallenge.GetWebauthn()))
 	require.NoError(t, err)
 	_, err = userClient.AddMFADeviceSync(ctx, &proto.AddMFADeviceSyncRequest{
 		TokenID:       token.GetName(),
 		NewDeviceName: "pwdless1",
 		NewMFAResponse: &proto.MFARegisterResponse{
 			Response: &proto.MFARegisterResponse_Webauthn{
-				Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 			},
 		},
 	})
@@ -564,11 +567,11 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	tests := []struct {
 		name         string
 		loginHooks   []LoginHook
-		authenticate func(t *testing.T, resp *wanlib.CredentialAssertionResponse)
+		authenticate func(t *testing.T, resp *wantypes.CredentialAssertionResponse)
 	}{
 		{
 			name: "ssh",
-			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
+			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 					AuthenticateUserRequest: AuthenticateUserRequest{
 						Webauthn:  resp,
@@ -588,7 +591,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 				loginHook,
 				loginHook,
 			},
-			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
+			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 					AuthenticateUserRequest: AuthenticateUserRequest{
 						Webauthn:  resp,
@@ -604,7 +607,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 		},
 		{
 			name: "web",
-			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
+			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
 				session, err := proxyClient.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 					Webauthn: resp,
 				})
@@ -617,7 +620,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			loginHooks: []LoginHook{
 				loginHook,
 			},
-			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
+			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
 				session, err := proxyClient.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 					Webauthn: resp,
 				})
@@ -638,7 +641,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			_, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: AuthenticateUserRequest{
 					Username:  user,
-					Webauthn:  &wanlib.CredentialAssertionResponse{}, // bad response
+					Webauthn:  &wantypes.CredentialAssertionResponse{}, // bad response
 					PublicKey: []byte(sshPubKey),
 				},
 				TTL: 24 * time.Hour,
@@ -657,7 +660,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			require.NoError(t, err, "Failed to create passwordless challenge")
 
 			// Sign challenge (mocks user interaction).
-			assertionResp, err := pwdKey.SignAssertion(origin, wanlib.CredentialAssertionFromProto(mfaChallenge.GetWebauthnChallenge()))
+			assertionResp, err := pwdKey.SignAssertion(origin, wantypes.CredentialAssertionFromProto(mfaChallenge.GetWebauthnChallenge()))
 			require.NoError(t, err)
 			assertionResp.AssertionResponse.UserHandle = userWebID // identify user, a real device would set this
 
@@ -724,7 +727,7 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			}
 			switch {
 			case mfaResp.GetWebauthn() != nil:
-				req.Webauthn = wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn())
+				req.Webauthn = wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn())
 			case mfaResp.GetTOTP() != nil:
 				req.OTP = &OTPCreds{
 					Password: []byte(password),
@@ -761,37 +764,34 @@ func TestServer_Authenticate_headless(t *testing.T) {
 
 	for _, tc := range []struct {
 		name      string
+		timeout   time.Duration
 		update    func(*types.HeadlessAuthentication, *types.MFADevice)
 		expectErr bool
 	}{
 		{
-			name: "OK approved",
+			name:    "OK approved",
+			timeout: 10 * time.Second,
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 				ha.MfaDevice = mfa
 			},
 		}, {
-			name: "NOK approved without MFA",
+			name:    "NOK approved without MFA",
+			timeout: 10 * time.Second,
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 			},
 			expectErr: true,
 		}, {
-			name: "NOK user mismatch",
-			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
-				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
-				ha.MfaDevice = mfa
-				ha.User = "other-user"
-			},
-			expectErr: true,
-		}, {
-			name: "NOK denied",
+			name:    "NOK denied",
+			timeout: 10 * time.Second,
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
 			},
 			expectErr: true,
 		}, {
 			name:      "NOK timeout",
+			timeout:   100 * time.Millisecond,
 			update:    func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {},
 			expectErr: true,
 		},
@@ -813,7 +813,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: AuthenticateUserRequest{
 					Username:  username,
-					Webauthn:  &wanlib.CredentialAssertionResponse{}, // bad response
+					Webauthn:  &wantypes.CredentialAssertionResponse{}, // bad response
 					PublicKey: []byte(sshPubKey),
 				},
 				TTL: 24 * time.Hour,
@@ -823,7 +823,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, attempts, "Want at least one failed login attempt")
 
-			ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			ctx, cancel := context.WithTimeout(ctx, tc.timeout)
 			defer cancel()
 
 			// Start a goroutine to catch the headless authentication attempt and update with test case values.
@@ -831,7 +831,13 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			go func() {
 				defer close(errC)
 
-				headlessAuthn, err := srv.Auth().GetHeadlessAuthentication(ctx, headlessID)
+				err := srv.Auth().UpsertHeadlessAuthenticationStub(ctx, username)
+				if err != nil {
+					errC <- err
+					return
+				}
+
+				headlessAuthn, err := srv.Auth().GetHeadlessAuthenticationFromWatcher(ctx, username, headlessID)
 				if err != nil {
 					errC <- err
 					return
@@ -851,7 +857,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				AuthenticateUserRequest: AuthenticateUserRequest{
 					// HeadlessAuthenticationID should take precedence over WebAuthn and OTP fields.
 					HeadlessAuthenticationID: headlessID,
-					Webauthn:                 &wanlib.CredentialAssertionResponse{},
+					Webauthn:                 &wantypes.CredentialAssertionResponse{},
 					OTP:                      &OTPCreds{},
 					Username:                 username,
 					PublicKey:                []byte(sshPubKey),

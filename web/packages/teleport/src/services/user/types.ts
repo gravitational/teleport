@@ -37,6 +37,7 @@ export interface UserContext {
   accessCapabilities: AccessCapabilities;
   // accessRequestId is the ID of the access request from which additional roles to assume were obtained for the current session.
   accessRequestId?: string;
+  allowedSearchAsRoles: string[];
 }
 
 export interface Access {
@@ -77,6 +78,10 @@ export interface Acl {
   plugins: Access;
   integrations: AccessWithUse;
   deviceTrust: Access;
+  lock: Access;
+  assist: Access;
+  samlIdpServiceProvider: Access;
+  accessList: Access;
 }
 
 export interface User {

@@ -17,7 +17,10 @@ limitations under the License.
 package utils
 
 import (
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,4 +53,89 @@ func TestGetAnyHeader(t *testing.T) {
 	require.Equal(t, "a1", GetAnyHeader(header, "aaa"))
 	require.Equal(t, "a1", GetAnyHeader(header, "ccc", "aaa"))
 	require.Equal(t, "b1", GetAnyHeader(header, "bbb", "aaa"))
+}
+
+func TestGetSingleHeader(t *testing.T) {
+	t.Run("NoValue", func(t *testing.T) {
+		t.Parallel()
+		headers := make(http.Header)
+
+		result, err := GetSingleHeader(headers, "key")
+		require.Empty(t, result)
+		require.Error(t, err)
+	})
+	t.Run("SingleValue", func(t *testing.T) {
+		t.Parallel()
+		headers := make(http.Header)
+		key := "key"
+		value := "value"
+		headers.Set(key, value)
+
+		result, err := GetSingleHeader(headers, key)
+		require.NoError(t, err)
+		require.Equal(t, value, result)
+	})
+	t.Run("DuplicateValue", func(t *testing.T) {
+		t.Parallel()
+		headers := make(http.Header)
+		key := "key"
+		value := "value1"
+		headers.Add(key, value)
+		headers.Add(key, "value2")
+
+		result, err := GetSingleHeader(headers, key)
+		require.Empty(t, result)
+		require.Error(t, err)
+	})
+	t.Run("DuplicateCaseValue", func(t *testing.T) {
+		t.Parallel()
+		headers := make(http.Header)
+		key := "key"
+		value := "value1"
+		headers.Add(key, value)
+		headers.Add(strings.ToUpper(key), "value2")
+
+		result, err := GetSingleHeader(headers, key)
+		require.Empty(t, result)
+		require.Error(t, err)
+	})
+}
+
+func TestChainHTTPMiddlewares(t *testing.T) {
+	baseHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("baseHandler"))
+	})
+
+	middleware2 := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("middleware2->"))
+			next.ServeHTTP(w, r)
+		})
+	}
+	middleware4 := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("middleware4->"))
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	handler := ChainHTTPMiddlewares(
+		baseHandler,
+		nil,
+		middleware2,
+		NoopHTTPMiddleware,
+		middleware4,
+	)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("", "/", nil)
+	handler.ServeHTTP(w, r)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, "middleware4->middleware2->baseHandler", string(body))
 }

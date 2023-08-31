@@ -72,7 +72,7 @@ their control planes are always compatible with the current version targeted by 
 The current `cloud-stable` target version will be served via an `s3` bucket backed by CloudFront. Ex:
 
 ```
-$ VERSION="$(curl --proto '=https' --tlsv1.2 -sSf https://update.gravitational.io/v1/cloud-stable/version)"
+$ VERSION="$(curl --proto '=https' --tlsv1.2 -sSf https://updates.releases.teleport.dev/v1/cloud/stable/version)"
 ```
 
 Formally, this will be the only definition of what the current "cloud-stable" target is. An agent "downgrade" will
@@ -90,7 +90,7 @@ Rollout of a new version to cloud-stable will generally follow the following ste
 agents that have yet to be upgraded. I.e. if cloud-stable targets `v1` at `T1`, then the control plane must maintain
 compatibility with `v1` until at least `T1 + grace_period`.
 
-Note that in practice, wether or not the ordering/timing of the above steps matters depends entirely on what changes
+Note that in practice, whether or not the ordering/timing of the above steps matters depends entirely on what changes
 were made between versions. Most minor/patch releases don't actually require this kind of procedure, tho its best to
 assume that the procedure is required unless we are rolling out a critical bug fix that was specifically designed to
 be self-contained.
@@ -123,8 +123,8 @@ is treated as non-critical.
 Example usage:
 
 ```bash
-VERSION="$(curl --proto '=https' --tlsv1.2 -sSf https://update.gravitational.io/v1/cloud-stable/version)"
-CRITICAL="$(curl --proto '=https' --tlsv1.2 -sSf https://update.gravitational.io/v1/cloud-stable/critical)"
+VERSION="$(curl --proto '=https' --tlsv1.2 -sSf https://updates.releases.teleport.dev/v1/cloud/stable/version)"
+CRITICAL="$(curl --proto '=https' --tlsv1.2 -sSf https://updates.releases.teleport.dev/v1/cloud/stable/critical)"
 
 if [[ "$CRITICAL" == "yes" || "$UPGRADE_WINDOW" == "yes" ]]
 then
@@ -325,6 +325,52 @@ the major version channel corresponding to the current control plane version.
 The current implementation of the `node-join` script template relies upon direct downloads from `get.gravitational.com`. This will need
 to be changed to follow the same pattern of registering a release channel and installing via package manager, as is currently employed
 by ec2 discovery.
+
+
+### AWS OIDC - Deploy Service Agents (Amazon ECS with Fargate)
+
+When Teleport Discover flow is used to connect an RDS, a Teleport agent is automatically provisioned using ECS Fargate. The automatic update
+functionality for regular agents depends on systemd or Kubernetes. Fargate agents run in containers, so that means the existing automatic
+update functionality is not compatible with these agents. We need a separate method of keeping these Fargate agents updated.
+
+To keep Fargate agents updated, Teleport will run a separate task on the Proxy service. We're choosing to run the task on the Proxy over the
+Auth service because this task is not a critical service for Teleport. The task checks every 30 minutes for an available update and uses the
+ECS Fargate API to update Teleport agents. This task does not need to be run on all Teleport clusters. It will only be needed if the
+`TELEPORT_AUTOMATIC_UPGRADES` environment variable is enabled. The window when Fargate agents are updated should also coincide with the
+maintenance window. If there is a simple way to identify unhealthy agents, they can be updated outside of the maintenance window, but
+otherwise, the agent will just be updated during the next maintenance window.
+
+The logic flow will look like the same as the core update model:
+
+- If there is a critical update, attempt update
+- If an agent is unhealthy, attempt update
+- If within maintenance window, attempt update
+
+For getting the region, let's iterate over all Databases, filter for RDS ones and extract the AWS.Region.
+For each unique Region, we will call the APIs (DescribeCluster/DescribeServices)
+
+To query for available ECS clusters Teleport will iterate over all databases filtering for RDS, and then extract the AWS.Region. For each
+unique region, we can use [ListClusters](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs#Client.ListClusters) and
+[ListServices](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs#Client.ListServices) to list available ECS clusters and services.
+
+[DescribeClusters](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs#Client.DescribeClusters) and
+[DescribeServices](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs#Client.DescribeServices) provide information about the
+clusters and services. The cluster and service names are deterministic and the information returned from the API also include tags which can
+help identify if the cluster was created by Teleport using the DeployService.
+
+[DescribeTaskDefinition](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs#Client.DescribeTaskDefinition) and
+[RegisterTaskDefinition](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs#Client.RegisterTaskDefinition) can be used to pull the
+latest definition and recreate a new task with an updated container image version. Everything else must stay the same.
+
+To carry out the actual update of a Fargate agent, a new ECS service will be created with the desired version, then the old ECS service will
+be shutdown. The workflow will require the [CreateService](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs#Client.CreateService),
+and [DeleteService](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs#Client.DeleteService) ECS API calls.
+
+We may be able to utilize the [ServicesStableWaiter](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs#ServicesStableWaiter) and
+[ServicesInactiveWaiter](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs#ServicesInactiveWaiter) to handle failover and graceful
+shutdown. ServicesActiveWaiter waits on a condition to be met before returning. This can be used to wait for a new agent to be healthy, and
+either rollback the update or retry the update if the new agent fails to become healthy. ServicesInactiveWaiter does the same thing and
+waits for a condition to be met before returning. This can be used to wait for the existing agent to shutdown before being deleted.
 
 
 ### Documentation Changes

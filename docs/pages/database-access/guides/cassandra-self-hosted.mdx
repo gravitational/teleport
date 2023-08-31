@@ -13,18 +13,17 @@ description: How to configure Teleport database access with Cassandra and Scylla
   Database access for Cassandra & ScyllaDB is available starting from Teleport `v11.0`.
 </Details>
 
-This guide will help you to:
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Cassandra or ScyllaDB" dbConfigure="Cassandra or ScyllaDB with mutual TLS authentication" dbName="Cassandra or ScyllaDB" !)
 
-- Install and configure Teleport.
-- Set up Teleport to access your self-hosted Cassandra or ScyllaDB.
-- Connect to your database through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Cassandra Self-Hosted](../../../img/database-access/guides/cassandra_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access Cassandra Cloud](../../../img/database-access/guides/cassandra_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -142,28 +141,31 @@ Follow the instructions for your database to enable TLS communication with your 
 Once the Database Service has joined the cluster, log in to see the available
 databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
   ```code
-  $ tsh login --proxy=teleport.example.com --user=testuser
+  $ tsh login --proxy=teleport.example.com --user=alice
   $ tsh db ls
   # Name      Description       Allowed Users Labels  Connect
   # --------- ----------------- ------------- ------- -------
   # cassandra Cassandra Example [*]           env=dev
   ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
   ```code
-  $ tsh login --proxy=mytenant.teleport.sh --user=testuser
+  $ tsh login --proxy=mytenant.teleport.sh --user=alice
   $ tsh db ls
   # Name      Description       Allowed Users Labels  Connect
   # --------- ----------------- ------------- ------- -------
   # cassandra Cassandra Example [*]           env=dev
   ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To connect to a particular database instance :
 ```code
@@ -187,3 +189,4 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

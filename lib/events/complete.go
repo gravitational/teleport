@@ -68,7 +68,7 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter ClusterName")
 	}
 	if cfg.Component == "" {
-		cfg.Component = teleport.ComponentAuth
+		cfg.Component = teleport.ComponentProcess
 	}
 	if cfg.CheckPeriod == 0 {
 		cfg.CheckPeriod = AbandonedUploadPollingRate
@@ -140,12 +140,16 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
+	u.log.Infof("upload completer will run every %v", u.cfg.CheckPeriod.String())
 
 	for {
 		select {
 		case <-periodic.Next():
-			if err := u.CheckUploads(ctx); err != nil {
-				u.log.WithError(err).Warningf("Failed to check uploads.")
+			if err := u.CheckUploads(ctx); trace.IsAccessDenied(err) {
+				u.log.Warn("Teleport does not have permission to list uploads. " +
+					"The upload completer will be unable to complete uploads of partial session recordings.")
+			} else if err != nil {
+				u.log.WithError(err).Warn("Failed to check uploads.")
 			}
 		case <-u.closeC:
 			return nil

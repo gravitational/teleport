@@ -92,7 +92,21 @@ export function getStatusCodeDescription(
 
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
 export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend
-export type PluginKind = 'slack';
+// PluginKind represents the type of the plugin
+// and should be the same value as defined in the backend (check master branch for the latest):
+// https://github.com/gravitational/teleport/blob/a410acef01e0023d41c18ca6b0a7b384d738bb32/api/types/plugin.go#L27
+export type PluginKind =
+  | 'slack'
+  | 'openai'
+  | 'pagerduty'
+  | 'email'
+  | 'jira'
+  | 'discord'
+  | 'mattermost'
+  | 'msteams'
+  | 'opsgenie'
+  | 'okta'
+  | 'jamf';
 
 export type IntegrationCreateRequest = {
   name: string;
@@ -144,7 +158,6 @@ export type Regions = keyof typeof awsRegionMap;
 // used when requesting lists of rds databases of the
 // specified engine.
 export type RdsEngine =
-  | 'aurora' // (for MySQL 5.6-compatible Aurora)
   | 'aurora-mysql' // (for MySQL 5.7-compatible and MySQL 8.0-compatible Aurora)
   | 'aurora-postgresql'
   | 'mariadb'
@@ -188,6 +201,10 @@ export type AwsRdsDatabase = {
   accountId: string;
   // labels contains this Instance tags.
   labels: Label[];
+  // subnets is a list of subnets for the RDS instance.
+  subnets: string[];
+  // region is the AWS cloud region that this database is from.
+  region: Regions;
   // status contains this Instance status.
   // There is a lot of status states available so only a select few were
   // hard defined to use to determine the status color.
@@ -200,4 +217,33 @@ export type ListAwsRdsDatabaseResponse = {
   // nextToken is the start key for the next page.
   // Empty value means last page.
   nextToken?: string;
+};
+
+export type IntegrationUpdateRequest = {
+  awsoidc: {
+    roleArn: string;
+  };
+};
+
+export type AwsOidcDeployServiceRequest = {
+  deploymentMode: 'database-service';
+  region: Regions;
+  subnetIds: string[];
+  taskRoleArn: string;
+  databaseAgentMatcherLabels: Label[];
+};
+
+export type AwsOidcDeployServiceResponse = {
+  // clusterArn is the Amazon ECS Cluster ARN
+  // where the task was started.
+  clusterArn: string;
+  // serviceArn is the Amazon ECS Cluster Service
+  // ARN created to run the task.
+  serviceArn: string;
+  // taskDefinitionArn is the Amazon ECS Task Definition
+  // ARN created to run the Service.
+  taskDefinitionArn: string;
+  // serviceDashboardUrl is a link to the service's Dashboard
+  // URL in Amazon Console.
+  serviceDashboardUrl: string;
 };

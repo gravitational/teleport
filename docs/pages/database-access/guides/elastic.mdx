@@ -13,7 +13,7 @@ description: How to configure Teleport database access with Elasticsearch.
   Database access for Elasticsearch is available starting from Teleport `10.3`.
 </Details>
 
-This guide will help you to configure secured access to an Elasticsearch database using the Teleport Database Service.
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Elasticsearch" dbConfigure="Self-hosted Elasticsearch with mutual TLS authentication" dbName="Elasticsearch" !)
 
 ## Prerequisites
 
@@ -21,10 +21,9 @@ This guide will help you to configure secured access to an Elasticsearch databas
 
 - A self-hosted Elasticsearch database. Elastic Cloud [does not support client certificates](https://www.elastic.co/guide/en/cloud/current/ec-restrictions.html#ec-restrictions-security), which are required for setting up the Database Service.
 
-- A host where you will run the Teleport Database Service. If you are already running the Teleport
-  Database Service, you must ensure that it uses Teleport version 10.3 or newer in order to connect
-  to Elasticsearch. <ScopedBlock scope={["oss", "enterprise"]}> This can also be the same instance
-  of Teleport running your Auth and/or Proxy service(s).</ScopedBlock>
+- A host where you will run the Teleport Database Service. If you are already
+  running the Teleport Database Service, you must ensure that it uses Teleport
+  version 10.3 or newer in order to connect to Elasticsearch.
 
   See [Installation](../../installation.mdx) for details.
 
@@ -79,7 +78,7 @@ $ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.exa
 '
 ```
 
-<Details title="Role Mapping with wildcards" opened={false}>
+<Details title="Role Mapping with wildcards">
 
 In a scenario where Teleport is using [single sign-on](../../access-controls/sso.mdx) you may want to define a mapping for all users to a role:
 

@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/trace"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/web/mfajson"
@@ -229,6 +229,12 @@ func decodePNG2Frame(in byteReader) (PNG2Frame, error) {
 		return PNG2Frame{}, trace.Wrap(err)
 	}
 
+	// prevent allocation of giant buffers.
+	// this also avoids panic for pngLength ~ 4294967295 due to overflow.
+	if pngLength > maxPNGFrameDataLength {
+		return PNG2Frame{}, trace.BadParameter("pngLength too big: %v", pngLength)
+	}
+
 	// Allocate buffer that will fit PNG2Frame message
 	// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#27---png-frame-2
 	// message type (1) + png length (4) + left, right, top, bottom (4 x 4) + data => 21 + data
@@ -250,7 +256,7 @@ func (f PNG2Frame) Encode() ([]byte, error) {
 	// Encode gets called on the reusable buffer at
 	// lib/srv/desktop/rdp/rdclient.Client.png2FrameBuffer,
 	// which was causing us recording problems due to the async
-	// nature of AuditWriter. Copying into a new buffer here is
+	// nature of SessionWriter. Copying into a new buffer here is
 	// a temporary hack that fixes that.
 	//
 	// TODO(isaiah, zmb3): remove this once a buffer pool
@@ -550,7 +556,7 @@ func (m MFA) Encode() ([]byte, error) {
 	} else if m.MFAAuthenticateResponse != nil {
 		switch t := m.MFAAuthenticateResponse.Response.(type) {
 		case *authproto.MFAAuthenticateResponse_Webauthn:
-			buff, err = json.Marshal(wanlib.CredentialAssertionResponseFromProto(m.MFAAuthenticateResponse.GetWebauthn()))
+			buff, err = json.Marshal(wantypes.CredentialAssertionResponseFromProto(m.MFAAuthenticateResponse.GetWebauthn()))
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -590,6 +596,8 @@ func DecodeMFA(in byteReader) (*MFA, error) {
 	if length > maxMFADataLength {
 		_, _ = io.CopyN(io.Discard, in, int64(length))
 		return nil, mfaDataMaxLenErr
+	} else if length == 0 {
+		return nil, trace.BadParameter("mfa data missing")
 	}
 
 	b := make([]byte, int(length))
@@ -630,6 +638,8 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 
 	if length > maxMFADataLength {
 		return nil, trace.BadParameter("mfa challenge data exceeds maximum length")
+	} else if length == 0 {
+		return nil, trace.BadParameter("mfa challenge data missing")
 	}
 
 	b := make([]byte, int(length))
@@ -637,17 +647,14 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var req *client.MFAAuthenticateChallenge
+	var req client.MFAAuthenticateChallenge
 	if err := json.Unmarshal(b, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &MFA{
 		Type:                     mt,
-		MFAAuthenticateChallenge: req,
+		MFAAuthenticateChallenge: &req,
 	}, nil
 }
 
@@ -661,6 +668,8 @@ type SharedDirectoryAnnounce struct {
 func (s SharedDirectoryAnnounce) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryAnnounce))
+	// TODO(isaiah): The discard here allows fuzz tests to succeed, it should eventually be done away with.
+	writeUint32(buf, 0) // discard
 	writeUint32(buf, s.DirectoryID)
 	if err := encodeString(buf, s.Name); err != nil {
 		return nil, trace.Wrap(err)
@@ -669,11 +678,15 @@ func (s SharedDirectoryAnnounce) Encode() ([]byte, error) {
 }
 
 func decodeSharedDirectoryAnnounce(in io.Reader) (SharedDirectoryAnnounce, error) {
-	var completionID, directoryID uint32
-	err := binary.Read(in, binary.BigEndian, &completionID)
+	// TODO(isaiah): The discard here is a copy-paste error, but we need to keep it
+	// for now in order that the proxy stay compatible with previous versions of the wds.
+	var discard uint32
+	err := binary.Read(in, binary.BigEndian, &discard)
 	if err != nil {
 		return SharedDirectoryAnnounce{}, trace.Wrap(err)
 	}
+
+	var directoryID uint32
 	err = binary.Read(in, binary.BigEndian, &directoryID)
 	if err != nil {
 		return SharedDirectoryAnnounce{}, trace.Wrap(err)
@@ -897,7 +910,6 @@ func decodeSharedDirectoryCreateRequest(in io.Reader) (SharedDirectoryCreateRequ
 		FileType:     fileType,
 		Path:         path,
 	}, nil
-
 }
 
 // SharedDirectoryCreateResponseis sent by the TDP client to the server with information from an executed SharedDirectoryCreateRequest.
@@ -1298,7 +1310,6 @@ func decodeSharedDirectoryWriteRequest(in byteReader, maxLen uint32) (SharedDire
 		WriteDataLength: writeDataLength,
 		WriteData:       writeData,
 	}, nil
-
 }
 
 // SharedDirectoryWriteResponse is a message sent by the TDP client to the server
@@ -1448,17 +1459,22 @@ func writeUint64(b *bytes.Buffer, v uint64) {
 	b.WriteByte(byte(v))
 }
 
-// tdpMaxNotificationMessageLength is somewhat arbitrary, as it is only sent *to*
-// the browser (Teleport never receives this message, so won't be decoding it)
-const tdpMaxNotificationMessageLength = 10240
+const (
+	// tdpMaxNotificationMessageLength is somewhat arbitrary, as it is only sent *to*
+	// the browser (Teleport never receives this message, so won't be decoding it)
+	tdpMaxNotificationMessageLength = 10240
 
-// tdpMaxPathLength is somewhat arbitrary because we weren't able to determine
-// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465
-// The limit is kept as an additional defense-in-depth measure.
-const tdpMaxPathLength = 10240
+	// tdpMaxPathLength is somewhat arbitrary because we weren't able to determine
+	// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465
+	// The limit is kept as an additional defense-in-depth measure.
+	tdpMaxPathLength = 10240
 
-const maxClipboardDataLength = 1024 * 1024    // 1MB
-const tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
+	maxClipboardDataLength    = 1024 * 1024 // 1MB
+	tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
+)
+
+// maxPNGFrameDataLength is maximum data length for PNG2Frame
+const maxPNGFrameDataLength = 10 * 1024 * 1024 // 10MB
 
 // These correspond to TdpErrCode enum in the rust RDP client.
 const (

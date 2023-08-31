@@ -24,6 +24,7 @@ package scp
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -415,7 +416,7 @@ func (cmd *command) serveSink(ch io.ReadWriter) error {
 	for {
 		n, err := ch.Read(b[:])
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return trace.Wrap(err)

@@ -13,29 +13,18 @@ the stability of Teleport from a security perspective.
 
 ## Can Teleport be deployed in agentless mode?
 
-Yes.
+Yes. All Teleport services support agentless mode, where the service proxies
+traffic to an upstream infrastructure resource not available on `localhost`.
 
 With Teleport in agentless mode, you can easily control access to SSH servers,
-Kubernetes clusters, desktops, databases, and internal applications without running any
-additional software on your servers. Agentless mode supports session recordings
-and audit logs for deep understanding into user behavior.
+Kubernetes clusters, desktops, databases, and internal applications without
+running any additional software on your servers. Agentless mode supports session
+recordings and audit logs for deep understanding into user behavior.
 
-For capabilities such as kernel-level logging and user provisioning,
-we recommend Teleport as a drop in replacement for OpenSSH. Since Teleport
-replaces the OpenSSH agent while preserving OpenSSH's functionality, you get
-more functionality without a net addition of an agent on your system.
-
-Here are details about running each of Teleport's resource services in agentless
-mode. All resource services except for the Node/SSH Service act as proxies for
-client traffic:
-
-|Service|Supports agent mode|Supports agentless mode|Notes|
-|---|---|---|---|
-|[Application Service](./application-access/introduction.mdx)|&#10004;|&#10004;|Proxies HTTP requests to a user-configured list of applications, which can run on the same host as the `teleport` daemon or at a remote endpoint.|
-|[Database Service](./database-access/introduction.mdx)|&#10004;|&#10004;|Proxies database-specific protocol traffic to a user-configured list of databases, which can run on the same host as the `teleport` daemon or at a remote endpoint.|
-|[Kubernetes Service](./kubernetes-access/introduction.mdx)|&#10006;|&#10004;|Proxies client traffic to the API server of a registered Kubernetes cluster.|
-|[Node/SSH Service](./server-access/introduction.mdx)|&#10004;|&#10004;|You can configure OpenSSH clients and servers to trust Teleport's CA. See our [OpenSSH guide](./server-access/guides/openssh.mdx).<br/><br/>For full functionality, you can run the Node Service, which implements SSH, on each server in your infrastructure.|
-|[Windows Desktop Service](./desktop-access/introduction.mdx)|&#10006;|&#10004;|Proxies RDP traffic from client browsers to remote Windows servers.|
+For capabilities such as kernel-level logging and user provisioning, we
+recommend Teleport as a drop in replacement for OpenSSH. Since Teleport replaces
+the OpenSSH agent while preserving OpenSSH's functionality, you get more
+functionality without a net addition of an agent on your system.
 
 ## Can I use OpenSSH with a Teleport cluster?
 
@@ -54,7 +43,7 @@ Yes. When running a Teleport agent, use the `--auth-server` flag to point to the
 Proxy Service address (this would be `public_addr` and `web_listen_addr` in your
 file configuration). For more information, see
 [Adding Nodes to the
-Cluster](./management/join-services-to-your-cluster/join-token.mdx).
+Cluster](./agents/join-services-to-your-cluster/join-token.mdx).
 
 ## Can Nodes use a single port for reverse tunnels?
 
@@ -63,18 +52,41 @@ Yes, Teleport supports tunnel multiplexing on a single port. Set the
 setting in the `proxy_service` configuration. Teleport will automatically use
 multiplexing with that configuration.
 
+## Can I copy files from one Teleport node to another?
+
+Yes, Teleport supports [Headless WebAuthn authentication](./access-controls/guides/headless.mdx),
+which allows you to perform operations like `tsh ssh` or `tsh scp` from remote systems where you
+are not logged in to Teleport or may not have access to a browser.
+
 ## I'm getting `ssh: subsystem request failed` while I try to copy files, what to do?
 
 Make sure that all Teleport components are at least at version 10.3.0. Older versions
 don't support the SFTP protocol, and it's enabled by default in `tsh` v11.0.0 and OpenSSH v9.0.
 
+## `tsh` is very slow on Windows, what to do?
+
+If your host machine is joined to an Active Directory domain, you might find user lookups take a
+lot longer than you expect. The number of Active Directory accounts that must be scanned to
+perform a user lookup can cause tsh to hang waiting to get information about the current user.
+To fix this issue, you can use environment variables to set default account information for your 
+Teleport user. If you are experiencing long lookup times on Windows, do the following:
+
+- Make sure `tsh` is at least at version 12.2.4.
+- Either set the `TELEPORT_USER` environment variable or set the `--user` flag to the name of your Teleport user.
+- Either set the `TELEPORT_LOGIN` environment variable or set the `--login` flag to the name of current host user. This setting can be overridden if you open a new SSH session on a machine as a different user.
+- Set the `TELEPORT_HOME` environment variable to be the home directory of your current host user + `\.tsh`. For example, if your home directory is `C:\Users\Me`, you'd set `TELEPORT_HOME` to `C:\Users\Me\.tsh`.
+
+You can set these environment variables globally in Windows so that you don't have to set them every
+time you run `tsh`.
+
 ## How is Open Source different from Enterprise?
 
-Teleport provides three editions:
+Teleport provides four editions:
 
-- Open Source
-- Enterprise
-- Cloud
+- Teleport Team
+- Teleport Enterprise
+- Teleport Enterprise Cloud
+- Teleport Community Edition
 
 Here is a detailed breakdown of the differences between Teleport's editions.
 
@@ -92,9 +104,9 @@ Here are the major versions of Teleport and their support windows:
 
 | Release | Release Date     | EOL          | Minimum `tsh` version|
 |---------|------------------|--------------|----------------------|
+| v13.0   | May 8, 2023      | February 2024| v12.x.x              |
 | v12.0   | Feb 6, 2023      | November 2023| v11.x.x              |
-| v11.0   | October 24, 2022 | July 2023    | v10.x.x              |
-| v10.0   | July 8, 2022     | April 2023   | v9.x.x               |
+| v11.0   | October 24, 2022 | September 2023 | v10.x.x              |
 
 See our [Upgrading](./management/operations/upgrading.mdx) guide for more
 information.
@@ -125,6 +137,12 @@ users to upgrade.
 This check is performed against all cluster components, including the Proxy
 Service and Auth Service, as well as agents running other Teleport Services.
 
+## What is the minimum TLS version that Teleport requires?
+
+Teleport requires a minimum of TLS version 1.2.
+
+This means that when applications and clients establish or accept TLS connections with Teleport processes, they must use TLS 1.2 or a higher protocol version. Teleport enforces this requirement in all operations that involve TLS connections.
+
 ## Can I suppress warnings about available upgrades?
 
 Yes. The `tctl alerts ack` command can be used to acknowledge an alert and
@@ -133,7 +151,7 @@ you need its ID. You can get a listing of all alerts and their IDs with the
 `tctl alerts list` command.
 
 For detailed information on this family of commands, see the
-[CLI Reference](./reference/cli.mdx#tctl-alerts-list).
+[CLI Reference](./reference/cli/tctl.mdx#tctl-alerts-list).
 
 ## Does Teleport send any data back to the cloud?
 

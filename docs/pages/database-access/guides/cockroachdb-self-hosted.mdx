@@ -3,28 +3,17 @@ title: Database Access with Self-Hosted CockroachDB
 description: How to configure Teleport database access with self-hosted CockroachDB.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="8.0"
->
-  CockroachDB support is available starting from Teleport `8.0`.
-</Details>
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="CockroachDB" dbConfigure="CockroachDB with mutual TLS authentication" dbName="CockroachDB" !)
 
-This guide will help you to:
-
-1. Install Teleport and connect it to a CockroachDB cluster.
-2. Configure mutual TLS authentication between Teleport and your CockroachDB cluster.
-3. Connect to your CockroachDB cluster via Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access CockroachDB Self-Hosted](../../../img/database-access/guides/cockroachdb_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access CockroachDB Cloud](../../../img/database-access/guides/cockroachdb_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -177,3 +166,4 @@ $ tsh db logout roach
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
 - [CockroachDB client authentication](https://www.cockroachlabs.com/docs/stable/authentication.html#client-authentication)
+

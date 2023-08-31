@@ -43,7 +43,7 @@ import { AgentStepProps } from '../../types';
 import {
   ActionButtons,
   HeaderSubtitle,
-  HeaderWithBackBtn,
+  Header,
   Mark,
   ResourceKind,
   TextIcon,
@@ -56,11 +56,11 @@ const SHOW_HINT_TIMEOUT = 1000 * 60 * 5; // 5 minutes
 export default function Container(props: AgentStepProps) {
   return (
     <CatchError
-      onRetry={() => clearCachedJoinTokenResult(ResourceKind.Server)}
+      onRetry={() => clearCachedJoinTokenResult([ResourceKind.Server])}
       fallbackFn={fbProps => (
         <Template prevStep={props.prevStep} nextStep={() => null}>
           <TextIcon mt={2} mb={3}>
-            <Icons.Warning ml={1} color="error.main" />
+            <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
             Encountered Error: {fbProps.error.message}
           </TextIcon>
         </Template>
@@ -85,7 +85,7 @@ export default function Container(props: AgentStepProps) {
 
 export function DownloadScript(props: AgentStepProps) {
   // Fetches join token.
-  const { joinToken } = useJoinTokenSuspender(ResourceKind.Server);
+  const { joinToken } = useJoinTokenSuspender([ResourceKind.Server]);
   // Starts resource querying interval.
   const { result, active } = usePingTeleport<Node>(joinToken);
 
@@ -125,8 +125,8 @@ export function DownloadScript(props: AgentStepProps) {
         </Text>
 
         <Text mb={3}>
-          - The Teleport SSH Service could not join this Teleport cluster. Check
-          the logs for errors by running <Mark>journalctl -fu teleport</Mark>.
+          - The Teleport Service could not join this Teleport cluster. Check the
+          logs for errors by running <Mark>journalctl -fu teleport</Mark>.
         </Text>
 
         <Text>
@@ -146,7 +146,7 @@ export function DownloadScript(props: AgentStepProps) {
             white-space: pre;
           `}
         >
-          <Icons.Restore fontSize={4} />
+          <Icons.Restore size="medium" mr={2} />
         </TextIcon>
         After running the command above, we'll automatically detect your new
         Teleport instance.
@@ -156,11 +156,9 @@ export function DownloadScript(props: AgentStepProps) {
 
   return (
     <>
-      <HeaderWithBackBtn onPrev={props.prevStep}>
-        Configure Resource
-      </HeaderWithBackBtn>
+      <Header>Configure Resource</Header>
       <HeaderSubtitle>
-        Install and configure the Teleport SSH Service.
+        Install and configure the Teleport Service.
         <br />
         Run the following command on the server you want to add.
       </HeaderSubtitle>
@@ -170,7 +168,11 @@ export function DownloadScript(props: AgentStepProps) {
         />
       </CommandBox>
       {hint}
-      <ActionButtons onProceed={handleNextStep} disableProceed={!result} />
+      <ActionButtons
+        onProceed={handleNextStep}
+        disableProceed={!result}
+        onPrev={props.prevStep}
+      />
     </>
   );
 }
@@ -186,16 +188,18 @@ const Template = ({
 }) => {
   return (
     <>
-      <HeaderWithBackBtn onPrev={prevStep}>
-        Configure Resource
-      </HeaderWithBackBtn>
+      <Header>Configure Resource</Header>
       <HeaderSubtitle>
-        Install and configure the Teleport SSH Service.
+        Install and configure the Teleport Service.
         <br />
         Run the following command on the server you want to add.
       </HeaderSubtitle>
       <CommandBox>{children}</CommandBox>
-      <ActionButtons onProceed={nextStep} disableProceed={true} />
+      <ActionButtons
+        onProceed={nextStep}
+        disableProceed={true}
+        onPrev={prevStep}
+      />
     </>
   );
 };

@@ -107,7 +107,9 @@ Just like roles, role templates are valid YAML and validate both the structure
 and types.
 
 The role template `devs` is using the `internal` notation to refer to the local user's
-traits `logins` and `kubernetes_groups`.
+traits `logins` and `kubernetes_groups`. The `internal` notation only supports a limited
+set of predefined traits.  Use the `external.<trait-name>` syntax if using a custom trait
+with a local user.
 
 Use `tctl` to create a role template:
 
@@ -150,7 +152,8 @@ $ tctl create -f traits.yaml
 Once Alice logs in, she will receive SSH and X.509 certificates with
 a new role. SSH logins and Kubernetes groups will also be set:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -166,8 +169,8 @@ $ tsh login --proxy=teleport.example.com --user=alice
 #  Extensions:         permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -183,7 +186,9 @@ $ tsh login --proxy=mytenant.teleport.sh --user=alice
 #  Extensions:         permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## SSO users
 
@@ -258,7 +263,8 @@ $ tctl create -f github.yaml
 Once Bob logs in using SSO, he will receive SSH and X.509 certificates with
 a new role and SSH logins generated using  the `sso-users` role template:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --auth=github
@@ -274,8 +280,8 @@ $ tsh login --proxy=teleport.example.com --auth=github
 #  Extensions:         permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --auth=github
@@ -291,7 +297,9 @@ $ tsh login --proxy=mytenant.teleport.sh --auth=github
 #  Extensions:         permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Interpolation rules
 
@@ -330,7 +338,7 @@ spec:
 
     # Functions transform variables.
     database_users: ['{{email.local(external.email)}}']
-    database_labels:
+    db_labels:
       'env': '{{regexp.replace(external.access["env"], "^(staging)$", "$1")}}'
 
     # Labels can mix template and hard-coded values.
@@ -370,7 +378,7 @@ spec:
     database_users: ['alice']
 
     # The function regexp.replace will transform and filter only matching values.
-    database_labels:
+    db_labels:
       'env': 'staging'
 
     # Node labels have 'env' replaced from a variable and 'region' hard-coded.
@@ -438,3 +446,4 @@ In this case, Alice would be allowed to request access to the RBAC roles `access
 role list) and `alpha-admin` and `beta-admin` (from the `claims_to_roles` mapping).
 
 The same syntax applies for Review Requests.
+

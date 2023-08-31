@@ -23,6 +23,7 @@
         "clusterRoleBindingName",
         "roleName",
         "roleBindingName",
+        "podMonitor",
         "serviceAccountName",
         "secretName",
         "log",
@@ -292,8 +293,8 @@
             "type": "string",
             "default": "public.ecr.aws/gravitational/teleport-distroless"
         },
-        "entrepriseImage": {
-            "$id": "#/properties/entrepriseImage",
+        "enterpriseImage": {
+            "$id": "#/properties/enterpriseImage",
             "type": "string",
             "default": "public.ecr.aws/gravitational/teleport-ent-distroless"
         },
@@ -365,6 +366,29 @@
                     "$id": "#/properties/highAvailability/properties/requireAntiAffinity",
                     "type": "boolean",
                     "default": false
+                }
+            }
+        },
+        "podMonitor": {
+            "$id": "#/properties/podMonitor",
+            "type": "object",
+            "required": ["enabled"],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/podMonitor/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "additionalLabels": {
+                    "$id": "#/properties/podMonitor/additionalLabels",
+                    "type": "object",
+                    "default": {"prometheus": "default"},
+                    "additionalProperties": {"type": "string"}
+                },
+                "interval": {
+                    "$id": "#/properties/podMonitor/interval",
+                    "type": "string",
+                    "default": "30s"
                 }
             }
         },
@@ -504,6 +528,7 @@
                 "config",
                 "deployment",
                 "pod",
+                "secret",
                 "serviceAccount"
             ],
             "properties": {
@@ -519,6 +544,11 @@
                 },
                 "pod": {
                     "$id": "#/properties/annotations/properties/pod",
+                    "type": "object",
+                    "default": {}
+                },
+                "secret": {
+                    "$id": "#/properties/annotations/properties/secret",
                     "type": "object",
                     "default": {}
                 },
@@ -578,6 +608,11 @@
             "type": "array",
             "default": []
         },
+        "hostAliases": {
+            "$id": "#/properties/hostAliases",
+            "type": "array",
+            "default": []
+        },
         "imagePullPolicy": {
             "$id": "#/properties/imagePullPolicy",
             "type": "string",
@@ -607,6 +642,34 @@
             "$id": "#/properties/probeTimeoutSeconds",
             "type": "integer",
             "default": 1
+        },
+        "kubernetesDiscovery": {
+            "$id": "#/properties/kubernetesDiscovery",
+            "type": "array",
+            "default": [],
+            "properties": {
+                "types": {
+                    "$id": "#/properties/kubernetesDiscovery/types",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                },
+                "namespaces": {
+                    "$id": "#/properties/kubernetesDiscovery/namespaces",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                },
+                "labels": {
+                    "$id": "#/properties/kubernetesDiscovery/labels",
+                    "type": "object"
+                },
+                "additionalProperties": false
+            }
         }
     }
 }

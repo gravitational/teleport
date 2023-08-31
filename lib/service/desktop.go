@@ -33,7 +33,9 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/utils"
@@ -108,7 +110,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	// Dialed out to a proxy, start servicing the reverse tunnel as a listener.
 	case useTunnel && cfg.WindowsDesktop.ListenAddr.IsEmpty():
 		// create an adapter, from reversetunnel.ServerHandler to net.Listener.
-		shtl := reversetunnel.NewServerHandlerToListener(reversetunnel.LocalWindowsDesktop)
+		shtl := reversetunnel.NewServerHandlerToListener(reversetunnelclient.LocalWindowsDesktop)
 		listener = shtl
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
@@ -156,6 +158,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
+		Logger:      log,
 		// Device authorization breaks browser-based access.
 		DisableDeviceAuthorization: true,
 	})
@@ -242,17 +245,30 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	process.RegisterCriticalFunc("windows_desktop.serve", func() error {
 		if useTunnel {
 			log.Info("Starting Windows desktop service via proxy reverse tunnel.")
-			utils.Consolef(cfg.Console, log, teleport.ComponentWindowsDesktop,
-				"Windows desktop service %s:%s is starting via proxy reverse tunnel.",
-				teleport.Version, teleport.Gitref)
 		} else {
 			log.Infof("Starting Windows desktop service on %v.", listener.Addr())
-			utils.Consolef(cfg.Console, log, teleport.ComponentWindowsDesktop,
-				"Windows desktop service %s:%s is starting on %v.",
-				teleport.Version, teleport.Gitref, listener.Addr())
 		}
 		process.BroadcastEvent(Event{Name: WindowsDesktopReady, Payload: nil})
-		err := srv.Serve(listener)
+
+		mux, err := multiplexer.New(multiplexer.Config{
+			Context:                     process.ExitContext(),
+			Listener:                    listener,
+			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+			ID:                          teleport.Component(teleport.ComponentWindowsDesktop),
+			CertAuthorityGetter:         accessPoint.GetCertAuthority,
+			LocalClusterName:            clusterName,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		go func() {
+			if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+				mux.Entry.WithError(err).Error("mux encountered err serving")
+			}
+		}()
+
+		err = srv.Serve(mux.TLS())
 		if err != nil {
 			if err == http.ErrServerClosed {
 				return nil

@@ -15,11 +15,13 @@ on:
       - 'docs/**'
       - 'web/**'
       - 'rfd/**'
+      - '**/*.md*'
   merge_group:
    paths:
       - 'docs/**'
       - 'web/**'
       - 'rfd/**'
+      - '**/*.md*'
 
 jobs:
   build:

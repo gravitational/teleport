@@ -10,10 +10,10 @@ lint:
     - COMMENT_RPC
     - COMMENT_SERVICE
   except:
-   # Allow Google API-style responses (CreateFoo returns Foo).
-   # See https://cloud.google.com/apis/design/standard_methods.
-   - RPC_REQUEST_RESPONSE_UNIQUE
-   - RPC_RESPONSE_STANDARD_NAME
+    # Allow Google API-style responses (CreateFoo returns Foo).
+    # See https://cloud.google.com/apis/design/standard_methods.
+    - RPC_REQUEST_RESPONSE_UNIQUE
+    - RPC_RESPONSE_STANDARD_NAME
   ignore:
     # "legacy" lib protos.
     - teleport/lib/multiplexer/test/ping.proto
@@ -33,7 +33,7 @@ lint:
       - teleport/lib/teleterm/v1/service.proto
     # TODO(ravicious): Fix protos and re-enable lib/teleterm lint rules below.
     RPC_REQUEST_STANDARD_NAME:
-      - teleport/lib/teleterm
+      - teleport/lib/teleterm/v1/service.proto
     # TODO(espadolini): Fix protos and re-enable prehog lint rules below.
     COMMENT_MESSAGE:
       - teleport/lib/teleterm
@@ -44,4 +44,4 @@ lint:
       - prehog
 breaking:
   use:
-    - FILE
+    - WIRE_JSON

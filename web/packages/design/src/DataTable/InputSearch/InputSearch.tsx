@@ -56,10 +56,7 @@ const ChildWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${props =>
-    props.theme.name === 'dark'
-      ? props.theme.colors.spotBackground[0]
-      : props.theme.colors.spotBackground[0]};
+  background: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 200px;
 `;
 
@@ -71,7 +68,7 @@ const ChildWrapperBackground = styled.div`
   align-items: center;
   justify-content: center;
   background: ${props =>
-    props.theme.name === 'dark'
+    props.theme.type === 'dark'
       ? props.theme.colors.levels.surface
       : props.theme.colors.levels.deep};
   border-radius: 200px;
@@ -111,21 +108,21 @@ const StyledInput = styled.input`
 
 function fromTheme(props) {
   return {
-    color: props.theme.colors.text.primary,
+    color: props.theme.colors.text.main,
     background:
-      props.theme.name === 'dark'
+      props.theme.type === 'dark'
         ? props.theme.colors.levels.sunken
         : props.theme.colors.levels.deep,
 
     '&:hover, &:focus, &:active': {
-      color: props.theme.colors.text.primary,
+      color: props.theme.colors.text.main,
       background:
-        props.theme.name === 'dark'
+        props.theme.type === 'dark'
           ? props.theme.colors.spotBackground[0]
           : props.theme.colors.levels.sunken,
     },
     '&::placeholder': {
-      color: props.theme.colors.text.placeholder,
+      color: props.theme.colors.text.muted,
       fontSize: props.theme.fontSizes[1],
     },
   };

@@ -35,6 +35,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
@@ -67,9 +68,8 @@ type Engine struct {
 	// RoundTrippers is a cache of RoundTrippers, mapped by service endpoint.
 	// It is not guarded by a mutex, since requests are processed serially.
 	RoundTrippers map[string]http.RoundTripper
-	// GetSigningCredsFn allows to set the function responsible for obtaining STS credentials.
-	// Used in tests to set static AWS credentials and skip API call.
-	GetSigningCredsFn libaws.GetSigningCredentialsFunc
+	// CredentialsGetter is used to obtain STS credentials.
+	CredentialsGetter libaws.CredentialsGetter
 }
 
 var _ common.Engine = (*Engine)(nil)
@@ -128,6 +128,7 @@ func (e *Engine) SendError(err error) {
 // HandleConnection authorizes the incoming client connection, connects to the
 // target DynamoDB server and starts proxying requests between client/server.
 func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error {
+	observe := common.GetConnectionSetupTimeObserver(e.sessionCtx.Database)
 	err := e.checkAccess(ctx, e.sessionCtx)
 	e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
 	if err != nil {
@@ -141,22 +142,28 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 		return trace.Wrap(err)
 	}
 	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
-		Clock:                 e.Clock,
-		Session:               awsSession,
-		GetSigningCredentials: e.GetSigningCredsFn,
+		Clock:             e.Clock,
+		Session:           awsSession,
+		CredentialsGetter: e.CredentialsGetter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	clientConnReader := bufio.NewReader(e.clientConn)
+
+	observe()
+
+	msgFromClient := common.GetMessagesFromClientMetric(e.sessionCtx.Database)
+	msgFromServer := common.GetMessagesFromServerMetric(e.sessionCtx.Database)
+
 	for {
 		req, err := http.ReadRequest(clientConnReader)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := e.process(ctx, req, signer); err != nil {
+		if err := e.process(ctx, req, signer, msgFromClient, msgFromServer); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -164,7 +171,9 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 
 // process reads request from connected dynamodb client, processes the requests/responses and sends data back
 // to the client.
-func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.SigningService) (err error) {
+func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.SigningService, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) (err error) {
+	msgFromClient.Inc()
+
 	if req.Body != nil {
 		// make sure we close the incoming request's body. ignore any close error.
 		defer req.Body.Close()
@@ -228,6 +237,8 @@ func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.
 	}
 	defer resp.Body.Close()
 	responseStatusCode = uint32(resp.StatusCode)
+
+	msgFromServer.Inc()
 
 	return trace.Wrap(e.sendResponse(resp))
 }

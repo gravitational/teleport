@@ -226,7 +226,10 @@ func orgUsesExternalSSO(ctx context.Context, endpointURL, org string, client htt
 	// supports external SSO. There doesn't seem to be any way to get this
 	// information from the Github REST API without being an owner of the
 	// Github organization, so check if this exists instead.
-	ssoURL := fmt.Sprintf("%s/orgs/%s/sso", endpointURL, url.PathEscape(org))
+	ssoURL, err := url.JoinPath(endpointURL, "orgs", url.PathEscape(org), "sso")
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
 
 	const retries = 3
 	var resp *http.Response
@@ -368,6 +371,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 
 	auth, err := m.validateGithubAuthCallback(ctx, diagCtx, q)
 	diagCtx.Info.Error = trace.UserMessage(err)
+	event.AppliedLoginRules = diagCtx.Info.AppliedLoginRules
 
 	diagCtx.WriteToBackend(ctx)
 
@@ -555,19 +559,14 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 	// Get the Github organizations the user is a member of so we don't
 	// make unnecessary API requests
-	endpointURL, err := url.Parse(connector.GetEndpointURL())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	apiEndpointURL, err := url.Parse(connector.GetAPIEndpointURL())
+	apiEndpoint, err := buildAPIEndpoint(connector.GetAPIEndpointURL())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	ghClient := &githubAPIClient{
-		token:               token.AccessToken,
-		authServer:          a,
-		endpointHostname:    endpointURL.Host,
-		apiEndpointHostname: apiEndpointURL.Host,
+		token:       token.AccessToken,
+		authServer:  a,
+		apiEndpoint: apiEndpoint,
 	}
 	userResp, err := ghClient.getUser()
 	if err != nil {
@@ -599,7 +598,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
-	params, err := a.calculateGithubUser(ctx, connector, claims, req)
+	params, err := a.calculateGithubUser(ctx, diagCtx, connector, claims, req)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
@@ -647,6 +646,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 			Traits:     user.GetTraits(),
 			SessionTTL: params.SessionTTL,
 			LoginTime:  a.clock.Now().UTC(),
+			LoginIP:    req.ClientLoginIP,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")
@@ -685,6 +685,21 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	return &auth, nil
 }
 
+// buildAPIEndpoint takes a URL of a GitHub API endpoint and returns only
+// the joined host and path.
+func buildAPIEndpoint(apiEndpointURLStr string) (string, error) {
+	apiEndpointURL, err := url.Parse(apiEndpointURLStr)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	apiEndpoint, err := url.JoinPath(apiEndpointURL.Host, apiEndpointURL.Path)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return apiEndpoint, nil
+}
+
 // CreateUserParams is a set of parameters used to create a user for an
 // external identity provider.
 type CreateUserParams struct {
@@ -710,7 +725,7 @@ type CreateUserParams struct {
 	SessionTTL time.Duration
 }
 
-func (a *Server) calculateGithubUser(ctx context.Context, connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*CreateUserParams, error) {
+func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContext, connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*CreateUserParams, error) {
 	p := CreateUserParams{
 		ConnectorName: connector.GetName(),
 		Username:      claims.Username,
@@ -736,6 +751,7 @@ func (a *Server) calculateGithubUser(ctx context.Context, connector types.Github
 		return nil, trace.Wrap(err)
 	}
 	p.Traits = evaluationOutput.Traits
+	diagCtx.Info.AppliedLoginRules = evaluationOutput.AppliedRules
 
 	// Kube groups and users are ultimately only set in the traits, not any
 	// other property of the User. In case the login rules changed the relevant
@@ -847,11 +863,9 @@ type githubAPIClient struct {
 	token string
 	// authServer points to the Auth Server.
 	authServer *Server
-	// endpointHostname is the Github hostname to connect to.
-	endpointHostname string
-	// apiEndpointHostname is the API endpoint of the Github instance
+	// apiEndpoint is the API endpoint of the Github instance
 	// to connect to.
-	apiEndpointHostname string
+	apiEndpoint string
 }
 
 // userResponse represents response from "user" API call
@@ -963,7 +977,7 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 
 // get makes a GET request to the provided URL using the client's token for auth
 func (c *githubAPIClient) get(page string) ([]byte, string, error) {
-	request, err := http.NewRequest("GET", formatGithubURL(c.apiEndpointHostname, page), nil)
+	request, err := http.NewRequest("GET", formatGithubURL(c.apiEndpoint, page), nil)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -977,7 +991,7 @@ func (c *githubAPIClient) get(page string) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	if response.StatusCode != 200 {
+	if response.StatusCode != http.StatusOK {
 		return nil, "", trace.AccessDenied("bad response: %v %v",
 			response.StatusCode, string(bytes))
 	}

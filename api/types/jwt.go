@@ -47,9 +47,6 @@ func (p *GenerateAppTokenRequest) Check() error {
 	if p.Username == "" {
 		return trace.BadParameter("username missing")
 	}
-	if len(p.Roles) == 0 {
-		return trace.BadParameter("roles missing")
-	}
 	if p.Expires.IsZero() {
 		return trace.BadParameter("expires missing")
 	}

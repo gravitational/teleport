@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -43,8 +42,6 @@ type Application interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the app dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// String returns string representation of the app.
 	String() string
 	// GetDescription returns the app description.
@@ -73,6 +70,10 @@ type Application interface {
 	GetAWSAccountID() string
 	// GetAWSExternalID returns the AWS External ID configured for this app.
 	GetAWSExternalID() string
+	// GetUserGroups will get the list of user group IDs associated with the application.
+	GetUserGroups() []string
+	// SetUserGroups will set the list of user group IDs associated with the application.
+	SetUserGroups([]string)
 	// Copy returns a copy of this app resource.
 	Copy() *AppV3
 }
@@ -117,6 +118,16 @@ func (a *AppV3) GetResourceID() int64 {
 // SetResourceID sets the app resource ID.
 func (a *AppV3) SetResourceID(id int64) {
 	a.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (a *AppV3) GetRevision() string {
+	return a.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (a *AppV3) SetRevision(rev string) {
+	a.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns the app resource metadata.
@@ -196,11 +207,6 @@ func (a *AppV3) GetLabel(key string) (value string, ok bool) {
 // GetAllLabels returns the app combined static and dynamic labels.
 func (a *AppV3) GetAllLabels() map[string]string {
 	return CombineLabels(a.Metadata.Labels, a.Spec.DynamicLabels)
-}
-
-// LabelsString returns all app labels as a string.
-func (a *AppV3) LabelsString() string {
-	return LabelsAsString(a.Metadata.Labels, a.Spec.DynamicLabels)
 }
 
 // GetDescription returns the app description.
@@ -290,6 +296,16 @@ func (a *AppV3) GetAWSExternalID() string {
 	return a.Spec.AWS.ExternalID
 }
 
+// GetUserGroups will get the list of user group IDss associated with the application.
+func (a *AppV3) GetUserGroups() []string {
+	return a.Spec.UserGroups
+}
+
+// SetUserGroups will set the list of user group IDs associated with the application.
+func (a *AppV3) SetUserGroups(userGroups []string) {
+	a.Spec.UserGroups = userGroups
+}
+
 // String returns the app string representation.
 func (a *AppV3) String() string {
 	return fmt.Sprintf("App(Name=%v, PublicAddr=%v, Labels=%v)",
@@ -298,7 +314,7 @@ func (a *AppV3) String() string {
 
 // Copy returns a copy of this database resource.
 func (a *AppV3) Copy() *AppV3 {
-	return proto.Clone(a).(*AppV3)
+	return utils.CloneProtoMsg(a)
 }
 
 // MatchSearch goes through select field values and tries to
@@ -350,15 +366,18 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		host = url.Host
 	}
 
-	// DEPRECATED DELETE IN 14.0 use KubeTeleportProxyALPNPrefix check only.
-	if strings.HasPrefix(host, constants.KubeSNIPrefix) {
-		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
-			constants.KubeSNIPrefix, a.Spec.PublicAddr)
-	}
-
 	if strings.HasPrefix(host, constants.KubeTeleportProxyALPNPrefix) {
 		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
 			constants.KubeTeleportProxyALPNPrefix, a.Spec.PublicAddr)
+	}
+
+	if a.Spec.Rewrite != nil {
+		switch a.Spec.Rewrite.JWTClaims {
+		case "", JWTClaimsRewriteRolesAndTraits, JWTClaimsRewriteRoles, JWTClaimsRewriteNone:
+		default:
+			return trace.BadParameter("app %q has unexpected JWT rewrite value %q", a.GetName(), a.Spec.Rewrite.JWTClaims)
+
+		}
 	}
 
 	return nil

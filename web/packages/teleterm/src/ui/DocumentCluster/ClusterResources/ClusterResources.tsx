@@ -19,6 +19,7 @@ import styled from 'styled-components';
 import { Flex } from 'design';
 
 import { useClusterContext } from 'teleterm/ui/DocumentCluster/clusterContext';
+import { ConnectMyComputerNavigationMenu } from 'teleterm/ui/ConnectMyComputer';
 
 import SideNav from './SideNav';
 import Servers from './Servers';
@@ -40,8 +41,11 @@ export default function ClusterResources() {
 
   return (
     <StyledMain>
-      <Flex mt={3} flexDirection="column">
-        <SideNav mb={2} />
+      <Flex pb={5} flexDirection="column">
+        <Flex justifyContent="space-between">
+          <SideNav mb={2} />
+          <ConnectMyComputerNavigationMenu clusterUri={clusterCtx.clusterUri} />
+        </Flex>
         <HorizontalSplit>
           {clusterCtx.isLocationActive('/resources/servers') && <Servers />}
           {clusterCtx.isLocationActive('/resources/databases') && <Databases />}

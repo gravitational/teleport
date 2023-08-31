@@ -15,15 +15,16 @@
 package types
 
 import (
-	proto "github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 func (d *MFADevice) WithoutSensitiveData() (*MFADevice, error) {
 	if d == nil {
 		return nil, trace.BadParameter("cannot hide sensitive data on empty object")
 	}
-	out := proto.Clone(d).(*MFADevice)
+	out := utils.CloneProtoMsg(d)
 
 	switch mfad := out.Device.(type) {
 	case *MFADevice_Totp:

@@ -31,8 +31,10 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Metadata contains the instance "system" metadata.
@@ -55,6 +57,8 @@ type Metadata struct {
 	ContainerOrchestrator string
 	// CloudEnvironment advertises the cloud environment for the instance, if any (e.g. "aws").
 	CloudEnvironment string
+	// CloudMetadata contains extra metadata about the instance's cloud environment, if any.
+	CloudMetadata *types.CloudMetadata
 }
 
 // fetchConfig contains the configuration used by the FetchMetadata method.
@@ -72,6 +76,10 @@ type fetchConfig struct {
 	// httpDo is the method called to perform an http request.
 	// It is configurable so that it can be mocked in tests.
 	httpDo func(req *http.Request, insecureSkipVerify bool) (*http.Response, error)
+	// getCloudMetadata is the method called to get additional info about an
+	// instance running in a cloud environment.
+	// It is configurable so that it can be mocked in tests.
+	fetchCloudMetadata func(ctx context.Context, cloudEnvironment string) *types.CloudMetadata
 }
 
 // setDefaults sets the values of several methods used to read files, execute
@@ -109,11 +117,30 @@ func (c *fetchConfig) setDefaults() {
 			return client.Do(req)
 		}
 	}
+	if c.fetchCloudMetadata == nil {
+		c.fetchCloudMetadata = func(ctx context.Context, cloudEnvironment string) *types.CloudMetadata {
+			switch cloudEnvironment {
+			case "aws":
+				iid, err := utils.GetEC2InstanceIdentityDocument(ctx)
+				if err != nil {
+					return nil
+				}
+				return &types.CloudMetadata{
+					AWS: &types.AWSInfo{
+						AccountID:  iid.AccountID,
+						InstanceID: iid.InstanceID,
+					},
+				}
+			default:
+				return nil
+			}
+		}
+	}
 }
 
 // fetch fetches all metadata.
 func (c *fetchConfig) fetch(ctx context.Context) *Metadata {
-	return &Metadata{
+	metadata := &Metadata{
 		OS:                    c.fetchOS(),
 		OSVersion:             c.fetchOSVersion(),
 		HostArchitecture:      c.fetchHostArchitecture(),
@@ -123,6 +150,8 @@ func (c *fetchConfig) fetch(ctx context.Context) *Metadata {
 		ContainerOrchestrator: c.fetchContainerOrchestrator(ctx),
 		CloudEnvironment:      c.fetchCloudEnvironment(ctx),
 	}
+	metadata.CloudMetadata = c.fetchCloudMetadata(ctx, metadata.CloudEnvironment)
+	return metadata
 }
 
 // fetchOS returns the value of GOOS.
@@ -150,6 +179,9 @@ func (c *fetchConfig) fetchInstallMethods() []string {
 	if c.systemctlInstallMethod() {
 		installMethods = append(installMethods, "systemctl")
 	}
+	if c.awsoidcDeployServiceInstallMethod() {
+		installMethods = append(installMethods, "awsoidc_deployservice")
+	}
 	return installMethods
 }
 
@@ -169,6 +201,13 @@ func (c *fetchConfig) helmKubeAgentInstallMethod() bool {
 // install-node.sh script.
 func (c *fetchConfig) nodeScriptInstallMethod() bool {
 	return c.boolEnvIsTrue("TELEPORT_INSTALL_METHOD_NODE_SCRIPT")
+}
+
+// awsoidcDeployServiceInstallMethod returns true if the instance was installed using
+// the DeployService action of the AWS OIDC integration.
+// This install method uses Amazon ECS with Fargate deployment method.
+func (c *fetchConfig) awsoidcDeployServiceInstallMethod() bool {
+	return c.boolEnvIsTrue(types.InstallMethodAWSOIDCDeployServiceEnvVar)
 }
 
 // systemctlInstallMethod returns true if the instance is running using systemctl.
@@ -274,12 +313,37 @@ func (c *fetchConfig) fetchCloudEnvironment(ctx context.Context) string {
 // the instance is running on AWS.
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
 func (c *fetchConfig) awsHTTPGetSuccess(ctx context.Context) bool {
-	url := "http://169.254.169.254/latest/meta-data/"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	url := "http://169.254.169.254/latest/api/token"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, nil)
 	if err != nil {
 		return false
 	}
 
+	req.Header.Add("X-aws-ec2-metadata-token-ttl-seconds", "300")
+
+	const insecureSkipVerify = false
+	resp, err := c.httpDo(req, insecureSkipVerify)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	imdsToken, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false
+	}
+
+	if resp.StatusCode != http.StatusOK || imdsToken == nil {
+		return false
+	}
+
+	url = "http://169.254.169.254/latest/meta-data/"
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return false
+	}
+
+	req.Header.Add("X-aws-ec2-metadata-token", string(imdsToken))
 	return c.httpReqSuccess(req)
 }
 
@@ -347,7 +411,7 @@ func (c *fetchConfig) httpReqSuccess(req *http.Request) bool {
 // boolEnvIsTrue returns true if the environment variable is set to a value
 // that represent true (e.g. true, yes, y, ...).
 func (c *fetchConfig) boolEnvIsTrue(name string) bool {
-	b, err := utils.ParseBool(c.getenv(name))
+	b, err := apiutils.ParseBool(c.getenv(name))
 	if err != nil {
 		return false
 	}

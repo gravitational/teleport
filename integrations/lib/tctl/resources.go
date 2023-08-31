@@ -18,6 +18,7 @@ package tctl
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 
 	"github.com/ghodss/yaml"
@@ -52,7 +53,7 @@ func readResourcesYAMLOrJSON(r io.Reader) ([]types.Resource, error) {
 		var res streamResource
 		err := decoder.Decode(&res)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, trace.Wrap(err)
@@ -88,7 +89,7 @@ func (res *streamResource) UnmarshalJSON(raw []byte) error {
 		}
 	case types.KindRole:
 		switch header.Version {
-		case types.V4, types.V5, types.V6:
+		case types.V4, types.V5, types.V6, types.V7:
 			resource = &types.RoleV6{}
 		default:
 			return trace.BadParameter("unsupported resource version %s", header.Version)

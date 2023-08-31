@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Flex } from 'design';
 
-import { icons } from 'teleport/Discover/SelectResource/icons';
+import { DiscoverIcon } from 'teleport/Discover/SelectResource/icons';
 
 import { StepList } from './StepList';
 
@@ -53,7 +53,7 @@ export function StepItem(props: StepItemProps) {
       <StepsContainer>
         <StepTitle>
           {getBulletIcon({
-            Icon: icons[props.selectedResource.icon],
+            Icon: <DiscoverIcon name={props.selectedResource.icon} />,
           })}
           {props.selectedResource.name}
         </StepTitle>
@@ -164,7 +164,7 @@ const CheckedBullet = styled(Bullet)`
 const StepsContainer = styled.div<{ active: boolean }>`
   display: flex;
   flex-direction: column;
-  color: ${p => (p.active ? 'inherit' : p.theme.colors.text.secondary)};
+  color: ${p => (p.active ? 'inherit' : p.theme.colors.text.slightlyMuted)};
   margin-right: 32px;
   position: relative;
 

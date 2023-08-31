@@ -22,9 +22,10 @@ import { Box } from 'design';
 import { FeatureBox } from 'teleport/components/Layout';
 
 import { Navigation } from 'teleport/Discover/Navigation/Navigation';
-import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
+import { SelectResource } from 'teleport/Discover/SelectResource';
 import cfg from 'teleport/config';
 
+import { EViewConfigs } from './types';
 import { findViewAtIndex } from './flow';
 
 import { DiscoverProvider, useDiscover } from './useDiscover';
@@ -86,10 +87,18 @@ function DiscoverContent() {
   );
 }
 
-export function Discover() {
+export function DiscoverComponent({ eViewConfigs = [] }: Props) {
   return (
-    <DiscoverProvider>
+    <DiscoverProvider eViewConfigs={eViewConfigs}>
       <DiscoverContent />
     </DiscoverProvider>
   );
 }
+
+export function Discover() {
+  return <DiscoverComponent />;
+}
+
+type Props = {
+  eViewConfigs?: EViewConfigs;
+};

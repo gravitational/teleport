@@ -21,9 +21,7 @@ package modules
 import (
 	"context"
 	"crypto"
-	"crypto/sha256"
 	"fmt"
-	"reflect"
 	"runtime"
 	"sync"
 	"time"
@@ -35,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 )
 
@@ -66,6 +65,40 @@ type Features struct {
 	Plugins bool
 	// AutomaticUpgrades enables automatic upgrades of agents/services.
 	AutomaticUpgrades bool
+	// IsUsageBasedBilling enables some usage-based billing features
+	IsUsageBasedBilling bool
+	// Assist enables Assistant feature
+	Assist bool
+	// DeviceTrust holds its namesake feature settings.
+	DeviceTrust DeviceTrustFeature
+	// FeatureHiding enables hiding features from being discoverable for users who don't have the necessary permissions.
+	FeatureHiding bool
+	// AccessRequests holds its namesake feature settings.
+	AccessRequests AccessRequestsFeature
+	// CustomTheme holds the name of WebUI custom theme.
+	CustomTheme string
+}
+
+// DeviceTrustFeature holds the Device Trust feature general and usage-based
+// settings.
+// Requires Teleport Enterprise.
+type DeviceTrustFeature struct {
+	// Enabled is true if the Device Trust feature is enabled.
+	Enabled bool
+	// DevicesUsageLimit is the usage-based limit for the number of
+	// registered/enrolled devices, at the implementation's discretion.
+	// Meant for usage-based accounts, like Teleport Team. Has no effect if
+	// [Features.IsUsageBasedBilling] is `false`.
+	DevicesUsageLimit int
+}
+
+// AccessRequestsFeature holds the Access Requests feature general and usage-based settings.
+type AccessRequestsFeature struct {
+	// MonthlyRequestLimit is the usage-based limit for the number of
+	// access requests created in a calendar month.
+	// Meant for usage-based accounts, like Teleport Team. Has no effect if
+	// [Features.IsUsageBasedBilling] is `false`.
+	MonthlyRequestLimit int
 }
 
 // ToProto converts Features into proto.Features
@@ -84,6 +117,17 @@ func (f Features) ToProto() *proto.Features {
 		RecoveryCodes:           f.RecoveryCodes,
 		Plugins:                 f.Plugins,
 		AutomaticUpgrades:       f.AutomaticUpgrades,
+		IsUsageBased:            f.IsUsageBasedBilling,
+		Assist:                  f.Assist,
+		FeatureHiding:           f.FeatureHiding,
+		CustomTheme:             f.CustomTheme,
+		DeviceTrust: &proto.DeviceTrustFeature{
+			Enabled:           f.DeviceTrust.Enabled,
+			DevicesUsageLimit: int32(f.DeviceTrust.DevicesUsageLimit),
+		},
+		AccessRequests: &proto.AccessRequestsFeature{
+			MonthlyRequestLimit: int32(f.AccessRequests.MonthlyRequestLimit),
+		},
 	}
 }
 
@@ -96,6 +140,8 @@ type Modules interface {
 	IsBoringBinary() bool
 	// Features returns supported features
 	Features() Features
+	// SetFeatures set features queried from Cloud
+	SetFeatures(Features)
 	// BuildType returns build type (OSS or Enterprise)
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
@@ -179,15 +225,17 @@ func (p *defaultModules) Features() Features {
 		App:               true,
 		Desktop:           true,
 		AutomaticUpgrades: p.automaticUpgrades,
+		Assist:            true,
 	}
 }
 
+// SetFeatures sets features queried from Cloud.
+// This is a noop since OSS teleport does not support enterprise features
+func (p *defaultModules) SetFeatures(f Features) {
+}
+
 func (p *defaultModules) IsBoringBinary() bool {
-	// Check the package name for one of the boring primitives, if the package
-	// path is from BoringCrypto, we know this binary was compiled against the
-	// dev.boringcrypto branch of Go.
-	hash := sha256.New()
-	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
+	return native.IsBoringBinary()
 }
 
 // AttestHardwareKey attests a hardware key.

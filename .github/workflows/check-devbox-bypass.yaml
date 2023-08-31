@@ -1,0 +1,26 @@
+name: Check Devbox
+run-name: Check Devbox - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'devbox.json'
+      - 'devbox.lock'
+      - 'build.assets/flake/**'
+  merge_group:
+    paths-ignore:
+      - 'devbox.json'
+      - 'devbox.lock'
+      - 'build.assets/flake/**'
+
+jobs:
+  check-devbox:
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    name: Check Devbox
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: none
+
+    steps:
+      - run: 'echo "No changes to verify"'

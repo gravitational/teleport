@@ -59,6 +59,11 @@ func (*HostUsersProvisioningBackend) LookupGroup(name string) (*user.Group, erro
 	return user.LookupGroup(name)
 }
 
+// LookupGroup host group information lookup by GID
+func (*HostUsersProvisioningBackend) LookupGroupByID(gid string) (*user.Group, error) {
+	return user.LookupGroupId(gid)
+}
+
 // GetAllUsers returns a full list of users present on a system
 func (*HostUsersProvisioningBackend) GetAllUsers() ([]string, error) {
 	users, _, err := host.GetAllUsers()
@@ -66,18 +71,19 @@ func (*HostUsersProvisioningBackend) GetAllUsers() ([]string, error) {
 }
 
 // CreateGroup creates a group on a host
-func (*HostUsersProvisioningBackend) CreateGroup(name string) error {
-	_, err := host.GroupAdd(name)
+func (*HostUsersProvisioningBackend) CreateGroup(name string, gid string) error {
+	_, err := host.GroupAdd(name, gid)
 	return trace.Wrap(err)
 }
 
 // CreateUser creates a user on a host
-func (*HostUsersProvisioningBackend) CreateUser(name string, groups []string) error {
-	_, err := host.UserAdd(name, groups)
+func (*HostUsersProvisioningBackend) CreateUser(name string, groups []string, uid, gid string) error {
+	_, err := host.UserAdd(name, groups, uid, gid)
 	return trace.Wrap(err)
 }
 
-// CreateUser creates a user on a host
+// DeleteUser deletes a user on a host.
+// The user must not be logged in.
 func (*HostUsersProvisioningBackend) DeleteUser(name string) error {
 	code, err := host.UserDel(name)
 	if code == host.UserLoggedInExit {

@@ -16,6 +16,8 @@
 
 import { ClientDuplexStream } from '@grpc/grpc-js';
 
+import Logger from 'teleterm/logger';
+
 import {
   PtyClientEvent,
   PtyEventData,
@@ -25,15 +27,22 @@ import {
 } from 'teleterm/sharedProcess/ptyHost';
 
 export class PtyEventsStreamHandler {
+  private logger: Logger;
+
   constructor(
-    private readonly stream: ClientDuplexStream<PtyClientEvent, PtyServerEvent>
-  ) {}
+    private readonly stream: ClientDuplexStream<PtyClientEvent, PtyServerEvent>,
+    ptyId: string
+  ) {
+    this.logger = new Logger(`PtyEventsStreamHandler ${ptyId}`);
+  }
 
   /**
    * Client -> Server stream events
    */
 
   start(columns: number, rows: number): void {
+    this.logger.info('Start');
+
     this.writeOrThrow(
       new PtyClientEvent().setStart(
         new PtyEventStart().setColumns(columns).setRows(rows)
@@ -56,6 +65,8 @@ export class PtyEventsStreamHandler {
   }
 
   dispose(): void {
+    this.logger.info('Dispose');
+
     this.stream.end();
     this.stream.removeAllListeners();
   }
@@ -64,30 +75,51 @@ export class PtyEventsStreamHandler {
    * Stream -> Client stream events
    */
 
-  onOpen(callback: () => void): void {
-    this.stream.addListener('data', (event: PtyServerEvent) => {
-      if (event.hasOpen()) {
-        callback();
+  onOpen(callback: () => void): RemoveListenerFunction {
+    return this.addDataListenerAndReturnRemovalFunction(
+      (event: PtyServerEvent) => {
+        if (event.hasOpen()) {
+          callback();
+        }
       }
-    });
+    );
   }
 
-  onData(callback: (data: string) => void): void {
-    this.stream.addListener('data', (event: PtyServerEvent) => {
-      if (event.hasData()) {
-        callback(event.getData().getMessage());
+  onData(callback: (data: string) => void): RemoveListenerFunction {
+    return this.addDataListenerAndReturnRemovalFunction(
+      (event: PtyServerEvent) => {
+        if (event.hasData()) {
+          callback(event.getData().getMessage());
+        }
       }
-    });
+    );
   }
 
   onExit(
     callback: (reason: { exitCode: number; signal?: number }) => void
-  ): void {
-    this.stream.addListener('data', (event: PtyServerEvent) => {
-      if (event.hasExit()) {
-        callback(event.getExit().toObject());
+  ): RemoveListenerFunction {
+    return this.addDataListenerAndReturnRemovalFunction(
+      (event: PtyServerEvent) => {
+        if (event.hasExit()) {
+          this.logger.info('On exit', event.getExit().toObject());
+          callback(event.getExit().toObject());
+        }
       }
-    });
+    );
+  }
+
+  onStartError(callback: (message: string) => void): RemoveListenerFunction {
+    return this.addDataListenerAndReturnRemovalFunction(
+      (event: PtyServerEvent) => {
+        if (event.hasStartError()) {
+          this.logger.info(
+            'On start error',
+            event.getStartError().toObject().message
+          );
+          callback(event.getStartError().toObject().message);
+        }
+      }
+    );
   }
 
   private writeOrThrow(event: PtyClientEvent) {
@@ -97,4 +129,16 @@ export class PtyEventsStreamHandler {
       }
     });
   }
+
+  private addDataListenerAndReturnRemovalFunction(
+    callback: (event: PtyServerEvent) => void
+  ) {
+    this.stream.addListener('data', callback);
+
+    return () => {
+      this.stream.removeListener('data', callback);
+    };
+  }
 }
+
+type RemoveListenerFunction = () => void;

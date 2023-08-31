@@ -72,11 +72,12 @@ func TestRootWatch(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, service.Close())
+		const restarting = false
+		require.NoError(t, service.Close(restarting))
 	})
 
 	// Create a fake audit log that can be used to capture the events emitted.
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 
 	// Create and start a program that does nothing. Since sleep will run longer
 	// than we wait below, nothing should be emitted to the Audit Log.
@@ -302,7 +303,7 @@ func TestRootPrograms(t *testing.T) {
 
 	// Loop over all three programs and make sure events are received off the
 	// perf buffer.
-	var tests = []struct {
+	tests := []struct {
 		inName    string
 		inEventCh <-chan []byte
 		genEvents func(t *testing.T, ctx context.Context)
@@ -463,7 +464,8 @@ func moveIntoCgroup(t *testing.T, pid int) (uint64, error) {
 		return 0, trace.Wrap(err)
 	}
 	t.Cleanup(func() {
-		require.NoError(t, cgroupSrv.Close())
+		const skipUnmount = false
+		require.NoError(t, cgroupSrv.Close(skipUnmount))
 	})
 
 	sessionID := uuid.New().String()

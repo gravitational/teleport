@@ -76,7 +76,7 @@ export function UploadForm(props: UploadFormProps) {
   return (
     <Form>
       <PathInput
-        label="Upload destination"
+        label="Upload Destination"
         value={destinationPath}
         autoFocus
         onChange={e => setDestinationPath(e.target.value)}
@@ -108,7 +108,7 @@ export function UploadForm(props: UploadFormProps) {
           openFilePicker();
         }}
       >
-        <NoteAdded fontSize={10} mb={2} />
+        <NoteAdded size="extraLarge" mb={2} />
         <Text typography="h6">Drag your files here</Text>
         <Text typography="body2">
           or Browse your computer to start uploading
@@ -127,7 +127,7 @@ const Dropzone = styled.button`
   color: inherit;
   background-color: ${props => props.theme.colors.spotBackground[0]};
   margin-top: ${props => props.theme.space[3]}px;
-  border: 1px dashed ${props => props.theme.colors.spotBackground[1]};
+  border: 1px dashed ${props => props.theme.colors.text.muted};
   height: 128px;
   text-align: center;
   cursor: pointer;

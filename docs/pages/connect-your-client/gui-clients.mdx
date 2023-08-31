@@ -19,7 +19,8 @@ work with Teleport.
 
 ### Get connection information
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 <Tabs>
 <TabItem label="Authenticated Proxy">
@@ -96,8 +97,8 @@ TLS authentication.
 </TabItem>
 </Tabs>
 
-</ScopedBlock>
-<ScopedBlock scope="cloud">
+</TabItem>
+<TabItem scope="cloud" label="Teleport Enterprise Cloud">
 
 Use the following command to start a local TLS proxy your GUI database client
 will be connecting to:
@@ -116,7 +117,9 @@ Use the displayed local proxy host/port and credentials paths when configuring
 your GUI client below. When entering the hostname, use `localhost` rather than
 `127.0.0.1`.
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## MongoDB Compass
 
@@ -206,6 +209,28 @@ more information.)
 
 ![DynamoDB local connection in NoSQL Workbench](../../img/database-access/nosql-workbench-connection.png)
 
+## SQL Server with Azure Data Studio
+
+In Azure Data Studio create a connection using your proxy's endpoint. This is
+`localhost,62652` in the example above. On a Windows machine, using an address in
+ the format `127.0.0.1,62652` could be required instead of `localhost`. (See
+[Get connection information](./gui-clients.mdx#get-connection-information) for
+more information.)
+
+Create a connection with Microsoft SQL Server with these settings:
+
+|Connection Detail|Value|
+|---|---|
+|Server|`host`,`port` of proxy endpoint|
+|Authentication Type|SQL Login|
+|Password|empty|
+|Encrypt|`False`|
+
+Example:
+![Azure Data Studio connection options](../../img/database-access/azure-data-studio-connection.png)
+
+Click **Connect** to connect.
+
 ## PostgreSQL DBeaver
 
 To connect to your PostgreSQL instance, use the authenticated proxy address.
@@ -247,6 +272,29 @@ certificate, key and root certificate from the configuration above:
 
 Click "Save", and pgAdmin should immediately connect. If pgAdmin prompts you
 for password, leave the password field empty and click OK.
+
+## Microsoft SQL Server Management Studio
+
+In Microsoft SQL Server Management Studio connect to a database engine using
+your proxy's endpoint. This is `localhost,62652` in the example above. Using
+the IP `127.0.0.1,62652` connection could be required on a Windows machine
+instead of `localhost`. (See [Get connection information](./gui-clients.mdx#get-connection-information) for
+more information.)
+
+Create a connection with Microsoft SQL Server with these settings:
+
+|Connection Detail|Value|
+|---|---|
+|Server type|Database Engine|
+|Server name|`host`,`port` of proxy endpoint|
+|Authentication|SQL Server Authentication|
+|Password|empty|
+|Encryption|do not enable|
+
+Example:
+![Microsoft SQL Server Management Studio connection options](../../img/database-access/msft-sql-server-management-studio-connection.png)
+  
+Click Connect to connect.
 
 ## Redis Insight
 
@@ -373,3 +421,4 @@ Use the SQL Server Authentication option and keep the Password field empty:
 ![DBeaver connection options](../../img/database-access/guides/sqlserver/dbeaver-connection@2x.png)
 
 Click OK to connect.
+

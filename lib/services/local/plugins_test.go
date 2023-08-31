@@ -109,6 +109,15 @@ func TestPluginsCRUD(t *testing.T) {
 	))
 	require.Empty(t, cmp.Diff(status, cluster.GetStatus()))
 
+	// Test if plugin types exist.
+	exists, err := service.HasPluginType(ctx, types.PluginTypeOkta)
+	require.NoError(t, err)
+	require.False(t, exists)
+
+	exists, err = service.HasPluginType(ctx, types.PluginTypeSlack)
+	require.NoError(t, err)
+	require.True(t, exists)
+
 	// Delete a plugin.
 	err = service.DeletePlugin(ctx, plugin1.GetName())
 	require.NoError(t, err)

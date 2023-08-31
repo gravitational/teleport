@@ -19,7 +19,6 @@ package uri
 import (
 	"fmt"
 
-	"github.com/gravitational/trace"
 	"github.com/ucarion/urlpath"
 )
 
@@ -29,6 +28,8 @@ var pathServers = urlpath.New("/clusters/:cluster/servers/:serverUUID")
 var pathLeafServers = urlpath.New("/clusters/:cluster/leaves/:leaf/servers/:serverUUID")
 var pathDbs = urlpath.New("/clusters/:cluster/dbs/:dbName")
 var pathLeafDbs = urlpath.New("/clusters/:cluster/leaves/:leaf/dbs/:dbName")
+var pathKubes = urlpath.New("/clusters/:cluster/kubes/:kubeName")
+var pathLeafKubes = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName")
 
 // New creates an instance of ResourceURI
 func New(path string) ResourceURI {
@@ -42,27 +43,6 @@ func NewClusterURI(profileName string) ResourceURI {
 	return ResourceURI{
 		path: fmt.Sprintf("/clusters/%v", profileName),
 	}
-}
-
-// ParseClusterURI parses a string and returns a cluster URI.
-//
-// If given a resource URI, it'll return the URI of the cluster to which the resource belongs to.
-// If given a leaf cluster resource URI, it'll return the URI of the leaf cluster.
-func ParseClusterURI(path string) (ResourceURI, error) {
-	URI := New(path)
-	profileName := URI.GetProfileName()
-	leafClusterName := URI.GetLeafClusterName()
-
-	if profileName == "" {
-		return URI, trace.BadParameter("missing root cluster name")
-	}
-
-	clusterURI := NewClusterURI(profileName)
-	if leafClusterName != "" {
-		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
-	}
-
-	return clusterURI, nil
 }
 
 // NewGatewayURI creates a gateway URI for a given ID
@@ -96,6 +76,18 @@ func (r ResourceURI) GetLeafClusterName() string {
 	return result.Params["leaf"]
 }
 
+// IsRoot indicates whether the URI points at a resource that belongs to a root cluster.
+func (r ResourceURI) IsRoot() bool {
+	// Inspect profile name first to filter our non-cluster URIs.
+	return r.GetProfileName() != "" && r.GetLeafClusterName() == ""
+}
+
+// IsLeaf indicates whether the URI points at a resource that belongs to a leaf cluster.
+func (r ResourceURI) IsLeaf() bool {
+	// Inspect profile name first to filter our non-cluster URIs.
+	return r.GetProfileName() != "" && r.GetLeafClusterName() != ""
+}
+
 // GetDbName extracts the database name from r. Returns an empty string if path is not a database URI.
 func (r ResourceURI) GetDbName() string {
 	result, ok := pathDbs.Match(r.path)
@@ -106,6 +98,21 @@ func (r ResourceURI) GetDbName() string {
 	result, ok = pathLeafDbs.Match(r.path)
 	if ok {
 		return result.Params["dbName"]
+	}
+
+	return ""
+}
+
+// GetKubeName extracts the kube name from r. Returns an empty string if path is not a kube URI.
+func (r ResourceURI) GetKubeName() string {
+	result, ok := pathKubes.Match(r.path)
+	if ok {
+		return result.Params["kubeName"]
+	}
+
+	result, ok = pathLeafKubes.Match(r.path)
+	if ok {
+		return result.Params["kubeName"]
 	}
 
 	return ""
@@ -129,6 +136,21 @@ func (r ResourceURI) GetServerUUID() string {
 // GetRootClusterURI trims the existing ResourceURI into a URI that points solely at the root cluster.
 func (r ResourceURI) GetRootClusterURI() ResourceURI {
 	return NewClusterURI(r.GetProfileName())
+}
+
+// GetClusterURI strips any resource-specific information other than the cluster
+// to which a given resource belongs to.
+//
+// If called on a root cluster resource URI, it'll return the URI of the root cluster.
+// If called on a leaf cluster resource URI, it'll return the URI of the leaf cluster.
+// If called on a root cluster URI or a leaf cluster URI, it's a noop.
+func (r ResourceURI) GetClusterURI() ResourceURI {
+	clusterURI := r.GetRootClusterURI()
+
+	if leafClusterName := r.GetLeafClusterName(); leafClusterName != "" {
+		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
+	}
+	return clusterURI
 }
 
 // AppendServer appends server segment to the URI
@@ -176,4 +198,14 @@ func (r ResourceURI) AppendAccessRequest(id string) ResourceURI {
 // String returns string representation of the Resource URI
 func (r ResourceURI) String() string {
 	return r.path
+}
+
+// IsDB returns true if URI is a database resource.
+func (r ResourceURI) IsDB() bool {
+	return r.GetDbName() != ""
+}
+
+// IsKube returns true if URI is a kube resource.
+func (r ResourceURI) IsKube() bool {
+	return r.GetKubeName() != ""
 }

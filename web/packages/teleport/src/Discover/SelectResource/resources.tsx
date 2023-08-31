@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+import { Platform } from 'design/theme/utils';
+
 import { DiscoverEventResource } from 'teleport/services/userEvent';
+import cfg from 'teleport/config';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
@@ -24,6 +27,7 @@ import {
   DATABASES_UNGUIDED_DOC,
 } from './databases';
 import { ResourceSpec, DatabaseLocation, DatabaseEngine } from './types';
+import { SAML_APPLICATIONS } from './resourcesE';
 
 const baseServerKeywords = 'server node';
 export const SERVERS: ResourceSpec[] = [
@@ -33,6 +37,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'ubuntu',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_LINUX,
   },
   {
     name: 'Debian 8+',
@@ -40,6 +45,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'debian',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_LINUX,
   },
   {
     name: 'RHEL/CentOS 7+',
@@ -47,20 +53,23 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'rhel centos',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_LINUX,
   },
   {
-    name: 'Amazon Linux 2',
+    name: 'Amazon Linux 2/2023',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'amazon linux',
     icon: 'Aws',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_LINUX,
   },
   {
-    name: 'macOS (Intel)',
+    name: 'macOS',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'mac macos intel',
+    keywords: baseServerKeywords + 'mac macos intel silicone apple',
     icon: 'Apple',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_MACINTOSH,
   },
 ];
 
@@ -70,8 +79,7 @@ export const APPLICATIONS: ResourceSpec[] = [
     kind: ResourceKind.Application,
     keywords: 'application',
     icon: 'Application',
-    unguidedLink:
-      'https://goteleport.com/docs/application-access/getting-started/',
+    isDialog: true,
     event: DiscoverEventResource.ApplicationHttp,
   },
 ];
@@ -83,6 +91,7 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     keywords: 'windows desktop active directory ad',
     icon: 'Windows',
     event: DiscoverEventResource.WindowsDesktop,
+    platform: Platform.PLATFORM_WINDOWS,
   },
   // {
   //   name: 'Non Active Directory',
@@ -103,7 +112,7 @@ export const KUBERNETES: ResourceSpec[] = [
   },
 ];
 
-export const RESOURCES: ResourceSpec[] = [
+const BASE_RESOURCES: ResourceSpec[] = [
   ...APPLICATIONS,
   ...KUBERNETES,
   ...WINDOWS_DESKTOPS,
@@ -112,6 +121,10 @@ export const RESOURCES: ResourceSpec[] = [
   ...DATABASES_UNGUIDED,
   ...DATABASES_UNGUIDED_DOC,
 ];
+
+export const RESOURCES = !cfg.isEnterprise
+  ? BASE_RESOURCES
+  : [...BASE_RESOURCES, ...SAML_APPLICATIONS];
 
 export function getResourcePretitle(r: ResourceSpec) {
   if (!r) {

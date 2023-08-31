@@ -35,7 +35,7 @@ const fromTheme = props => {
     fontWeight: values.theme.regular,
 
     '&:hover, &:focus': {
-      color: values.theme.colors.text.primary,
+      color: values.theme.colors.text.main,
       background: values.theme.colors.spotBackground[0],
     },
     '&:active': {
@@ -55,7 +55,7 @@ const MenuItem = styled.div`
   overflow: hidden;
   text-decoration: none;
   white-space: nowrap;
-  color: ${props => props.theme.colors.text.secondary};
+  color: ${props => props.theme.colors.text.main};
 
   &:hover,
   &:focus {

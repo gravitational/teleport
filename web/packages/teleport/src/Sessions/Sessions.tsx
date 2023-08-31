@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Indicator, Box } from 'design';
+import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 
 import {
@@ -26,6 +26,10 @@ import {
 import useTeleport from 'teleport/useTeleport';
 
 import useStickerClusterId from 'teleport/useStickyClusterId';
+
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+
+import { CtaEvent } from 'teleport/services/userEvent';
 
 import SessionList from './SessionList';
 import useSessions from './useSessions';
@@ -38,11 +42,35 @@ export default function Container() {
 }
 
 export function Sessions(props: ReturnType<typeof useSessions>) {
-  const { attempt, sessions } = props;
+  const { attempt, sessions, showActiveSessionsCTA, showModeratedSessionsCTA } =
+    props;
   return (
     <FeatureBox>
-      <FeatureHeader alignItems="center">
+      <FeatureHeader
+        alignItems="center"
+        justifyContent="space-between"
+        css={`
+          @media screen and (max-width: 800px) {
+            flex-direction: column;
+            height: auto;
+            gap: 10px;
+            margin: 0 0 10px 0;
+            padding-bottom: 10px;
+            justify-content: center;
+          }
+        `}
+      >
         <FeatureHeaderTitle>Active Sessions</FeatureHeaderTitle>
+        {showActiveSessionsCTA && (
+          <Box width="340px">
+            <ButtonLockedFeature
+              height="36px"
+              event={CtaEvent.CTA_ACTIVE_SESSIONS}
+            >
+              Join Active Sessions With Teleport Enterprise
+            </ButtonLockedFeature>
+          </Box>
+        )}
       </FeatureHeader>
       {attempt.isFailed && <Danger>{attempt.message} </Danger>}
       {attempt.isProcessing && (
@@ -50,7 +78,13 @@ export function Sessions(props: ReturnType<typeof useSessions>) {
           <Indicator />
         </Box>
       )}
-      {attempt.isSuccess && <SessionList sessions={sessions} />}
+      {attempt.isSuccess && (
+        <SessionList
+          sessions={sessions}
+          showActiveSessionsCTA={showActiveSessionsCTA}
+          showModeratedSessionsCTA={showModeratedSessionsCTA}
+        />
+      )}
     </FeatureBox>
   );
 }

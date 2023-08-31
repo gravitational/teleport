@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import { AgentConfigFileClusterProperties } from 'teleterm/mainProcess/createAgentConfigFile';
+import { RootClusterUri } from 'teleterm/ui/uri';
+
 import { Kind } from 'teleterm/ui/services/workspacesService';
 import { FileStorage } from 'teleterm/services/fileStorage';
 
@@ -22,12 +25,19 @@ import { ConfigService } from '../services/config';
 export type RuntimeSettings = {
   dev: boolean;
   userDataDir: string;
+  sessionDataDir: string;
+  tempDataDir: string;
   // Points to a directory that should be prepended to PATH. Only present in the packaged version.
   binDir: string | undefined;
   certsDir: string;
   kubeConfigsDir: string;
+  // TODO(ravicious): Replace with app.getPath('logs'). We started storing logs under a custom path.
+  // Before switching to the recommended path, we need to investigate the impact of this change.
+  // https://www.electronjs.org/docs/latest/api/app#appgetpathname
+  logsDir: string;
   defaultShell: string;
   platform: Platform;
+  agentBinaryPath: string;
   tshd: {
     insecure: boolean;
     requestedNetworkAddress: string;
@@ -45,6 +55,13 @@ export type RuntimeSettings = {
   arch: string;
   osVersion: string;
   appVersion: string;
+  /**
+   * The {@link appVersion} is set to a real version only for packaged apps that went through our CI build pipeline.
+   * In local builds, both for the development version and for packaged apps, settings.appVersion is set to 1.0.0-dev.
+   */
+  isLocalBuild: boolean;
+  username: string;
+  hostname: string;
 };
 
 export type MainProcessClient = {
@@ -75,6 +92,31 @@ export type MainProcessClient = {
 
   /** Opens config file and returns a path to it. */
   openConfigFile(): Promise<string>;
+  shouldUseDarkColors(): boolean;
+  /** Subscribes to updates of the native theme. Returns a cleanup function. */
+  subscribeToNativeThemeUpdate: (
+    listener: (value: { shouldUseDarkColors: boolean }) => void
+  ) => {
+    cleanup: () => void;
+  };
+  downloadAgent(): Promise<void>;
+  createAgentConfigFile(
+    properties: AgentConfigFileClusterProperties
+  ): Promise<void>;
+  runAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;
+  isAgentConfigFileCreated(args: {
+    rootClusterUri: RootClusterUri;
+  }): Promise<boolean>;
+  killAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;
+  getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
+  subscribeToAgentUpdate: SubscribeToAgentUpdate;
+};
+
+export type SubscribeToAgentUpdate = (
+  rootClusterUri: RootClusterUri,
+  listener: (state: AgentProcessState) => void
+) => {
+  cleanup: () => void;
 };
 
 export type ChildProcessAddresses = {
@@ -87,6 +129,30 @@ export type GrpcServerAddresses = ChildProcessAddresses & {
 };
 
 export type Platform = NodeJS.Platform;
+
+export type AgentProcessState =
+  | {
+      status: 'not-started';
+    }
+  | {
+      status: 'running';
+    }
+  | {
+      status: 'exited';
+      code: number | null;
+      signal: NodeJS.Signals | null;
+      exitedSuccessfully: boolean;
+      /** Fragment of a stack trace when the process did not exit successfully. */
+      logs?: string;
+    }
+  | {
+      // TODO(ravicious): 'error' should not be considered a separate process state. Instead,
+      // AgentRunner.start should not resolve until 'spawn' is emitted or reject if 'error' is
+      // emitted. AgentRunner.kill should not resolve until 'exit' is emitted or reject if 'error'
+      // is emitted.
+      status: 'error';
+      message: string;
+    };
 
 export interface ClusterContextMenuOptions {
   isClusterConnected: boolean;

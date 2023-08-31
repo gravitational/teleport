@@ -118,18 +118,36 @@ func NewConnectionMonitor(cfg ConnectionMonitorConfig) (*ConnectionMonitor, erro
 	return &ConnectionMonitor{cfg: cfg}, nil
 }
 
+func getTrackingReadConn(conn net.Conn) (*TrackingReadConn, bool) {
+	type netConn interface {
+		NetConn() net.Conn
+	}
+
+	for {
+		if tconn, ok := conn.(*TrackingReadConn); ok {
+			return tconn, true
+		}
+
+		connGetter, ok := conn.(netConn)
+		if !ok {
+			return nil, false
+		}
+		conn = connGetter.NetConn()
+	}
+}
+
 // MonitorConn ensures that the provided [net.Conn] is allowed per cluster configuration
 // and security controls. If at any point during the lifetime of the connection the
 // cluster controls dictate that the connection is not permitted it will be closed and the
 // returned [context.Context] will be canceled.
-func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error) {
+func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error) {
 	authPref, err := c.cfg.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
-		return ctx, trace.Wrap(err)
+		return ctx, conn, trace.Wrap(err)
 	}
 	netConfig, err := c.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
-		return ctx, trace.Wrap(err)
+		return ctx, conn, trace.Wrap(err)
 	}
 
 	identity := authzCtx.Identity.GetIdentity()
@@ -137,15 +155,18 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 
 	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
 
-	monitorCtx, cancel := context.WithCancel(ctx)
-	tconn, err := NewTrackingReadConn(TrackingReadConnConfig{
-		Conn:    conn,
-		Clock:   c.cfg.Clock,
-		Context: monitorCtx,
-		Cancel:  cancel,
-	})
-	if err != nil {
-		return ctx, trace.Wrap(err)
+	tconn, ok := getTrackingReadConn(conn)
+	if !ok {
+		tctx, cancel := context.WithCancel(ctx)
+		tconn, err = NewTrackingReadConn(TrackingReadConnConfig{
+			Conn:    conn,
+			Clock:   c.cfg.Clock,
+			Context: tctx,
+			Cancel:  cancel,
+		})
+		if err != nil {
+			return ctx, conn, trace.Wrap(err)
+		}
 	}
 
 	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
@@ -166,10 +187,10 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
 		MonitorCloseChannel:   c.cfg.MonitorCloseChannel,
 	}); err != nil {
-		return ctx, trace.Wrap(err)
+		return ctx, conn, trace.Wrap(err)
 	}
 
-	return monitorCtx, nil
+	return tconn.cfg.Context, tconn, nil
 }
 
 // MonitorConfig is a wiretap configuration
@@ -192,7 +213,8 @@ type MonitorConfig struct {
 	Tracker ActivityTracker
 	// Conn is a connection to close
 	Conn TrackingConn
-	// Context is an external context to cancel the operation
+	// Context is an external context. To reliably close the monitor and ensure no goroutine leak,
+	// make sure to pass a context which will be canceled on time.
 	Context context.Context
 	// Login is linux box login
 	Login string
@@ -331,13 +353,7 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 						w.Entry.WithError(err).Warn("Failed to send idle timeout message.")
 					}
 				}
-				w.Entry.Debugf("Disconnecting client: %v", reason)
-				if err := w.Conn.Close(); err != nil {
-					w.Entry.WithError(err).Error("Failed to close connection.")
-				}
-				if err := w.emitDisconnectEvent(reason); err != nil {
-					w.Entry.WithError(err).Warn("Failed to emit audit event.")
-				}
+				w.disconnectClient(reason)
 				return
 			}
 			next := w.ClientIdleTimeout - since
@@ -386,14 +402,18 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 
 func (w *Monitor) disconnectClientOnExpiredCert() {
 	reason := fmt.Sprintf("client certificate expired at %v", w.Clock.Now().UTC())
+	w.disconnectClient(reason)
+}
 
+func (w *Monitor) disconnectClient(reason string) {
 	w.Entry.Debugf("Disconnecting client: %v", reason)
-	if err := w.Conn.Close(); err != nil {
-		w.Entry.WithError(err).Error("Failed to close connection.")
-	}
-
+	// Emit Audit event first to make sure that that underlying context will not be canceled during
+	// emitting audit event.
 	if err := w.emitDisconnectEvent(reason); err != nil {
 		w.Entry.WithError(err).Warn("Failed to emit audit event.")
+	}
+	if err := w.Conn.Close(); err != nil {
+		w.Entry.WithError(err).Error("Failed to close connection.")
 	}
 }
 
@@ -426,13 +446,7 @@ func (w *Monitor) handleLockInForce(lockErr error) {
 			w.Entry.WithError(err).Warn("Failed to send lock-in-force message.")
 		}
 	}
-	w.Entry.Debugf("Disconnecting client: %v.", reason)
-	if err := w.Conn.Close(); err != nil {
-		w.Entry.WithError(err).Error("Failed to close connection.")
-	}
-	if err := w.emitDisconnectEvent(reason); err != nil {
-		w.Entry.WithError(err).Warn("Failed to emit audit event.")
-	}
+	w.disconnectClient(reason)
 }
 
 type trackingChannel struct {

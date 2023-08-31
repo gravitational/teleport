@@ -15,15 +15,17 @@ Teleport `12.0`.
 
 </Details>
 
-This guide will help you to set up secure access and connect through Teleport
-to Azure PostgreSQL and MySQL servers.
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Azure PostgreSQL or MySQL" dbConfigure="Azure PostgreSQL or MySQL database with IAM authentication" dbName="Azure PostgreSQL or MySQL" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Azure PostgreSQL/MySQL Self-Hosted](../../../img/database-access/guides/azure_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access Azure PostgreSQL/MySQL Cloud](../../../img/database-access/guides/azure_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -54,7 +56,7 @@ Create the Database Service configuration.
   URI (e.g. `mytenant.teleport.sh:443`):
 
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
     -o file \
     --proxy=teleport.example.com:443 \
     --token=/tmp/token \
@@ -65,11 +67,12 @@ Create the Database Service configuration.
 <TabItem label="MySQL">
 
 - Specify the region for your database(s) in `--azure-mysql-discovery`.
+
 - Replace the `--proxy` value with your Teleport proxy address or Teleport cloud
   URI (e.g. `mytenant.teleport.sh:443`):
 
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
     -o file \
     --proxy=teleport.example.com:443 \
     --token=/tmp/token \
@@ -83,7 +86,7 @@ Create the Database Service configuration.
 Run the following command on your Database Service host:
 
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
     -o file \
     --proxy=teleport.example.com:443 \
     --token=/tmp/token \
@@ -142,9 +145,9 @@ spec:
 
 | Flag                       | Description                                                                                                                              |
 |----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| <nobr>`--db-users`</nobr>  | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
-| <nobr>`--db-names`</nobr>  | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
-| <nobr>`--db-labels`</nobr> | List of labels assigned to the database the user will be able to access. A wildcard entry allows any database.                           |
+| `--db-users` | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
+| `--db-names` | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
+| `--db-labels` | List of labels assigned to the database the user will be able to access. A wildcard entry allows any database.                           |
 
 Save this file and apply it to your Teleport cluster:
 
@@ -223,7 +226,7 @@ and replace the subscription in "assignableScopes" with your own subscription id
 ![Create JSON role](../../../img/database-access/guides/azure/create-role-from-json@2x.png)
 </Figure>
 
-### Create a role assignment for the Teleport Database Service principal.
+### Create a role assignment for the Teleport Database Service principal
 
 (!docs/pages/includes/database-access/azure-assign-service-principal.mdx!)
 
@@ -371,7 +374,8 @@ You can create multiple database users identified by the same service principal.
 Log in to your Teleport cluster. Your Azure database should appear in the list of
 available databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -381,8 +385,8 @@ $ tsh db ls
 # azure-db                     env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -392,7 +396,9 @@ $ tsh db ls
 # azure-db                     env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To retrieve credentials for a database and connect to it:
 
@@ -431,3 +437,4 @@ $ tsh db logout azure-db
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

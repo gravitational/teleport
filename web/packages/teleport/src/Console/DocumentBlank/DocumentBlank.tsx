@@ -21,8 +21,6 @@ import * as Icons from 'design/Icon';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import * as stores from 'teleport/Console/stores';
 
-import { colors } from '../colors';
-
 import Document from './../Document';
 
 export default function DocumentBlank(props: PropTypes) {
@@ -37,10 +35,12 @@ export default function DocumentBlank(props: PropTypes) {
     <Document visible={visible}>
       <Flex flexDirection="column" alignItems="center" flex="1">
         <Icons.Cli
-          fontSize="256px"
-          mt="10"
-          mb="6"
-          color={colors.terminalDark}
+          size={256}
+          mt={10}
+          mb={6}
+          css={`
+            color: ${props => props.theme.colors.spotBackground[1]};
+          `}
         />
         <ButtonPrimary onClick={onClick} children="Start a New Session" />
       </Flex>

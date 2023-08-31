@@ -16,7 +16,7 @@
 
 import React from 'react';
 import userEvent from '@testing-library/user-event';
-import { render, screen, waitFor } from 'design/utils/testing';
+import { render, screen, waitFor, act } from 'design/utils/testing';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import Logger, { NullService } from 'teleterm/logger';
@@ -315,6 +315,43 @@ it('shows a login modal when a request to a cluster from the current workspace f
   expect(screen.getByRole('menu')).toBeInTheDocument();
 });
 
+it('closes on a click on an unfocusable element outside of the search bar', async () => {
+  const user = userEvent.setup();
+  const cluster = makeRootCluster();
+  const resourceSearchResult = {
+    results: [],
+    errors: [],
+    search: 'foo',
+  };
+  const resourceSearch = async () => resourceSearchResult;
+  jest
+    .spyOn(useSearch, 'useResourceSearch')
+    .mockImplementation(() => resourceSearch);
+
+  const appContext = new MockAppContext();
+  appContext.workspacesService.setState(draft => {
+    draft.rootClusterUri = cluster.uri;
+  });
+  appContext.clustersService.setState(draftState => {
+    draftState.clusters.set(cluster.uri, cluster);
+  });
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <SearchBarConnected />
+      <p data-testid="unfocusable-element">Lorem ipsum</p>
+    </MockAppContextProvider>
+  );
+
+  await user.type(screen.getByRole('searchbox'), 'foo');
+  expect(screen.getByRole('menu')).toBeInTheDocument();
+
+  act(() => {
+    screen.getByTestId('unfocusable-element').click();
+  });
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+});
+
 const getMockedSearchContext = (): SearchContext.SearchContext => ({
   inputValue: 'foo',
   filters: [],
@@ -323,10 +360,10 @@ const getMockedSearchContext = (): SearchContext.SearchContext => ({
   isOpen: true,
   open: () => {},
   close: () => {},
-  closeAndResetInput: () => {},
+  closeWithoutRestoringFocus: () => {},
   resetInput: () => {},
   changeActivePicker: () => {},
-  onInputValueChange: () => {},
+  setInputValue: () => {},
   activePicker: pickers.actionPicker,
   inputRef: undefined,
   pauseUserInteraction: async cb => {
@@ -335,4 +372,5 @@ const getMockedSearchContext = (): SearchContext.SearchContext => ({
   addWindowEventListener: () => ({
     cleanup: () => {},
   }),
+  makeEventListener: cb => cb,
 });
