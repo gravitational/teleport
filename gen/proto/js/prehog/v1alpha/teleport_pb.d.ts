@@ -2369,6 +2369,7 @@ export enum ResourceKind {
     RESOURCE_KIND_DB_SERVER = 4,
     RESOURCE_KIND_WINDOWS_DESKTOP = 5,
     RESOURCE_KIND_NODE_OPENSSH = 6,
+    RESOURCE_KIND_NODE_OPENSSH_EICE = 7,
 }
 
 export enum DiscoverResource {
