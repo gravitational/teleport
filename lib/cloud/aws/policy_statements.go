@@ -49,6 +49,9 @@ func StatementForECSManageService() *Statement {
 			"ecs:DescribeClusters", "ecs:CreateCluster", "ecs:PutClusterCapacityProviders",
 			"ecs:DescribeServices", "ecs:CreateService", "ecs:UpdateService",
 			"ecs:RegisterTaskDefinition",
+
+			// EC2 DescribeSecurityGroups is required so that the user can list the SG and then pick which ones they want to apply to the ECS Service.
+			"ec2:DescribeSecurityGroups",
 		},
 		Resources: allResources,
 	}
