@@ -84,7 +84,7 @@ discovery_service:
       # List of namespaces of the Kubernetes cluster to search in. Default value is `*` to search all namespaces.
       namespaces: ["test", "staging"]
       # List of Kubernetes labels based on which to filter out services. Labels will be copied to Teleport app 
-      # Default value is `*`: `*` that will match any labels.
+      # Default value is `*`: `*` to match any labels.
       labels:
         "purpose": "monitoring"
         "department": "security"
