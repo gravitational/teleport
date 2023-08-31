@@ -62,30 +62,31 @@ Leaf clusters are autonomous. They have their own state, roles, and local users.
 This autonomy enables leaf cluster administrators to decide how to map the identity of the 
 external users to their local cluster roles. 
 The following diagram provides a simplified view of how role mapping works using the same trusted
-cluster with `sso.example.com` as the root cluster and `us-east-1a` as the leaf cluster:
+cluster with `msp-root.example.com` as the root cluster and `leaf-east.example.com` as the leaf cluster:
 
 ![Role mapping in a trusted cluster](../../img/trusted-clusters/simplified-trusted-cluster-role-mapping.png)
 
 ### How role mapping works
 
-In this example, the user Alice signs in to the `sso.example.com` root cluster. The root cluster is
+In this example, the user Alice signs in to the `msp-root.example.com` root cluster. The root cluster is
 configured with a single sign-on identity provider that authenticates her identity and her group membership.
 Based on the information from the identity provider, the root cluster assigns Alice the `full-access` role
 and issues her a certificate. The mapping of single sign-on properties to Teleport roles is configured when
 you add an authentication connector to the Teleport cluster. To learn more about configuring single sign-on
-through an external identity provider, see [Configure Single Sign-on](../../access-controls/sso).
+through an external identity provider, see [Configure Single Sign-on](../access-controls/sso).
 
 Alice receives the certificate that specifies the roles assigned to her in the root cluster. This metadata
 about her roles is contained in the certificate extensions and is protected by the signature of the root 
 cluster certificate authority so it can't be tampered with.
 
-When Alice connects to a resource in the leaf cluster `us-east-1a`, she's identified as an external user
+When Alice connects to a resource in the leaf cluster `leaf-east.example.com`, she's identified as an external user
 with a certificate signed by an external certificate authority. Based on the role mapping rules in the leaf
-cluster, Alice is assigned the `stage-access` role. This role allows her to access `mongodb.stage.us-east-1a`
-but not `mongodb.prod.us-east-1a`.
+cluster, Alice is assigned the `stage-access` role. This role allows her to access `mongodb.stage.example.com`
+but not `mongodb.prod.example.com`.
 
-In this example, the leaf cluster `us-east-1a` denies Alice access to the `mongodb.prod.us-east-1a` resource
-because her `full-access` role in the root cluster is mapped to the `stage-access` role in this leaf cluster.
+In this example, the leaf cluster `leaf-east.example.com` denies Alice access to the 
+`mongodb.prod.leaf-east.example.com` resource because her `full-access` role in the root cluster 
+is mapped to the `stage-access` role in this leaf cluster.
 With role mapping, leaf cluster administrators can control the privileges external users are granted.
 Although role mapping can be as simple as assigning users to the same roles in the root and leaf clusters,
 you can also use mapping to downgrade a user's privileges or restrict access to specific resources.
