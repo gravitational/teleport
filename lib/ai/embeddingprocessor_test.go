@@ -65,6 +65,7 @@ func (m *MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]e
 
 type mockResourceGetter struct {
 	services.Presence
+	services.AccessLists
 }
 
 func (m *mockResourceGetter) GetDatabaseServers(_ context.Context, _ string, _ ...services.MarshalOption) ([]types.DatabaseServer, error) {
@@ -107,9 +108,13 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 		timesCalled: make(map[string]int),
 	}
 	events := local.NewEventsService(bk)
+	accessLists, err := local.NewAccessListService(bk, clock)
+	require.NoError(t, err)
 	resources := &mockResourceGetter{
-		Presence: local.NewPresenceService(bk),
+		Presence:    local.NewPresenceService(bk),
+		AccessLists: accessLists,
 	}
+
 	cache, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceGetter: resources,
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
