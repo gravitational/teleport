@@ -829,6 +829,23 @@ func newDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, route *tlsca.RouteT
 // checkAndSetPrincipalDefaults checks the db route (schema) name and username,
 // and sets them to defaults if necessary.
 func (d *databaseInfo) checkAndSetPrincipalDefaults(cf *CLIConf, tc *client.TeleportClient, db types.Database) error {
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// if either user or db name isn't given as a cli flag, try to populate
+	// user/db name from an active db cert.
+	if cf.DatabaseUser == "" || cf.DatabaseName == "" {
+		routes, err := profile.DatabasesForCluster(tc.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if route, ok := findActiveDatabase(d.ServiceName, routes); ok {
+			d.Username = route.Username
+			d.Database = route.Database
+		}
+	}
 	if cf.DatabaseUser != "" {
 		d.Username = cf.DatabaseUser
 	}
@@ -847,11 +864,6 @@ func (d *databaseInfo) checkAndSetPrincipalDefaults(cf *CLIConf, tc *client.Tele
 	needDBName := d.Database == "" && role.RequireDatabaseNameMatcher(d.Protocol)
 	if !needDBUser && !needDBName {
 		return nil
-	}
-
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	var proxy *client.ProxyClient
@@ -1306,16 +1318,11 @@ func filterActiveDatabases(ctx context.Context, tc *client.TeleportClient, activ
 	}
 	prefix := tc.DatabaseService
 	if len(tc.Labels) == 0 && tc.PredicateExpression == "" {
-		if prefix == "" && len(activeRoutes) == 1 {
-			return activeRoutes, nil, nil
-		}
 		// when we have a name but don't have label or predicate query, look for
 		// a route that matches the name exactly to maybe avoid calling
 		// ListDatabases API below.
-		for _, route := range activeRoutes {
-			if route.ServiceName == prefix {
-				return []tlsca.RouteToDatabase{route}, nil, nil
-			}
+		if route, ok := findActiveDatabase(prefix, activeRoutes); ok {
+			return []tlsca.RouteToDatabase{route}, nil, nil
 		}
 	}
 
@@ -1350,6 +1357,20 @@ func filterActiveDatabases(ctx context.Context, tc *client.TeleportClient, activ
 		}
 	}
 	return selectedRoutes, activeDBs, nil
+}
+
+// findActiveDatabase returns a database route and a bool indicating whether
+// the route was found.
+func findActiveDatabase(name string, activeRoutes []tlsca.RouteToDatabase) (tlsca.RouteToDatabase, bool) {
+	if name == "" && len(activeRoutes) == 1 {
+		return activeRoutes[0], true
+	}
+	for _, r := range activeRoutes {
+		if r.ServiceName == name {
+			return r, true
+		}
+	}
+	return tlsca.RouteToDatabase{}, false
 }
 
 func formatDatabaseListCommand(clusterFlag string) string {
