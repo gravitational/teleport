@@ -23,6 +23,9 @@ jobs:
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport14
 
+    env:
+      GOLANGCI_LINT_VERSION: v1.54.2
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -39,31 +42,31 @@ jobs:
       - name: golangci-lint (api)
         uses: golangci/golangci-lint-action@v3
         with:
-          version: latest
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: api
           skip-cache: true
       - name: golangci-lint (teleport)
         uses: golangci/golangci-lint-action@v3
         with:
-          version: latest
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --build-tags libfido2,piv
           skip-cache: true
       - name: golangci-lint (kube-agent-updater)
         uses: golangci/golangci-lint-action@v3
         with:
-          version: latest
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/kube-agent-updater
           skip-cache: true
       - name: golangci-lint (assets/backport)
         uses: golangci/golangci-lint-action@v3
         with:
-          version: latest
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: assets/backport
           skip-cache: true
       - name: golangci-lint (build.assets/tooling)
         uses: golangci/golangci-lint-action@v3
         with:
-          version: latest
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: build.assets/tooling
           skip-cache: true
 
