@@ -1737,6 +1737,35 @@ export namespace DeviceAuthenticateEvent {
     }
 }
 
+export class DeviceEnrollEvent extends jspb.Message { 
+    getDeviceId(): string;
+    setDeviceId(value: string): DeviceEnrollEvent;
+
+    getUserName(): string;
+    setUserName(value: string): DeviceEnrollEvent;
+
+    getDeviceOsType(): string;
+    setDeviceOsType(value: string): DeviceEnrollEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeviceEnrollEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: DeviceEnrollEvent): DeviceEnrollEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeviceEnrollEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeviceEnrollEvent;
+    static deserializeBinaryFromReader(message: DeviceEnrollEvent, reader: jspb.BinaryReader): DeviceEnrollEvent;
+}
+
+export namespace DeviceEnrollEvent {
+    export type AsObject = {
+        deviceId: string,
+        userName: string,
+        deviceOsType: string,
+    }
+}
+
 export class FeatureRecommendationEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): FeatureRecommendationEvent;
@@ -2089,6 +2118,12 @@ export class SubmitEventRequest extends jspb.Message {
     setAssistAction(value?: AssistActionEvent): SubmitEventRequest;
 
 
+    hasDeviceEnrollEvent(): boolean;
+    clearDeviceEnrollEvent(): void;
+    getDeviceEnrollEvent(): DeviceEnrollEvent | undefined;
+    setDeviceEnrollEvent(value?: DeviceEnrollEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2157,6 +2192,7 @@ export namespace SubmitEventRequest {
         featureRecommendationEvent?: FeatureRecommendationEvent.AsObject,
         assistAccessRequest?: AssistAccessRequestEvent.AsObject,
         assistAction?: AssistActionEvent.AsObject,
+        deviceEnrollEvent?: DeviceEnrollEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2265,6 +2301,8 @@ export namespace SubmitEventRequest {
     ASSIST_ACCESS_REQUEST = 54,
 
     ASSIST_ACTION = 55,
+
+    DEVICE_ENROLL_EVENT = 56,
 
     }
 

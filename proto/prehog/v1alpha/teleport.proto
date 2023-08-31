@@ -783,6 +783,25 @@ message DeviceAuthenticateEvent {
   string device_os_type = 3;
 }
 
+// Device Enrollment event
+//
+// PostHost event: tp.device.enroll
+message DeviceEnrollEvent {
+  // anonymized device ID, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.device_id
+  string device_id = 1;
+
+  // anonymized username, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.user_name
+  string user_name = 2;
+
+  // device OS type
+  // PostHog property: tp.device_os_type
+  string device_os_type = 3;
+}
+
 // FeatureRecommendationEvent captures event emitted when a feature is recommended to user or
 // when user completes the desired CTA for the feature.
 //
@@ -909,6 +928,8 @@ message SubmitEventRequest {
 
     AssistAccessRequestEvent assist_access_request = 54;
     AssistActionEvent assist_action = 55;
+
+    DeviceEnrollEvent device_enroll_event = 56;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
