@@ -162,6 +162,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		Region:                        req.Region,
 		AccountID:                     req.AccountID,
 		SubnetIDs:                     req.SubnetIDs,
+		SecurityGroups:                req.SecurityGroups,
 		ClusterName:                   req.ClusterName,
 		ServiceName:                   req.ServiceName,
 		TaskName:                      req.TaskName,
@@ -327,6 +328,42 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 	return ui.AWSOIDCListEC2Response{
 		NextToken: resp.NextToken,
 		Servers:   servers,
+	}, nil
+}
+
+// awsOIDCListSecurityGroups returns a list of VPC Security Groups the ListSecurityGroups action of the AWS OIDC Integration.
+func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCListSecurityGroupsRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listSGClient, err := awsoidc.NewListSecurityGroupsClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.ListSecurityGroups(ctx,
+		listSGClient,
+		awsoidc.ListSecurityGroupsRequest{
+			VPCID:     req.VPCID,
+			NextToken: req.NextToken,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCListSecurityGroupsResponse{
+		NextToken:      resp.NextToken,
+		SecurityGroups: resp.SecurityGroups,
 	}, nil
 }
 

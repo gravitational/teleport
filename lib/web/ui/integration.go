@@ -141,6 +141,10 @@ type AWSOIDCDeployServiceRequest struct {
 	// If deploying a Database Service, you should use the SubnetIDs returned by the List Database API call.
 	SubnetIDs []string `json:"subnetIds"`
 
+	// SecurityGroups to apply to the service's network configuration.
+	// If empty, the default security group for the VPC is going to be used.
+	SecurityGroups []string `json:"securityGroups"`
+
 	// ClusterName is the ECS Cluster to be used.
 	// Optional.
 	// Defaults to <teleport-cluster-name>-teleport, eg. acme-teleport
@@ -198,6 +202,27 @@ type AWSOIDCListEC2Request struct {
 type AWSOIDCListEC2Response struct {
 	// Servers contains the page of Servers
 	Servers []Server `json:"servers"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}
+
+// AWSOIDCListSecurityGroupsRequest is a request to ListSecurityGroups using the AWS OIDC Integration.
+type AWSOIDCListSecurityGroupsRequest struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// VPCID is the VPC to filter security groups by.
+	VPCID string `json:"vpcId"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// AWSOIDCListSecurityGroupsResponse contains a list of VPC Security Groups and a next token if more pages are available.
+type AWSOIDCListSecurityGroupsResponse struct {
+	// SecurityGroups contains the page of SecurityGroups
+	SecurityGroups []awsoidc.SecurityGroup `json:"securityGroups"`
 
 	// NextToken is used for pagination.
 	// If non-empty, it can be used to request the next page.

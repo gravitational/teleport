@@ -26,18 +26,8 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
-// KubeCLICommandProvider provides CLI commands for kube gateways.
-type KubeCLICommandProvider struct {
-}
-
-// NewKubeCLICommandProvider creates a new gateway.CLICommandBuilder for kube.
-func NewKubeCLICommandProvider() KubeCLICommandProvider {
-	return KubeCLICommandProvider{}
-}
-
-// GetCommand returns a exec.Cmd with KUBECONFIG environment variable that can
-// be used by kube clients to connect to the kube gateway.
-func (p KubeCLICommandProvider) GetCommand(g gateway.Gateway) (*exec.Cmd, error) {
+// NewKubeCLICommand creates CLI commands for kube gateways.
+func NewKubeCLICommand(g gateway.Gateway) (*exec.Cmd, error) {
 	kube, err := gateway.AsKube(g)
 	if err != nil {
 		return nil, trace.Wrap(err)

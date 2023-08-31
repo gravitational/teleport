@@ -211,6 +211,7 @@ okta_service:
     enabled: yes
     api_endpoint: https://some-endpoint
     api_token_path: %v
+    sync_period: 300s
 `
 
 // NoServicesConfigString is a configuration file with no services enabled

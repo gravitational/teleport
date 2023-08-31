@@ -18,7 +18,6 @@ package accesslist
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -236,27 +235,39 @@ func (a *AccessList) MatchSearch(values []string) bool {
 }
 
 func (a *Audit) UnmarshalJSON(data []byte) error {
-	var audit map[string]interface{}
+	type Alias Audit
+	audit := struct {
+		Frequency     string `json:"frequency"`
+		NextAuditDate string `json:"next_audit_date"`
+		*Alias
+	}{
+		Alias: (*Alias)(a),
+	}
 	if err := json.Unmarshal(data, &audit); err != nil {
 		return trace.Wrap(err)
 	}
 
 	var err error
-	a.Frequency, err = time.ParseDuration(fmt.Sprintf("%v", audit["frequency"]))
+	a.Frequency, err = time.ParseDuration(audit.Frequency)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	a.NextAuditDate, err = time.Parse(time.RFC3339Nano, fmt.Sprintf("%v", audit["next_audit_date"]))
+	a.NextAuditDate, err = time.Parse(time.RFC3339Nano, audit.NextAuditDate)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (a *Audit) MarshalJSON() ([]byte, error) {
-	audit := map[string]interface{}{}
-	audit["frequency"] = a.Frequency.String()
-	audit["next_audit_date"] = a.NextAuditDate.Format(time.RFC3339Nano)
-	data, err := json.Marshal(audit)
-	return data, trace.Wrap(err)
+func (a Audit) MarshalJSON() ([]byte, error) {
+	type Alias Audit
+	return json.Marshal(&struct {
+		Frequency     string `json:"frequency"`
+		NextAuditDate string `json:"next_audit_date"`
+		Alias
+	}{
+		Alias:         (Alias)(a),
+		Frequency:     a.Frequency.String(),
+		NextAuditDate: a.NextAuditDate.Format(time.RFC3339Nano),
+	})
 }
