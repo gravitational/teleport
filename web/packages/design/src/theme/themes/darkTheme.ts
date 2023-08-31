@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { blue, orange, pink, purple } from 'design/theme/palette';
+
 import { lighten } from '../utils/colorManipulator';
 
 import { sharedColors, sharedStyles } from './sharedStyles';
 import { DataVisualisationColors, Theme, ThemeColors } from './types';
-import { blue, orange, pink, purple } from 'design/theme/palette';
 
 const dataVisualisationColors: DataVisualisationColors = {
   primary: {
