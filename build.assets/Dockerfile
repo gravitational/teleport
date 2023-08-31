@@ -281,16 +281,14 @@ RUN go install github.com/google/addlicense@v1.0.0
 RUN go install github.com/daixiang0/gci@v0.11.0
 
 # Install golangci-lint.
-RUN TAG='v1.54.1' && \
-    curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
-    sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
+RUN VERSION='v1.54.2'; \
+    curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$VERSION/install.sh" | \
+    sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
 
 # Install Buf.
-ARG BUF_VERSION # eg, "1.19.0"
-RUN BIN='/usr/local/bin' && \
-  VERSION="$BUF_VERSION" && \
-  curl -fsSL "https://github.com/bufbuild/buf/releases/download/v$VERSION/buf-$(uname -s)-$(uname -m)" -o "${BIN}/buf" && \
-  chmod +x "$BIN/buf"
+ARG BUF_VERSION # eg, "v1.26.1"
+RUN VERSION="$BUF_VERSION"; \
+    go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
 
 # Copy BPF libraries.
 ARG LIBBPF_VERSION
