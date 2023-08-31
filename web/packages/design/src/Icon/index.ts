@@ -22,6 +22,7 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 export { Icon } from './Icon';
 
+export { AccessGraph } from './Icons/AccessGraph';
 export { Add } from './Icons/Add';
 export { AddCircle } from './Icons/AddCircle';
 export { AddUsers } from './Icons/AddUsers';
@@ -33,6 +34,7 @@ export { Application } from './Icons/Application';
 export { Archive } from './Icons/Archive';
 export { ArrowBack } from './Icons/ArrowBack';
 export { ArrowForward } from './Icons/ArrowForward';
+export { ArrowRight } from './Icons/ArrowRight';
 export { BookOpenText } from './Icons/BookOpenText';
 export { Bubble } from './Icons/Bubble';
 export { CCAmex } from './Icons/CCAmex';
@@ -133,6 +135,9 @@ export { PushPinFilled } from './Icons/PushPinFilled';
 export { Question } from './Icons/Question';
 export { Refresh } from './Icons/Refresh';
 export { Restore } from './Icons/Restore';
+export { Ruler } from './Icons/Ruler';
+export { Run } from './Icons/Run';
+export { Scan } from './Icons/Scan';
 export { Server } from './Icons/Server';
 export { Share } from './Icons/Share';
 export { ShieldCheck } from './Icons/ShieldCheck';

@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { blue, orange, pink, purple } from 'design/theme/palette';
+
 import { lighten } from '../utils/colorManipulator';
 
 import { sharedColors, sharedStyles } from './sharedStyles';
@@ -179,6 +181,56 @@ const colors: ThemeColors = {
     brightBlue: dataVisualisationColors.tertiary.picton,
     brightMagenta: dataVisualisationColors.tertiary.purple,
     brightCyan: dataVisualisationColors.tertiary.cyan,
+  },
+
+  accessGraph: {
+    dotsColor: 'rgba(255, 255, 255, 0.1)',
+    nodes: {
+      user: {
+        background: lighten(purple[300], 0.1),
+        borderColor: 'transparent',
+        typeColor: purple[700],
+        iconBackground: purple[400],
+        handleColor: purple[700],
+        label: {
+          background: purple[200],
+          color: purple[700],
+        },
+      },
+      userGroup: {
+        background: lighten(orange[300], 0.1),
+        borderColor: 'transparent',
+        typeColor: orange[700],
+        iconBackground: orange[400],
+        handleColor: purple[700],
+        label: {
+          background: orange[200],
+          color: orange[700],
+        },
+      },
+      resource: {
+        background: lighten(blue[300], 0.1),
+        borderColor: 'transparent',
+        typeColor: blue[700],
+        iconBackground: blue[400],
+        handleColor: purple[700],
+        label: {
+          background: blue[200],
+          color: blue[700],
+        },
+      },
+      resourceGroup: {
+        background: lighten(pink[300], 0.1),
+        borderColor: 'transparent',
+        typeColor: pink[700],
+        iconBackground: pink[400],
+        handleColor: purple[700],
+        label: {
+          background: pink[200],
+          color: pink[700],
+        },
+      },
+    },
   },
 
   editor: {

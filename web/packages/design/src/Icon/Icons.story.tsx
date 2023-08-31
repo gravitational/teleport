@@ -34,6 +34,7 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 export const Icons = () => (
   <Flex flexWrap="wrap">
+    <IconBox IconCmpt={Icon.AccessGraph} text="AccessGraph" />
     <IconBox IconCmpt={Icon.Add} text="Add" />
     <IconBox IconCmpt={Icon.AddCircle} text="AddCircle" />
     <IconBox IconCmpt={Icon.AddUsers} text="AddUsers" />
@@ -45,6 +46,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Archive} text="Archive" />
     <IconBox IconCmpt={Icon.ArrowBack} text="ArrowBack" />
     <IconBox IconCmpt={Icon.ArrowForward} text="ArrowForward" />
+    <IconBox IconCmpt={Icon.ArrowRight} text="ArrowRight" />
     <IconBox IconCmpt={Icon.BookOpenText} text="BookOpenText" />
     <IconBox IconCmpt={Icon.Bubble} text="Bubble" />
     <IconBox IconCmpt={Icon.CCAmex} text="CCAmex" />
@@ -145,6 +147,9 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Question} text="Question" />
     <IconBox IconCmpt={Icon.Refresh} text="Refresh" />
     <IconBox IconCmpt={Icon.Restore} text="Restore" />
+    <IconBox IconCmpt={Icon.Ruler} text="Ruler" />
+    <IconBox IconCmpt={Icon.Run} text="Run" />
+    <IconBox IconCmpt={Icon.Scan} text="Scan" />
     <IconBox IconCmpt={Icon.Server} text="Server" />
     <IconBox IconCmpt={Icon.Share} text="Share" />
     <IconBox IconCmpt={Icon.ShieldCheck} text="ShieldCheck" />
