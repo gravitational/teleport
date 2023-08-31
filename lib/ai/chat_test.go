@@ -356,7 +356,7 @@ func TestChat_Complete_AuditQuery(t *testing.T) {
 	require.NoError(t, err)
 
 	// We check that the agent returns the expected response
-	message, ok := result.(*output.Message)
+	message, ok := result.(*output.StreamingMessage)
 	require.True(t, ok)
-	require.Equal(t, generatedQuery, message.Content)
+	require.Equal(t, generatedQuery, message.WaitAndConsume())
 }

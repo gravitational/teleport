@@ -26,6 +26,7 @@ import (
 	"github.com/sashabaranov/go-openai"
 
 	"github.com/gravitational/teleport/gen/go/eventschema"
+	"github.com/gravitational/teleport/lib/ai/model/output"
 	"github.com/gravitational/teleport/lib/ai/tokens"
 )
 
@@ -114,14 +115,14 @@ You MUST RESPOND ONLY with a single table name. If no table can answer the quest
 
 // GenerateQuery takes an event type, fetches its schema, and calls the LLM to
 // generate SQL and answer the user query.
-func (t *AuditQueryGenerationTool) GenerateQuery(ctx context.Context, eventType, input string, tc *tokens.TokenCount) (string, error) {
+func (t *AuditQueryGenerationTool) GenerateQuery(ctx context.Context, eventType, input string, tc *tokens.TokenCount) (*output.StreamingMessage, error) {
 	eventSchema, err := eventschema.GetEventSchemaFromType(eventType)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	tableSchema, err := eventSchema.TableSchema()
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	prompt := []openai.ChatCompletionMessage{
@@ -144,28 +145,29 @@ Today's date is DATE('%s')`, time.Now().Format("2006-01-02")),
 	}
 	promptTokens, err := tokens.NewPromptTokenCounter(prompt)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	tc.AddPromptCounter(promptTokens)
 
-	response, err := t.LLM.CreateChatCompletion(
+	stream, err := t.LLM.CreateChatCompletionStream(
 		ctx,
 		openai.ChatCompletionRequest{
 			Model:       openai.GPT4,
 			Messages:    prompt,
 			Temperature: 0,
+			Stream:      true,
 		},
 	)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	completion := response.Choices[0].Message.Content
-	completionTokens, err := tokens.NewSynchronousTokenCounter(completion)
+	deltas := output.StreamToDeltas(stream)
+	message, completionTokens, err := output.NewStreamingMessage(deltas, "", "")
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	tc.AddCompletionCounter(completionTokens)
 
-	return completion, nil
+	return message, nil
 }

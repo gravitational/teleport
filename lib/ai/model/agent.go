@@ -19,9 +19,7 @@ package model
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -266,14 +264,12 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		}
 
 		log.Tracef("Tool chose to query table '%s'", tableName)
-		query, err := tool.GenerateQuery(ctx, tableName, action.Input, state.tokenCount)
+		response, err := tool.GenerateQuery(ctx, tableName, action.Input, state.tokenCount)
 		if err != nil {
 			return stepOutput{}, trace.Wrap(err)
 		}
-		log.Tracef("Tool generated query: %s", query)
 
-		completion := &output.Message{Content: query}
-		return stepOutput{finish: &agentFinish{output: completion}}, nil
+		return stepOutput{finish: &agentFinish{output: response}}, nil
 	default:
 		runOut, err := tool.Run(ctx, a.toolCtx, action.Input)
 		if err != nil {
@@ -305,23 +301,7 @@ func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, 
 		return nil, nil, trace.Wrap(err)
 	}
 
-	deltas := make(chan string)
-	go func() {
-		defer close(deltas)
-
-		for {
-			response, err := stream.Recv()
-			if errors.Is(err, io.EOF) {
-				return
-			} else if err != nil {
-				log.Tracef("agent encountered an error while streaming: %v", err)
-				return
-			}
-
-			delta := response.Choices[0].Delta.Content
-			deltas <- delta
-		}
-	}()
+	deltas := output.StreamToDeltas(stream)
 
 	action, finish, completionTokenCounter, err := parsePlanningOutput(deltas)
 	state.tokenCount.AddCompletionCounter(completionTokenCounter)
@@ -391,25 +371,11 @@ func parsePlanningOutput(deltas <-chan string) (*AgentAction, *agentFinish, toke
 		text += delta
 
 		if strings.HasPrefix(text, finalResponseHeader) {
-			parts := make(chan string)
-			streamingTokenCounter, err := tokens.NewAsynchronousTokenCounter(text)
+			message, tc, err := output.NewStreamingMessage(deltas, text, finalResponseHeader)
 			if err != nil {
 				return nil, nil, nil, trace.Wrap(err)
 			}
-			go func() {
-				defer close(parts)
-
-				parts <- strings.TrimPrefix(text, finalResponseHeader)
-				for delta := range deltas {
-					parts <- delta
-					errCount := streamingTokenCounter.Add()
-					if errCount != nil {
-						log.WithError(errCount).Debug("Failed to add streamed completion text to the token counter")
-					}
-				}
-			}()
-
-			return nil, &agentFinish{output: &output.StreamingMessage{Parts: parts}}, streamingTokenCounter, nil
+			return nil, &agentFinish{output: message}, tc, nil
 		}
 	}
 

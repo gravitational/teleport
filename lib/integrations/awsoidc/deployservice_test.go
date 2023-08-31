@@ -147,7 +147,7 @@ func TestDeployServiceRequest(t *testing.T) {
 				TeleportIAMTokenName: stringPointer("discover-aws-oidc-iam-token"),
 				IntegrationName:      "teleportdev",
 				ProxyServerHostPort:  "proxy.example.com:3080",
-				ResourceCreationTags: awsTags{
+				ResourceCreationTags: AWSTags{
 					"teleport.dev/origin":      "integration_awsoidc",
 					"teleport.dev/cluster":     "mycluster",
 					"teleport.dev/integration": "teleportdev",

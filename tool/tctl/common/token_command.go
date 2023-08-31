@@ -163,6 +163,12 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
+	// If it's Kube, then enable App and Discovery roles automatically so users
+	// don't have problems with running Kubernetes App Discovery by default.
+	if len(roles) == 1 && roles[0] == types.RoleKube {
+		roles = append(roles, types.RoleApp, types.RoleDiscovery)
+	}
+
 	token := c.value
 	if c.value == "" {
 		token, err = utils.CryptoRandomHex(auth.TokenLenBytes)
@@ -257,11 +263,13 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 		if len(proxies) == 0 {
 			return trace.NotFound("cluster has no proxies")
 		}
+		setRoles := strings.ToLower(strings.Join(roles.StringSlice(), "\\,"))
 		return kubeMessageTemplate.Execute(c.stdout,
 			map[string]interface{}{
 				"auth_server": proxies[0].GetPublicAddr(),
 				"token":       token,
 				"minutes":     c.ttl.Minutes(),
+				"set_roles":   setRoles,
 			})
 	case roles.Include(types.RoleApp):
 		proxies, err := client.GetProxies()
