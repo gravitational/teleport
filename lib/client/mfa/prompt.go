@@ -261,6 +261,7 @@ func (p *Prompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) 
 		}()
 	}
 
+	var errs []error
 	for i := 0; i < numGoroutines; i++ {
 		select {
 		case resp := <-respC:
@@ -269,6 +270,7 @@ func (p *Prompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) 
 				// Surface error immediately.
 			case err != nil:
 				log.WithError(err).Debugf("%s authentication failed", resp.kind)
+				errs = append(errs, err)
 				continue
 			}
 
@@ -281,8 +283,7 @@ func (p *Prompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) 
 		}
 	}
 	cancelAndWait()
-	return nil, trace.BadParameter(
-		"failed to authenticate using all MFA devices, rerun the command with '-d' to see error details for each device")
+	return nil, trace.Wrap(trace.NewAggregate(errs...), "failed to authenticate using all available MFA devices")
 }
 
 // mfaPrompt implements wancli.LoginPrompt for MFA logins.

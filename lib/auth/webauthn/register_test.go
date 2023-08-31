@@ -105,7 +105,6 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 				User:             user,
 				DeviceName:       test.deviceName,
 				CreationResponse: ccr,
-				Passwordless:     test.passwordless,
 			})
 			require.NoError(t, err)
 			require.Equal(t, test.deviceName, newDevice.GetName())
@@ -419,7 +418,6 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 				User:             test.user,
 				DeviceName:       test.deviceName,
 				CreationResponse: test.createResp(),
-				Passwordless:     test.passwordless,
 			})
 			require.Error(t, err)
 			require.Contains(t, err.Error(), test.wantErr)

@@ -47,8 +47,10 @@ var (
 	errNoPlatform              = errors.New("device cannot fulfill platform attachment requirement")
 	errNoRK                    = errors.New("device lacks resident key capabilities")
 	errNoRegisteredCredentials = errors.New("device lacks registered credentials")
-	errNoUV                    = errors.New("device lacks PIN or user verification capabilities")
+	errNoUV                    = errors.New("device lacks user verification capabilities")
+	errPINNotSet               = errors.New("device has PIN capabilities but is not set up")
 	errPasswordlessU2F         = errors.New("U2F devices cannot do passwordless")
+	errUserVerificationU2F     = errors.New("U2F devices cannot do user verification (PIN)")
 )
 
 // FIDODevice abstracts *libfido2.Device for testing.
@@ -75,6 +77,11 @@ type FIDODevice interface {
 		credentialIDs [][]byte,
 		pin string,
 		opts *libfido2.AssertionOpts) ([]*libfido2.Assertion, error)
+
+	// SetPIN sets the Fido2 device PIN. Usually, this is set during
+	// passwordless enrollment. For MFA w/ user verification, we prompt
+	// the user to set PIN only when needed.
+	SetPIN(pin string, old string) error
 }
 
 // fidoDeviceLocations and fidoNewDevice are used to allow testing.
@@ -111,12 +118,13 @@ func fido2Login(
 	}
 
 	allowedCreds := assertion.Response.GetAllowedCredentialIDs()
-	uv := assertion.Response.UserVerification == protocol.VerificationRequired
+	userVerification := assertion.Response.UserVerification == protocol.VerificationRequired
 
 	// Presence of any allowed credential is interpreted as the user identity
 	// being partially established, aka non-passwordless.
 	passwordless := len(allowedCreds) == 0
-	log.Debugf("FIDO2: assertion: passwordless=%v, uv=%v, %v allowed credentials", passwordless, uv, len(allowedCreds))
+	passwordless = false
+	log.Debugf("FIDO2: assertion: passwordless=%v, userVerification=%v, %v allowed credentials", passwordless, userVerification, len(allowedCreds))
 
 	// Prepare challenge data for the device.
 	ccdJSON, err := json.Marshal(&CollectedClientData{
@@ -142,18 +150,27 @@ func fido2Login(
 
 	pathToRPID := &sync.Map{} // map[string]string
 	filter := func(dev FIDODevice, info *deviceInfo) error {
-		switch {
-		case info.u2f && (uv || passwordless):
-			return errPasswordlessU2F
-		case passwordless && (!info.uvCapable() || !info.rk):
-			return errNoPasswordless
-		case uv && !info.uvCapable():
-			// Unlikely that we would ask for UV without passwordless, but let's check
-			// just in case.
-			// If left unchecked this causes libfido2.ErrUnsupportedOption.
-			return errNoUV
-		case passwordless: // Nothing else to check
-			return nil
+		if passwordless {
+			switch {
+			case info.u2f:
+				return errPasswordlessU2F
+			case !info.uvCapable() || !info.rk:
+				return errNoPasswordless
+			}
+			return nil // Nothing else to check
+		}
+
+		if userVerification {
+			switch {
+			case info.u2f:
+				return errUserVerificationU2F
+			case userVerification && !info.uvCapable():
+				if info.clientPinCapable {
+					return nil // let the client set pin
+				}
+				return errNoUV
+			}
+			return nil // Nothing else to check
 		}
 
 		// TODO(codingllama): Kill discoverRPID? It makes behavioral assumptions
@@ -179,13 +196,13 @@ func fido2Login(
 		opts := &libfido2.AssertionOpts{
 			UP: libfido2.True,
 		}
-		// Note that "uv" fails for PIN-capable devices with an empty PIN.
+		// Note that user verification fails for PIN-capable devices with an empty PIN.
 		// This is handled by runOnFIDO2Devices.
-		if uv {
+		if userVerification {
 			opts.UV = libfido2.True
 		}
 		assertions, err := dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
-		if errors.Is(err, libfido2.ErrUnsupportedOption) && uv && pin != "" {
+		if errors.Is(err, libfido2.ErrUnsupportedOption) && userVerification && pin != "" {
 			// Try again if we are getting "unsupported option" and the PIN is set.
 			// Happens inconsistently in some authenticator series (YubiKey 5).
 			// We are relying on the fact that, because the PIN is set, the
@@ -589,6 +606,21 @@ func runOnFIDO2Devices(
 		return libfido2.ErrPinRequired
 	}
 
+	if !dev.info.clientPinSet {
+		err := dev.SetPIN(pin, "")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Refresh device info.
+		devInfo, err := dev.Info()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		dev.info = makeDevInfo(dev.info.path, devInfo, dev.info.u2f)
+	}
+
 	// Prompt a second touch after reading the PIN.
 	ackTouch, err = prompt.PromptTouch()
 	if err != nil {
@@ -661,7 +693,7 @@ func withPINHandler(cb deviceCallbackFunc) pinAwareCallbackFunc {
 		switch {
 		case errors.Is(err, libfido2.ErrPinRequired):
 			// Continued below.
-		case errors.Is(err, libfido2.ErrUnsupportedOption) && pin == "" && !info.uv && info.clientPinSet:
+		case errors.Is(err, libfido2.ErrUnsupportedOption) && pin == "" && !info.uv:
 			// The failing option is likely to be "UV", so we handle this the same as
 			// ErrPinRequired: see if the user selects this device, ask for the PIN and
 			// try again.

@@ -172,7 +172,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 		cfg:                     f.Webauthn,
 		rpID:                    f.Webauthn.RPID,
 		requireResidentKey:      passwordless,
-		requireUserVerification: passwordless,
+		requireUserVerification: passwordless || f.Webauthn.UserVerificationRequired,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -234,13 +234,9 @@ type RegisterResponse struct {
 	// DeviceName is the name for the new device.
 	DeviceName string
 	// CreationResponse is the response from the new device.
-	CreationResponse *wantypes.CredentialCreationResponse
-	// Passwordless is true if this is expected to be a passwordless registration.
-	// Callers may make certain concessions when processing passwordless
-	// registration (such as skipping password validation), this flag reflects that.
-	// The data stored in the Begin SessionData must match the passwordless flag,
-	// otherwise the registration is denied.
-	Passwordless bool
+	CreationResponse        *wantypes.CredentialCreationResponse
+	RequireResidentKey      bool
+	RequireUserVerification bool
 }
 
 // Finish is the second and last step of the registration ceremony.
@@ -282,10 +278,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 	}
 	sessionData := sessionFromPB(sessionDataPB)
 
-	// Activate passwordless switches (resident key, user verification) if we
-	// required verification in the begin step.
-	passwordless := sessionData.UserVerification == protocol.VerificationRequired
-	if req.Passwordless && !passwordless {
+	if req.RequireUserVerification && sessionData.UserVerification != protocol.VerificationRequired {
 		return nil, trace.BadParameter("passwordless registration failed, requested CredentialCreation was for an MFA registration")
 	}
 
@@ -293,8 +286,8 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 		cfg:                     f.Webauthn,
 		rpID:                    f.Webauthn.RPID,
 		origin:                  origin,
-		requireResidentKey:      passwordless,
-		requireUserVerification: passwordless,
+		requireResidentKey:      req.RequireResidentKey,
+		requireUserVerification: req.RequireUserVerification,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -305,7 +298,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 		protocolErr := &protocol.Error{}
 		if errors.As(err, &protocolErr) &&
 			protocolErr.Type == protocol.ErrVerification.Type &&
-			passwordless &&
+			req.RequireUserVerification &&
 			!parsedResp.Response.AttestationObject.AuthData.Flags.UserVerified() {
 			log.WithError(err).Debug("WebAuthn: Replacing verification error with PIN message")
 			return nil, trace.BadParameter("authenticator doesn't support passwordless, setting up a PIN may fix this")
@@ -330,7 +323,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 			Aaguid:            credential.Authenticator.AAGUID,
 			SignatureCounter:  credential.Authenticator.SignCount,
 			AttestationObject: req.CreationResponse.AttestationResponse.AttestationObject,
-			ResidentKey:       req.Passwordless,
+			ResidentKey:       req.RequireResidentKey,
 			CredentialRpId:    f.Webauthn.RPID,
 		},
 	}

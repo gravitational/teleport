@@ -31,7 +31,7 @@ import (
 // DefaultPrompt is a default implementation for LoginPrompt and
 // RegistrationPrompt.
 type DefaultPrompt struct {
-	PINMessage                            string
+	PINMessage, SetPINMessage             string
 	FirstTouchMessage, SecondTouchMessage string
 	AcknowledgeTouchMessage               string
 	PromptCredentialMessage               string
@@ -48,6 +48,7 @@ type DefaultPrompt struct {
 func NewDefaultPrompt(ctx context.Context, out io.Writer) *DefaultPrompt {
 	return &DefaultPrompt{
 		PINMessage:              "Enter your security key PIN",
+		SetPINMessage:           "Your hardware key is not set up with PIN verification.\nEnter a PIN for your security key.",
 		FirstTouchMessage:       "Tap your security key",
 		SecondTouchMessage:      "Tap your security key again to complete login",
 		AcknowledgeTouchMessage: "Detected security key tap",

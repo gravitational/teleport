@@ -143,7 +143,8 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	web, err := newWebAuthn(webAuthnParams{
 		cfg:                     f.Webauthn,
 		rpID:                    f.Webauthn.RPID,
-		requireUserVerification: passwordless,
+		requireUserVerification: passwordless || f.Webauthn.UserVerificationRequired,
+		requireResidentKey:      passwordless,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -269,13 +270,18 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		})
 	}
 
+	if (passwordless || f.Webauthn.UserVerificationRequired) && sessionData.UserVerification != protocol.VerificationRequired {
+		return nil, "", trace.BadParameter("passwordless registration failed, requested CredentialCreation was for an MFA registration")
+	}
+
 	// Create a WebAuthn matching the expected RPID and Origin, then verify the
 	// signed challenge.
 	web, err := newWebAuthn(webAuthnParams{
 		cfg:                     f.Webauthn,
 		rpID:                    rpID,
 		origin:                  origin,
-		requireUserVerification: passwordless,
+		requireResidentKey:      passwordless,
+		requireUserVerification: passwordless || f.Webauthn.UserVerificationRequired,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)

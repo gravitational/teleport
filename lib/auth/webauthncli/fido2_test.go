@@ -2060,6 +2060,10 @@ func (f *fakeFIDO2Device) PromptPIN() (string, error) {
 	return f.pin, nil
 }
 
+func (f *fakeFIDO2Device) SetPIN(string, string) (error) {
+	return nil
+}
+
 func (f *fakeFIDO2Device) PromptTouch() (wancli.TouchAcknowledger, error) {
 	f.setUP()
 	return func() error { return nil }, nil

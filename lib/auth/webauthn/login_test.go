@@ -376,7 +376,6 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 		User:             user,
 		DeviceName:       "webauthn1",
 		CreationResponse: ccr,
-		Passwordless:     true,
 	})
 	require.NoError(t, err)
 
@@ -543,7 +542,6 @@ func TestCredentialRPID(t *testing.T) {
 			User:             user,
 			DeviceName:       deviceName,
 			CreationResponse: ccr,
-			Passwordless:     passwordless,
 		})
 	}
 

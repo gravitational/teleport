@@ -1358,7 +1358,8 @@ type Webauthn struct {
 	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
 	// Deprecated: Disabled has no effect, it is kept solely to not break existing
 	// configurations.
-	Disabled bool `yaml:"disabled,omitempty"`
+	Disabled                 bool `yaml:"disabled,omitempty"`
+	UserVerificationRequired bool `yaml:"user_verification_required"`
 }
 
 func (w *Webauthn) Parse() (*types.Webauthn, error) {
@@ -1379,9 +1380,10 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 	return &types.Webauthn{
 		// Allow any RPID to go through, we rely on
 		// types.Webauthn.CheckAndSetDefaults to correct it.
-		RPID:                  w.RPID,
-		AttestationAllowedCAs: allowedCAs,
-		AttestationDeniedCAs:  deniedCAs,
+		RPID:                     w.RPID,
+		AttestationAllowedCAs:    allowedCAs,
+		AttestationDeniedCAs:     deniedCAs,
+		UserVerificationRequired: w.UserVerificationRequired,
 	}, nil
 }
 

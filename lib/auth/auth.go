@@ -3249,10 +3249,11 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 	}
 	// Finish upserts the device on success.
 	dev, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
-		User:             req.username,
-		DeviceName:       req.newDeviceName,
-		CreationResponse: wantypes.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
-		Passwordless:     req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+		User:                    req.username,
+		DeviceName:              req.newDeviceName,
+		CreationResponse:        wantypes.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
+		RequireUserVerification: req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS || webConfig.UserVerificationRequired,
+		RequireResidentKey:      req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	return dev, trace.Wrap(err)
 }

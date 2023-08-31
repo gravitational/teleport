@@ -1851,6 +1851,7 @@ message Webauthn {
   // By default no devices are denied.
   repeated string AttestationDeniedCAs = 3 [(gogoproto.jsontag) = "attestation_denied_cas,omitempty"];
   reserved 4; // bool Disabled
+  bool UserVerificationRequired = 5 [(gogoproto.jsontag) = "user_verification_required,omitempty"];
 }
 
 // DeviceTrust holds settings related to trusted device verification.
