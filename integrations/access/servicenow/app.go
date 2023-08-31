@@ -45,7 +45,7 @@ const (
 	// pluginName is used to tag Servicenow GenericPluginData and as a Delegator in Audit log.
 	pluginName = "servicenow"
 	// minServerVersion is the minimal teleport version the plugin supports.
-	minServerVersion = "6.1.0"
+	minServerVersion = "13.0.0"
 	// grpcBackoffMaxDelay is a maximum time GRPC client waits before reconnection attempt.
 	grpcBackoffMaxDelay = time.Second * 2
 	// initTimeout is used to bound execution time of health check and teleport version check.
@@ -107,12 +107,10 @@ func (a *App) WaitReady(ctx context.Context) (bool, error) {
 }
 
 func (a *App) run(ctx context.Context) error {
-	var err error
-
 	log := logger.Get(ctx)
 	log.Infof("Starting Teleport Access Servicenow Plugin")
 
-	if err = a.init(ctx); err != nil {
+	if err := a.init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
