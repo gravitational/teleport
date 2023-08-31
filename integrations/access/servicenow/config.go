@@ -18,10 +18,8 @@ package servicenow
 
 import (
 	"net/url"
-	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/pelletier/go-toml"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -33,32 +31,6 @@ type Config struct {
 	common.BaseConfig
 	ClientConfig
 	Servicenow common.GenericAPIConfig
-}
-
-// LoadServicenowConfig reads the config file, initializes a new ServicenowConfig struct object, and returns it.
-// Optionally returns an error if the file is not readable, or if file format is invalid.
-func LoadServicenowConfig(filepath string) (*Config, error) {
-	t, err := toml.LoadFile(filepath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	conf := &Config{}
-	if err := t.Unmarshal(conf); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if strings.HasPrefix(conf.Servicenow.Token, "/") {
-		conf.Servicenow.Token, err = lib.ReadPassword(conf.Servicenow.Token)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	if err := conf.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return conf, nil
 }
 
 // CheckAndSetDefaults checks the config struct for any logical errors, and sets default values

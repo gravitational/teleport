@@ -102,11 +102,3 @@ type userResult struct {
 type incidentResult struct {
 	Result Incident `json:"result"`
 }
-
-type AccessResponse struct {
-	Scope            string `json:"scope"`
-	TokenType        string `json:"token_type"`
-	ExpiresInSeconds int    `json:"expires_in"`
-	RefreshToken     string `json:"refresh_token"`
-	AccessToken      string `json:"access_token"`
-}
