@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
@@ -37,13 +38,13 @@ func TestAccessListCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := memory.New(memory.Config{
+	mem, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clock,
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend, clock)
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
 	require.NoError(t, err)
 
 	// Create a couple access lists.
@@ -129,13 +130,13 @@ func TestAccessListMembersCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := memory.New(memory.Config{
+	mem, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clock,
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend, clock)
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
 	require.NoError(t, err)
 
 	// Create a couple access lists.
