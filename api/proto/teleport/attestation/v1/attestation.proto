@@ -23,6 +23,7 @@ message AttestationStatement {
   oneof attestation_statement {
     // yubikey_attestation_statement is an attestation statement for a specific YubiKey PIV slot.
     YubiKeyAttestationStatement yubikey_attestation_statement = 1;
+    WebSessionAttestationStatement web_session_attestation_statement = 2;
   }
 }
 
@@ -35,3 +36,6 @@ message YubiKeyAttestationStatement {
   // attestation_cert is the YubiKey's unique attestation certificate, signed by a Yubico CA.
   bytes attestation_cert = 2;
 }
+
+// WebSessionAttestationStatement is an attestation statement for a specific YubiKey PIV slot.
+message WebSessionAttestationStatement {}

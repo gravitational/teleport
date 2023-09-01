@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	attestationv1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -514,7 +515,12 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 					Usage:          authproto.UserCertsRequest_SSH,
 					Format:         tc.CertificateFormat,
 					SSHLogin:       tc.HostLogin,
-				},
+					// Web Sessions create ephemeral certs for ssh sessions when MFA is enabled.
+					AttestationStatement: &attestationv1.AttestationStatement{
+						AttestationStatement: &attestationv1.AttestationStatement_WebSessionAttestationStatement{
+							WebSessionAttestationStatement: &attestationv1.WebSessionAttestationStatement{},
+						},
+					}},
 			},
 		}); err != nil {
 		return nil, trail.FromGRPC(err)

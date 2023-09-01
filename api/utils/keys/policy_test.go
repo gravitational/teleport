@@ -29,16 +29,19 @@ func TestVerifyPolicy(t *testing.T) {
 		require.NoError(t, PrivateKeyPolicyNone.VerifyPolicy(PrivateKeyPolicyNone))
 		require.NoError(t, PrivateKeyPolicyNone.VerifyPolicy(PrivateKeyPolicyHardwareKey))
 		require.NoError(t, PrivateKeyPolicyNone.VerifyPolicy(PrivateKeyPolicyHardwareKeyTouch))
+		require.NoError(t, PrivateKeyPolicyNone.VerifyPolicy(PrivateKeyPolicyWebSession))
 	})
 	t.Run("key policy hardware_key", func(t *testing.T) {
 		require.Error(t, PrivateKeyPolicyHardwareKey.VerifyPolicy(PrivateKeyPolicyNone))
 		require.NoError(t, PrivateKeyPolicyHardwareKey.VerifyPolicy(PrivateKeyPolicyHardwareKey))
 		require.NoError(t, PrivateKeyPolicyHardwareKey.VerifyPolicy(PrivateKeyPolicyHardwareKeyTouch))
+		require.NoError(t, PrivateKeyPolicyHardwareKey.VerifyPolicy(PrivateKeyPolicyWebSession))
 	})
 	t.Run("key policy hardware_key_touch", func(t *testing.T) {
 		require.Error(t, PrivateKeyPolicyHardwareKeyTouch.VerifyPolicy(PrivateKeyPolicyNone))
 		require.Error(t, PrivateKeyPolicyHardwareKeyTouch.VerifyPolicy(PrivateKeyPolicyHardwareKey))
 		require.NoError(t, PrivateKeyPolicyHardwareKeyTouch.VerifyPolicy(PrivateKeyPolicyHardwareKeyTouch))
+		require.NoError(t, PrivateKeyPolicyHardwareKeyTouch.VerifyPolicy(PrivateKeyPolicyWebSession))
 	})
 }
 

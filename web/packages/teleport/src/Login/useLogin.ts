@@ -31,9 +31,7 @@ export default function useLogin() {
   // see a login form which prevents login attempts.
   // Role setting requires the user to try a successful
   // attempt at logging in to determine if private key policy was enabled.
-  const [privateKeyPolicyEnabled, setPrivateKeyPolicyEnabled] = useState(
-    cfg.getPrivateKeyPolicy() != 'none'
-  );
+  const [privateKeyPolicyEnabled, setPrivateKeyPolicyEnabled] = useState(false);
 
   const authProviders = cfg.getAuthProviders();
   const auth2faType = cfg.getAuth2faType();

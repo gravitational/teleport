@@ -245,7 +245,7 @@ func (c *Context) GetAccessState(authPref types.AuthPreference) services.AccessS
 	// Builtin services (like proxy_service and kube_service) are not gated
 	// on MFA and only need to pass normal RBAC action checks.
 	_, isService := c.Identity.(BuiltinRole)
-	state.MFAVerified = isService || identity.MFAVerified != ""
+	state.MFAVerified = isService || identity.MFAVerified != "" || identity.PrivateKeyPolicy.MFAVerified()
 
 	state.EnableDeviceVerification = !c.disableDeviceAuthorization
 	state.DeviceVerified = isService || dtauthz.IsTLSDeviceVerified(&identity.DeviceExtensions)

@@ -24,7 +24,6 @@ export function makeChangedUserAuthn(json: any): ChangedUserAuthn {
 
   return {
     recovery: makeRecoveryCodes(json.recovery),
-    privateKeyPolicyEnabled: !!json.privateKeyPolicyEnabled,
   };
 }
 

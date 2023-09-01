@@ -84,9 +84,6 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		awsRoleARN:        req.AWSRoleARN,
 		azureIdentity:     req.AzureIdentity,
 		gcpServiceAccount: req.GCPServiceAccount,
-		// Since we are generating the keys and certs directly on the Auth Server,
-		// we need to skip attestation.
-		skipAttestation: true,
 		// Pass along device extensions from the user.
 		deviceExtensions: DeviceExtensions(identity.DeviceExtensions),
 	})

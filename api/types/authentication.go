@@ -857,8 +857,7 @@ func (d *MFADevice) UnmarshalJSON(buf []byte) error {
 
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.
 func (r RequireMFAType) IsSessionMFARequired() bool {
-	// TODO: hardware_key_pin should not require MFA unless for web sessions.
-	return r == RequireMFAType_SESSION || r == RequireMFAType_SESSION_AND_HARDWARE_KEY || r == RequireMFAType_HARDWARE_KEY_PIN
+	return r != RequireMFAType_OFF
 }
 
 func (r RequireMFAType) IsHardwareKeyRequired() bool {
@@ -867,14 +866,6 @@ func (r RequireMFAType) IsHardwareKeyRequired() bool {
 		RequireMFAType_HARDWARE_KEY_TOUCH,
 		RequireMFAType_HARDWARE_KEY_PIN,
 		RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
-		return true
-	}
-	return false
-}
-
-func (r RequireMFAType) IsHardwareKeyTouchRequired() bool {
-	switch r {
-	case RequireMFAType_HARDWARE_KEY_TOUCH, RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
 		return true
 	}
 	return false

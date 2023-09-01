@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	attestationv1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -232,6 +233,12 @@ func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request
 		MFAResponse: &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
 				Webauthn: wantypes.CredentialAssertionResponseToProto(mfaReq.WebauthnAssertionResponse),
+			},
+		},
+		// Web Sessions create ephemeral certs for file transfers when MFA is enabled.
+		AttestationStatement: &attestationv1.AttestationStatement{
+			AttestationStatement: &attestationv1.AttestationStatement_WebSessionAttestationStatement{
+				WebSessionAttestationStatement: &attestationv1.WebSessionAttestationStatement{},
 			},
 		},
 	})

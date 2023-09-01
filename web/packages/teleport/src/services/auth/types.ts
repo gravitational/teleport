@@ -43,7 +43,6 @@ export type RecoveryCodes = {
 
 export type ChangedUserAuthn = {
   recovery: RecoveryCodes;
-  privateKeyPolicyEnabled?: boolean;
 };
 
 export type NewCredentialRequest = {

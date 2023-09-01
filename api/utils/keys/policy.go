@@ -42,6 +42,16 @@ const (
 	// hardware key to generate and store their private keys securely, and
 	// this key must require touch and pin to be accessed and used.
 	PrivateKeyPolicyHardwareKeyTouchAndPIN PrivateKeyPolicy = "hardware_key_touch_and_pin"
+	// PrivateKeyPolicyWebSession is a special case used for Web Sessions. This policy
+	// implies that the client private key and certificate are stored in the Proxy
+	// Process Memory and Auth Storage. These certs do not leave the Proxy/Auth
+	// services, but the Web Client receives a Web Cookie which can be used to
+	// make requests with the server-side client key+cert.
+	//
+	// This policy does not provide the same hardware key guarantee as the above policies.
+	// Instead, this policy must be accompanied by WebAuthn prompts for important operations
+	// in order to pass hardware key policy requirements.
+	PrivateKeyPolicyWebSession PrivateKeyPolicy = "web_session"
 )
 
 // VerifyPolicy verifies that the given policy meets the requirements of this policy.
@@ -50,6 +60,10 @@ const (
 func (p PrivateKeyPolicy) VerifyPolicy(policy PrivateKeyPolicy) error {
 	if err := policy.validate(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if policy == PrivateKeyPolicyWebSession {
+		return nil
 	}
 
 	switch p {
@@ -74,6 +88,11 @@ func (p PrivateKeyPolicy) VerifyPolicy(policy PrivateKeyPolicy) error {
 	}
 
 	return NewPrivateKeyPolicyError(p)
+}
+
+// MFAVerified checks whether the given private key policy counts towards MFA verification.
+func (p PrivateKeyPolicy) MFAVerified() bool {
+	return p == PrivateKeyPolicyHardwareKeyTouch
 }
 
 func (p PrivateKeyPolicy) validate() error {

@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	attestationv1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1679,8 +1680,6 @@ type certRequest struct {
 	connectionDiagnosticID string
 	// attestationStatement is an attestation statement associated with the given public key.
 	attestationStatement *keys.AttestationStatement
-	// skipAttestation is a server-side flag which is used to skip the attestation check.
-	skipAttestation bool
 	// deviceExtensions holds device-aware user certificate extensions.
 	deviceExtensions DeviceExtensions
 }
@@ -2352,7 +2351,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 
 	attestedKeyPolicy := keys.PrivateKeyPolicyNone
 	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if !req.skipAttestation && requiredKeyPolicy != keys.PrivateKeyPolicyNone {
+	if requiredKeyPolicy != keys.PrivateKeyPolicyNone {
 		// verify that the required private key policy for the requesting identity
 		// is met by the provided attestation statement.
 		attestedKeyPolicy, err = modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
@@ -4016,6 +4015,12 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 		checker:        checker,
 		traits:         req.Traits,
 		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
+		// TODO: this probably should not be used for all calls of this method. Confirm the request is from ProxyRole
+		attestationStatement: &keys.AttestationStatement{
+			AttestationStatement: &attestationv1.AttestationStatement_WebSessionAttestationStatement{
+				WebSessionAttestationStatement: &attestationv1.WebSessionAttestationStatement{},
+			},
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
