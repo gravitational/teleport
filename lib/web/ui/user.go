@@ -30,6 +30,10 @@ type UserListEntry struct {
 	// AuthType is the type of auth service
 	// that the user was authenticated through.
 	AuthType string `json:"authType"`
+	// AllTraits returns all the traits.
+	// Different from "userTraits" where "userTraits"
+	// "selectively" returns traits.
+	AllTraits map[string][]string `json:"allTraits"`
 }
 
 type userTraits struct {
@@ -55,7 +59,7 @@ type userTraits struct {
 // User contains data needed by the web UI to display locally saved users.
 type User struct {
 	UserListEntry
-	// Traits contain fields that define traits for local accounts.
+	// Traits contain select fields that define traits for local accounts.
 	Traits userTraits `json:"traits"`
 }
 
@@ -70,9 +74,10 @@ func NewUserListEntry(teleUser types.User) (*UserListEntry, error) {
 	}
 
 	return &UserListEntry{
-		Name:     teleUser.GetName(),
-		Roles:    teleUser.GetRoles(),
-		AuthType: authType,
+		Name:      teleUser.GetName(),
+		Roles:     teleUser.GetRoles(),
+		AuthType:  authType,
+		AllTraits: teleUser.GetTraits(),
 	}, nil
 }
 
