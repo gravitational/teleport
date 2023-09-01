@@ -113,7 +113,7 @@ export const Support = ({
             <Header title="Updates" icon={<Icons.NotificationsActive />} />
             <SupportLink
               title="Product Changelog"
-              url="{docs.changeLog}"
+              url={docs.changeLog}
             />
             <SupportLink
               title="Teleport Blog"
@@ -175,7 +175,7 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
     quickstart: withUTM('https://goteleport.com/docs/getting-started'),
     userManual: withUTM('https://goteleport.com/docs/server-access/guides/tsh'),
     adminGuide: withUTM('https://goteleport.com/docs/setup/admin'),
-    changeLog: withUTM('https://goteleport.com/docs/changelog')
+    changeLog: withUTM('https://goteleport.com/docs/changelog'),
     troubleshooting: withUTM(
       'https://goteleport.com/docs/setup/admin/troubleshooting'
     ),
