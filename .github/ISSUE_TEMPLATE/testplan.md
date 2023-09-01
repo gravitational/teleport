@@ -506,7 +506,9 @@ instance has label `azure/foo=bar`.
 
 ### Passwordless
 
-This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+This feature has additional build requirements, so it should be tested with a
+pre-release build from Drone (eg:
+`https://get.gravitational.com/tsh-v10.0.0-alpha.2.pkg`).
 
 This sections complements "Users -> Managing MFA devices". `tsh` binaries for
 each operating system (Linux, macOS and Windows) must be tested separately for
@@ -568,7 +570,7 @@ Device Trust requires Teleport Enterprise.
 
 This feature has additional build requirements, so it should be tested with a
 pre-release build from Drone (eg:
-`https://get.gravitational.com/teleport-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+`https://get.gravitational.com/teleport-ent-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
 Client-side enrollment requires a signed `tsh` for macOS, make sure to use the
 `tsh` binary from `tsh.app`.
@@ -605,6 +607,7 @@ tsh ssh node-that-requires-device-trust
 
 - [ ] Device enrollment
   - [ ] Enroll device on macOS (`tsh device enroll`)
+  - [ ] Enroll device on Windows (`tsh device enroll`)
   - [ ] Verify device extensions on TLS certificate
 
     Note that different accesses have different certificates (Database, Kube,
@@ -666,6 +669,12 @@ tsh ssh node-that-requires-device-trust
 - [ ] Binary support
   - [ ] Non-signed and/or non-notarized `tsh` for macOS gives a sane error
         message for `tsh device enroll` attempts.
+
+- [ ] Device support commands
+  - [ ] `tsh device collect`   (macOS)
+  - [ ] `tsh device asset-tag` (macOS)
+  - [ ] `tsh device collect`   (Windows)
+  - [ ] `tsh device asset-tag` (Windows)
 
 [device_event_codes]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/lib/events/codes.go#L389-L400
 [event_trusted_device]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/api/proto/teleport/legacy/types/events/events.proto#L88-L90
@@ -1206,7 +1215,7 @@ With a Postgres DB registered to the Teleport cluster:
 
 - [ ] Verify you are able to interact with a database using `tbot db connect` with a database output
 - [ ] Verify you are able to connect to the database using `tbot proxy db` with a database output
-- [ ] Verify you are able to produce an authenticated tunnel using `tbot proxy db --tunnel` with a database output and then able to connect to the database through the tunnel without credentials 
+- [ ] Verify you are able to produce an authenticated tunnel using `tbot proxy db --tunnel` with a database output and then able to connect to the database through the tunnel without credentials
 
 With a Kubernetes cluster registered to the Teleport cluster:
 
@@ -1348,7 +1357,7 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
 
 ## Assist
 
-Assist is not supported by `tsh` and WebUI is the only way to use it. 
+Assist is not supported by `tsh` and WebUI is the only way to use it.
 Assist test plan is in the core section instead of WebUI as most functionality is implemented in the core.
 
 - Configuration
