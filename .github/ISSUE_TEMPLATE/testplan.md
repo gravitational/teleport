@@ -671,8 +671,10 @@ tsh ssh node-that-requires-device-trust
         message for `tsh device enroll` attempts.
 
 - [ ] Device support commands
-  - [ ] `tsh device collect`
-  - [ ] `tsh device asset-tag`
+  - [ ] `tsh device collect`   (macOS)
+  - [ ] `tsh device asset-tag` (macOS)
+  - [ ] `tsh device collect`   (Windows)
+  - [ ] `tsh device asset-tag` (Windows)
 
 [device_event_codes]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/lib/events/codes.go#L389-L400
 [event_trusted_device]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/api/proto/teleport/legacy/types/events/events.proto#L88-L90
