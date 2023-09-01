@@ -607,6 +607,7 @@ tsh ssh node-that-requires-device-trust
 
 - [ ] Device enrollment
   - [ ] Enroll device on macOS (`tsh device enroll`)
+  - [ ] Enroll device on Windows (`tsh device enroll`)
   - [ ] Verify device extensions on TLS certificate
 
     Note that different accesses have different certificates (Database, Kube,
