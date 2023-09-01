@@ -133,9 +133,9 @@ func (a *App) run(ctx context.Context) error {
 
 	a.mainJob.SetReady(ok)
 	if ok {
-		log.Info("Plugin is ready")
+		log.Info("ServiceNow plugin is ready")
 	} else {
-		log.Error("Plugin is not ready")
+		log.Error("ServiceNow plugin is not ready")
 	}
 
 	<-watcherJob.Done()
