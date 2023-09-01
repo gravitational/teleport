@@ -17,11 +17,37 @@ limitations under the License.
 package awsoidc
 
 import (
+	"context"
 	"net/url"
 	"strings"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
+
+// ProxyGetter is a service that gets proxies.
+type ProxiesGetter interface {
+	// GetProxies returns a list of registered proxies.
+	GetProxies() ([]types.Server, error)
+}
+
+// IssuerForCluster returns the issuer URL using the Cluster state.
+func IssuerForCluster(ctx context.Context, clt ProxiesGetter) (string, error) {
+	proxies, err := clt.GetProxies()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	for _, p := range proxies {
+		proxyPublicAddress := p.GetPublicAddr()
+		if proxyPublicAddress != "" {
+			return IssuerFromPublicAddress(proxyPublicAddress)
+		}
+	}
+
+	return "", trace.BadParameter("failed to get Proxy Public Address")
+}
 
 // IssuerFromPublicAddress is the address for the AWS OIDC Provider.
 // It must match exactly what was introduced in AWS IAM console when adding the Identity Provider.
