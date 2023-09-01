@@ -101,7 +101,7 @@ func (a *App) Err() error {
 	return trace.Wrap(a.mainJob.Err())
 }
 
-// WaitReady waits for http and watcher service to start up.
+// WaitReady waits for access request watcher to start up.
 func (a *App) WaitReady(ctx context.Context) (bool, error) {
 	return a.mainJob.WaitReady(ctx)
 }
