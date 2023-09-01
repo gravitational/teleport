@@ -25,16 +25,16 @@ import (
 // PluginData is a data associated with access request that we store in Teleport using UpdatePluginData API.
 type PluginData struct {
 	RequestData
-	ServicenowData
+	ServiceNowData
 }
 
-// ServicenowData is the data associated with access request that we store in Teleport using UpdatePluginData API.
-type ServicenowData struct {
-	// IncidentID is the servicenow sys_id of the incident
+// ServiceNowData is the data associated with access request that we store in Teleport using UpdatePluginData API.
+type ServiceNowData struct {
+	// IncidentID is the serviceNow sys_id of the incident
 	IncidentID string
 }
 
-// Incident represents a servicenow incident.
+// Incident represents a serviceNow incident.
 type Incident struct {
 	// IncidentID is the sys_id of the incident
 	IncidentID string `json:"sys_id,omitempty"`
@@ -53,7 +53,7 @@ type Incident struct {
 }
 
 const (
-	// Servicenow uses a value of 1-8 to indicate incident state
+	// ServiceNow uses a value of 1-8 to indicate incident state
 	// https://support.servicenow.com/kb?id=kb_article_view&sysparm_article=KB0564465
 
 	// ResolutionStateResolved is the incident state for a resolved incident

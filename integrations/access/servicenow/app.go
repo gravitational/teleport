@@ -67,24 +67,24 @@ type App struct {
 
 	PluginName string
 	teleport   teleport.Client
-	servicenow *Client
+	serviceNow *Client
 	mainJob    lib.ServiceJob
 	conf       Config
 }
 
 // NewServicenowApp initializes a new teleport-servicenow app and returns it.
-func NewServicenowApp(ctx context.Context, conf *Config) (*App, error) {
+func NewServiceNowApp(ctx context.Context, conf *Config) (*App, error) {
 	teleportClient, err := conf.GetTeleportClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servicenowApp := &App{
+	serviceNowApp := &App{
 		PluginName: pluginName,
 		teleport:   teleportClient,
 		conf:       *conf,
 	}
-	servicenowApp.mainJob = lib.NewServiceJob(servicenowApp.run)
-	return servicenowApp, nil
+	serviceNowApp.mainJob = lib.NewServiceJob(serviceNowApp.run)
+	return serviceNowApp, nil
 }
 
 // Run initializes and runs a watcher and a callback server
@@ -186,7 +186,7 @@ func (a *App) init(ctx context.Context) error {
 	}
 
 	a.conf.ClientConfig.WebProxyURL = webProxyURL
-	a.servicenow, err = NewClient(a.conf.ClientConfig)
+	a.serviceNow, err = NewClient(a.conf.ClientConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -368,7 +368,7 @@ func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bo
 
 // createIncident posts an incident with request information.
 func (a *App) createIncident(ctx context.Context, serviceID, reqID string, reqData RequestData) error {
-	data, err := a.servicenow.CreateIncident(ctx, reqID, reqData)
+	data, err := a.serviceNow.CreateIncident(ctx, reqID, reqData)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -384,7 +384,7 @@ func (a *App) createIncident(ctx context.Context, serviceID, reqID string, reqDa
 			// It must be impossible but lets handle it just in case.
 			pluginData = PluginData{RequestData: reqData}
 		}
-		pluginData.ServicenowData = ServicenowData{IncidentID: data.IncidentID}
+		pluginData.ServiceNowData = ServiceNowData{IncidentID: data.IncidentID}
 		return pluginData, true
 	})
 	return trace.Wrap(err)
@@ -393,7 +393,7 @@ func (a *App) createIncident(ctx context.Context, serviceID, reqID string, reqDa
 // postReviewNotes posts incident notes about new reviews appeared for request.
 func (a *App) postReviewNotes(ctx context.Context, reqID string, reqReviews []types.AccessReview) error {
 	var oldCount int
-	var data ServicenowData
+	var data ServiceNowData
 
 	// Increase the review counter in plugin data.
 	ok, err := a.modifyPluginData(ctx, reqID, func(existing *PluginData) (PluginData, bool) {
@@ -401,7 +401,7 @@ func (a *App) postReviewNotes(ctx context.Context, reqID string, reqReviews []ty
 			return PluginData{}, false
 		}
 
-		if data = existing.ServicenowData; data.IncidentID == "" {
+		if data = existing.ServiceNowData; data.IncidentID == "" {
 			return PluginData{}, false
 		}
 
@@ -429,7 +429,7 @@ func (a *App) postReviewNotes(ctx context.Context, reqID string, reqReviews []ty
 
 	errors := make([]error, 0, len(slice))
 	for _, review := range slice {
-		if err := a.servicenow.PostReviewNote(ctx, data.IncidentID, review); err != nil {
+		if err := a.serviceNow.PostReviewNote(ctx, data.IncidentID, review); err != nil {
 			errors = append(errors, err)
 		}
 	}
@@ -448,7 +448,7 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 
 	onCallUsers := []string{}
 	for _, scheduleName := range serviceNames {
-		respondersResult, err := a.servicenow.GetOnCall(ctx, scheduleName)
+		respondersResult, err := a.serviceNow.GetOnCall(ctx, scheduleName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -519,7 +519,7 @@ func (a *App) resolveIncident(ctx context.Context, reqID string, resolution Reso
 	}
 
 	ctx, log := logger.WithField(ctx, "servicenow_incident_id", incidentID)
-	if err := a.servicenow.ResolveIncident(ctx, incidentID, resolution); err != nil {
+	if err := a.serviceNow.ResolveIncident(ctx, incidentID, resolution); err != nil {
 		return trace.Wrap(err)
 	}
 	log.Info("Successfully resolved the incident")

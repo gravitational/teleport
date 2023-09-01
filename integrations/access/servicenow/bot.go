@@ -28,8 +28,8 @@ import (
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
-// Bot is a servicenow client that works with AccessRequests.
-// It's responsible for formatting and Servicenow alerts when an
+// Bot is a serviceNow client that works with AccessRequests.
+// It's responsible for formatting and ServiceNow alerts when an
 // action occurs with an access request: a new request popped up, or a
 // request is processed/updated.
 type Bot struct {
@@ -49,19 +49,19 @@ func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqI
 	for _, rota := range recipients {
 		rotaIDs = append(rotaIDs, rota.ID)
 	}
-	servicenowReqData := RequestData{
+	serviceNowReqData := RequestData{
 		User:          reqData.User,
 		Roles:         reqData.Roles,
 		Created:       time.Now(),
 		RequestReason: reqData.RequestReason,
 		ReviewsCount:  reqData.ReviewsCount,
 	}
-	servicenowData, err := b.client.CreateIncident(ctx, reqID, servicenowReqData)
+	serviceNowData, err := b.client.CreateIncident(ctx, reqID, serviceNowReqData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	data = common.SentMessages{{
-		MessageID: servicenowData.IncidentID,
+		MessageID: serviceNowData.IncidentID,
 	}}
 
 	return data, nil
@@ -82,7 +82,7 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 	if data.ResolutionTag == pd.ResolvedApproved {
 		values, ok := data.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationApprovedCloseCode]
 		if !ok || len(values) < 1 {
-			return trace.BadParameter("close code annotation missing form servicenow configuration")
+			return trace.BadParameter("close code annotation missing form serviceNow configuration")
 		}
 		closeCode = values[0]
 		state = ResolutionStateResolved
@@ -90,7 +90,7 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 	if data.ResolutionTag == pd.ResolvedDenied {
 		values, ok := data.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationDeniedCloseCode]
 		if !ok || len(values) < 1 {
-			return trace.BadParameter("close code annotation missing form servicenow configuration")
+			return trace.BadParameter("close code annotation missing form serviceNow configuration")
 		}
 		closeCode = values[0]
 		state = ResolutionStateClosed

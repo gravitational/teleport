@@ -30,7 +30,7 @@ import (
 type Config struct {
 	common.BaseConfig
 	ClientConfig
-	Servicenow common.GenericAPIConfig
+	ServiceNow common.GenericAPIConfig
 }
 
 // CheckAndSetDefaults checks the config struct for any logical errors, and sets default values
@@ -53,7 +53,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	} else if len(c.Recipients[types.Wildcard]) == 0 {
 		return trace.BadParameter("missing required value role_to_recipients[%v].", types.Wildcard)
 	}
-	c.PluginType = types.PluginTypeServicenow
+	c.PluginType = types.PluginTypeServiceNow
 	return nil
 }
 
