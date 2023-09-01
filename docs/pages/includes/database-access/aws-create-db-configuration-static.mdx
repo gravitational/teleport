@@ -3,7 +3,7 @@ Generate a Database Service configuration with the database URI:
 
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --proxy=teleport.example.com:3080 \
    --token=/tmp/token \
@@ -16,7 +16,7 @@ $ teleport db configure create \
 <TabItem scope={["cloud", "team"]} label="Teleport Enterprise Cloud">
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --proxy=mytenant.teleport.sh:3080 \
    --token=/tmp/token \

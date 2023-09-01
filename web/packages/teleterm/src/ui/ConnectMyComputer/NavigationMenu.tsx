@@ -26,7 +26,6 @@ import { ClusterUri } from 'teleterm/ui/uri';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
-import { canUseConnectMyComputer } from './permissions';
 import {
   CurrentAction,
   useConnectMyComputerContext,
@@ -47,7 +46,7 @@ export function NavigationMenu(props: NavigationMenuProps) {
   const [isMenuOpened, setIsMenuOpened] = useState(false);
   const appCtx = useAppContext();
   const { documentsService, rootClusterUri } = useWorkspaceContext();
-  const { isAgentConfiguredAttempt, currentAction } =
+  const { isAgentConfiguredAttempt, currentAction, canUse } =
     useConnectMyComputerContext();
   // DocumentCluster renders this component only if the cluster exists.
   const cluster = appCtx.clustersService.findCluster(props.clusterUri);
@@ -57,11 +56,9 @@ export function NavigationMenu(props: NavigationMenuProps) {
   );
 
   // Don't show the navigation icon for leaf clusters.
-  if (cluster.leaf) {
+  if (cluster.leaf || !canUse) {
     return null;
   }
-
-  const rootCluster = cluster;
 
   function toggleMenu() {
     setIsMenuOpened(wasOpened => !wasOpened);
@@ -81,18 +78,8 @@ export function NavigationMenu(props: NavigationMenuProps) {
     setIsMenuOpened(false);
   }
 
-  if (
-    !canUseConnectMyComputer(
-      rootCluster,
-      appCtx.configService,
-      appCtx.mainProcessClient.getRuntimeSettings()
-    )
-  ) {
-    return null;
-  }
-
   const setupMenuItem = (
-    <MenuItem onClick={openSetupDocument}>Connect computer</MenuItem>
+    <MenuItem onClick={openSetupDocument}>Connect My Computer</MenuItem>
   );
   const statusMenuItem = (
     <MenuItem onClick={openStatusDocument}>

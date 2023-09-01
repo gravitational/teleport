@@ -85,8 +85,16 @@ message Metadata {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
-  // ID is a record ID
-  int64 ID = 7 [(gogoproto.jsontag) = "id,omitempty"];
+  // ID is a record ID.
+  // Deprecated: Use revision instead.
+  int64 ID = 7 [
+    deprecated = true,
+    (gogoproto.jsontag) = "id,omitempty"
+  ];
+  // Revision is an opaque identifier which tracks the versions of a resource
+  // over time. Clients should ignore and not alter its value but must return
+  // the revision in any updates of a resource.
+  string Revision = 8 [(gogoproto.jsontag) = "revision,omitempty"];
 }
 
 // Rotation is a status of the rotation of the certificate authority
@@ -316,6 +324,11 @@ message DatabaseSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "mongo_atlas,omitempty"
   ];
+  // Oracle is an additional Oracle configuration options.
+  OracleOptions Oracle = 13 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "oracle,omitempty"
+  ];
 }
 
 // DatabaseAdminUser contains information about privileged database user used
@@ -323,6 +336,13 @@ message DatabaseSpecV3 {
 message DatabaseAdminUser {
   // Name is the username of the privileged database user.
   string Name = 1 [(gogoproto.jsontag) = "name"];
+}
+
+// OracleOptions contains information about privileged database user used
+// for database audit.
+message OracleOptions {
+  // AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+  string AuditUser = 1 [(gogoproto.jsontag) = "audit_user"];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
@@ -464,6 +484,8 @@ message RDS {
   bool IAMAuth = 4 [(gogoproto.jsontag) = "iam_auth"];
   // Subnets is a list of subnets for the RDS instance.
   repeated string Subnets = 5 [(gogoproto.jsontag) = "subnets,omitempty"];
+  // VPCID is the VPC where the RDS is running.
+  string VPCID = 6 [(gogoproto.jsontag) = "vpc_id,omitempty"];
 }
 
 // RDSProxy contains AWS RDS Proxy specific database metadata.
@@ -801,6 +823,8 @@ message AWSInfo {
   // When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection.
   // This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.
   string Integration = 5 [(gogoproto.jsontag) = "integration,omitempty"];
+  // SubnetID is the Subnet ID in use by the instance.
+  string SubnetID = 6 [(gogoproto.jsontag) = "subnet_id,omitempty"];
 }
 
 // CloudMetadata contains info about the cloud instance a server is running
@@ -1773,6 +1797,10 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "default_session_ttl,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // Okta is a set of options related to the Okta service in Teleport.
+  // Requires Teleport Enterprise.
+  OktaOptions Okta = 17 [(gogoproto.jsontag) = "okta,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -6159,5 +6187,14 @@ message KubernetesMatcher {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "labels,omitempty",
     (gogoproto.customtype) = "Labels"
+  ];
+}
+
+// OktaOptions specify options related to the Okta service.
+message OktaOptions {
+  // SyncPeriod is the duration between synchronization calls in nanoseconds.
+  int64 SyncPeriod = 1 [
+    (gogoproto.jsontag) = "sync_period,omitempty",
+    (gogoproto.casttype) = "Duration"
   ];
 }

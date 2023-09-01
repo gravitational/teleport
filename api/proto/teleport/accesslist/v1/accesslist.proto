@@ -36,7 +36,7 @@ message AccessList {
 
 // AccessListSpec is the specification for an access list.
 message AccessListSpec {
-  // description is a plaintext description of the access list.
+  // description is an optional plaintext description of the access list.
   string description = 1;
 
   // owners is a list of owners of the access list.
@@ -61,6 +61,9 @@ message AccessListSpec {
   // members describes the current members of the access list.
   // TODO(mdwn): Remove this once members are independent objects.
   repeated AccessListMember members = 7;
+
+  // title is a plaintext short description of the access list.
+  string title = 8;
 }
 
 // AccessListOwner is an owner of an access list.
@@ -76,6 +79,9 @@ message AccessListOwner {
 message AccessListAudit {
   // frequency is a duration that describes how often an access list must be audited.
   google.protobuf.Duration frequency = 1;
+
+  // next_audit_date is when the next audit date should be done by.
+  google.protobuf.Timestamp next_audit_date = 2;
 }
 
 // AccessListRequires describes a requirement section for an access list. A user must

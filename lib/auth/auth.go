@@ -537,6 +537,15 @@ var (
 		[]string{teleport.TagVersion},
 	)
 
+	registeredAgentsInstallMethod = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricRegisteredServersByInstallMethods,
+			Help:      "The number of Teleport services that are connected to an auth server by install method.",
+		},
+		[]string{teleport.TagInstallMethods},
+	)
+
 	migrations = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
@@ -586,6 +595,7 @@ var (
 		registeredAgents, migrations,
 		totalInstancesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
 		accessRequestsCreatedMetric,
+		registeredAgentsInstallMethod,
 	}
 )
 
@@ -1039,6 +1049,7 @@ func (a *Server) runPeriodicOperations() {
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 		case <-promTicker.Next():
 			a.updateVersionMetrics()
+			a.updateInstallMethodsMetrics()
 		case <-releaseCheck.Next():
 			a.syncReleaseAlerts(ctx, true)
 		case <-localReleaseCheck.Next():
@@ -1129,7 +1140,7 @@ func (a *Server) handleUpgradeEnrollPrompt(ctx context.Context, msg string, shou
 	const alertTTL = time.Minute * 30
 
 	if !shouldPrompt {
-		if err := a.DeleteClusterAlert(ctx, upgradeEnrollAlertID); err != nil {
+		if err := a.DeleteClusterAlert(ctx, upgradeEnrollAlertID); err != nil && !trace.IsNotFound(err) {
 			log.Warnf("Failed to delete %s alert: %v", upgradeEnrollAlertID, err)
 		}
 		return
@@ -1320,6 +1331,33 @@ func (a *Server) updateVersionMetrics() {
 	registeredAgents.Reset()
 	for version, count := range versionCount {
 		registeredAgents.WithLabelValues(version).Set(float64(count))
+	}
+}
+
+// updateInstallMethodsMetrics leverages the inventory control stream to report the install methods
+// of all instances that are connected to a single auth server via prometheus metrics.
+// To get an accurate representation of install methods in an entire cluster the metric must be aggregated
+// with all auth instances.
+func (a *Server) updateInstallMethodsMetrics() {
+	installMethodCount := make(map[string]int)
+
+	// record install methods for all connected resources
+	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		installMethod := "unknown"
+		installMethods := append([]string{}, handle.AgentMetadata().InstallMethods...)
+
+		if len(installMethods) > 0 {
+			slices.Sort(installMethods)
+			installMethod = strings.Join(installMethods, ",")
+		}
+
+		installMethodCount[installMethod]++
+	})
+
+	// reset the gauges so that any versions that fall off are removed from exported metrics
+	registeredAgentsInstallMethod.Reset()
+	for installMethod, count := range installMethodCount {
+		registeredAgentsInstallMethod.WithLabelValues(installMethod).Set(float64(count))
 	}
 }
 
@@ -4305,8 +4343,11 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 	}
 
 	kind := usagereporter.ResourceKindNode
-	if server.GetSubKind() == types.SubKindOpenSSHNode {
+	switch server.GetSubKind() {
+	case types.SubKindOpenSSHNode:
 		kind = usagereporter.ResourceKindNodeOpenSSH
+	case types.SubKindOpenSSHEICENode:
+		kind = usagereporter.ResourceKindNodeOpenSSHEICE
 	}
 
 	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{

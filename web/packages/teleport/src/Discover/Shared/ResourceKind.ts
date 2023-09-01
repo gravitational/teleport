@@ -25,6 +25,7 @@ export enum ResourceKind {
   Kubernetes,
   Server,
   SamlApplication,
+  Discovery,
 }
 
 export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
@@ -39,6 +40,8 @@ export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
       return 'Kube';
     case ResourceKind.Server:
       return 'Node';
+    case ResourceKind.Discovery:
+      return 'Discovery';
   }
 }
 
@@ -56,5 +59,7 @@ export function resourceKindToPreferredResource(
       return ClusterResource.RESOURCE_KUBERNETES;
     case ResourceKind.Server:
       return ClusterResource.RESOURCE_SERVER_SSH;
+    case ResourceKind.Discovery:
+      return ClusterResource.RESOURCE_UNSPECIFIED;
   }
 }

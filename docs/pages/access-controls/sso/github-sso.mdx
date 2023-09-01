@@ -50,8 +50,12 @@ Create a client secret to use along with the client ID in the next step:
 
 ## Step 2/3. Create a GitHub authentication connector
 
-Define a GitHub authentication connector using `tctl`. Update this example
-command with:
+In this section, you will define a GitHub authentication connector using `tctl`.
+
+On your workstation, create a file called `client-secret.txt` consisting only of
+your client secret.
+
+Update this example command with:
 
 - Your OAuth app's client ID and client secret created during the previous step.
 - The roles you want to map from your GitHub organization to Teleport roles.
@@ -64,10 +68,19 @@ for a full reference of flags for this command:
 ```code
 $ tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
---secret=<Var name="GITHUB-CLIENT-SECRET"/> \
---teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
+--secret=$(cat client-secret.txt) \
+--teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
 > github.yaml
 ```
+<Admonition type="tip">
+  GitHub organizations and teams should be referred to by their slug, not display name.
+  To create the slug, GitHub replaces special characters in the name string, changes all words to lowercase,
+  and replaces spaces with a `-` separator. For example, `My TEam Näme` would become `my-team-name`.
+  You can confirm the slug in GitHub Web application URLs or via the GitHub API.
+  Example: navigate to the team `My Team` in the GitHub web application.
+  The URL `https://github.com/orgs/org-name/teams/my-team`
+  shows the slug is `my-team`.
+</Admonition>
 
 The contents of `github.yaml` should resemble the following:
 
@@ -90,7 +103,7 @@ spec:
       roles:
         - access
         - editor
-      team: GITHUB-TEAM
+      team: github-team
 version: v3
 ```
 </TabItem>
@@ -109,12 +122,12 @@ spec:
   redirect_url: https://<proxy-address>/v1/webapi/github/callback
   teams_to_logins: null
   teams_to_roles:
-    - organization: ORG-NAME
+    - organization: org-name
       roles:
         - access
         - editor
         - reviewer
-      team: GITHUB-TEAM
+      team: github-team
 version: v3
 ```
 </TabItem>
@@ -128,26 +141,26 @@ file to define multiple mappings. For example:
 ```code
 $  tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
---secret=<Var name="GITHUB-CLIENT-SECRET"/> \
---teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
---teams-to-roles="ORG-NAME,administrators,admins \
---teams-to-roles="DIFFERENT-ORG,developers,dev \
+--secret=$(cat client-secret.txt) \
+--teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
+--teams-to-roles="org-name,administrators,admins \
+--teams-to-roles="different-org,developers,dev \
 > github.yaml
 ```
 
 ```yaml
 spec.
   teams_to_roles:
-    - organization: ORG-NAME
+    - organization: org-name
       roles:
         - access
         - editor
-      team: GITHUB-TEAM
-    - organization: ORG-NAME
+      team: github-team
+    - organization: org-name
       roles:
         - admins
       team: administrators
-    - organization: DIFFERENT-ORG
+    - organization: different-org
       roles:
         - devs
       team: developers
@@ -163,8 +176,8 @@ instance endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters:
 ```code
 $ tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
---secret=<Var name="GITHUB-CLIENT-SECRET"/> \
---teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
+--secret=$(cat client-secret.txt) \
+--teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
 --endpoint-url=https://<Var name="github-enterprise-server-address"/>
 --api-endpoint-url=https://<Var name="api-github-enterprise-server-address"/>
 > github.yaml
@@ -410,4 +423,27 @@ After logging out of `tsh`, you can log back in without specifying
 ## Troubleshooting
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
+
+### Teams Not Mapping to Roles
+
+If you are not seeing teams mapping to roles as expected confirm you 
+are using the slug of the organizations and teams in the connector.
+To create the slug, GitHub replaces special characters in the name string,
+changes all words to lowercase, and replaces spaces with a `-` separator.
+For example, "My TEam Näme" would become `my-team-name`.
+The GitHub Web application URLs and GitHub API can provide the slug.
+
+Example: navigate to the team `My Team` in the GitHub web application.
+The URL `https://github.com/orgs/org-name/teams/my-team`
+shows the slug is `my-team`. Update the teams to roles mapping.
+
+```yaml
+  teams_to_roles:
+    - organization: my-org
+      roles:
+        - access
+        - editor
+        - reviewer
+      team: my-team
+```
 

@@ -27,6 +27,9 @@ import NodeList from 'teleport/components/NodeList';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import useTeleport from 'teleport/useTeleport';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
+import cfg from 'teleport/config';
+import history from 'teleport/services/history/history';
+import localStorage from 'teleport/services/localStorage';
 
 import { SearchResource } from 'teleport/Discover/SelectResource';
 
@@ -70,6 +73,11 @@ export function Nodes(props: State) {
     attempt.status === 'success' &&
     fetchedData.agents.length === 0 &&
     isSearchEmpty;
+
+  const enabled = localStorage.areUnifiedResourcesEnabled();
+  if (enabled) {
+    history.replace(cfg.getUnifiedResourcesRoute(clusterId));
+  }
 
   return (
     <FeatureBox>

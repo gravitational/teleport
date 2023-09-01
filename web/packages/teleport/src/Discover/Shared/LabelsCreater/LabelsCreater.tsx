@@ -21,7 +21,7 @@ import FieldInput from 'shared/components/FieldInput';
 import { useValidation, Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { AgentLabel } from 'teleport/services/agents';
+import { ResourceLabel } from 'teleport/services/agents';
 
 export function LabelsCreater({
   labels = [],
@@ -73,7 +73,7 @@ export function LabelsCreater({
   const handleChange = (
     event: React.ChangeEvent<HTMLInputElement>,
     index: number,
-    labelField: keyof AgentLabel
+    labelField: keyof ResourceLabel
   ) => {
     const { value } = event.target;
     const newList = [...labels];
@@ -200,7 +200,7 @@ export function LabelsCreater({
   );
 }
 
-export type DiscoverLabel = AgentLabel & {
+export type DiscoverLabel = ResourceLabel & {
   // isFixed is a flag to mean label is
   // unmodifiable and undeletable.
   isFixed?: boolean;

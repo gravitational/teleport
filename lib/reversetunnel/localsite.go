@@ -246,7 +246,7 @@ func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types
 		return false
 	}
 	// the node is an agentless node, the connection must be forwarded
-	if params.TargetServer != nil && params.TargetServer.GetSubKind() == types.SubKindOpenSSHNode {
+	if params.TargetServer != nil && params.TargetServer.IsOpenSSHNode() {
 		return true
 	}
 	// proxy session recording mode is being used and an SSH session
@@ -283,7 +283,7 @@ func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, useTunnel
 }
 
 func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialParams, conn net.Conn, useTunnel bool) error {
-	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, params.AgentlessSigner != nil, params.From, params.OriginalClientDstAddr) {
+	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, params.IsAgentlessNode, params.From, params.OriginalClientDstAddr) {
 		return nil
 	}
 
@@ -355,8 +355,8 @@ func (s *localSite) adviseReconnect(ctx context.Context) {
 }
 
 func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
-	if params.GetUserAgent == nil && params.AgentlessSigner == nil {
-		return nil, trace.BadParameter("user agent getter and agentless signer both missing")
+	if params.GetUserAgent == nil && !params.IsAgentlessNode {
+		return nil, trace.BadParameter("agentless node require an agent getter")
 	}
 	s.log.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 
@@ -398,6 +398,7 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 	serverConfig := forward.ServerConfig{
 		AuthClient:      s.client,
 		UserAgent:       userAgent,
+		IsAgentlessNode: params.IsAgentlessNode,
 		AgentlessSigner: params.AgentlessSigner,
 		TargetConn:      targetConn,
 		SrcAddr:         params.From,

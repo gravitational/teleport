@@ -99,6 +99,7 @@ func TestListEC2(t *testing.T) {
 				PrivateDnsName:   aws.String("my-private-dns.compute.aws"),
 				InstanceId:       aws.String(fmt.Sprintf("i-%d", i)),
 				VpcId:            aws.String("vpc-abcd"),
+				SubnetId:         aws.String("subnet-123"),
 				PrivateIpAddress: aws.String("172.31.1.1"),
 			})
 		}
@@ -163,6 +164,7 @@ func TestListEC2(t *testing.T) {
 				PrivateDnsName:   aws.String("my-private-dns.compute.aws"),
 				InstanceId:       aws.String("i-123456789abcedf"),
 				VpcId:            aws.String("vpc-abcd"),
+				SubnetId:         aws.String("subnet-123"),
 				PrivateIpAddress: aws.String("172.31.1.1"),
 			},
 			},
@@ -191,6 +193,7 @@ func TestListEC2(t *testing.T) {
 								Region:      "us-east-1",
 								VPCID:       "vpc-abcd",
 								Integration: "myintegration",
+								SubnetID:    "subnet-123",
 							},
 						},
 					},

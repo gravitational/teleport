@@ -40,6 +40,7 @@ export { CCDiscover } from './Icons/CCDiscover';
 export { CCMasterCard } from './Icons/CCMasterCard';
 export { CCStripe } from './Icons/CCStripe';
 export { CCVisa } from './Icons/CCVisa';
+export { Calendar } from './Icons/Calendar';
 export { Camera } from './Icons/Camera';
 export { CardView } from './Icons/CardView';
 export { Cash } from './Icons/Cash';

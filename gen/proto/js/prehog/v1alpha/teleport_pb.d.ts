@@ -1532,6 +1532,80 @@ export namespace AssistNewConversationEvent {
     }
 }
 
+export class AssistAccessRequestEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AssistAccessRequestEvent;
+
+    getResourceType(): string;
+    setResourceType(value: string): AssistAccessRequestEvent;
+
+    getTotalTokens(): number;
+    setTotalTokens(value: number): AssistAccessRequestEvent;
+
+    getPromptTokens(): number;
+    setPromptTokens(value: number): AssistAccessRequestEvent;
+
+    getCompletionTokens(): number;
+    setCompletionTokens(value: number): AssistAccessRequestEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AssistAccessRequestEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AssistAccessRequestEvent): AssistAccessRequestEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AssistAccessRequestEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AssistAccessRequestEvent;
+    static deserializeBinaryFromReader(message: AssistAccessRequestEvent, reader: jspb.BinaryReader): AssistAccessRequestEvent;
+}
+
+export namespace AssistAccessRequestEvent {
+    export type AsObject = {
+        userName: string,
+        resourceType: string,
+        totalTokens: number,
+        promptTokens: number,
+        completionTokens: number,
+    }
+}
+
+export class AssistActionEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AssistActionEvent;
+
+    getAction(): string;
+    setAction(value: string): AssistActionEvent;
+
+    getTotalTokens(): number;
+    setTotalTokens(value: number): AssistActionEvent;
+
+    getPromptTokens(): number;
+    setPromptTokens(value: number): AssistActionEvent;
+
+    getCompletionTokens(): number;
+    setCompletionTokens(value: number): AssistActionEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AssistActionEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AssistActionEvent): AssistActionEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AssistActionEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AssistActionEvent;
+    static deserializeBinaryFromReader(message: AssistActionEvent, reader: jspb.BinaryReader): AssistActionEvent;
+}
+
+export namespace AssistActionEvent {
+    export type AsObject = {
+        userName: string,
+        action: string,
+        totalTokens: number,
+        promptTokens: number,
+        completionTokens: number,
+    }
+}
+
 export class IntegrationEnrollMetadata extends jspb.Message { 
     getId(): string;
     setId(value: string): IntegrationEnrollMetadata;
@@ -1660,6 +1734,35 @@ export namespace DeviceAuthenticateEvent {
         deviceId: string,
         userName: string,
         deviceOsType: string,
+    }
+}
+
+export class FeatureRecommendationEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): FeatureRecommendationEvent;
+
+    getFeature(): Feature;
+    setFeature(value: Feature): FeatureRecommendationEvent;
+
+    getFeatureRecommendationStatus(): FeatureRecommendationStatus;
+    setFeatureRecommendationStatus(value: FeatureRecommendationStatus): FeatureRecommendationEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): FeatureRecommendationEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: FeatureRecommendationEvent): FeatureRecommendationEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: FeatureRecommendationEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): FeatureRecommendationEvent;
+    static deserializeBinaryFromReader(message: FeatureRecommendationEvent, reader: jspb.BinaryReader): FeatureRecommendationEvent;
+}
+
+export namespace FeatureRecommendationEvent {
+    export type AsObject = {
+        userName: string,
+        feature: Feature,
+        featureRecommendationStatus: FeatureRecommendationStatus,
     }
 }
 
@@ -1968,6 +2071,24 @@ export class SubmitEventRequest extends jspb.Message {
     setDeviceAuthenticateEvent(value?: DeviceAuthenticateEvent): SubmitEventRequest;
 
 
+    hasFeatureRecommendationEvent(): boolean;
+    clearFeatureRecommendationEvent(): void;
+    getFeatureRecommendationEvent(): FeatureRecommendationEvent | undefined;
+    setFeatureRecommendationEvent(value?: FeatureRecommendationEvent): SubmitEventRequest;
+
+
+    hasAssistAccessRequest(): boolean;
+    clearAssistAccessRequest(): void;
+    getAssistAccessRequest(): AssistAccessRequestEvent | undefined;
+    setAssistAccessRequest(value?: AssistAccessRequestEvent): SubmitEventRequest;
+
+
+    hasAssistAction(): boolean;
+    clearAssistAction(): void;
+    getAssistAction(): AssistActionEvent | undefined;
+    setAssistAction(value?: AssistActionEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2033,6 +2154,9 @@ export namespace SubmitEventRequest {
         assistExecution?: AssistExecutionEvent.AsObject,
         assistNewConversation?: AssistNewConversationEvent.AsObject,
         deviceAuthenticateEvent?: DeviceAuthenticateEvent.AsObject,
+        featureRecommendationEvent?: FeatureRecommendationEvent.AsObject,
+        assistAccessRequest?: AssistAccessRequestEvent.AsObject,
+        assistAction?: AssistActionEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2135,6 +2259,12 @@ export namespace SubmitEventRequest {
     ASSIST_NEW_CONVERSATION = 51,
 
     DEVICE_AUTHENTICATE_EVENT = 52,
+
+    FEATURE_RECOMMENDATION_EVENT = 53,
+
+    ASSIST_ACCESS_REQUEST = 54,
+
+    ASSIST_ACTION = 55,
 
     }
 
@@ -2239,6 +2369,7 @@ export enum ResourceKind {
     RESOURCE_KIND_DB_SERVER = 4,
     RESOURCE_KIND_WINDOWS_DESKTOP = 5,
     RESOURCE_KIND_NODE_OPENSSH = 6,
+    RESOURCE_KIND_NODE_OPENSSH_EICE = 7,
 }
 
 export enum DiscoverResource {
@@ -2326,4 +2457,15 @@ export enum EditorChangeStatus {
     EDITOR_CHANGE_STATUS_UNSPECIFIED = 0,
     EDITOR_CHANGE_STATUS_ROLE_GRANTED = 1,
     EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2,
+}
+
+export enum Feature {
+    FEATURE_UNSPECIFIED = 0,
+    FEATURE_TRUSTED_DEVICES = 1,
+}
+
+export enum FeatureRecommendationStatus {
+    FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0,
+    FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1,
+    FEATURE_RECOMMENDATION_STATUS_DONE = 2,
 }
