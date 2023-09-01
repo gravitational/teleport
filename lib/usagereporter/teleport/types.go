@@ -686,6 +686,7 @@ func (d *DeviceEnrollEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 				DeviceId:     a.AnonymizeString(d.DeviceId),
 				UserName:     a.AnonymizeString(d.UserName),
 				DeviceOsType: d.DeviceOsType,
+				DeviceOrigin: d.DeviceOrigin,
 			},
 		},
 	}

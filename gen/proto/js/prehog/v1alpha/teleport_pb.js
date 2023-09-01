@@ -12775,7 +12775,8 @@ proto.prehog.v1alpha.DeviceEnrollEvent.toObject = function(includeInstance, msg)
   var f, obj = {
     deviceId: jspb.Message.getFieldWithDefault(msg, 1, ""),
     userName: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    deviceOsType: jspb.Message.getFieldWithDefault(msg, 3, "")
+    deviceOsType: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    deviceOrigin: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -12824,6 +12825,10 @@ proto.prehog.v1alpha.DeviceEnrollEvent.deserializeBinaryFromReader = function(ms
       var value = /** @type {string} */ (reader.readString());
       msg.setDeviceOsType(value);
       break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDeviceOrigin(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -12871,6 +12876,13 @@ proto.prehog.v1alpha.DeviceEnrollEvent.serializeBinaryToWriter = function(messag
   if (f.length > 0) {
     writer.writeString(
       3,
+      f
+    );
+  }
+  f = message.getDeviceOrigin();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
       f
     );
   }
@@ -12928,6 +12940,24 @@ proto.prehog.v1alpha.DeviceEnrollEvent.prototype.getDeviceOsType = function() {
  */
 proto.prehog.v1alpha.DeviceEnrollEvent.prototype.setDeviceOsType = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string device_origin = 4;
+ * @return {string}
+ */
+proto.prehog.v1alpha.DeviceEnrollEvent.prototype.getDeviceOrigin = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.DeviceEnrollEvent} returns this
+ */
+proto.prehog.v1alpha.DeviceEnrollEvent.prototype.setDeviceOrigin = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
 };
 
 
