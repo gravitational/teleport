@@ -92,11 +92,11 @@ Change the following settings, as appropriate:
 Finally, write your Jamf password to the `/var/lib/teleport/jamf_password` file:
 
 ```code
-$ nano /var/lib/teleport/jamf_password # or use your favorite editor
+$ sudo nano /var/lib/teleport/jamf_password # or use your favorite editor
 
 # Only the OS user that runs `teleport` should have access to the password file.
-$ chmod 400 /var/lib/teleport/jamf_password
-$ chown teleport /var/lib/teleport/jamf_password
+$ sudo chmod 400 /var/lib/teleport/jamf_password
+$ sudo chown teleport /var/lib/teleport/jamf_password
 ```
 
 ## Step 3/4. Create a join token
@@ -106,7 +106,7 @@ On your local workstation, create the token as shown below:
 
 ```code
 $ tctl tokens add --type=mdm
-The invite token: 07c0565aa280595d7645b2964c36ebd1
+The invite token: (=presets.tokens.second=)
 This token will expire in 30 minutes.
 
 From the Jamf service host, use this token to add an MDM service to Teleport.
@@ -122,9 +122,9 @@ From the Jamf service host, use this token to add an MDM service to Teleport.
 Using the token created above, start the service:
 
 ```code
-$ teleport start --config=/var/lib/teleport.yaml \
-   --token=07c0565aa280595d7645b2964c36ebd1 \
-   --ca-pin=sha256:4b32d9c54b2b3332019d5f0720b8f9a603de03ace07d308bcd743465eee1f200
+$ sudo teleport start --config=/var/lib/teleport.yaml \
+   --token=(=presets.tokens.second=) \
+   --ca-pin=(=presets.ca_pin=)
 ```
 
 The initial sync should happen in a few minutes. You can confirm from the Teleport service logs:
