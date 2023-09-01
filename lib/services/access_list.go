@@ -241,6 +241,7 @@ func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock cloc
 	return nil
 }
 
+// UserMeetsRequirements will return true if the user meets the requirements for the access list.
 func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires) bool {
 	// Assemble the user's roles for easy look up.
 	userRolesMap := map[string]struct{}{}
