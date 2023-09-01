@@ -111,10 +111,7 @@ export const Support = ({
           </Box>
           <Box>
             <Header title="Updates" icon={<Icons.NotificationsActive />} />
-            <SupportLink
-              title="Product Changelog"
-              url={docs.changeLog}
-            />
+            <SupportLink title="Product Changelog" url={docs.changeLog} />
             <SupportLink
               title="Teleport Blog"
               url="https://goteleport.com/blog/"
