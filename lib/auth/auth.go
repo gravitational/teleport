@@ -3986,6 +3986,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 		return nil, trace.Wrap(err)
 	}
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
+		Username:           req.User,
 		Roles:              req.Roles,
 		Traits:             req.Traits,
 		AllowedResourceIDs: req.RequestedResourceIDs,
@@ -4079,6 +4080,7 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	}
 	return a.Services.DeleteNamespace(namespace)
 }
+
 func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) error {
 	_, err := a.CreateAccessRequestV2(ctx, req, identity)
 	return trace.Wrap(err)

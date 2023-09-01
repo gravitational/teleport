@@ -220,6 +220,13 @@ type Config struct {
 
 	// PROXYSigner is used to sign PROXY headers to securely propagate client IP information.
 	PROXYSigner multiplexer.PROXYHeaderSigner
+
+	AccessGraph AccessGraph
+}
+
+type AccessGraph struct {
+	Enabled  bool
+	Endpoint string
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

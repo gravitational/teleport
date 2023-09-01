@@ -1582,7 +1582,8 @@ func (s *ServerWithRoles) MakePaginatedResources(requestType string, resources [
 								AppServer: appOrSP,
 							},
 						},
-					}}
+					},
+				}
 			case *types.SAMLIdPServiceProviderV1:
 				protoResource = &proto.PaginatedResource{
 					Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
@@ -1591,7 +1592,8 @@ func (s *ServerWithRoles) MakePaginatedResources(requestType string, resources [
 								SAMLIdPServiceProvider: appOrSP,
 							},
 						},
-					}}
+					},
+				}
 			default:
 				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
@@ -2949,8 +2951,9 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 // impersonation request.
 func (a *ServerWithRoles) desiredAccessInfoForImpersonation(req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
 	return &services.AccessInfo{
-		Roles:  user.GetRoles(),
-		Traits: user.GetTraits(),
+		Username: req.Username,
+		Roles:    user.GetRoles(),
+		Traits:   user.GetTraits(),
 	}, nil
 }
 
@@ -2971,8 +2974,9 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 	// Traits are copied across from the impersonating user so that role
 	// variables within the impersonated role behave as expected.
 	return &services.AccessInfo{
-		Roles:  req.RoleRequests,
-		Traits: traits,
+		Username: req.Username,
+		Roles:    req.RoleRequests,
+		Traits:   traits,
 	}, nil
 }
 
@@ -3025,7 +3029,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 	// Reset the resource restrictions, we are going to iterate all access
 	// requests below, if there are any resource requests this will be set.
 	accessInfo.AllowedResourceIDs = nil
-
+	accessInfo.Username = req.Username
 	for _, reqID := range finalRequestIDs {
 		// Fetch and validate the access request for this user.
 		accessRequest, err := a.authServer.getValidatedAccessRequest(ctx, currentIdentity, req.Username, reqID)

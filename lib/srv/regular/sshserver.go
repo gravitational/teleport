@@ -234,6 +234,13 @@ type Server struct {
 	proxySigner PROXYHeaderSigner
 	// caGetter is used to get host CA of the cluster to verify signed PROXY headers
 	caGetter CertAuthorityGetter
+
+	AccessGraph AccessGraph
+}
+
+type AccessGraph struct {
+	Enabled  bool
+	Endpoint string
 }
 
 // TargetMetadata returns metadata about the server.
@@ -715,6 +722,18 @@ func SetPublicAddrs(addrs []utils.NetAddr) ServerOption {
 	}
 }
 
+// SetPublicAddrs sets the server's public addresses
+func SetAccessGraph(endpoint string) ServerOption {
+	return func(s *Server) error {
+		if endpoint == "" {
+			return nil
+		}
+		s.AccessGraph.Enabled = true
+		s.AccessGraph.Endpoint = endpoint
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(
 	ctx context.Context,
@@ -826,7 +845,9 @@ func New(
 		Emitter:     s.StreamEmitter,
 		Clock:       s.clock,
 	}
-
+	if s.AccessGraph.Enabled {
+		authHandlerConfig.Opts = append(authHandlerConfig.Opts, services.WithTAG(s.AccessGraph.Endpoint))
+	}
 	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

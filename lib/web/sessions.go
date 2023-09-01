@@ -494,7 +494,7 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	accessInfo, err := services.AccessInfoFromLocalCertificate(cert)
+	accessInfo, err := services.AccessInfoFromLocalCertificate(cert, c.cfg.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -838,7 +838,6 @@ func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID s
 	}
 
 	return sctx, nil
-
 }
 
 func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionContext) error {

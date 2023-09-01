@@ -99,6 +99,9 @@ type FileConfig struct {
 
 	// Plugins is the section of the config for configuring the plugin service.
 	Plugins PluginService `yaml:"plugin_service,omitempty"`
+
+	// AccessGraph is the section of the config describing AccessGraph service
+	AccessGraph AccessGraph `yaml:"access_graph,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -1102,6 +1105,12 @@ type PluginService struct {
 	Enabled bool `yaml:"enabled"`
 	// Plugins is a map of matchers for enabled plugin resources.
 	Plugins map[string]string `yaml:"plugins,omitempty"`
+}
+
+// AccessGraph represents the configuration for the AccessGraph service.
+type AccessGraph struct {
+	Enabled  bool   `yaml:"enabled"`
+	Endpoint string `yaml:"endpoint"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.
