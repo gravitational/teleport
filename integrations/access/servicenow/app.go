@@ -446,44 +446,51 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 		return nil
 	}
 
-	onCallUsers := []string{}
-	for _, scheduleName := range serviceNames {
-		respondersResult, err := a.serviceNow.GetOnCall(ctx, scheduleName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		onCallUsers = append(onCallUsers, respondersResult...)
+	onCallUsers, err := a.getOnCallUsers(ctx, serviceNames)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
 	userIsOnCall := false
 	for _, user := range onCallUsers {
 		if req.GetUser() == user {
 			userIsOnCall = true
 		}
 	}
-	if userIsOnCall {
-		if _, err := a.teleport.SubmitAccessReview(ctx, types.AccessReviewSubmission{
-			RequestID: req.GetName(),
-			Review: types.AccessReview{
-				Author:        tp.SystemAccessApproverUserName,
-				ProposedState: types.RequestState_APPROVED,
-				Reason: fmt.Sprintf("Access requested by user %s who is on call on service(s) %s",
-					tp.SystemAccessApproverUserName,
-					strings.Join(serviceNames, ","),
-				),
-				Created: time.Now(),
-			},
-		}); err != nil {
-			if strings.HasSuffix(err.Error(), "has already reviewed this request") {
-				log.Debug("Already reviewed the request")
-				return nil
-			}
-			return trace.Wrap(err, "submitting access request")
+	if !userIsOnCall {
+		return nil
+	}
+	if _, err := a.teleport.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+		RequestID: req.GetName(),
+		Review: types.AccessReview{
+			Author:        tp.SystemAccessApproverUserName,
+			ProposedState: types.RequestState_APPROVED,
+			Reason: fmt.Sprintf("Access requested by user %s who is on call on service(s) %s",
+				tp.SystemAccessApproverUserName,
+				strings.Join(serviceNames, ","),
+			),
+			Created: time.Now(),
+		},
+	}); err != nil {
+		if strings.HasSuffix(err.Error(), "has already reviewed this request") {
+			log.Debug("Already reviewed the request")
+			return nil
 		}
-
+		return trace.Wrap(err, "submitting access request")
 	}
 	log.Info("Successfully submitted a request approval")
 	return nil
+}
+
+func (a *App) getOnCallUsers(ctx context.Context, serviceNames []string) ([]string, error) {
+	onCallUsers := []string{}
+	for _, scheduleName := range serviceNames {
+		respondersResult, err := a.serviceNow.GetOnCall(ctx, scheduleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		onCallUsers = append(onCallUsers, respondersResult...)
+	}
+	return onCallUsers, nil
 }
 
 // resolveIncident resolves the notification incident created by plugin if the incident exists.
