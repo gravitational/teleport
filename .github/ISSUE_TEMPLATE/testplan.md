@@ -570,7 +570,7 @@ Device Trust requires Teleport Enterprise.
 
 This feature has additional build requirements, so it should be tested with a
 pre-release build from Drone (eg:
-`https://get.gravitational.com/teleport-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+`https://get.gravitational.com/teleport-ent-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
 Client-side enrollment requires a signed `tsh` for macOS, make sure to use the
 `tsh` binary from `tsh.app`.
