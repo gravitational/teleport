@@ -1,138 +1,144 @@
 ---
-title: Desktop Access with Active Directory (Manual)
-description: Manually connect Teleport to an Active Directory domain.
+title: Configure access for Active Directory manually
+description: Explains hot to manually connect Teleport to an Active Directory domain.
 videoBanner: YvMqgcq0MTQ
 ---
 
-This guide demonstrates how to connect an Active Directory domain to Teleport using the
-Desktop Service and log into a Windows desktop from that domain.
+In most cases, you can configure access for Active Directory users through the 
+Teleport Web UI and the discovery wizard as described in [Configure access for 
+Active Directory automatically](./active-directory.mdx). However, if automation
+won't work for your environment—for example, because you use an older version of
+Teleport or have custom configuration requirements—you can manually configure 
+access for Active Directory users using the Windows Desktop Service.
 
-<Admonition type="tip" title="Use The Wizard">
+This guide demonstrates how to connect an Active Directory domain to Teleport manually 
+using the Windows Desktop Service and how to log into a Windows desktop from 
+the connected domain.
 
-Starting with Teleport 10.2.6, you can install Active Directory and configure
-the Teleport Desktop Service through the Teleport Web UI. See [Desktop Access with Active
-Directory](active-directory.mdx) for more information.
-
-Teleport Enterprise users can configure Windows Access for local users by
-following [Getting Started with Windows Access](getting-started.mdx).
-
-Continue with this guide if:
-
-- You're running an older version of Teleport and can't upgrade.
-- You want to install the Desktop Service using the same instance of `teleport`
-  running the Proxy/Auth Services.
-
-</Admonition>
+You should note that Teleport requires the Kerberos authentication protocol to support 
+certificate-based authentication for Active Directory. Because Azure Active Directory
+doesn't use Kerberos, you can't use the Teleport Windows Desktop Service for 
+Azure Active Directory.
 
 ## Prerequisites
 
-This guide requires you to have:
+To complete the steps in this guide, verify your environment meets the following requirements:
 
-- An Active Directory domain, configured for LDAPS (Teleport requires an
-  encrypted LDAP connection). Typically this means installing
-  [AD CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
+- Access to a running Teleport cluster, `tctl` admin tool, and `tsh` client tool 
+  version >= (=teleport.version=). 
+  
+  You can verify the tools you have installed by running the following commands:
 
-<Admonition title="Azure AD" type="warning">
+  ```code
+  $ tctl version
+  # Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
+  
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
 
-Microsoft's Azure Active Directory (Azure AD) offering does not support the
-Kerberos authentication protocol, which is required for the certificate-based 
-authentication described in this section.
+  You can download these tools by following the appropriate [Installation 
+  instructions](../installation.mdx#installation-instructions) for your environment 
+  and Teleport edition.
 
-At this time, Teleport does not support integration with Azure AD, however
-Teleport Enterprise customers can access Windows desktops (including those
-joined to Azure AD) using local accounts via the process described in [Getting
-Started with Desktop Access](./getting-started.mdx).
-</Admonition>
+- A Linux server to run the Teleport Windows Desktop Service.
+  You can reuse an existing server running any other Teleport instance. 
+  However, you must generate a new invitation token to add the Windows Desktop Service
+  to an existing Teleport instance.
+  
+- An Active Directory domain that is configured for LDAPS. Because Teleport requires an
+  encrypted LDAP connection, you should verify that your domain uses
+  [Active Direectory Certificate Services](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
+  or a non-Microsoft certification authority (CA) to issue LDAPS certificates.
 
-- Access to a Domain Controller
-
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
-
-- A Linux server to run the Teleport Desktop Service on.
-
-  You can reuse an existing server running any other Teleport instance.
+- Access to a domain controller.
 
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/7. Create a restrictive service account
 
 Teleport requires a service account to connect to your Active Directory domain.
-We recommend creating a dedicated service account with restrictive permissions
+You should create a dedicated service account with restrictive permissions
 for maximum security.
 
-To create the service account, open a PowerShell prompt and copy-paste in the
-commands below. A password for this service account will be randomly generated,
-but immediately discarded. Teleport does not need this password, as it uses x509
-certificates for LDAP authentication. You can reset the password for this
-account should you need to perform password authentication.
+To create the service account:
 
-```powershell
-$Name="Teleport Service Account"
-$SamAccountName="svc-teleport"
+1. Open PowerShell on a Windows domain computer.
 
-# Generate a random password that meets the "Password must meet complexity
-# requirements" security policy setting.
-# Note: if the minimum complexity requirements have been changed from the
-# Windows default, this part of the script may need to be modified.
-Add-Type -AssemblyName 'System.Web'
-do {
-   $Password=[System.Web.Security.Membership]::GeneratePassword(15,1)
-} until ($Password -match '\d')
-$SecureStringPassword=ConvertTo-SecureString $Password -AsPlainText -Force
+1. Create a service account with a randomly-generated password by copying and pasting in 
+   the following commands: 
+   
+   ```powershell
+   $Name="Teleport Service Account"
+   $SamAccountName="svc-teleport"
+   
+   # Generate a random password that meets the "Password must meet complexity
+   # requirements" security policy setting.
+   # Note: if the minimum complexity requirements have been changed from the
+   # Windows default, this part of the script may need to be modified.
+   Add-Type -AssemblyName 'System.Web'
+   do {
+      $Password=[System.Web.Security.Membership]::GeneratePassword(15,1)
+   } until ($Password -match '\d')
+   $SecureStringPassword=ConvertTo-SecureString $Password -AsPlainText -Force
+   
+   New-ADUser `
+     -Name $Name `
+     -SamAccountName $SamAccountName `
+     -AccountPassword $SecureStringPassword `
+     -Enabled $true
+   ```
+   
+   The password generated for the service account is discarded immediately. 
+   Teleport doesn't need the password because it uses x509 certificates for LDAP 
+   authentication. You can reset the password for service account if you need to 
+   perform password authentication.
 
-New-ADUser `
-  -Name $Name `
-  -SamAccountName $SamAccountName `
-  -AccountPassword $SecureStringPassword `
-  -Enabled $true
-```
+1. Set the minimum permissions that must granted to the service account by running the 
+   following commands:
 
-Next, in the same PowerShell prompt, enter the following commands to limit your
-service account's permissions.
+   ```powershell
+   # Save your domain's distinguished name to a variable.
+   $DomainDN=$((Get-ADDomain).DistinguishedName)
+   
+   # Create the CDP/Teleport container.
+   # If the command fails with "New-ADObject : An attempt was made to add an object
+   # to the directory with a name that is already in use", it means the object
+   # already exists and you can move on to the next step.
+   New-ADObject -Name "Teleport" -Type "container" -Path "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN"
+   
+   # Allow Teleport to create LDAP containers in the CDP container.
+   dsacls "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CC;container;"
+   
+   # Allow Teleport to create and delete cRLDistributionPoint objects in the CDP/Teleport container.
+   dsacls "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CCDC;cRLDistributionPoint;"
+   
+   # Allow Teleport to write the certificateRevocationList property in the CDP/Teleport container.
+   dsacls "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN " /I:T /G "$($SamAccountName):WP;certificateRevocationList;"
+   
+   # Allow Teleport to create and delete certificationAuthority objects in the NTAuthCertificates container.
+   dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CCDC;certificationAuthority;"
+   
+   # Allow Teleport to write the cACertificate property in the NTAuthCertificates container.
+   dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):WP;cACertificate;"   
+   ```
 
-```powershell
-# Save your domain's distinguished name to a variable.
-$DomainDN=$((Get-ADDomain).DistinguishedName)
-
-# Create the CDP/Teleport container.
-# If the command fails with "New-ADObject : An attempt was made to add an object
-# to the directory with a name that is already in use", it means the object
-# already exists and you can move on to the next step.
-New-ADObject -Name "Teleport" -Type "container" -Path "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN"
-
-# Gives Teleport the ability to create LDAP containers in the CDP container.
-dsacls "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CC;container;"
-# Gives Teleport the ability to create and delete cRLDistributionPoint objects in the CDP/Teleport container.
-dsacls "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CCDC;cRLDistributionPoint;"
-# Gives Teleport the ability to write the certificateRevocationList property in the CDP/Teleport container.
-dsacls "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN " /I:T /G "$($SamAccountName):WP;certificateRevocationList;"
-# Gives Teleport the ability to create and delete certificationAuthority objects in the NTAuthCertificates container.
-dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CCDC;certificationAuthority;"
-# Gives Teleport the ability to write the cACertificate property in the NTAuthCertificates container.
-dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):WP;cACertificate;"
-
-```
-
-To save yourself time later, you can use the same prompt to get the security
-identifier of your new service account by running this command:
-
-```powershell
-Get-AdUser -Identity $SamAccountName | Select SID
-```
-
-Note this value (beginning with "S-") down, as it will be used as the `sid` field
-in the `ldap` section of your configuration file in a later step.
+1. Get the security identifier for the new service account by running the following command:
+   
+   ```powershell
+   Get-AdUser -Identity $SamAccountName | Select SID
+   ```
+   
+   Copy the security identifier—beginning with "S-"—returned. You'll use this value
+   for the `sid` field when you configure the `ldap` settings in a later step.
 
 ## Step 2/7. Prevent the service account from performing interactive logins
 
-<Admonition type="note" title="gpupdate.exe">
-  Throughout this step and the next one, you will be modifying GPOs, and
-  sometimes GPO modifications can take some time to propagate to all hosts. You
-  can force your changes to take effect immediately on your current host at any
-  time by opening a PowerShell prompt and running `gpupdate.exe /force` (though
-  their effects may still take time to propagate to other machines on the
-  domain).
-</Admonition>
+The next steps modify group policy objects (GPOs) and changes to group Policies
+can take time to propagate to all hosts. You can force changes to take effect 
+immediately on your current host at any time by opening PowerShell and running 
+`gpupdate.exe /force`. The change might still take time to propagate to other 
+hosts in the domain.
 
 The Teleport service account is only needed to authenticate over LDAP, meaning
 that it needn't be able to log in to Windows machines like an ordinary user.
