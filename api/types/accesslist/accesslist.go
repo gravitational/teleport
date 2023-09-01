@@ -234,6 +234,13 @@ func (a *AccessList) MatchSearch(values []string) bool {
 	return types.MatchSearch(fieldVals, values, nil)
 }
 
+// CloneResource returns a copy of the resource as types.ResourceWithLabels.
+func (a *AccessList) CloneResource() types.ResourceWithLabels {
+	var copy *AccessList
+	utils.StrictObjectToStruct(a, &copy)
+	return copy
+}
+
 func (a *Audit) UnmarshalJSON(data []byte) error {
 	type Alias Audit
 	audit := struct {
