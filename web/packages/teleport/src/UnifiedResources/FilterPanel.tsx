@@ -136,6 +136,7 @@ const SortOrderButton = styled(ButtonBorder)`
   border-bottom-left-radius: 0;
   border-color: ${props => props.theme.colors.spotBackground[1]};
   border-left: none;
+  height: 40px;
 `;
 
 const FilterSelect = styled(Select)`
@@ -150,6 +151,7 @@ const SortSelect = styled(Select)`
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
     border: 1px solid ${props => props.theme.colors.spotBackground[1]};
+    height: 40px;
   }
   .react-select__dropdown-indicator {
     display: none;
