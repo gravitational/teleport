@@ -29,9 +29,6 @@ See the available [guides](./guides.mdx) for all supported configurations.
 
 The following PostgreSQL protocol features aren't currently supported:
 
-- [Canceling requests in progress](https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.9).
-  Cancel requests issued by the PostgreSQL clients connected to the Teleport
-  Proxy Service won't be passed to the database server.
 - Any [authentication methods](https://www.postgresql.org/docs/current/auth-methods.html)
   except for client certificate authentication and IAM authentication for cloud
   databases.
