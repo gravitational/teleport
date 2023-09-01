@@ -64,6 +64,12 @@ func TestReconcileLabels(t *testing.T) {
 		require.NoError(t, downstreamHandle.Close())
 	})
 
+	// Wait for control stream to be registered.
+	require.Eventually(t, func() bool {
+		_, ok := pack.a.inventory.GetControlStream(serverName)
+		return ok
+	}, 100*time.Millisecond, 10*time.Millisecond)
+
 	// Create server.
 	server, err := types.NewServer(serverName, types.KindNode, types.ServerSpecV2{
 		CloudMetadata: &types.CloudMetadata{
