@@ -25,7 +25,7 @@ is important, as some of the resources created by these scripts interfere with e
 
 ### Database access
 
-You can also deploy database access agents. To setup the databases ready for testing
+You can also deploy database access agents. To setup the databases prior to testing
 check the `databases` folder.
 
 With the infrastructure in place, you can deploy the agents with

@@ -76,22 +76,22 @@ forward-grafana:
 scale-auth:
 	kubectl scale deployment/teleport-auth --replicas=$(REPLICAS) -n teleport
 
-POSTGRES_NAME ?= rdspostgres
-POSTGRES_URL ?=
-MYSQL_NAME ?= rdsmysql
-MYSQL_URL ?=
-DATABASE_ROLE_ARN ?=
-
-ifndef TELEPORT_VERSION
-$(error TELEPORT_VERSION is required but not provided)
-endif
-
 .PHONY: create-rds-database
 create-rds-database:
 	$(MAKE) -C databases/rds apply
 
 .PHONY: deploy-database-agents
+deploy-database-agents: POSTGRES_NAME ?= rdspostgres
+deploy-database-agents: POSTGRES_URL ?=
+deploy-database-agents: MYSQL_NAME ?= rdsmysql
+deploy-database-agents: MYSQL_URL ?=
+deploy-database-agents: DATABASE_ROLE_ARN ?=
 deploy-database-agents:
+ifndef TELEPORT_VERSION
+	@echo "TELEPORT_VERSION is required but not provided"
+	@exit 1
+endif
+
 	helm upgrade --install \
 		database-agents \
 		-n database-agents \
