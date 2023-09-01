@@ -52,7 +52,7 @@ func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqI
 	serviceNowReqData := RequestData{
 		User:          reqData.User,
 		Roles:         reqData.Roles,
-		Created:       time.Now(),
+		Created:       time.Now().UTC(),
 		RequestReason: reqData.RequestReason,
 		ReviewsCount:  reqData.ReviewsCount,
 	}

@@ -235,7 +235,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 		case req.GetState().IsDenied():
 			err = a.onResolvedRequest(ctx, req)
 		default:
-			log.WithField("event", event).Warn("Unknown request state")
+			log.WithField("event", event).Warn("Unknown request state: %q", req.GetState())
 			return nil
 		}
 
