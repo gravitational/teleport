@@ -46,7 +46,6 @@ var ignoreFieldsDuringUpsert = []cmp.Option{
 	cmpopts.IgnoreFields(header.Metadata{}, "ID"),
 	cmpopts.IgnoreFields(accesslist.Spec{}, "MembershipRequires"),
 	cmpopts.IgnoreFields(accesslist.Spec{}, "Audit"),
-	cmpopts.IgnoreFields(accesslist.Spec{}, "Members"),
 }
 
 // ServiceConfig is the service config for the Access Lists gRPC service.
@@ -122,8 +121,6 @@ func (s *Service) GetAccessLists(ctx context.Context, _ *accesslistv1.GetAccessL
 
 	accessLists := make([]*accesslistv1.AccessList, len(results))
 	for i, r := range results {
-		// Clear out membership information, as we're only interested in the metadata for lists of lists.
-		r.Spec.Members = nil
 		accessLists[i] = conv.ToProto(r)
 	}
 
@@ -170,8 +167,6 @@ func (s *Service) ListAccessLists(ctx context.Context, req *accesslistv1.ListAcc
 
 	accessLists := make([]*accesslistv1.AccessList, len(results))
 	for i, r := range results {
-		// Clear out membership information, as we're only interested in the metadata for lists of lists.
-		r.Spec.Members = nil
 		accessLists[i] = conv.ToProto(r)
 	}
 
@@ -201,9 +196,9 @@ func (s *Service) filterResults(ctx context.Context, results []*accesslist.Acces
 
 		identity := authCtx.Identity.GetIdentity()
 		for _, result := range results {
-			if err := services.IsOwner(identity, result); err == nil {
+			if err := services.IsAccessListOwner(identity, result); err == nil {
 				filteredResults = append(filteredResults, result)
-			} else if err := services.IsMember(identity, s.clock, result); err == nil {
+			} else if err := services.IsAccessListMember(ctx, identity, s.clock, result, s.accessLists); err == nil {
 				filteredResults = append(filteredResults, result)
 			}
 		}
@@ -230,7 +225,6 @@ func (s *Service) filterResults(ctx context.Context, results []*accesslist.Acces
 func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslistv1.AccessList, error) {
 	result, getErr := s.accessLists.GetAccessList(ctx, req.GetName())
 
-	isOwner := true
 	_, authErr := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAccessList, types.VerbRead)
 	if getErr != nil && authErr != nil {
 		// There was an error getting the access lists and an auth error, so return the auth error.
@@ -244,11 +238,10 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 		identity := authCtx.Identity.GetIdentity()
 		// Check if the user's an owner. If not, then we'll check if the user is a member. If neither are
 		// true, we'll return the original auth error.
-		if ownerErr := services.IsOwner(identity, result); ownerErr != nil {
-			if memberErr := services.IsMember(identity, s.clock, result); memberErr != nil {
+		if ownerErr := services.IsAccessListOwner(identity, result); ownerErr != nil {
+			if memberErr := services.IsAccessListMember(ctx, identity, s.clock, result, s.accessLists); memberErr != nil {
 				return nil, trace.Wrap(authErr)
 			}
-			isOwner = false
 		}
 	}
 
@@ -256,12 +249,6 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 	// get error.
 	if getErr != nil {
 		return nil, trace.Wrap(getErr)
-	}
-
-	// If the user is a member, we'll strip off the membership so that the user can't see
-	// who belongs to this list.
-	if !isOwner {
-		result.Spec.Members = nil
 	}
 
 	return conv.ToProto(result), nil
@@ -287,7 +274,7 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 			return nil, trace.Wrap(err)
 		}
 		identity := authCtx.Identity.GetIdentity()
-		if ownerErr := services.IsOwner(identity, oldAccessList); ownerErr != nil {
+		if ownerErr := services.IsAccessListOwner(identity, oldAccessList); ownerErr != nil {
 			// The user does not own this list, so return the original auth error.
 			return nil, trace.Wrap(authErr)
 		}
@@ -300,33 +287,6 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 
 	if getErr != nil && !trace.IsNotFound(getErr) {
 		return nil, trace.Wrap(getErr)
-	}
-
-	oldMembersLookup := map[string]bool{}
-	if oldAccessList != nil {
-		for _, member := range oldAccessList.Spec.Members {
-			oldMembersLookup[member.Name] = true
-		}
-	}
-
-	user, err := authz.UserFromContext(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	memberExists := make(map[string]bool, len(newAccessList.Spec.Members))
-	currentTime := s.clock.Now()
-	// Adjust any new members to make sure that they're added by the user and the joined time is set to now.
-	for i, member := range newAccessList.Spec.Members {
-		if memberExists[member.Name] {
-			return nil, trace.BadParameter("duplicate user in member list: %s", member.Name)
-		}
-		memberExists[member.Name] = true
-
-		if !oldMembersLookup[member.Name] {
-			newAccessList.Spec.Members[i].AddedBy = user.GetIdentity().Username
-			newAccessList.Spec.Members[i].Joined = currentTime
-		}
 	}
 
 	responseAccessList, err := s.accessLists.UpsertAccessList(ctx, newAccessList)
@@ -490,7 +450,7 @@ func (s *Service) authOrIsOwner(ctx context.Context, accessListName string, verb
 		return trace.AccessDenied("access denied")
 	}
 
-	if err := services.IsOwner(identity, accessList); err != nil {
+	if err := services.IsAccessListOwner(identity, accessList); err != nil {
 		s.log.WithError(err).Debug("IsOwner returned error")
 		// Return an opaque error
 		return trace.AccessDenied("access denied")

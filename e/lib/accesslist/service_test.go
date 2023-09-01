@@ -48,6 +48,8 @@ const (
 // cmpOpts are general cmpOpts for all comparisons.
 var cmpOpts = []cmp.Option{
 	cmpopts.IgnoreFields(header.Metadata{}, "ID"),
+	// TODO(mdwn): Remove this EquateEmpty once members has been properly removed from the OSS repo.
+	cmpopts.EquateEmpty(),
 	cmpopts.SortSlices(func(a, b *accesslist.AccessList) bool {
 		return a.GetName() < b.GetName()
 	}),
@@ -66,26 +68,16 @@ func TestService_GetAccessLists(t *testing.T) {
 	a2 := newAccessList(t, "2", clock)
 	a3 := newAccessList(t, "3", clock)
 
-	// a2 will only have member1 as a member.
-	a2.Spec.Members = []accesslist.Member{
-		{
-			Name:    member1,
-			Joined:  clock.Now().UTC(),
-			Expires: clock.Now().UTC().Add(24 * time.Hour),
-			Reason:  "because",
-			AddedBy: testUser,
-		},
-	}
+	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), member2, clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), member1, clock)
+	a3m1 := newAccessListMember(t, a3.GetName(), member1, clock)
+	a3m2 := newAccessListMember(t, a3.GetName(), member2, clock)
 
 	// a3 will have different ownership requirements.
 	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
-	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2, a3}, nil)
-
-	// members should always be stripped from getall/list endpoints
-	a1.Spec.Members = []accesslist.Member{}
-	a2.Spec.Members = []accesslist.Member{}
-	a3.Spec.Members = []accesslist.Member{}
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a3m1, a3m2})
 
 	getResp, err = svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
@@ -95,10 +87,6 @@ func TestService_GetAccessLists(t *testing.T) {
 	getResp, err = svc.GetAccessLists(ownerCtx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2}, mustFromProtoAll(t, getResp.AccessLists...), cmpOpts...))
-
-	// member2 should only see a1 and a3, should have no membership information.
-	a1.Spec.Members = []accesslist.Member{}
-	a3.Spec.Members = []accesslist.Member{}
 
 	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
 		"mtrait1": {"mvalue1", "mvalue2"},
@@ -123,28 +111,22 @@ func TestService_ListAccessLists(t *testing.T) {
 	a4 := newAccessList(t, "4", clock)
 	a5 := newAccessList(t, "5", clock)
 
-	// a2 will only have member1 as a member.
-	a2.Spec.Members = []accesslist.Member{
-		{
-			Name:    member1,
-			Joined:  clock.Now().UTC(),
-			Expires: clock.Now().UTC().Add(24 * time.Hour),
-			Reason:  "because",
-			AddedBy: testUser,
-		},
-	}
+	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), member2, clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), member1, clock)
+	a3m1 := newAccessListMember(t, a3.GetName(), member1, clock)
+	a3m2 := newAccessListMember(t, a3.GetName(), member2, clock)
+	a4m1 := newAccessListMember(t, a4.GetName(), member1, clock)
+	a4m2 := newAccessListMember(t, a4.GetName(), member2, clock)
+	a5m1 := newAccessListMember(t, a5.GetName(), member1, clock)
+	a5m2 := newAccessListMember(t, a5.GetName(), member2, clock)
 
 	// a3 will have different ownership requirements.
 	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
-	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2, a3, a4, a5}, nil)
-
-	// members should always be stripped from getall/list endpoints
-	a1.Spec.Members = []accesslist.Member{}
-	a2.Spec.Members = []accesslist.Member{}
-	a3.Spec.Members = []accesslist.Member{}
-	a4.Spec.Members = []accesslist.Member{}
-	a5.Spec.Members = []accesslist.Member{}
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2, a3, a4, a5}, []*accesslist.AccessListMember{
+		a1m1, a1m2, a2m1, a3m1, a3m2, a4m1, a4m2, a5m1, a5m2,
+	})
 
 	accessLists = listAccessLists(ctx, t, svc, 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a3, a4, a5}, accessLists, cmpOpts...))
@@ -212,33 +194,12 @@ func TestService_UpsertAccessList(t *testing.T) {
 	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
 	require.NoError(t, err)
 
-	a2.Spec.Members = append(a2.Spec.Members,
-		accesslist.Member{
-			Name:    "member3",
-			Joined:  clock.Now().UTC(),
-			Expires: clock.Now().UTC().Add(24 * time.Hour),
-			Reason:  "because",
-			AddedBy: "test-user2",
-		},
-	)
-
-	// User tries to add a user to an access list that they own. This should work.
-	_, err = svc.UpsertAccessList(ownerCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
-	require.NoError(t, err)
-
-	// Make sure added by is overwritten during access list update.
-	a2.Spec.Members[len(a2.Spec.Members)-1].AddedBy = ownerUser
-
-	get, err := svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a2.GetName()})
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(a2, mustFromProto(t, get), cmpOpts...))
-
 	// Owner should be able to modify the audit.
 	a2.Spec.Audit.Frequency = 2080 * time.Hour
 	_, err = svc.UpsertAccessList(ownerCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
 	require.NoError(t, err)
 
-	get, err = svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a2.GetName()})
+	get, err := svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a2.GetName()})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(a2, mustFromProto(t, get), cmpOpts...))
 
@@ -255,21 +216,6 @@ func TestService_UpsertAccessList(t *testing.T) {
 	a2.Spec.OwnershipRequires.Roles = append(a2.Spec.OwnershipRequires.Roles, "new")
 	_, err = svc.UpsertAccessList(ownerCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
 	require.True(t, trace.IsAccessDenied(err))
-
-	// User tries to add a duplicate user to an access list that they own. This should not work.
-	a2.Spec.OwnershipRequires.Roles = a2.Spec.OwnershipRequires.Roles[:len(a2.Spec.OwnershipRequires.Roles)-1]
-	a2.Spec.Members = append(a2.Spec.Members,
-		accesslist.Member{
-			Name:    "member3",
-			Joined:  clock.Now().UTC(),
-			Expires: clock.Now().UTC().Add(24 * time.Hour),
-			Reason:  "because",
-			AddedBy: "test-user2",
-		},
-	)
-
-	_, err = svc.UpsertAccessList(ownerCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
-	require.True(t, trace.IsBadParameter(err))
 }
 
 func TestService_GetAccessList(t *testing.T) {
@@ -285,21 +231,16 @@ func TestService_GetAccessList(t *testing.T) {
 	a2 := newAccessList(t, "2", clock)
 	a3 := newAccessList(t, "3", clock)
 
-	// a2 will only have member1 as a member.
-	a2.Spec.Members = []accesslist.Member{
-		{
-			Name:    member1,
-			Joined:  clock.Now().UTC(),
-			Expires: clock.Now().UTC().Add(24 * time.Hour),
-			Reason:  "because",
-			AddedBy: testUser,
-		},
-	}
+	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), member2, clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), member1, clock)
+	a3m1 := newAccessListMember(t, a3.GetName(), member1, clock)
+	a3m2 := newAccessListMember(t, a3.GetName(), member2, clock)
 
 	// a3 will have different ownership requirements.
 	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
-	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2, a3}, nil)
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a3m1, a3m2})
 
 	get, err := svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
@@ -321,24 +262,24 @@ func TestService_GetAccessList(t *testing.T) {
 
 	get, err = svc.GetAccessList(memberCtx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
-	require.Empty(t, get.Spec.Members)
+	require.Empty(t, cmp.Diff(a1, mustFromProto(t, get), cmpOpts...))
 
 	_, err = svc.GetAccessList(memberCtx, &accesslistv1.GetAccessListRequest{Name: a2.GetName()})
 	require.True(t, trace.IsAccessDenied(err))
 
 	get, err = svc.GetAccessList(memberCtx, &accesslistv1.GetAccessListRequest{Name: a3.GetName()})
 	require.NoError(t, err)
-	require.Empty(t, get.Spec.Members)
+	require.Empty(t, cmp.Diff(a3, mustFromProto(t, get), cmpOpts...))
 
-	// owner can't see a3
 	get, err = svc.GetAccessList(ownerCtx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
-	require.NotEmpty(t, get.Spec.Members)
+	require.Empty(t, cmp.Diff(a1, mustFromProto(t, get), cmpOpts...))
 
 	get, err = svc.GetAccessList(ownerCtx, &accesslistv1.GetAccessListRequest{Name: a2.GetName()})
 	require.NoError(t, err)
-	require.NotEmpty(t, get.Spec.Members)
+	require.Empty(t, cmp.Diff(a2, mustFromProto(t, get), cmpOpts...))
 
+	// owner can't see a3
 	_, err = svc.GetAccessList(ownerCtx, &accesslistv1.GetAccessListRequest{Name: a3.GetName()})
 	require.True(t, trace.IsAccessDenied(err))
 }
@@ -762,7 +703,8 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				Frequency:     time.Hour * 8760,
+				NextAuditDate: clock.Now().Add(time.Hour * 8700),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
@@ -783,22 +725,6 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
-				},
-			},
-			Members: []accesslist.Member{
-				{
-					Name:    member1,
-					Joined:  clock.Now().UTC(),
-					Expires: clock.Now().UTC().Add(24 * time.Hour),
-					Reason:  "because",
-					AddedBy: testUser,
-				},
-				{
-					Name:    member2,
-					Joined:  clock.Now().UTC(),
-					Expires: clock.Now().UTC().Add(24 * time.Hour),
-					Reason:  "because again",
-					AddedBy: testUser,
 				},
 			},
 		},
