@@ -798,8 +798,14 @@ message DeviceEnrollEvent {
   string user_name = 2;
 
   // device OS type
+  //
   // PostHog property: tp.device_os_type
   string device_os_type = 3;
+
+  // device origin
+  //
+  // PostHog property: tp.device_origin
+  string device_origin = 4;
 }
 
 // FeatureRecommendationEvent captures event emitted when a feature is recommended to user or

@@ -167,6 +167,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				DeviceId:     e.Device.DeviceId,
 				UserName:     e.User,
 				DeviceOsType: e.Device.OsType.String(),
+				DeviceOrigin: e.Device.DeviceOrigin.String(),
 			}
 		}
 	}

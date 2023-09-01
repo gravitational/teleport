@@ -1747,6 +1747,9 @@ export class DeviceEnrollEvent extends jspb.Message {
     getDeviceOsType(): string;
     setDeviceOsType(value: string): DeviceEnrollEvent;
 
+    getDeviceOrigin(): string;
+    setDeviceOrigin(value: string): DeviceEnrollEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeviceEnrollEvent.AsObject;
@@ -1763,6 +1766,7 @@ export namespace DeviceEnrollEvent {
         deviceId: string,
         userName: string,
         deviceOsType: string,
+        deviceOrigin: string,
     }
 }
 
