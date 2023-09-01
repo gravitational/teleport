@@ -506,7 +506,9 @@ instance has label `azure/foo=bar`.
 
 ### Passwordless
 
-This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+This feature has additional build requirements, so it should be tested with a
+pre-release build from Drone (eg:
+`https://get.gravitational.com/tsh-v10.0.0-alpha.2.pkg`).
 
 This sections complements "Users -> Managing MFA devices". `tsh` binaries for
 each operating system (Linux, macOS and Windows) must be tested separately for
