@@ -130,7 +130,7 @@ export function IntegrationPick() {
       <Flex flexDirection="column" gap={4}>
         <Flex flexDirection="column">
           <NoCodeIntegrationDescription />
-          <Flex mb={2} gap={3}>
+          <Flex mb={2} gap={3} flexWrap="wrap">
             <IntegrationTiles hasAccess={hasIntegrationAccess} />
             {plugins.available.map(p => (
               <PluginTile
@@ -161,7 +161,7 @@ export function IntegrationPick() {
               . Self-hosted plugins will not show up in your integration list,
               and must be managed outside of the Teleport UI.
             </Text>
-            <Flex mb={2} gap={3}>
+            <Flex mb={2} gap={3} flexWrap="wrap">
               {plugins.selfHosted.map(p => (
                 <PluginTile key={p.type} type={p} hasAccess={hasPluginAccess} />
               ))}

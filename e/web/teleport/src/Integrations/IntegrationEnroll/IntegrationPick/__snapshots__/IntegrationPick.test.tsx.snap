@@ -84,6 +84,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   box-sizing: border-box;
   margin-bottom: 8px;
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
@@ -807,6 +808,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   box-sizing: border-box;
   margin-bottom: 8px;
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
@@ -1569,6 +1571,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   box-sizing: border-box;
   margin-bottom: 8px;
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
