@@ -27,6 +27,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -116,8 +118,13 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 			t.Fatal("Timeout waiting for connection close.")
 		}
 
-		// Assert that the context was canceled.
+		// Assert that the context was canceled and verify the cause.
 		require.Error(t, monitorCtx.Err())
+		cause := context.Cause(monitorCtx)
+		require.True(t, trace.IsAccessDenied(cause))
+		for _, contains := range []string{"lock", "in force"} {
+			require.Contains(t, cause.Error(), contains)
+		}
 
 		// Validate that the disconnect event was logged.
 		require.Equal(t, services.LockInForceAccessDenied(lock).Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)

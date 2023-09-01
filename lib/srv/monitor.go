@@ -157,12 +157,12 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 
 	tconn, ok := getTrackingReadConn(conn)
 	if !ok {
-		tctx, cancel := context.WithCancel(ctx)
+		tctx, cancel := context.WithCancelCause(ctx)
 		tconn, err = NewTrackingReadConn(TrackingReadConnConfig{
-			Conn:    conn,
-			Clock:   c.cfg.Clock,
-			Context: tctx,
-			Cancel:  cancel,
+			Conn:            conn,
+			Clock:           c.cfg.Clock,
+			Context:         tctx,
+			CancelWithCause: cancel,
 		})
 		if err != nil {
 			return ctx, conn, trace.Wrap(err)
@@ -405,6 +405,10 @@ func (w *Monitor) disconnectClientOnExpiredCert() {
 	w.disconnectClient(reason)
 }
 
+type canCloseWithCause interface {
+	CloseWithCause(cause error) error
+}
+
 func (w *Monitor) disconnectClient(reason string) {
 	w.Entry.Debugf("Disconnecting client: %v", reason)
 	// Emit Audit event first to make sure that that underlying context will not be canceled during
@@ -412,8 +416,15 @@ func (w *Monitor) disconnectClient(reason string) {
 	if err := w.emitDisconnectEvent(reason); err != nil {
 		w.Entry.WithError(err).Warn("Failed to emit audit event.")
 	}
-	if err := w.Conn.Close(); err != nil {
-		w.Entry.WithError(err).Error("Failed to close connection.")
+
+	if connCanCloseWithCause, ok := w.Conn.(canCloseWithCause); ok {
+		if err := connCanCloseWithCause.CloseWithCause(trace.AccessDenied(reason)); err != nil {
+			w.Entry.WithError(err).Error("Failed to close connection.")
+		}
+	} else {
+		if err := w.Conn.Close(); err != nil {
+			w.Entry.WithError(err).Error("Failed to close connection.")
+		}
 	}
 }
 
@@ -483,6 +494,14 @@ type TrackingReadConnConfig struct {
 	Context context.Context
 	// Cancel is called whenever client context is closed.
 	Cancel context.CancelFunc
+	// CancelWithCause is called whenever CloseWithCause is called.
+	//
+	// One of Cancel and CancelWithCause must be provided.
+	//
+	// If CancelWithCause is provided, context.Cause(Context) will return the
+	// cause provided to CloseWithCause, or context.Canceled if connection is
+	// closed normally.
+	CancelWithCause context.CancelCauseFunc
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -496,8 +515,18 @@ func (c *TrackingReadConnConfig) CheckAndSetDefaults() error {
 	if c.Context == nil {
 		return trace.BadParameter("missing parameter Context")
 	}
+	if c.Cancel == nil && c.CancelWithCause == nil {
+		return trace.BadParameter("missing parameter Cancel or CancelWithCause")
+	}
 	if c.Cancel == nil {
-		return trace.BadParameter("missing parameter Cancel")
+		c.Cancel = func() {
+			c.CancelWithCause(nil)
+		}
+	}
+	if c.CancelWithCause == nil {
+		c.CancelWithCause = func(_ error) {
+			c.Cancel()
+		}
 	}
 	return nil
 }
@@ -538,6 +567,11 @@ func (t *TrackingReadConn) Read(b []byte) (int, error) {
 
 func (t *TrackingReadConn) Close() error {
 	t.cfg.Cancel()
+	return t.Conn.Close()
+}
+
+func (t *TrackingReadConn) CloseWithCause(cause error) error {
+	t.cfg.CancelWithCause(cause)
 	return t.Conn.Close()
 }
 
