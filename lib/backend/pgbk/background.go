@@ -245,7 +245,7 @@ FROM d`,
 				Item: backend.Item{
 					Key:     key,
 					Value:   value,
-					Expires: time.Time(expires),
+					Expires: time.Time(expires).UTC(),
 				},
 			})
 			return nil
@@ -264,7 +264,7 @@ FROM d`,
 				Item: backend.Item{
 					Key:     key,
 					Value:   value,
-					Expires: time.Time(expires),
+					Expires: time.Time(expires).UTC(),
 				},
 			})
 			return nil
