@@ -670,6 +670,10 @@ tsh ssh node-that-requires-device-trust
   - [ ] Non-signed and/or non-notarized `tsh` for macOS gives a sane error
         message for `tsh device enroll` attempts.
 
+- [ ] Device support commands
+  - [ ] `tsh device collect`
+  - [ ] `tsh device asset-tag`
+
 [device_event_codes]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/lib/events/codes.go#L389-L400
 [event_trusted_device]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/api/proto/teleport/legacy/types/events/events.proto#L88-L90
 
