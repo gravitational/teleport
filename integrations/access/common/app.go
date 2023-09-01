@@ -144,7 +144,7 @@ func (a *BaseApp) onWatcherEvent(ctx context.Context, event types.Event) error {
 		switch {
 		case req.GetState().IsPending():
 			err = a.onPendingRequest(ctx, req)
-		case req.GetState().IsApproved(), req.GetState().IsDenied():
+		case req.GetState().IsResolved():
 			err = a.onResolvedRequest(ctx, req)
 		default:
 			log.WithField("event", event).Warn("Unknown request state")
@@ -296,6 +296,8 @@ func (a *BaseApp) onResolvedRequest(ctx context.Context, req types.AccessRequest
 		tag = pd.ResolvedApproved
 	case types.RequestState_DENIED:
 		tag = pd.ResolvedDenied
+	case types.RequestState_PROMOTED:
+		tag = pd.ResolvedPromoted
 	default:
 		logger.Get(ctx).Warningf("Unknown state %v (%s)", state, state.String())
 		return replyErr

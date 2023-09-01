@@ -2655,6 +2655,11 @@ func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params type
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if params.State.IsPromoted() {
+		return trace.BadParameter("state promoted can be only set when promoting to access list")
+	}
+
 	return a.authServer.SetAccessRequestState(ctx, params)
 }
 
@@ -2676,6 +2681,10 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, params types.A
 		if !a.context.Checker.MaybeCanReviewRequests() {
 			return nil, trace.AccessDenied("user %q cannot submit reviews", a.context.User.GetName())
 		}
+	}
+
+	if !params.Review.ProposedState.IsPromoted() && params.Review.PromotedAccessListTitle != "" {
+		return nil, trace.BadParameter("promoted access list can be only set when promoting access requests")
 	}
 
 	// note that we haven't actually enforced any access-control other than requiring

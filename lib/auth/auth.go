@@ -3521,6 +3521,9 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 		if req.GetState().IsDenied() {
 			return nil, trace.AccessDenied("access request %q has been denied", accessRequestID)
 		}
+		if req.GetState().IsPromoted() {
+			return nil, trace.AccessDenied("access request %q has been promoted. Use access list to access resources.", accessRequestID)
+		}
 		return nil, trace.AccessDenied("access request %q is awaiting approval", accessRequestID)
 	}
 
@@ -4365,12 +4368,13 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
-		RequestID:     params.RequestID,
-		RequestState:  req.GetState().String(),
-		ProposedState: params.Review.ProposedState.String(),
-		Reason:        params.Review.Reason,
-		Reviewer:      params.Review.Author,
-		MaxDuration:   req.GetMaxDuration(),
+		RequestID:               params.RequestID,
+		RequestState:            req.GetState().String(),
+		ProposedState:           params.Review.ProposedState.String(),
+		Reason:                  params.Review.Reason,
+		Reviewer:                params.Review.Author,
+		MaxDuration:             req.GetMaxDuration(),
+		PromotedAccessListTitle: req.GetPromotedAccessListTitle(),
 	}
 
 	if len(params.Review.Annotations) > 0 {

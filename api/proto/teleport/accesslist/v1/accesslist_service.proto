@@ -19,10 +19,11 @@ package teleport.accesslist.v1;
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/accesslist/v1/accesslist.proto";
+import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1;accesslistv1";
 
-// AccessLisetService provides CRUD methods for Access List resources.
+// AccessListService provides CRUD methods for Access List resources.
 service AccessListService {
   // GetAccessLists returns a list of all access lists.
   rpc GetAccessLists(GetAccessListsRequest) returns (GetAccessListsResponse);
@@ -60,6 +61,9 @@ service AccessListService {
   rpc CreateAccessListReview(CreateAccessListReviewRequest) returns (CreateAccessListReviewResponse);
   // DeleteAccessListReview will delete an access list review from the backend.
   rpc DeleteAccessListReview(DeleteAccessListReviewRequest) returns (google.protobuf.Empty);
+
+  // PromoteAccessRequest promotes an access request to an access list.
+  rpc PromoteAccessRequest(PromoteAccessRequestRequest) returns (PromoteAccessReqResponse);
 }
 
 // GetAccessListsRequest is the request for getting all access lists.
@@ -226,4 +230,20 @@ message CreateAccessListReviewResponse {
 message DeleteAccessListReviewRequest {
   // review_name is the name of the access list to delete.
   string review_name = 1;
+}
+
+// PromoteAccessRequestRequest is the request for promoting an access request to an access list.
+message PromoteAccessRequestRequest {
+  // RequestID is the unique ID of the request to be promoted.
+  string request_id = 1;
+  // AccessListName is the name of the access list to promote the request to.
+  string access_list_name = 2;
+  // Reason is the access request review reason.
+  string reason = 3;
+}
+
+// PromoteAccessReqResponse is the response for promoting an access request to an access list.
+message PromoteAccessReqResponse {
+  // AccessRequest is the updated access request.
+  types.AccessRequestV3 access_request = 1;
 }

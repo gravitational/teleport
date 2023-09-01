@@ -1340,6 +1340,11 @@ message AccessRequestCreate {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "max_duration,omitempty"
   ];
+
+  // PromotedAccessListTitle is the title of the access list that this request
+  // was promoted to. Used by WebUI to display the title of the access list.
+  // This field in only populated when the request is in the PROMOTED state.
+  string PromotedAccessListTitle = 14 [(gogoproto.jsontag) = "promoted_access_list_title,omitempty"];
 }
 
 // ResourceID is a unique identifier for a teleport resource. This is duplicated
