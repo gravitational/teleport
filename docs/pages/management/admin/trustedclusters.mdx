@@ -24,7 +24,7 @@ Most organizations don't need to configure trusted clusters. In most cases, you 
 reverse-tunnel proxies and enroll and manage thousands of resources without creating a new 
 cluster.
 
-However, there are a few specific scenarios where trusted clusters can be paricularly useful.
+However, there are a few specific scenarios where trusted clusters can be particularly useful.
 For example, if you have a large and widely-distributed infrastructure or must provide access
 to resources for external agencies, contractors, or clients, you might benefit from setting up 
 a trusted cluster. The most common use cases for trusted clusters include:
@@ -53,7 +53,7 @@ The following diagram provides a simplified view of the architecture:
 As this diagram suggests, users can sign in to the root cluster to receive certificates signed by the root
 cluster certificate authority. They can then connect to leaf clusters either directly
 or through the root cluster acting as a bastion host.
-After users sign in, they can be recognozied and trusted on the leaf clusters based on informtion in their
+After users sign in, they can be recognized and trusted on the leaf clusters based on information in their
 certificate and on how their roles in the root cluster are mapped to roles on the leaf cluster.
 
 The Teleport Auth Service on the leaf cluster determines the resources a user has permissions to access by
@@ -795,7 +795,7 @@ the following categories:
 
 The most common HTTPS configuration issues stem from a root cluster that uses a self-signed 
 or invalid HTTPS certificate. If the `web_proxy_addr` endpoint of the root cluster uses a self-signed 
-or invalid HTTPS certificate, you are likey to see an error similar to the following: 
+or invalid HTTPS certificate, you are likely to see an error similar to the following: 
 `The trusted cluster uses misconfigured HTTP/TLS certificate`. 
 
 For ease of testing, you can start the `teleport` daemon on the leaf cluster with 
@@ -842,7 +842,7 @@ how your network security groups are configured on AWS.
 ### Access problems
 
 If users from the root cluster get **Access denied** error messages when trying to connect to nodes 
-on the leaf cluster, it might indicate problems with their role ssignment, role mapping, or allowed logins.
+on the leaf cluster, it might indicate problems with their role assignment, role mapping, or allowed logins.
 However, troubleshooting **Access denied** messages can be quite challenging. 
 To troubleshoot, you should start by checking the following information for the user being denied access:
 
