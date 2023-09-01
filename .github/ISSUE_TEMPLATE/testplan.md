@@ -1213,7 +1213,7 @@ With a Postgres DB registered to the Teleport cluster:
 
 - [ ] Verify you are able to interact with a database using `tbot db connect` with a database output
 - [ ] Verify you are able to connect to the database using `tbot proxy db` with a database output
-- [ ] Verify you are able to produce an authenticated tunnel using `tbot proxy db --tunnel` with a database output and then able to connect to the database through the tunnel without credentials 
+- [ ] Verify you are able to produce an authenticated tunnel using `tbot proxy db --tunnel` with a database output and then able to connect to the database through the tunnel without credentials
 
 With a Kubernetes cluster registered to the Teleport cluster:
 
@@ -1355,7 +1355,7 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
 
 ## Assist
 
-Assist is not supported by `tsh` and WebUI is the only way to use it. 
+Assist is not supported by `tsh` and WebUI is the only way to use it.
 Assist test plan is in the core section instead of WebUI as most functionality is implemented in the core.
 
 - Configuration
