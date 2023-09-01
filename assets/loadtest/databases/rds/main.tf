@@ -28,19 +28,27 @@ data "aws_subnets" "selected" {
     name   = "vpc-id"
     values = [data.aws_vpc.selected.id]
   }
+
+  # Always create the databases on subnet that have public access since we need
+  # to access them locally to create the database users.
+  filter {
+    name   = "tag:Name"
+    values = ["*Public*"]
+  }
 }
 
-module "security_group" {
+module "postgres_security_group" {
   source  = "terraform-aws-modules/security-group/aws"
   version = "~> 5.1"
 
   name            = var.prefix
   use_name_prefix = true
-  description     = "Load test security group"
+  description     = "Load test security group for PostgreSQL"
   vpc_id          = data.aws_vpc.selected.id
 
+  # This is required when deploying with RDS Proxy (as it access Secrets Manager)
+  egress_rules = ["all-all"]
   ingress_with_cidr_blocks = [
-    # PostgreSQL ports
     {
       from_port   = var.postgres_port
       to_port     = var.postgres_port
@@ -54,8 +62,22 @@ module "security_group" {
       protocol    = "tcp"
       description = "PostgreSQL access from local machine (required to create database user)"
       cidr_blocks = "${var.local_ip}/32"
-    },
-    # MySQL ports
+    }
+  ]
+}
+
+module "mysql_security_group" {
+  source  = "terraform-aws-modules/security-group/aws"
+  version = "~> 5.1"
+
+  name            = var.prefix
+  use_name_prefix = true
+  description     = "Load test security group for MySQL"
+  vpc_id          = data.aws_vpc.selected.id
+
+  # This is required when deploying with RDS Proxy (as it access Secrets Manager)
+  egress_rules = ["all-all"]
+  ingress_with_cidr_blocks = [
     {
       from_port   = var.mysql_port
       to_port     = var.mysql_port
@@ -69,7 +91,7 @@ module "security_group" {
       protocol    = "tcp"
       description = "MySQL access from local machine (required to create database user)"
       cidr_blocks = "${var.local_ip}/32"
-    },
+    }
   ]
 }
 
@@ -105,7 +127,7 @@ module "pg" {
   manage_master_user_password = true
   ca_cert_identifier          = "rds-ca-rsa2048-g1"
 
-  vpc_security_group_ids = [module.security_group.security_group_id]
+  vpc_security_group_ids = [module.postgres_security_group.security_group_id]
   db_subnet_group_name   = module.subnet_group.db_subnet_group_id
 
   create_db_subnet_group              = false
@@ -129,7 +151,6 @@ module "mysql" {
   identifier                     = var.prefix
   instance_use_identifier_prefix = true
 
-  # All available versions: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_PostgreSQL.html#PostgreSQL.Concepts
   # All available versions: http://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_MySQL.html#MySQL.Concepts.VersionMgmt
   engine                = "mysql"
   engine_version        = "8.0"
@@ -145,7 +166,7 @@ module "mysql" {
   manage_master_user_password = true
   ca_cert_identifier          = "rds-ca-rsa2048-g1"
 
-  vpc_security_group_ids = [module.security_group.security_group_id]
+  vpc_security_group_ids = [module.mysql_security_group.security_group_id]
   db_subnet_group_name   = module.subnet_group.db_subnet_group_id
 
   create_db_subnet_group              = false
@@ -180,7 +201,7 @@ resource "postgresql_role" "teleport_user" {
   name       = var.teleport_database_user
   roles      = ["rds_iam"]
   login      = true
-  depends_on = [module.security_group, module.pg]
+  depends_on = [module.postgres_security_group, module.pg]
 }
 
 data "aws_secretsmanager_secret_version" "mysql_master_password" {
@@ -198,7 +219,7 @@ resource "mysql_user" "teleport_user" {
   user        = var.teleport_database_user
   host        = "%"
   auth_plugin = "AWSAuthenticationPlugin"
-  depends_on  = [module.security_group, module.mysql]
+  depends_on  = [module.mysql_security_group, module.mysql]
 }
 
 resource "mysql_grant" "teleport_user" {
