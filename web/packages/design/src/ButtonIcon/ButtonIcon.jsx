@@ -60,9 +60,9 @@ const fromProps = props => {
 };
 
 const ButtonIcon = props => {
-  const { children, setRef, ...rest } = props;
+  const { children, setRef, css, ...rest } = props;
   return (
-    <StyledButtonIcon ref={setRef} {...rest}>
+    <StyledButtonIcon ref={setRef} css={css} {...rest}>
       {children}
     </StyledButtonIcon>
   );

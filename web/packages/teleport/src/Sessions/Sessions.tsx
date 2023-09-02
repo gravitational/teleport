@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Indicator, Box } from 'design';
+import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 
 import {
@@ -42,10 +42,24 @@ export default function Container() {
 }
 
 export function Sessions(props: ReturnType<typeof useSessions>) {
-  const { attempt, sessions, showActiveSessionsCTA } = props;
+  const { attempt, sessions, showActiveSessionsCTA, showModeratedSessionsCTA } =
+    props;
   return (
     <FeatureBox>
-      <FeatureHeader alignItems="center" justifyContent="space-between">
+      <FeatureHeader
+        alignItems="center"
+        justifyContent="space-between"
+        css={`
+          @media screen and (max-width: 800px) {
+            flex-direction: column;
+            height: auto;
+            gap: 10px;
+            margin: 0 0 10px 0;
+            padding-bottom: 10px;
+            justify-content: center;
+          }
+        `}
+      >
         <FeatureHeaderTitle>Active Sessions</FeatureHeaderTitle>
         {showActiveSessionsCTA && (
           <Box width="340px">
@@ -68,6 +82,7 @@ export function Sessions(props: ReturnType<typeof useSessions>) {
         <SessionList
           sessions={sessions}
           showActiveSessionsCTA={showActiveSessionsCTA}
+          showModeratedSessionsCTA={showModeratedSessionsCTA}
         />
       )}
     </FeatureBox>

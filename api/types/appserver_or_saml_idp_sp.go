@@ -242,6 +242,29 @@ func (a *AppServerOrSAMLIdPServiceProviderV1) SetResourceID(id int64) {
 	}
 }
 
+// GetRevision returns the revision
+func (a *AppServerOrSAMLIdPServiceProviderV1) GetRevision() string {
+	if a.IsAppServer() {
+		appServer := a.GetAppServer()
+		return appServer.GetRevision()
+	}
+
+	sp := a.GetSAMLIdPServiceProvider()
+	return sp.GetRevision()
+}
+
+// SetRevision sets the revision
+func (a *AppServerOrSAMLIdPServiceProviderV1) SetRevision(rev string) {
+	if a.IsAppServer() {
+		appServer := a.GetAppServer()
+		appServer.SetRevision(rev)
+		return
+	}
+
+	sp := a.GetSAMLIdPServiceProvider()
+	sp.SetRevision(rev)
+}
+
 func (a *AppServerOrSAMLIdPServiceProviderV1) GetStaticLabels() map[string]string {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()

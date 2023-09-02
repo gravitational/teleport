@@ -38,7 +38,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -616,7 +616,7 @@ func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user stri
 	if err != nil {
 		return trace.Wrap(err, "marshal webauthn local auth")
 	}
-	userJSON, err := json.Marshal(&wantypes.User{
+	userJSON, err := json.Marshal(&wanpb.User{
 		TeleportUser: user,
 	})
 	if err != nil {
@@ -673,7 +673,7 @@ func (s *IdentityService) GetTeleportUserByWebauthnID(ctx context.Context, webID
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	user := &wantypes.User{}
+	user := &wanpb.User{}
 	if err := json.Unmarshal(item.Value, user); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -689,7 +689,7 @@ func webauthnUserKey(id []byte) []byte {
 	return backend.Key(webauthnPrefix, usersPrefix, key)
 }
 
-func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
+func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error {
 	switch {
 	case user == "":
 		return trace.BadParameter("missing parameter user")
@@ -711,7 +711,7 @@ func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, s
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
+func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error) {
 	switch {
 	case user == "":
 		return nil, trace.BadParameter("missing parameter user")
@@ -723,7 +723,7 @@ func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sess
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd := &wantypes.SessionData{}
+	sd := &wanpb.SessionData{}
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
 
@@ -784,7 +784,7 @@ var sdLimiter = &globalSessionDataLimiter{
 	scopeCount:  make(map[string]int),
 }
 
-func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error {
+func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wanpb.SessionData) error {
 	switch {
 	case scope == "":
 		return trace.BadParameter("missing parameter scope")
@@ -817,7 +817,7 @@ func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, s
 	return nil
 }
 
-func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error) {
+func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wanpb.SessionData, error) {
 	switch {
 	case scope == "":
 		return nil, trace.BadParameter("missing parameter scope")
@@ -829,7 +829,7 @@ func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scop
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd := &wantypes.SessionData{}
+	sd := &wanpb.SessionData{}
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
 

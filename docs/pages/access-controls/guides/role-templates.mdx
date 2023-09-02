@@ -152,7 +152,8 @@ $ tctl create -f traits.yaml
 Once Alice logs in, she will receive SSH and X.509 certificates with
 a new role. SSH logins and Kubernetes groups will also be set:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -168,8 +169,8 @@ $ tsh login --proxy=teleport.example.com --user=alice
 #  Extensions:         permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -185,7 +186,9 @@ $ tsh login --proxy=mytenant.teleport.sh --user=alice
 #  Extensions:         permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## SSO users
 
@@ -260,7 +263,8 @@ $ tctl create -f github.yaml
 Once Bob logs in using SSO, he will receive SSH and X.509 certificates with
 a new role and SSH logins generated using  the `sso-users` role template:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --auth=github
@@ -276,8 +280,8 @@ $ tsh login --proxy=teleport.example.com --auth=github
 #  Extensions:         permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --auth=github
@@ -293,7 +297,9 @@ $ tsh login --proxy=mytenant.teleport.sh --auth=github
 #  Extensions:         permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Interpolation rules
 
@@ -440,3 +446,4 @@ In this case, Alice would be allowed to request access to the RBAC roles `access
 role list) and `alpha-admin` and `beta-admin` (from the `claims_to_roles` mapping).
 
 The same syntax applies for Review Requests.
+

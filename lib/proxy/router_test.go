@@ -16,6 +16,7 @@ package proxy
 
 import (
 	"context"
+	"math/rand"
 	"net"
 	"testing"
 
@@ -99,6 +100,13 @@ func TestGetServers(t *testing.T) {
 		},
 	}
 
+	unambiguousInsensitiveCfg := types.ClusterNetworkingConfigV2{
+		Spec: types.ClusterNetworkingConfigSpecV2{
+			RoutingStrategy:        types.RoutingStrategy_UNAMBIGUOUS_MATCH,
+			CaseInsensitiveRouting: true,
+		},
+	}
+
 	hostID := uuid.NewString()
 	const ec2ID = "012345678901-i-01234567890abcdef"
 
@@ -167,6 +175,26 @@ func TestGetServers(t *testing.T) {
 			hostname: "lion",
 			addr:     "lion.roar",
 		},
+		{
+			name:     "platypus1",
+			hostname: "Platypus",
+			tunnel:   true,
+		},
+		{
+			name:     "platypus2",
+			hostname: "platypus",
+			tunnel:   true,
+		},
+		{
+			name:     "capybara1",
+			hostname: "Capybara",
+			tunnel:   true,
+		},
+	})
+
+	// ensure tests don't have order-dependence
+	rand.Shuffle(len(servers), func(i, j int) {
+		servers[i], servers[j] = servers[j], servers[i]
 	})
 
 	cases := []struct {
@@ -279,6 +307,27 @@ func TestGetServers(t *testing.T) {
 				require.Empty(t, srv)
 			},
 		},
+		{
+			name:         "case-insensitive match",
+			site:         testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
+			host:         "capybara",
+			errAssertion: require.NoError,
+			serverAssertion: func(t *testing.T, srv types.Server) {
+				require.NotNil(t, srv)
+				require.Equal(t, "Capybara", srv.GetHostname())
+			},
+		},
+		{
+			name: "case-insensitive ambiguous",
+			site: testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
+			host: "platypus",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.NotFound(teleport.NodeIsAmbiguous))
+			},
+			serverAssertion: func(t *testing.T, srv types.Server) {
+				require.Empty(t, srv)
+			},
+		},
 	}
 
 	ctx := context.Background()
@@ -361,6 +410,19 @@ func TestRouter_DialHost(t *testing.T) {
 	agentlessSrv := &types.ServerV2{
 		Kind:    types.KindNode,
 		SubKind: types.SubKindOpenSSHNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: uuid.NewString(),
+		},
+		Spec: types.ServerSpecV2{
+			Addr:     "127.0.0.1:9001",
+			Hostname: "agentless",
+		},
+	}
+
+	agentlessEC2ICESrv := &types.ServerV2{
+		Kind:    types.KindNode,
+		SubKind: types.SubKindOpenSSHEICENode,
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name: uuid.NewString(),
@@ -461,6 +523,26 @@ func TestRouter_DialHost(t *testing.T) {
 				require.Equal(t, agentlessSrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
 				require.NotNil(t, params.AgentlessSigner)
+				require.True(t, params.IsAgentlessNode)
+				require.NotNil(t, conn)
+			},
+		},
+		{
+			name: "dial success to agentless node using EC2 Instance Connect Endpoint",
+			router: Router{
+				clusterName:    "test",
+				log:            logger,
+				localSite:      &testRemoteSite{conn: fakeConn{}},
+				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
+				tracer:         tracing.NoopTracer("test"),
+				serverResolver: serverResolver(agentlessEC2ICESrv, nil),
+			},
+			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
+				require.NoError(t, err)
+				require.Equal(t, agentlessEC2ICESrv, params.TargetServer)
+				require.Nil(t, params.GetUserAgent)
+				require.Nil(t, params.AgentlessSigner)
+				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
 			},
 		},

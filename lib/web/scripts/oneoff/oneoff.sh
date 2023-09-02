@@ -3,6 +3,7 @@ set -euo pipefail
 
 cdnBaseURL='{{.CDNBaseURL}}'
 teleportVersion='{{.TeleportVersion}}'
+successMessage='{{.SuccessMessage}}'
 
 # shellcheck disable=all
 tempDir=$({{.BinMktemp}} -d)
@@ -44,9 +45,9 @@ function main() {
     mkdir -p ./bin
     mv ./teleport/teleport ./bin/teleport
     echo "> ./bin/teleport ${teleportArgs}"
-    ./bin/teleport ${teleportArgs}
+    ./bin/teleport ${teleportArgs} && echo $successMessage
 
-    popd > /dev/null
+    popd > /dev/null    
 }
 
 main

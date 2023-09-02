@@ -40,6 +40,11 @@ type SAMLIdPServiceProvider interface {
 	GetEntityID() string
 	// SetEntityID sets the entity ID.
 	SetEntityID(string)
+	// Copy returns a copy of this saml idp service provider object.
+	Copy() SAMLIdPServiceProvider
+	// CloneResource returns a copy of the SAMLIdPServiceProvider as a ResourceWithLabels
+	// This is helpful when interfacing with multiple types at the same time in unified resources
+	CloneResource() ResourceWithLabels
 }
 
 // NewSAMLIdPServiceProvider returns a new SAMLIdPServiceProvider based off a metadata object and SAMLIdPServiceProviderSpecV1.
@@ -81,6 +86,14 @@ func (s *SAMLIdPServiceProviderV1) SetEntityID(entityID string) {
 func (s *SAMLIdPServiceProviderV1) String() string {
 	return fmt.Sprintf("SAMLIdPServiceProviderV1(Name=%v)",
 		s.GetName())
+}
+
+func (s *SAMLIdPServiceProviderV1) Copy() SAMLIdPServiceProvider {
+	return utils.CloneProtoMsg(s)
+}
+
+func (s *SAMLIdPServiceProviderV1) CloneResource() ResourceWithLabels {
+	return s.Copy()
 }
 
 // MatchSearch goes through select field values and tries to

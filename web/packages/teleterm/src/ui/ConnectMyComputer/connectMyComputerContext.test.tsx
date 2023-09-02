@@ -17,7 +17,8 @@
 import { EventEmitter } from 'node:events';
 
 import React from 'react';
-import { renderHook } from '@testing-library/react-hooks';
+import { act, renderHook } from '@testing-library/react-hooks';
+import { makeErrorAttempt } from 'shared/hooks/useAsync';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -25,26 +26,70 @@ import { WorkspaceContextProvider } from 'teleterm/ui/Documents';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
 
 import {
+  makeLoggedInUser,
+  makeRootCluster,
+  makeServer,
+} from 'teleterm/services/tshd/testHelpers';
+import { createMockConfigService } from 'teleterm/services/config/fixtures/mocks';
+
+import {
+  AgentProcessError,
   ConnectMyComputerContextProvider,
   useConnectMyComputerContext,
 } from './connectMyComputerContext';
 
-test('runAgentAndWaitForNodeToJoin re-throws errors that are thrown while spawning the process', async () => {
-  const mockedAppContext = new MockAppContext({});
+function getMocksWithConnectMyComputerEnabled() {
+  const rootCluster = makeRootCluster({
+    loggedInUser: makeLoggedInUser({
+      acl: {
+        tokens: {
+          create: true,
+          edit: false,
+          list: false,
+          use: false,
+          read: false,
+          pb_delete: false,
+        },
+      },
+    }),
+  });
+  const appContext = new MockAppContext({});
+
+  appContext.clustersService.setState(draftState => {
+    draftState.clusters.set(rootCluster.uri, rootCluster);
+  });
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = rootCluster.uri;
+    draftState.workspaces[rootCluster.uri] = {
+      documents: [],
+      location: undefined,
+      localClusterUri: rootCluster.uri,
+      accessRequests: undefined,
+    };
+  });
+
+  return { appContext, rootCluster };
+}
+
+test('startAgent re-throws errors that are thrown while spawning the process', async () => {
+  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
   const eventEmitter = new EventEmitter();
-  const errorStatus: AgentProcessState = { status: 'error', message: 'ENOENT' };
+  const errorStatus: AgentProcessState = {
+    status: 'error',
+    message: 'ENOENT',
+  };
   jest
-    .spyOn(mockedAppContext.mainProcessClient, 'getAgentState')
+    .spyOn(appContext.mainProcessClient, 'getAgentState')
     .mockImplementation(() => errorStatus);
   jest
-    .spyOn(mockedAppContext.connectMyComputerService, 'runAgent')
+    .spyOn(appContext.connectMyComputerService, 'runAgent')
     .mockImplementation(async () => {
       // the error is emitted before the function resolves
       eventEmitter.emit('', errorStatus);
       return;
     });
   jest
-    .spyOn(mockedAppContext.mainProcessClient, 'subscribeToAgentUpdate')
+    .spyOn(appContext.mainProcessClient, 'subscribeToAgentUpdate')
     .mockImplementation((rootClusterUri, listener) => {
       eventEmitter.on('', listener);
       return { cleanup: () => eventEmitter.off('', listener) };
@@ -52,9 +97,9 @@ test('runAgentAndWaitForNodeToJoin re-throws errors that are thrown while spawni
 
   const { result } = renderHook(() => useConnectMyComputerContext(), {
     wrapper: ({ children }) => (
-      <MockAppContextProvider appContext={mockedAppContext}>
+      <MockAppContextProvider appContext={appContext}>
         <WorkspaceContextProvider value={null}>
-          <ConnectMyComputerContextProvider rootClusterUri={'/clusters/a'}>
+          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
             {children}
           </ConnectMyComputerContextProvider>
         </WorkspaceContextProvider>
@@ -62,7 +107,121 @@ test('runAgentAndWaitForNodeToJoin re-throws errors that are thrown while spawni
     ),
   });
 
-  await expect(result.current.runAgentAndWaitForNodeToJoin).rejects.toThrow(
-    `Agent process failed to start.\nENOENT`
+  let error: Error;
+  await act(async () => {
+    [, error] = await result.current.startAgent();
+  });
+  expect(error).toBeInstanceOf(AgentProcessError);
+  expect(result.current.currentAction).toStrictEqual({
+    kind: 'start',
+    attempt: makeErrorAttempt(AgentProcessError.name),
+    agentProcessState: {
+      status: 'error',
+      message: 'ENOENT',
+    },
+  });
+});
+
+test('starting the agent flips the workspace autoStart flag to true', async () => {
+  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+  const { result } = renderHook(() => useConnectMyComputerContext(), {
+    wrapper: ({ children }) => (
+      <MockAppContextProvider appContext={appContext}>
+        <WorkspaceContextProvider value={null}>
+          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
+            {children}
+          </ConnectMyComputerContextProvider>
+        </WorkspaceContextProvider>
+      </MockAppContextProvider>
+    ),
+  });
+
+  await act(() => result.current.startAgent());
+
+  expect(
+    appContext.workspacesService.getConnectMyComputerAutoStart(rootCluster.uri)
+  ).toBeTruthy();
+});
+
+test('killing the agent flips the workspace autoStart flag to false', async () => {
+  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+
+  const { result } = renderHook(() => useConnectMyComputerContext(), {
+    wrapper: ({ children }) => (
+      <MockAppContextProvider appContext={appContext}>
+        <WorkspaceContextProvider value={null}>
+          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
+            {children}
+          </ConnectMyComputerContextProvider>
+        </WorkspaceContextProvider>
+      </MockAppContextProvider>
+    ),
+  });
+
+  await act(() => result.current.killAgent());
+
+  expect(
+    appContext.workspacesService.getConnectMyComputerAutoStart(rootCluster.uri)
+  ).toBeFalsy();
+});
+
+test('starts the agent automatically if the workspace autoStart flag is true', async () => {
+  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+  appContext.configService = createMockConfigService({
+    'feature.connectMyComputer': true,
+  });
+
+  const eventEmitter = new EventEmitter();
+  let currentAgentProcessState: AgentProcessState = {
+    status: 'not-started',
+  };
+  jest
+    .spyOn(appContext.mainProcessClient, 'getAgentState')
+    .mockImplementation(() => currentAgentProcessState);
+  jest
+    .spyOn(appContext.connectMyComputerService, 'isAgentConfigFileCreated')
+    .mockResolvedValue(true);
+  jest
+    .spyOn(appContext.connectMyComputerService, 'runAgent')
+    .mockImplementation(async () => {
+      currentAgentProcessState = { status: 'running' };
+      eventEmitter.emit('', currentAgentProcessState);
+    });
+  jest
+    .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
+    .mockResolvedValue(makeServer());
+  jest.spyOn(appContext.connectMyComputerService, 'downloadAgent');
+  jest
+    .spyOn(appContext.mainProcessClient, 'subscribeToAgentUpdate')
+    .mockImplementation((rootClusterUri, listener) => {
+      eventEmitter.on('', listener);
+      return { cleanup: () => eventEmitter.off('', listener) };
+    });
+
+  jest
+    .spyOn(appContext.workspacesService, 'getConnectMyComputerAutoStart')
+    .mockReturnValue(true);
+
+  const { result, waitFor } = renderHook(() => useConnectMyComputerContext(), {
+    wrapper: ({ children }) => (
+      <MockAppContextProvider appContext={appContext}>
+        <WorkspaceContextProvider value={null}>
+          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
+            {children}
+          </ConnectMyComputerContextProvider>
+        </WorkspaceContextProvider>
+      </MockAppContextProvider>
+    ),
+  });
+
+  await waitFor(
+    () =>
+      result.current.currentAction.kind === 'observe-process' &&
+      result.current.currentAction.agentProcessState.status === 'running'
   );
+
+  expect(
+    appContext.connectMyComputerService.downloadAgent
+  ).toHaveBeenCalledTimes(1);
+  expect(appContext.connectMyComputerService.runAgent).toHaveBeenCalledTimes(1);
 });

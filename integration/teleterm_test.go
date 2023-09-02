@@ -485,18 +485,13 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			_, err = auth.CreateUser(authServer, userName, userRoles...)
 			require.NoError(t, err)
 
-			// Log in as the new user.
-			creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-				Process:  pack.Root.Cluster.Process,
-				Username: userName,
-			})
-			require.NoError(t, err)
-			tc := mustLogin(t, userName, pack, creds)
+			userPassword := uuid
+			require.NoError(t, authServer.UpsertPassword(userName, []byte(userPassword)))
 
 			// Prepare daemon.Service.
 			storage, err := clusters.NewStorage(clusters.Config{
-				Dir:                tc.KeysDir,
-				InsecureSkipVerify: tc.InsecureSkipVerify,
+				Dir:                t.TempDir(),
+				InsecureSkipVerify: true,
 			})
 			require.NoError(t, err)
 
@@ -515,10 +510,26 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			)
 			require.NoError(t, err)
 
-			// Call CreateConnectMyComputerRole.
 			rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 			require.NoError(t, err)
 			rootClusterURI := uri.NewClusterURI(rootClusterName).String()
+
+			// Log in as the new user.
+			// It's important to use the actual login handler rather than mustLogin. mustLogin completely
+			// skips the actual login flow and saves valid certs to disk. We already had a regression that
+			// was not caught by this test because the test did not trigger certain code paths because it
+			// was using mustLogin as a shortcut.
+			_, err = handler.AddCluster(ctx, &api.AddClusterRequest{Name: pack.Root.Cluster.Web})
+			require.NoError(t, err)
+			_, err = handler.Login(ctx, &api.LoginRequest{
+				ClusterUri: rootClusterURI,
+				Params: &api.LoginRequest_Local{
+					Local: &api.LoginRequest_LocalParams{User: userName, Password: userPassword},
+				},
+			})
+			require.NoError(t, err)
+
+			// Call CreateConnectMyComputerRole.
 			response, err := handler.CreateConnectMyComputerRole(ctx, &api.CreateConnectMyComputerRoleRequest{
 				RootClusterUri: rootClusterURI,
 			})
@@ -599,6 +610,7 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 	require.NoError(t, err)
 
 	daemonService, err := daemon.New(daemon.Config{
+		Clock:          fakeClock,
 		Storage:        storage,
 		KubeconfigsDir: t.TempDir(),
 	})
@@ -672,6 +684,13 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 	require.True(t, trace.IsNotFound(err))
 }
 
+// mustLogin logs in as the given user by completely skipping the actual login flow and saving valid
+// certs to disk. clusters.Storage can then be pointed to tc.KeysDir and daemon.Service can act as
+// if the user was successfully logged in.
+//
+// This is faster than going through the actual process, but keep in mind that it might skip some
+// vital steps. It should be used only for tests which don't depend on complex user setup and do not
+// reissue certs or modify them in some other way.
 func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) *client.TeleportClient {
 	tc, err := pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   userName,

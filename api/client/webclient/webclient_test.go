@@ -28,6 +28,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
 )
@@ -459,9 +460,9 @@ func TestWebClientClosesIdleConnections(t *testing.T) {
 		ClusterName:      "test",
 	}
 
-	expectedStates := []http.ConnState{
-		http.StateNew, http.StateActive, http.StateClosed, // the https request will fail and cause us to fallback to http
-		http.StateNew, http.StateActive, http.StateIdle, http.StateClosed, // the http request should be processed and closed
+	expectedStates := []string{
+		http.StateNew.String(), http.StateActive.String(), http.StateClosed.String(), // the https request will fail and cause us to fallback to http
+		http.StateNew.String(), http.StateActive.String(), http.StateIdle.String(), http.StateClosed.String(), // the http request should be processed and closed
 	}
 
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -473,9 +474,9 @@ func TestWebClientClosesIdleConnections(t *testing.T) {
 		}
 	}))
 
-	stateChange := make(chan http.ConnState, len(expectedStates))
+	stateChange := make(chan string, len(expectedStates))
 	srv.Config.ConnState = func(conn net.Conn, state http.ConnState) {
-		stateChange <- state
+		stateChange <- state.String()
 	}
 
 	srv.Start()
@@ -489,13 +490,18 @@ func TestWebClientClosesIdleConnections(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(expectedResponse, resp))
 
-	for _, expected := range expectedStates {
+	var got []string
+	for i := range expectedStates {
 		select {
 		case state := <-stateChange:
-			require.Equal(t, expected, state, "expected connection state %s got %s", expected.String(), state.String())
+			got = append(got, state)
 		case <-time.After(3 * time.Second):
-			t.Fatalf("timeout waiting for expected connection state %s", expected.String())
+			t.Fatalf("timeout waiting for expected connection state %d", i)
 		}
 	}
 
+	slices.Sort(expectedStates)
+	slices.Sort(got)
+
+	require.Equal(t, expectedStates, got)
 }

@@ -6,7 +6,8 @@ videoBanner: k2wz79XCexY
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="Microsoft SQL Server" dbConfigure="Microsoft SQL Server database with Active Directory authentication" dbName="Microsoft SQL Server" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ```mermaid
 %%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
 graph LR
@@ -30,8 +31,8 @@ style local fill:#C0C0C0,stroke: #000000
   e-->d
 end
 ```
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ```mermaid
 %%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
 graph LR
@@ -55,7 +56,9 @@ style local fill:#C0C0C0,stroke: #000000
   e-->d
 end
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 This guide will focus on Amazon RDS for SQL Server using AWS-managed Active
 Directory authentication.
@@ -249,7 +252,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
   Active Directory domain as the SQL Server.
 </Admonition>
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 Configure the Teleport Database Service. Make sure to update `--proxy` to
 point to your Teleport Proxy Service address and `--uri` to the SQL Server
@@ -269,8 +273,8 @@ endpoint.
     --labels=env=dev
   ```
   
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 Configure the Teleport Database Service. Make sure to update `--proxy` to
 point to your Teleport Cloud tenant address and `--uri` to the SQL Server
@@ -290,7 +294,9 @@ endpoint.
     --labels=env=dev
   ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Provide Active Directory parameters:
 
@@ -353,7 +359,8 @@ master> CREATE LOGIN [EXAMPLE\alice] FROM WINDOWS WITH DEFAULT_DATABASE = [maste
 Log in to your Teleport cluster. Your SQL Server database should appear in the
 list of available databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -363,8 +370,8 @@ $ tsh db ls
 # sqlserver                     env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -374,7 +381,9 @@ $ tsh db ls
 # sqlserver                     env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To retrieve credentials for a database and connect to it:
 
@@ -434,3 +443,4 @@ skipping TLS verification in production environments.
 
 - [Manually join a Linux instance](https://docs.aws.amazon.com/directoryservice/latest/admin-guide/join_linux_instance.html) in the AWS documentation.
 - [Introduction to `adutil`](https://docs.microsoft.com/en-us/sql/linux/sql-server-linux-ad-auth-adutil-introduction) in the Microsoft documentation.
+

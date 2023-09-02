@@ -26,7 +26,6 @@ balancer or reverse proxy is available in Teleport 13.0+.
 - An existing [IAM OpenID Connect (OIDC)](https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html) provider for your cluster
 - Helm >= (=helm.version=)
 - AWS CLI >= `2.10.3` or `1.27.81`
-- A Teleport cluster with [TLS multiplexing](../../management/operations/tls-routing.mdx)
 
 (!docs/pages/includes/helm.mdx!)
 
@@ -249,6 +248,7 @@ $ CLUSTER=iam-cluster
 $ PROXY=tele.example.com:443
 $ helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=${CLUSTER?} \
+  --set roles="kube\,app\,discovery" \
   --set proxyAddr=${PROXY?} \
   --set joinParams.method=iam \
   --set joinParams.tokenName=<Var name="kube-iam-token"/> \

@@ -104,7 +104,7 @@ const (
 	// ComponentAuth is the cluster CA node (auth server API)
 	ComponentAuth = "auth"
 
-	// ComponentGRPC is grpc server
+	// ComponentGRPC is gRPC server
 	ComponentGRPC = "grpc"
 
 	// ComponentMigrate is responsible for data migrations
@@ -204,6 +204,10 @@ const (
 
 	// ComponentWeb is a web server
 	ComponentWeb = "web"
+
+	// ComponentUnifiedResource is a cache of resources meant to be listed and displayed
+	// together in the web UI
+	ComponentUnifiedResource = "unified_resource"
 
 	// ComponentWebsocket is websocket server that the web client connects to.
 	ComponentWebsocket = "websocket"
@@ -344,6 +348,9 @@ const (
 
 	// AWSRunTests turns on tests executed against AWS directly
 	AWSRunTests = "TEST_AWS"
+
+	// AWSRunDBTests turns on tests executed against AWS databases directly.
+	AWSRunDBTests = "TEST_AWS_DB"
 
 	// Region is AWS region parameter
 	Region = "region"
@@ -639,6 +646,20 @@ const (
 	// PresetGroupAccessRoleName is a name of a preset role that allows
 	// access to all user groups.
 	PresetGroupAccessRoleName = "group-access"
+
+	// PresetDeviceAdminRoleName is the name of the "device-admin" role.
+	// The role is used to administer trusted devices.
+	PresetDeviceAdminRoleName = "device-admin"
+
+	// PresetDeviceEnrollRoleName is the name of the "device-enroll" role.
+	// The role is used to grant device enrollment powers to users.
+	PresetDeviceEnrollRoleName = "device-enroll"
+
+	// PresetRequireTrustedDeviceRoleName is the name of the
+	// "require-trusted-device" role.
+	// The role is used as a basis for requiring trusted device access to
+	// resources.
+	PresetRequireTrustedDeviceRoleName = "require-trusted-device"
 
 	// SystemAutomaticAccessApprovalRoleName names a preset role that may
 	// automatically approve any Role Access Request

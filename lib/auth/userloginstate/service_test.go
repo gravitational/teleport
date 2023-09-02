@@ -42,13 +42,22 @@ const (
 	noAccessUser = "no-access-user"
 )
 
-// cmpOpts are general cmpOpts for all comparisons.
-var cmpOpts = []cmp.Option{
-	cmpopts.IgnoreFields(header.Metadata{}, "ID"),
-	cmpopts.SortSlices(func(a, b *userloginstate.UserLoginState) bool {
-		return a.GetName() < b.GetName()
-	}),
-}
+var (
+	// cmpOpts are general cmpOpts for all comparisons across the service tests.
+	cmpOpts = []cmp.Option{
+		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
+		cmpopts.SortSlices(func(a, b *userloginstate.UserLoginState) bool {
+			return a.GetName() < b.GetName()
+		}),
+	}
+
+	stRoles = []string{"role1", "role2"}
+
+	stTraits = trait.Traits{
+		"key1": []string{"value1"},
+		"key2": []string{"value2"},
+	}
+)
 
 func TestGetUserLoginStates(t *testing.T) {
 	t.Parallel()
@@ -59,8 +68,8 @@ func TestGetUserLoginStates(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1")
-	uls2 := newUserLoginState(t, "2")
+	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
+	uls2 := newUserLoginState(t, "2", stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
@@ -85,8 +94,8 @@ func TestUpsertUserLoginStates(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1")
-	uls2 := newUserLoginState(t, "2")
+	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
+	uls2 := newUserLoginState(t, "2", stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
@@ -108,7 +117,7 @@ func TestGetUserLoginState(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1")
+	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
@@ -134,7 +143,7 @@ func TestDeleteUserLoginState(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1")
+	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
@@ -161,8 +170,8 @@ func TestDeleteAllAccessLists(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1")
-	uls2 := newUserLoginState(t, "2")
+	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
+	uls2 := newUserLoginState(t, "2", stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
@@ -277,26 +286,6 @@ func genUserContext(ctx context.Context, username string, groups []string) conte
 			Traits:   nil,
 		},
 	})
-}
-
-func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState {
-	t.Helper()
-
-	uls, err := userloginstate.New(
-		header.Metadata{
-			Name: name,
-		},
-		userloginstate.Spec{
-			Roles: []string{"role1", "role2"},
-			Traits: trait.Traits{
-				"key1": []string{"value1"},
-				"key2": []string{"value2"},
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	return uls
 }
 
 func mustFromProto(t *testing.T, uls *userloginstatev1.UserLoginState) *userloginstate.UserLoginState {

@@ -1058,7 +1058,8 @@ These flags are available for all commands `--debug, --config` . Run
 
 ### Examples
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tctl get users
@@ -1072,8 +1073,8 @@ $ tctl get clusters,users
 $ tctl get all > state.yaml
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tctl get users
@@ -1085,7 +1086,9 @@ $ tctl get cluster/east
 $ tctl get clusters,users
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## tctl edit
 
@@ -1393,4 +1396,5 @@ Print the version of your `tctl` binary:
 ```code
 tctl version
 ```
+
 

@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/trace"
 
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
+	"github.com/gravitational/teleport/api/types"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -32,8 +33,9 @@ func FromProto(msg *userloginstatev1.UserLoginState) (*userloginstate.UserLoginS
 	}
 
 	uls, err := userloginstate.New(headerv1.FromMetadataProto(msg.Header.Metadata), userloginstate.Spec{
-		Roles:  msg.Spec.Roles,
-		Traits: traitv1.FromProto(msg.Spec.Traits),
+		Roles:    msg.Spec.Roles,
+		Traits:   traitv1.FromProto(msg.Spec.Traits),
+		UserType: types.UserType(msg.Spec.UserType),
 	})
 
 	return uls, trace.Wrap(err)
@@ -44,8 +46,9 @@ func ToProto(uls *userloginstate.UserLoginState) *userloginstatev1.UserLoginStat
 	return &userloginstatev1.UserLoginState{
 		Header: headerv1.ToResourceHeaderProto(uls.ResourceHeader),
 		Spec: &userloginstatev1.Spec{
-			Roles:  uls.GetRoles(),
-			Traits: traitv1.ToProto(uls.GetTraits()),
+			Roles:    uls.GetRoles(),
+			Traits:   traitv1.ToProto(uls.GetTraits()),
+			UserType: string(uls.Spec.UserType),
 		},
 	}
 }

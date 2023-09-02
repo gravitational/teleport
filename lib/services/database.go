@@ -620,8 +620,10 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 		return nil, trace.Wrap(err)
 	}
 
+	var vpcID string
 	var subnets []string
 	if rdsInstance.DBSubnetGroup != nil {
+		vpcID = aws.StringValue(rdsInstance.DBSubnetGroup.VpcId)
 		subnets = make([]string, 0, len(rdsInstance.DBSubnetGroup.Subnets))
 		for _, s := range rdsInstance.DBSubnetGroup.Subnets {
 			if s.SubnetIdentifier == nil || *s.SubnetIdentifier == "" {
@@ -640,6 +642,7 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
 			IAMAuth:    rdsInstance.IAMDatabaseAuthenticationEnabled,
 			Subnets:    subnets,
+			VPCID:      vpcID,
 		},
 	}, nil
 }
@@ -1927,6 +1930,8 @@ const (
 	// RDSEngineMariaDB is RDS engine name for MariaDB instances.
 	RDSEngineMariaDB = "mariadb"
 	// RDSEngineAurora is RDS engine name for Aurora MySQL 5.6 compatible clusters.
+	// This reached EOF on Feb 28, 2023.
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.MySQL56.EOL.html
 	RDSEngineAurora = "aurora"
 	// RDSEngineAuroraMySQL is RDS engine name for Aurora MySQL 5.7 compatible clusters.
 	RDSEngineAuroraMySQL = "aurora-mysql"

@@ -442,9 +442,9 @@ func (s *ProxyServer) SQLServerProxy() *sqlserver.Proxy {
 func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
 	var labels prometheus.Labels
 	if len(proxyCtx.Servers) > 0 {
-		labels = getLabelsFromDb(proxyCtx.Servers[0].GetDatabase())
+		labels = getLabelsFromDB(proxyCtx.Servers[0].GetDatabase())
 	} else {
-		labels = getLabelsFromDb(nil)
+		labels = getLabelsFromDB(nil)
 	}
 
 	labels["available_db_servers"] = strconv.Itoa(len(proxyCtx.Servers))
@@ -506,6 +506,9 @@ func isReverseTunnelDownError(err error) bool {
 //
 // Implements common.Service.
 func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, clientConn, serviceConn net.Conn) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	// Wrap a client connection with a monitor that auto-terminates
 	// idle connection and connection with expired cert.
 	var err error
@@ -515,6 +518,16 @@ func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, 
 		serviceConn.Close()
 		return trace.Wrap(err)
 	}
+
+	var labels prometheus.Labels
+	if len(proxyCtx.Servers) > 0 {
+		labels = getLabelsFromDB(proxyCtx.Servers[0].GetDatabase())
+	} else {
+		labels = getLabelsFromDB(nil)
+	}
+
+	activeConnections.With(labels).Inc()
+	defer activeConnections.With(labels).Dec()
 
 	return trace.Wrap(utils.ProxyConn(ctx, clientConn, serviceConn))
 }
@@ -587,7 +600,7 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 // getConfigForServer returns TLS config used for establishing connection
 // to a remote database server over reverse tunnel.
 func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Identity, server types.DatabaseServer) (*tls.Config, error) {
-	defer observeLatency(tlsConfigTime.With(getLabelsFromDb(server.GetDatabase())))()
+	defer observeLatency(tlsConfigTime.With(getLabelsFromDB(server.GetDatabase())))()
 
 	privateKey, err := native.GeneratePrivateKey()
 	if err != nil {
@@ -663,7 +676,7 @@ func observeLatency(o prometheus.Observer) func() {
 
 var commonLabels = []string{teleport.ComponentLabel, "db_protocol", "db_type"}
 
-func getLabelsFromDb(db types.Database) prometheus.Labels {
+func getLabelsFromDB(db types.Database) prometheus.Labels {
 	if db != nil {
 		return map[string]string{
 			teleport.ComponentLabel: proxyServerComponent,
@@ -735,7 +748,17 @@ var (
 		commonLabels,
 	)
 
+	activeConnections = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "proxy_db",
+			Name:      "active_connections_total",
+			Help:      "Number of currently active connections to DB service from Proxy service.",
+		},
+		commonLabels,
+	)
+
 	prometheusCollectors = []prometheus.Collector{
-		connectionSetupTime, tlsConfigTime, dialAttempts, dialFailures, dialAttemptedServers,
+		connectionSetupTime, tlsConfigTime, dialAttempts, dialFailures, dialAttemptedServers, activeConnections,
 	}
 )

@@ -51,6 +51,7 @@ exports[`empty state for enterprise, can create 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 224px;
+  text-transform: none;
 }
 
 .c11:hover,
@@ -95,6 +96,7 @@ exports[`empty state for enterprise, can create 1`] = `
   padding: 0px 24px;
   margin-left: 24px;
   width: 224px;
+  text-transform: none;
 }
 
 .c12:hover,
@@ -249,8 +251,7 @@ exports[`empty state for enterprise, can create 1`] = `
               kind="primary"
               width="224px"
             >
-              Add 
-              database
+              Add Resource
             </button>
           </a>
           <a
@@ -896,12 +897,12 @@ exports[`failed 1`] = `
             </strong>
              - 
             <strong>
-              3
+              8
             </strong>
              of
              
             <strong>
-              3
+              8
             </strong>
           </div>
         </div>
@@ -1006,6 +1007,201 @@ exports[`failed 1`] = `
           </td>
           <td>
             RDS PostgreSQL
+          </td>
+          <td>
+            <div
+              class="c24"
+            >
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                cluster: root
+              </div>
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                env: aws
+              </div>
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c26"
+              kind="border"
+            >
+              Connect
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            mongodbizzle
+          </td>
+          <td>
+            MongoDB database here
+          </td>
+          <td>
+            Self-hosted MongoDB
+          </td>
+          <td>
+            <div
+              class="c24"
+            >
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                cluster: root
+              </div>
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                env: aws
+              </div>
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c26"
+              kind="border"
+            >
+              Connect
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            Dynamooooo
+          </td>
+          <td>
+            AWS Dynamo
+          </td>
+          <td>
+            AWS Dynamo
+          </td>
+          <td>
+            <div
+              class="c24"
+            >
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                cluster: root
+              </div>
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                env: aws
+              </div>
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c26"
+              kind="border"
+            >
+              Connect
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            Cassandra 45
+          </td>
+          <td>
+            The Cassandra DB
+          </td>
+          <td>
+            Cassandra
+          </td>
+          <td>
+            <div
+              class="c24"
+            >
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                cluster: root
+              </div>
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                env: aws
+              </div>
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c26"
+              kind="border"
+            >
+              Connect
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            snowyboi
+          </td>
+          <td>
+            Snowflake
+          </td>
+          <td>
+            Snowflake
+          </td>
+          <td>
+            <div
+              class="c24"
+            >
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                cluster: root
+              </div>
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                env: aws
+              </div>
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c26"
+              kind="border"
+            >
+              Connect
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            roach
+          </td>
+          <td>
+            Cockroach DB
+          </td>
+          <td>
+            Self-hosted CockroachDB
           </td>
           <td>
             <div
@@ -1210,6 +1406,7 @@ exports[`open source loaded 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c3:hover,
@@ -1724,8 +1921,7 @@ exports[`open source loaded 1`] = `
         title=""
         width="240px"
       >
-        Add 
-        database
+        Add database
       </button>
     </a>
   </div>
@@ -1831,12 +2027,12 @@ exports[`open source loaded 1`] = `
             </strong>
              - 
             <strong>
-              3
+              8
             </strong>
              of
              
             <strong>
-              3
+              8
             </strong>
           </div>
         </div>
@@ -1941,6 +2137,201 @@ exports[`open source loaded 1`] = `
           </td>
           <td>
             RDS PostgreSQL
+          </td>
+          <td>
+            <div
+              class="c24"
+            >
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                cluster: root
+              </div>
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                env: aws
+              </div>
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c26"
+              kind="border"
+            >
+              Connect
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            mongodbizzle
+          </td>
+          <td>
+            MongoDB database here
+          </td>
+          <td>
+            Self-hosted MongoDB
+          </td>
+          <td>
+            <div
+              class="c24"
+            >
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                cluster: root
+              </div>
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                env: aws
+              </div>
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c26"
+              kind="border"
+            >
+              Connect
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            Dynamooooo
+          </td>
+          <td>
+            AWS Dynamo
+          </td>
+          <td>
+            AWS Dynamo
+          </td>
+          <td>
+            <div
+              class="c24"
+            >
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                cluster: root
+              </div>
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                env: aws
+              </div>
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c26"
+              kind="border"
+            >
+              Connect
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            Cassandra 45
+          </td>
+          <td>
+            The Cassandra DB
+          </td>
+          <td>
+            Cassandra
+          </td>
+          <td>
+            <div
+              class="c24"
+            >
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                cluster: root
+              </div>
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                env: aws
+              </div>
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c26"
+              kind="border"
+            >
+              Connect
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            snowyboi
+          </td>
+          <td>
+            Snowflake
+          </td>
+          <td>
+            Snowflake
+          </td>
+          <td>
+            <div
+              class="c24"
+            >
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                cluster: root
+              </div>
+              <div
+                class="c25"
+                kind="secondary"
+              >
+                env: aws
+              </div>
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c26"
+              kind="border"
+            >
+              Connect
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            roach
+          </td>
+          <td>
+            Cockroach DB
+          </td>
+          <td>
+            Self-hosted CockroachDB
           </td>
           <td>
             <div

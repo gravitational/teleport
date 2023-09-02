@@ -31,7 +31,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // LoginOpts groups non-mandatory options for Login.
@@ -52,8 +52,8 @@ const (
 // Implementors must provide a global variable called `native`.
 type nativeWebauthn interface {
 	CheckSupport() CheckSupportResult
-	GetAssertion(origin string, in *getAssertionRequest) (*wanlib.CredentialAssertionResponse, error)
-	MakeCredential(origin string, in *makeCredentialRequest) (*wanlib.CredentialCreationResponse, error)
+	GetAssertion(origin string, in *getAssertionRequest) (*wantypes.CredentialAssertionResponse, error)
+	MakeCredential(origin string, in *makeCredentialRequest) (*wantypes.CredentialCreationResponse, error)
 }
 
 type getAssertionRequest struct {
@@ -73,7 +73,7 @@ type makeCredentialRequest struct {
 }
 
 // Login implements Login for Windows Webauthn API.
-func Login(_ context.Context, origin string, assertion *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+func Login(_ context.Context, origin string, assertion *wantypes.CredentialAssertion, loginOpts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 	if origin == "" {
 		return nil, "", trace.BadParameter("origin required")
 	}
@@ -106,13 +106,13 @@ func Login(_ context.Context, origin string, assertion *wanlib.CredentialAsserti
 
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+			Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 		},
 	}, "", nil
 }
 
 // Register implements Register for Windows Webauthn API.
-func Register(_ context.Context, origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, error) {
+func Register(_ context.Context, origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	if origin == "" {
 		return nil, trace.BadParameter("origin required")
 	}
@@ -155,7 +155,7 @@ func Register(_ context.Context, origin string, cc *wanlib.CredentialCreation) (
 
 	return &proto.MFARegisterResponse{
 		Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: wanlib.CredentialCreationResponseToProto(resp),
+			Webauthn: wantypes.CredentialCreationResponseToProto(resp),
 		},
 	}, nil
 }
@@ -224,23 +224,23 @@ func Diag(ctx context.Context) (*DiagResult, error) {
 
 	// Attempt registration.
 	const origin = "localhost"
-	cc := &wanlib.CredentialCreation{
-		Response: wanlib.PublicKeyCredentialCreationOptions{
+	cc := &wantypes.CredentialCreation{
+		Response: wantypes.PublicKeyCredentialCreationOptions{
 			Challenge: make([]byte, 32),
-			RelyingParty: wanlib.RelyingPartyEntity{
+			RelyingParty: wantypes.RelyingPartyEntity{
 				ID: "localhost",
-				CredentialEntity: wanlib.CredentialEntity{
+				CredentialEntity: wantypes.CredentialEntity{
 					Name: "test RP",
 				},
 			},
-			User: wanlib.UserEntity{
-				CredentialEntity: wanlib.CredentialEntity{
+			User: wantypes.UserEntity{
+				CredentialEntity: wantypes.CredentialEntity{
 					Name: "test",
 				},
 				ID:          []byte("test"),
 				DisplayName: "test",
 			},
-			Parameters: []wanlib.CredentialParameter{
+			Parameters: []wantypes.CredentialParameter{
 				{
 					Type:      protocol.PublicKeyCredentialType,
 					Algorithm: webauthncose.AlgES256,
@@ -260,11 +260,11 @@ func Diag(ctx context.Context) (*DiagResult, error) {
 	res.RegisterSuccessful = true
 
 	// Attempt login.
-	assertion := &wanlib.CredentialAssertion{
-		Response: wanlib.PublicKeyCredentialRequestOptions{
+	assertion := &wantypes.CredentialAssertion{
+		Response: wantypes.PublicKeyCredentialRequestOptions{
 			Challenge:      make([]byte, 32),
 			RelyingPartyID: cc.Response.RelyingParty.ID,
-			AllowedCredentials: []wanlib.CredentialDescriptor{
+			AllowedCredentials: []wantypes.CredentialDescriptor{
 				{
 					Type:         protocol.PublicKeyCredentialType,
 					CredentialID: ccr.GetWebauthn().GetRawId(),

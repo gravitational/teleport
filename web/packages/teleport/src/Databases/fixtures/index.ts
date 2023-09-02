@@ -18,6 +18,7 @@ import { Database } from 'teleport/services/databases';
 
 export const databases: Database[] = [
   {
+    kind: 'db',
     name: 'aurora',
     description: 'PostgreSQL 11.6: AWS Aurora ',
     type: 'RDS PostgreSQL',
@@ -29,6 +30,67 @@ export const databases: Database[] = [
     hostname: 'aurora-hostname',
   },
   {
+    kind: 'db',
+    name: 'mongodbizzle',
+    description: 'MongoDB database here',
+    type: 'Self-hosted MongoDB',
+    protocol: 'mongodb',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'aws' },
+    ],
+    hostname: 'mongo-bongo',
+  },
+  {
+    kind: 'db',
+    name: 'Dynamooooo',
+    description: 'AWS Dynamo',
+    type: 'AWS Dynamo',
+    protocol: 'dynamodb',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'aws' },
+    ],
+    hostname: 'dynamo-123',
+  },
+  {
+    kind: 'db',
+    name: 'Cassandra 45',
+    description: 'The Cassandra DB',
+    type: 'Cassandra',
+    protocol: 'cassandra',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'aws' },
+    ],
+    hostname: 'cas-123',
+  },
+  {
+    kind: 'db',
+    name: 'snowyboi',
+    description: 'Snowflake',
+    type: 'Snowflake',
+    protocol: 'snowflake',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'aws' },
+    ],
+    hostname: 'snowflake-stuff',
+  },
+  {
+    kind: 'db',
+    name: 'roach',
+    description: 'Cockroach DB',
+    type: 'Self-hosted CockroachDB',
+    protocol: 'cockroachdb',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'aws' },
+    ],
+    hostname: 'cockroach-host',
+  },
+  {
+    kind: 'db',
     name: 'postgres-gcp',
     description: 'PostgreSQL 9.6: Google Cloud SQL',
     type: 'Cloud SQL PostgreSQL',
@@ -40,6 +102,7 @@ export const databases: Database[] = [
     hostname: 'postgres-hostname',
   },
   {
+    kind: 'db',
     name: 'mysql-aurora-56',
     description: 'MySQL 5.6: AWS Aurora Longname For SQL',
     type: 'Self-hosted MySQL',

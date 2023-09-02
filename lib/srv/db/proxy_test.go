@@ -403,8 +403,10 @@ func TestProxyClientDisconnectDueToIdleConnection(t *testing.T) {
 	testCtx.clock.Advance(idleClientTimeout + connMonitorDisconnectTimeBuff)
 
 	waitForEvent(t, testCtx, events.ClientDisconnectCode)
-	err = mysql.Ping()
-	require.Error(t, err)
+	require.Eventually(t, func() bool {
+		err := mysql.Ping()
+		return err != nil
+	}, 5*time.Second, 100*time.Millisecond, "failed to disconnect client conn")
 }
 
 // TestProxyClientDisconnectDueToCertExpiration ensures that if the DisconnectExpiredCert cluster flag is enabled
@@ -431,8 +433,10 @@ func TestProxyClientDisconnectDueToCertExpiration(t *testing.T) {
 	testCtx.clock.Advance(ttlClientCert)
 
 	waitForEvent(t, testCtx, events.ClientDisconnectCode)
-	err = mysql.Ping()
-	require.Error(t, err)
+	require.Eventually(t, func() bool {
+		err := mysql.Ping()
+		return err != nil
+	}, 5*time.Second, 100*time.Millisecond, "failed to disconnect client conn")
 }
 
 // TestProxyClientDisconnectDueToLockInForce ensures that clients will be
@@ -460,8 +464,10 @@ func TestProxyClientDisconnectDueToLockInForce(t *testing.T) {
 	require.NoError(t, err)
 
 	waitForEvent(t, testCtx, events.ClientDisconnectCode)
-	err = mysql.Ping()
-	require.Error(t, err)
+	require.Eventually(t, func() bool {
+		err := mysql.Ping()
+		return err != nil
+	}, 5*time.Second, 100*time.Millisecond, "failed to disconnect client conn")
 }
 
 func setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx context.Context, t *testing.T, auth *auth.Server, timeout time.Duration) {

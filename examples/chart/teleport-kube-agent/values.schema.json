@@ -23,6 +23,7 @@
         "clusterRoleBindingName",
         "roleName",
         "roleBindingName",
+        "podMonitor",
         "serviceAccountName",
         "secretName",
         "log",
@@ -368,6 +369,29 @@
                 }
             }
         },
+        "podMonitor": {
+            "$id": "#/properties/podMonitor",
+            "type": "object",
+            "required": ["enabled"],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/podMonitor/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "additionalLabels": {
+                    "$id": "#/properties/podMonitor/additionalLabels",
+                    "type": "object",
+                    "default": {"prometheus": "default"},
+                    "additionalProperties": {"type": "string"}
+                },
+                "interval": {
+                    "$id": "#/properties/podMonitor/interval",
+                    "type": "string",
+                    "default": "30s"
+                }
+            }
+        },
         "priorityClassName": {
             "$id": "#/properties/priorityClassName",
             "type": "string",
@@ -504,6 +528,7 @@
                 "config",
                 "deployment",
                 "pod",
+                "secret",
                 "serviceAccount"
             ],
             "properties": {
@@ -519,6 +544,11 @@
                 },
                 "pod": {
                     "$id": "#/properties/annotations/properties/pod",
+                    "type": "object",
+                    "default": {}
+                },
+                "secret": {
+                    "$id": "#/properties/annotations/properties/secret",
                     "type": "object",
                     "default": {}
                 },

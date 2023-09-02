@@ -53,7 +53,7 @@ func AddMetadataToContext(ctx context.Context, raw map[string]string) context.Co
 // to stop the client interceptors from adding any metadata to the context (useful for testing).
 type DisableInterceptors struct{}
 
-// StreamServerInterceptor intercepts a GRPC client stream call and adds
+// StreamServerInterceptor intercepts a gRPC client stream call and adds
 // default metadata to the context.
 func StreamServerInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	if disable := stream.Context().Value(DisableInterceptors{}); disable == nil {
@@ -63,7 +63,7 @@ func StreamServerInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	return handler(srv, stream)
 }
 
-// StreamClientInterceptor intercepts a GRPC client stream call and adds
+// StreamClientInterceptor intercepts a gRPC client stream call and adds
 // default metadata to the context.
 func StreamClientInterceptor(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
 	if disable := ctx.Value(DisableInterceptors{}); disable == nil {
@@ -72,7 +72,7 @@ func StreamClientInterceptor(ctx context.Context, desc *grpc.StreamDesc, cc *grp
 	return streamer(ctx, desc, cc, method, opts...)
 }
 
-// UnaryClientInterceptor intercepts a GRPC client unary call and adds default
+// UnaryClientInterceptor intercepts a gRPC client unary call and adds default
 // metadata to the context.
 func UnaryClientInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 	if disable := ctx.Value(DisableInterceptors{}); disable == nil {
@@ -81,8 +81,8 @@ func UnaryClientInterceptor(ctx context.Context, method string, req, reply inter
 	return invoker(ctx, method, req, reply, cc, opts...)
 }
 
-// ClientVersionFromContext can be called from a GRPC server method to return
-// the client version that was added to the GRPC metadata by
+// ClientVersionFromContext can be called from a gRPC server method to return
+// the client version that was added to the gRPC metadata by
 // StreamClientInterceptor or UnaryClientInterceptor on the client.
 func ClientVersionFromContext(ctx context.Context) (string, bool) {
 	md, ok := metadata.FromIncomingContext(ctx)
