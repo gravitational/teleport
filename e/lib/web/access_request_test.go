@@ -2,13 +2,19 @@ package web
 
 import (
 	"context"
+	"encoding/json"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
@@ -503,4 +509,109 @@ func (m *mockedAccessRequestAPIGetter) SubmitAccessReview(ctx context.Context, p
 	}
 
 	return nil, trace.NotImplemented("mockSubmitAccessReview not implemented")
+}
+
+func TestSuggestAccessLists(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := newWebSuite(t)
+	webPack := s.newAuthWebPack(t, "reviewer")
+	authClient := s.newAdminAuthClient(s.ctx, t)
+	accessListClient := authClient.AccessListClient()
+
+	// create admin, access and godmode roles
+	adminRole, err := types.NewRole("admin", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	err = authClient.UpsertRole(ctx, adminRole)
+	require.NoError(t, err)
+	accessRole, err := types.NewRole("access", types.RoleSpecV6{})
+	require.NoError(t, err)
+	err = authClient.UpsertRole(ctx, accessRole)
+	require.NoError(t, err)
+	godmodeRole, err := types.NewRole("godmode", types.RoleSpecV6{})
+	require.NoError(t, err)
+	err = authClient.UpsertRole(ctx, godmodeRole)
+	require.NoError(t, err)
+
+	// assign the admin role and preferred_drink=fanta to reviewer
+	user, err := authClient.GetUser("reviewer", false)
+	require.NoError(t, err)
+	user.SetRoles([]string{"admin"})
+	user.SetTraits(trait.Traits{"preferred_drink": []string{"fanta"}})
+	err = authClient.UpsertUser(user)
+	require.NoError(t, err)
+
+	// create an access request for reviewer to request access to the "access" role
+	accessRequest, err := services.NewAccessRequest("reviewer", "access")
+	require.NoError(t, err)
+	_, err = authClient.CreateAccessRequestV2(ctx, accessRequest)
+	require.NoError(t, err)
+
+	// create four access lists:
+	// - one that is a close match
+	// - one that is overprivileged
+	// - one that is missing access due to a role mismatch
+	// - one that is missing access due to a trait mismatch
+	accessListCloseMatch, err := accesslist.NewAccessList(header.Metadata{Name: "close-match"}, accesslist.Spec{
+		Title:              "close match",
+		Audit:              accesslist.Audit{Frequency: time.Hour},
+		Owners:             []accesslist.Owner{{Name: "reviewer", Description: "reviewer desc"}},
+		MembershipRequires: accesslist.Requires{Roles: []string{"admin"}, Traits: trait.Traits{"preferred_drink": []string{"fanta"}}},
+		Grants:             accesslist.Grants{Roles: []string{"access"}},
+	})
+	require.NoError(t, err)
+	accessListCloseMatch, err = accessListClient.UpsertAccessList(ctx, accessListCloseMatch)
+	require.NoError(t, err)
+	accessListOverprivileged, err := accesslist.NewAccessList(header.Metadata{Name: "overprivileged"}, accesslist.Spec{
+		Title:              "overprivileged",
+		Audit:              accesslist.Audit{Frequency: time.Hour},
+		Owners:             []accesslist.Owner{{Name: "reviewer", Description: "reviewer desc"}},
+		MembershipRequires: accesslist.Requires{Roles: []string{"admin"}, Traits: trait.Traits{"preferred_drink": []string{"fanta"}}},
+		Grants:             accesslist.Grants{Roles: []string{"access", "godmode"}},
+	})
+	require.NoError(t, err)
+	accessListOverprivileged, err = accessListClient.UpsertAccessList(ctx, accessListOverprivileged)
+	require.NoError(t, err)
+	accessListMissingAccessRole, err := accesslist.NewAccessList(header.Metadata{Name: "missing-access-role"}, accesslist.Spec{
+		Title:              "missing access role",
+		Audit:              accesslist.Audit{Frequency: time.Hour},
+		Owners:             []accesslist.Owner{{Name: "reviewer", Description: "reviewer desc"}},
+		MembershipRequires: accesslist.Requires{Roles: []string{"godmode"}},
+		Grants:             accesslist.Grants{Roles: []string{"access"}},
+	})
+	require.NoError(t, err)
+	_, err = accessListClient.UpsertAccessList(ctx, accessListMissingAccessRole)
+	require.NoError(t, err)
+	accessListMissingAccessTrait, err := accesslist.NewAccessList(header.Metadata{Name: "missing-access-trait"}, accesslist.Spec{
+		Title:              "missing access trait",
+		Audit:              accesslist.Audit{Frequency: time.Hour},
+		Owners:             []accesslist.Owner{{Name: "reviewer", Description: "reviewer desc"}},
+		MembershipRequires: accesslist.Requires{Traits: trait.Traits{"preferred_drink": []string{"coke"}}},
+		Grants:             accesslist.Grants{Roles: []string{"access"}},
+	})
+	require.NoError(t, err)
+	_, err = accessListClient.UpsertAccessList(ctx, accessListMissingAccessTrait)
+	require.NoError(t, err)
+
+	// verify all access lists exist in the backend
+	existingLists, err := accessListClient.GetAccessLists(ctx)
+	require.NoError(t, err)
+	require.Len(t, existingLists, 4)
+
+	// fetch suggestions from web api
+	endpoint := webPack.clt.Endpoint("enterprise", "accesslistsuggestions", "accessrequest", accessRequest.GetName())
+	resp, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	var accessListResp ui.SuggestedAccessLists
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &accessListResp))
+
+	// check such as the suggestion ordering is correct and that one was rejected
+	require.Len(t, accessListResp.AccessLists, 2)
+	require.Equal(t, accessListResp.AccessLists, []*accesslist.AccessList{accessListCloseMatch, accessListOverprivileged})
 }

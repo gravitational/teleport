@@ -6,6 +6,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
 // AccessRequest describes a request's current state.
@@ -167,4 +168,9 @@ func newAccessReview(review types.AccessReview) AccessRequestReview {
 		Reason:  review.Reason,
 		Created: review.Created,
 	}
+}
+
+// SuggestedAccessLists is a list of suggested access lists for a given access request.
+type SuggestedAccessLists struct {
+	AccessLists []*accesslist.AccessList `json:"accessLists,omitempty"`
 }
