@@ -121,8 +121,14 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 	}
-	// TODO(espadolini): use a replication connection if
-	// connConfig.RuntimeParams["replication"] == "database"
+
+	if connConfig.RuntimeParams["replication"] == "database" {
+		if ac := b.feedConfig.AfterConnect; ac != nil {
+			return trace.BadParameter("replication connections are unsupported in this configuration")
+		}
+		return trace.Wrap(b.runReplicationChangeFeed(ctx, &connConfig.Config))
+	}
+
 	conn, err := pgx.ConnectConfig(ctx, connConfig)
 	if err != nil {
 		return trace.Wrap(err)
