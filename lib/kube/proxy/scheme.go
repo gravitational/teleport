@@ -17,6 +17,7 @@ limitations under the License.
 package proxy
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -29,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 
@@ -105,10 +107,25 @@ func newClusterSchemaBuilder(client *kubernetes.Clientset) (serializer.CodecFact
 	if err := registerDefaultKubeTypes(kubeScheme); err != nil {
 		return serializer.CodecFactory{}, nil, trace.Wrap(err)
 	}
-
+	// discoveryErr is returned when the discovery of one or more API groups fails.
+	var discoveryErr *discovery.ErrGroupDiscoveryFailed
 	// register all namespaced custom resources
 	_, apiGroups, err := client.DiscoveryClient.ServerGroupsAndResources()
-	if err != nil {
+	switch {
+	case errors.As(err, &discoveryErr) && len(discoveryErr.Groups) == 1:
+		// If the discovery error is of type `ErrGroupDiscoveryFailed` and it
+		// contains only one group, it it's possible that the group is the metrics
+		// group. If that's the case, we can ignore the error and continue.
+		// This is a workaround for the metrics group not being registered because
+		// the metrics pod is not running. It's common for Kubernetes clusters without
+		// nodes to not have the metrics pod running.
+		const metricsAPIGroup = "metrics.k8s.io"
+		for k := range discoveryErr.Groups {
+			if k.Group != metricsAPIGroup {
+				return serializer.CodecFactory{}, nil, trace.Wrap(err)
+			}
+		}
+	case err != nil:
 		return serializer.CodecFactory{}, nil, trace.Wrap(err)
 	}
 
