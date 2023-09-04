@@ -199,6 +199,17 @@ func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, slotName s
 
 	t0 := time.Now()
 
+	// Inserts only have the new tuple in "columns", deletes only have the old
+	// tuple in "identity", updates have both the new tuple in "columns" and the
+	// old tuple in "identity", but the new tuple might be missing some entries,
+	// if the value for that column was TOASTed and hasn't been modified; such
+	// an entry is outright missing from the json array, rather than being
+	// present with a "value" field of json null (signifying that the column is
+	// NULL in the sql sense), therefore we can just blindly COALESCE values
+	// between "columns" and "identity" and always get the correct entry, as
+	// long as we extract the "value" later. The key column is special-cased,
+	// since an item being renamed in an update needs an extra event.
+	//
 	// TODO(espadolini): it might be better to do the JSON deserialization
 	// (potentially with additional checks for the schema) on the auth side
 	rows, _ := conn.Query(ctx,
