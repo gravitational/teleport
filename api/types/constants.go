@@ -661,9 +661,10 @@ const (
 	ReqAnnotationSchedulesLabel = "/schedules"
 	// ReqAnnotationNotifyServicesLabel is the request annotation key at which notify services are stored for access plugins.
 	ReqAnnotationNotifyServicesLabel = "/notify-services"
-	// ReqAnnotationApprovedCloseCode is the request annotation key at which the servicenow close code for approved access requests is stored.
+
+	// ReqAnnotationApprovedCloseCode is the request annotation key at which the servicenow close code for approved access requests is stored, this label is added to roles to determine what close code to use when closing the ServiceNow incidents created for access requests.
 	ReqAnnotationApprovedCloseCode = "/approved-close-code"
-	// ReqAnnotationDeniedCloseCode is the request annotation key at which the servicenow close code for denied access requests is stored.
+	// ReqAnnotationDeniedCloseCode is the request annotation key at which the servicenow close code for denied access requests is stored, this label is added to roles to determine what close code to use when closing the ServiceNow incidents created for access requests.
 	ReqAnnotationDeniedCloseCode = "/denied-close-code"
 
 	// CloudAWS identifies that a resource was discovered in AWS.

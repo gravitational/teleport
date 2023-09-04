@@ -253,7 +253,7 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		}
 	case *PluginSpecV1_ServiceNow:
 		if settings.ServiceNow == nil {
-			return trace.BadParameter("missing Servicenow settings")
+			return trace.BadParameter("missing ServiceNow settings")
 		}
 		if err := settings.ServiceNow.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
