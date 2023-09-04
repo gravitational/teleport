@@ -93,7 +93,7 @@ federated credentials for the Teleport service account used by the Auth Service.
 $ az identity federated-credential create --resource-group <Var name="teleport-rg" /> --identity-name teleport-id \
     --name aks --audience api://AzureADTokenExchange \
     --subject system:serviceaccount:<Var name="teleport-ns" />:<Var name="teleport-release" /> \
-    --issuer "$(az aks show --resource-group <Var name="aks-rg" /> --name <Var name="aks-name" /> --query oidcIssuerProfile.issuerUrl -o tsv)""
+    --issuer "$(az aks show --resource-group <Var name="aks-rg" /> --name <Var name="aks-name" /> --query oidcIssuerProfile.issuerUrl -o tsv)"
 ```
 
 ## Step 3/5. Set values to configure the cluster
@@ -115,23 +115,30 @@ $ kubectl -n <Var name="teleport-ns" /> create secret generic license --from-fil
 
 </Details>
 
-Now we'll configure the `teleport-cluster` Helm chart to use the `azure` mode. Create a
-file called `azure-values.yaml` containing the values you've selected above:
+Now we'll configure the `teleport-cluster` Helm chart to use the `azure` mode.
 
-<ScopedBlock scope={["oss"]}>
-
+First get the client ID for the `teleport-id` identity:
 ```code
-$ cat >azure-values.yaml <<EOF
+$ az identity show --resource-group <Var name="teleport-rg" /> --name teleport-id --query clientId -o tsv
+<Var name="teleport-clie-ntid-uuid-123456789012" />
+```
+
+Then create a file called `azure-values.yaml` containing the values you've selected above:
+
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+
+```yaml
 chartMode: azure
 # Name of your cluster. Use the FQDN you intend to configure in DNS later
 clusterName: teleport.example.com
 azure:
-  databaseHost: <Var name="teleport-pg" />.postgres.database.azure.com
-  databaseUser: <Var name="pguser" />
-  sessionRecordingStorageAccount: <Var name="teleportblob" />.blob.core.windows.net
+  databaseHost: "<Var name="teleport-pg" />.postgres.database.azure.com"
+  databaseUser: "<Var name="pguser" />"
+  sessionRecordingStorageAccount: "<Var name="teleportblob" />.blob.core.windows.net"
   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
   auditLogMirrorOnStdout: false
-  clientID: $(az identity show --resource-group <Var name="teleport-rg" /> --name teleport-id --query clientId -o tsv)
+  clientID: "<Var name="teleport-clie-ntid-uuid-123456789012" />"
 highAvailability:
   # Number of replicas to configure
   replicaCount: 2
@@ -144,24 +151,22 @@ highAvailability:
 # If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
 podSecurityPolicy:
   enabled: false
-EOF
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["enterprise"]}>
+</TabItem>
+<TabItem scope={["enterprise"]} label="Enterprise">
 
-```code
-$ cat >azure-values.yaml <<EOF
+```yaml
 chartMode: azure
 # Name of your cluster. Use the FQDN you intend to configure in DNS later
 clusterName: teleport.example.com
 azure:
-  databaseHost: <Var name="teleport-pg" />.postgres.database.azure.com
-  databaseUser: <Var name="pguser" />
-  sessionRecordingStorageAccount: <Var name="teleportblob" />.blob.core.windows.net
+  databaseHost: "<Var name="teleport-pg" />.postgres.database.azure.com"
+  databaseUser: "<Var name="pguser" />"
+  sessionRecordingStorageAccount: "<Var name="teleportblob" />.blob.core.windows.net"
   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
   auditLogMirrorOnStdout: false
-  clientID: $(az identity show --resource-group <Var name="teleport-rg" /> --name teleport-id --query clientId -o tsv)
+  clientID: "<Var name="teleport-clie-ntid-uuid-123456789012" />"
 highAvailability:
   # Number of replicas to configure
   replicaCount: 2
@@ -176,10 +181,10 @@ podSecurityPolicy:
   enabled: false
 # Indicate that this is a Teleport Enterprise deployment
 enterprise: true
-EOF
 ```
 
-</ScopedBlock>
+</TabItem>
+</Tabs>
 
 Install the chart with the values from your `azure-values.yaml` file using this command:
 
@@ -221,18 +226,16 @@ replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
 
 ## Step 4/5. Set up DNS
 
-We'll now set up DNS `A` records for `teleport.example.com` and `*.teleport.example.com`.
+We'll now set up DNS `A` records for `teleport.example.com` and
+`*.teleport.example.com`, using your Azure DNS zone rooted at `example.com`.
 
 ```code
-# Change these parameters if you altered them above
-$ NAMESPACE=<Var name="teleport-ns" /> 
-$ RELEASE_NAME=<Var name="teleport-release" />
 $ PREFIX=teleport
 $ ZONE=example.com
 $ ZONE_RG=dns-rg
-$ external_ip="$(kubectl --namespace ${NAMESPACE} get service/${RELEASE_NAME} -o jsonpath='{.status.loadBalancer.ingress[*].ip}')"
+$ external_ip="$(kubectl --namespace <Var name="teleport-ns" /> get service/<Var name="teleport-release" /> -o jsonpath='{.status.loadBalancer.ingress[*].ip}')"
 $ az network dns record-set a add-record --resource-group ${ZONE_RG} --zone-name ${ZONE} --record-set-name ${PREFIX} --ipv4-address "${external_ip}"
-$ az network dns record-set a add-record --resource-group ${ZONE_RG} --zone-name ${ZONE} --record-set-name "*.${PREFIX}"" --ipv4-address "${external_ip}"
+$ az network dns record-set a add-record --resource-group ${ZONE_RG} --zone-name ${ZONE} --record-set-name "*.${PREFIX}" --ipv4-address "${external_ip}"
 ```
 
 ## Step 5/5. Create a Teleport user
@@ -240,7 +243,9 @@ $ az network dns record-set a add-record --resource-group ${ZONE_RG} --zone-name
 Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+
 ```code
 $ kubectl --namespace <Var name="teleport-ns" /> exec deploy/<Var name="teleport-release" />-auth -- tctl users add test --roles=access,editor
 
@@ -249,8 +254,10 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
+
+</TabItem>
+<TabItem scope={["enterprise"]} label="Enterprise">
+
 ```code
 $ kubectl --namespace <Var name="teleport-ns" /> exec deploy/<Var name="teleport-release" />-auth -- tctl users add test --roles=access,editor,reviewer
 
@@ -259,7 +266,9 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
-</ScopedBlock>
+
+</TabItem>
+</Tabs>
 
 Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
 
@@ -310,7 +319,7 @@ Here's an example where we set the chart to use 3 replicas:
 
 ## Uninstalling Teleport
 
-To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. For example:
+To uninstall the `teleport-cluster` chart, use `helm uninstall`. For example:
 
 ```code
 $ helm --namespace <Var name="teleport-ns" /> uninstall <Var name="teleport-release" />
