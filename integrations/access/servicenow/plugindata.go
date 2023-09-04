@@ -17,7 +17,6 @@ limitations under the License.
 package servicenow
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -40,7 +39,11 @@ func DecodePluginData(dataMap map[string]string) (data PluginData, err error) {
 	}
 	data.RequestReason = dataMap["request_reason"]
 	if str := dataMap["reviews_count"]; str != "" {
-		fmt.Sscanf(str, "%d", &data.ReviewsCount)
+		reviewsCount, err := strconv.Atoi(dataMap["reviews_count"])
+		if err != nil {
+			return PluginData{}, trace.Wrap(err)
+		}
+		data.ReviewsCount = reviewsCount
 	}
 	data.Resolution.CloseCode = dataMap["close_code"]
 	data.Resolution.State = dataMap["state"]
@@ -58,7 +61,7 @@ func EncodePluginData(data PluginData) map[string]string {
 
 	var createdStr string
 	if !data.Created.IsZero() {
-		createdStr = fmt.Sprintf("%d", data.Created.Unix())
+		createdStr = strconv.FormatInt(data.Created.Unix(), 10)
 	}
 	result["created"] = createdStr
 
@@ -66,7 +69,7 @@ func EncodePluginData(data PluginData) map[string]string {
 
 	var reviewsCountStr string
 	if data.ReviewsCount != 0 {
-		reviewsCountStr = fmt.Sprintf("%d", data.ReviewsCount)
+		reviewsCountStr = strconv.Itoa(data.ReviewsCount)
 	}
 	result["reviews_count"] = reviewsCountStr
 
