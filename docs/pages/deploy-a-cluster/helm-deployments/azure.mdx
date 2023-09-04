@@ -227,7 +227,8 @@ replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
 ## Step 4/5. Set up DNS
 
 We'll now set up DNS `A` records for `teleport.example.com` and
-`*.teleport.example.com`, using your Azure DNS zone rooted at `example.com`.
+`*.teleport.example.com`, using your Azure DNS zone rooted at `example.com`. If
+you're using a different DNS hosting service, follow their instructions instead.
 
 ```code
 $ PREFIX=teleport
