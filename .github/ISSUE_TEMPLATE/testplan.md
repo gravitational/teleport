@@ -272,24 +272,31 @@ as well as an upgrade of the previous version of Teleport.
 For some manual testing, many combinations need to be tested. For example, for
 interactive sessions the 12 combinations are below.
 
-- [ ] Connect to a OpenSSH node in a local cluster using OpenSSH.
-- [ ] Connect to a OpenSSH node in a local cluster using Teleport.
-- [ ] Connect to a OpenSSH node in a local cluster using the Web UI.
-- [ ] Connect to an Agentless node in a local cluster using OpenSSH.
-- [ ] Connect to an Agentless node in a local cluster using Teleport.
-- [ ] Connect to an Agentless node in a local cluster using the Web UI.
-- [ ] Connect to a Teleport node in a local cluster using OpenSSH.
-- [ ] Connect to a Teleport node in a local cluster using Teleport.
-- [ ] Connect to a Teleport node in a local cluster using the Web UI.
-- [ ] Connect to a OpenSSH node in a remote cluster using OpenSSH.
-- [ ] Connect to a OpenSSH node in a remote cluster using Teleport.
-- [ ] Connect to a OpenSSH node in a remote cluster using the Web UI.
-- [ ] Connect to an Agentless node in a remote cluster using OpenSSH.
-- [ ] Connect to an Agentless node in a remote cluster using Teleport.
-- [ ] Connect to an Agentless node in a remote cluster using the Web UI.
-- [ ] Connect to a Teleport node in a remote cluster using OpenSSH.
-- [ ] Connect to a Teleport node in a remote cluster using Teleport.
-- [ ] Connect to a Teleport node in a remote cluster using the Web UI.
+- Add an agentless Node in a local cluster.
+  - [ ] Connect using OpenSSH.
+  - [ ] Connect using Teleport.
+  - [ ] Connect using the Web UI.
+  - Remove the Node (but keep its custom CA in sshd config).
+    - [ ] Verify that it fails to connect when using OpenSSH.
+    - [ ] Verify that it fails to connect when using Teleport.
+    - [ ] Verify that it fails to connect when using the Web UI.
+- Add a Teleport Node in a local cluster.
+  - [ ] Connect using OpenSSH.
+  - [ ] Connect using Teleport.
+  - [ ] Connect using the Web UI.
+
+- Add an agentless Node in a remote (leaf) cluster.
+  - [ ] Connect using OpenSSH from root cluster.
+  - [ ] Connect using Teleport from root cluster.
+  - [ ] Connect using the Web UI from root cluster.
+  - Remove the Node (but keep its custom CA in sshd config).
+    - [ ] Verify that it fails to connect when using OpenSSH from root cluster.
+    - [ ] Verify that it fails to connect when using Teleport from root cluster.
+    - [ ] Verify that it fails to connect when using the Web UI from root cluster.
+- Add a Teleport Node in a remote (leaf) cluster.
+  - [ ] Connect using OpenSSH from root cluster.
+  - [ ] Connect using Teleport from root cluster.
+  - [ ] Connect using the Web UI from root cluster.
 
 ### Teleport with EKS/GKE
 
@@ -1285,7 +1292,7 @@ TODO(lxea): replace links with actual docs once merged
 
 ## EC2 Discovery
 
-[EC2 Discovery docs](https://goteleport.com/docs/ver/11.0/server-access/guides/ec2-discovery/)
+[EC2 Discovery docs](https://goteleport.com/docs/server-access/guides/ec2-discovery/)
 
 - Verify EC2 instance discovery
   - [ ]  Only EC2 instances matching given AWS tags have the installer executed on them
