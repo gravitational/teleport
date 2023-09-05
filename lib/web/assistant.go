@@ -529,7 +529,7 @@ func (h *Handler) assistGenAuditQueryLoop(ctx context.Context, assistClient *ass
 			return trace.Wrap(err)
 		}
 
-		h.reportTokenUsage(tokenCount, uuid.NewString(), authClient)
+		go h.reportTokenUsage(tokenCount, uuid.NewString(), authClient)
 	}
 	return nil
 }
@@ -568,7 +568,7 @@ func (h *Handler) assistSSHExplainOutputLoop(ctx context.Context, assistClient *
 		return trace.Wrap(err)
 	}
 
-	h.reportTokenUsage(tokenCount, uuid.NewString(), authClient)
+	go h.reportTokenUsage(tokenCount, uuid.NewString(), authClient)
 	return nil
 }
 
@@ -603,7 +603,7 @@ func (h *Handler) assistGenSSHCommandLoop(ctx context.Context, assistClient *ass
 			return trace.Wrap(err)
 		}
 
-		h.reportTokenUsage(tokenCount, uuid.NewString(), authClient)
+		go h.reportTokenUsage(tokenCount, uuid.NewString(), authClient)
 	}
 	return nil
 }
