@@ -345,23 +345,35 @@
           "slug": "/access-controls/device-trust/",
           "forScopes": [
             "enterprise",
-            "cloud"
+            "cloud",
+            "team"
           ],
           "entries": [
             {
-              "title": "Set Up Device Trust",
+              "title": "Getting Started",
               "slug": "/access-controls/device-trust/guide/",
               "forScopes": [
                 "enterprise",
-                "cloud"
+                "cloud",
+                "team"
               ]
             },
             {
-              "title": "Set Up Auto-Enrollment",
-              "slug": "/access-controls/device-trust/auto-enrollment/",
+              "title": "Manage Trusted Devices",
+              "slug": "/access-controls/device-trust/device-management/",
               "forScopes": [
                 "enterprise",
-                "cloud"
+                "cloud",
+                "team"
+              ]
+            },
+            {
+              "title": "Enforce Device Trust",
+              "slug": "/access-controls/device-trust/enforcing-device-trust/",
+              "forScopes": [
+                "enterprise",
+                "cloud",
+                "team"
               ]
             },
             {
@@ -1551,6 +1563,11 @@
     }
   ],
   "variables": {
+    "clusterDefaults": {
+      "clusterName": "teleport.example.com",
+      "username": "myuser",
+      "nodeIP": "ip-172-31-35-170"
+    },
     "ansible": {
       "min_version": "2.9.6"
     },
@@ -2659,6 +2676,11 @@
     {
       "source": "/access-controls/guides/device-trust/",
       "destination": "/access-controls/device-trust/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/device-trust/auto-enrollment/",
+      "destination": "/access-controls/device-trust/device-management/",
       "permanent": true
     },
     {
