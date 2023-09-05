@@ -47,7 +47,7 @@ linters-settings:
           - pkg: github.com/siddontang/go-log/log
             desc: 'use "github.com/sirupsen/logrus" instead'
           - pkg: github.com/tj/assert
-            desc: 'use "github.com/stretchr/testify" instead'
+            desc: 'use "github.com/stretchr/testify/assert" instead'
           - pkg: github.com/siddontang/go/log
             desc: 'use "github.com/sirupsen/logrus" instead'
           - pkg: go.uber.org/atomic
