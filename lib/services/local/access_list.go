@@ -225,25 +225,32 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 }
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
-func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, members []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	// Double the lock TTL to account for the time it takes to upsert the members.
 	err := a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		membersToken := ""
+		// Create a map of the members from the request for easier lookup.
 		membersMap := make(map[string]*accesslist.AccessListMember)
-		var err error
 
 		// Convert the members slice to a map for easier lookup.
-		for _, member := range members {
+		for _, member := range membersIn {
 			membersMap[member.GetName()] = member
 		}
 
+		var (
+			members      []*accesslist.AccessListMember
+			membersToken string
+			err          error
+		)
+
 		for {
+			// List all members for the access list.
 			members, membersToken, err = a.memberService.WithPrefix(accessList.GetName()).ListResources(ctx, 0 /* default size */, membersToken)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
 			for _, member := range members {
-				// If the member is not in the members map, delete it.
+				// If the member is not in the members map (request), delete it.
 				if _, ok := membersMap[member.GetName()]; !ok {
 					err = a.memberService.WithPrefix(accessList.GetName()).DeleteResource(ctx, member.GetName())
 					if err != nil {
@@ -252,6 +259,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 				} else {
 					// Compare members and update if necessary.
 					if !cmp.Equal(member, membersMap[member.GetName()]) {
+						// Update the member.
 						err = a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, membersMap[member.GetName()])
 						if err != nil {
 							return trace.Wrap(err)
@@ -279,7 +287,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 		return trace.Wrap(a.service.UpsertResource(ctx, accessList))
 	})
 
-	return accessList, nil, trace.Wrap(err)
+	return accessList, membersIn, trace.Wrap(err)
 }
 
 func lockName(accessListName string) string {
