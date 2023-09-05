@@ -708,6 +708,18 @@ func (e *FeatureRecommendationEvent) Anonymize(a utils.Anonymizer) prehogv1a.Sub
 	}
 }
 
+type LicenseLimitEvent prehogv1a.LicenseLimitEvent
+
+func (e *LicenseLimitEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_LicenseLimitEvent{
+			LicenseLimitEvent: &prehogv1a.LicenseLimitEvent{
+				LicenseLimit: e.LicenseLimit,
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
@@ -1019,6 +1031,11 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			TotalTokens:      e.AssistAction.TotalTokens,
 			PromptTokens:     e.AssistAction.PromptTokens,
 			CompletionTokens: e.AssistAction.CompletionTokens,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_LicenseLimitEvent:
+		ret := &LicenseLimitEvent{
+			LicenseLimit: prehogv1a.LicenseLimit(e.LicenseLimitEvent.GetLicenseLimit()),
 		}
 		return ret, nil
 	default:

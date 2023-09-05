@@ -1799,6 +1799,27 @@ export namespace FeatureRecommendationEvent {
     }
 }
 
+export class LicenseLimitEvent extends jspb.Message { 
+    getLicenseLimit(): LicenseLimit;
+    setLicenseLimit(value: LicenseLimit): LicenseLimitEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): LicenseLimitEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: LicenseLimitEvent): LicenseLimitEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: LicenseLimitEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): LicenseLimitEvent;
+    static deserializeBinaryFromReader(message: LicenseLimitEvent, reader: jspb.BinaryReader): LicenseLimitEvent;
+}
+
+export namespace LicenseLimitEvent {
+    export type AsObject = {
+        licenseLimit: LicenseLimit,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -2128,6 +2149,12 @@ export class SubmitEventRequest extends jspb.Message {
     setDeviceEnrollEvent(value?: DeviceEnrollEvent): SubmitEventRequest;
 
 
+    hasLicenseLimitEvent(): boolean;
+    clearLicenseLimitEvent(): void;
+    getLicenseLimitEvent(): LicenseLimitEvent | undefined;
+    setLicenseLimitEvent(value?: LicenseLimitEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2197,6 +2224,7 @@ export namespace SubmitEventRequest {
         assistAccessRequest?: AssistAccessRequestEvent.AsObject,
         assistAction?: AssistActionEvent.AsObject,
         deviceEnrollEvent?: DeviceEnrollEvent.AsObject,
+        licenseLimitEvent?: LicenseLimitEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2307,6 +2335,8 @@ export namespace SubmitEventRequest {
     ASSIST_ACTION = 55,
 
     DEVICE_ENROLL_EVENT = 56,
+
+    LICENSE_LIMIT_EVENT = 57,
 
     }
 
@@ -2510,4 +2540,10 @@ export enum FeatureRecommendationStatus {
     FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0,
     FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1,
     FEATURE_RECOMMENDATION_STATUS_DONE = 2,
+}
+
+export enum LicenseLimit {
+    LICENSE_LIMIT_UNSPECIFIED = 0,
+    LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF = 1,
+    LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2,
 }

@@ -505,6 +505,26 @@ enum FeatureRecommendationStatus {
   FEATURE_RECOMMENDATION_STATUS_DONE = 2;
 }
 
+// LicenseLimitEvent is emitted when access to Teleport feature
+// is denied based on license limits
+//
+// PostHost event: tp.license.limit
+message LicenseLimitEvent {
+  // PostHost property: tp.license_limit
+  LicenseLimit license_limit = 1;
+}
+
+// License limit
+enum LicenseLimit {
+  LICENSE_LIMIT_UNSPECIFIED = 0;
+  // LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF is emitted if license does not
+  // allow Jamf integration (e.g. Team Plan)
+  LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF = 1;
+  // LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE is emitted when allowed enrolled device
+  // limit is reached
+  LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2;
+}
+
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
@@ -547,6 +567,7 @@ message UsageEventOneOf {
     FeatureRecommendationEvent feature_recommendation_event = 37;
     AssistAccessRequest assist_access_request = 38;
     AssistAction assist_action = 39;
+    LicenseLimitEvent license_limit_event = 40;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
