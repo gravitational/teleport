@@ -309,7 +309,7 @@ exports[`support Cloud 1`] = `
         </div>
         <a
           class="c8"
-          href="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
+          href="https://goteleport.com/docs/changelog?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -704,7 +704,7 @@ exports[`support Enterprise 1`] = `
         </div>
         <a
           class="c8"
-          href="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
+          href="https://goteleport.com/docs/changelog?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1169,7 +1169,7 @@ exports[`support Enterprise with CTA 1`] = `
         </div>
         <a
           class="c8"
-          href="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
+          href="https://goteleport.com/docs/changelog?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1556,7 +1556,7 @@ exports[`support OSS 1`] = `
         </div>
         <a
           class="c8"
-          href="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
+          href="https://goteleport.com/docs/changelog?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
