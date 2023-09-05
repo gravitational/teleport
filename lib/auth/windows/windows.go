@@ -132,7 +132,11 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// domain, with the assumption that some other windows_desktop_service
 	// published a CRL there.
 	crlDN := crlDN(req.ClusterName, req.LDAPConfig, req.CAType)
-	return &certRequest{csrPEM: csrPEM, crlEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN), keyDER: keyDER}, nil
+	return &certRequest{
+		csrPEM:      csrPEM,
+		crlEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN),
+		keyDER:      keyDER,
+	}, nil
 }
 
 // AuthInterface is a subset of auth.ClientI
