@@ -221,7 +221,7 @@ const (
 	KindKubeClusterRole = "clusterrole"
 
 	// KindKubeRole is a Kubernetes Role resource type.
-	KindKubeRole = "role"
+	KindKubeRole = "kube_role"
 
 	// KindKubeClusterRoleBinding is a Kubernetes Cluster Role Binding resource type.
 	KindKubeClusterRoleBinding = "clusterrolebinding"
@@ -759,18 +759,18 @@ const (
 
 	// DiscoveryLabelWindowsDNSHostName is the DNS hostname of an LDAP object.
 	DiscoveryLabelWindowsDNSHostName = TeleportNamespace + "/dns_host_name"
-	//DiscoveryLabelWindowsComputerName is the name of an LDAP object.
+	// DiscoveryLabelWindowsComputerName is the name of an LDAP object.
 	DiscoveryLabelWindowsComputerName = TeleportNamespace + "/computer_name"
-	//DiscoveryLabelWindowsOS is the operating system of an LDAP object.
+	// DiscoveryLabelWindowsOS is the operating system of an LDAP object.
 	DiscoveryLabelWindowsOS = TeleportNamespace + "/os"
-	//DiscoveryLabelWindowsOSVersion operating system version of an LDAP object.
+	// DiscoveryLabelWindowsOSVersion operating system version of an LDAP object.
 	DiscoveryLabelWindowsOSVersion = TeleportNamespace + "/os_version"
-	//DiscoveryLabelWindowsOU is an LDAP objects's OU.
+	// DiscoveryLabelWindowsOU is an LDAP objects's OU.
 	DiscoveryLabelWindowsOU = TeleportNamespace + "/ou"
-	//DiscoveryLabelWindowsIsDomainController is whether an LDAP object is a
+	// DiscoveryLabelWindowsIsDomainController is whether an LDAP object is a
 	// domain controller.
 	DiscoveryLabelWindowsIsDomainController = TeleportNamespace + "/is_domain_controller"
-	//DiscoveryLabelWindowsDomain is an Active Directory domain name.
+	// DiscoveryLabelWindowsDomain is an Active Directory domain name.
 	DiscoveryLabelWindowsDomain = TeleportNamespace + "/windows_domain"
 	// DiscoveryLabelLDAPPrefix is the prefix used when applying any custom
 	// labels per the discovery LDAP attribute labels configuration.
