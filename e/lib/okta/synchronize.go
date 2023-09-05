@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/okta/okta-sdk-golang/v2/okta"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -35,16 +36,19 @@ import (
 const (
 	// emit synchronize events in batches of 100
 	syncEventBatches = 100
+
+	// we'll choose a 10 second jitter for the synchronization loop to avoid potential contention
+	// with other Okta services (should we ever decide to support multiple services)
+	syncJitter = 10 * time.Second
 )
 
 // synchronizeLoop will synchronize Okta with the backend periodically until the
 // process is terminated.
 func (s *Service) synchronizeLoop(ctx context.Context) {
-	// Generate a random jitter between 0 and 10 seconds
-	ticker := s.clock.NewTicker(s.timeBetweenSyncs + utils.RandomDuration(10000*time.Millisecond))
+	ticker, timeBetweenSyncs := s.setupSynchronizerTicker(ctx)
 	defer ticker.Stop()
 
-	s.log.Infof("Synchronizer started with a refresh period of %s.", s.timeBetweenSyncs)
+	s.log.Infof("Synchronizer started with a refresh period of %s.", timeBetweenSyncs)
 
 Loop:
 	for {
@@ -79,11 +83,52 @@ Loop:
 		case <-ctx.Done():
 			break Loop
 		}
+
+		timeBetweenSyncs = s.updateSynchronizerTicker(ctx, ticker, timeBetweenSyncs)
 	}
 
 	s.log.Infof("Synchronizer stopped.")
 
 	s.syncStoppedChCloser.Do(func() { close(s.syncStoppedCh) })
+}
+
+// setupSynchronizerTicker creates the ticker for the synchronizer.
+func (s *Service) setupSynchronizerTicker(ctx context.Context) (clockwork.Ticker, time.Duration) {
+	timeBetweenSyncs := s.timeBetweenSyncs
+	pref, err := s.accessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		s.log.WithError(err).Errorf("Error getting auth preference during synchronization, using service level default of %s", timeBetweenSyncs)
+	} else {
+		if pref.GetOktaSyncPeriod() != 0 {
+			timeBetweenSyncs = pref.GetOktaSyncPeriod()
+		}
+	}
+
+	// Generate a random jitter between 0 and 10 seconds
+	ticker := s.clock.NewTicker(s.timeBetweenSyncs + utils.RandomDuration(syncJitter))
+
+	return ticker, timeBetweenSyncs
+}
+
+// updateSynchronizerTicker updates the ticker for the synchronizer if necessary.
+func (s *Service) updateSynchronizerTicker(ctx context.Context, ticker clockwork.Ticker, timeBetweenSyncs time.Duration) time.Duration {
+	pref, err := s.accessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		s.log.WithError(err).Error("Error getting auth preference during synchronization, continuing anyway")
+		return timeBetweenSyncs
+	}
+
+	if timeBetweenSyncs != pref.GetOktaSyncPeriod() {
+		if pref.GetOktaSyncPeriod() == 0 {
+			timeBetweenSyncs = s.timeBetweenSyncs
+		} else {
+			timeBetweenSyncs = pref.GetOktaSyncPeriod()
+		}
+
+		ticker.Reset(timeBetweenSyncs)
+		s.log.Infof("Synchronizer refresh period updated to %s.", timeBetweenSyncs)
+	}
+	return timeBetweenSyncs
 }
 
 // synchronize will synchronize the Okta groups and applications with the backend.

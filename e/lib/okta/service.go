@@ -47,11 +47,13 @@ import (
 )
 
 const (
-	// 10 API calls per second will give us a reasonable throughput without
-	// needing to slow down too much.
-	oktaAPICallsPerSecond    = 10
-	oktaTransportIdleTimeout = 30 * time.Second
-	oktaConnectionTimeout    = 30 * time.Second
+	// 4 requests per second is the absolute maximum okta will allow due to End User Rate Limits.
+	// https://developer.okta.com/docs/reference/rl-additional-limits/#end-user-rate-limits
+	oktaAPICallsPerSecond = 4
+	// Default to running synchronizations every 10 minutes.
+	oktaDefaultTimeBetweenSyncs = 10 * time.Minute
+	oktaTransportIdleTimeout    = 30 * time.Second
+	oktaConnectionTimeout       = 30 * time.Second
 )
 
 // ProxyGetter is an interface for retrieving proxy IDs.
@@ -158,8 +160,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("Okta API token is missing")
 	}
 	if c.TimeBetweenSyncs == 0 {
-		// Default to running every 2 minutes.
-		c.TimeBetweenSyncs = 120 * time.Second
+		c.TimeBetweenSyncs = oktaDefaultTimeBetweenSyncs
 	}
 	if c.BackendTasksPerSecond == 0 {
 		// Default to running 5 backend tasks per second.
@@ -327,10 +328,6 @@ func New(ctx context.Context, config Config) (*Service, error) {
 					delegate: &http.Transport{
 						IdleConnTimeout: oktaTransportIdleTimeout,
 					},
-					// This should limit the number of API calls per second to 10. Okta's per second
-					// API rate limit is 100, so this should ensure that we use a small amount of that
-					// bandwidth:
-					// https://developer.okta.com/docs/reference/rl-global-other-endpoints/
 					rateLimiter: rate.NewLimiter(rate.Every(time.Second/time.Duration(oktaAPICallsPerSecond)), 1),
 				},
 				Timeout: oktaConnectionTimeout,
@@ -341,8 +338,9 @@ func New(ctx context.Context, config Config) (*Service, error) {
 			// take 1 minute.
 			// This will retry more frequently (10 times) and after a shorter amount of time (10
 			// seconds) to hopefully succeed more quickly.
+			okta.WithRequestTimeout(30),
 			okta.WithRateLimitMaxBackOff(10),
-			okta.WithRateLimitMaxRetries(10),
+			okta.WithRateLimitMaxRetries(0),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -55,7 +55,8 @@ func InitOkta(process *service.TeleportProcess) error {
 
 	process.RegisterWithAuthServer(types.RoleOkta, OktaIdentityEvent)
 	process.RegisterCriticalFunc(oktaInit, func() error {
-		return initOktaService(process.ExitContext(), process, nil /* pluginStatusSink */, process.Config.Okta.APIEndpoint, token, process.GetID())
+		return initOktaService(process.ExitContext(), process, nil /* pluginStatusSink */, process.Config.Okta.APIEndpoint, token,
+			process.Config.Okta.SyncPeriod, process.GetID())
 	})
 	return nil
 }
@@ -74,14 +75,15 @@ func InitOktaPlugin(ctx context.Context, process *service.TeleportProcess, plugi
 
 	process.RegisterWithAuthServer(types.RoleOkta, identityEvent)
 	process.RegisterFunc(oktaInit, func() error {
-		return initOktaService(ctx, process, pluginStatusSink, apiEndpoint, token, pluginLogComponent(pluginName), components...)
+		return initOktaService(ctx, process, pluginStatusSink, apiEndpoint, token, 0, pluginLogComponent(pluginName), components...)
 	})
 
 	return EventWithComponents(OktaStopped, components...)
 }
 
 // initOktaService initializes, starts, and waits for the Okta service.
-func initOktaService(ctx context.Context, process *service.TeleportProcess, pluginStatusSink common.StatusSink, apiEndpoint, token string, logComponent string, components ...string) error {
+func initOktaService(ctx context.Context, process *service.TeleportProcess, pluginStatusSink common.StatusSink,
+	apiEndpoint, token string, timeBetweenSyncs time.Duration, logComponent string, components ...string) error {
 	defer process.BroadcastEvent(service.Event{Name: EventWithComponents(OktaStopped, components...), Payload: nil})
 
 	log := process.Config.Log.WithField(trace.Component, teleport.Component(
@@ -168,6 +170,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, plug
 		OktaAPIEndpoint:  apiEndpoint,
 		OktaAPIToken:     token,
 		PluginStatusSink: pluginStatusSink,
+		TimeBetweenSyncs: timeBetweenSyncs,
 	})
 	if err != nil {
 		return trace.Wrap(err)

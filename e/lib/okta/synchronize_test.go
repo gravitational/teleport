@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -350,6 +351,69 @@ func TestEmitSyncEventsInBatches(t *testing.T) {
 		verifyEventResources(t, event.UpdatedResources, 0, 0, "updated")
 		verifyEventResources(t, event.DeletedResources, 50, 50, "deleted")
 	})
+}
+
+func TestTickerUpdates(t *testing.T) {
+	ctx := context.Background()
+	ap := newTestAccessPoint(t, clockwork.NewRealClock())
+	svc, _, _ := newTestService(t, ap)
+	clock := clockwork.NewFakeClock()
+	svc.clock = clock
+	svc.timeBetweenSyncs = time.Second * 10
+
+	ticker, timeBetweenSyncs := svc.setupSynchronizerTicker(ctx)
+	require.Equal(t, svc.timeBetweenSyncs, timeBetweenSyncs)
+
+	// 10 second timeout expected here.
+	advanceAndDontExpectSignal(t, clock, time.Second*5, ticker)
+	advanceAndExpectSignal(t, clock, time.Second*20, ticker)
+
+	// Set the time between syncs to 300 seconds
+	pref, err := ap.GetAuthPreference(ctx)
+	require.NoError(t, err)
+	pref.SetOktaSyncPeriod(time.Second * 300)
+	require.NoError(t, ap.SetAuthPreference(ctx, pref))
+
+	timeBetweenSyncs = svc.updateSynchronizerTicker(ctx, ticker, timeBetweenSyncs)
+
+	// The next tick should require 300 seconds.
+	advanceAndDontExpectSignal(t, clock, time.Second*20, ticker)
+	advanceAndExpectSignal(t, clock, time.Second*310, ticker)
+
+	// Set the duration back to zero, should set the ticker back to 10 seconds.
+	pref.SetOktaSyncPeriod(0)
+	require.NoError(t, ap.SetAuthPreference(ctx, pref))
+
+	svc.updateSynchronizerTicker(ctx, ticker, timeBetweenSyncs)
+	advanceAndExpectSignal(t, clock, time.Second*20, ticker)
+}
+
+func advanceAndExpectSignal(t *testing.T, clock clockwork.FakeClock, advance time.Duration, ticker clockwork.Ticker) {
+	t.Helper()
+
+	// Make sure the ticker is registered as a waiter.
+	clock.BlockUntil(1)
+
+	clock.Advance(advance)
+	select {
+	case <-ticker.Chan():
+	default:
+		require.Fail(t, "signal expected on channel")
+	}
+}
+
+func advanceAndDontExpectSignal(t *testing.T, clock clockwork.FakeClock, advance time.Duration, ticker clockwork.Ticker) {
+	t.Helper()
+
+	// Make sure the ticker is registered as a waiter.
+	clock.BlockUntil(1)
+
+	clock.Advance(advance)
+	select {
+	case <-ticker.Chan():
+		require.Fail(t, "no signal expected on channel")
+	default:
+	}
 }
 
 func addApp(t *testing.T, name, origin, orgURL string, svc *Service) {
