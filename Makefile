@@ -716,10 +716,10 @@ test-env:
 		fi; \
 	done; \
 	if [ $$failed -eq 1 ]; then \
-    echo "Environment leak failure"; \
-    exit 1; \
-  else \
-    echo "No environment leak, PASS"; \
+		echo "Environment leak failure"; \
+		exit 1; \
+	else \
+		echo "No environment leak, PASS"; \
 	fi
 
 # Runs test prepare steps
