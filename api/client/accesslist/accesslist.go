@@ -186,3 +186,25 @@ func (c *Client) DeleteAllAccessListMembersForAccessList(ctx context.Context, ac
 func (c *Client) DeleteAllAccessListMembers(ctx context.Context) error {
 	return trace.NotImplemented("DeleteAllAccessListMembers is not supported in the gRPC client")
 }
+
+func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accesslist.AccessList, members []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
+		AccessList: conv.ToProto(list),
+		Members:    conv.ToMembersProto(members),
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	al, err := conv.FromProto(resp.AccessList)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	m, err := conv.FromMembersProto(resp.Members)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return al, m, nil
+}
