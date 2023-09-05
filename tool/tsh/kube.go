@@ -1233,8 +1233,13 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// Check that this kube cluster exists.
-	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
+	var kubeStatus *kubernetesStatus
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		// Check that this kube cluster exists.
+		var err error
+		kubeStatus, err = fetchKubeStatus(cf.Context, tc)
+		return trace.Wrap(err)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
