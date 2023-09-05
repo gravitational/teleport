@@ -8,12 +8,11 @@ use windows::{
     core::*, Win32::Foundation::*, Win32::NetworkManagement::NetManagement::*,
     Win32::Security::Authentication::Identity::*, Win32::Security::Authorization::*,
     Win32::Security::Credentials::*, Win32::Security::*, Win32::System::Kernel::*,
-    Win32::System::Memory::*, Win32::System::SystemServices::*,
-    Win32::System::WindowsProgramming::*, *,
+    Win32::System::SystemServices::*, Win32::System::WindowsProgramming::*, *,
 };
 
 use crate::crypto::LicenseType;
-use crate::crypto::{checked, CryptContext, UserCreation};
+use crate::crypto::{CryptContext, UserCreation};
 
 static DISPATCH_TABLE: AtomicPtr<LSA_SECPKG_FUNCTION_TABLE> = AtomicPtr::new(ptr::null_mut());
 
@@ -312,7 +311,7 @@ unsafe fn lsa_ap_logon_user(
     fill_profile_buffer(client_request, profile_buffer, profile_buffer_length)
         .context("Can't fill profile buffer")?;
 
-    checked(AllocateLocallyUniqueId(logon_id)).context("Can't allocate logon id")?;
+    AllocateLocallyUniqueId(logon_id).context("Can't allocate logon id")?;
     create_logon_session(logon_id).context("Can't create logon session")?;
 
     let user = lookup_name(&name)?;
@@ -385,22 +384,17 @@ unsafe fn copy_primary_group_to_token(
     let primary_group =
         lookup_primary_group(name, &user.domain).context("Can't lookup primary group")?;
     token.PrimaryGroup.PrimaryGroup = PSID(allocate_lsa_heap_size(primary_group.sid_length()?)?);
-    checked(CopySid(
+    CopySid(
         user.sid.len() as _,
         token.PrimaryGroup.PrimaryGroup,
         primary_group.psid(),
-    ))
+    )
     .context("Can't copy primary group SID")
 }
 
 unsafe fn copy_user_to_token(token: &mut LSA_TOKEN_INFORMATION_V1, user: &Account) -> Result<()> {
     token.User.User.Sid = PSID(allocate_lsa_heap_size(user.sid_length()?)?);
-    checked(CopySid(
-        user.sid.len() as _,
-        token.User.User.Sid,
-        user.psid(),
-    ))
-    .context("Can't copy user SID")
+    CopySid(user.sid.len() as _, token.User.User.Sid, user.psid()).context("Can't copy user SID")
 }
 
 /// select_groups will return groups that should be included in the token returned to LSA.
@@ -454,7 +448,7 @@ unsafe fn copy_groups_to_token(
                     as u32,
             },
         );
-        checked(CopySid(group.sid_length()?, psid, group.psid()))?;
+        CopySid(group.sid_length()?, psid, group.psid())?;
     }
     Ok(())
 }
@@ -574,7 +568,7 @@ unsafe fn lookup_primary_group(name: &str, domain: &str) -> Result<Account> {
     let psid = sid.into();
     let len = GetLengthSid(psid);
     let mut buf = vec![0u8; len as _];
-    checked(CopySid(len, PSID(buf.as_mut_ptr() as _), psid)).context("Can't copy SID")?;
+    CopySid(len, PSID(buf.as_mut_ptr() as _), psid).context("Can't copy SID")?;
     domain_acc.sid = buf;
     domain_acc.name_use = SidTypeGroup;
     Ok(domain_acc)
@@ -585,7 +579,7 @@ fn lookup_name(name: &str) -> Result<Account> {
     let mut cd = 0u32;
     let mut name_use = SidTypeInvalid;
     let account_name = UTF16::from(name);
-    unsafe {
+    let res = unsafe {
         LookupAccountNameW(
             None,
             account_name.pcwstr(),
@@ -596,10 +590,10 @@ fn lookup_name(name: &str) -> Result<Account> {
             &mut name_use,
         )
     };
-    let err = unsafe { GetLastError() };
-    if err != ERROR_INSUFFICIENT_BUFFER {
-        return Err(Error::from(err))
-            .context(format!("Can't lookup account '{}' name length", name))?;
+    if let Err(err) = res {
+        if err != ERROR_INSUFFICIENT_BUFFER.into() {
+            return Err(err).context(format!("Can't lookup account '{}' name length", name))?;
+        }
     }
     let mut account = Account {
         sid: vec![0u8; cb as _],
@@ -608,7 +602,7 @@ fn lookup_name(name: &str) -> Result<Account> {
     let mut domain_buf = vec![0u16; cd as usize];
     let domain = PWSTR::from_raw(domain_buf.as_mut_ptr());
     unsafe {
-        checked(LookupAccountNameW(
+        LookupAccountNameW(
             None,
             account_name.pcwstr(),
             account.psid(),
@@ -616,7 +610,7 @@ fn lookup_name(name: &str) -> Result<Account> {
             domain,
             &mut cd,
             &mut name_use,
-        ))
+        )
         .context(format!("Can't lookup account name {}", name))?;
         account.domain = domain.to_string()?;
     }
@@ -689,7 +683,7 @@ extern "system" fn LsaApLogonTerminated(_logon_id: *const LUID) {}
 
 unsafe fn to_string(psid: PSID) -> Result<String> {
     let mut s = PWSTR::null();
-    checked(ConvertSidToStringSidW(psid, &mut s)).context("Can't convert SID to string")?;
+    ConvertSidToStringSidW(psid, &mut s).context("Can't convert SID to string")?;
     let converted = s.to_string().context("Can't convert to string");
     let _ = LocalFree(HLOCAL(s.as_ptr() as _));
     converted
@@ -698,11 +692,8 @@ unsafe fn to_string(psid: PSID) -> Result<String> {
 unsafe fn to_sid(s: &str) -> Result<LocalSID> {
     let mut sid = PSID::default();
     let s = s.to_owned() + "\0";
-    checked(ConvertStringSidToSidA(
-        PCSTR::from_raw(s.as_ptr()),
-        &mut sid,
-    ))
-    .context(format!("Can't convert {} to SID", s))?;
+    ConvertStringSidToSidA(PCSTR::from_raw(s.as_ptr()), &mut sid)
+        .context(format!("Can't convert {} to SID", s))?;
     Ok(LocalSID(sid))
 }
 
@@ -748,7 +739,7 @@ struct Impersonation;
 impl Drop for Impersonation {
     fn drop(&mut self) {
         // we're done using the smart card provider, so revert to original permissions
-        if let Err(e) = checked(unsafe { RevertToSelf() }) {
+        if let Err(e) = unsafe { RevertToSelf() } {
             error!("Can't revert to LSA context: {}", e);
         }
     }

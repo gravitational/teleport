@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use log::warn;
 use rand::RngCore;
 use serde::Deserialize;
-use windows::imp::{sha1, ConstBuffer};
+use windows::core::imp::{sha1, ConstBuffer};
 use windows::{core::*, Win32::Foundation::*, Win32::Security::Cryptography::*};
 
 use crate::crypto::LicenseType::{Enterprise, Unknown, OSS};
@@ -54,13 +54,13 @@ impl CryptContext {
     pub fn new() -> Result<CryptContext> {
         let mut ctx = CryptContext::default();
         unsafe {
-            checked(CryptAcquireContextW(
+            CryptAcquireContextW(
                 &mut ctx.handle,
                 CONTAINER,
                 PROVIDER,
                 AT_KEYEXCHANGE.0,
                 CRYPT_SILENT,
-            ))
+            )
             .context("Can't acquire context")?;
         }
         Ok(ctx)
@@ -95,10 +95,10 @@ impl CryptContext {
                 },
             },
         };
-        let res = unsafe {
+        unsafe {
             CertGetCertificateChain(None, cert, None, None, &chain_para, 0, None, &mut chain_ctx)
+                .context("Can't create certificate chain")?;
         };
-        checked(res).context("Can't create certificate chain")?;
         let status: Result<()> = match unsafe { *chain_ctx }.TrustStatus.dwErrorStatus {
             0 => Ok(()),
             CERT_TRUST_IS_UNTRUSTED_ROOT => Err(Error::from(STATUS_ISSUING_CA_UNTRUSTED).into()),
@@ -172,8 +172,8 @@ impl CryptContext {
         Ok(name)
     }
 
-    fn set_pin(&self, pin: *const u8) -> Result<()> {
-        unsafe { checked(CryptSetProvParam(self.handle, PP_KEYEXCHANGE_PIN, pin, 0)) }
+    fn set_pin(&self, pin: *const u8) -> windows::core::Result<()> {
+        unsafe { CryptSetProvParam(self.handle, PP_KEYEXCHANGE_PIN, pin, 0) }
     }
 
     // sign_and_verify is used to verify that we have valid certificate and private key on smart card presented.
@@ -186,55 +186,41 @@ impl CryptContext {
         let mut key = Key(0);
         unsafe {
             // create hash object
-            checked(CryptCreateHash(self.handle, CALG_SHA1, 0, 0, &mut h.0))
-                .context("Can't create hash")?;
+            CryptCreateHash(self.handle, CALG_SHA1, 0, 0, &mut h.0).context("Can't create hash")?;
 
             // set data to hash
             let digest = sha1(&ConstBuffer::from_slice(&data[..]));
-            checked(CryptSetHashParam(
-                h.0,
-                HP_HASHVAL,
-                digest.bytes().as_ptr(),
-                0,
-            ))
-            .context("Can't set hash value")?;
+            CryptSetHashParam(h.0, HP_HASHVAL, digest.bytes().as_ptr(), 0)
+                .context("Can't set hash value")?;
 
             // get signature length
             let mut size = 0u32;
-            checked(CryptSignHashA(
-                h.0,
-                AT_KEYEXCHANGE.0,
-                None,
-                0,
-                None,
-                &mut size,
-            ))
-            .context("Can't sign data")?;
+            CryptSignHashA(h.0, AT_KEYEXCHANGE.0, None, 0, None, &mut size)
+                .context("Can't sign data")?;
 
             // sign data
             let mut data = vec![0u8; size as usize];
-            checked(CryptSignHashA(
+            CryptSignHashA(
                 h.0,
                 AT_KEYEXCHANGE.0,
                 None,
                 0,
                 Some(data.as_mut_ptr()),
                 &mut size,
-            ))
+            )
             .context("Can't sign data")?;
 
             // set public key to verify signature, it's the one stored on SmartCard
-            checked(CryptImportPublicKeyInfo(
+            CryptImportPublicKeyInfo(
                 self.handle,
                 X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
                 addr_of_mut!((*(*cert).pCertInfo).SubjectPublicKeyInfo),
                 &mut key.0,
-            ))
+            )
             .context("Can't import public key")?;
 
             // verify signature
-            checked(CryptVerifySignatureA(h.0, &data, key.0, None, 0))
-                .context("Can't verify signature")?;
+            CryptVerifySignatureA(h.0, &data, key.0, None, 0).context("Can't verify signature")?;
         }
         Ok(())
     }
@@ -250,23 +236,24 @@ fn certificate_bytes(hprov: usize) -> Result<Vec<u8>> {
     let mut u = UserKey(0);
     let mut size = 0u32;
     unsafe {
-        checked(CryptGetUserKey(hprov, AT_KEYEXCHANGE.0, &mut u.0))
-            .context("Can't get user key")?;
-        checked(CryptGetKeyParam(u.0, KP_CERTIFICATE, None, &mut size, 0))
+        CryptGetUserKey(hprov, AT_KEYEXCHANGE.0, &mut u.0).context("Can't get user key")?;
+        CryptGetKeyParam(u.0, KP_CERTIFICATE, None, &mut size, 0)
             .context("Can't get certificate size")?;
     }
     let mut data = vec![0u8; size as usize];
 
-    let res =
-        unsafe { CryptGetKeyParam(u.0, KP_CERTIFICATE, Some(data.as_mut_ptr()), &mut size, 0) };
-    checked(res).context("Can't get certificate")?;
+    unsafe {
+        CryptGetKeyParam(u.0, KP_CERTIFICATE, Some(data.as_mut_ptr()), &mut size, 0)
+            .context("Can't get certificate")?;
+    }
+
     Ok(data)
 }
 
 impl Drop for CryptContext {
     fn drop(&mut self) {
         if self.handle != 0 {
-            if let Err(e) = unsafe { checked(CryptReleaseContext(self.handle, 0)) } {
+            if let Err(e) = unsafe { CryptReleaseContext(self.handle, 0) } {
                 warn!("Can't release context: {}", e)
             }
         }
@@ -285,7 +272,7 @@ impl Drop for UserKey {
         if self.0 == 0 {
             return;
         }
-        if let Err(e) = unsafe { checked(CryptDestroyKey(self.0)) } {
+        if let Err(e) = unsafe { CryptDestroyKey(self.0) } {
             warn!("Can't destroy user key: {}", e)
         }
     }
@@ -298,7 +285,7 @@ impl Drop for Hash {
         if self.0 == 0 {
             return;
         }
-        if let Err(e) = unsafe { checked(CryptDestroyHash(self.0)) } {
+        if let Err(e) = unsafe { CryptDestroyHash(self.0) } {
             warn!("Can't destroy hash: {}", e)
         }
     }
@@ -311,7 +298,7 @@ impl Drop for Key {
         if self.0 == 0 {
             return;
         }
-        if let Err(e) = unsafe { checked(CryptDestroyKey(self.0)) } {
+        if let Err(e) = unsafe { CryptDestroyKey(self.0) } {
             warn!("Can't destroy key: {}", e)
         }
     }

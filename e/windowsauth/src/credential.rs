@@ -6,8 +6,7 @@ use include_flate::flate;
 use log::{debug, error, info};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Gdi::*,
-    Win32::Security::Authentication::Identity::*, Win32::System::Com::*, Win32::System::Kernel::*,
-    Win32::System::WindowsProgramming::*, Win32::UI::Shell::*,
+    Win32::Security::Authentication::Identity::*, Win32::System::Com::*, Win32::UI::Shell::*,
 };
 
 use crate::CLSID;
@@ -209,10 +208,11 @@ impl ICredentialProviderCredential_Impl for Credential {
 fn get_auth_package_id() -> anyhow::Result<u32> {
     let mut hlsa = HANDLE::default();
     let mut auth_package = 0u32;
-    let lsa_name = s!("Teleport");
-    let mut lsa_string = STRING::default();
+    let mut lsa_string = LSA_STRING::default();
+    lsa_string.Buffer = PSTR::from_raw(s!("Teleport").as_ptr() as _);
+    lsa_string.Length = "Teleport".len() as u16;
+    lsa_string.MaximumLength = lsa_string.Length;
     unsafe {
-        RtlInitString(&mut lsa_string, lsa_name.as_ptr() as *mut i8);
         LsaConnectUntrusted(&mut hlsa).context("Can't connect to LSA")?;
         LsaLookupAuthenticationPackage(hlsa, &lsa_string, &mut auth_package)
             .context("Can't lookup authentication package")?;
