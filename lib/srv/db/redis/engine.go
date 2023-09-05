@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/gravitational/trace"
 	"github.com/redis/go-redis/v9"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
@@ -483,4 +484,20 @@ func isRedisError(err error) bool {
 func isTeleportErr(err error) bool {
 	_, ok := err.(trace.Error)
 	return ok
+}
+
+// driverLogger implements go-redis driver's internal logger using logrus and
+// logs everything at TRACE level.
+type driverLogger struct {
+	*logrus.Entry
+}
+
+func (l *driverLogger) Printf(_ context.Context, format string, v ...interface{}) {
+	l.Entry.Tracef(format, v...)
+}
+
+func init() {
+	redis.SetLogger(&driverLogger{
+		Entry: logrus.WithField(trace.Component, "go-redis"),
+	})
 }
