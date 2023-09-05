@@ -1054,6 +1054,10 @@ const (
 	KubeVerbWatch = "watch"
 	// KubeVerbDeleteCollection is the Kubernetes verb for "deletecollection".
 	KubeVerbDeleteCollection = "deletecollection"
+	// KubeVerbExec is the Kubernetes verb for "pod/exec".
+	KubeVerbExec = "exec"
+	// KubeVerbPortForward is the Kubernetes verb for "pod/portforward".
+	KubeVerbPortForward = "portforward"
 )
 
 // KubernetesVerbs lists the supported Kubernetes verbs.
@@ -1067,6 +1071,8 @@ var KubernetesVerbs = []string{
 	KubeVerbList,
 	KubeVerbWatch,
 	KubeVerbDeleteCollection,
+	KubeVerbExec,
+	KubeVerbPortForward,
 }
 
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds

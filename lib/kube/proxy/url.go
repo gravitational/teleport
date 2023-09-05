@@ -309,31 +309,38 @@ func isKubeWatchRequest(req *http.Request, r apiResource) bool {
 func (r apiResource) getVerb(req *http.Request) string {
 	verb := ""
 	isWatch := isKubeWatchRequest(req, r)
-	switch req.Method {
-	case http.MethodPost:
-		verb = types.KubeVerbCreate
-	case http.MethodGet, http.MethodHead, http.MethodOptions:
-		switch {
-		case isWatch:
-			return types.KubeVerbWatch
-		case r.resourceName == "":
-			return types.KubeVerbList
-		default:
-			return types.KubeVerbGet
-		}
-	case http.MethodPut:
-		verb = types.KubeVerbUpdate
-	case http.MethodPatch:
-		verb = types.KubeVerbPatch
-	case http.MethodDelete:
-		switch {
-		case r.resourceName != "":
-			verb = types.KubeVerbDelete
-		default:
-			verb = types.KubeVerbDeleteCollection
-		}
+	switch r.resourceKind {
+	case "pods/exec", "pods/attach":
+		verb = types.KubeVerbExec
+	case "pods/portforward":
+		verb = types.KubeVerbPortForward
 	default:
-		verb = ""
+		switch req.Method {
+		case http.MethodPost:
+			verb = types.KubeVerbCreate
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			switch {
+			case isWatch:
+				return types.KubeVerbWatch
+			case r.resourceName == "":
+				return types.KubeVerbList
+			default:
+				return types.KubeVerbGet
+			}
+		case http.MethodPut:
+			verb = types.KubeVerbUpdate
+		case http.MethodPatch:
+			verb = types.KubeVerbPatch
+		case http.MethodDelete:
+			switch {
+			case r.resourceName != "":
+				verb = types.KubeVerbDelete
+			default:
+				verb = types.KubeVerbDeleteCollection
+			}
+		default:
+			verb = ""
+		}
 	}
 
 	return verb
