@@ -108,10 +108,7 @@ export const Support = ({
           </Box>
           <Box>
             <Header title="Updates" icon={<Icons.NotificationsActive />} />
-            <SupportLink
-              title="Product Changelog"
-              url="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
-            />
+            <SupportLink title="Product Changelog" url={docs.changeLog} />
             <SupportLink
               title="Teleport Blog"
               url="https://goteleport.com/blog/"
@@ -174,6 +171,7 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
     quickstart: withUTM('https://goteleport.com/docs/getting-started'),
     userManual: withUTM('https://goteleport.com/docs/server-access/guides/tsh'),
     adminGuide: withUTM('https://goteleport.com/docs/setup/admin'),
+    changeLog: withUTM('https://goteleport.com/docs/changelog'),
     troubleshooting: withUTM(
       'https://goteleport.com/docs/setup/admin/troubleshooting'
     ),
