@@ -520,7 +520,7 @@ func (h *Handler) assistGenAuditQueryLoop(ctx context.Context, assistClient *ass
 
 		toolCtx := &tools.ToolContext{User: username}
 
-		if err := h.preliminaryRatelimitGuard(onMessage); err != nil {
+		if err := h.preliminaryRateLimitGuard(onMessage); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -555,7 +555,7 @@ func (h *Handler) assistSSHExplainOutputLoop(ctx context.Context, assistClient *
 		return onMessageFn(ws, kind, payload, createdTime)
 	}
 
-	if err := h.preliminaryRatelimitGuard(onMessage); err != nil {
+	if err := h.preliminaryRateLimitGuard(onMessage); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -592,7 +592,7 @@ func (h *Handler) assistGenSSHCommandLoop(ctx context.Context, assistClient *ass
 			return trace.Wrap(err)
 		}
 
-		if err := h.preliminaryRatelimitGuard(onMessage); err != nil {
+		if err := h.preliminaryRateLimitGuard(onMessage); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -661,7 +661,7 @@ func (h *Handler) assistChatLoop(ctx context.Context, assistClient *assist.Assis
 			chat.RecordMesssage(ctx, wsIncoming.Type, wsIncoming.Payload)
 		}
 
-		if err := h.preliminaryRatelimitGuard(onMessage); err != nil {
+		if err := h.preliminaryRateLimitGuard(onMessage); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -680,9 +680,9 @@ func (h *Handler) assistChatLoop(ctx context.Context, assistClient *assist.Assis
 	return nil
 }
 
-// preliminaryRatelimitGuard checks that some small amount of tokens are still available and the ratelimit is not exceeded.
+// preliminaryRateLimitGuard checks that some small amount of tokens are still available and the ratelimit is not exceeded.
 // This is done because the changed quantity within the limiter is not known until after a request is processed.
-func (h *Handler) preliminaryRatelimitGuard(onMessageFn func(kind assist.MessageType, payload []byte, createdTime time.Time) error) error {
+func (h *Handler) preliminaryRateLimitGuard(onMessageFn func(kind assist.MessageType, payload []byte, createdTime time.Time) error) error {
 	const errorMsg = "You have reached the rate limit. Please try again later."
 
 	if !h.assistantLimiter.AllowN(time.Now(), lookaheadTokens) {
@@ -703,7 +703,9 @@ func wsIsClosed(err error) bool {
 		websocket.CloseGoingAway, websocket.CloseNormalClosure)
 }
 
-// onMessageFn is called when a message is received from the OpenAI API.
+// onMessageFn is a helper function used to send an assist message to the frontend.
+// It deals with serializing the kind and payload into a wire and sending it over with the correct
+// websocket frame type.
 func onMessageFn(ws *websocket.Conn, kind assist.MessageType, payload []byte, createdTime time.Time) error {
 	msg := &assistantMessage{
 		Type:        kind,
