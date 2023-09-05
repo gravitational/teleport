@@ -506,7 +506,9 @@ instance has label `azure/foo=bar`.
 
 ### Passwordless
 
-This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+This feature has additional build requirements, so it should be tested with a
+pre-release build from Drone (eg:
+`https://get.gravitational.com/tsh-v10.0.0-alpha.2.pkg`).
 
 This sections complements "Users -> Managing MFA devices". `tsh` binaries for
 each operating system (Linux, macOS and Windows) must be tested separately for
@@ -568,7 +570,7 @@ Device Trust requires Teleport Enterprise.
 
 This feature has additional build requirements, so it should be tested with a
 pre-release build from Drone (eg:
-`https://get.gravitational.com/teleport-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+`https://get.gravitational.com/teleport-ent-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
 Client-side enrollment requires a signed `tsh` for macOS, make sure to use the
 `tsh` binary from `tsh.app`.
@@ -605,6 +607,7 @@ tsh ssh node-that-requires-device-trust
 
 - [ ] Device enrollment
   - [ ] Enroll device on macOS (`tsh device enroll`)
+  - [ ] Enroll device on Windows (`tsh device enroll`)
   - [ ] Verify device extensions on TLS certificate
 
     Note that different accesses have different certificates (Database, Kube,
@@ -666,6 +669,12 @@ tsh ssh node-that-requires-device-trust
 - [ ] Binary support
   - [ ] Non-signed and/or non-notarized `tsh` for macOS gives a sane error
         message for `tsh device enroll` attempts.
+
+- [ ] Device support commands
+  - [ ] `tsh device collect`   (macOS)
+  - [ ] `tsh device asset-tag` (macOS)
+  - [ ] `tsh device collect`   (Windows)
+  - [ ] `tsh device asset-tag` (Windows)
 
 [device_event_codes]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/lib/events/codes.go#L389-L400
 [event_trusted_device]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/api/proto/teleport/legacy/types/events/events.proto#L88-L90
@@ -1191,26 +1200,31 @@ tsh bench web sessions --max=5000 --web user ls
 
 ## Machine ID
 
-### SSH
-
-With a default Teleport instance configured with a SSH node:
-
 - [ ] Verify you are able to create a new bot user with `tctl bots add robot --roles=access`. Follow the instructions provided in the output to start `tbot`
-- [ ] Verify you are able to connect to the SSH node using openssh with the generated `ssh_config` in the destination directory
+  - [ ] Directly connecting to the auth server
+  - [ ] Connecting to the auth server via the proxy reverse tunnel
 - [ ] Verify that after the renewal period (default 20m, but this can be reduced via configuration), that newly generated certificates are placed in the destination directory
 - [ ] Verify that sending both `SIGUSR1` and `SIGHUP` to a running tbot process causes a renewal and new certificates to be generated
-- [ ] Verify that you are able to make a connection to the SSH node using the `ssh_config` provided by `tbot` after each phase of a manual CA rotation.
 
-Ensure the above tests are completed for both:
+With an SSH node registered to the Teleport cluster:
 
-- [ ] Directly connecting to the auth server
-- [ ] Connecting to the auth server via the proxy reverse tunnel
+- [ ] Verify you are able to connect to the SSH node using openssh with the generated `ssh_config` in the destination directory
+- [ ] Verify you are able to connect to the SSH node using `tsh` with the identity file in the destination directory
 
-### DB Access
+With a Postgres DB registered to the Teleport cluster:
 
-With a default Postgres DB instance, a Teleport instance configured with DB access and a bot user configured:
+- [ ] Verify you are able to interact with a database using `tbot db connect` with a database output
+- [ ] Verify you are able to connect to the database using `tbot proxy db` with a database output
+- [ ] Verify you are able to produce an authenticated tunnel using `tbot proxy db --tunnel` with a database output and then able to connect to the database through the tunnel without credentials
 
-- [ ] Verify you are able to connect to and interact with a database using `tbot db` while `tbot start` is running
+With a Kubernetes cluster registered to the Teleport cluster:
+
+- [ ] Verify the `kubeconfig` produced by a Kubernetes output can be used to run basic commands (e.g `kubectl get pods`)
+
+With a HTTP application registered to the Teleport cluster:
+
+- [ ] Verify the certificates produced by an application output can be used directly against the proxy (e.g `curl --cert ./out/tlscert --key ./out/key https://httpbin.teleport.example.com/headers`)
+- [ ] Verify you are able to produce an authenticated tunnel using `tbot proxy app httpbin` with an application output and then able to connect to the application through the tunnel without credentials `curl localhost:port/headers`
 
 ## Host users creation
 
@@ -1343,7 +1357,7 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
 
 ## Assist
 
-Assist is not supported by `tsh` and WebUI is the only way to use it. 
+Assist is not supported by `tsh` and WebUI is the only way to use it.
 Assist test plan is in the core section instead of WebUI as most functionality is implemented in the core.
 
 - Configuration
