@@ -1,7 +1,6 @@
 ---
 title: Configure Trusted Clusters
 description: Explains how you can configure a trust relationship and manage access between two Teleport clusters.
-h1: Configure trusted clusters
 ---
 
 As you learned in [Core Concepts](../../core-concepts.mdx), a Teleport cluster
@@ -16,12 +15,12 @@ After you establish a trust relationship between the root and leaf clusters, the
 run behind a firewall without any inbound ports open. The leaf cluster creates an outbound reverse 
 SSH tunnel to the root cluster and keeps the tunnel open.
 When a user tries to connect to any resource in the leaf cluster, the connection goes through the 
-reverse tunnel using the root cluster's proxy.
+reverse tunnel using using the Teleport Proxy Service instance running on the root cluster.
 
 ## Who uses trusted clusters?
 
 Most organizations don't need to configure trusted clusters. In most cases, you can add 
-reverse-tunnel proxies and enroll and manage thousands of resources without creating a new 
+reverse-tunnel proxy instances and enroll and manage thousands of resources without creating a new 
 cluster.
 
 However, there are a few specific scenarios where trusted clusters can be particularly useful.
@@ -44,7 +43,7 @@ strictly used for collecting audit logs and authenticating users.
 clients in different regions.
 - Each cluster is an independent x.509 and SSH certificate authority and can operate autonomously.
 - Each leaf cluster dials back to the root cluster to establish a reverse tunnel. If you have multiple 
-proxies, you have multiple tunnels for high availability.
+Proxy Service instances, you have multiple tunnels for high availability.
 
 The following diagram provides a simplified view of the architecture:
 
