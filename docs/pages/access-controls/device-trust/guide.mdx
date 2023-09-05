@@ -1,128 +1,123 @@
 ---
-title: Set Up Device Trust (Preview)
-description: Learn how to use and enforce trusted devices with Teleport
+title: Getting Started with Device Trust (Preview)
+description: Get started with Teleport Device Trust
 videoBanner: gBQyj_X1LVw
 ---
 
 <Admonition type="warning">
-Device Trust is currently in Preview mode.
+  Device Trust is currently in Preview mode and supports following components:
 
-Device Trust requires Teleport Enterprise v12+.
+  - User devices: macOS.
+  - Teleport client: `tsh` and Teleport connect.
+  - Resources: SSH, Database and Kubernetes.
+
+  Support for Windows device is available in version 13.0 and above.
+
+  Support for other operating systems, access from Web UI and application
+  access is planned for upcoming Teleport versions.
 </Admonition>
 
-## Concepts
+Device Trust requires two of the following steps to have been configured:
 
-Device Trust uses the Secure Enclave in macOS devices to store a device private
-key. That key is used to solve device challenges issued by the Teleport Auth
-Server, proving the identity of the trusted device.
+- Device enforcement mode configured via either a role or a cluster-wide config.
+- Trusted device registered and enrolled with Teleport.
 
-Device management is divided into two separate phases: inventory management and
-device enrollment.
+In this guide, you will update the preset `access` role to enforce Device Trust
+and then enroll a trusted device into Teleport to access a resource (a test linux server)
+protected with Teleport.
 
-**Inventory management** is performed by a device admin. In this step, devices
-are registered or removed from Teleport. For example, this happens when the IT
-department of your company acquires new devices, or retires devices from use.
+### Prerequisites
 
-**Device enrollment** is performed either by a device admin or by the end-user,
-at your discretion. This is the step that creates the Secure Enclave private key
-in the device and register its public key counterpart with the Teleport Auth
-Server. Enrollment has to run in the actual device that you want to enroll. For
-example, this happens when a user gets a new device for the first time, or when
-IT prepares a new device for a user. Enrollment only needs to happen once per
-user/device combination.
+(!docs/pages/includes/no-oss-prereqs-tabs.mdx!)
 
-<Admonition type="tip" title="Enrollment">
-Device enrollment is key in correctly identifying a device throughout its
-lifetime. The more trusted the enrollment operator, the better the ongoing
-guarantees that the device itself is trustworthy.
+(!docs/pages/includes/device-trust/prereqs.mdx!)
+
+- User with `editor` role.
+  ```code
+  $ tsh status
+  > Profile URL:      (=clusterDefaults.clusterName=):443
+  Logged in as:       (=clusterDefaults.username=)
+  Cluster:            (=clusterDefaults.clusterName=)
+  Roles:              access, auditor, editor
+  Logins:             root, ubuntu, ec2-user
+  Kubernetes:         disabled
+  Valid until:        2023-08-22 03:30:24 -0400 EDT [valid for 11h52m0s]
+  Extensions:         login-ip, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+  ```
+- Access to a linux server (any Linux server you can access via `tsh ssh` will do).
+  ```code
+  $ tsh ls
+  Node Name        Address        Labels
+  ---------------- -------------- --------------------------------------
+  (=clusterDefaults.nodeIP=) ⟵ Tunnel
+
+  # test connection to (=clusterDefaults.nodeIP=)
+  $ tsh ssh root@(=clusterDefaults.nodeIP=)
+  root@(=clusterDefaults.nodeIP=):~#
+  ```
+
+Once the above prerequisites are met, begin with the following step.
+
+## Step 1/2. Update role to enforce Device Trust
+
+To enforce Device Trust, a user must be assigned with a role with Device Trust mode "required".
+
+For simplicity, the example below updates the preset `access` role but you can update
+any existing access granting role which the user is assigned with to enforce Device Trust.
+
+<Admonition type="warning" title="Device Role">
+  To avoid access disruption for other users assigned with preset `access` role, you can
+  create a separate `require-trusted-device` role and use that role for this guide.
 </Admonition>
 
-The tie between the device inventory and enrollment is a device enrollment
-token. A device enrollment token needs to be created by a device admin and sent
-to the person performing the enrollment ceremony. The token ties the actual
-device being enrolled to the expected device in the inventory, adding an extra
-layer of protection.
+First, using `tctl`, open the `access` role to edit it locally:
+```code
+$ tctl edit role/access
+```
 
-## Prerequisites
-
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
-
-- A signed and notarized `tsh` binary for enrollment.
-  [Download the macOS tsh installer](../../installation.mdx#macos).
-- A macOS device to register and enroll.
-
-## Step 1/2. Register a trusted device
-
-The `tctl` tool is used to manage the device inventory. A device admin is
-responsible for managing devices, adding new devices to the inventory and
-removing devices that are no longer in use.
-
-A role that grants permissions for the `device` resource is necessary to manage
-the inventory. Save the yaml below as `device-admin.yaml` and create it in your
-cluster:
-
-```yaml
-version: v6
+Edit the role with device trust mode:
+```diff
 kind: role
 metadata:
-  name: device-admin
+  labels:
+    teleport.internal/resource-type: preset
+  name: access
 spec:
   allow:
-    rules:
-    - resources: ["device"]
-      verbs:
-      - create
-      - read
-      - list
-      - update
-      - delete
-      - create_enroll_token
-      - enroll
+    logins:
+    - '{{internal.logins}}'
+    ...
+  options:
+    # require authenticated device check for this role
++   device_trust_mode: "required" # add this line
+    ...
+  deny:
+    ...
+
 ```
+
+Save your edits.
+
+Now that the `access` role is configured with device mode "required", users with
+this role will be enforced with Device Trust.
 
 ```code
-$ tctl create -f device-admin.yaml
-role 'device-admin' has been created
+$ tsh logout; tsh login --proxy=(=clusterDefaults.clusterName=) --user=(=clusterDefaults.username=)
+$ tsh ssh root@(=clusterDefaults.nodeIP=)
+ERROR: access denied to root connecting to (=clusterDefaults.nodeIP=):0
 ```
 
-<Admonition type="tip" title="Editor Role">
-For clusters created using Teleport v12 or newer, the builtin role `editor` has
-the necessary permissions to manage devices. For production setups a separate
-role is still recommended.
-</Admonition>
+As you can verify from the above step, access to `(=clusterDefaults.nodeIP=)` ssh server,
+which was previously accessible, is now forbidden.
 
-Note that in addition to the usual CRUD verbs (create, read, list, update and
-delete), we have also included `create_enroll_token` and `enroll`. The
-`create_enroll_token` verb is necessary to execute the `tctl devices enroll`
-command; `enroll` is necessary to execute `tsh device enroll`. Both are
-demonstrated in the following section.
+## Step 2/2. Enroll device
 
-Make sure your user has the `device-admin` role:
+To access `(=clusterDefaults.nodeIP=)` server again, you will have to enroll your device.
 
-```code
-$ tctl edit users/alice
-```
+First, register your device:
 
-```diff
-kind: user
-metadata:
-  name: alice
-  # unrelated fields omitted.
-spec:
-  roles:
-  - access
-+ - device-admin # add this line
-version: v2
-```
-
-Relogin to fetch updated certificates:
-
-```code
-$ tsh logout; tsh login --proxy=example.com --user=alice
-```
-
-Having the necessary permissions, let's add a device to the inventory. Replace
-the `$SERIAL` below with your macOS device serial number (visible under Apple ->
+Replace the `$SERIAL` below with your macOS
+device serial number (visible under Apple ->
 "About This Mac" -> "Serial number", or use the command below).
 
 ```code
@@ -140,25 +135,7 @@ Asset Tag    OS    Enroll Status Device ID
 (=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
 ```
 
-A registered device is a device that Teleport knows about. Once a registered
-device is enrolled, it becomes a trusted device.
-
-<Admonition type="tip" title="Removing Devices">
-A device that is no longer in use may be removed using `tctl devices rm
---device-id=<ID>` or `tctl devices rm --asset-tag=<SERIAL>`.
-</Admonition>
-
-## Step 2/2. Enroll a trusted device
-
-A registered device becomes a trusted device after it goes through the
-enrollment ceremony. Enrollment exchanges an enrollment token, created by a
-device admin, for the opportunity to enroll the corresponding device.
-
-macOS enrollments are tied to the current user in the device. If the same device
-is handed to a new user, they will need to perform enrollment again.
-
-To create an enrollment token run the following command, where `--asset-tag` is
-the serial number of the device we want to enroll.
+Create enrollment token for your device:
 
 ```code
 $ tctl devices enroll --asset-tag="(=devicetrust.asset_tag=)"
@@ -166,194 +143,48 @@ Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
 tsh device enroll --token=(=devicetrust.enroll_token=)
 ```
 
-To perform the enrollment ceremony, using the device specified above, type the
-command printed by `tctl devices enroll`:
+Now using `tsh`, enroll your device (use token printed above with `tctl devices enroll` command) :
 
 ```code
 $ tsh device enroll --token=(=devicetrust.enroll_token=)
 Device "(=devicetrust.asset_tag=)"/macOS enrolled
-
-$ tsh logout; tsh login --proxy=example.com --user=alice # fetch new certificates
 ```
 
 The device above is now a trusted device.
 
-## Optional: Cluster-wide trusted device enforcement
-
-Cluster-wide configuration enforces trusted device access at the cluster level.
-It can be configured with the following three modes of operation, represented
-by the `device_trust.mode` authentication setting:
-
-- `off` - disables device trust. Device authentication is not performed and
-  device-aware audit logs are absent.
-- `optional` - enables device authentication and device-aware audit, but does not
-  require a trusted device to access resources.
-- `required` - enables device authentication and device-aware audit.
-  Additionally, it requires a trusted device for all SSH, Database and
-  Kubernetes connections.
-
-Enterprise clusters run in `optional` mode by default. Changing the mode to
-`required` will enforce a trusted device for all SSH, Database and Kubernetes
-accesses.
-
-<Admonition type="warning" title="Web UI">
-The Web UI is not capable of trusted device access during the device trust
-preview. Only `tsh` and Teleport Connect are able to fulfill device mode
-`required`.
-</Admonition>
-
-To enable device mode `required` update your configuration as follows:
-
-<Tabs dropDownCaption="Teleport Deployment">
-<TabItem label="Dynamic Resources" options="Self-Hosted,Teleport Enterprise Cloud" >
-Create a `cap.yaml` file or get the existing configuration using
-`tctl get cluster_auth_preference`:
-
-```diff
-kind: cluster_auth_preference
-version: v2
-metadata:
-  name: cluster-auth-preference
-spec:
-  type: local
-  second_factor: "on"
-  webauthn:
-    rp_id: example.com
-  device_trust:
-+   mode: "required" # add this line
-```
-
-Update the configuration:
+Relogin to fetch updated certificate with device extension:
 
 ```code
-$ tctl create -f cap.yaml
-cluster auth preference has been updated
+$ tsh logout; tsh login --proxy=(=clusterDefaults.clusterName=) --user=(=clusterDefaults.username=)
+
+$ tsh status
+> Profile URL:        (=clusterDefaults.clusterName=):443
+  Logged in as:       (=clusterDefaults.username=)
+  Cluster:            (=clusterDefaults.clusterName=):443
+  Roles:              access, auditor, editor
+  Logins:             root
+  Kubernetes:         enabled
+  Valid until:        2023-08-22 04:06:53 -0400 EDT [valid for 12h0m0s]
+  Extensions:         login-ip, ... teleport-device-asset-tag, teleport-device-credential-id, teleport-device-id
 ```
 
-You can also edit this configuration directly:
+The presence of the `teleport-device-*` extensions shows that the device was successfully authenticated.
 
-```code
-$ tctl edit cluster_auth_preference
+Now, let's try to access server (`(=clusterDefaults.nodeIP=)`) again:
+
+```bash
+$ tsh ssh root@(=clusterDefaults.nodeIP=)
+root@(=clusterDefaults.nodeIP=):~#
 ```
 
-</TabItem>
-<TabItem label="Static Config" options="Self-Hosted">
-Edit the Auth Server's `teleport.yaml` file and restart all Auth Services:
-
-```diff
-auth_service:
-  authentication:
-    type: local
-    second_factor: "on"
-    webauthn:
-      rp_id: example.com
-    device_trust:
-+     mode: "required" # add this line
-```
-
-</TabItem>
-</Tabs>
-
-SSH, Database and Kubernetes access without a trusted device is now forbidden.
-For example, SSH access without a trusted device fails with the following error:
-
-```code
-$ tsh ssh server1
-ERROR: ssh: rejected: administratively prohibited (unauthorized device)
-```
-
-<Admonition type="tip" title="Trusted Clusters">
-It is possible to use [trusted
-clusters](../../management/admin/trustedclusters.mdx) to limit the impact of
-device mode `required`. A leaf cluster in mode `required` will enforce access to
-all of its resources, without imposing the same restrictions to the root
-cluster. Likewise, a root cluster will not enforce device trust on resources in
-leaf clusters.
-</Admonition>
-
-## Optional: Role-based trusted device enforcement
-
-Role-based configuration enforces trusted device access at the role level. It
-can be configured with the `spec.options.device_trust_mode` (`required`,
-`optional`, `off`) option and applies to the resources in its `allow` rules. It
-works similar to [`require_session_mfa`](../guides/per-session-mfa.mdx).
-
-To enforce authenticated device checks for a specific role, update the role with the following:
-
-```diff
-kind: role
-version: v6
-metadata:
-  name: example-role
-spec:
-  options:
-    # require authenticated device check for this role
-+   device_trust_mode: "required" # add this line
-  allow:
-    logins: ['admin']
-    kubernetes_groups: ['edit']
-    node_labels:
-      '*': '*'
-    ...
-
-```
-
-<Admonition type="tip" title="Per-role vs. Cluster-wide">
-Per-role configuration let's you progressively block unauthorized device access,
-and is useful for getting started with Teleport Device Trust.
-
-Once all the devices used are enrolled in Teleport, cluster-wide
-configuration will ensure every resources can only ever be accessed with a
-trusted device.
-</Admonition>
-
-## Optional: Locking a device
-
-Similar to [session and identity locking](../guides/locking.mdx), a device can
-be locked using `tctl lock`.
-
-Locking blocks certificate issuance and ongoing or future accesses originating
-from a locked device. Locking a device only works if device trust is enabled and
-if the device is enrolled to Teleport.
-
-Find a device ID to lock:
-
-```code
-$ tctl devices ls
-Asset Tag     OS    Enroll Status   Device ID
------------- -----  ------------- ------------------------------------
-(=devicetrust.asset_tag=)  macOS  enrolled     (=devicetrust.device_id=)
-```
-
-Lock a device:
-
-```code
-$ tctl lock --device (=devicetrust.device_id=) --ttl=12h
-Created a lock with name "5444970a-39a0-4814-968d-e58b4a8fa686".
-```
-
-Now, if a user on that device tries to access an SSH server for example, Teleport will deny access:
-
-```code
-$ tsh ssh server1
-ERROR: ssh: rejected: administratively prohibited (lock targeting Device:"(=devicetrust.device_id=)" is in force)
-```
+Congratulations! You have successfully configured a Trusted Device and accessed a resource protected with
+Device Trust enforcement.
 
 ## Troubleshooting
 
-### "binary missing signature or entitlements" on `tsh device enroll`
+(!docs/pages/includes/device-trust/enroll-troubleshooting.mdx!)
 
-A signed and notarized `tsh` binary is necessary to enroll and use a a trusted
-device. [Download the macOS tsh installer](../../installation.mdx#macos) to fix
-the problem.
+## Next steps
 
-### "unauthorized device" errors using a trusted device
-
-A signed and notarized `tsh` binary is necessary to use a trusted device. Make
-sure to download and use the
-[macOS tsh installer](../../installation.mdx#macos).
-
-A trusted device needs to be registered and enrolled before it is recognized by
-Teleport as such. Follow the [registration](#step-12-register-a-trusted-device)
-and [enrollment steps](#step-22-enroll-a-trusted-device) and make sure to `tsh
-logout` and `tsh login` after enrollment is done.
+- [Device Management](./device-management.mdx)
+- [Enforcing Device Trust](./enforcing-device-trust.mdx)
