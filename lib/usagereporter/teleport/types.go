@@ -708,6 +708,8 @@ func (e *FeatureRecommendationEvent) Anonymize(a utils.Anonymizer) prehogv1a.Sub
 	}
 }
 
+// LicenseLimitEvent emitted when a feature is gated behind
+// enterprise license.
 type LicenseLimitEvent prehogv1a.LicenseLimitEvent
 
 func (e *LicenseLimitEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
