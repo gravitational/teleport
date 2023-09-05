@@ -176,6 +176,12 @@ type WindowsServiceConfig struct {
 	// LDAPConfig contains parameters for connecting to an LDAP server.
 	// LDAP functionality is disabled if Addr is empty.
 	windows.LDAPConfig
+	// PKIDomain optionally configures a separate Active Directory domain
+	// for PKI operations. If empty, the domain from the LDAP config is used.
+	// This can be useful for cases where PKI is configured in a root domain
+	// but Teleport is used to provide access to users and computers in a child
+	// domain.
+	PKIDomain string
 	// DiscoveryBaseDN is the base DN for searching for Windows Desktops.
 	// Desktop discovery is disabled if this field is empty.
 	DiscoveryBaseDN string
@@ -352,15 +358,20 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		auditCache:  newSharedDirectoryAuditCache(),
 	}
 
+	caLDAPconfig := s.cfg.LDAPConfig
+	if s.cfg.PKIDomain != "" {
+		s.cfg.Log.Infof("Windows PKI will be performed against %v", s.cfg.PKIDomain)
+		caLDAPconfig.Domain = s.cfg.PKIDomain
+	}
 	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
 		AccessPoint: s.cfg.AccessPoint,
-		LDAPConfig:  s.cfg.LDAPConfig,
+		LDAPConfig:  caLDAPconfig,
 		Log:         s.cfg.Log,
 		ClusterName: s.clusterName,
 		LC:          s.lc,
 	})
 
-	if s.cfg.LDAPConfig.Addr != "" {
+	if caLDAPconfig.Addr != "" {
 		s.ldapConfigured = true
 		// initialize LDAP - if this fails it will automatically schedule a retry.
 		// we don't want to return an error in this case, because failure to start

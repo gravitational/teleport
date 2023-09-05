@@ -1802,6 +1802,8 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		CA:                 cert,
 	}
 
+	cfg.WindowsDesktop.PKIDomain = fc.WindowsDesktop.PKIDomain
+
 	var hlrs []servicecfg.HostLabelRule
 	for _, rule := range fc.WindowsDesktop.HostLabels {
 		r, err := regexp.Compile(rule.Match)
