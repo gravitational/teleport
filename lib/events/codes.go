@@ -514,11 +514,11 @@ const (
 	// AccessListMemberDeleteFailureCode is the access list member delete failure code.
 	AccessListMemberDeleteFailureCode = "TAL007E"
 
-	// AccessListMemberDeleteAllMembersSuccessCode is the access list all member delete success code.
-	AccessListMemberDeleteAllMembersSuccessCode = "TAL008I"
+	// AccessListMemberDeleteAllForAccessListSuccessCode is the access list all member delete success code.
+	AccessListMemberDeleteAllForAccessListSuccessCode = "TAL008I"
 
-	// AccessListMemberDeleteAllMemberFailureCode is the access list member delete failure code.
-	AccessListMemberDeleteAllMembersFailureCode = "TAL008E"
+	// AccessListMemberDeleteAllForAccessListFailureCode is the access list member delete failure code.
+	AccessListMemberDeleteAllForAccessListFailureCode = "TAL008E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
