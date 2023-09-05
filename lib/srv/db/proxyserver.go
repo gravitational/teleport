@@ -534,7 +534,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, 
 
 	// Ignore context.Canceled errors from monitoring.
 	//
-	// The clientConn is closed by utils.ProxyConn on succesful io.Copy thus
+	// The clientConn is closed by utils.ProxyConn on successful io.Copy thus
 	// possibly causing utils.ProxyConn to return context.Canceled (as monitor
 	// context is closed when TrackingReadConn.Close() is called).
 	//
