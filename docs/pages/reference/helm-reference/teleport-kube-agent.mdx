@@ -804,7 +804,7 @@ When `existingDataVolume` is set to the name of an existing volume, the `/var/li
 |--------|--------------------------------------|
 | `bool` | `true` for < 1.23 `false` for >= 1.23 |
 
-By default, Teleport charts used to install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/branch/v13/examples/chart/teleport-cluster/templates/psp.yaml).
+By default, Teleport charts used to install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/examples/chart/teleport-cluster/templates/psp.yaml).
 
 PodSecurityPolicy resources (PSP) have been removed in Kubernetes 1.25
 and replaced since 1.23 by PodSecurityAdmission (PSA). If you are running on
