@@ -1,5 +1,21 @@
 # Changelog
 
+## 13.3.8 (09/05/23)
+
+* Fix WebAuthn Windows registration breakage. [#31420](https://github.com/gravitational/teleport/pull/31420)
+* Fix issue with App access on leaf cluster trimming query parameters on rewrite redirects. [#31379](https://github.com/gravitational/teleport/pull/31379)
+* Fix issue with web UI integrations screen not wrapping tiles correctly. [#31365](https://github.com/gravitational/teleport/pull/31365)
+* Fix issue with `tsh db connect` ignoring default user/database names. [#31250](https://github.com/gravitational/teleport/pull/31250)
+* Fix issue with Azure auto-discovery not picking up updated credentials. [#31164](https://github.com/gravitational/teleport/pull/31164)
+* Fix issue with failing to start shell on macOS in some scenarios. [#31152](https://github.com/gravitational/teleport/pull/31152)
+* Desktop discovery: avoid mapping IPv6 addresses. [#31434](https://github.com/gravitational/teleport/pull/31434)
+* MySQL: improve performance in read-heavy scenarios. [#31402](https://github.com/gravitational/teleport/pull/31402)
+* Add known STS endpoint for il-central-1. [#31282](https://github.com/gravitational/teleport/pull/31282)
+* Add support for configurable Okta service synchronization duration. [#31251](https://github.com/gravitational/teleport/pull/31251)
+* Add an optional PodMonitor to the teleport-kube-agent chart. [#31247](https://github.com/gravitational/teleport/pull/31247)
+* Update web UI to skip MOTD in UI if request was initiated from tsh headless auth. [#31205](https://github.com/gravitational/teleport/pull/31205)
+* Update Okta service to slow down API calls to avoid throttling. [teleport.e#2134](https://github.com/gravitational/teleport.e/pull/2134)
+
 ## 13.3.7 (08/29/23)
 
 * Fixed regression issue causing OIDC authentication to fail with some identity providers. [teleport.e#2076](https://github.com/gravitational/teleport.e/pull/2076)
