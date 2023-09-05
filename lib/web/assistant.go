@@ -493,7 +493,6 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 	case actionSSHGenerateCommand:
 		err = h.assistGenSSHCommandLoop(ctx, assistClient, authClient, ws, sctx.GetUser())
 	case actionSSHExplainCommand:
-		// TODO (joel): enforce rate limiting
 		err = h.assistSSHExplainOutputLoop(ctx, assistClient, authClient, ws)
 	case actionGenerateAuditQuery:
 		err = h.assistGenAuditQueryLoop(ctx, assistClient, authClient, ws, sctx.GetUser())
@@ -684,11 +683,15 @@ func (h *Handler) assistChatLoop(ctx context.Context, assistClient *assist.Assis
 // preliminaryRatelimitGuard checks that some small amount of tokens are still available and the ratelimit is not exceeded.
 // This is done because the changed quantity within the limiter is not known until after a request is processed.
 func (h *Handler) preliminaryRatelimitGuard(onMessageFn func(kind assist.MessageType, payload []byte, createdTime time.Time) error) error {
+	const errorMsg = "You have reached the rate limit. Please try again later."
+
 	if !h.assistantLimiter.AllowN(time.Now(), lookaheadTokens) {
-		err := onMessageFn(assist.MessageKindError, []byte("You have reached the rate limit. Please try again later."), h.clock.Now().UTC())
+		err := onMessageFn(assist.MessageKindError, []byte(errorMsg), h.clock.Now().UTC())
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		return trace.LimitExceeded(errorMsg)
 	}
 
 	return nil
