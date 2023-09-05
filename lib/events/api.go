@@ -681,8 +681,8 @@ const (
 	// AccessListMemberDeleteEvent is emitted when a member is deleted from an access list.
 	AccessListMemberDeleteEvent = "access_list.member.delete"
 
-	// AccessListMemberDeleteAllMembersEvent is emitted when all members are deleted from an access list.
-	AccessListMemberDeleteAllMembersEvent = "access_list.member.delete_all_members"
+	// AccessListMemberDeleteAllForAccessListEvent is emitted when all members are deleted from an access list.
+	AccessListMemberDeleteAllForAccessListEvent = "access_list.member.delete_all_for_access_list"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent

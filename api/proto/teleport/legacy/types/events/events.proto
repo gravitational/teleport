@@ -216,34 +216,34 @@ message OktaAssignmentMetadata {
 
 // AccessListMemberMetadata contains common metadata for access list member resource events.
 message AccessListMemberMetadata {
-  // joined_on is the date that the member joined.
-  google.protobuf.Timestamp joined_on = 1 [
+  // JoinedOn is the date that the member joined.
+  google.protobuf.Timestamp JoinedOn = 1 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "session_start,omitempty"
+    (gogoproto.jsontag) = "joined_on,omitempty"
   ];
 
-  // removed_on is the date that the access list member was removed.
-  google.protobuf.Timestamp removed_on = 2 [
+  // RemovedOn is the date that the access list member was removed.
+  google.protobuf.Timestamp RemovedOn = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "session_start,omitempty"
+    (gogoproto.jsontag) = "removed_on,omitempty"
   ];
 
-  // reason is the reason that the member was added, modified, or removed.
-  string reason = 3;
+  // Reason is the reason that the member was added, modified, or removed.
+  string Reason = 3 [(gogoproto.jsontag) = "reason,omitempty"];
 
-  // access_list_name is the name of the access list the member is being added to or removed from.
-  string access_list_name = 4 [(gogoproto.jsontag) = "access_list_name,omitempty"];
+  // AccessListName is the name of the access list the member is being added to or removed from.
+  string AccessListName = 4 [(gogoproto.jsontag) = "access_list_name,omitempty"];
 
-  // member_name is the name of the member.
-  string member_name = 5 [(gogoproto.jsontag) = "member_name,omitempty"];
+  // MemberName is the name of the member.
+  string MemberName = 5 [(gogoproto.jsontag) = "member_name,omitempty"];
 }
 
 // AccessListReviewMetadata contains metadata for access list review events.
 message AccessListReviewMetadata {
-  // message is the message that was supplied during the review.
-  string message = 1;
+  // Message is the message that was supplied during the review.
+  string Message = 1 [(gogoproto.jsontag) = "message,omitempty"];
 }
 
 // SessionStart is a session start event

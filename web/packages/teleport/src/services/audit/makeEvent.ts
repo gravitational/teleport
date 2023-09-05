@@ -1517,13 +1517,13 @@ export const formatters: Formatters = {
     format: ({ access_list_name, member_name, updated_by }) =>
       `Failure when user [${updated_by}] attempted to delete member [${member_name}] from access list [${access_list_name}]`,
   },
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_MEMBERS]: {
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: {
     type: 'access_list.member.delete_all_members',
     desc: 'All members deleted for access list',
     format: ({ access_list_name, updated_by }) =>
       `All members were deleted from access list [${access_list_name}] by user [${updated_by}]`,
   },
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_MEMBERS_FAILURE]: {
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]: {
     type: 'access_list.member.delete_all_members',
     desc: 'Access list member delete all membersfailure',
     format: ({ access_list_name, updated_by }) =>

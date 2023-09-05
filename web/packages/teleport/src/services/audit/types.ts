@@ -253,8 +253,8 @@ export const eventCodes = {
   ACCESS_LIST_MEMBER_UPDATE_FAILURE: 'TAL006E',
   ACCESS_LIST_MEMBER_DELETE: 'TAL007I',
   ACCESS_LIST_MEMBER_DELETE_FAILURE: 'TAL007E',
-  ACCESS_LIST_MEMBER_DELETE_ALL_MEMBERS: 'TAL008I',
-  ACCESS_LIST_MEMBER_DELETE_ALL_MEMBERS_FAILURE: 'TAL008E',
+  ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST: 'TAL008I',
+  ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE: 'TAL008E',
 } as const;
 
 /**
@@ -1425,15 +1425,15 @@ export type RawEvents = {
       updated_by: string;
     }
   >;
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_MEMBERS]: RawEvent<
-    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_MEMBERS,
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST,
     {
       access_list_name: string;
       updated_by: string;
     }
   >;
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_MEMBERS_FAILURE]: RawEvent<
-    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_MEMBERS_FAILURE,
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE,
     {
       access_list_name: string;
       updated_by: string;
