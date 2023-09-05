@@ -186,7 +186,7 @@ const getDownloadLink = (isCloud: boolean, isEnterprise: boolean) => {
   }
 
   if (isEnterprise) {
-    return 'https://goteleport.com/docs/choose-an-edition/teleport-enterprise/introduction/?scope=enterprise#dedicated-account-site';
+    return 'https://goteleport.com/docs/choose-an-edition/teleport-enterprise/introduction/?scope=enterprise#dedicated-account-dashboard';
   }
 
   return 'https://goteleport.com/download/';
