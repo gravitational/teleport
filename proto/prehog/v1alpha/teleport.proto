@@ -843,6 +843,26 @@ enum FeatureRecommendationStatus {
   FEATURE_RECOMMENDATION_STATUS_DONE = 2;
 }
 
+// LicenseLimitEvent is emitted when access to Teleport feature
+// is denied based on license limits
+//
+// PostHost event: tp.license.limit
+message LicenseLimitEvent {
+  // PostHost property: tp.license_limit
+  LicenseLimit license_limit = 1;
+}
+
+// License limit
+enum LicenseLimit {
+  LICENSE_LIMIT_UNSPECIFIED = 0;
+  // LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF is emitted if license does not
+  // allow Jamf integration (e.g. Team Plan)
+  LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF = 1;
+  // LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE is emitted when allowed enrolled device
+  // limit is reached
+  LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -936,6 +956,8 @@ message SubmitEventRequest {
     AssistActionEvent assist_action = 55;
 
     DeviceEnrollEvent device_enroll_event = 56;
+
+    LicenseLimitEvent license_limit_event = 57;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
