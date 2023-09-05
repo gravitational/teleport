@@ -147,7 +147,7 @@ highAvailability:
     enabled: true
     # Name of the cert-manager GlobalIssuer or Issuer to use
     issuerName: letsencrypt-production
-    issuerKind: GlobalIssuer
+    issuerKind: ClusterIssuer
 # If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
 podSecurityPolicy:
   enabled: false
@@ -175,7 +175,7 @@ highAvailability:
     enabled: true
     # Name of the cert-manager GlobalIssuer or Issuer to use
     issuerName: letsencrypt-production
-    issuerKind: GlobalIssuer
+    issuerKind: ClusterIssuer
 # If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
 podSecurityPolicy:
   enabled: false
