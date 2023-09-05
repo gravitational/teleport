@@ -285,7 +285,14 @@ To make changes to your Teleport cluster after deployment, you can use `helm upg
 Helm defaults to using the latest version of the chart available in the repo, which will also correspond to the latest
 version of Teleport. You can make sure that the repo is up to date by running `helm repo update`.
 
-If you want to use a different version of Teleport, set the [`teleportVersionOverride`](../../reference/helm-reference/teleport-cluster.mdx#teleportversionoverride) value.
+If you want to use a different version of Teleport, pass the `--version` argument to Helm:
+
+```code
+$ helm upgrade --version 14.0.0 \
+  <Var name="teleport-release" /> teleport/teleport-cluster \
+  --namespace <Var name="teleport-ns" /> \
+  -f azure-values.yaml
+```
 
 Here's an example where we set the chart to use 3 replicas:
 
