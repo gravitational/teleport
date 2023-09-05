@@ -120,7 +120,7 @@ Now we'll configure the `teleport-cluster` Helm chart to use the `azure` mode.
 First get the client ID for the `teleport-id` identity:
 ```code
 $ az identity show --resource-group <Var name="teleport-rg" /> --name teleport-id --query clientId -o tsv
-<Var name="teleport-clie-ntid-uuid-123456789012" />
+<Var name="teleport-client-id-uuid-123456789012" />
 ```
 
 Then create a file called `azure-values.yaml` containing the values you've selected above:
@@ -138,7 +138,7 @@ azure:
   sessionRecordingStorageAccount: "<Var name="teleportblob" />.blob.core.windows.net"
   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
   auditLogMirrorOnStdout: false
-  clientID: "<Var name="teleport-clie-ntid-uuid-123456789012" />"
+  clientID: "<Var name="teleport-client-id-uuid-123456789012" />"
 highAvailability:
   # Number of replicas to configure
   replicaCount: 2
@@ -166,7 +166,7 @@ azure:
   sessionRecordingStorageAccount: "<Var name="teleportblob" />.blob.core.windows.net"
   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
   auditLogMirrorOnStdout: false
-  clientID: "<Var name="teleport-clie-ntid-uuid-123456789012" />"
+  clientID: "<Var name="teleport-client-id-uuid-123456789012" />"
 highAvailability:
   # Number of replicas to configure
   replicaCount: 2
