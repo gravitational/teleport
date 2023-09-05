@@ -46,10 +46,10 @@ linters-settings:
             desc: 'use "github.com/google/uuid" instead'
           - pkg: github.com/siddontang/go-log/log
             desc: 'use "github.com/sirupsen/logrus" instead'
-          - pkg: github.com/tj/assert
-            desc: 'use "github.com/stretchr/testify/assert" instead'
           - pkg: github.com/siddontang/go/log
             desc: 'use "github.com/sirupsen/logrus" instead'
+          - pkg: github.com/tj/assert
+            desc: 'use "github.com/stretchr/testify/assert" instead'
           - pkg: go.uber.org/atomic
             desc: 'use "sync/atomic" instead'
           - pkg: golang.design
