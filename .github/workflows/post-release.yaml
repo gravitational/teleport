@@ -99,6 +99,6 @@ jobs:
           git switch -c $BRANCH_NAME
           git commit -am "[auto] docs: Update version to ${{ github.event.release.tag_name }}"
           git push --set-upstream origin $BRANCH_NAME
-          gh pr create --fill --label=automated --label=documentation
+          gh pr create --fill --label=automated --label=documentation --base=${{ steps.get-branch.outputs.branch }}
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
