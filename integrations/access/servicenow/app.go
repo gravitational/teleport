@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	grpcbackoff "google.golang.org/grpc/backoff"
 
@@ -273,7 +274,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 		return nil
 	}
 	// Don't show the error if the annotation is just missing.
-	if trace.Unwrap(notifyErr) == errMissingAnnotation {
+	if errors.Is(notifyErr, errMissingAnnotation) {
 		notifyErr = nil
 	}
 
@@ -468,13 +469,8 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	userIsOnCall := false
-	for _, user := range onCallUsers {
-		if req.GetUser() == user {
-			userIsOnCall = true
-		}
-	}
-	if !userIsOnCall {
+
+	if userIsOnCall := slices.Contains(onCallUsers, req.GetUser()); !userIsOnCall {
 		return nil
 	}
 	if _, err := a.teleport.SubmitAccessReview(ctx, types.AccessReviewSubmission{
