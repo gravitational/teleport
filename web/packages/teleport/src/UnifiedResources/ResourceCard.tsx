@@ -355,8 +355,10 @@ const CardContainer = styled(Box)`
  * outer container.
  */
 const CardInnerContainer = styled(Flex)`
-  border-top: 2px solid ${props => props.theme.colors.spotBackground[0]};
   background-color: transparent;
+  border: ${props => props.theme.borders[2]}
+    ${props => props.theme.colors.spotBackground[0]};
+  border-radius: ${props => props.theme.radii[3]}px;
 
   ${props =>
     props.showAllLabels
@@ -369,12 +371,6 @@ const CardInnerContainer = styled(Flex)`
     background-color: ${props => props.theme.colors.levels.elevated};
     border-color: ${props => props.theme.colors.levels.elevated};
     box-shadow: ${props => props.theme.boxShadow[1]};
-  }
-
-  @media (min-width: ${props => props.theme.breakpoints.tablet}px) {
-    border: ${props => props.theme.borders[2]}
-      ${props => props.theme.colors.spotBackground[0]};
-    border-radius: ${props => props.theme.radii[3]}px;
   }
 `;
 

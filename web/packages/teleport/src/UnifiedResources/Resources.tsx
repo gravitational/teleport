@@ -41,6 +41,7 @@ import { useUrlFiltering } from 'teleport/components/hooks';
 import { ResourceCard } from './ResourceCard';
 import SearchPanel from './SearchPanel';
 import { FilterPanel } from './FilterPanel';
+import './unifiedStyles.css';
 
 const RESOURCES_MAX_WIDTH = '1800px';
 
@@ -116,6 +117,8 @@ export function Resources() {
 
   return (
     <FeatureBox
+      className="ContainerContext"
+      px={4}
       css={`
         max-width: ${RESOURCES_MAX_WIDTH};
         margin: auto;
@@ -155,7 +158,7 @@ export function Resources() {
       {attempt.status === 'failed' && (
         <ErrorMessage message={attempt.statusText} />
       )}
-      <ResourcesContainer gap={2}>
+      <ResourcesContainer className="ResourcesContainer" gap={2}>
         {fetchedData.agents.map((agent, i) => (
           <ResourceCard key={i} onLabelClick={onLabelClick} resource={agent} />
         ))}
@@ -218,9 +221,6 @@ function NoResults({ query }: { query: string }) {
 const ResourcesContainer = styled(Flex)`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  @media (min-width: ${RESOURCES_MAX_WIDTH}) {
-    grid-template-columns: repeat(4, minmax(400px, 1fr));
-  }
 `;
 
 const emptyStateInfo: EmptyStateInfo = {
