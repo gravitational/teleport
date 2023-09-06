@@ -75,6 +75,12 @@ Based on the information in the certificate, the Teleport Auth Service performs 
 - Checks if the local role allows the requested identity—the Unix login—to have access.
 - Verifies that the certificate has not expired. The TTL is set by the root cluster.
 
+The following diagram provides a simplified view of the interaction between the services running
+on the leaf cluster and service running on the root cluster:
+
+![Service interaction in a trusted cluster](../../../img/trusted-clusters/trusted-cluster-service-interaction.png)
+
+
 Note that trusted clusters only work in one direction. 
 Users from the leaf cluster can't see or connect to resources in the root cluster.
 
