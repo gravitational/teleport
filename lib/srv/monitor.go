@@ -492,7 +492,7 @@ type TrackingReadConnConfig struct {
 	Clock clockwork.Clock
 	// Context is an external context to cancel the operation.
 	Context context.Context
-	/// Cancel is called whenever client context is closed.
+	// Cancel is called whenever client context is closed.
 	Cancel context.CancelCauseFunc
 }
 
@@ -547,11 +547,14 @@ func (t *TrackingReadConn) Read(b []byte) (int, error) {
 	return n, err
 }
 
+// Close cancels the context with io.EOF and closes the underlying connection.
 func (t *TrackingReadConn) Close() error {
 	t.cfg.Cancel(io.EOF)
 	return t.Conn.Close()
 }
 
+// CloseWithCause cancels the context with provided cause and closes the
+// underlying connection.
 func (t *TrackingReadConn) CloseWithCause(cause error) error {
 	t.cfg.Cancel(cause)
 	return t.Conn.Close()
