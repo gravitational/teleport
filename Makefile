@@ -708,6 +708,29 @@ test-helm-update-snapshots: helmunit/installed
 .PHONY: test-go
 test-go: test-go-prepare test-go-unit test-go-libfido2 test-go-touch-id test-go-tsh test-go-chaos
 
+#
+# Runs a test to ensure no environment variable leak into build binaries.
+# This is typically done as part of the bloat test in CI, but this 
+# target exists for local testing.
+#
+.PHONY: test-env-leakage
+test-env:
+	$(eval export BUILD_SECRET=FAKE_SECRET)
+	$(MAKE) full
+	failed=0; \
+	for binary in $(BINARIES); do \
+		if strings $$binary | grep -q 'FAKE_SECRET'; then \
+			echo "Error: $$binary contains FAKE_SECRET"; \
+			failed=1; \
+		fi; \
+	done; \
+	if [ $$failed -eq 1 ]; then \
+		echo "Environment leak failure"; \
+		exit 1; \
+	else \
+		echo "No environment leak, PASS"; \
+	fi
+
 # Runs test prepare steps
 .PHONY: test-go-prepare
 test-go-prepare: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) ensure-gotestsum $(VERSRC)
