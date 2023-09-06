@@ -835,6 +835,11 @@
                 }
             }
         },
+        "command": {
+            "$id": "#/properties/command",
+            "type": "array",
+            "default": []
+        },
         "extraArgs": {
             "$id": "#/properties/extraArgs",
             "type": "array",
@@ -864,6 +869,16 @@
                 "Always"
             ],
             "default": "IfNotPresent"
+        },
+        "imagePullSecrets": {
+            "$id": "#/properties/imagePullSecrets",
+            "type": "array",
+            "default": []
+        },
+        "containers": {
+            "$id": "#/properties/containers",
+            "type": "array",
+            "default": []
         },
         "initContainers": {
             "$id": "#/properties/initContainers",

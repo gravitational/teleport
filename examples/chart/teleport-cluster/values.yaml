@@ -299,6 +299,8 @@ persistence:
   # Leave blank to automatically create a PersistentVolumeClaim for Teleport storage.
   # If you would like to use a pre-existing PersistentVolumeClaim, put its name here.
   existingClaimName: ""
+  # Leave blank to use the default storage class
+  storageClass: ""
   # Size of persistent volume to request when created by Teleport.
   # Ignored if existingClaimName is provided.
   volumeSize: 10Gi
@@ -579,6 +581,9 @@ ingress:
 # Extra arguments to pass to 'teleport start' for the main Teleport pod
 extraArgs: []
 
+# Override the command used to start the main Teleport pod
+command: []
+
 # Extra environment to be configured on the Teleport pod
 extraEnv: []
 
@@ -597,10 +602,21 @@ extraVolumeMounts: []
 # Allow the imagePullPolicy to be overridden
 imagePullPolicy: IfNotPresent
 
+# List of image pull secrets
+# https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+imagePullSecrets: []
+
 # A list of initContainers to run before each Teleport pod starts
 # https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
 initContainers: []
 # - name: "teleport-init"
+#   image: "alpine"
+#   args: ["echo test"]
+
+# A list of extra containers to run in each Teleport pod
+# https://kubernetes.io/docs/concepts/workloads/pods/#how-pods-manage-multiple-containers
+containers: []
+# - name: "teleport-container"
 #   image: "alpine"
 #   args: ["echo test"]
 

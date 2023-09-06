@@ -231,6 +231,9 @@ spec:
 {{- if $auth.extraVolumeMounts }}
   {{- toYaml $auth.extraVolumeMounts | nindent 8 }}
 {{- end }}
+{{- if .Values.containers }}
+  {{- toYaml .Values.containers | nindent 6 }}
+{{- end }}
 {{- /* Operator uses '.Values' instead of '$auth' as it will likely be moved out of the auth pods */}}
 {{- if .Values.operator.enabled }}
       - name: "operator"
