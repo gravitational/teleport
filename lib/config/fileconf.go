@@ -30,13 +30,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
@@ -484,21 +482,9 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// awsRegions returns the list of all regions available on every aws partition.
-// It is used to validate the AWSMatcher.Regions values.
-func awsRegions() []string {
-	var regions []string
-	partitions := endpoints.DefaultPartitions()
-	for _, partition := range partitions {
-		regions = append(regions, maps.Keys(partition.Regions())...)
-	}
-	return regions
-}
-
 // checkAndSetDefaultsForAWSMatchers sets the default values for discovery AWS matchers
 // and validates the provided types.
 func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
-	regions := awsRegions()
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
 		for _, matcherType := range matcher.Types {
@@ -510,13 +496,13 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 
 		if len(matcher.Regions) == 0 {
 			return trace.BadParameter("discovery service requires at least one region; supported regions are: %v",
-				regions)
+				awsutils.GetKnownRegions())
 		}
 
 		for _, region := range matcher.Regions {
-			if !slices.Contains(regions, region) {
+			if !awsutils.IsValidRegion(region) {
 				return trace.BadParameter("discovery service does not support region %q; supported regions are: %v",
-					region, regions)
+					region, awsutils.GetKnownRegions())
 			}
 		}
 
