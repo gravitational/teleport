@@ -492,7 +492,7 @@ type driverLogger struct {
 	*logrus.Entry
 }
 
-func (l *driverLogger) Printf(_ context.Context, format string, v ...interface{}) {
+func (l *driverLogger) Printf(_ context.Context, format string, v ...any) {
 	l.Entry.Tracef(format, v...)
 }
 
