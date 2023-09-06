@@ -259,7 +259,7 @@ func NewYumConfigWithFlagSet(fs *flag.FlagSet) *YumConfig {
 	yc.Config = NewConfigWithFlagset(fs)
 
 	fs.StringVar(&yc.cacheDir, "cache-dir", "/tmp/createrepo/cache", "The createrepo checksum caching directory (see https://linux.die.net/man/8/createrepo for details")
-	fs.StringVar(&yc.domainName, "repo-domain-name", "yum.releases.teleport.dev", "The domain name to use in 'teleport.repo' files")
+	fs.StringVar(&yc.domainName, "repo-domain-name", "releases.teleport.dev", "The root domain name to use in 'teleport*.repo' files")
 
 	return yc
 }

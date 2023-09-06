@@ -165,7 +165,7 @@ jobs:
         run: |
           echo "PACKAGE_TYPE=rpm" >> "$GITHUB_ENV"
           echo "BUCKET_NAME=${{ vars.YUM_S3_BUCKET }}" >> "$GITHUB_ENV"
-          echo "TOOL_ARGUMENTS=-cache-dir $CACHE_PATH/createrepo -repo-domain-name ${{ vars.YUM_REPO_DOMAIN_NAME }}" >> "$GITHUB_ENV"
+          echo "TOOL_ARGUMENTS=-cache-dir $CACHE_PATH/createrepo -repo-domain-name ${{ vars.YUM_REPO_BASE_DOMAIN_NAME }}" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_AWS_ROLE=${{ vars.YUM_DEPLOYMENT_AWS_ROLE }}" >> "$GITHUB_ENV"
           echo "CLOUDFRONT_DISTRIBUTION=${{ vars.YUM_CLOUDFRONT_DISTRIBUTION }}" >> "$GITHUB_ENV"
       - name: Log set variables
@@ -585,7 +585,7 @@ jobs:
           # The UBI images use a slightly different from normal format for VERSION_ID so it must be accounted for here
           VERSION_ID=$(echo $VERSION_ID | cut -d'.' -f1)
 
-          sudo yum-config-manager --add-repo $(rpm --eval "https://${YUM_REPO_DOMAIN_NAME}/$ID/$VERSION_ID/Teleport/%{_arch}/$RELEASE_CHANNEL/$VERSION_CHANNEL/teleport.repo")
+          sudo yum-config-manager --add-repo $(rpm --eval "https://${YUM_REPO_DOMAIN_NAME}/$ID/$VERSION_ID/Teleport/%{_arch}/$RELEASE_CHANNEL/$VERSION_CHANNEL/teleport-yum.repo")
       - name: Log package pre-install information
         env:
           PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
@@ -706,7 +706,7 @@ jobs:
           rpm --import "$GPG_KEY_PATH"
           rm "$GPG_KEY_PATH"
 
-          sudo zypper addrepo --refresh --repo $(rpm --eval "https://${ZYPPER_REPO_DOMAIN_NAME}/$ID/$VERSION_ID/Teleport/%{_arch}/$RELEASE_CHANNEL/$VERSION_CHANNEL/teleport.repo")
+          sudo zypper addrepo --refresh --repo $(rpm --eval "https://${ZYPPER_REPO_DOMAIN_NAME}/$ID/$VERSION_ID/Teleport/%{_arch}/$RELEASE_CHANNEL/$VERSION_CHANNEL/teleport-zypper.repo")
       - name: Log package cache information
         env:
           PACKAGE_TO_TEST: ${{ inputs.package-to-test }}

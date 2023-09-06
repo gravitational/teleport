@@ -282,10 +282,9 @@ func (yrt *YumRepoTool) addArtifacts(bucketArtifactPaths []string, relativeGpgPu
 					return trace.Wrap(err, "failed to add artifact for YUM repo %q", relativeRepoPath)
 				}
 
-				repoFilePath := filepath.Join(repoPath, "teleport.repo")
-				err = yrt.createRepoFile(repoFilePath, os, osVersion, arch, relativeGpgPublicKeyPath)
+				err = yrt.createRepoFiles(repoPath, os, osVersion, arch, relativeGpgPublicKeyPath)
 				if err != nil {
-					return trace.Wrap(err, "failed to create repo file for os %q at %q", os, repoFilePath)
+					return trace.Wrap(err, "failed to create repo files")
 				}
 
 				repoCount++
@@ -294,6 +293,31 @@ func (yrt *YumRepoTool) addArtifacts(bucketArtifactPaths []string, relativeGpgPu
 	}
 
 	logrus.Infof("Updated %d repos with %d artifacts", repoCount, len(bucketArtifactPaths))
+	return nil
+}
+
+func (yrt *YumRepoTool) createRepoFiles(repoPath, os, osVersion, arch, relativeGpgPublicKeyPath string) error {
+	repoFiles := map[string][]string{
+		"yum": []string{
+			"teleport.repo",
+			"teleport-yum.repo",
+		},
+		"zypper": []string{
+			"teleport-zypper.repo",
+		},
+	}
+
+	for subdomain, filesNames := range repoFiles {
+		for _, fileName := range filesNames {
+			repoFilePath := filepath.Join(repoPath, fileName)
+			repoDomain := fmt.Sprintf("%s.%s", subdomain, yrt.config.domainName)
+			err := yrt.createRepoFile(repoFilePath, repoDomain, os, osVersion, arch, relativeGpgPublicKeyPath)
+			if err != nil {
+				return trace.Wrap(err, "failed to create repo file for os %q at %q", os, repoFilePath)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -401,7 +425,7 @@ func (yrt *YumRepoTool) signRepoMetadata(repoPath string) error {
 
 // Creates an os-specific ".repo" file for yum-config-manager akin to
 // https://rpm.releases.teleport.dev/teleport.repo
-func (yrt *YumRepoTool) createRepoFile(filePath, osName, osVersion, arch, relativeGpgPublicKeyPath string) error {
+func (yrt *YumRepoTool) createRepoFile(filePath, domainName, osName, osVersion, arch, relativeGpgPublicKeyPath string) error {
 	// Future work: maybe move domain name to config?
 	sectionName := "teleport"
 	// See these for config details:
@@ -411,7 +435,7 @@ func (yrt *YumRepoTool) createRepoFile(filePath, osName, osVersion, arch, relati
 		"name": "Gravitational Teleport packages",
 		"baseurl": (&url.URL{
 			Scheme: "https",
-			Host:   yrt.config.domainName,
+			Host:   domainName,
 			Path: strings.Join(
 				[]string{
 					osName,
@@ -429,7 +453,7 @@ func (yrt *YumRepoTool) createRepoFile(filePath, osName, osVersion, arch, relati
 		"repo_gpgcheck": "1",
 		"gpgkey": (&url.URL{
 			Scheme: "https",
-			Host:   yrt.config.domainName,
+			Host:   domainName,
 			Path:   relativeGpgPublicKeyPath,
 		}).String(),
 	}
