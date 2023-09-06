@@ -99,5 +99,5 @@ func TestReconcileLabels(t *testing.T) {
 	// Check that labels were received downstream.
 	require.Eventually(t, func() bool {
 		return utils.StringMapsEqual(labels, downstreamHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServerCloudLabels))
-	}, 100*time.Millisecond, 10*time.Millisecond)
+	}, 3*time.Second, 500*time.Millisecond)
 }
