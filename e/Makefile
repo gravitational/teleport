@@ -391,7 +391,7 @@ endif
 test: test-go test-operator
 
 test-go:
-	go test -v ./... -race
+	gotestsum ./... -- -race
 
 # test-operator runs tests for the k8s operator with enterprise-only resource
 # types that must be tested with an enterprise Teleport cluster.
@@ -400,7 +400,7 @@ include ../integrations/operator/envtest.mk
 test-operator: $(ENVTEST)
 test-operator: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 test-operator:
-	go test -v ./lib/operatortest -race
+	gotestsum ./lib/operatortest -- -race
 
 # Dockerized build: useful for making Linux binaries on OSX
 .PHONY:docker-binaries
