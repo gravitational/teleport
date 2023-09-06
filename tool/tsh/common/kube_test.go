@@ -283,7 +283,7 @@ func testKubeLoginWithFilters(t *testing.T) {
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Kube.Enabled = true
-			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+			cfg.Kube.ListenAddr = utilsaddr.MustParseAddr(localListenerAddr())
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, allKubes...)
 			cfg.Kube.StaticLabels = staticLabels
 		}),
@@ -367,7 +367,7 @@ func testKubeLoginWithFilters(t *testing.T) {
 	}
 
 	tshHome, _ := mustLogin(t, s)
-	webProxyAddr, err := utils.ParseAddr(s.root.Config.Proxy.WebAddr.String())
+	webProxyAddr, err := utilsaddr.ParseAddr(s.root.Config.Proxy.WebAddr.String())
 	require.NoError(t, err)
 	// profile kube config path depends on web proxy host
 	webProxyHost := webProxyAddr.Host()

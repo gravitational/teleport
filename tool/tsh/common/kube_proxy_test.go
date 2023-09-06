@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -103,7 +103,7 @@ func TestProxyKubeComplexSelectors(t *testing.T) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.SSH.Enabled = false
 			cfg.Kube.Enabled = true
-			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+			cfg.Kube.ListenAddr = utilsaddr.MustParseAddr(localListenerAddr())
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, kubeFoo, kubeFooBar, kubeBaz)
 			cfg.Kube.StaticLabels = map[string]string{"env": "root"}
 		}),
@@ -113,7 +113,7 @@ func TestProxyKubeComplexSelectors(t *testing.T) {
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				cfg.SSH.Enabled = false
 				cfg.Kube.Enabled = true
-				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+				cfg.Kube.ListenAddr = utilsaddr.MustParseAddr(localListenerAddr())
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, kubeFooLeaf)
 				cfg.Kube.StaticLabels = map[string]string{"env": "leaf"}
 			},
