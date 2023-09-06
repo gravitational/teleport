@@ -121,10 +121,6 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Recorded events can be enforced by the `enhanced_recording` role option.
   - [ ] Enhanced session recording can be enabled on CentOS 7 with kernel 5.8+.
 
-- [ ] Restricted Session
-  - [ ] Network request are allowed when a policy allow them.
-  - [ ] Network request are blocked when a policy deny them.
-
 - [ ] Auditd
   - [ ] When auditd is enabled, audit events are recorded — https://github.com/gravitational/teleport/blob/7744f72c6eb631791434b648ba41083b5f6d2278/lib/auditd/common.go#L25-L34
     - [ ] SSH session start — user login event
