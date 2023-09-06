@@ -26,12 +26,12 @@ This guide demonstrates how to:
 
 Terraform needs a signed identity file from the Teleport cluster certificate
 authority to manage resources in the cluster.
-You can create a local Teleport user for this purpose or you can use the machine identity agent 
+You can create a local Teleport user for this purpose or you can use the machine identity agent
 [(Machine ID)](../../machine-id/introduction.mdx) to generate credentials.
 
-If you intend to run Terraform from a CI/CD platform, Machine ID is often a better 
-option for generating credentials. Machine ID can provision ephemeral short-lived 
-certificates that are appropriate for CI/CD workflows instead of using manually-generated 
+If you intend to run Terraform from a CI/CD platform, Machine ID is often a better
+option for generating credentials. Machine ID can provision ephemeral short-lived
+certificates that are appropriate for CI/CD workflows instead of using manually-generated
 credentials that have a longer time-to-live (TTL) period. For more information about
 using Machine ID, see the [Machine ID Getting Started Guide](../../machine-id/getting-started.mdx).
 
@@ -47,7 +47,7 @@ To prepare credentials for a local Teleport user:
 1. Create a new file called `terraform.yaml` and open it in an editor.
 
 1. Configure settings for a local Teleport user and role by pasting the following content into the `terraform.yaml` file:
-   
+
    ```yaml
    kind: role
    metadata:
@@ -76,7 +76,7 @@ To prepare credentials for a local Teleport user:
            - trusted_cluster
            - user
            verbs: ['list','create','read','update','delete']
-   version: v6
+   version: v7
    ---
    kind: user
    metadata:
@@ -85,8 +85,8 @@ To prepare credentials for a local Teleport user:
      roles: ['terraform']
    version: v2
    ```
-   
-   These settings configure a user and role named `terraform` with the permissions 
+
+   These settings configure a user and role named `terraform` with the permissions
    required to manage resources in your Teleport cluster.
 
 1. Create the `terraform` user and role by running the following command:
@@ -94,18 +94,18 @@ To prepare credentials for a local Teleport user:
    ```code
    $ tctl create terraform.yaml
    ```
-   
+
    The `terraform` user can't sign in to get credentials, so you must have another user
    **impersonate** the `terraform` account to request a certificate.
 
 1. Create a new file called `terraform-impersonator.yaml` and open it in an editor.
 
-1. Configure a role that enables your user to impersonate the Terraform user by pasting 
+1. Configure a role that enables your user to impersonate the Terraform user by pasting
 the following content into the `terraform-impersonator.yaml` file:
-   
+
    ```yaml
    kind: role
-   version: v6
+   version: v7
    metadata:
      name: terraform-impersonator
    spec:
@@ -119,7 +119,7 @@ the following content into the `terraform-impersonator.yaml` file:
    ```
 
 1. Create the `terraform-impersonator` role by running the following command:
-   
+
    ```code
    $ tctl create terraform-impersonator.yaml
    ```
@@ -131,7 +131,7 @@ the following content into the `terraform-impersonator.yaml` file:
    ```code
    $ tctl auth sign --user=terraform --out=terraform-identity
    ```
-   
+
    After running this command, you have a `terraform-identity` file with credentials for the Terraform user.
 
 ## Step 2/3. Prepare a Terraform configuration file
@@ -141,7 +141,7 @@ To prepare a Terraform configuration file:
 1. Create a new file called `main.tf` and open it in an editor.
 
 1. Define an example user and role using Terraform by pasting the following content into the `main.tf` file:
-   
+
    <Tabs>
    <TabItem scope={["cloud","team"]} label="Cloud-Hosted">
    ```hcl
@@ -166,16 +166,16 @@ To apply the configuration:
    # main.tf  terraform-identity  terraform-impersonator.yaml  terraform.yaml
    ```
 
-1. Initialize the working directory that contains Terraform configuration files by running the 
+1. Initialize the working directory that contains Terraform configuration files by running the
 following command:
-   
+
    ```code
    $ terraform init
    ```
 
-1. Execute the Terraform plan defined in the configuration file by running the 
+1. Execute the Terraform plan defined in the configuration file by running the
 following command:
-   
+
    ```code
    $ terraform apply
    ```

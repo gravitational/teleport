@@ -125,7 +125,7 @@ On your workstation logged in to your Teleport cluster with `tsh`, define a new
 role to provide access to your Azure database. Create a file called `azure-database-role.yaml` with the following content:
 
 ```yaml
-version: v6
+version: v7
 kind: role
 metadata:
   name: azure-database-access
@@ -197,7 +197,7 @@ Create a role with assignable scope(s) that include all databases that Teleport 
 }
 ```
 
-This role definition allows Teleport to discover MySQL and PostgreSQL databases, but Teleport only needs 
+This role definition allows Teleport to discover MySQL and PostgreSQL databases, but Teleport only needs
 permissions for the database types you have. The assignable scopes include a subscription, so
 the role can be assigned at any resource scope within that subscription, or assigned using the
 subscription scope itself.
@@ -207,7 +207,7 @@ Custom roles, unlike
 [Azure built-in roles](https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles),
 can not have a root assignable scope. The highest assignable scope that
 can be used in a custom role is subscription scope. Using a management group scope is currently an Azure
-preview feature, and only allows for a single management group in the "assignableScopes" of a role 
+preview feature, and only allows for a single management group in the "assignableScopes" of a role
 definition.
 See [Azure RBAC custom roles](https://docs.microsoft.com/en-us/azure/role-based-access-control/custom-roles) for
 more information.

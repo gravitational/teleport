@@ -133,8 +133,33 @@ To request access to these resources, run
     --reason <request reason>
 ```
 
-You can search for resources of kind `node`, `kube_cluster`, `pod`, `db`, `app`, and
-`windows_desktop`. Advanced filters and queries are supported. See our
+You can search for resources of kind `node`, `kube_cluster`, `db`, `app`, and
+`windows_desktop`. Teleport also supports searching and requesting access to
+resources within Kubernetes clusters, such as:
+
+- `pod`: Grant acess to individual pods.
+- `secret`: Grant access to individual secrets.
+- `configmap`: CoGrantntrol access to individual configmaps.
+- `namespace`: Grant access to all resources in a namespace.
+- `service`: Grant access to individual services.
+- `serviceaccount`: Grant access to individual service accounts.
+- `kube_node`: Grant access to individual Kubernetes nodes.
+- `persistentvolume`: Grant access to individual persistent volumes.
+- `persistentvolumeclaim`: Grant access to individual persistent volume claims.
+- `deployment`: Grant access to individual deployments.
+- `replicaset`: Grant access to individual replica sets.
+- `statefulset`: Grant access to individual stateful sets.
+- `daemonset`: Grant access to individual daemon sets.
+- `clusterrole`: Grant access to individual cluster roles.
+- `kube_role`: Grant access to individual Kubernetes roles.
+- `clusterrolebinding`: Grant access to individual cluster role bindings.
+- `rolebinding`: Grant access to individual role bindings.
+- `cronjob`: Grant access to individual cron jobs.
+- `job`: Grant access to individual jobs.
+- `certificatesigningrequest`: Grant access to individual certificate signing requests.
+- `ingress`: Grant access to individual ingresses.
+
+Advanced filters and queries are supported. See our
 [filtering reference](../../reference/cli.mdx#resource-filtering) for more information.
 
 Try narrowing your search to a specific resource you want to access.
@@ -355,21 +380,21 @@ label:
 kind: role
 metadata:
   name: kube-access
-version: v6
+version: v7
 spec:
   allow:
     kubernetes_labels:
       'env': 'staging'
     kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
+      - kind: '*'
+        namespace: '*'
+        name: '*'
   deny: {}
 ```
 
-#### `pod`
+#### Kubernetes Resources
 
-You can restrict access to `pod` resources by assigning values to the
+You can restrict access to Kubernetes resources by assigning values to the
 `kubernetes_resources` field in the `spec.allow` or `spec.deny` fields.
 
 The following role allows access to Kubernetes pods with the name `nginx` in any
@@ -379,7 +404,7 @@ namespace, and all pods in the `dev` namespace:
 kind: role
 metadata:
   name: kube-access
-version: v6
+version: v7
 spec:
   allow:
     kubernetes_labels:
@@ -396,20 +421,26 @@ spec:
   deny: {}
 ```
 
-##### Access Requests for pods
+##### Access Requests for Kubernetes resources
 
-Teleport users can request access to a Kubernetes pod by running the following
+Teleport users can request access to a Kubernetes resources by running the following
 command:
 
 ```code
-$ tsh request create <Var name="pod-id" />
+$ tsh request create <Var name="resource-id" />
+```
+###### Namespaced-scoped Resources
+
+For Kubernetes namespaced resources, the `resource-id` is in the following format:
+
+```
+/TELEPORT_CLUSTER/NAMESPACED_KIND/KUBE_CLUSTER/NAMESPACE/RESOURCE_NAME
 ```
 
-Replace `pod-id` with the name of a pod in the following format:
-
-```
-/TELEPORT_CLUSTER/pod/KUBE_CLUSTER/NAMESPACE/POD_NAME
-```
+Teleport suports the following namespaced resources: `pod`, `secret`, `configmap`,
+`service`, `serviceaccount`, `persistentvolumeclaim`, `deployment`, `replicaset`,
+`statefulset`, `daemonset`, `kube_role`, `rolebinding`, `cronjob`, `job`,
+`ingress`.
 
 For example, to request access to a pod called `nginx-1` in the `development`
 namespace, run the following command:
@@ -418,7 +449,7 @@ namespace, run the following command:
 $ tsh request create --resources /teleport.example.com/pod/mycluster/development/nginx-1
 ```
 
-For the `NAMESPACE` and `POD_NAME` values, you can match ranges of characters by
+For the `NAMESPACE` and `RESOURCE_NAME` values, you can match ranges of characters by
 supplying a wildcard (`*`) or regular expression. Regular expressions must begin
 with `^` and end with `$`.
 
@@ -429,11 +460,41 @@ the regular expression `/^nginx-[a-z0-9-]+$/`, run the following command:
 $ tsh request create --resources /teleport.example.com/pod/mycluster/*/^nginx-[a-z0-9-]+$
 ```
 
-If a user has no access to a Kubernetes cluster, they can search the list of pods
+###### Cluster-scoped Resources
+
+For Kubernetes cluster-scoped resources, the `resource-id` is in the following format:
+
+```
+/TELEPORT_CLUSTER/NAMESPACED_KIND/KUBE_CLUSTER/RESOURCE_NAME
+```
+
+Teleport suports the following namespaced resources: `namespace`, `kube_node`,
+`clusterrole`, `clusterrolebinding`, `persistentvolume`, `certificatesigningrequest`.
+
+For example, to request access to a namespace called `prod`, run the following command:
+
+```code
+$ tsh request create --resources /teleport.example.com/namespace/mycluster/prod
+```
+
+For the `RESOURCE_NAME` value, you can match ranges of characters by
+supplying a wildcard (`*`) or regular expression. Regular expressions must begin
+with `^` and end with `$`.
+
+For example, to create a request to access all namespaces prefixed with `dev` match
+the regular expression `/^dev-[a-z0-9-]+$/`, run the following command:
+
+```code
+$ tsh request create --resources /teleport.example.com/namespace/mycluster/^dev-[a-z0-9-]+$
+```
+
+###### Search for Kubernetes resources
+
+If a user has no access to a Kubernetes cluster, they can search the list of resources
 in the cluster by running the following command:
 
 ```code
-$ tsh request search --kind=pod --kube-cluster=<Var name="kube-cluster" /> \
+$ tsh request search --kind=<kind> --kube-cluster=<Var name="kube-cluster" /> \
 [--kube-namespace=<Var name="namespace" />|--all-kube-namespaces]
 Name               Namespace Labels    Resource ID
 -----------------  --------- --------- ----------------------------------------------------------
@@ -445,16 +506,17 @@ To request access to these resources, run
     --reason <request reason>
 ```
 
-The list returned includes the name of the pod, the namespace it is in, its labels,
-and the resource ID. Pods included in the list are those that match the
-`kubernetes_resources` field in the user's `search_as_roles`. The user can then:
+The list returned includes the name of the resource, the namespace it is in if
+applicable, its labels, and the resource ID.
+Resources included in the list are those that match the `kubernetes_resources`
+field in the user's `search_as_roles`. The user can then:
 
-- Request access to the pods by running the command provided by the `tsh request
+- Request access to the resources by running the command provided by the `tsh request
 search` command.
-- Edit the command to request access to a subset of the pods.
+- Edit the command to request access to a subset of the resources.
 - Use a custom request with wildcards or regular expressions.
 
-`tsh request search --kind=pod` works even if the user has no permissions to interact
+`tsh request search --kind=<kind>` works even if the user has no permissions to interact
  with the desired Kubernetes cluster, but the user's `search_as_roles` values
 must allow access to the cluster. If the user is unsure of the name of the cluster,
 they can run the following command to search it:
@@ -470,19 +532,23 @@ local                 /teleport.example.com/kube_cluster/local
 ##### Preventing unintended access
 
 If you are setting up a Teleport role to enable just-in-time access to a
-specific Kubernetes pod, you should set the role's `kubernetes_groups` and
+specific Kubernetes resources, you should set the role's `kubernetes_groups` and
 `kubernetes_users` to a role that has no access to Kubernetes resource beside
-the target pod.
+the Kubernetes resources that Teleport is able to restrict access for.
 
 This is because, if a user requests access to a Kubernetes pod, and the request
 is approved, the Teleport Kubernetes Service will use the `kubernetes_groups`
 and `kubernetes_users` fields in the role to add impersonation headers to the user's
-requests to a Kubernetes API server.
+requests to a Kubernetes API server. Under these conditions, Teleport will be able
+to restrict access to all Kubernetes resources kinds mentioned above except for
+the desired `pod`. Teleport is also able to restrict access to namespaced-scoped
+custom resources but not cluster-scoped custom resources - CRDs resources that
+are cluster-scoped will be accessible to the user if the principals in the
+`kubernetes_users` and `kubernetes_groups` fields have access to them.
 
-If the values of `kubernetes_users` and `kubernetes_groups` map to Kubernetes
-users and groups with access to additional resources, the user will be able to
-send requests that interact with those resources, e.g., `Secret`s and
-`ConfigMap`s, depending on the privileges of the Kubernetes users and groups.
+Requesting access to a Kubernetes Namespace allows you to access all resources
+in that namespace but you won't be able to access any other supported resources
+in the cluster.
 
 #### `db`
 
