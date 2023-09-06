@@ -27,7 +27,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.1.0
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1
 	github.com/ClickHouse/ch-go v0.58.2
-	github.com/ClickHouse/clickhouse-go/v2 v2.13.3
+	github.com/ClickHouse/clickhouse-go/v2 v2.13.4
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/ThalesIgnite/crypto11 v1.2.5
@@ -36,21 +36,21 @@ require (
 	github.com/andybalholm/brotli v1.0.5
 	github.com/aquasecurity/libbpfgo v0.4.5-libbpf-1.0.1
 	github.com/armon/go-radix v1.0.0
-	github.com/aws/aws-sdk-go v1.44.334
+	github.com/aws/aws-sdk-go v1.45.4
 	github.com/aws/aws-sdk-go-v2 v1.21.0
-	github.com/aws/aws-sdk-go-v2/config v1.18.37
-	github.com/aws/aws-sdk-go-v2/credentials v1.13.35
+	github.com/aws/aws-sdk-go-v2/config v1.18.39
+	github.com/aws/aws-sdk-go-v2/credentials v1.13.37
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.10.39
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.11
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.81
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.83
 	github.com/aws/aws-sdk-go-v2/service/athena v1.31.6
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.21.5
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.115.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.117.0
 	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.16.5
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.29.6
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.30.1
 	github.com/aws/aws-sdk-go-v2/service/glue v1.62.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.22.5
-	github.com/aws/aws-sdk-go-v2/service/rds v1.53.0
+	github.com/aws/aws-sdk-go-v2/service/rds v1.54.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.38.5
 	github.com/aws/aws-sdk-go-v2/service/sns v1.21.5
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.24.5
@@ -130,7 +130,7 @@ require (
 	github.com/moby/term v0.5.0
 	github.com/okta/okta-sdk-golang/v2 v2.20.0
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
-	github.com/pavlo-v-chernykh/keystore-go/v4 v4.4.1
+	github.com/pavlo-v-chernykh/keystore-go/v4 v4.5.0
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/sftp v1.13.6
 	github.com/pquerna/otp v1.4.0
@@ -140,7 +140,7 @@ require (
 	github.com/redis/go-redis/v9 v9.0.2 // replaced
 	github.com/russellhaering/gosaml2 v0.9.1
 	github.com/russellhaering/goxmldsig v1.4.0
-	github.com/sashabaranov/go-openai v1.14.2
+	github.com/sashabaranov/go-openai v1.15.1
 	github.com/schollz/progressbar/v3 v3.13.1
 	github.com/segmentio/parquet-go v0.0.0-20230622230624-510764ae9e80
 	github.com/sethvargo/go-diceware v0.3.0
@@ -165,14 +165,14 @@ require (
 	go.opentelemetry.io/otel/sdk v1.17.0
 	go.opentelemetry.io/otel/trace v1.17.0
 	go.opentelemetry.io/proto/otlp v1.0.0
-	golang.org/x/crypto v0.12.0
+	golang.org/x/crypto v0.13.0
 	golang.org/x/exp v0.0.0-20230811145659-89c5cff77bcb
 	golang.org/x/mod v0.12.0
-	golang.org/x/net v0.14.0
-	golang.org/x/oauth2 v0.11.0
+	golang.org/x/net v0.15.0
+	golang.org/x/oauth2 v0.12.0
 	golang.org/x/sync v0.3.0
 	golang.org/x/sys v0.12.0
-	golang.org/x/term v0.11.0
+	golang.org/x/term v0.12.0
 	golang.org/x/text v0.13.0
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.138.0
@@ -236,8 +236,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.35 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.35 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.15.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.13.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.15.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.13.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.15.6 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/boombuler/barcode v1.0.1 // indirect
