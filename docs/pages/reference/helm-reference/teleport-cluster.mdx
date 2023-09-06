@@ -1067,13 +1067,6 @@ cluster deployed in HA mode.
 
 Setting `highAvailability.certManager.addCommonName` to `true` will instruct `cert-manager` to set the commonName field in its certificate signing request to the issuing CA.
 
-<Admonition type="note" title="Enabling common name field">
-  You must install and configure `cert-manager` in your Kubernetes cluster yourself.
-
-  See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
-</Admonition>
-
 `values.yaml` example:
 
   ```yaml
@@ -1092,13 +1085,6 @@ Setting `highAvailability.certManager.addCommonName` to `true` will instruct `ce
 
 Setting `highAvailability.certManager.addPublicAddrs` to `true` will instruct `cert-manager` to also add any additional addresses configured under the `publicAddr` chart value
 in its certificate signing request to the issuing CA.
-
-<Admonition type="note" title="Enabling common name field">
-  You must install and configure `cert-manager` in your Kubernetes cluster yourself.
-
-  See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
-</Admonition>
 
 `values.yaml` example:
 
