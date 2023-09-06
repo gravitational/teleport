@@ -634,7 +634,7 @@ exports[`support Enterprise 1`] = `
         </a>
         <a
           class="c8"
-          href="https://dashboard.gravitational.com/web/downloads"
+          href="https://goteleport.com/docs/choose-an-edition/teleport-enterprise/introduction/?scope=enterprise#dedicated-account-dashboard"
           rel="noreferrer"
           target="_blank"
         >
@@ -1099,7 +1099,7 @@ exports[`support Enterprise with CTA 1`] = `
         </a>
         <a
           class="c8"
-          href="https://dashboard.gravitational.com/web/downloads"
+          href="https://goteleport.com/docs/choose-an-edition/teleport-enterprise/introduction/?scope=enterprise#dedicated-account-dashboard"
           rel="noreferrer"
           target="_blank"
         >
