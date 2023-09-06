@@ -466,6 +466,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfAWSOIDCIdPCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL)
 
+	integrationConfListDatabasesCmd := integrationConfigureCmd.Command("listdatabases-iam", "Adds required IAM permissions to connect to EC2 Instances using EC2 Instance Connect Endpoint")
+	integrationConfListDatabasesCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Region)
+	integrationConfListDatabasesCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Role)
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -557,6 +561,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onIntegrationConfEICEIAM(ccf.IntegrationConfEICEIAMArguments)
 	case integrationConfAWSOIDCIdPCmd.FullCommand():
 		err = onIntegrationConfAWSOIDCIdP(ccf.IntegrationConfAWSOIDCIdPArguments)
+	case integrationConfListDatabasesCmd.FullCommand():
+		err = onIntegrationConfListDatabasesIAM(ccf.IntegrationConfListDatabasesIAMArguments)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -946,6 +952,25 @@ func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error 
 		Region:             params.Region,
 		IntegrationRole:    params.Role,
 		ProxyPublicAddress: params.ProxyPublicURL,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabasesIAM) error {
+	ctx := context.Background()
+
+	iamClient, err := awsoidc.NewListDatabasesIAMConfigureClient(ctx, params.Region)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = awsoidc.ConfigureListDatabasesIAM(ctx, iamClient, awsoidc.ListDatabasesIAMConfigureRequest{
+		Region:          params.Region,
+		IntegrationRole: params.Role,
 	})
 	if err != nil {
 		return trace.Wrap(err)
