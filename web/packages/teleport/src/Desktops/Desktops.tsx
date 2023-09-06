@@ -27,6 +27,7 @@ import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history/history';
+import localStorage from 'teleport/services/localStorage';
 
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
