@@ -116,8 +116,9 @@ func sessionDataKey(user, sessionID string) string {
 //  5. If all server-side checks are successful, then registration is complete
 //     and the authenticator may now be used to login.
 type RegistrationFlow struct {
-	Webauthn *types.Webauthn
-	Identity RegistrationIdentity
+	Webauthn                 *types.Webauthn
+	Identity                 RegistrationIdentity
+	UserVerificationRequired bool
 }
 
 // Begin is the first step of the registration ceremony.
@@ -172,7 +173,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 		cfg:                     f.Webauthn,
 		rpID:                    f.Webauthn.RPID,
 		requireResidentKey:      passwordless,
-		requireUserVerification: passwordless || f.Webauthn.UserVerificationRequired,
+		requireUserVerification: passwordless || f.UserVerificationRequired,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

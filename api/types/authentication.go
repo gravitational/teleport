@@ -97,6 +97,8 @@ type AuthPreference interface {
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 
+	MFAIsUserVerificationRequired() bool
+
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
 	// SetDisconnectExpiredCert sets disconnect client with expired certificate setting
@@ -394,6 +396,21 @@ func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	default:
 		return keys.PrivateKeyPolicyNone
 	}
+}
+
+func (c *AuthPreferenceV2) MFAIsUserVerificationRequired() bool {
+	if w, err := c.GetWebauthn(); err == nil {
+		if w.UserVerificationRequired {
+			return true
+		}
+	}
+
+	switch c.GetRequireMFAType() {
+	case RequireMFAType_HARDWARE_KEY_PIN, RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		return true
+	}
+
+	return false
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting

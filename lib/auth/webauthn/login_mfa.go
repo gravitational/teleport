@@ -81,7 +81,8 @@ type LoginFlow struct {
 	Webauthn *types.Webauthn
 	// Identity is typically an implementation of the Identity service, ie, an
 	// object with access to user, device and MFA storage.
-	Identity LoginIdentity
+	Identity                 LoginIdentity
+	UserVerificationRequired bool
 }
 
 // Begin is the first step of the LoginFlow.
@@ -92,10 +93,11 @@ type LoginFlow struct {
 // the user.
 func (f *LoginFlow) Begin(ctx context.Context, user string) (*wantypes.CredentialAssertion, error) {
 	lf := &loginFlow{
-		U2F:         f.U2F,
-		Webauthn:    f.Webauthn,
-		identity:    mfaIdentity{f.Identity},
-		sessionData: (*userSessionStorage)(f),
+		U2F:                      f.U2F,
+		Webauthn:                 f.Webauthn,
+		identity:                 mfaIdentity{f.Identity},
+		sessionData:              (*userSessionStorage)(f),
+		UserVerificationRequired: f.UserVerificationRequired,
 	}
 	return lf.begin(ctx, user, false /* passwordless */)
 }
@@ -106,10 +108,11 @@ func (f *LoginFlow) Begin(ctx context.Context, user string) (*wantypes.Credentia
 // the returned device.
 func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse) (*types.MFADevice, error) {
 	lf := &loginFlow{
-		U2F:         f.U2F,
-		Webauthn:    f.Webauthn,
-		identity:    mfaIdentity{f.Identity},
-		sessionData: (*userSessionStorage)(f),
+		U2F:                      f.U2F,
+		Webauthn:                 f.Webauthn,
+		identity:                 mfaIdentity{f.Identity},
+		sessionData:              (*userSessionStorage)(f),
+		UserVerificationRequired: f.UserVerificationRequired,
 	}
 	dev, _, err := lf.finish(ctx, user, resp, false /* passwordless */)
 	return dev, trace.Wrap(err)

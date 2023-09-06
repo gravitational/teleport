@@ -38,8 +38,9 @@ type PasswordlessIdentity interface {
 
 // PasswordlessFlow provides passwordless authentication.
 type PasswordlessFlow struct {
-	Webauthn *types.Webauthn
-	Identity PasswordlessIdentity
+	Webauthn                 *types.Webauthn
+	Identity                 PasswordlessIdentity
+	UserVerificationRequired bool
 }
 
 // Begin is the first step of the passwordless login flow.
@@ -47,9 +48,10 @@ type PasswordlessFlow struct {
 // username nor implies a previous password-validation step.
 func (f *PasswordlessFlow) Begin(ctx context.Context) (*wantypes.CredentialAssertion, error) {
 	lf := &loginFlow{
-		Webauthn:    f.Webauthn,
-		identity:    passwordlessIdentity{f.Identity},
-		sessionData: (*globalSessionStorage)(f),
+		Webauthn:                 f.Webauthn,
+		identity:                 passwordlessIdentity{f.Identity},
+		sessionData:              (*globalSessionStorage)(f),
+		UserVerificationRequired: f.UserVerificationRequired,
 	}
 	return lf.begin(ctx, "" /* user */, true /* passwordless */)
 }
@@ -59,9 +61,10 @@ func (f *PasswordlessFlow) Begin(ctx context.Context) (*wantypes.CredentialAsser
 // via the response UserHandle, instead of an explicit Teleport username.
 func (f *PasswordlessFlow) Finish(ctx context.Context, resp *wantypes.CredentialAssertionResponse) (*types.MFADevice, string, error) {
 	lf := &loginFlow{
-		Webauthn:    f.Webauthn,
-		identity:    passwordlessIdentity{f.Identity},
-		sessionData: (*globalSessionStorage)(f),
+		Webauthn:                 f.Webauthn,
+		identity:                 passwordlessIdentity{f.Identity},
+		sessionData:              (*globalSessionStorage)(f),
+		UserVerificationRequired: f.UserVerificationRequired,
 	}
 	return lf.finish(ctx, "" /* user */, resp, true /* passwordless */)
 }

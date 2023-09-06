@@ -2930,8 +2930,9 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 		}
 
 		webRegistration := &wanlib.RegistrationFlow{
-			Webauthn: webConfig,
-			Identity: identity,
+			Webauthn:                 webConfig,
+			Identity:                 identity,
+			UserVerificationRequired: cap.MFAIsUserVerificationRequired(),
 		}
 
 		passwordless := req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
@@ -3243,15 +3244,16 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 		identity = a.Services
 	}
 	webRegistration := &wanlib.RegistrationFlow{
-		Webauthn: webConfig,
-		Identity: identity,
+		Webauthn:                 webConfig,
+		Identity:                 identity,
+		UserVerificationRequired: cap.MFAIsUserVerificationRequired(),
 	}
 	// Finish upserts the device on success.
 	dev, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
 		User:                    req.username,
 		DeviceName:              req.newDeviceName,
 		CreationResponse:        wantypes.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
-		RequireUserVerification: req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS || webConfig.UserVerificationRequired,
+		RequireUserVerification: req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS || cap.MFAIsUserVerificationRequired(),
 		RequireResidentKey:      req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	return dev, trace.Wrap(err)
@@ -5251,8 +5253,9 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 			return nil, trace.BadParameter("passwordless requires WebAuthn")
 		}
 		webLogin := &wanlib.PasswordlessFlow{
-			Webauthn: webConfig,
-			Identity: a.Services,
+			Webauthn:                 webConfig,
+			Identity:                 a.Services,
+			UserVerificationRequired: apref.MFAIsUserVerificationRequired(),
 		}
 		assertion, err := webLogin.Begin(ctx)
 		if err != nil {
@@ -5283,9 +5286,10 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 	// WebAuthn challenge.
 	if len(groupedDevs.Webauthn) > 0 {
 		webLogin := &wanlib.LoginFlow{
-			U2F:      u2fPref,
-			Webauthn: webConfig,
-			Identity: wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
+			U2F:                      u2fPref,
+			Webauthn:                 webConfig,
+			Identity:                 wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
+			UserVerificationRequired: apref.MFAIsUserVerificationRequired(),
 		}
 		assertion, err := webLogin.Begin(ctx, user)
 		if err != nil {
@@ -5358,15 +5362,17 @@ func (a *Server) validateMFAAuthResponse(
 		var dev *types.MFADevice
 		if passwordless {
 			webLogin := &wanlib.PasswordlessFlow{
-				Webauthn: webConfig,
-				Identity: a.Services,
+				Webauthn:                 webConfig,
+				Identity:                 a.Services,
+				UserVerificationRequired: cap.MFAIsUserVerificationRequired(),
 			}
 			dev, user, err = webLogin.Finish(ctx, assertionResp)
 		} else {
 			webLogin := &wanlib.LoginFlow{
-				U2F:      u2f,
-				Webauthn: webConfig,
-				Identity: a.Services,
+				U2F:                      u2f,
+				Webauthn:                 webConfig,
+				Identity:                 a.Services,
+				UserVerificationRequired: cap.MFAIsUserVerificationRequired(),
 			}
 			dev, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn))
 		}

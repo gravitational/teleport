@@ -59,10 +59,11 @@ type sessionIdentity interface {
 // loginFlow implements both MFA and Passwordless authentication, exposing an
 // interface that is the union of both login methods.
 type loginFlow struct {
-	U2F         *types.U2F
-	Webauthn    *types.Webauthn
-	identity    loginIdentity
-	sessionData sessionIdentity
+	U2F                      *types.U2F
+	Webauthn                 *types.Webauthn
+	identity                 loginIdentity
+	sessionData              sessionIdentity
+	UserVerificationRequired bool
 }
 
 func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*wantypes.CredentialAssertion, error) {
@@ -143,7 +144,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	web, err := newWebAuthn(webAuthnParams{
 		cfg:                     f.Webauthn,
 		rpID:                    f.Webauthn.RPID,
-		requireUserVerification: passwordless || f.Webauthn.UserVerificationRequired,
+		requireUserVerification: passwordless || f.UserVerificationRequired,
 		requireResidentKey:      passwordless,
 	})
 	if err != nil {
@@ -270,7 +271,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		})
 	}
 
-	if (passwordless || f.Webauthn.UserVerificationRequired) && sessionData.UserVerification != protocol.VerificationRequired {
+	if (passwordless || f.UserVerificationRequired) && sessionData.UserVerification != protocol.VerificationRequired {
 		return nil, "", trace.BadParameter("passwordless registration failed, requested CredentialCreation was for an MFA registration")
 	}
 
@@ -281,7 +282,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		rpID:                    rpID,
 		origin:                  origin,
 		requireResidentKey:      passwordless,
-		requireUserVerification: passwordless || f.Webauthn.UserVerificationRequired,
+		requireUserVerification: passwordless || f.UserVerificationRequired,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
