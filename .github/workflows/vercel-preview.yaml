@@ -18,16 +18,13 @@ jobs:
     environment: vercel
 
     steps:
-      - name: Extract branch name
-        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
-        id: extract_branch
       - uses: actions/checkout@v2
         with:
           repository: 'gravitational/docs'
       - name: Configure Submodules
         run: |
 
-          sed -i "s|branch = master|branch = ${{ steps.extract_branch.outputs.branch }}|" '.gitmodules'
+          sed -i "s|branch = master|branch = ${GITHUB_REF_NAME}|" '.gitmodules'
           git submodule update --init --remote --progress
       - name: Install Vercel CLI
         run: yarn global add vercel@latest
