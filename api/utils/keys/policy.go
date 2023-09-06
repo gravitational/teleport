@@ -92,7 +92,7 @@ func (p PrivateKeyPolicy) VerifyPolicy(policy PrivateKeyPolicy) error {
 
 // MFAVerified checks whether the given private key policy counts towards MFA verification.
 func (p PrivateKeyPolicy) MFAVerified() bool {
-	return p == PrivateKeyPolicyHardwareKeyTouch
+	return p == PrivateKeyPolicyHardwareKeyTouch || p == PrivateKeyPolicyHardwareKeyTouchAndPIN
 }
 
 func (p PrivateKeyPolicy) validate() error {
@@ -101,7 +101,8 @@ func (p PrivateKeyPolicy) validate() error {
 		PrivateKeyPolicyHardwareKey,
 		PrivateKeyPolicyHardwareKeyTouch,
 		PrivateKeyPolicyHardwareKeyPIN,
-		PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		PrivateKeyPolicyHardwareKeyTouchAndPIN,
+		PrivateKeyPolicyWebSession:
 		return nil
 	}
 	return trace.BadParameter("%q is not a valid key policy", p)
