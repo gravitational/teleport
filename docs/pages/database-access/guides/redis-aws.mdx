@@ -40,17 +40,17 @@ description: How to configure Teleport database access with AWS ElastiCache and 
 
 <Tabs>
 
-<TabsItem label="ElastiCache">
+<TabItem label="ElastiCache">
 
 (!docs/pages/includes/database-access/aws-create-db-configuration.mdx type="ElastiCache" matcher="elasticache" protocol="redis" example="clustercfg.my-redis-cluster.xxxxxx.usw1.cache.amazonaws.com:6379" !)
 
-</TabsItem>
+</TabItem>
 
-<TabsItem label="MemoryDB">
+<TabItem label="MemoryDB">
 
 (!docs/pages/includes/database-access/aws-create-db-configuration.mdx type="MemoryDB" matcher="memorydb" protocol="redis" example="clustercfg.my-memorydb.xxxxxx.memorydb.us-west-1.amazonaws.com:6379" !)
 
-</TabsItem>
+</TabItem>
 
 </Tabs>
 
@@ -68,12 +68,12 @@ Service access to AWS credentials.
 (!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
 
 <Tabs>
-<TabsItem label="ElastiCache">
+<TabItem label="ElastiCache">
 (!docs/pages/includes/database-access/aws-bootstrap.mdx type="elasticache" !)
-</TabsItem>
-<TabsItem label="MemoryDB">
+</TabItem>
+<TabItem label="MemoryDB">
 (!docs/pages/includes/database-access/aws-bootstrap.mdx type="memorydb" !)
-</TabsItem>
+</TabItem>
 </Tabs>
 
 ## Step 4/7. Start the Database Service

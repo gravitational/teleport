@@ -3,28 +3,13 @@ Databases can be registered dynamically by Discovery Service, `tctl`, etc.
 Generate a Database Service configuration that monitors the dynamic database
 resources:
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ```code
 $ sudo teleport db configure create \
    -o file \
-   --proxy=teleport.example.com:3080\
+   --proxy=<Var name="mytenant.teleport.sh:443"/> \
    --token=/tmp/token \
    --dynamic-resources-labels env=prod  
 ```
-</TabItem>
-<TabItem scope={["cloud", "team"]} label="Teleport Enterprise Cloud">
-
-```code
-$ sudo teleport db configure create \
-   -o file \
-   --proxy=mytenant.teleport.sh:3080\
-   --token=/tmp/token \
-   --dynamic-resources-labels env=prod  
-```
-
-</TabItem>
-</Tabs>
 
 This command will place the Database Service configuration at the
 `/etc/teleport.yaml` location.

@@ -5,20 +5,6 @@ description: How to configure Teleport to discover AWS-hosted databases.
 
 (!docs/pages/includes/database-access/discovery-guide-brief.mdx cloud="AWS" !)
 
-<Admonition type="tip">
-
-Discovery Service can run independently on a different machine from Database
-Services.
-
-For example, you can run an instance of the Discovery Service for discovering
-databases across all your AWS accounts, and an instance of the Database Service
-in each VPC for accessing database servers in private subnets.
-
-The same Discovery Service can also be used for Azure database discovery,
-server instance discovery and Kubernetes discovery.
-
-</Admonition>
-
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -29,11 +15,11 @@ server instance discovery and Kubernetes discovery.
 
 ## Step 1/4. Generate a join token
 
-The Discovery Service require a valid auth token to connect to the cluster.
+The Discovery Service require a valid join token to connect to the cluster.
 
-Generate an auth token by running the following command against your
-Teleport Auth Service and save it in `/tmp/token` on the host that will
-run the Discovery Service.
+Generate a join token by running the following command against your Teleport
+Auth Service and save it in `/tmp/token` on the host that will run the
+Discovery Service.
 
 ```code
 $ tctl tokens add --type=discovery
@@ -171,6 +157,7 @@ You can list them with the `tctl get db` command or check a specific database
 with `tctl get db/<database-name>`.
 
 ## Next
-- Learn [Dynamic Registration](./dynamic-registration.mdx) by Database Service.
+- Learn about [Dynamic Registration](./dynamic-registration.mdx) by the
+  Teleport Database Service.
 - Get started by [connecting](../guides.mdx) your database.
 - Connect AWS databases in [external AWS accounts](./aws-cross-account.mdx).

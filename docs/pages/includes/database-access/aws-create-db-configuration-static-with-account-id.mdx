@@ -1,34 +1,15 @@
 Generate a Database Service configuration with the database URI:
-<Tabs>
 
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ```code
 $ sudo teleport db configure create \
    -o file \
-   --proxy=teleport.example.com:3080 \
+   --proxy=<Var name="mytenant.teleport.sh:443"/> \
    --token=/tmp/token \
    --name {{ matcher }}-database \
    --protocol {{ protocol }} \
    --uri <Var name="{{ example }}" /> \
    --aws-account-id <Var name="aws-account-id" />
 ```
-</TabItem>
-
-<TabItem scope={["cloud", "team"]} label="Teleport Enterprise Cloud">
-
-```code
-$ sudo teleport db configure create \
-   -o file \
-   --proxy=mytenant.teleport.sh:3080 \
-   --token=/tmp/token \
-   --name {{ matcher }}-database \
-   --protocol {{ protocol }} \
-   --uri <Var name="{{ example }}" /> \
-   --aws-account-id <Var name="aws-account-id" />
-```
-</TabItem>
-
-</Tabs>
 
 This command will place the Database Service configuration at the
 `/etc/teleport.yaml` location.
