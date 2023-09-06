@@ -25,6 +25,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	attestationv1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -86,6 +87,14 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		gcpServiceAccount: req.GCPServiceAccount,
 		// Pass along device extensions from the user.
 		deviceExtensions: DeviceExtensions(identity.DeviceExtensions),
+		// App Sessions create ephemeral certs when MFA is enabled.
+		attestationStatement: keys.AttestationStatementFromProto(
+			&attestationv1.AttestationStatement{
+				AttestationStatement: &attestationv1.AttestationStatement_WebSessionAttestationStatement{
+					WebSessionAttestationStatement: &attestationv1.WebSessionAttestationStatement{},
+				},
+			},
+		),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
