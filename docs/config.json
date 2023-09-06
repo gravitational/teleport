@@ -168,6 +168,11 @@
               ]
             },
             {
+              "title": "Azure AKS Cluster",
+              "slug": "/deploy-a-cluster/helm-deployments/azure/",
+              "forScopes": ["oss", "enterprise"]
+            },
+            {
               "title": "DigitalOcean Kubernetes Cluster",
               "slug": "/deploy-a-cluster/helm-deployments/digitalocean/",
               "forScopes": [
