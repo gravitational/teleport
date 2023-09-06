@@ -14,8 +14,9 @@ Teleport Auth Service.
 After you establish a trust relationship between the root and leaf clusters, the leaf cluster can
 run behind a firewall without any inbound ports open. The leaf cluster creates an outbound reverse 
 SSH tunnel to the root cluster and keeps the tunnel open.
-When a user tries to connect to any resource in the leaf cluster, the connection goes through the 
-reverse tunnel using using the Teleport Proxy Service instance running on the root cluster.
+When a user tries to connect to any resource in the leaf cluster, the Teleport Auth Service on the 
+leaf cluster connects to the root cluster through the reverse tunnel using the Teleport Proxy Service 
+instance running on the root cluster.
 
 ## Who uses trusted clusters?
 
@@ -132,11 +133,11 @@ To complete the steps in this guide, verify your environment meets the following
   - Teleport Team or Teleport Enterprise Cloud if you access Teleport as a managed cloud-based service.
 
   For information about setting up a self-hosted Teleport Enterprise cluster, see [Deploying a High 
-  Availability Teleport Cluster](../deploy-a-cluster/high-availability.mdx).
+  Availability Teleport Cluster](../../deploy-a-cluster/high-availability.mdx).
   To begin a free trial of Teleport Team or upgrade to Teleport Enterprise Cloud, visit the cloud
   service [sign up page](https://goteleport.com/signup/).
   For information about the differences between Teleport editions, see [Comparing 
-  editions](../choose-an-edition/introduction.mdx#comparing-editions).
+  editions](../../choose-an-edition/introduction.mdx#comparing-editions).
 
   The two clusters should be at the same version or, at most, the leaf cluster can be one major version 
   behind the root cluster version.
@@ -376,7 +377,7 @@ following content:
 
    Role mapping can be quite powerful for managing access in trusted clusters. For more information
    about how to use role mapping to restrict access to leaf clusters and examples of the accepted
-   syntax, see [Role mapping  in trusted clusters](role-mapping-in-trusted-clusters).
+   syntax, see [Role mapping  in trusted clusters](#role-mapping-in-trusted-clusters).
 
 1. Sign out of the root cluster by running the following command:
    
@@ -847,6 +848,7 @@ To troubleshoot, you should start by checking the following information for the 
 
 - The roles assigned to the user on the root cluster when signing in with the `tsh login` command. 
   You can inspect the certificate and assigned roles by running the `tsh status` command on the client.
+
 - The roles assigned to the user on the leaf cluster when the role mapping takes place. You can check
   the role mapping in the Teleport audit log. 
   
