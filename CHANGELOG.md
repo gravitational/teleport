@@ -1,5 +1,12 @@
 # Changelog
 
+## 11.3.23 (09/06/23)
+
+* Updated Go to `v1.20.8`. [#31509](https://github.com/gravitational/teleport/pull/31509)
+* Desktop discovery: avoid mapping IPv6 addresses. [#31432](https://github.com/gravitational/teleport/pull/31432)
+* Fixed issue with query params not being preserved in cross-cluster app redirect. [#31377](https://github.com/gravitational/teleport/pull/31377)
+* Ensure that DNS errors in desktop discovery fail fast. [#31034](https://github.com/gravitational/teleport/pull/31034)
+
 ## 11.3.22 (08/22/23)
 
 * Fixed S3 metric name for completed multipart uploads. [#30712](https://github.com/gravitational/teleport/pull/30712)
