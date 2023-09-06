@@ -1220,23 +1220,34 @@ func (set RoleSet) getMFARequired(clusterRequireMFAType types.RequireMFAType) MF
 
 // PrivateKeyPolicy returns the enforced private key policy for this role set.
 func (set RoleSet) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy {
-	if defaultPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
+	if defaultPolicy == keys.PrivateKeyPolicyHardwareKeyTouchAndPIN {
 		// This is the strictest option so we can return now
-		return defaultPolicy
+		return keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
 	}
 
-	policy := defaultPolicy
+	roleSetPolicy := defaultPolicy
 	for _, role := range set {
-		switch rolePolicy := role.GetPrivateKeyPolicy(); rolePolicy {
-		case keys.PrivateKeyPolicyHardwareKey:
-			policy = rolePolicy
-		case keys.PrivateKeyPolicyHardwareKeyTouch:
-			// This is the strictest option so we can return now
-			return keys.PrivateKeyPolicyHardwareKeyTouch
+		rolePolicy := role.GetPrivateKeyPolicy()
+		if rolePolicy == keys.PrivateKeyPolicyHardwareKeyTouchAndPIN {
+			// This is the strictest option so we can return now.
+			return keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
+		}
+
+		switch {
+		case roleSetPolicy == keys.PrivateKeyPolicyNone:
+			roleSetPolicy = rolePolicy
+		case roleSetPolicy == keys.PrivateKeyPolicyHardwareKey &&
+			(rolePolicy == keys.PrivateKeyPolicyHardwareKeyTouch || rolePolicy == keys.PrivateKeyPolicyHardwareKeyPIN):
+			// Upgrade set policy include PIN or Touch
+			roleSetPolicy = rolePolicy
+		case (roleSetPolicy == keys.PrivateKeyPolicyHardwareKeyPIN && rolePolicy == keys.PrivateKeyPolicyHardwareKeyTouch) ||
+			(roleSetPolicy == keys.PrivateKeyPolicyHardwareKeyTouch && rolePolicy == keys.PrivateKeyPolicyHardwareKeyPIN):
+			// Both PIN and Touch are required by separate roles, so we must use the strictest touch+pin option.
+			return keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
 		}
 	}
 
-	return policy
+	return roleSetPolicy
 }
 
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL
