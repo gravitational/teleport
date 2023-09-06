@@ -440,3 +440,61 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 		Name: resp.Name,
 	}, nil
 }
+
+// awsOIDCConfigureAWSOIDCIdP returns a script that configures the AWS OIDC Integration in AWS.
+// This creates an OIDC Identity Provider that trusts this Teleport instance.
+func (h *Handler) awsOIDCConfigureAWSOIDCIdP(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	ctx := r.Context()
+
+	queryParams := r.URL.Query()
+
+	clusterName, err := h.GetProxyClient().GetDomainName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	integrationName := queryParams.Get("integrationName")
+	if len(integrationName) == 0 {
+		return nil, trace.BadParameter("missing integrationName param")
+	}
+
+	// Ensure the IntegrationName is valid.
+	_, err = h.GetProxyClient().GetIntegration(ctx, integrationName)
+	// NotFound error is ignored to prevent disclosure of whether the integration exists in a public/no-auth endpoint.
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	awsRegion := queryParams.Get("awsRegion")
+	if err := aws.IsValidRegion(awsRegion); err != nil {
+		return nil, trace.BadParameter("invalid awsRegion")
+	}
+
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role")
+	}
+
+	// The script must execute the following command:
+	// teleport integration configure awsoidc-idp
+	argsList := []string{
+		"integration", "configure", "awsoidc-idp",
+		fmt.Sprintf("--cluster=%s", clusterName),
+		fmt.Sprintf("--name=%s", integrationName),
+		fmt.Sprintf("--aws-region=%s", awsRegion),
+		fmt.Sprintf("--role=%s", role),
+		fmt.Sprintf("--proxy-public-url=%s", h.PublicProxyAddr()),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs:   strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the browser to use the integration with AWS.",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	fmt.Fprint(w, script)
+
+	return nil, trace.Wrap(err)
+}
