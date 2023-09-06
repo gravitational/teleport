@@ -201,10 +201,10 @@ Service. The step below will overwrite an existing configuration file, so if
 you're running multiple services add `--output=stdout` to print the config in
 your terminal, and manually adjust `/etc/teleport.yaml`.
 
-Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
+Generate a configuration file at `/etc/teleport.yaml` for the Database Service.
+Set the `--proxy` command-line option to the address for your Teleport cluster
+and database parameters to your AWS environment.
 
-<Tabs>
-  <TabItem label="Self-Hosted Edition" scope={["oss","enterprise"]}>
 ```code
 $ sudo teleport db configure create \
    -o file \
@@ -216,21 +216,6 @@ $ sudo teleport db configure create \
    --aws-account-id=(=aws.aws_access_key=)  \
    --labels=env=dev
 ```
-  </TabItem>
-  <TabItem label="Cloud"  scope={["cloud"]}>
-```code
-$ sudo teleport db configure create \
-   -o file \
-   --token=/tmp/token \
-   --proxy=<Var name="mytenant.teleport.sh" />:443 \
-   --name=example-opensearch \
-   --protocol=opensearch \
-   --uri=your-opensearch-domain-url.eu-central-1.es.amazonaws.com:443 \
-   --aws-account-id=(=aws.aws_access_key=)  \
-   --labels=env=dev
-```
-  </TabItem>
-  </Tabs>
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
