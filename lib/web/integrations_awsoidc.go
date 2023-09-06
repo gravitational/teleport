@@ -162,6 +162,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		Region:                        req.Region,
 		AccountID:                     req.AccountID,
 		SubnetIDs:                     req.SubnetIDs,
+		SecurityGroups:                req.SecurityGroups,
 		ClusterName:                   req.ClusterName,
 		ServiceName:                   req.ServiceName,
 		TaskName:                      req.TaskName,
