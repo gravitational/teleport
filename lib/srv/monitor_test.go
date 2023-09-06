@@ -288,7 +288,7 @@ func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	}
 }
 
-func TestTrackingReadConnEOF(t *testing.T) {
+func TestTrackingReadConn(t *testing.T) {
 	server, client := net.Pipe()
 	defer client.Close()
 
@@ -296,7 +296,7 @@ func TestTrackingReadConnEOF(t *testing.T) {
 	require.NoError(t, server.Close())
 
 	// Wrap the client in a TrackingReadConn.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancelCause(context.Background())
 	tc, err := NewTrackingReadConn(TrackingReadConnConfig{
 		Conn:    client,
 		Clock:   clockwork.NewFakeClock(),
@@ -305,10 +305,30 @@ func TestTrackingReadConnEOF(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Make sure it returns an EOF and not a wrapped exception.
-	buf := make([]byte, 64)
-	_, err = tc.Read(buf)
-	require.Equal(t, io.EOF, err)
+	t.Run("Read EOF", func(t *testing.T) {
+		// Make sure it returns an EOF and not a wrapped exception.
+		buf := make([]byte, 64)
+		_, err = tc.Read(buf)
+		require.Equal(t, io.EOF, err)
+	})
+
+	t.Run("CloseWithCause", func(t *testing.T) {
+		require.NoError(t, tc.CloseWithCause(trace.AccessDenied("fake problem")))
+		require.ErrorIs(t, context.Cause(ctx), trace.AccessDenied("fake problem"))
+	})
+
+	t.Run("Close", func(t *testing.T) {
+		ctx, cancel := context.WithCancelCause(context.Background())
+		tc, err := NewTrackingReadConn(TrackingReadConnConfig{
+			Conn:    client,
+			Clock:   clockwork.NewFakeClock(),
+			Context: ctx,
+			Cancel:  cancel,
+		})
+		require.NoError(t, err)
+		require.NoError(t, tc.Close())
+		require.ErrorIs(t, context.Cause(ctx), io.EOF)
+	})
 }
 
 type mockChecker struct {

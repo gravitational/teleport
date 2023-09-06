@@ -20,7 +20,9 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"sort"
@@ -506,7 +508,6 @@ func isReverseTunnelDownError(err error) bool {
 //
 // Implements common.Service.
 func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, clientConn, serviceConn net.Conn) error {
-	orgCtx := ctx
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -532,20 +533,13 @@ func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, 
 
 	err = utils.ProxyConn(ctx, clientConn, serviceConn)
 
-	// Ignore context.Canceled errors from monitoring.
-	//
 	// The clientConn is closed by utils.ProxyConn on successful io.Copy thus
-	// possibly causing utils.ProxyConn to return context.Canceled (as monitor
-	// context is closed when TrackingReadConn.Close() is called).
-	//
-	// In cases MonitorConn kills the connection for other reasons (e.g.
-	// expired cert), a proper cause will be returned instead of
-	// context.Canceled.
-	if trace.Unwrap(err) == context.Canceled {
-		// Return from orgCtx in case orgCtx is canceled.
-		return trace.Wrap(context.Cause(orgCtx))
+	// possibly causing utils.ProxyConn to return io.EOF from
+	// context.Cause(ctx), as monitor context is closed when
+	// TrackingReadConn.Close() is called.
+	if errors.Is(err, io.EOF) {
+		return nil
 	}
-
 	return trace.Wrap(err)
 }
 
