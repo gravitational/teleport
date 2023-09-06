@@ -1376,7 +1376,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -1585,7 +1585,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -1793,7 +1793,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -2008,7 +2008,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -3308,7 +3308,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -4134,7 +4134,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -5463,7 +5463,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -18774,6 +18774,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: a81d79569e6447f66f952b830d5ceff2d9bb0a12f02791420c2102ca54cc51cd
+hmac: b4a179a73857971d4bd6a92ad67c1733b727a11e8f69b9f5257de8eb3a00a29d
 
 ...
