@@ -4,14 +4,20 @@ description: Deep dive into design of Teleport trusted clusters.
 h1: Trusted clusters architecture
 ---
 
-Teleport can partition compute infrastructure into multiple clusters. A cluster
-is a group of Teleport connected resources. Each cluster
-manages a set of certificate authorities (CAs) for its users and resources.
+s you learned in [Core Concepts](../../core-concepts.mdx), a Teleport cluster
+consists of the Teleport Auth Service, the Teleport Proxy Service, and the 
+Teleport services that manage access to resources in your infrastructure.
+With Teleport, you can also partition your infrastructure into multiple connected 
+clusters to allow the users of one cluster—the **root cluster**—to connect to resources 
+in another cluster—the **leaf cluster**—while authenticated using a single 
+Teleport Auth Service. 
 
-Trusted clusters allow the users of one cluster, the **root cluster**, to
-seamlessly SSH into the Nodes of another cluster, the **leaf cluster**, while
-remaining authenticated with only a single Auth Service. The leaf cluster can
-be running behind a firewall without any ingress ports open.
+After you establish a trust relationship between the root and leaf clusters, the leaf cluster can
+run behind a firewall without any inbound ports open. The leaf cluster creates an outbound reverse 
+SSH tunnel to the root cluster and keeps the tunnel open.
+When a user tries to connect to any resource in the leaf cluster, the Teleport Auth Service on the 
+leaf cluster connects to the root cluster through the reverse tunnel using the Teleport Proxy Service 
+instance running on the root cluster.
 
 Uses for trusted clusters include:
 
@@ -20,7 +26,7 @@ Uses for trusted clusters include:
 - Large cloud software vendors managing multiple data centers.
 
 Individual nodes and proxies can create reverse tunnels to proxy services without creating a new cluster.
-You don't need to set up a trusted cluster just to connect servers, kubernetes clusters, or
+You don't need to set up a trusted cluster just to connect servers, Kubernetes clusters, or
 databases behind a firewall. You don't need to use trusted clusters unless you have
 large, distributed infrastructure or your organization works with external agencies or contractors who
 need separate access.
