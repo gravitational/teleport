@@ -59,6 +59,10 @@ type SecurityGroup struct {
 	// This is the value that should be used when doing further API calls.
 	ID string
 
+	// Description is a small description of the Security Group.
+	// Might be empty.
+	Description string
+
 	// InboundRules describe the Security Group Inbound Rules.
 	// The CIDR of each rule represents the source IP that the rule applies to.
 	InboundRules []SecurityGroupRule
@@ -162,6 +166,7 @@ func convertAWSSecurityGroups(awsSG []ec2Types.SecurityGroup) []SecurityGroup {
 		ret = append(ret, SecurityGroup{
 			Name:          aws.ToString(sg.GroupName),
 			ID:            aws.ToString(sg.GroupId),
+			Description:   aws.ToString(sg.Description),
 			InboundRules:  convertAWSIPPermissions(sg.IpPermissions),
 			OutboundRules: convertAWSIPPermissions(sg.IpPermissionsEgress),
 		})
@@ -174,6 +179,8 @@ func convertAWSIPPermissions(permissions []ec2Types.IpPermission) []SecurityGrou
 	rules := make([]SecurityGroupRule, 0, len(permissions))
 	for _, permission := range permissions {
 		ipProtocol := allProtocols
+		// From AWS Docs:
+		// > Use -1 to specify all protocols.
 		if aws.ToString(permission.IpProtocol) != "-1" {
 			ipProtocol = aws.ToString(permission.IpProtocol)
 		}

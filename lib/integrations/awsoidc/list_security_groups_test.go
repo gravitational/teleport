@@ -203,8 +203,9 @@ func TestConvertSecurityGroup(t *testing.T) {
 			name: "inbound rule allows SSH, outbound allows everything",
 			input: []ec2Types.SecurityGroup{
 				{
-					GroupId:   aws.String("sg-123"),
-					GroupName: aws.String("my group"),
+					GroupId:     aws.String("sg-123"),
+					GroupName:   aws.String("my group"),
+					Description: aws.String("my first vpc"),
 					IpPermissions: []ec2Types.IpPermission{{
 						FromPort:   aws.Int32(22),
 						ToPort:     aws.Int32(22),
@@ -227,8 +228,9 @@ func TestConvertSecurityGroup(t *testing.T) {
 			},
 			expected: []SecurityGroup{
 				{
-					ID:   "sg-123",
-					Name: "my group",
+					ID:          "sg-123",
+					Name:        "my group",
+					Description: "my first vpc",
 					OutboundRules: []SecurityGroupRule{{
 						IPProtocol: "all",
 						FromPort:   0,
