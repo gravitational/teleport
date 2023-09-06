@@ -33,7 +33,7 @@ import type {
   Database as DatabaseResource,
   DatabaseService,
 } from 'teleport/services/databases';
-import type { AgentLabel } from 'teleport/services/agents';
+import type { ResourceLabel } from 'teleport/services/agents';
 import type { DbMeta } from 'teleport/Discover/useDiscover';
 
 export const WAITING_TIMEOUT = 30000; // 30 seconds
@@ -343,7 +343,7 @@ export function useCreateDatabase() {
 export type State = ReturnType<typeof useCreateDatabase>;
 
 export function findActiveDatabaseSvc(
-  newDbLabels: AgentLabel[],
+  newDbLabels: ResourceLabel[],
   dbServices: DatabaseService[]
 ) {
   if (!dbServices.length) {

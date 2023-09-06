@@ -56,7 +56,7 @@ There are three authentication/authorization modes available;
 Google Application Default Credentials for authentication. This only works in cases
 where Teleport is installed on GCE instances and have service accounts with IAM role/profile
 associations authorizing that GCE instance to use Firestore.  
-2. With `endpoint` defined, Firestore will create clients no auth, GRPC in-secure, clients pointed
+2. With `endpoint` defined, Firestore will create clients no auth, gRPC in-secure, clients pointed
 at the specified endpoint. **This is only used for tests, see `Tests` section below.**
 3. With `credentialsPath` defined, Firestore will create clients authenticating against
 live systems with the Service Account bound to the JSON key file referenced in the option.  

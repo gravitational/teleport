@@ -39,6 +39,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 			PrivateDnsName:   aws.String("my-private-dns.compute.aws"),
 			InstanceId:       aws.String("i-123456789abcedf"),
 			VpcId:            aws.String("vpc-abcd"),
+			SubnetId:         aws.String("subnet-123"),
 			PrivateIpAddress: aws.String("172.31.1.1"),
 			Tags: []ec2Types.Tag{
 				{
@@ -73,9 +74,10 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 				SubKind: "openssh-ec2-ice",
 				Metadata: types.Metadata{
 					Labels: map[string]string{
-						"account-id": "1234567889012",
-						"region":     "us-east-1",
-						"MyTag":      "MyTagValue",
+						"account-id":               "1234567889012",
+						"region":                   "us-east-1",
+						"MyTag":                    "MyTagValue",
+						"teleport.dev/instance-id": "i-123456789abcedf",
 					},
 					Namespace: "default",
 				},
@@ -88,6 +90,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 							InstanceID:  "i-123456789abcedf",
 							Region:      "us-east-1",
 							VPCID:       "vpc-abcd",
+							SubnetID:    "subnet-123",
 							Integration: "myintegration",
 						},
 					},
@@ -118,9 +121,10 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 				SubKind: "openssh-ec2-ice",
 				Metadata: types.Metadata{
 					Labels: map[string]string{
-						"account-id": "1234567889012",
-						"region":     "us-east-1",
-						"MyTag":      "MyTagValue",
+						"account-id":               "1234567889012",
+						"region":                   "us-east-1",
+						"MyTag":                    "MyTagValue",
+						"teleport.dev/instance-id": "i-123456789abcedf",
 					},
 					Namespace: "default",
 				},
@@ -133,6 +137,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 							InstanceID:  "i-123456789abcedf",
 							Region:      "us-east-1",
 							VPCID:       "vpc-abcd",
+							SubnetID:    "subnet-123",
 							Integration: "myintegration",
 						},
 					},

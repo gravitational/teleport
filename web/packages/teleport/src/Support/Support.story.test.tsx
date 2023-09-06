@@ -22,13 +22,19 @@ import cfg from 'teleport/config';
 
 import {
   SupportOSS,
+  SupportOSSWithCTA,
   SupportCloud,
   SupportEnterprise,
-  SupportWithCTA,
+  SupportEnterpriseWithCTA,
 } from './Support.story';
 
 test('support OSS', () => {
   const { container } = render(<SupportOSS />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('support OSSWithCTA', () => {
+  const { container } = render(<SupportOSSWithCTA />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
@@ -44,6 +50,6 @@ test('support Enterprise', () => {
 
 test('support Enterprise with CTA', () => {
   cfg.isUsageBasedBilling = true;
-  const { container } = render(<SupportWithCTA />);
+  const { container } = render(<SupportEnterpriseWithCTA />);
   expect(container.firstChild).toMatchSnapshot();
 });

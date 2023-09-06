@@ -108,7 +108,7 @@ var (
 	)
 )
 
-// GRPCServer is GPRC Auth Server API
+// GRPCServer is gRPC Auth Server API
 type GRPCServer struct {
 	auditlogpb.UnimplementedAuditLogServiceServer
 	*logrus.Entry
@@ -1900,7 +1900,7 @@ func (g *GRPCServer) DeleteAllKubernetesServers(ctx context.Context, req *authpb
 	return &emptypb.Empty{}, nil
 }
 
-// maybeDowngradeRole tests the client version passed through the GRPC metadata,
+// maybeDowngradeRole tests the client version passed through the gRPC metadata,
 // and if the client version is unknown or less than the minimum supported
 // version for some features of the role returns a shallow copy of the given
 // role downgraded for compatibility with the older version.
@@ -1972,7 +1972,7 @@ func maybeDowngradeRoleLabelExpressions(ctx context.Context, role *types.RoleV6,
 
 var minSupportedRoleV7Version = semver.New(utils.VersionBeforeAlpha("14.0.0"))
 
-// maybeDowngradeRoleToV6 tests the client version passed through the GRPC metadata, and
+// maybeDowngradeRoleToV6 tests the client version passed through the gRPC metadata, and
 // if the client version is less than the minimum supported version
 // for V7 roles returns a shallow copy of the given role downgraded to V6, If
 // the passed in role is already V6, it is returned unmodified.
@@ -2167,11 +2167,11 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 // and updates the users presence for a given session.
 //
 // This function bypasses the `ServerWithRoles` RBAC layer. This is not
-// usually how the GRPC layer accesses the underlying auth server API's but it's done
+// usually how the gRPC layer accesses the underlying auth server API's but it's done
 // here to avoid bloating the ClientI interface with special logic that isn't designed to be touched
 // by anyone external to this process. This is not the norm and caution should be taken
 // when looking at or modifying this function. This is the same approach taken by other MFA
-// related GRPC API endpoints.
+// related gRPC API endpoints.
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authpb.AuthService_MaintainSessionPresenceServer, challengeReq *authpb.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
 
@@ -5183,25 +5183,37 @@ func (g *GRPCServer) UpdateClusterMaintenanceConfig(ctx context.Context, cmc *ty
 	return &emptypb.Empty{}, nil
 }
 
+// DeleteClusterMaintenanceConfig deletes the current maintenance config singleton.
+func (g *GRPCServer) DeleteClusterMaintenanceConfig(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteClusterMaintenanceConfig(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // GetBackend returns the backend from the underlying auth server.
 func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk
 }
 
-// GRPCServerConfig specifies GRPC server configuration
+// GRPCServerConfig specifies gRPC server configuration
 type GRPCServerConfig struct {
-	// APIConfig is GRPC server API configuration
+	// APIConfig is gRPC server API configuration
 	APIConfig
-	// TLS is GRPC server config
+	// TLS is gRPC server config
 	TLS *tls.Config
 	// Middleware is the request TLS client authenticator
 	Middleware *Middleware
-	// UnaryInterceptor intercepts individual GRPC requests
-	// for authentication and rate limiting
-	UnaryInterceptor grpc.UnaryServerInterceptor
-	// UnaryInterceptor intercepts GRPC streams
-	// for authentication and rate limiting
-	StreamInterceptor grpc.StreamServerInterceptor
+	// UnaryInterceptors is the gRPC unary interceptor chain.
+	UnaryInterceptors []grpc.UnaryServerInterceptor
+	// StreamInterceptors is the gRPC stream interceptor chain.
+	StreamInterceptors []grpc.StreamServerInterceptor
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -5209,11 +5221,11 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 	if cfg.TLS == nil {
 		return trace.BadParameter("missing parameter TLS")
 	}
-	if cfg.UnaryInterceptor == nil {
-		return trace.BadParameter("missing parameter UnaryInterceptor")
+	if cfg.UnaryInterceptors == nil {
+		return trace.BadParameter("missing parameter UnaryInterceptors")
 	}
-	if cfg.StreamInterceptor == nil {
-		return trace.BadParameter("missing parameter StreamInterceptor")
+	if cfg.StreamInterceptors == nil {
+		return trace.BadParameter("missing parameter StreamInterceptors")
 	}
 	if cfg.Middleware == nil {
 		return trace.BadParameter("missing parameter Middleware")
@@ -5221,7 +5233,7 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewGRPCServer returns a new instance of GRPC server
+// NewGRPCServer returns a new instance of gRPC server
 func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	err := metrics.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes, connectedResources)
 	if err != nil {
@@ -5231,7 +5243,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("GRPC(SERVER): keep alive %v count: %v.", cfg.KeepAlivePeriod, cfg.KeepAliveCount)
+	log.Debugf("gRPC(SERVER): keep alive %v count: %v.", cfg.KeepAlivePeriod, cfg.KeepAliveCount)
 
 	// httplib.TLSCreds are explicitly used instead of credentials.NewTLS because the latter
 	// modifies the tls.Config.NextProtos which causes problems due to multiplexing on the auth
@@ -5246,8 +5258,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	server := grpc.NewServer(
 		grpc.Creds(creds),
-		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptor),
-		grpc.ChainStreamInterceptor(cfg.StreamInterceptor),
+		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptors...),
+		grpc.ChainStreamInterceptor(cfg.StreamInterceptors...),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
 				Time:    cfg.KeepAlivePeriod,

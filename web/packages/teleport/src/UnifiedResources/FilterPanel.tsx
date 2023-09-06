@@ -23,7 +23,7 @@ import Select from 'shared/components/Select';
 import styled from 'styled-components';
 
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
-import { AgentFilter, SortType } from 'teleport/services/agents';
+import { ResourceFilter, SortType } from 'teleport/services/agents';
 
 const kindOptions = [
   { label: 'Application', value: 'app' },
@@ -41,8 +41,8 @@ const sortFieldOptions = [
 export interface FilterPanelProps {
   pathname: string;
   replaceHistory: (path: string) => void;
-  params: AgentFilter;
-  setParams: (params: AgentFilter) => void;
+  params: ResourceFilter;
+  setParams: (params: ResourceFilter) => void;
   setSort: (sort: SortType) => void;
 }
 
@@ -89,7 +89,7 @@ export function FilterPanel({
   };
 
   return (
-    <Flex justifyContent="space-between" mb={2}>
+    <Flex justifyContent="space-between" mb={3}>
       <Box width="300px">
         <FilterSelect
           isMulti={true}
@@ -102,6 +102,7 @@ export function FilterPanel({
       <Flex>
         <Box width="100px">
           <SortSelect
+            size="small"
             options={sortFieldOptions}
             value={activeSortFieldOption}
             isSearchable={false}

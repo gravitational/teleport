@@ -144,7 +144,7 @@ test('status updates are sent on a successful start', async () => {
     const exitedState: AgentProcessState = {
       status: 'exited',
       code: null,
-      stackTrace: undefined,
+      logs: undefined,
       exitedSuccessfully: true,
       signal: 'SIGTERM',
     };

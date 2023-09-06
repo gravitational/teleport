@@ -18,7 +18,7 @@ import React from 'react';
 import { Box, Label as Pill, Text } from 'design';
 import * as Icons from 'design/Icon';
 
-import { AgentLabel } from 'teleport/services/agents';
+import { ResourceLabel } from 'teleport/services/agents';
 import { LabelsCreater, Mark, TextIcon } from 'teleport/Discover/Shared';
 import { Regions } from 'teleport/services/integrations';
 
@@ -37,10 +37,10 @@ export const Labels = ({
   autoFocus = true,
   region,
 }: {
-  labels: AgentLabel[];
-  setLabels(l: AgentLabel[]): void;
+  labels: ResourceLabel[];
+  setLabels(l: ResourceLabel[]): void;
   disableBtns?: boolean;
-  dbLabels: AgentLabel[];
+  dbLabels: ResourceLabel[];
   showLabelMatchErr?: boolean;
   autoFocus?: boolean;
   region?: Regions;
@@ -114,7 +114,7 @@ export const Labels = ({
 };
 
 export function matchLabels(
-  newDbLabels: AgentLabel[],
+  newDbLabels: ResourceLabel[],
   matcherLabels: Record<string, string[]>
 ) {
   // Sorting to match by asteriks sooner.
@@ -192,8 +192,8 @@ export function matchLabels(
 //  - `*: apple` match by value `apple` with any key
 //  - `*: *` match by any key and any value
 export function hasMatchingLabels(
-  dbLabels: AgentLabel[],
-  agentLabels: AgentLabel[]
+  dbLabels: ResourceLabel[],
+  agentLabels: ResourceLabel[]
 ) {
   // Convert agentLabels into a map of key of value arrays.
   const matcherLabels: Record<string, string[]> = {};

@@ -464,13 +464,13 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	var out *auth.SSHLoginResponse
+	var out auth.SSHLoginResponse
 	err = json.Unmarshal(re.Bytes(), &out)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return out, nil
+	return &out, nil
 }
 
 // SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
@@ -497,13 +497,13 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*auth.S
 		return nil, trace.Wrap(err)
 	}
 
-	var out *auth.SSHLoginResponse
+	var out auth.SSHLoginResponse
 	err = json.Unmarshal(re.Bytes(), &out)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return out, nil
+	return &out, nil
 }
 
 // SSHAgentPasswordlessLogin requests a passwordless MFA challenge via the proxy.

@@ -117,9 +117,7 @@ server and database access within a single window.
    ![A new instance of Teleport Connect](../../img/teleport-connect-init.png)
 
 1. Provide the address of your Teleport Cluster (e.g.
-<ScopedBlock scope={["oss", "enterprise"]}>`https://teleport.example.com`</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>`https://mytennant.teleport.sh`</ScopedBlock>
-) and click **NEXT**.
+   `https://example.teleport.sh`) and click **NEXT**.
 
 1. Teleport Connect will ask you for your username, password, and MFA. 
    
@@ -132,13 +130,15 @@ server and database access within a single window.
 
 ### Web UI
 
-Teleport provides a web interface for users to interact with Teleport, e.g., by accessing resources or creating Access Requests. This is usually
-found at the same URL used to connect to Teleport with (e.g.
-<ScopedBlock scope={["oss", "enterprise"]}>`https://teleport.example.com`</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>`https://mytenant.teleport.sh`</ScopedBlock>),
-but you should confirm the Web UI URL with the team that manages your Teleport deployment. The Web UI provides similar
-access to resources as Teleport Connect, and additional access to to Request and
-Activity logs for users with the right permissions.
+Teleport provides a web interface for users to interact with Teleport, e.g., by
+accessing resources or creating Access Requests. This is usually found at the
+same URL used to connect to Teleport with (e.g.  `https://example.teleport.sh`),
+but you should confirm the Web UI URL with the team that manages your Teleport
+deployment. 
+
+The Web UI provides similar access to resources as Teleport Connect, and
+additional access to to Request and Activity logs for users with the right
+permissions.
 
 ## Protocols
 
@@ -337,9 +337,7 @@ list those that are accessible to your user under <Icon name="database" size="sm
 Desktop access is available through the Teleport Web UI. 
 
 1. In your browser, navigate to your Teleport cluster (for example, 
-<ScopedBlock scope={["oss", "enterprise"]}>`https://teleport.example.com`</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>`https://mytennant.teleport.sh`</ScopedBlock>
-).
+`https://example.teleport.sh`).
 1. From the menu on the right, select <Icon name="desktop" inline size="sm"/> **Desktops**.
 1. Next to the desktop you want to access, click **CONNECT**. Select
 or type in a username available to your Teleport user.

@@ -153,7 +153,7 @@ export class AgentRunner {
         code,
         signal,
         exitedSuccessfully,
-        stackTrace: exitedSuccessfully ? undefined : stderrOutput,
+        logs: exitedSuccessfully ? undefined : stderrOutput,
       });
     };
 

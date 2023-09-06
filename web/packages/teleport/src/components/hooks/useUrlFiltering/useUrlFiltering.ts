@@ -19,24 +19,24 @@ import { useLocation } from 'react-router';
 import { SortType } from 'design/DataTable/types';
 
 import history from 'teleport/services/history';
-import { AgentFilter, AgentLabel } from 'teleport/services/agents';
+import { ResourceFilter, ResourceLabel } from 'teleport/services/agents';
 
 import { encodeUrlQueryParams } from './encodeUrlQueryParams';
 
 export interface UrlFilteringState {
   isSearchEmpty: boolean;
-  params: AgentFilter;
-  setParams: (params: AgentFilter) => void;
+  params: ResourceFilter;
+  setParams: (params: ResourceFilter) => void;
   pathname: string;
   setSort: (sort: SortType) => void;
-  onLabelClick: (label: AgentLabel) => void;
+  onLabelClick: (label: ResourceLabel) => void;
   replaceHistory: (path: string) => void;
   search: string;
 }
 
 export function useUrlFiltering(initialSort: SortType): UrlFilteringState {
   const { search, pathname } = useLocation();
-  const [params, setParams] = useState<AgentFilter>({
+  const [params, setParams] = useState<ResourceFilter>({
     sort: initialSort,
     ...getResourceUrlQueryParams(search),
   });
@@ -49,7 +49,7 @@ export function useUrlFiltering(initialSort: SortType): UrlFilteringState {
     setParams({ ...params, sort });
   }
 
-  const onLabelClick = (label: AgentLabel) => {
+  const onLabelClick = (label: ResourceLabel) => {
     const queryAfterLabelClick = labelClickQuery(label, params);
 
     setParams({ ...params, search: '', query: queryAfterLabelClick });
@@ -80,7 +80,7 @@ export function useUrlFiltering(initialSort: SortType): UrlFilteringState {
 
 export default function getResourceUrlQueryParams(
   searchPath: string
-): AgentFilter {
+): ResourceFilter {
   const searchParams = new URLSearchParams(searchPath);
   const query = searchParams.get('query');
   const search = searchParams.get('search');
@@ -106,7 +106,7 @@ export default function getResourceUrlQueryParams(
   };
 }
 
-function labelClickQuery(label: AgentLabel, params: AgentFilter) {
+function labelClickQuery(label: ResourceLabel, params: ResourceFilter) {
   const queryParts: string[] = [];
 
   // Add existing query

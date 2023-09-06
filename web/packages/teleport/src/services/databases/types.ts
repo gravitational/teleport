@@ -16,7 +16,7 @@ limitations under the License.
 
 import { DbProtocol } from 'shared/services/databases';
 
-import { AgentLabel } from 'teleport/services/agents';
+import { ResourceLabel } from 'teleport/services/agents';
 
 import { AwsRdsDatabase, RdsEngine } from '../integrations';
 
@@ -40,7 +40,7 @@ export interface Database {
   description: string;
   type: string;
   protocol: DbProtocol;
-  labels: AgentLabel[];
+  labels: ResourceLabel[];
   names?: string[];
   users?: string[];
   hostname: string;
@@ -64,7 +64,7 @@ export type CreateDatabaseRequest = {
   name: string;
   protocol: DbProtocol | RdsEngine;
   uri: string;
-  labels?: AgentLabel[];
+  labels?: ResourceLabel[];
   awsRds?: AwsRdsDatabase;
 };
 

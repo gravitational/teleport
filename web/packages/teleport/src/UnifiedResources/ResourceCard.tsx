@@ -29,10 +29,11 @@ import {
 } from 'design/SVGIcon';
 
 import {
-  AgentLabel,
+  ResourceLabel,
   UnifiedResource,
   UnifiedResourceKind,
 } from 'teleport/services/agents';
+import { Database } from 'teleport/services/databases';
 
 import { ResourceActionButton } from './ResourceActionButton';
 
@@ -54,7 +55,7 @@ const ResTypeIconBox = styled(Box)`
 
 type Props = {
   resource: UnifiedResource;
-  onLabelClick?: (label: AgentLabel) => void;
+  onLabelClick?: (label: ResourceLabel) => void;
 };
 
 export function ResourceCard({ resource, onLabelClick }: Props) {
@@ -209,9 +210,10 @@ function resourceDescription(resource: UnifiedResource) {
     case 'kube_cluster':
       return { primary: 'Kubernetes' };
     case 'node':
-      // TODO(bl-nero): Pass the subkind to display as the primary and push addr
-      // to secondary.
-      return { primary: resource.addr };
+      return {
+        primary: resource.subKind || 'SSH Server',
+        secondary: resource.tunnel ? '← tunnel' : resource.addr,
+      };
     case 'windows_desktop':
       return { primary: 'Windows', secondary: resource.addr };
 
@@ -220,12 +222,31 @@ function resourceDescription(resource: UnifiedResource) {
   }
 }
 
+function databaseIconName(resource: Database): ResourceIconName {
+  switch (resource.protocol) {
+    case 'postgres':
+      return 'Postgres';
+    case 'mysql':
+      return 'MysqlLarge';
+    case 'mongodb':
+      return 'Mongo';
+    case 'cockroachdb':
+      return 'Cockroach';
+    case 'snowflake':
+      return 'Snowflake';
+    case 'dynamodb':
+      return 'Dynamo';
+    default:
+      return 'Database';
+  }
+}
+
 function resourceIconName(resource: UnifiedResource): ResourceIconName {
   switch (resource.kind) {
     case 'app':
-      return 'Application';
+      return resource.guessedAppIconName;
     case 'db':
-      return 'Database';
+      return databaseIconName(resource);
     case 'kube_cluster':
       return 'Kube';
     case 'node':
@@ -360,7 +381,7 @@ const MoreLabelsButton = styled(ButtonLink)`
   transition: visibility 0s;
   transition: background 150ms;
 
-  .grv-unified-resource-card:hover & {
+  ${CardContainer}:hover & {
     background-color: ${props => props.theme.colors.levels.elevated};
   }
 `;

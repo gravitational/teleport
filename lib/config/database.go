@@ -66,12 +66,26 @@ db_service:
 	{{- range $name, $value := $resourceLabel }}
       "{{ $name }}": "{{ $value }}"
     {{- end }}
+    {{- if $.DatabaseAWSAssumeRoleARN }}
+    aws:
+      {{- if $.DatabaseAWSAssumeRoleARN }}
+      assume_role_arn: "{{ $.DatabaseAWSAssumeRoleARN }}"
+      {{- end }}
+      {{- if $.DatabaseAWSExternalID }}
+      external_id: "{{ $.DatabaseAWSExternalID }}"
+      {{- end }}
+    {{- end }}
   {{- end }}
   {{- else }}
   #
   # resources:
   # - labels:
   #     "env": "dev"
+  #   # Optional AWS role that the Database Service will assume to access the
+  #   # databases.
+  #   aws:
+  #     assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+  #     external_id: "example-external-id"
   {{- end }}
 
   # Matchers for registering AWS-hosted databases.

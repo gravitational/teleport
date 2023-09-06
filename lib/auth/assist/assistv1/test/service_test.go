@@ -362,16 +362,32 @@ func initSvc(t *testing.T) (map[string]context.Context, *assistv1.Service) {
 		Backend:        local.NewAssistService(backend),
 		Authorizer:     authorizer,
 		Embeddings:     &ai.SimpleRetriever{},
-		ResourceGetter: &nodeGetterFake{},
+		ResourceGetter: &resourceGetterFake{},
 	})
 	require.NoError(t, err)
 
 	return ctxs, svc
 }
 
-type nodeGetterFake struct {
+type resourceGetterFake struct {
 }
 
-func (g *nodeGetterFake) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+func (g *resourceGetterFake) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+	return nil, nil
+}
+
+func (g *resourceGetterFake) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
+	return nil, nil
+}
+
+func (g *resourceGetterFake) GetApp(ctx context.Context, name string) (types.Application, error) {
+	return nil, nil
+}
+
+func (g *resourceGetterFake) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	return nil, nil
+}
+
+func (g *resourceGetterFake) GetWindowsDesktops(ctx context.Context, _ types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	return nil, nil
 }

@@ -46,7 +46,7 @@ const (
 	PluginTypePagerDuty = "pagerduty"
 	// PluginTypeMattermost is the PagerDuty access plugin
 	PluginTypeMattermost = "mattermost"
-	// PluginTypeDiscord indicates the Discord plugin
+	// PluginTypeDiscord indicates the Discord access plugin
 	PluginTypeDiscord = "discord"
 )
 
@@ -306,6 +306,16 @@ func (p *PluginV1) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (p *PluginV1) SetResourceID(id int64) {
 	p.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (p *PluginV1) GetRevision() string {
+	return p.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (p *PluginV1) SetRevision(rev string) {
+	p.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns object metadata

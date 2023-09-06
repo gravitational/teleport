@@ -34,11 +34,11 @@ import (
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ClientConfig configures a Client instance.
@@ -617,7 +617,7 @@ func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
 		peerAddr,
 		grpc.WithTransportCredentials(newClientCredentials(expectedPeer, peerAddr, c.config.Log, credentials.NewTLS(tlsConfig))),
 		grpc.WithStatsHandler(newStatsHandler(c.reporter)),
-		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, utils.GRPCClientStreamErrorInterceptor, streamCounterInterceptor(wg)),
+		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, interceptors.GRPCClientStreamErrorInterceptor, streamCounterInterceptor(wg)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                peerKeepAlive,
 			Timeout:             peerTimeout,

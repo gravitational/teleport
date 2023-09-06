@@ -47,6 +47,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
@@ -61,9 +62,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -4463,15 +4467,12 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 			if tt.outError {
 				require.Error(t, err)
 			} else {
-				if err != nil {
-					// If an *exec.ExitError is returned, parse it and return stderr. If this
-					// is not done then c.Assert will just print a byte array for the error.
-					er, ok := err.(*exec.ExitError)
-					if ok {
-						t.Fatalf("Unexpected error: %v", string(er.Stderr))
-					}
+				// ensure stderr is printed as a string rather than bytes
+				var stderr string
+				if e, ok := err.(*exec.ExitError); ok {
+					stderr = string(e.Stderr)
 				}
-				require.NoError(t, err)
+				require.NoError(t, err, "stderr=%q", stderr)
 				require.Equal(t, tt.outExecOutput, strings.TrimSpace(string(output)))
 			}
 		})
@@ -4563,15 +4564,13 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 
 				// Execute SSH command and check the output is what we expect.
 				output, err := execCmd.Output()
-				if err != nil {
-					// If an *exec.ExitError is returned, parse it and return stderr. If this
-					// is not done then c.Assert will just print a byte array for the error.
-					er, ok := err.(*exec.ExitError)
-					if ok {
-						t.Fatalf("Unexpected error: %v", string(er.Stderr))
-					}
+
+				// ensure stderr is printed as a string rather than bytes
+				var stderr string
+				if e, ok := err.(*exec.ExitError); ok {
+					stderr = string(e.Stderr)
 				}
-				require.NoError(t, err)
+				require.NoError(t, err, "stderr=%q", stderr)
 				require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "hello"))
 			}
 		})
@@ -4654,6 +4653,18 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 				Port:         nodePort,
 				ForwardAgent: true,
 			}
+
+			// Create the node
+			clt := instance.Process.GetAuthServer()
+			server, err := types.NewServer("name", types.KindNode, types.ServerSpecV2{
+				Addr:     net.JoinHostPort(Host, strconv.Itoa(nodePort)),
+				Hostname: "localhost",
+			})
+			require.NoError(t, err)
+			server.SetSubKind(types.SubKindOpenSSHNode)
+			_, err = clt.UpsertNode(context.Background(), server)
+			require.NoError(t, err)
+
 			_, err = runCommand(t, instance, []string{"echo hello"}, clientConfig, 1)
 
 			// check if we were able to exec the command or not
@@ -7183,24 +7194,26 @@ func TestTraitsPropagation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run command in root.
-	outputRoot, err := runCommand(t, rc, []string{"echo", "hello root"}, helpers.ClientConfig{
-		Login:   me.Username,
-		Cluster: "root.example.com",
-		Host:    Loopback,
-		Port:    helpers.Port(t, rc.SSH),
-	}, 1)
-	require.NoError(t, err)
-	require.Equal(t, "hello root", strings.TrimSpace(outputRoot))
+	require.Eventually(t, func() bool {
+		outputRoot, err := runCommand(t, rc, []string{"echo", "hello root"}, helpers.ClientConfig{
+			Login:   me.Username,
+			Cluster: "root.example.com",
+			Host:    Loopback,
+			Port:    helpers.Port(t, rc.SSH),
+		}, 1)
+		return err == nil && strings.TrimSpace(outputRoot) == "hello root"
+	}, time.Second*30, time.Millisecond*100)
 
 	// Run command in leaf.
-	outputLeaf, err := runCommand(t, rc, []string{"echo", "hello leaf"}, helpers.ClientConfig{
-		Login:   me.Username,
-		Cluster: "leaf.example.com",
-		Host:    Loopback,
-		Port:    helpers.Port(t, lc.SSH),
-	}, 1)
-	require.NoError(t, err)
-	require.Equal(t, "hello leaf", strings.TrimSpace(outputLeaf))
+	require.Eventually(t, func() bool {
+		outputLeaf, err := runCommand(t, rc, []string{"echo", "hello leaf"}, helpers.ClientConfig{
+			Login:   me.Username,
+			Cluster: "leaf.example.com",
+			Host:    Loopback,
+			Port:    helpers.Port(t, lc.SSH),
+		}, 1)
+		return err == nil && strings.TrimSpace(outputLeaf) == "hello leaf"
+	}, time.Second*30, time.Millisecond*100)
 }
 
 // testSessionStreaming tests streaming events from session recordings.
@@ -7584,7 +7597,7 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 	for _, proxyProtocolEnabled := range []bool{false, true} {
 		t.Run(fmt.Sprintf("proxy protocol: %v", proxyProtocolEnabled), func(t *testing.T) {
 			lib.SetInsecureDevMode(true)
-			defer lib.SetInsecureDevMode(false)
+			t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
 			// Create a Teleport instance with Auth/Proxy.
 			mainConfig := suite.defaultServiceConfig()
@@ -7613,6 +7626,53 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err, "Node failed to join over reverse tunnel")
 		})
 	}
+
+	// Assert that gRPC-based join methods work over reverse tunnel.
+	t.Run("gRPC join service", func(t *testing.T) {
+		lib.SetInsecureDevMode(true)
+		defer lib.SetInsecureDevMode(false)
+
+		// Create a Teleport instance with Auth/Proxy.
+		mainConfig := suite.defaultServiceConfig()
+		mainConfig.Auth.Enabled = true
+
+		mainConfig.Proxy.Enabled = true
+		mainConfig.Proxy.DisableWebService = false
+		mainConfig.Proxy.DisableWebInterface = true
+
+		mainConfig.SSH.Enabled = false
+
+		main := suite.NewTeleportWithConfig(t, nil, nil, mainConfig)
+		t.Cleanup(func() { require.NoError(t, main.StopAll()) })
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		dialer := apiclient.NewDialer(
+			ctx,
+			apidefaults.DefaultIdleTimeout,
+			apidefaults.DefaultIOTimeout,
+		)
+		tlsConfig := utils.TLSConfig(nil)
+		tlsConfig.InsecureSkipVerify = true
+		tlsConfig.NextProtos = []string{string(common.ProtocolProxyGRPCInsecure)}
+		conn, err := grpc.Dial(
+			main.ReverseTunnel,
+			grpc.WithContextDialer(apiclient.GRPCContextDialer(dialer)),
+			grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
+			grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
+			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		)
+		require.NoError(t, err)
+		joinServiceClient := apiclient.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
+		_, err = joinServiceClient.RegisterUsingAzureMethod(ctx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
+			return &proto.RegisterUsingAzureMethodRequest{
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{},
+			}, nil
+		})
+		// We don't care about the join succeeding, we just want to confirm
+		// that gRPC works.
+		require.True(t, trace.IsBadParameter(trail.FromGRPC(err)), err)
+	})
 }
 
 func getRemoteAddrString(sshClientString string) string {

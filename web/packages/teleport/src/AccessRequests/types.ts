@@ -16,13 +16,13 @@
 
 import type { Option } from 'shared/components/Select';
 
-import type { AgentIdKind } from 'teleport/services/agents';
+import type { ResourceIdKind } from 'teleport/services/agents';
 
 export type DurationOption = Option<number>;
 
 export interface Resource {
   id: {
-    kind: AgentIdKind;
+    kind: ResourceIdKind;
     name: string;
     clusterName: string;
     subResourceName?: string;
@@ -36,7 +36,7 @@ export interface Resource {
 type RequestState = 'NONE' | 'PENDING' | 'APPROVED' | 'DENIED' | 'APPLIED' | '';
 
 export interface ResourceId {
-  kind: AgentIdKind;
+  kind: ResourceIdKind;
   name: string;
   clusterName: string;
   subResourceName?: string;

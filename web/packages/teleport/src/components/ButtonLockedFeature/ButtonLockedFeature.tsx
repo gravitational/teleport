@@ -47,7 +47,9 @@ export function ButtonLockedFeature({
   const isUsageBased = cfg.isUsageBasedBilling;
 
   function handleClick() {
-    userEventService.captureCtaEvent(event);
+    if (isEnterprise) {
+      userEventService.captureCtaEvent(event);
+    }
   }
 
   return (

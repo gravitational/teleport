@@ -99,6 +99,7 @@ func TestListEC2(t *testing.T) {
 				PrivateDnsName:   aws.String("my-private-dns.compute.aws"),
 				InstanceId:       aws.String(fmt.Sprintf("i-%d", i)),
 				VpcId:            aws.String("vpc-abcd"),
+				SubnetId:         aws.String("subnet-123"),
 				PrivateIpAddress: aws.String("172.31.1.1"),
 			})
 		}
@@ -163,6 +164,7 @@ func TestListEC2(t *testing.T) {
 				PrivateDnsName:   aws.String("my-private-dns.compute.aws"),
 				InstanceId:       aws.String("i-123456789abcedf"),
 				VpcId:            aws.String("vpc-abcd"),
+				SubnetId:         aws.String("subnet-123"),
 				PrivateIpAddress: aws.String("172.31.1.1"),
 			},
 			},
@@ -176,8 +178,9 @@ func TestListEC2(t *testing.T) {
 					SubKind: "openssh-ec2-ice",
 					Metadata: types.Metadata{
 						Labels: map[string]string{
-							"account-id": "123456789012",
-							"region":     "us-east-1",
+							"account-id":               "123456789012",
+							"region":                   "us-east-1",
+							"teleport.dev/instance-id": "i-123456789abcedf",
 						},
 						Namespace: "default",
 					},
@@ -191,6 +194,7 @@ func TestListEC2(t *testing.T) {
 								Region:      "us-east-1",
 								VPCID:       "vpc-abcd",
 								Integration: "myintegration",
+								SubnetID:    "subnet-123",
 							},
 						},
 					},

@@ -739,7 +739,7 @@ You can also use any other ACME-compatible server.
 |--------|-------------------------------------------------------|
 | `bool` | `true` for 1.22 and lower, `false` for 1.23 and higher|
 
-By default, Teleport charts used to install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-cluster/templates/psp.yaml).
+By default, Teleport charts used to install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/examples/chart/teleport-cluster/templates/psp.yaml).
 
 PodSecurityPolicy resource has been removed in Kubernetes 1.25
 and replaced since 1.23 by PodSecurityAdmission. If you are running on
@@ -803,6 +803,45 @@ recommended to use one of the other modes and rely on
 [`auth.teleportConfig`](#authteleportconfig) and [`proxy.teleportConfig`](#proxyteleportconfig)
 to inject your custom configuration.
 </Admonition>
+
+## `podMonitor`
+
+`podMonitor` controls [the PodMonitor CR (from monitoring.coreos.com/v1)
+](https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#monitoring.coreos.com/v1.PodMonitor)
+that monitors the workload (Auth and Proxy Services) deployed by the chart.
+This custom resource configures Prometheus and makes it scrape Teleport metrics.
+
+The CRD is deployed by the prometheus-operator and allows workload to
+get monitored. You need to deploy the `prometheus-operator`
+in the cluster prior to configuring the `podMonitor` section of the chart. See
+[the prometheus-operator documentation](https://prometheus-operator.dev/docs/prologue/introduction/)
+for setup instructions.
+
+### `podMonitor.enabled`
+
+| Type   | Default value |
+|--------|---------------|
+| `bool` | `false`       |
+
+Whether the chart should deploy a `PodMonitor` resource. This is disabled by
+default as it requires the `PodMonitor` CRD to be installed in the cluster.
+
+### `podMonitor.additionalLabels`
+
+| Type                   | Default value              |
+|------------------------|----------------------------|
+| `object[string]string` | `{"prometheus":"default"}` |
+
+Additional labels to put on the created PodMonitor Resource.
+Those labels are used to be selected by a specific Prometheus instance.
+
+### `podMonitor.interval`
+
+| Type     | Default value |
+|----------|---------------|
+| `string` | `30s`         |
+
+`interval` is the interval between two metrics scrapes by Prometheus.
 
 ## `persistence`
 

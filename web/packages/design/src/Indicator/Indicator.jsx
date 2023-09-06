@@ -68,7 +68,7 @@ Indicator.defaultProps = {
 };
 
 const StyledSpinner = styled(SpinnerIcon)`
-  color: ${props => props.theme.colors.spotBackground[2]};
+  color: ${props => props.color || props.theme.colors.spotBackground[2]};
   display: inline-block;
 
   svg {

@@ -362,12 +362,6 @@ type CLIConf struct {
 
 	// LocalProxyPort is a port used by local proxy listener.
 	LocalProxyPort string
-	// LocalProxyCertFile is the client certificate used by local proxy.
-	// DEPRECATED DELETE IN 14.0
-	LocalProxyCertFile string
-	// LocalProxyKeyFile is the client key used by local proxy.
-	// DEPRECATED DELETE IN 14.0
-	LocalProxyKeyFile string
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
 	LocalProxyTunnel bool
 
@@ -799,9 +793,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	proxyDB.Arg("db", "The name of the database to start local proxy for").StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
-	// --cert-file and --key-file are deprecated in favor of --tunnel flag.
-	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").Hidden().StringVar(&cf.LocalProxyCertFile)
-	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").Hidden().StringVar(&cf.LocalProxyKeyFile)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
 	proxyDB.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
 	proxyDB.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
@@ -889,7 +880,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML,
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
-	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
+	play.Arg("session-id", "ID or path to session file to play").Required().StringVar(&cf.SessionID)
 
 	// scp
 	scp := app.Command("scp", "Transfer files to a remote SSH node.")
@@ -1440,6 +1431,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = deviceCmd.enroll.run(&cf)
 	case deviceCmd.collect.FullCommand():
 		err = deviceCmd.collect.run(&cf)
+	case deviceCmd.assetTag.FullCommand():
+		err = deviceCmd.assetTag.run(&cf)
 	case deviceCmd.keyget.FullCommand():
 		err = deviceCmd.keyget.run(&cf)
 	case deviceCmd.activateCredential.FullCommand():

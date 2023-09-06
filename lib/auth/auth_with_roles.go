@@ -2994,11 +2994,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 		// Reset to the base roles and traits stored in the backend user,
 		// currently active requests (not being dropped) and new access requests
 		// will be filled in below.
-		userState, err := a.authServer.getUserOrLoginState(ctx, user.GetName())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		accessInfo = services.AccessInfoFromUserState(userState)
+		accessInfo = services.AccessInfoFromUser(user)
 
 		// Check for ["*"] as special case to drop all requests.
 		if len(req.DropAccessRequests) == 1 && req.DropAccessRequests[0] == "*" {
@@ -3353,7 +3349,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// If the cert is renewable, process any certificate generation counter.
 	if certReq.renewable {
 		currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
-		if err := a.authServer.validateGenerationLabel(ctx, user, &certReq, currentIdentityGeneration); err != nil {
+		if err := a.authServer.validateGenerationLabel(ctx, user.GetName(), &certReq, currentIdentityGeneration); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -6817,6 +6813,19 @@ func (a *ServerWithRoles) UpdateClusterMaintenanceConfig(ctx context.Context, cm
 	}
 
 	return a.authServer.UpdateClusterMaintenanceConfig(ctx, cmc)
+}
+
+func (a *ServerWithRoles) DeleteClusterMaintenanceConfig(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindClusterMaintenanceConfig, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	if modules.GetModules().Features().Cloud {
+		// maintenance configuration in cloud is derived from values stored in
+		// an external cloud-specific database.
+		return trace.NotImplemented("cloud clusters do not support custom cluster maintenance resources")
+	}
+
+	return a.authServer.DeleteClusterMaintenanceConfig(ctx)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

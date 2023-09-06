@@ -1,3 +1,9 @@
+###################################################################################
+#                                                                                 #
+#      DO NOT USE FOR PRODUCTION BUILD OR ANYTHING OTHER THAN CI TESTING!         #
+#                                                                                 #
+###################################################################################
+
 # This Dockerfile makes the "build box" the container used to:
 # * run test and linters in CI
 # * building other Docker images
@@ -111,7 +117,6 @@ ENV LANGUAGE="en_US.UTF-8" \
 ARG BUILDARCH
 
 # Install packages.
-# Java JRE is required by gcloud firestore emulator.
 # Latest git 2.18+ is required for GitHub actions.
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
 RUN apt-get -y update && \
@@ -126,7 +131,6 @@ RUN apt-get -y update && \
         clang \
         clang-format \
         curl \
-        default-jre \
         `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
         git \
         gnupg \
@@ -134,6 +138,7 @@ RUN apt-get -y update && \
         libc6-dev \
         libelf-dev \
         libpam-dev \
+        libpcsclite-dev \
         libsqlite3-0 \
         libssl-dev \
         llvm \
@@ -142,20 +147,19 @@ RUN apt-get -y update && \
         mingw-w64-x86-64-dev \
         net-tools \
         openssh-client \
+        pkg-config \
         python3-pip \
         python3-setuptools \
         python3-wheel \
-        pkg-config \
         # rsync is required for some integration tests
         rsync \
         softhsm2 \
         sudo \
         tree \
         unzip \
+        xauth \
         zip \
         zlib1g-dev \
-        xauth \
-        libpcsclite-dev \
         && \
     install -m 0755 -d /etc/apt/keyrings && \
     gpg --dearmor -o /etc/apt/keyrings/docker.gpg docker.gpg && \
@@ -184,17 +188,6 @@ RUN --mount=type=bind,target=/context \
     && rm -rf /tmp/osslsigncode \
     && rm osslsigncode.zip
 
-# Install gcloud SDK and Firestore emulator.
-ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
-RUN (curl -fsSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
-    gcloud components install cloud-firestore-emulator beta && \
-    rm -rf /opt/google-cloud-sdk/.install/.backup
-
-# Install etcd.
-RUN curl -fsSL https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
-    cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
-    rm -rf etcd-v3.3.9-linux-${BUILDARCH}
-
 # Add the CI user.
 ARG UID
 ARG GID
@@ -221,8 +214,11 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustc --version && \
     rustup component add rustfmt clippy && \
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
+
+ARG WASM_PACK_VERSION
 # Install wasm-pack for targeting WebAssembly from Rust.
-RUN cargo install wasm-pack
+RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
+
 # Switch back to root for the remaining instructions and keep it as the default
 # user.
 USER root
@@ -313,16 +309,14 @@ RUN go install github.com/daixiang0/gci@v0.11.0
 RUN go install gotest.tools/gotestsum@v1.10.1
 
 # Install golangci-lint.
-RUN TAG='v1.54.1' && \
-    curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
-    sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
+RUN VERSION='v1.54.2'; \
+    curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$VERSION/install.sh" | \
+    sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
 
 # Install Buf.
-ARG BUF_VERSION # eg, "1.19.0"
-RUN BIN='/usr/local/bin' && \
-  VERSION="$BUF_VERSION" && \
-  curl -fsSL "https://github.com/bufbuild/buf/releases/download/v$VERSION/buf-$(uname -s)-$(uname -m)" -o "${BIN}/buf" && \
-  chmod +x "$BIN/buf"
+ARG BUF_VERSION # eg, "v1.26.1"
+RUN VERSION="$BUF_VERSION"; \
+    go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
 
 # Copy BPF libraries.
 ARG LIBBPF_VERSION

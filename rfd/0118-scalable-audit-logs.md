@@ -1,6 +1,6 @@
 ---
 authors: Tobiasz Heller (tobiasz.heller@goteleport.com)
-state: draft
+state: implemented (v13.2.5)
 ---
 
 # RFD 0118 - Scalable audit logs
@@ -257,29 +257,38 @@ ORDER BY event_time DESC, uid DESC LIMIT 5000
 Configuration of audit logger could be done in similar manner like dynamo or
 firestore - by using query parameters.
 
-We have following parameters that will be used for configuration:
-
-```
-glueTableName - required
-glueDatabaseName - required
-getQueryExecutionSleepTime - optional, default 100ms
-snsTopicARN - required
-snsS3LocationForLargeEvents - required
-athenaWorkgroup - optional, default to default
-athenaResultsS3Path - optional, default to defined in workspace
-sqsURL - required
-batchInterval - optional, defaults to 1min
-maxBatchSize - optional, defaults to 20000 events (+/- 10MB)
-QPS - optional, queries per second in athena search.events, defaults to 20 req/s
-```
-
 Example configuration can look like:
+
 ```
-athena://glueDatabaseName.glueTableName?sqsTopicARN=aaa&athenaResultsS3Path=s3://bbb
+athena://db.table?topicArn=arn:aws:sns:region:account_id:topic_name&largeEventsS3=s3://transient/large_payloads&locationS3=s3://long-term/events&workgroup=workgroup&queueURL=https://sqs.region.amazonaws.com/account_id/queue_name&queryResultsS3=s3://transient/query_results
 ```
 
 Configuration using url query params seems a bit hacky but we decided to keep
 using it with MVP.
+
+The following parameters are required:
+
+| Parameter name   | Example value                                            | Description                                            |
+|------------------|----------------------------------------------------------|--------------------------------------------------------|
+| `topicArn`       | `arn:aws:sns:region:account_id:topic_name`               | ARN of SNS topic where events are published            |
+| `locationS3`     | `s3://long-term/events`                                  | S3 bucket used for long-term storage                   |
+| `largeEventsS3`  | `s3://transient/large_payloads`                          | S3 bucket used for transient storage for large events  |
+| `queueURL`       | `https://sqs.region.amazonaws.com/account_id/queue_name` | SQS URL used for a subscription to an SNS topic        |
+| `workgroup`      | `workgroup_name`                                         | Athena workgroup used for queries                      |
+| `queryResultsS3` | `s3://transient/results`                                 | S3 bucket used for transient storage for query results |
+
+The following parameters are optional:
+
+| Parameter name        | Example value | Description                                                                                                        |
+|-----------------------|---------------|--------------------------------------------------------------------------------------------------------------------|
+| `region`              | `us-east-1`   | AWS region. If empty, defaults to one from the AuditConfig or ambient AWS credentials                              |
+| `batchMaxItems`       | `20000`       | defines the maximum number of events allowed for a single Parquet file (default 20000)                             |
+| `batchMaxInterval`    | `1m`          | defines the maximum interval used to buffer incoming data before creating a Parquet file (default 1m)              |
+| `limiterRefillAmount` | `100`         | number of tokens that are added to the bucket during interval specified by limiterRefillTime                       |
+| `limiterRefillTime`   | `1s`          | defines the duration of time between the addition of tokens to the bucket                                          |
+| `limiterBurst`        | `10`          | defines number of available tokens, initially full and refilled based on limiterRefillAmount and limiterRefillTime |
+
+Limiter parameters are used to rate limit `searchEvents` method in Athena logger.
 
 ### Infrastructure setup
 
@@ -288,6 +297,8 @@ operator will handle it. For self-hosted customers, we will provide docs how
 to set up infrastructure manually before using athena based search. In future
 bootstraping of infra could be added into teleport codebase.
 
+Terraform script for bootstraping infrastructure can be found in
+[examples](../examples/athena/athena.tf).
 
 ### Rate limiting of search events
 

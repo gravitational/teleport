@@ -35,18 +35,18 @@ export type UnifiedResource =
 
 export type UnifiedResourceKind = UnifiedResource['kind'];
 
-export type AgentResponse<T extends UnifiedResource | UserGroup> = {
+export type ResourcesResponse<T extends UnifiedResource> = {
   agents: T[];
   startKey?: string;
   totalCount?: number;
 };
 
-export type AgentLabel = {
+export type ResourceLabel = {
   name: string;
   value: string;
 };
 
-export type AgentFilter = {
+export type ResourceFilter = {
   // query is query expression using the predicate language.
   query?: string;
   // search contains search words/phrases separated by space.
@@ -65,13 +65,13 @@ export type SortType = {
 
 export type SortDir = 'ASC' | 'DESC';
 
-// AgentIdKind are the same id constants used to mark the type of
+// ResourceIdKind are the same id constants used to mark the type of
 // resource in the backend.
 //
 // These consts are expected for various resource requests:
 //   - search based access requests
 //   - diagnose connection requests
-export type AgentIdKind =
+export type ResourceIdKind =
   | 'node'
   | 'app'
   | 'db'
@@ -104,7 +104,7 @@ export type ConnectionDiagnosticTrace = {
 // - additional paramenters which depend on the actual kind of resource to test
 // As an example, for SSH Node it also includes the User/Principal that will be used to login
 export type ConnectionDiagnosticRequest = {
-  resourceKind: AgentIdKind; //`json:"resource_kind"`
+  resourceKind: ResourceIdKind; //`json:"resource_kind"`
   resourceName: string; //`json:"resource_name"`
   sshPrincipal?: string; //`json:"ssh_principal"`
   kubeImpersonation?: KubeImpersonation; // `json:"kubernetes_impersonation`
