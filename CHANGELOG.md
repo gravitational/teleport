@@ -1,5 +1,21 @@
 # Changelog
 
+## 12.4.16 (09/05/23)
+
+* Fixed an issue in desktop discovery that unmapped IPv6 addresses. [#31433](https://github.com/gravitational/teleport/pull/31433)
+* Improved MySQL performance in read-heavy scenarios by avoiding tiny writes. [#31403](https://github.com/gravitational/teleport/pull/31403)
+* Preserve query parameters in cross-cluster app redirects. [#31378](https://github.com/gravitational/teleport/pull/31378)
+* Fixed the plugin screen not wrapping tiles. [#31364](https://github.com/gravitational/teleport/pull/31364)
+* Added a known STS endpoint for il-central-1. [#31284](https://github.com/gravitational/teleport/pull/31284)
+* Introduced an optional PodMonitor to the teleport-kube-agent chart. [#31248](https://github.com/gravitational/teleport/pull/31248)
+* Skip MOTD in the UI if the request was initiated from tsh headless auth. [#31206](https://github.com/gravitational/teleport/pull/31206)
+* Fixed issue with spawning shell on macOS in some scenarios. [#31153](https://github.com/gravitational/teleport/pull/31153)
+* Fixed leaking connection monitor instances and expanded comments with a warning. [#31041](https://github.com/gravitational/teleport/pull/31041)
+* Ensured that DNS errors in desktop discovery fail fast. [#31033](https://github.com/gravitational/teleport/pull/31033)
+* Added additional safety with X-Forwarded-Host handling. [#31026](https://github.com/gravitational/teleport/pull/31026)
+* Improved proxy address sourcing for VM auto-discovery. [#31002](https://github.com/gravitational/teleport/pull/31002)
+* Fixed the connection to the desktop access service when session MFA is required. [#30965](https://github.com/gravitational/teleport/pull/30965)
+
 ## 12.4.15 (08/22/23)
 
 * Fixed S3 metric name for completed multipart uploads. [#30697](https://github.com/gravitational/teleport/pull/30697)
