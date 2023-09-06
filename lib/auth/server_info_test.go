@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -28,9 +27,31 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/inventory"
-	"github.com/gravitational/teleport/lib/utils"
 )
+
+type mockUpstream struct {
+	client.UpstreamInventoryControlStream
+	updatedLabels map[string]string
+}
+
+func (m *mockUpstream) Send(_ context.Context, msg proto.DownstreamInventoryMessage) error {
+	if labelMsg, ok := msg.(proto.DownstreamInventoryUpdateLabels); ok {
+		m.updatedLabels = labelMsg.Labels
+	}
+	return nil
+}
+
+func (m *mockUpstream) Recv() <-chan proto.UpstreamInventoryMessage {
+	return make(chan proto.UpstreamInventoryMessage)
+}
+
+func (m *mockUpstream) Done() <-chan struct{} {
+	return make(chan struct{})
+}
+
+func (m *mockUpstream) Close() error {
+	return nil
+}
 
 // TestReconcileLabels verifies that an SSH server's labels can be updated by
 // upserting a corresponding ServerInfo to the auth server.
@@ -49,26 +70,15 @@ func TestReconcileLabels(t *testing.T) {
 		require.NoError(t, pack.a.Close())
 		require.NoError(t, pack.bk.Close())
 	})
-	downstream := pack.a.MakeLocalInventoryControlStream()
+	upstream := &mockUpstream{}
 	t.Cleanup(func() {
-		require.NoError(t, downstream.Close())
+		require.NoError(t, upstream.Close())
 	})
-	downstreamHandle := inventory.NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
-		return downstream, nil
-	}, proto.UpstreamInventoryHello{
+	require.NoError(t, pack.a.RegisterInventoryControlStream(upstream, proto.UpstreamInventoryHello{
 		Version:  teleport.Version,
 		ServerID: serverName,
 		Services: []types.SystemRole{types.RoleNode},
-	})
-	t.Cleanup(func() {
-		require.NoError(t, downstreamHandle.Close())
-	})
-
-	// Wait for control stream to be registered.
-	require.Eventually(t, func() bool {
-		_, ok := pack.a.inventory.GetControlStream(serverName)
-		return ok
-	}, 100*time.Millisecond, 10*time.Millisecond)
+	}))
 
 	// Create server.
 	server, err := types.NewServer(serverName, types.KindNode, types.ServerSpecV2{
@@ -97,7 +107,5 @@ func TestReconcileLabels(t *testing.T) {
 	// Wait until the reconciler finishes processing the serverinfo.
 	clock.BlockUntil(1)
 	// Check that labels were received downstream.
-	require.Eventually(t, func() bool {
-		return utils.StringMapsEqual(labels, downstreamHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServerCloudLabels))
-	}, 3*time.Second, 500*time.Millisecond)
+	require.Equal(t, labels, upstream.updatedLabels)
 }
