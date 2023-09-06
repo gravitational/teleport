@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -354,6 +355,54 @@ func ReplaceUnspecifiedHost(addr *NetAddr, defaultPort int) string {
 	}
 	port := addr.Port(defaultPort)
 	return net.JoinHostPort("localhost", strconv.Itoa(port))
+}
+
+// AddrsFromStrings returns strings list converted to address list
+func AddrsFromStrings(s apiutils.Strings, defaultPort int) ([]NetAddr, error) {
+	addrs := make([]NetAddr, len(s))
+	for i, val := range s {
+		addr, err := ParseHostPortAddr(val, defaultPort)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		addrs[i] = *addr
+	}
+	return addrs, nil
+}
+
+// ToLowerCaseASCII returns a lower-case version of in. See RFC 6125 6.4.1. We use
+// an explicitly ASCII function to avoid any sharp corners resulting from
+// performing Unicode operations on DNS labels.
+//
+// NOTE: copied verbatim from crypto/x509 source, including the above comments. Teleport
+// uses this function to approximate a form of opt-in case-insensitivity for ssh hostnames
+func ToLowerCaseASCII(in string) string {
+	// If the string is already lower-case then there's nothing to do.
+	isAlreadyLowerCase := true
+	for _, c := range in {
+		if c == utf8.RuneError {
+			// If we get a UTF-8 error then there might be
+			// upper-case ASCII bytes in the invalid sequence.
+			isAlreadyLowerCase = false
+			break
+		}
+		if 'A' <= c && c <= 'Z' {
+			isAlreadyLowerCase = false
+			break
+		}
+	}
+
+	if isAlreadyLowerCase {
+		return in
+	}
+
+	out := []byte(in)
+	for i, c := range out {
+		if 'A' <= c && c <= 'Z' {
+			out[i] += 'a' - 'A'
+		}
+	}
+	return string(out)
 }
 
 // ClientIPFromConn extracts host from provided remote address.

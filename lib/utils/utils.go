@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // WriteContextCloser provides close method with context
@@ -335,7 +334,7 @@ func ReadPath(path string) ([]byte, error) {
 	abs, err := filepath.EvalSymlinks(s)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
-			//do not convert to system error as this loses the ability to compare that it is a permission error
+			// do not convert to system error as this loses the ability to compare that it is a permission error
 			return nil, err
 		}
 		return nil, trace.ConvertSystemError(err)
@@ -343,7 +342,7 @@ func ReadPath(path string) ([]byte, error) {
 	bytes, err := os.ReadFile(abs)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
-			//do not convert to system error as this loses the ability to compare that it is a permission error
+			// do not convert to system error as this loses the ability to compare that it is a permission error
 			return nil, err
 		}
 		return nil, trace.ConvertSystemError(err)
@@ -453,7 +452,7 @@ func ReadHostUUID(dataDir string) (string, error) {
 	out, err := ReadPath(filepath.Join(dataDir, HostUUIDFile))
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
-			//do not convert to system error as this loses the ability to compare that it is a permission error
+			// do not convert to system error as this loses the ability to compare that it is a permission error
 			return "", err
 		}
 		return "", trace.ConvertSystemError(err)
@@ -470,7 +469,7 @@ func WriteHostUUID(dataDir string, id string) error {
 	err := os.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
-			//do not convert to system error as this loses the ability to compare that it is a permission error
+			// do not convert to system error as this loses the ability to compare that it is a permission error
 			return err
 		}
 		return trace.ConvertSystemError(err)
@@ -580,19 +579,6 @@ func CheckCertificateFormatFlag(s string) (string, error) {
 	default:
 		return "", trace.BadParameter("invalid certificate format parameter: %q", s)
 	}
-}
-
-// AddrsFromStrings returns strings list converted to address list
-func AddrsFromStrings(s apiutils.Strings, defaultPort int) ([]utilsaddr.NetAddr, error) {
-	addrs := make([]utilsaddr.NetAddr, len(s))
-	for i, val := range s {
-		addr, err := utilsaddr.ParseHostPortAddr(val, defaultPort)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		addrs[i] = *addr
-	}
-	return addrs, nil
 }
 
 // FileExists checks whether a file exists at a given path

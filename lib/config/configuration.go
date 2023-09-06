@@ -693,7 +693,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.ReverseTunnels = append(cfg.ReverseTunnels, tun)
 	}
 	if len(fc.Auth.PublicAddr) != 0 {
-		addrs, err := utils.AddrsFromStrings(fc.Auth.PublicAddr, defaults.AuthListenPort)
+		addrs, err := utilsaddr.AddrsFromStrings(fc.Auth.PublicAddr, defaults.AuthListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1039,7 +1039,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			cfg.Proxy.Kube.ListenAddr = *addr
 		}
 		if len(fc.Proxy.Kube.PublicAddr) != 0 {
-			addrs, err := utils.AddrsFromStrings(fc.Proxy.Kube.PublicAddr, defaults.KubeListenPort)
+			addrs, err := utilsaddr.AddrsFromStrings(fc.Proxy.Kube.PublicAddr, defaults.KubeListenPort)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1060,7 +1060,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 		cfg.Proxy.Kube.ListenAddr = *addr
 
-		publicAddrs, err := utils.AddrsFromStrings(fc.Proxy.KubePublicAddr, defaults.KubeListenPort)
+		publicAddrs, err := utilsaddr.AddrsFromStrings(fc.Proxy.KubePublicAddr, defaults.KubeListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1073,21 +1073,21 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
-		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort))
+		addrs, err := utilsaddr.AddrsFromStrings(fc.Proxy.PublicAddr, cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.PublicAddrs = addrs
 	}
 	if len(fc.Proxy.SSHPublicAddr) != 0 {
-		addrs, err := utils.AddrsFromStrings(fc.Proxy.SSHPublicAddr, defaults.SSHProxyListenPort)
+		addrs, err := utilsaddr.AddrsFromStrings(fc.Proxy.SSHPublicAddr, defaults.SSHProxyListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.SSHPublicAddrs = addrs
 	}
 	if len(fc.Proxy.TunnelPublicAddr) != 0 {
-		addrs, err := utils.AddrsFromStrings(fc.Proxy.TunnelPublicAddr, defaults.SSHProxyTunnelListenPort)
+		addrs, err := utilsaddr.AddrsFromStrings(fc.Proxy.TunnelPublicAddr, defaults.SSHProxyTunnelListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1095,7 +1095,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	if len(fc.Proxy.PostgresPublicAddr) != 0 {
 		defaultPort := getPostgresDefaultPort(cfg)
-		addrs, err := utils.AddrsFromStrings(fc.Proxy.PostgresPublicAddr, defaultPort)
+		addrs, err := utilsaddr.AddrsFromStrings(fc.Proxy.PostgresPublicAddr, defaultPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1107,7 +1107,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.BadParameter("mysql_listen_addr must be set when mysql_public_addr is set")
 		}
 		// MySQL proxy is listening on a separate port.
-		addrs, err := utils.AddrsFromStrings(fc.Proxy.MySQLPublicAddr, defaults.MySQLListenPort)
+		addrs, err := utilsaddr.AddrsFromStrings(fc.Proxy.MySQLPublicAddr, defaults.MySQLListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1118,7 +1118,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if fc.Proxy.MongoAddr == "" {
 			return trace.BadParameter("mongo_listen_addr must be set when mongo_public_addr is set")
 		}
-		addrs, err := utils.AddrsFromStrings(fc.Proxy.MongoPublicAddr, defaults.MongoListenPort)
+		addrs, err := utilsaddr.AddrsFromStrings(fc.Proxy.MongoPublicAddr, defaults.MongoListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1246,7 +1246,7 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 		}
 	}
 	if len(fc.SSH.PublicAddr) != 0 {
-		addrs, err := utils.AddrsFromStrings(fc.SSH.PublicAddr, defaults.SSHServerListenPort)
+		addrs, err := utilsaddr.AddrsFromStrings(fc.SSH.PublicAddr, defaults.SSHServerListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1386,7 +1386,7 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Kube.ListenAddr = addr
 	}
 	if len(fc.Kube.PublicAddr) != 0 {
-		addrs, err := utils.AddrsFromStrings(fc.Kube.PublicAddr, defaults.KubeListenPort)
+		addrs, err := utilsaddr.AddrsFromStrings(fc.Kube.PublicAddr, defaults.KubeListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1778,16 +1778,16 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	var err error
-	cfg.WindowsDesktop.PublicAddrs, err = utils.AddrsFromStrings(fc.WindowsDesktop.PublicAddr, defaults.WindowsDesktopListenPort)
+	cfg.WindowsDesktop.PublicAddrs, err = utilsaddr.AddrsFromStrings(fc.WindowsDesktop.PublicAddr, defaults.WindowsDesktopListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	cfg.WindowsDesktop.ShowDesktopWallpaper = fc.WindowsDesktop.ShowDesktopWallpaper
-	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.Hosts, defaults.RDPListenPort)
+	cfg.WindowsDesktop.Hosts, err = utilsaddr.AddrsFromStrings(fc.WindowsDesktop.Hosts, defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cfg.WindowsDesktop.NonADHosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.NonADHosts, defaults.RDPListenPort)
+	cfg.WindowsDesktop.NonADHosts, err = utilsaddr.AddrsFromStrings(fc.WindowsDesktop.NonADHosts, defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
