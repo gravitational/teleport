@@ -3,18 +3,6 @@ title: Session and Identity Locking
 description: How to lock compromised users or agents
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="7.1"
->
-  Locking support was introduced in Teleport v7.1. To fully enforce the locks
-  at all components, you should update **all** `teleport` binaries in your
-  deployment.
-</Details>
-
 System administrators can disable a compromised user or Teleport agent—or
 prevent access during cluster maintenance—by placing a lock
 on a session, user or host identity.
