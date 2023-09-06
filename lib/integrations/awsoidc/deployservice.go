@@ -104,6 +104,10 @@ type DeployServiceRequest struct {
 	// SubnetIDs are the subnets associated with the service.
 	SubnetIDs []string
 
+	// SecurityGroups to apply to the service's network configuration.
+	// If empty, the default security group for the VPC is going to be used.
+	SecurityGroups []string
+
 	// ClusterName is the ECS Cluster to be used.
 	// It will be created if it doesn't exist.
 	// It will be updated if it doesn't include the FARGATE capacity provider using PutClusterCapacityProviders.
@@ -598,6 +602,16 @@ func waitForActiveCluster(ctx context.Context, clt DeployServiceClient, req Depl
 	return trace.Wrap(err)
 }
 
+func deployServiceNetworkConfiguration(req DeployServiceRequest) *ecsTypes.NetworkConfiguration {
+	return &ecsTypes.NetworkConfiguration{
+		AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
+			AssignPublicIp: ecsTypes.AssignPublicIpEnabled, // no internet connection otherwise
+			Subnets:        req.SubnetIDs,
+			SecurityGroups: req.SecurityGroups,
+		},
+	}
+}
+
 // upsertService creates or updates the service.
 // If the service exists but its LaunchType is not Fargate, then it gets re-created.
 func upsertService(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, taskARN string) (*ecsTypes.Service, error) {
@@ -638,18 +652,13 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req DeployServi
 			}
 
 			updateServiceResp, err := clt.UpdateService(ctx, &ecs.UpdateServiceInput{
-				Service:        req.ServiceName,
-				DesiredCount:   &oneAgent,
-				TaskDefinition: &taskARN,
-				Cluster:        req.ClusterName,
-				NetworkConfiguration: &ecsTypes.NetworkConfiguration{
-					AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
-						AssignPublicIp: ecsTypes.AssignPublicIpEnabled, // no internet connection otherwise
-						Subnets:        req.SubnetIDs,
-					},
-				},
-				ForceNewDeployment: true,
-				PropagateTags:      ecsTypes.PropagateTagsService,
+				Service:              req.ServiceName,
+				DesiredCount:         &oneAgent,
+				TaskDefinition:       &taskARN,
+				Cluster:              req.ClusterName,
+				NetworkConfiguration: deployServiceNetworkConfiguration(req),
+				ForceNewDeployment:   true,
+				PropagateTags:        ecsTypes.PropagateTagsService,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -660,19 +669,14 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req DeployServi
 	}
 
 	createServiceOut, err := clt.CreateService(ctx, &ecs.CreateServiceInput{
-		ServiceName:    req.ServiceName,
-		DesiredCount:   &oneAgent,
-		LaunchType:     ecsTypes.LaunchTypeFargate,
-		TaskDefinition: &taskARN,
-		Cluster:        req.ClusterName,
-		NetworkConfiguration: &ecsTypes.NetworkConfiguration{
-			AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
-				AssignPublicIp: ecsTypes.AssignPublicIpEnabled, // no internet connection otherwise
-				Subnets:        req.SubnetIDs,
-			},
-		},
-		Tags:          req.ResourceCreationTags.ToECSTags(),
-		PropagateTags: ecsTypes.PropagateTagsService,
+		ServiceName:          req.ServiceName,
+		DesiredCount:         &oneAgent,
+		LaunchType:           ecsTypes.LaunchTypeFargate,
+		TaskDefinition:       &taskARN,
+		Cluster:              req.ClusterName,
+		NetworkConfiguration: deployServiceNetworkConfiguration(req),
+		Tags:                 req.ResourceCreationTags.ToECSTags(),
+		PropagateTags:        ecsTypes.PropagateTagsService,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
