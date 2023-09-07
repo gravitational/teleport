@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"net/url"
 
 	"github.com/gravitational/trace"
 
@@ -25,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// SAMLIdPServiceProvider defines an interface for managing SAML IdP service providers.
+// SAMLIdPServiceProviders defines an interface for managing SAML IdP service providers.
 type SAMLIdPServiceProviders interface {
 	// ListSAMLIdPServiceProviders returns a paginated list of all SAML IdP service provider resources.
 	ListSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
@@ -114,4 +115,18 @@ func GenerateIdPServiceProviderFromFields(name string, entityDescriptor string) 
 		return nil, trace.Wrap(err)
 	}
 	return &s, nil
+}
+
+// ValidateAssertionConsumerServicesEndpoint ensures that the Assertion Consumer Service location
+// is a valid HTTPS endpoint.
+func ValidateAssertionConsumerServicesEndpoint(acs string) error {
+	endpoint, err := url.Parse(acs)
+	switch {
+	case err != nil:
+		return trace.Wrap(err)
+	case endpoint.Scheme != "https":
+		return trace.BadParameter("the assertion consumer services location must be an https endpoint")
+	}
+
+	return nil
 }
