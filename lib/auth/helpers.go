@@ -417,7 +417,7 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userState, err := a.AuthServer.getUserOrLoginState(context.Background(), user.GetName())
+	userState, err := a.AuthServer.GetUserOrLoginState(context.Background(), user.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -479,7 +479,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		userState, err := authServer.getUserOrLoginState(context.Background(), user.GetName())
+		userState, err := authServer.GetUserOrLoginState(context.Background(), user.GetName())
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

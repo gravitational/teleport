@@ -622,6 +622,11 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 		return nil, trace.Wrap(err)
 	}
 
+	userState, err := a.GetUserOrLoginState(ctx, user.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Auth was successful, return session, certificate, etc. to caller.
 	auth := GithubAuthResponse{
 		Req: GithubAuthRequestFromProto(req),
@@ -641,9 +646,9 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
 		session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
-			User:       user.GetName(),
-			Roles:      user.GetRoles(),
-			Traits:     user.GetTraits(),
+			User:       userState.GetName(),
+			Roles:      userState.GetRoles(),
+			Traits:     userState.GetTraits(),
 			SessionTTL: params.SessionTTL,
 			LoginTime:  a.clock.Now().UTC(),
 			LoginIP:    req.ClientLoginIP,
@@ -657,7 +662,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 	// If a public key was provided, sign it and return a certificate.
 	if len(req.PublicKey) != 0 {
-		sshCert, tlsCert, err := a.CreateSessionCert(user, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
+		sshCert, tlsCert, err := a.CreateSessionCert(userState, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
 			req.KubernetesCluster, req.ClientLoginIP, keys.AttestationStatementFromProto(req.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
