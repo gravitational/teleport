@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { blue, orange, pink, purple } from 'design/theme/palette';
+import { blue, green, orange, pink, purple, red } from 'design/theme/palette';
 
 import { lighten } from '../utils/colorManipulator';
 
@@ -185,13 +185,40 @@ const colors: ThemeColors = {
 
   accessGraph: {
     dotsColor: 'rgba(255, 255, 255, 0.1)',
+    edges: {
+      dynamicMemberOf: {
+        color: purple[700],
+        stroke: purple[500],
+      },
+      memberOf: {
+        color: 'rgba(255, 255, 255, 0.7)',
+        stroke: '#484c6a',
+      },
+      reverse: {
+        color: blue[700],
+        stroke: blue[300],
+      },
+      allowed: {
+        color: green[700],
+        stroke: green[300],
+      },
+      disallowed: {
+        color: red[700],
+        stroke: red[300],
+      },
+      default: {
+        color: 'rgba(255, 255, 255, 0.7)',
+        stroke: 'rgba(255, 255, 255, 0.2)',
+      },
+    },
     nodes: {
       user: {
         background: lighten(purple[300], 0.1),
         borderColor: 'transparent',
         typeColor: purple[700],
         iconBackground: purple[400],
-        handleColor: purple[700],
+        handleColor: purple[200],
+        highlightColor: purple[700],
         label: {
           background: purple[200],
           color: purple[700],
@@ -202,7 +229,8 @@ const colors: ThemeColors = {
         borderColor: 'transparent',
         typeColor: orange[700],
         iconBackground: orange[400],
-        handleColor: purple[700],
+        handleColor: orange[200],
+        highlightColor: orange[700],
         label: {
           background: orange[200],
           color: orange[700],
@@ -213,7 +241,8 @@ const colors: ThemeColors = {
         borderColor: 'transparent',
         typeColor: blue[700],
         iconBackground: blue[400],
-        handleColor: purple[700],
+        handleColor: blue[200],
+        highlightColor: blue[700],
         label: {
           background: blue[200],
           color: blue[700],
@@ -224,10 +253,35 @@ const colors: ThemeColors = {
         borderColor: 'transparent',
         typeColor: pink[700],
         iconBackground: pink[400],
-        handleColor: purple[700],
+        handleColor: pink[200],
+        highlightColor: pink[700],
         label: {
           background: pink[200],
           color: pink[700],
+        },
+      },
+      allowedAction: {
+        background: lighten(green[300], 0.1),
+        borderColor: 'transparent',
+        typeColor: green[700],
+        iconBackground: green[400],
+        handleColor: green[200],
+        highlightColor: green[700],
+        label: {
+          background: green[200],
+          color: green[700],
+        },
+      },
+      disallowedAction: {
+        background: lighten(red[300], 0.1),
+        borderColor: 'transparent',
+        typeColor: red[700],
+        iconBackground: red[400],
+        handleColor: red[200],
+        highlightColor: red[700],
+        label: {
+          background: red[200],
+          color: red[700],
         },
       },
     },
