@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -61,7 +63,6 @@ func TestCreateAccessList(t *testing.T) {
 		Owners:             []accesslist.Owner{{Name: "llama", Description: "llama desc"}},
 		OwnershipRequires:  accesslist.Requires{Roles: []string{"admin"}, Traits: trait.Traits{}},
 		Grants:             accesslist.Grants{Roles: []string{"access"}, Traits: trait.Traits{}},
-		Members:            []accesslist.Member{},
 		MembershipRequires: accesslist.Requires{Traits: trait.Traits{}},
 	}
 
@@ -76,7 +77,7 @@ func TestCreateAccessList(t *testing.T) {
 
 	var accessListResp ui.AccessListResponse
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &accessListResp))
-	require.Equal(t, spec, accessListResp.AccessList.Spec)
+	require.Empty(t, cmp.Diff(spec, accessListResp.AccessList.Spec, cmpopts.EquateEmpty()))
 	require.Equal(t, "access-list-1", accessListResp.AccessList.Metadata.Name)
 }
 
