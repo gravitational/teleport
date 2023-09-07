@@ -4039,17 +4039,17 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, "cluster-remote", 1)
 	helpers.WaitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// once the tunnel is established we need to wait until we have a
 		// connection to the remote auth
 		site := main.GetSiteAPI("cluster-remote")
-		if !assert.NotNil(c, site) {
+		if !assert.NotNil(t, site) {
 			return
 		}
 		// we need to wait until we know about the node because direct dial to
 		// unregistered servers is no longer supported
 		_, err := site.GetNode(ctx, apidefaults.Namespace, main.Config.HostUUID)
-		assert.NoError(c, err)
+		assert.NoError(t, err)
 	}, time.Minute, 250*time.Millisecond)
 
 	// Requests going via main proxy should succeed.
