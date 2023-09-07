@@ -825,8 +825,8 @@ The `<alias>` can only be a top-level subcommand. In other words, you can define
 
 `tsh` loads two kinds of configuration files:
 
-- global: by default `/etc/tsh.yaml`, unless overridden by  the `$TELEPORT_GLOBAL_TSH_CONFIG` env var.
-- user-specific: `$TELEPORT_HOME/config/config.yaml`, which by defaults resolves to `~/.tsh/config/config.yaml`.
+- global: set via the `$TELEPORT_GLOBAL_TSH_CONFIG` env var if not provided it will default to `/etc/tsh.yaml` on non-Windows operating systems.
+- user-specific: `$TELEPORT_HOME/config/config.yaml`, which by default resolves to `~/.tsh/config/config.yaml`.
 
 `tsh` merges the user-specific config with the global config. In case of conflicts (i.e. same alias defined in both files), the user-specific config has higher priority.
 
