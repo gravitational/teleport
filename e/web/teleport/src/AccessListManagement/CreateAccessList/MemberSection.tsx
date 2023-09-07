@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Text } from 'design';
 import { Option } from 'shared/components/Select';
 
-import { UserOption } from '../Shared';
+import { HybridUserOption, UserOption } from '../Shared';
 import {
   TraitLabel,
   TraitLookup,
@@ -26,7 +26,7 @@ type Props = {
 export type Members = {
   selectedRolesRequired: Option[];
   eligibleMembers: UserOption[];
-  selectedMembers: UserOption[];
+  selectedMembers: HybridUserOption[];
   traitLabels: TraitLabel[];
   traitLookup: TraitLookup;
 };
@@ -59,6 +59,7 @@ export const MembersSection = ({
       </Box>
       <EligibilityOrGrantRolesFieldSelectAndCreate
         editKind="Member"
+        optional={members.selectedMembers.length === 0}
         options={roleOptions}
         isDisabled={isDisabled}
         onChange={(option: Option[]) =>

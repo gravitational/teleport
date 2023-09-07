@@ -7,5 +7,4 @@ export default {
 };
 
 export const Create = () => <NoAccessState action="create" />;
-export const List = () => <NoAccessState action="list" />;
-export const Read = () => <NoAccessState action="read" />;
+export const Default = () => <NoAccessState />;

@@ -12,10 +12,7 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import {
-  AccessListAudit,
-  accessManagementService,
-} from 'e-teleport/services/accessmanagement';
+import { accessManagementService } from 'e-teleport/services/accessmanagement';
 import { AuditReviewFrequencySelectField } from 'e-teleport/AccessListManagement/CreateAccessList/SpecSection';
 import {
   CalendarDateSelect,
@@ -23,13 +20,16 @@ import {
   calculateMonthsDaysFromDuration,
 } from 'e-teleport/AccessListManagement/Shared';
 
+import { AccessListModified } from '../ViewEditAccessList';
+
 type Props = {
   onClose(): void;
-  audit: AccessListAudit;
+  accessList: AccessListModified;
   fetchAccessList(): Promise<void | boolean>;
 };
 
-export function EditAudit({ onClose, audit, fetchAccessList }: Props) {
+export function EditAudit({ onClose, accessList, fetchAccessList }: Props) {
+  const { audit } = accessList;
   const { attempt, setAttempt } = useAttempt('');
   const [frequency, setFrequency] = useState<Option>(() => {
     const { months } = calculateMonthsDaysFromDuration(audit.frequency);
@@ -50,10 +50,13 @@ export function EditAudit({ onClose, audit, fetchAccessList }: Props) {
     setAttempt({ status: 'processing' });
     accessManagementService
       .updateAccessList({
-        audit: {
-          frequency: frequency.value,
-          nextDate: auditStartDate,
+        req: {
+          audit: {
+            frequency: frequency.value,
+            nextDate: auditStartDate,
+          },
         },
+        original: accessList,
       })
       .then(() => {
         onClose();

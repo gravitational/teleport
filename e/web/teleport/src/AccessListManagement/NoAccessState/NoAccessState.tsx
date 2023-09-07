@@ -1,27 +1,17 @@
 import React from 'react';
-import { Text, Box, Flex } from 'design';
-import TextEditor from 'shared/components/TextEditor';
+import { Text, Box } from 'design';
 
-import { crud } from '.';
-
-export function NoAccessState({
-  action,
-}: {
-  action: 'create' | 'list' | 'read';
-}) {
+export function NoAccessState({ action }: { action?: 'create' }) {
   return (
-    <Box>
-      <Text>
-        You don’t have sufficient permissions to {action} Access Lists. Reach
-        out to your Teleport administrator to request additional permissions:
-      </Text>
-      <Flex minHeight="245px" mt={3}>
-        <TextEditor
-          readOnly={true}
-          data={[{ content: crud, type: 'yaml' }]}
-          bg="levels.deep"
-        />
-      </Flex>
+    <Box px={4} py={4} bg="levels.surface" borderRadius={3}>
+      {action === 'create' ? (
+        <Text>Only Teleport Administrator's can create new Access Lists.</Text>
+      ) : (
+        <Text>
+          Access listing is only available for owners or members of Access Lists
+          or Teleport Administrator's.
+        </Text>
+      )}
     </Box>
   );
 }

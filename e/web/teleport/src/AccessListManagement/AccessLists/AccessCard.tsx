@@ -1,24 +1,24 @@
 import React from 'react';
 import { useHistory } from 'react-router';
-
 import styled from 'styled-components';
 import { Flex, Box, Text } from 'design';
 import { User } from 'design/Icon';
 
 import cfg from 'e-teleport/config';
-import { AccessList } from 'e-teleport/services/accessmanagement';
 
 import { ToolTipText, TruncatingLabel } from '../Shared';
 
+import { AccessListWithModifiedGrants } from './AccessLists';
+
 export type Props = {
-  accessList: AccessList;
+  accessList: AccessListWithModifiedGrants;
 };
 
 // TODO(lisa): design is very similar to unifiedresources/ResourceCard.tsx
 // consider moving shared styles to a more general place eg: `SingleLineBox`
 // and `TruncatingLabel`
 export function AccessCard({ accessList }: Props) {
-  const { id, title, description, members, grants } = accessList;
+  const { id, title, description, membersCount, grants } = accessList;
   const history = useHistory();
 
   function handleOnClick() {
@@ -34,6 +34,8 @@ export function AccessCard({ accessList }: Props) {
     truncatedDesc = `${description.substring(0, 110)}...`;
   }
 
+  const canViewMembers = membersCount != null && membersCount > 0;
+
   return (
     <AccessCardContainer key={id} onClick={handleOnClick}>
       <Box width="100%">
@@ -45,23 +47,38 @@ export function AccessCard({ accessList }: Props) {
         </Description>
       </Box>
       <Flex>
-        <Flex
-          alignItems="center"
-          title={`${members.length} members in this list`}
-        >
-          <User size={16} />
-          <Text ml={1}>{members.length}</Text>
+        {canViewMembers && (
+          <Flex
+            alignItems="center"
+            title={`${membersCount} members in this list`}
+            mr={2}
+          >
+            <User size={16} />
+            <Text ml={1}>{membersCount}</Text>
+          </Flex>
+        )}
+        <Flex>
+          {renderRolesAndTraits({
+            roles: grants.roles,
+            traits: grants.traitList,
+          })}
         </Flex>
-        <Flex ml={2}>{renderRoles(grants.roles)}</Flex>
       </Flex>
     </AccessCardContainer>
   );
 }
 
-const renderRoles = (labels: string[] = []) => {
-  const $labels = labels.map((label, index) => (
+const renderRolesAndTraits = ({
+  roles,
+  traits,
+}: {
+  roles: string[];
+  traits: string[];
+}) => {
+  const combinedRolesAndGrants = [...roles, ...traits];
+  const $labels = combinedRolesAndGrants.map((label, index) => (
     <TruncatingLabel
-      mr={index === labels.length - 1 ? 0 : 1}
+      mr={index === combinedRolesAndGrants.length - 1 ? 0 : 1}
       key={`${label}${index}`}
       kind="secondary"
       title={label}

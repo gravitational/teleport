@@ -26,6 +26,7 @@ import cfg from 'e-teleport/config';
 
 import { NoAccessState } from '../NoAccessState';
 import {
+  HybridUserOption,
   UserOption,
   auditFrequencyOpts,
   matchRoles,
@@ -89,7 +90,7 @@ export function CreateAccessList() {
   // Update owners.
   useEffect(() => {
     let eligibleOwners: UserOption[] = [];
-    let selectedOwners: UserOption[] = [];
+    let selectedOwners: HybridUserOption[] = [];
     const rolesRequiredToBeEligible = owners.selectedRolesRequired;
 
     eligibleOwners = getEligibleUsers(
@@ -111,7 +112,7 @@ export function CreateAccessList() {
   // Update members.
   useEffect(() => {
     let eligibleMembers: UserOption[] = [];
-    let selectedMembers: UserOption[] = [];
+    let selectedMembers: HybridUserOption[] = [];
     const rolesRequiredToBeEligible = members.selectedRolesRequired;
 
     eligibleMembers = getEligibleUsers(
@@ -147,23 +148,25 @@ export function CreateAccessList() {
           roles: grant.rolesToGrant.map(r => r.value),
           traits: convertTraitLabelsToAllUserTraits(grant.traitsToGrant),
         },
-        auditDuration: spec.auditFrequency.value,
-        auditStartDate: spec.auditStartDate,
+        audit: {
+          frequency: spec.auditFrequency.value,
+          next_audit_date: spec.auditStartDate,
+        },
         // owners
         ownership_requires: {
           roles: owners.selectedRolesRequired.map(r => r.value),
           traits: convertTraitLabelsToAllUserTraits(owners.traitLabels),
         },
         owners: owners.selectedOwners.map(o => ({
-          name: o.value.name,
+          name: typeof o.value === 'string' ? o.value : o.value.name,
         })),
         // members
         membership_requires: {
           roles: members.selectedRolesRequired.map(r => r.value),
-          traits: convertTraitLabelsToAllUserTraits(owners.traitLabels),
+          traits: convertTraitLabelsToAllUserTraits(members.traitLabels),
         },
         members: members.selectedMembers.map(m => ({
-          name: m.value.name,
+          name: typeof m.value === 'string' ? m.value : m.value.name,
           joined: new Date(),
           added_by: accessListCreater,
         })),
@@ -303,11 +306,14 @@ export function getEligibleUsersAmongSelectedUsers({
   selectedUsers,
 }: {
   eligibleUsers: UserOption[];
-  selectedUsers: UserOption[];
+  selectedUsers: HybridUserOption[];
 }) {
   return selectedUsers.filter(selectedUser =>
-    eligibleUsers.some(
-      eligibleOwner => eligibleOwner.value.name === selectedUser.value.name
-    )
+    eligibleUsers.some(eligibleOwner => {
+      if (typeof selectedUser.value === 'string') {
+        return false;
+      }
+      return eligibleOwner.value.name === selectedUser.value.name;
+    })
   );
 }

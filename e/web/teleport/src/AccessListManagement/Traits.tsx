@@ -219,7 +219,7 @@ export function convertToTraitConvenience(
       traitVals.forEach(val =>
         traitLabels.push({ name: traitKey, value: val })
       );
-      traitList.push(`${traitKey}: ${traitVals.sort().join(', ')}`);
+      traitList.push(makeTraitLabel(traitKey, traitVals));
     }
   });
 
@@ -228,4 +228,8 @@ export function convertToTraitConvenience(
     traitList,
     traitLookup: convertTraitLabelsToTraitLookup(traitLabels),
   };
+}
+
+export function makeTraitLabel(traitKey: string, traitVals: string[]) {
+  return `${traitKey}: ${traitVals.sort().join(', ')}`;
 }

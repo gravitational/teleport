@@ -36,7 +36,7 @@ export const Failed = () => {
 export const NoAccess = () => {
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.status(200));
+      return res.once(ctx.status(403));
     })
   );
   return (
@@ -115,8 +115,8 @@ const mock = [
       },
       ownership_requires: { roles: [] },
       owners: [],
-      members: Array(243).fill({}),
     },
+    members: Array(243).fill({}),
   },
   {
     metadata: { name: 'ccc' },
@@ -124,11 +124,14 @@ const mock = [
       title: 'All Employees',
       description: 'lorem ipsum some kind of generic description',
       audit: { frequency: '' },
-      grants: { roles: ['access'] },
+      grants: {
+        roles: ['access'],
+        traits: { drink: ['banana', 'carrot', 'apple'] },
+      },
       ownership_requires: { roles: [] },
       owners: [],
-      members: Array(15).fill({}),
     },
+    members: Array(15).fill({}),
   },
   {
     metadata: { name: 'ddd' },
@@ -139,8 +142,8 @@ const mock = [
       grants: { roles: ['design', 'ux', 'ui', 'llama'] },
       ownership_requires: { roles: [] },
       owners: [],
-      members: Array(1).fill({}),
     },
+    members: Array(1).fill({}),
   },
   {
     metadata: { name: 'eee' },
@@ -150,8 +153,8 @@ const mock = [
       grants: { roles: ['test'] },
       ownership_requires: { roles: [] },
       owners: [],
-      members: Array(1).fill({}),
     },
+    members: Array(1).fill({}),
   },
   {
     metadata: { name: 'fff' },
@@ -169,7 +172,7 @@ const mock = [
       },
       ownership_requires: { roles: [] },
       owners: [],
-      members: Array(20000).fill({}),
     },
+    members: Array(20000).fill({}),
   },
 ];

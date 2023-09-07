@@ -6,7 +6,7 @@ import { Option } from 'shared/components/Select';
 import {
   EditKind,
   FieldSelectAndCreatableWrapper,
-  UserOption,
+  HybridUserOption,
 } from '../Shared';
 
 export function EligibilityOrGrantRolesFieldSelectAndCreate({
@@ -16,6 +16,7 @@ export function EligibilityOrGrantRolesFieldSelectAndCreate({
   selected,
   autoFocus = false,
   editKind,
+  optional = false,
 }: {
   options: Option[];
   isDisabled: boolean;
@@ -23,6 +24,7 @@ export function EligibilityOrGrantRolesFieldSelectAndCreate({
   selected: Option[];
   autoFocus?: boolean;
   editKind: EditKind;
+  optional?: boolean;
 }) {
   let requiredErrMsg = 'Roles granted are required';
   let label = 'Roles Granted';
@@ -36,9 +38,10 @@ export function EligibilityOrGrantRolesFieldSelectAndCreate({
     <FieldSelectAndCreatableWrapper<Option>
       label={label}
       value={selected}
-      rule={requiredErrMsg ? requiredField(requiredErrMsg) : undefined}
+      rule={optional ? undefined : requiredField(requiredErrMsg)}
     >
       <ReactSelectCreatable
+        menuPosition="fixed"
         autoFocus={autoFocus}
         classNamePrefix="react-select"
         placeholder="Start typing a role name and press enter"
@@ -54,7 +57,7 @@ export function EligibilityOrGrantRolesFieldSelectAndCreate({
   );
 }
 
-export function EligibleUsersFieldSelectAndCreate<T = UserOption>({
+export function EligibleUsersFieldSelectAndCreate<T = HybridUserOption>({
   selected,
   isDisabled,
   onChange,
@@ -87,6 +90,7 @@ export function EligibleUsersFieldSelectAndCreate<T = UserOption>({
       rule={requiredErrMsg ? requiredField(requiredErrMsg) : undefined}
     >
       <ReactSelectCreatable
+        menuPosition="fixed"
         autoFocus={autoFocus}
         classNamePrefix="react-select"
         placeholder="Start typing a username and press enter"

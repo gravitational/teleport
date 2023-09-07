@@ -12,7 +12,6 @@ import { Option } from 'shared/components/Select';
 
 import {
   AccessList,
-  AccessListRequires,
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
 import { EditKind } from 'e-teleport/AccessListManagement/Shared';
@@ -24,23 +23,32 @@ import {
   convertTraitLabelsToAllUserTraits,
 } from 'e-teleport/AccessListManagement/Traits';
 
+import { AccessListModified } from '../ViewEditAccessList';
+
 type Props = {
   onClose(): void;
-  existingRoles: AccessListRequires['roles'];
-  trait: TraitConvenience;
   editKind: EditKind;
   roleOptions: Option[];
   fetchAccessList(): Promise<void | boolean>;
+  accessList: AccessListModified;
 };
 
 export function EditEligibilityOrGrantRoles({
+  accessList,
   onClose,
-  existingRoles,
   editKind,
   roleOptions,
   fetchAccessList,
-  trait,
 }: Props) {
+  let existingRoles: string[] = accessList.grants.roles;
+  let trait: TraitConvenience = accessList.grants;
+  if (editKind === 'Member') {
+    existingRoles = accessList.membershipRequires.roles;
+    trait = accessList.membershipRequires;
+  } else if (editKind === 'Owner') {
+    existingRoles = accessList.ownershipRequires.roles;
+    trait = accessList.ownershipRequires;
+  }
   const { attempt, setAttempt } = useAttempt('');
   const [traitLabels, setTraitLabels] = useState<TraitLabel[]>(
     trait.traitLabels
@@ -52,12 +60,6 @@ export function EditEligibilityOrGrantRoles({
       value: r,
       label: r,
     }));
-
-    if (roleOptions.length > 0) {
-      selectedRoles = roleOptions.filter(roleOpt =>
-        existingRoles.includes(roleOpt.value)
-      );
-    }
 
     setSelectedRoles(selectedRoles);
   }, []);
@@ -87,7 +89,7 @@ export function EditEligibilityOrGrantRoles({
     // update.
     setAttempt({ status: 'processing' });
     accessManagementService
-      .updateAccessList(req)
+      .updateAccessList({ req, original: accessList })
       .then(() => {
         onClose();
         fetchAccessList();
@@ -131,6 +133,7 @@ export function EditEligibilityOrGrantRoles({
               selected={selectedRoles}
               autoFocus={true}
               editKind={editKind}
+              optional={traitLabels.length > 0}
             />
             <Box mt={2}>
               <TraitsCreator

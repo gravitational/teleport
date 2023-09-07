@@ -79,6 +79,7 @@ export const AuditReviewFrequencySelectField = ({
       isDisabled={isDisabled}
       onChange={onChangeFrequency}
       value={selectedFrequency}
+      rule={requiredField('Review frequency required')}
     />
   );
 };

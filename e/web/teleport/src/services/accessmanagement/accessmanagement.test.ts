@@ -1,6 +1,9 @@
 import api from 'teleport/services/api';
 
+import cfg from 'e-teleport/config';
+
 import { accessManagementService } from './accessmanagement';
+import { AccessList, UpsertAccessListRequest } from './types';
 
 test('fetch access lists, empty responses does not throw error', async () => {
   jest.spyOn(api, 'get').mockResolvedValue({ accessLists: null });
@@ -17,6 +20,7 @@ test('fetch access lists, empty responses does not throw error', async () => {
       description: '',
       owners: [],
       members: [],
+      membersCount: undefined,
       grants: {
         roles: [],
         traits: {},
@@ -38,19 +42,372 @@ test('fetch access lists, empty responses does not throw error', async () => {
 });
 
 test('fetch an access list, empty response does not throw error', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue({ accessList: null });
-  let response = await accessManagementService.fetchAccessList(
-    'does-not-matter'
-  );
-  expect(response).toStrictEqual({
+  const madeResponse = {
     audit: { frequency: '', nextDate: undefined },
     description: '',
     grants: { roles: [], traits: {} },
     id: '',
     members: [],
+    membersCount: undefined,
     membershipRequires: { roles: [], traits: {} },
     owners: [],
     ownershipRequires: { roles: [], traits: {} },
     title: '',
+  };
+
+  jest.spyOn(api, 'get').mockResolvedValue({ accessList: null });
+  let response = await accessManagementService.fetchAccessList(
+    'does-not-matter'
+  );
+  expect(response).toStrictEqual(madeResponse);
+
+  jest.spyOn(api, 'get').mockResolvedValue({
+    accessList: { spec: { ownership_requires: {}, membership_requires: {} } },
+  });
+  response = await accessManagementService.fetchAccessList('does-not-matter');
+  expect(response).toStrictEqual(madeResponse);
+});
+
+test('fetch an access list', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue({
+    accessList: {
+      metadata: {
+        name: 'some-id',
+      },
+      membersCount: 1234,
+      spec: {
+        title: 'some title',
+        description: 'some description',
+        audit: {
+          frequency: '24h',
+          next_audit_date: '2023-08-24T17:48:15.78579Z',
+        },
+        grants: {
+          roles: ['access'],
+          traits: { fruit: ['apple'] },
+        },
+        membership_requires: {
+          roles: ['intern'],
+          traits: { fruit: ['banana'] },
+        },
+        ownership_requires: {
+          roles: ['admin'],
+          traits: { fruit: ['carrot'] },
+        },
+        owners: [
+          {
+            name: 'lisa',
+            description: 'some description',
+            ineligible: 'some ineligible reason for owner',
+          },
+        ],
+      },
+      members: [
+        {
+          name: 'george',
+          joined: '2023-08-24T17:48:15.78579Z',
+          expires: '2023-08-24T17:48:15.78579Z',
+          reason: 'some reason',
+          added_by: 'llama',
+          ineligible: 'some ineligible reason for member',
+        },
+      ],
+    },
+  });
+  let response = await accessManagementService.fetchAccessList(
+    'does-not-matter'
+  );
+  expect(response).toStrictEqual({
+    id: 'some-id',
+    title: 'some title',
+    description: 'some description',
+    audit: {
+      frequency: '24h',
+      nextDate: new Date('2023-08-24T17:48:15.78579Z'),
+    },
+    grants: {
+      roles: ['access'],
+      traits: { fruit: ['apple'] },
+    },
+    membershipRequires: {
+      roles: ['intern'],
+      traits: { fruit: ['banana'] },
+    },
+    membersCount: 1234,
+    members: [
+      {
+        name: 'george',
+        joined: new Date('2023-08-24T17:48:15.78579Z'),
+        expires: new Date('2023-08-24T17:48:15.78579Z'),
+        reason: 'some reason',
+        addedBy: 'llama',
+        ineligibleReason: 'some ineligible reason for member',
+      },
+    ],
+    ownershipRequires: {
+      roles: ['admin'],
+      traits: { fruit: ['carrot'] },
+    },
+    owners: [
+      {
+        name: 'lisa',
+        description: 'some description',
+        ineligibleReason: 'some ineligible reason for owner',
+      },
+    ],
+  });
+});
+
+describe('update an access list', () => {
+  const originalAccessList: AccessList = {
+    id: 'some-id',
+    title: 'some title',
+    description: 'some description',
+    audit: {
+      frequency: '24h',
+      nextDate: new Date('2023-08-24T17:48:15.78579Z'),
+    },
+    grants: {
+      roles: ['access'],
+      traits: { fruit: ['apple'] },
+    },
+    membershipRequires: {
+      roles: ['intern'],
+      traits: { fruit: ['banana'] },
+    },
+    members: [
+      {
+        name: 'george',
+        joined: new Date('2023-08-24T17:48:15.78579Z'),
+        expires: new Date('2023-08-24T17:48:15.78579Z'),
+        reason: 'some reason',
+        addedBy: 'llama',
+        ineligibleReason: 'some member ineligible reason',
+      },
+    ],
+    ownershipRequires: {
+      roles: ['admin'],
+      traits: { fruit: ['carrot'] },
+    },
+    owners: [
+      {
+        name: 'lisa',
+        description: 'some description',
+        ineligibleReason: 'some owner ineligible reason',
+      },
+    ],
+  };
+
+  const madeForAccessListUpdate: UpsertAccessListRequest = {
+    title: 'some title',
+    description: 'some description',
+    audit: {
+      frequency: '24h',
+      next_audit_date: new Date('2023-08-24T17:48:15.78579Z'),
+    },
+    grants: {
+      roles: ['access'],
+      traits: { fruit: ['apple'] },
+    },
+    membership_requires: {
+      roles: ['intern'],
+      traits: { fruit: ['banana'] },
+    },
+    members: [
+      {
+        name: 'george',
+        joined: new Date('2023-08-24T17:48:15.78579Z'),
+        expires: new Date('2023-08-24T17:48:15.78579Z'),
+        reason: 'some reason',
+        added_by: 'llama',
+      },
+    ],
+    ownership_requires: {
+      roles: ['admin'],
+      traits: { fruit: ['carrot'] },
+    },
+    owners: [
+      {
+        name: 'lisa',
+        description: 'some description',
+      },
+    ],
+  };
+
+  // eslint-disable-next-line jest/require-hook
+  [
+    {
+      case: 'empty request should use original',
+      reqToUpdate: {},
+      constructed: madeForAccessListUpdate,
+    },
+    {
+      case: 'cannot modify title or description',
+      reqToUpdate: {
+        title: 'cannot change title',
+        description: 'cannot change description',
+      },
+      constructed: madeForAccessListUpdate,
+    },
+    {
+      case: 'modify audit',
+      reqToUpdate: {
+        audit: {
+          nextDate: new Date('2024-08-24T17:48:15.78579Z'),
+          frequency: '6h',
+        },
+      },
+      constructed: {
+        ...madeForAccessListUpdate,
+        audit: {
+          next_audit_date: new Date('2024-08-24T17:48:15.78579Z'),
+          frequency: '6h',
+        },
+      },
+    },
+    {
+      case: 'modify grants',
+      reqToUpdate: {
+        grants: {
+          roles: ['different-role1', 'different-role2'],
+          traits: { different1: ['different'], different2: ['different2'] },
+        },
+      },
+      constructed: {
+        ...madeForAccessListUpdate,
+        grants: {
+          roles: ['different-role1', 'different-role2'],
+          traits: { different1: ['different'], different2: ['different2'] },
+        },
+      },
+    },
+    {
+      case: 'modify members',
+      reqToUpdate: {
+        members: [
+          {
+            name: 'diff1',
+            joined: new Date('2024-08-24T17:48:15.78579Z'),
+            expires: new Date('2023-08-24T17:48:15.78579Z'),
+            reason: '',
+            addedBy: 'diff',
+            ineligibleReason: 'some reason',
+          },
+        ],
+      },
+      constructed: {
+        ...madeForAccessListUpdate,
+        members: [
+          {
+            name: 'diff1',
+            joined: new Date('2024-08-24T17:48:15.78579Z'),
+            expires: new Date('2023-08-24T17:48:15.78579Z'),
+            reason: '',
+            added_by: 'diff',
+          },
+        ],
+      },
+    },
+    {
+      case: 'modify owners',
+      reqToUpdate: {
+        owners: [
+          {
+            name: 'diff1',
+            description: 'diff description',
+          },
+        ],
+      },
+      constructed: {
+        ...madeForAccessListUpdate,
+        owners: [
+          {
+            name: 'diff1',
+            description: 'diff description',
+          },
+        ],
+      },
+    },
+    {
+      case: 'modify membership requires',
+      reqToUpdate: {
+        membershipRequires: {
+          roles: ['diff-role'],
+          traits: { diff: ['diff-trait'] },
+        },
+      },
+      constructed: {
+        ...madeForAccessListUpdate,
+        membership_requires: {
+          roles: ['diff-role'],
+          traits: { diff: ['diff-trait'] },
+        },
+      },
+    },
+    {
+      case: 'modify ownership requires',
+      reqToUpdate: {
+        ownershipRequires: {
+          roles: ['diff-role'],
+          traits: { diff: ['diff-trait'] },
+        },
+      },
+      constructed: {
+        ...madeForAccessListUpdate,
+        ownership_requires: {
+          roles: ['diff-role'],
+          traits: { diff: ['diff-trait'] },
+        },
+      },
+    },
+    {
+      case: 'modify multi fields',
+      reqToUpdate: {
+        ownershipRequires: {
+          roles: ['diff-role'],
+          traits: { diff: ['diff-trait'] },
+        },
+        audit: {
+          nextDate: new Date('2024-08-24T17:48:15.78579Z'),
+          frequency: '6h',
+        },
+        owners: [
+          {
+            name: 'diff1',
+            description: 'diff description',
+          },
+        ],
+      },
+      constructed: {
+        ...madeForAccessListUpdate,
+        ownership_requires: {
+          roles: ['diff-role'],
+          traits: { diff: ['diff-trait'] },
+        },
+        audit: {
+          next_audit_date: new Date('2024-08-24T17:48:15.78579Z'),
+          frequency: '6h',
+        },
+        owners: [
+          {
+            name: 'diff1',
+            description: 'diff description',
+          },
+        ],
+      },
+    },
+  ].forEach(tc => {
+    jest.spyOn(api, 'put').mockResolvedValue(null); // response doesn't matter
+    test(`case: ${tc.case}`, async () => {
+      await accessManagementService.updateAccessList({
+        req: tc.reqToUpdate,
+        original: originalAccessList,
+      });
+      expect(api.put).toHaveBeenCalledWith(
+        cfg.getAccessManagementListUrl(originalAccessList.id),
+        tc.constructed
+      );
+      jest.clearAllMocks();
+    });
   });
 });

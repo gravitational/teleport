@@ -10,33 +10,33 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import {
   AccessList,
-  AccessListMember,
-  AccessListOwner,
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
+
+import { AccessListModified } from './ViewEditAccessList';
 
 type Base = {
   username: string;
   onClose(): void;
+  accessList: AccessListModified;
   fetchAccessList(): Promise<void | boolean>;
 };
 
 type PropForMember = Base & {
   kind: 'Member';
-  existingUsers: AccessListMember[];
 };
 type PropForOwner = Base & {
   kind: 'Owner';
-  existingUsers: AccessListOwner[];
 };
 
 export function DeleteUserConfirmDialog({
   kind,
   username,
   onClose,
-  existingUsers,
+  accessList,
   fetchAccessList,
 }: PropForMember | PropForOwner) {
+  const { members: existingMembers, owners: existingOwners } = accessList;
   const { attempt, setAttempt } = useAttempt();
   const isDisabled = attempt.status === 'processing';
 
@@ -46,17 +46,17 @@ export function DeleteUserConfirmDialog({
 
     switch (kind) {
       case 'Member':
-        const updatedMembers = existingUsers.filter(u => u.name !== username);
+        const updatedMembers = existingMembers.filter(u => u.name !== username);
         req = { members: updatedMembers };
         break;
 
       case 'Owner':
-        const updatedOwners = existingUsers.filter(u => u.name !== username);
+        const updatedOwners = existingOwners.filter(u => u.name !== username);
         req = { owners: updatedOwners };
     }
 
     accessManagementService
-      .updateAccessList(req)
+      .updateAccessList({ req, original: accessList })
       .then(() => {
         onClose();
         fetchAccessList();

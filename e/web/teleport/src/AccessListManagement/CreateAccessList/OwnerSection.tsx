@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, Box } from 'design';
 import { Option } from 'shared/components/Select';
 
-import { UserOption } from '../Shared';
+import { HybridUserOption, UserOption } from '../Shared';
 import {
   TraitLabel,
   TraitLookup,
@@ -26,7 +26,7 @@ type Props = {
 export type Owners = {
   selectedRolesRequired: Option[];
   eligibleOwners: UserOption[];
-  selectedOwners: UserOption[];
+  selectedOwners: HybridUserOption[];
   traitLabels: TraitLabel[];
   traitLookup: TraitLookup;
 };
@@ -69,6 +69,7 @@ export const OwnersSection = ({
             })
           }
           selected={owners.selectedRolesRequired}
+          optional={owners.traitLabels.length > 0}
         />
       </Box>
       <EligibleUsersFieldSelectAndCreate

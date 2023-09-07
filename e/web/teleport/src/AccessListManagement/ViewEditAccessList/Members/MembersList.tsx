@@ -3,36 +3,30 @@ import { Flex, Text, Box, ButtonText } from 'design';
 import Table from 'design/DataTable';
 import { UsersTriple, Add } from 'design/Icon';
 
-import {
-  AccessListMember,
-  AccessListRequires,
-  AccessListGrant,
-} from 'e-teleport/services/accessmanagement';
+import { AccessListMember } from 'e-teleport/services/accessmanagement';
 
 import { UserOption, getFormattedDate } from '../../Shared';
 
 import { CustomCell, UserRevokeButtonCell } from '../Shared';
 import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';
-import { EditAccess } from '../ViewEditAccessList';
+import { AccessListModified, EditAccess } from '../ViewEditAccessList';
 
 import { EnrollNewMembers } from './EnrollNewMembers';
 
 type Props = {
-  members: AccessListMember[];
-  membershipRequires: AccessListRequires;
-  grants: AccessListGrant;
   userOptions: UserOption[];
   editAccess: EditAccess;
   fetchAccessList(): Promise<void | boolean>;
+  accessList: AccessListModified;
 };
 
 export function MembersList({
-  membershipRequires,
-  members,
+  accessList,
   userOptions,
   editAccess,
   fetchAccessList,
 }: Props) {
+  const { members } = accessList;
   const [showEnrollNewMembers, setShowEnrollNewMembers] = useState(false);
   const [deleteMember, setDeleteMember] = useState<AccessListMember>();
   return (
@@ -123,10 +117,9 @@ export function MembersList({
       {showEnrollNewMembers && (
         <EnrollNewMembers
           onClose={() => setShowEnrollNewMembers(false)}
-          membershipRequires={membershipRequires}
+          accessList={accessList}
           userOptions={userOptions}
           fetchAccessList={fetchAccessList}
-          existingMembers={members}
         />
       )}
       {deleteMember && (
@@ -134,7 +127,7 @@ export function MembersList({
           onClose={() => setDeleteMember(null)}
           kind="Member"
           username={deleteMember.name}
-          existingUsers={members}
+          accessList={accessList}
           fetchAccessList={fetchAccessList}
         />
       )}

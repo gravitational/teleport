@@ -34,7 +34,7 @@ export type AccessListRequiresWithTraitConvenience = AccessListRequires &
 export type AccessListGrantWithTraitConvenience = AccessListGrant &
   TraitConvenience;
 
-type AccessListModified = AccessList & {
+export type AccessListModified = AccessList & {
   membershipRequires: AccessListRequiresWithTraitConvenience;
   ownershipRequires: AccessListRequiresWithTraitConvenience;
   grants: AccessListGrantWithTraitConvenience;
@@ -145,10 +145,7 @@ export function ViewEditAccessList() {
           <Specs
             editAccess={editAccess}
             roleOptions={roleOptions}
-            audit={accessList.audit}
-            grants={accessList.grants}
-            ownershipRequires={accessList.ownershipRequires}
-            membershipRequires={accessList.membershipRequires}
+            accessList={accessList}
             fetchAccessList={fetchAccessList}
           />
         </Box>
@@ -156,19 +153,18 @@ export function ViewEditAccessList() {
           <OwnersList
             editAccess={editAccess}
             userOptions={userOptions}
-            owners={accessList.owners}
-            ownershipRequires={accessList.ownershipRequires}
+            accessList={accessList}
             fetchAccessList={fetchAccessList}
           />
         </Box>
-        <MembersList
-          editAccess={editAccess}
-          userOptions={userOptions}
-          grants={accessList.grants}
-          members={accessList.members}
-          membershipRequires={accessList.membershipRequires}
-          fetchAccessList={fetchAccessList}
-        />
+        {editAccess.members.hasAccess && (
+          <MembersList
+            editAccess={editAccess}
+            userOptions={userOptions}
+            accessList={accessList}
+            fetchAccessList={fetchAccessList}
+          />
+        )}
       </>
     );
   }
@@ -188,15 +184,18 @@ export function ViewEditAccessList() {
             {FeatureTitle}
           </Flex>
         </FeatureHeaderTitle>
-        <ButtonSecondary
-          onClick={() => setDeleteConfirm(true)}
-          title={editAccess.deleteList.btnTitle}
-          disabled={
-            attempt.status === 'processing' || !editAccess.deleteList.hasAccess
-          }
-        >
-          Delete
-        </ButtonSecondary>
+        {accessList && (
+          <ButtonSecondary
+            onClick={() => setDeleteConfirm(true)}
+            title={editAccess.deleteList.btnTitle}
+            disabled={
+              attempt.status === 'processing' ||
+              !editAccess.deleteList.hasAccess
+            }
+          >
+            Delete
+          </ButtonSecondary>
+        )}
       </FeatureHeader>
       {MainContent}
       {deleteConfirm && (
@@ -253,8 +252,8 @@ function getEditAccess({
       btnTitle: isAdmin || isOwner ? '' : genericNoAccessListMsg,
     },
     audit: {
-      hasAccess: isAdmin,
-      btnTitle: isAdmin ? '' : genericNoAccessListMsg,
+      hasAccess: isAdmin || isOwner,
+      btnTitle: isAdmin || isOwner ? '' : genericNoAccessListMsg,
     },
     grants: {
       hasAccess: isAdmin,

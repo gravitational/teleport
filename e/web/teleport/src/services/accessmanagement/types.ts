@@ -11,6 +11,13 @@ export type AccessList = {
   // membershipRequires and must be in the members list.
   membershipRequires?: AccessListRequires;
   members?: AccessListMember[];
+  // membersCount is the total member we have in this access list.
+  // membersCount only comes back when we "list" all access lists
+  // in place of returning possible large amounts of AccessListMember[]
+  // per access list.
+  // Only owners and admins can view members.
+  // Users who are members of this list will always get a 0 returned.
+  membersCount?: number | undefined;
   // ownershipRequires describes the requirements for a user to be an owner of the access list.
   // For ownership of an access list to be effective, the user must meet the requirements of
   // ownershipRequires and must be in the owners list.
@@ -74,11 +81,7 @@ export type MemberRequest = Omit<
   added_by: string;
 };
 
-export type CreateAccessListRequest = {
-  // auditDuration should be in the format:
-  // <number>h<number>m<number>s eg: 10h10m10s
-  auditDuration: string;
-  auditStartDate: Date; // TODO(lisa): depends on backend implementation
+export type UpsertAccessListRequest = {
   title: string;
   description?: string;
   grants: AccessListGrant;
@@ -86,8 +89,5 @@ export type CreateAccessListRequest = {
   ownership_requires: AccessListRequires;
   membership_requires?: AccessListRequires;
   members?: MemberRequest[];
+  audit: { frequency: string; next_audit_date: Date };
 };
-
-export type UpdateAccessListRequest = Partial<
-  Omit<CreateAccessListRequest, 'title' | 'description'>
->;

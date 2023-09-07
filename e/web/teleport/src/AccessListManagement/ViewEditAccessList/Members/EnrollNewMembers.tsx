@@ -10,39 +10,32 @@ import Dialog, {
 import Validation, { Validator } from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
-import { User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 
-import {
-  AccessListMember,
-  AccessListRequires,
-  accessManagementService,
-} from 'e-teleport/services/accessmanagement';
+import { accessManagementService } from 'e-teleport/services/accessmanagement';
 import { EligibleUsersFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
 
-import { CalendarDateSelect } from '../../Shared';
+import { CalendarDateSelect, UserOption } from '../../Shared';
 import {
   getEligibleUsersForAddingNewUsers,
   getNewAndExistingUsersForAddingNewUsers,
 } from '../Shared';
+import { AccessListModified } from '../ViewEditAccessList';
 
 type Props = {
   onClose(): void;
-  membershipRequires: AccessListRequires;
-  existingMembers: AccessListMember[];
   userOptions: UserOption[];
   fetchAccessList(): Promise<void | boolean>;
+  accessList: AccessListModified;
 };
-
-type UserOption = Option<User>;
 
 export function EnrollNewMembers({
   onClose,
-  membershipRequires,
+  accessList,
   userOptions,
-  existingMembers,
   fetchAccessList,
 }: Props) {
+  const { membershipRequires, members: existingMembers } = accessList;
   const ctx = useTeleport();
 
   const { attempt, setAttempt } = useAttempt('');
@@ -50,7 +43,7 @@ export function EnrollNewMembers({
   const [eligibleUsers, setEligibleUsers] = useState<Option[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<Option[]>([]);
   const [reason, setReason] = useState('');
-  const [expiry, setExpiry] = useState<Date>();
+  const [expires, setExpires] = useState<Date>();
 
   // duplicatedMembers are duplicate members extracted from
   // selectedMembers.
@@ -87,16 +80,19 @@ export function EnrollNewMembers({
     setAttempt({ status: 'processing' });
     accessManagementService
       .updateAccessList({
-        members: [
-          ...existingMembers,
-          ...newUsers.map(m => ({
-            name: m.value,
-            joined: new Date(),
-            reason,
-            addedBy: ctx.storeUser.getUsername(),
-            expiry,
-          })),
-        ],
+        original: accessList,
+        req: {
+          members: [
+            ...existingMembers,
+            ...newUsers.map(m => ({
+              name: m.value,
+              joined: new Date(),
+              reason,
+              addedBy: ctx.storeUser.getUsername(),
+              expires,
+            })),
+          ],
+        },
       })
       .then(() => {
         onClose();
@@ -146,8 +142,8 @@ export function EnrollNewMembers({
             />
             <Box mb={4}>
               <CalendarDateSelect
-                date={expiry}
-                onChange={(newDate: Date) => setExpiry(newDate)}
+                date={expires}
+                onChange={(newDate: Date) => setExpires(newDate)}
                 label="Member Expires (Optional)"
               />
             </Box>

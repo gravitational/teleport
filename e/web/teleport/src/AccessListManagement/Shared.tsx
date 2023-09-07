@@ -10,6 +10,19 @@ import { useRule } from 'shared/components/Validation';
 import { DatePicker } from './DatePicker';
 import { TraitLookup } from './Traits';
 
+// HybridUserOption
+//
+// An Option can be type User if a user selected
+// an option from the dropdown options. This
+// is only possible if the user had "user" rbac
+// and was able to fetch users from the back.
+//
+// An Option can be type String if a user manually
+// entered a user. This is allowed because
+// not all users will have the rbac to
+// list users and SSO users may not necessarily
+// exist in the backend yet.
+export type HybridUserOption = Option<User | string>;
 export type UserOption = Option<User>;
 export type EditKind = 'Member' | 'Owner' | 'Grants';
 

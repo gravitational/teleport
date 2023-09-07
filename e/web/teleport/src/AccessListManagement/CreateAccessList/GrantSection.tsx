@@ -50,6 +50,7 @@ export const GrantSection = ({
         }
         selected={grant.rolesToGrant}
         editKind="Grants"
+        optional={grant.traitsToGrant.length > 0}
       />
     </>
   );

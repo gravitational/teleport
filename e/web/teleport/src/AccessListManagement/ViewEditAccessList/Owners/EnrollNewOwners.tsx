@@ -11,11 +11,7 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import { Option } from 'shared/components/Select';
 
-import {
-  AccessListOwner,
-  AccessListRequires,
-  accessManagementService,
-} from 'e-teleport/services/accessmanagement';
+import { accessManagementService } from 'e-teleport/services/accessmanagement';
 import { EligibleUsersFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
 import { UserOption } from 'e-teleport/AccessListManagement/Shared';
 
@@ -23,22 +19,22 @@ import {
   getEligibleUsersForAddingNewUsers,
   getNewAndExistingUsersForAddingNewUsers,
 } from '../Shared';
+import { AccessListModified } from '../ViewEditAccessList';
 
 type Props = {
   onClose(): void;
-  ownershipRequires: AccessListRequires;
   userOptions: UserOption[];
   fetchAccessList(): Promise<void | boolean>;
-  existingOwners: AccessListOwner[];
+  accessList: AccessListModified;
 };
 
 export function EnrollNewOwners({
   onClose,
-  ownershipRequires,
   userOptions,
   fetchAccessList,
-  existingOwners,
+  accessList,
 }: Props) {
+  const { owners: existingOwners, ownershipRequires } = accessList;
   const { attempt, setAttempt } = useAttempt('');
 
   const [eligibleUsers, setEligibleUsers] = useState<Option[]>([]);
@@ -80,13 +76,16 @@ export function EnrollNewOwners({
     setAttempt({ status: 'processing' });
     accessManagementService
       .updateAccessList({
-        owners: [
-          ...existingOwners,
-          ...newUsers.map(o => ({
-            name: o.value,
-            description,
-          })),
-        ],
+        req: {
+          owners: [
+            ...existingOwners,
+            ...newUsers.map(o => ({
+              name: o.value,
+              description,
+            })),
+          ],
+        },
+        original: accessList,
       })
       .then(() => {
         onClose();
@@ -146,7 +145,7 @@ export function EnrollNewOwners({
               disabled={attempt.status === 'processing'}
               onClick={() => handleOnCreate(validator)}
             >
-              Enroll New Members
+              Enroll New Owners
             </ButtonPrimary>
             <ButtonSecondary
               disabled={attempt.status === 'processing'}

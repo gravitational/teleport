@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import styled from 'styled-components';
 import { Flex, Text, Box, ButtonIcon } from 'design';
 import {
   UserIdBadge,
@@ -8,68 +9,34 @@ import {
 } from 'design/Icon';
 import { Option } from 'shared/components/Select';
 
-import { AccessListAudit } from 'e-teleport/services/accessmanagement';
 import {
   TruncatingLabel,
   EditKind,
   calculateMonthsDaysFromDuration,
   getFormattedDate,
 } from 'e-teleport/AccessListManagement/Shared';
-import { TraitConvenience } from 'e-teleport/AccessListManagement/Traits';
 
-import {
-  AccessListGrantWithTraitConvenience,
-  AccessListRequiresWithTraitConvenience,
-  EditAccess,
-} from '../ViewEditAccessList';
+import { AccessListModified, EditAccess } from '../ViewEditAccessList';
 
 import { EditEligibilityOrGrantRoles } from './EditEligibilityOrGrants';
 import { EditAudit } from './EditAudit';
 
 type Props = {
-  membershipRequires: AccessListRequiresWithTraitConvenience;
-  ownershipRequires: AccessListRequiresWithTraitConvenience;
-  grants: AccessListGrantWithTraitConvenience;
-  audit: AccessListAudit;
   roleOptions: Option[];
   editAccess: EditAccess;
   fetchAccessList(): Promise<void | boolean>;
-};
-
-type EditEligibility = {
-  roles: string[];
-  kind: EditKind;
-  trait: TraitConvenience;
+  accessList: AccessListModified;
 };
 
 export function Specs({
-  membershipRequires,
-  ownershipRequires,
-  grants,
-  audit,
+  accessList,
   roleOptions,
   editAccess,
   fetchAccessList,
 }: Props) {
-  const [editElibility, setEditEligibility] = useState<EditEligibility>();
-  const [showEditGrants, setShowEditGrants] = useState(false);
+  const { membershipRequires, ownershipRequires, grants, audit } = accessList;
+  const [editPermKind, setEditPermKind] = useState<EditKind>();
   const [showEditAudit, setShowEditAudit] = useState(false);
-
-  function handleShowEditEligibility(kind: EditKind) {
-    if (kind === 'Member') {
-      setEditEligibility({
-        roles: membershipRequires.roles,
-        kind,
-        trait: membershipRequires,
-      });
-      return;
-    }
-    setEditEligibility({
-      roles: ownershipRequires.roles,
-      kind,
-      trait: ownershipRequires,
-    });
-  }
 
   let frequencyTxt = '';
   const { months, days } = calculateMonthsDaysFromDuration(audit.frequency);
@@ -85,11 +52,11 @@ export function Specs({
   return (
     <>
       <Flex justifyContent="space-between">
-        <Flex width="33%" mr={4} alignItems="flex-start">
+        <Flex width="40%" mr={4} alignItems="flex-start">
           <CircleCheck />
           <Box>
             <Text ml={1} fontSize={4} mb={2}>
-              Eligibility: Required Roles
+              Eligibility
             </Text>
 
             {/* Owners section */}
@@ -100,23 +67,19 @@ export function Specs({
                 </Text>
                 <ButtonPencil
                   title={editAccess.owners.btnTitle}
-                  onClick={() => handleShowEditEligibility('Owner')}
+                  onClick={() => setEditPermKind('Owner')}
                   disabled={!editAccess.owners.hasAccess}
                 />
               </Flex>
               {ownershipRequires.roles.length > 0 && (
                 <Flex alignItems="center">
-                  <Text fontSize={1} mr={1}>
-                    Roles:
-                  </Text>
+                  <TextNoEllipsis mr={1}>Roles:</TextNoEllipsis>
                   {renderRoles(ownershipRequires.roles)}
                 </Flex>
               )}
               {ownershipRequires.traitList.length > 0 && (
                 <Flex alignItems="center">
-                  <Text fontSize={1} mr={1}>
-                    Traits:
-                  </Text>
+                  <TextNoEllipsis mr={1}>Traits:</TextNoEllipsis>
                   {renderRoles(ownershipRequires.traitList)}
                 </Flex>
               )}
@@ -130,23 +93,19 @@ export function Specs({
                 </Text>
                 <ButtonPencil
                   title={editAccess.members.btnTitle}
-                  onClick={() => handleShowEditEligibility('Member')}
+                  onClick={() => setEditPermKind('Member')}
                   disabled={!editAccess.members.hasAccess}
                 />
               </Flex>
               {membershipRequires.roles.length > 0 && (
                 <Flex alignItems="center">
-                  <Text fontSize={1} mr={1}>
-                    Roles:
-                  </Text>
+                  <TextNoEllipsis mr={1}>Roles:</TextNoEllipsis>
                   {renderRoles(membershipRequires.roles)}
                 </Flex>
               )}
               {membershipRequires.traitList.length > 0 && (
                 <Flex alignItems="center">
-                  <Text fontSize={1} mr={1}>
-                    Traits:
-                  </Text>
+                  <TextNoEllipsis mr={1}>Traits:</TextNoEllipsis>
                   {renderRoles(membershipRequires.traitList)}
                 </Flex>
               )}
@@ -155,7 +114,7 @@ export function Specs({
         </Flex>
 
         {/* Permissions granted section */}
-        <Box width="33%">
+        <Box width="40%">
           <Flex mb={2} alignItems="center" mt="-4px">
             <UserIdBadge mt="2px" />
             <Text ml={1} fontSize={4} mr={1}>
@@ -163,30 +122,26 @@ export function Specs({
             </Text>
             <ButtonPencil
               title={editAccess.grants.btnTitle}
-              onClick={() => setShowEditGrants(true)}
+              onClick={() => setEditPermKind('Grants')}
               disabled={!editAccess.grants.hasAccess}
             />
           </Flex>
           {grants.roles.length > 0 && (
             <Flex alignItems="center">
-              <Text mr={1} fontSize={1}>
-                Roles:
-              </Text>
+              <TextNoEllipsis mr={1}>Roles:</TextNoEllipsis>
               {renderRoles(grants.roles)}
             </Flex>
           )}
           {grants.traitList.length > 0 && (
             <Flex alignItems="center">
-              <Text fontSize={1} mr={1}>
-                Traits:
-              </Text>
+              <TextNoEllipsis mr={1}>Traits:</TextNoEllipsis>
               {renderRoles(grants.traitList)}
             </Flex>
           )}
         </Box>
 
         {/* Audit section */}
-        <Box width="33%">
+        <Box width="20%">
           <Flex mb={2} alignItems="center" mt="-4px">
             <NotificationsActive />
             <Text ml={1} fontSize={4} mr={1}>
@@ -202,35 +157,26 @@ export function Specs({
             <Text fontSize={1} mb={2}>
               Next Date: {getFormattedDate(audit.nextDate)}
             </Text>
-            <Text fontSize={1}>Frequency: every {frequencyTxt}</Text>
+            <Text fontSize={1}>
+              Frequency: {frequencyTxt && `every ${frequencyTxt}`}
+            </Text>
           </Box>
         </Box>
       </Flex>
-      {editElibility && (
+      {editPermKind && (
         <EditEligibilityOrGrantRoles
-          onClose={() => setEditEligibility(null)}
-          existingRoles={editElibility.roles}
-          editKind={editElibility.kind}
+          onClose={() => setEditPermKind(null)}
+          editKind={editPermKind}
           roleOptions={roleOptions}
           fetchAccessList={fetchAccessList}
-          trait={editElibility.trait}
-        />
-      )}
-      {showEditGrants && (
-        <EditEligibilityOrGrantRoles
-          onClose={() => setShowEditGrants(false)}
-          existingRoles={grants.roles}
-          roleOptions={roleOptions}
-          fetchAccessList={fetchAccessList}
-          editKind="Grants"
-          trait={grants}
+          accessList={accessList}
         />
       )}
       {showEditAudit && (
         <EditAudit
           onClose={() => setShowEditAudit(false)}
-          audit={audit}
           fetchAccessList={fetchAccessList}
+          accessList={accessList}
         />
       )}
     </>
@@ -272,3 +218,7 @@ const renderRoles = (labels: string[] = []) => {
 
   return <Flex flexWrap="wrap">{$labels}</Flex>;
 };
+
+const TextNoEllipsis = styled(Box)`
+  font-size: ${p => p.theme.fontSizes[1]}px;
+`;

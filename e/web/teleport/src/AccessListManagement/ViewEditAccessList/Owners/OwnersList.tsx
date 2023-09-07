@@ -3,34 +3,30 @@ import { Flex, Text, ButtonText } from 'design';
 import Table from 'design/DataTable';
 import { Wrench, Add } from 'design/Icon';
 
-import {
-  AccessListOwner,
-  AccessListRequires,
-} from 'e-teleport/services/accessmanagement';
+import { AccessListOwner } from 'e-teleport/services/accessmanagement';
 
 import { UserOption } from '../../Shared';
 
 import { CustomCell, UserRevokeButtonCell } from '../Shared';
 import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';
-import { EditAccess } from '../ViewEditAccessList';
+import { AccessListModified, EditAccess } from '../ViewEditAccessList';
 
 import { EnrollNewOwners } from './EnrollNewOwners';
 
 type Props = {
-  owners: AccessListOwner[];
-  ownershipRequires: AccessListRequires;
   userOptions: UserOption[];
   editAccess: EditAccess;
   fetchAccessList(): Promise<void | boolean>;
+  accessList: AccessListModified;
 };
 
 export function OwnersList({
-  owners,
-  ownershipRequires,
+  accessList,
   editAccess,
   userOptions,
   fetchAccessList,
 }: Props) {
+  const { owners } = accessList;
   const [showEnrollNewMembers, setShowEnrollNewMembers] = useState(false);
   const [deleteOwner, setDeleteOwner] = useState<AccessListOwner>();
   return (
@@ -92,17 +88,16 @@ export function OwnersList({
       {showEnrollNewMembers && (
         <EnrollNewOwners
           onClose={() => setShowEnrollNewMembers(false)}
-          ownershipRequires={ownershipRequires}
           userOptions={userOptions}
           fetchAccessList={fetchAccessList}
-          existingOwners={owners}
+          accessList={accessList}
         />
       )}
       {deleteOwner && (
         <DeleteUserConfirmDialog
           onClose={() => setDeleteOwner(null)}
           kind="Owner"
-          existingUsers={owners}
+          accessList={accessList}
           username={deleteOwner.name}
           fetchAccessList={fetchAccessList}
         />

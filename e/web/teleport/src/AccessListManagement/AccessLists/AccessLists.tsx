@@ -9,40 +9,69 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import { ApiError } from 'teleport/services/api/parseError';
 
 import {
   accessManagementService,
   AccessList,
+  AccessListGrant,
 } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
 
 import { NoAccessState } from '../NoAccessState';
+import { makeTraitLabel } from '../Traits';
 
 import { EmptyState } from './EmptyState';
-
 import { AccessCard } from './AccessCard';
+
+export type AccessListWithModifiedGrants = Omit<AccessList, 'grants'> & {
+  grants: AccessListGrant & { traitList: string[] };
+};
 
 export function AccessLists() {
   const ctx = useTeleport();
   const perm = ctx.storeUser.getAccessListAccess();
-  const canUpsert = perm.create && perm.edit;
-  const canList = perm.read && perm.list;
+  const canUpsertAsAdmin = perm.create && perm.edit;
 
-  const { attempt, run } = useAttempt(canList ? 'processing' : '');
+  const { attempt, setAttempt } = useAttempt('processing');
 
-  const [accesses, setAccesses] = useState<AccessList[]>([]);
+  const [accesses, setAccesses] = useState<AccessListWithModifiedGrants[]>([]);
   const [searchValue, setSearchValue] = useState('');
-  const [filteredAccesses, setFilteredAccesses] = useState<AccessList[]>([]);
+  const [filteredAccesses, setFilteredAccesses] = useState<
+    AccessListWithModifiedGrants[]
+  >([]);
 
   useEffect(() => {
-    if (!canList) return;
-
-    run(() =>
-      accessManagementService.fetchAccessLists().then(res => {
-        setAccesses(res);
-        setFilteredAccesses(res);
+    setAttempt({ status: 'processing' });
+    accessManagementService
+      .fetchAccessLists()
+      .then(fetchedLists => {
+        setAttempt({ status: 'success' });
+        const updatedAccessList = fetchedLists.map(r => {
+          const traitList = [];
+          const definedTraitKeys = Object.keys(r.grants.traits);
+          if (definedTraitKeys.length > 0) {
+            definedTraitKeys.forEach(key => {
+              traitList.push(makeTraitLabel(key, r.grants.traits[key]));
+            });
+          }
+          return { ...r, grants: { ...r.grants, traitList: traitList.sort() } };
+        });
+        setAccesses(updatedAccessList);
+        setFilteredAccesses(updatedAccessList);
       })
-    );
+      .catch((e: Error) => {
+        if (e instanceof ApiError) {
+          // If error is of type "access denied",
+          // then the user is neither a member or owner of access lists
+          // or have access_list rbac (aka admin).
+          if (e.response.status === 403) {
+            setAttempt({ status: '' });
+            return;
+          }
+        }
+        setAttempt({ status: 'failed', statusText: e.message });
+      });
 
     // Static data fetched on init.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -84,9 +113,10 @@ export function AccessLists() {
 
   let MainContent: React.ReactElement;
   let showCreateBtn = true;
-  if (!canList) {
-    MainContent = <NoAccessState action="list" />;
+  if (attempt.status === '') {
+    MainContent = <NoAccessState />;
   } else if (attempt.status === 'processing') {
+    showCreateBtn = false;
     MainContent = (
       <Box textAlign="center" m={10}>
         <Indicator />
@@ -120,6 +150,7 @@ export function AccessLists() {
     );
   }
 
+  const noPermToCreate = !canUpsertAsAdmin && attempt.status === '';
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
@@ -127,11 +158,11 @@ export function AccessLists() {
         {showCreateBtn && (
           <ButtonPrimary
             title={
-              canUpsert
-                ? ''
-                : 'You do not have access to create and update an access list'
+              noPermToCreate
+                ? `Only Teleport Administrator's can create new Access Lists`
+                : ''
             }
-            disabled={!canUpsert || attempt.status === 'processing'}
+            disabled={noPermToCreate || attempt.status === 'processing'}
             width="240px"
             as={Link}
             to={cfg.routes.accessListNew}

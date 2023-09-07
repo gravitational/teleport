@@ -10,7 +10,7 @@ import {
   AccessListRequires,
 } from 'e-teleport/services/accessmanagement';
 
-import { ToolTipText, UserOption, matchRoles, matchTraits } from '../Shared';
+import { ToolTipText, matchRoles, matchTraits, UserOption } from '../Shared';
 import { convertToTraitConvenience } from '../Traits';
 
 export const CustomCell: React.FC<{ disabled: boolean }> = ({
@@ -115,7 +115,8 @@ export function getEligibleUsersForAddingNewUsers(
     return [];
   }
 
-  let filteredUsers: UserOption[] = matchRoles(eligibility.roles, fetchedUsers);
+  let filteredUsers = matchRoles(eligibility.roles, fetchedUsers);
+
   const { traitLookup } = convertToTraitConvenience(eligibility.traits);
   filteredUsers = matchTraits(traitLookup, filteredUsers);
 

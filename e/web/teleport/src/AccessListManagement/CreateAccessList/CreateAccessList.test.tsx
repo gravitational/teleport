@@ -138,3 +138,24 @@ test('getEligibleUsersAmongSelectedUsers', async () => {
     { value: { name: 'baz' } },
   ]);
 });
+
+test('getEligibleUsersAmongSelectedUsers ignore options that contain string as a value', async () => {
+  expect(
+    getEligibleUsersAmongSelectedUsers({
+      eligibleUsers: [
+        { value: { name: 'foo' } } as any,
+        { value: { name: 'baz' } },
+      ],
+      selectedUsers: [
+        { value: { name: 'foo' } } as any,
+        { value: 'manual-user-1' },
+        { value: { name: 'bar' } },
+        { value: { name: 'baz' } },
+        { value: 'manual-user-2' },
+      ],
+    })
+  ).toStrictEqual([
+    { value: { name: 'foo' } } as any,
+    { value: { name: 'baz' } },
+  ]);
+});
