@@ -53,6 +53,9 @@ type AccessLists interface {
 	DeleteAccessList(context.Context, string) error
 	// DeleteAllAccessLists removes all access lists.
 	DeleteAllAccessLists(context.Context) error
+
+	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
+	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
 }
 
 // MarshalAccessList marshals the access list resource to JSON.
@@ -115,7 +118,7 @@ type AccessListMembers interface {
 	UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
 	// DeleteAccessListMember hard deletes the specified access list member resource.
 	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
-	// DeleteAllAccessListMembers hard deletes all access list members for an access list.
+	// DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.
 	DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error
 	// DeleteAllAccessListMembers hard deletes all access list members.
 	DeleteAllAccessListMembers(ctx context.Context) error
