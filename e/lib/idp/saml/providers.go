@@ -114,10 +114,15 @@ func (s *Service) GetServiceProvider(r *http.Request, serviceProviderID string) 
 		// Search for the service provider with a matching entity ID.
 		for _, sp := range sps {
 			if sp.GetEntityID() == serviceProviderID {
+				if err := validateAssertionConsumerServices(sp); err != nil {
+					return nil, trace.Wrap(err)
+				}
+
 				ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
+
 				return ed, nil
 			}
 		}

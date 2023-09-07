@@ -169,6 +169,12 @@ func (s *Service) handleIdPInitiatedLogin(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if err := validateAssertionConsumerServices(sp); err != nil {
+		s.emitAuthAttemptEvent(r.Context(), user, "", "", shortcutName, err)
+		s.writeError(w, http.StatusNotFound)
+		return
+	}
+
 	// embed the entity ID in the context because IdP initiated SSO doesn't put the
 	// entity ID into the authnRequest until after the session is retrieved, which means
 	// audit event emitted in the session provider doesn't have access to the entity ID.

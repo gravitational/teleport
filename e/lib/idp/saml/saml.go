@@ -22,6 +22,7 @@ import (
 	"net/url"
 
 	"github.com/crewjam/saml"
+	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	dsig "github.com/russellhaering/goxmldsig"
@@ -253,4 +254,27 @@ func (s *Service) emitAuthAttemptEvent(ctx context.Context, user, sessionID, ent
 	if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
 		s.log.WithError(emitErr).Warnf("Failed to emit SAML IdP auth attempt event: %v", event)
 	}
+}
+
+// validateAssertionConsumerServices ensures that all AssertionConsumerServices defined in the
+// [saml.EntityDescriptor] are valid HTTPS endpoints.
+func validateAssertionConsumerServices(sp types.SAMLIdPServiceProvider) error {
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, descriptor := range ed.SPSSODescriptors {
+		for _, acs := range descriptor.AssertionConsumerServices {
+			endpoint, err := url.Parse(acs.Location)
+			switch {
+			case err != nil:
+				return trace.Wrap(err)
+			case endpoint.Scheme != "https":
+				return trace.BadParameter("the assertion consumer services location must be an http or https endpoint")
+			}
+		}
+	}
+
+	return nil
 }
