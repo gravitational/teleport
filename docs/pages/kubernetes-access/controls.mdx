@@ -521,11 +521,14 @@ the following kinds:
   | `job` | Jobs |
   | `certificatesigningrequest` | CertificateSigningRequests |
   | `ingress` | Ingresses |
+
 - `namespace`: The Kubernetes namespace in which to allow access to a resource.
   In the `kube-access` role, we are allowing access to a pod in the
   `production` namespace.
+
 - `name`: The name of the pod to allow access to. In `kube-access`, this is
   the `webapp` pod.
+
 - `verbs`: The operations to allow on the resource. Currently, Teleport supports:
 
   | Verb | Grants access to |
