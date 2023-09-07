@@ -86,19 +86,16 @@ jobs:
           git config --global user.name "GitHub"
 
           # update versions in docs/config.json
+          # for docker images replace version number after <docker image name>:
           jq --arg major ${{ steps.get-branch.outputs.major }} \
              --arg version ${{ steps.get-branch.outputs.version }} \
-             --arg oss_docker_image       public.ecr.aws/gravitational/teleport-distroless:${{ steps.get-branch.outputs.version }} \
-             --arg oss_debug_docker_image public.ecr.aws/gravitational/teleport-distroless-debug:${{ steps.get-branch.outputs.version }} \
-             --arg ent_docker_image       public.ecr.aws/gravitational/teleport-ent-distroless:${{ steps.get-branch.outputs.version }} \
-             --arg ent_debug_docker_image public.ecr.aws/gravitational/teleport-ent-distroless-debug:${{ steps.get-branch.outputs.version }} \
              '.variables.teleport.major_version |= $major | 
               .variables.teleport.version |= $version | 
               .variables.teleport.plugin.version |= $version | 
-              .variables.teleport.latest_oss_docker_image |= $oss_docker_image | 
-              .variables.teleport.latest_oss_debug_docker_image |= $oss_debug_docker_image | 
-              .variables.teleport.latest_ent_docker_image |= $ent_docker_image | 
-              .variables.teleport.latest_ent_debug_docker_image |= $ent_debug_docker_image' \
+              .variables.teleport.latest_oss_docker_image |= sub(":.*";":")+$version | 
+              .variables.teleport.latest_oss_debug_docker_image |= sub(":.*";":")+$version | 
+              .variables.teleport.latest_ent_docker_image |= sub(":.*";":")+$version | 
+              .variables.teleport.latest_ent_debug_docker_image |= sub(":.*";":")+$version' \
               docs/config.json > docs/confignew.json
           cat docs/confignew.json
           mv docs/confignew.json docs/config.json
