@@ -3,16 +3,6 @@ title: Database Access with Elasticsearch
 description: How to configure Teleport database access with Elasticsearch.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="10.3"
->
-  Database access for Elasticsearch is available starting from Teleport `10.3`.
-</Details>
-
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="Elasticsearch" dbConfigure="Self-hosted Elasticsearch with mutual TLS authentication" dbName="Elasticsearch" !)
 
 ## Prerequisites
@@ -123,8 +113,6 @@ The command will create three files:
 - `elastic.cas` with Teleport's certificate authority
 - `elastic.key` with a generated private key
 - `elastic.crt` with a generated host certificate
-
-(!docs/pages/includes/database-access/rotation-note.mdx!)
 
 Use the generated secrets to enable mutual TLS in your `elasticsearch.yml` configuration
 file:

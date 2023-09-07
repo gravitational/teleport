@@ -39,3 +39,11 @@ func newRevision() pgtype.UUID {
 		Valid: true,
 	}
 }
+
+// nonNil replaces a nil slice with an empty, non-nil one.
+func nonNil(b []byte) []byte {
+	if b == nil {
+		return []byte{}
+	}
+	return b
+}
