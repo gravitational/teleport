@@ -496,66 +496,51 @@ fields:
 
 - `kind`: The kind of resource to enable access to. Currently, Teleport supports
 the following kinds:
-  - `*`: Allow access to all resources.
-  - `pod`: Controls access to pods. The `name` and `namespace` fields of a `pod` resource
-    corresponds to the name and namespace of a pod.
-  - `secret`: Controls access to secrets. The `name` and `namespace` fields of a `secret`
-    resource corresponds to the name and namespace of a secret.
-  - `configmap`: Controls access to configmaps. The `name` and `namespace` fields of a `configmap`
-    resource corresponds to the name and namespace of a configmap.
-  - `namespace`: Controls access to namespaces and all resources within. The `name` field of a `namespace`
-    resource corresponds to the name of a namespace.
-  - `service`: Controls access to services. The `name` and `namespace` fields of a `service`
-    resource corresponds to the name and namespace of a service.
-  - `serviceaccount`: Controls access to service accounts. The `name` and `namespace` fields of a `serviceaccount`
-    resource corresponds to the name and namespace of a service account.
-  - `kube_node`: Controls access to nodes. The `name` field of a `kube_node`
-    resource corresponds to the name of a node.
-  - `persistentvolume`: Controls access to persistent volumes. The `name` field of a `persistentvolume`
-    resource corresponds to the name of a persistent volume.
-  - `persistentvolumeclaim`: Controls access to persistent volume claims. The `name` and `namespace` fields of a `persistentvolumeclaim`
-    resource corresponds to the name and namespace of a persistent volume claim.
-  - `deployment`: Controls access to deployments. The `name` and `namespace` fields of a `deployment`
-    resource corresponds to the name and namespace of a deployment.
-  - `replicaset`: Controls access to replica sets. The `name` and `namespace` fields of a `replicaset`
-    resource corresponds to the name and namespace of a replica set.
-  - `statefulset`: Controls access to stateful sets. The `name` and `namespace` fields of a `statefulset`
-    resource corresponds to the name and namespace of a stateful set.
-  - `daemonset`: Controls access to daemon sets. The `name` and `namespace` fields of a `daemonset`
-    resource corresponds to the name and namespace of a daemon set.
-  - `clusterrole`: Controls access to cluster roles. The `name` field of a `clusterrole`
-    resource corresponds to the name of a cluster role.
-  - `kube_role`: Controls access to roles. The `name` and `namespace` fields of a `kube_role`
-    resource corresponds to the name and namespace of a role.
-  - `clusterrolebinding`: Controls access to cluster role bindings. The `name` field of a `clusterrolebinding`
-    resource corresponds to the name of a cluster role binding.
-  - `rolebinding`: Controls access to role bindings. The `name` and `namespace` fields of a `rolebinding`
-    resource corresponds to the name and namespace of a role binding.
-  - `cronjob`: Controls access to cron jobs. The `name` and `namespace` fields of a `cronjob`
-    resource corresponds to the name and namespace of a cron job.
-  - `job`: Controls access to jobs. The `name` and `namespace` fields of a `job`
-    resource corresponds to the name and namespace of a job.
-  - `certificatesigningrequest`: Controls access to certificate signing requests. The `name` field of a `certificatesigningrequest`
-    resource corresponds to the name of a certificate signing request.
-  - `ingress`: Controls access to ingresses. The `name` and `namespace` fields of a `ingress`
-    resource corresponds to the name and namespace of a ingress.
+
+  | Kind | Grants access to |
+  | ---- | ----------- |
+  | `*` | All resources |
+  | `pod` | Pods |
+  | `secret` | Secrets |
+  | `configmap` | ConfigMaps |
+  | `namespace` | Namespaces and all resources within |
+  | `service` | Services |
+  | `serviceaccount` | ServiceAccounts |
+  | `kube_node` | Nodes |
+  | `persistentvolume` | PersistentVolumes |
+  | `persistentvolumeclaim` | PersistentVolumeClaims |
+  | `deployment` | Deployments |
+  | `replicaset` | ReplicaSets |
+  | `statefulset` | StatefulSets |
+  | `daemonset` | DaemonSets |
+  | `clusterrole` | ClusterRoles |
+  | `kube_role` | Roles |
+  | `clusterrolebinding` | ClusterRoleBindings |
+  | `rolebinding` | RoleBindings |
+  | `cronjob` | CronJobs |
+  | `job` | Jobs |
+  | `certificatesigningrequest` | CertificateSigningRequests |
+  | `ingress` | Ingresses |
 - `namespace`: The Kubernetes namespace in which to allow access to a resource.
   In the `kube-access` role, we are allowing access to a pod in the
   `production` namespace.
 - `name`: The name of the pod to allow access to. In `kube-access`, this is
   the `webapp` pod.
 - `verbs`: The operations to allow on the resource. Currently, Teleport supports:
-  - `*`: Allow all operations.
-  - `read`: Controls access to read a resource of a given kind.
-  - `list`: Controls access to list resources of a given kind.
-  - `create`: Controls access to create a resource of a given kind.
-  - `update`: Controls access to update a resource of a given kind.
-  - `patch`: Controls access to patch a resource of a given kind.
-  - `delete`:  Controls access to delete a resource of a given kind.
-  - `deletecollection`: Controls access to delete a collection of resources of a given kind.
-  - `watch`: Controls access to watch a resource of a given kind.
-  - `portforward`: Controls access to create portforward requests for Pods.
-  - `exec`: Controls access to execute commands in Pods.
+
+  | Verb | Grants access to |
+  | ---- | ----------- |
+  | `*` | All operations |
+  | `read` | Read a resource |
+  | `list` | List resources |
+  | `create` | Create a resource |
+  | `update` | Update a resource |
+  | `patch` | Patch a resource |
+  | `delete` | Delete a resource |
+  | `deletecollection` | Delete a collection of resources |
+  | `watch` | Watch resources |
+  | `portforward` | Create portforward requests for Pods |
+  | `exec` | Execute commands in Pods |
 
 For both the `namespace` and `name` fields, you can add a wildcard character
 (`*`) to replace any sequence of characters. For example, `name: "pod-*-*"`
