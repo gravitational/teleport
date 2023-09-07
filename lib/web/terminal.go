@@ -1109,14 +1109,20 @@ func (t *TerminalStream) handleWindowResize(ctx context.Context, envelope Envelo
 		return
 	}
 
-	var e map[string]string
+	var e map[string]interface{}
 	err := json.Unmarshal([]byte(envelope.Payload), &e)
 	if err != nil {
 		t.log.Warnf("Failed to parse resize payload: %v", err)
 		return
 	}
 
-	params, err := session.UnmarshalTerminalParams(e["size"])
+	size, ok := e["size"].(string)
+	if !ok {
+		t.log.Errorf("expected size to be of type string, got type %T instead", size)
+		return
+	}
+
+	params, err := session.UnmarshalTerminalParams(size)
 	if err != nil {
 		t.log.Warnf("Failed to retrieve terminal size: %v", err)
 		return
