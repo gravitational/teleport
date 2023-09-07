@@ -89,7 +89,14 @@ func NewClient(conf ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	apiURL.Scheme = "https"
+
+	if apiURL.Scheme == "http" && !strings.HasPrefix(apiURL.Host, "127.0.0.1") {
+		return nil, trace.BadParameter("http scheme is only permitted for localhost: %v", apiURL.Host)
+	}
+	if !strings.HasPrefix(apiURL.Host, "127.0.0.1") {
+		apiURL.Scheme = "https"
+	}
+
 	client.SetBaseURL(conf.APIEndpoint).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json").
