@@ -243,7 +243,7 @@ jobs:
           echo oss_teleport=$TOKEN >> $GITHUB_OUTPUT
 
       - name: Checkout OSS Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ inputs.oss-teleport-repo }}
           ref: ${{ inputs.oss-teleport-ref }}

@@ -15,13 +15,13 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout OSS Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: gravitational/teleport
           ref: master
 
       - name: Checkout Enterprise Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: e
 

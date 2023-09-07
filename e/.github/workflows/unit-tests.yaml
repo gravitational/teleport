@@ -20,13 +20,13 @@ jobs:
 
     steps:
       - name: Checkout OSS Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: gravitational/teleport  # This may need to be updated
           ref: ${{ github.base_ref }}
 
       - name: Checkout Enterprise Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: e
 

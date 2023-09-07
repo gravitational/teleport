@@ -27,7 +27,7 @@ jobs:
       artifact-version: ${{ steps.set-variables.outputs.artifact-version }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Set environment output values
@@ -93,7 +93,7 @@ jobs:
       GNUPGHOME: /tmp/gnupg
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install fpm and dependencies
         run: |
           sudo apt update
@@ -262,7 +262,7 @@ jobs:
           - yum
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Map current environment to deployment environment
         env:
           CURRENT_ENVIRONMENT: ${{ needs.setup-build.outputs.package-environment }}

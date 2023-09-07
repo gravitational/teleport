@@ -193,7 +193,7 @@ jobs:
           df -hT
       # Future TODO package the tool as an action or separate workflow
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
