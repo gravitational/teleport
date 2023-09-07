@@ -73,7 +73,6 @@
     "Goland",
     "Grafana's",
     "Gtczk",
-    "highavailabilitycertmanageraddcommonname",
     "HKEY",
     "HSTS",
     "Hqlo",
@@ -146,7 +145,6 @@
     "Pbbd",
     "Pluggable",
     "Println",
-    "privateca",
     "Quickstart",
     "Quicktime's",
     "REDISCLI",
@@ -186,7 +184,6 @@
     "Tatham",
     "Tele",
     "Templating",
-    "tlsexistingcasecretname",
     "Tmkx",
     "Toboth",
     "Traefik",
@@ -425,6 +422,7 @@
     "healthz",
     "highavailability",
     "highavailabilitycertmanager",
+    "highavailabilitycertmanageraddcommonname",
     "hostcert",
     "hostdb",
     "hostedzone",
@@ -618,6 +616,7 @@
     "preconfigured",
     "prereqs",
     "prioritise",
+    "privateca",
     "privkey",
     "priya",
     "programatically",
@@ -731,6 +730,7 @@
     "teleportdemo",
     "teleportdev",
     "teleportdevdiscovery",
+    "teleportdevname",
     "teleportdevprotocol",
     "teleporters",
     "teleportproxy",
@@ -746,6 +746,7 @@
     "timechart",
     "tlscacerts",
     "tlscert",
+    "tlsexistingcasecretname",
     "tmpfs",
     "tocless",
     "tokenconfig",
@@ -822,7 +823,5 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": [
-    "hte"
-  ]
+  "flagWords": ["hte"]
 }
