@@ -280,9 +280,7 @@ class FeatureAccessListManagement implements TeleportFeature {
   // We will always render this feature regardless of
   // access rules.
   hasAccess() {
-    // TODO(lisa): Feature is temporarily turned off until
-    // feature is ready. Manually turn on for dev.
-    return false;
+    return true;
   }
 
   navigationItem = {
