@@ -267,6 +267,10 @@ type DeployServiceResponse struct {
 
 // DeployServiceClient describes the required methods to Deploy a  Teleport Service.
 type DeployServiceClient interface {
+	// ListClusters lists ECS Clusters
+	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.ListClusters
+	ListClusters(ctx context.Context, params *ecs.ListClustersInput, optFns ...func(*ecs.Options)) (*ecs.ListClustersOutput, error)
+
 	// DescribeClusters lists ECS Clusters.
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.DescribeClusters
 	DescribeClusters(ctx context.Context, params *ecs.DescribeClustersInput, optFns ...func(*ecs.Options)) (*ecs.DescribeClustersOutput, error)
@@ -278,6 +282,10 @@ type DeployServiceClient interface {
 	// PutClusterCapacityProviders sets the Capacity Providers available for services in a given cluster.
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.PutClusterCapacityProviders
 	PutClusterCapacityProviders(ctx context.Context, params *ecs.PutClusterCapacityProvidersInput, optFns ...func(*ecs.Options)) (*ecs.PutClusterCapacityProvidersOutput, error)
+
+	// ListServices returns a list of services
+	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.ListServices
+	ListServices(ctx context.Context, params *ecs.ListServicesInput, optFns ...func(*ecs.Options)) (*ecs.ListServicesOutput, error)
 
 	// DescribeServices lists the matching Services of a given Cluster.
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.DescribeServices
@@ -291,9 +299,17 @@ type DeployServiceClient interface {
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.CreateService
 	CreateService(ctx context.Context, params *ecs.CreateServiceInput, optFns ...func(*ecs.Options)) (*ecs.CreateServiceOutput, error)
 
+	// DescribeTaskDefinition describes the task definition.
+	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.DescribeTaskDefinition
+	DescribeTaskDefinition(ctx context.Context, params *ecs.DescribeTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.DescribeTaskDefinitionOutput, error)
+
 	// RegisterTaskDefinition registers a new task definition from the supplied family and containerDefinitions.
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.RegisterTaskDefinition
 	RegisterTaskDefinition(ctx context.Context, params *ecs.RegisterTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.RegisterTaskDefinitionOutput, error)
+
+	// DeregisterTaskDefinition deregisters the task definition.
+	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.DeregisterTaskDefinition
+	DeregisterTaskDefinition(ctx context.Context, params *ecs.DeregisterTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.DeregisterTaskDefinitionOutput, error)
 
 	// TokenService are the required methods to manage the IAM Join Token.
 	// When the deployed service connects to the cluster, it will use the IAM Join method.
@@ -456,11 +472,16 @@ func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceR
 				Value: aws.String("true"),
 			}},
 			Command: []string{
+				// --rewrite 15:3 rewrites SIGTERM -> SIGQUIT. This enables graceful shutdown of teleport
+				"--rewrite",
+				"15:3",
+				"--",
+				"teleport",
 				"start",
 				"--config-string",
 				configB64,
 			},
-			EntryPoint: []string{"teleport"},
+			EntryPoint: []string{"/usr/bin/dumb-init"},
 			Image:      &taskAgentContainerImage,
 			Name:       &taskAgentContainerName,
 			LogConfiguration: &ecsTypes.LogConfiguration{

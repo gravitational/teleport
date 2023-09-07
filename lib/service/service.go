@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
@@ -1193,6 +1194,10 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	// even in sync recording modes, since the recording mode can be changed
 	// at any time with dynamic configuration
 	process.RegisterFunc("common.upload.init", process.initUploaderService)
+
+	if automaticupgrades.IsEnabled() {
+		process.RegisterFunc("update.deploy.agents.auth", process.periodUpdateDeployServiceAgents)
+	}
 
 	if !serviceStarted {
 		return nil, trace.BadParameter("all services failed to start")

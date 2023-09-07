@@ -20,6 +20,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -68,19 +69,133 @@ func TestVersion(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, r.URL.Path, "/v1/stable/cloud/version")
+				assert.Equal(t, "/v1/stable/cloud/version", r.URL.Path)
 				w.WriteHeader(tt.mockStatusCode)
 				w.Write([]byte(tt.mockResponseString))
 			}))
 			defer httpTestServer.Close()
 
-			v, err := Version(ctx, httpTestServer.URL)
+			versionURL, err := url.JoinPath(httpTestServer.URL, "/v1/stable/cloud/version")
+			require.NoError(t, err)
+
+			v, err := Version(ctx, versionURL)
 			tt.errCheck(t, err)
 			if err != nil {
 				return
 			}
 
-			require.Equal(t, v, tt.expectedVersion)
+			require.Equal(t, tt.expectedVersion, v)
+		})
+	}
+}
+
+func TestCritical(t *testing.T) {
+	ctx := context.Background()
+
+	isBadParameterErr := func(tt require.TestingT, err error, i ...any) {
+		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+	}
+
+	for _, tt := range []struct {
+		name               string
+		mockStatusCode     int
+		mockResponseString string
+		errCheck           require.ErrorAssertionFunc
+		expectedCritical   bool
+	}{
+		{
+			name:               "critical available",
+			mockStatusCode:     http.StatusOK,
+			mockResponseString: "yes\n",
+			errCheck:           require.NoError,
+			expectedCritical:   true,
+		},
+		{
+			name:               "critical is not available",
+			mockStatusCode:     http.StatusOK,
+			mockResponseString: "no\n",
+			errCheck:           require.NoError,
+			expectedCritical:   false,
+		},
+		{
+			name:           "invalid status code (500)",
+			mockStatusCode: http.StatusInternalServerError,
+			errCheck:       isBadParameterErr,
+		},
+		{
+			name:           "invalid status code (403)",
+			mockStatusCode: http.StatusForbidden,
+			errCheck:       isBadParameterErr,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "/v1/stable/cloud/critical", r.URL.Path)
+				w.WriteHeader(tt.mockStatusCode)
+				w.Write([]byte(tt.mockResponseString))
+			}))
+			defer httpTestServer.Close()
+
+			criticalURL, err := url.JoinPath(httpTestServer.URL, "/v1/stable/cloud/critical")
+			require.NoError(t, err)
+
+			v, err := Critical(ctx, criticalURL)
+			tt.errCheck(t, err)
+			if err != nil {
+				return
+			}
+
+			require.Equal(t, tt.expectedCritical, v)
+		})
+	}
+}
+
+func TestGetVersionURL(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		versionURL  string
+		expectedURL string
+	}{
+		{
+			name:        "default stable/cloud version url",
+			versionURL:  "",
+			expectedURL: "https://updates.releases.teleport.dev/v1/stable/cloud/version",
+		},
+		{
+			name:        "custom version url",
+			versionURL:  "https://custom.dev/version",
+			expectedURL: "https://custom.dev/version",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			v, err := getVersionURL(tt.versionURL)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedURL, v)
+		})
+	}
+}
+
+func TestGetCriticalURL(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		criticalURL string
+		expectedURL string
+	}{
+		{
+			name:        "default stable/cloud critical url",
+			criticalURL: "",
+			expectedURL: "https://updates.releases.teleport.dev/v1/stable/cloud/critical",
+		},
+		{
+			name:        "custom critical url",
+			criticalURL: "https://custom.dev/critical",
+			expectedURL: "https://custom.dev/critical",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			v, err := getCriticalURL(tt.criticalURL)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedURL, v)
 		})
 	}
 }

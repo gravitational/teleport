@@ -43,6 +43,9 @@ const (
 	// unitScheduleFile is the name of the file to which the unit schedule is exported.
 	unitScheduleFile = "schedule"
 
+	// unitEndpointFile is the name of the file which specifies a custom version server endpoint
+	unitEndpointFile = "endpoint"
+
 	// unitConfigDir is the configuration directory of the teleport-upgrade unit.
 	unitConfigDir = "/etc/teleport-upgrade.d"
 )

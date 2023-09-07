@@ -398,7 +398,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	// This ensures the initial installed version is the same as the `teleport-ent-updater` would install.
 	if settings.installUpdater {
 		repoChannel = stableCloudChannelRepo
-		cloudStableVersion, err := automaticupgrades.Version(ctx, settings.automaticUpgradesVersionBaseURL)
+		cloudStableVersion, err := automaticupgrades.Version(ctx, "")
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
