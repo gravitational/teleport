@@ -46,10 +46,10 @@ To complete the steps in this guide, verify your environment meets the following
   
 - An Active Directory domain that is configured for LDAPS. Because Teleport requires an
   encrypted LDAP connection, you should verify that your domain uses
-  [Active Direectory Certificate Services](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
+  [Active Directory Certificate Services](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
   or a non-Microsoft certification authority (CA) to issue LDAPS certificates.
 
-  If you don't have Active Directory or Active Direectory Certificate Services installed, 
+  If you don't have Active Directory or Active Directory Certificate Services installed, 
   you can add roles and services using Server Manager or refer to [Configure access for 
   Active Directory with scripts](./active-directory.mdx) for how to
   use the predefined scripts to install these services.
@@ -68,8 +68,8 @@ To create the service account:
 
 1. Open PowerShell on a Windows domain computer.
 
-1. Create a service account with a randomly-generated password by copying and pasting in 
-   the following commands: 
+1. Create a service account with a randomly-generated password by copying and pasting 
+   the following script into the PowerShell console: 
    
    ```powershell
    $Name="Teleport Service Account"
@@ -98,7 +98,7 @@ To create the service account:
    perform password authentication.
 
 1. Set the minimum permissions that must granted to the service account by running the 
-   following commands:
+   following script in the PowerShell console:
 
    ```powershell
    # Save your domain's distinguished name to a variable.
@@ -120,85 +120,93 @@ To create the service account:
    dsacls "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN " /I:T /G "$($SamAccountName):WP;certificateRevocationList;"
    
    # Allow Teleport to create and delete certificationAuthority objects in the NTAuthCertificates container.
-   dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CCDC;certificationAuthority;"
+   dsacls "CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CCDC;certificationAuthority;"
    
    # Allow Teleport to write the cACertificate property in the NTAuthCertificates container.
-   dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):WP;cACertificate;"   
+   dsacls "CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):WP;cACertificate;"   
    ```
 
-1. Get the security identifier for the new service account by running the following command:
+1. Get the security identifier for the new service account.
+   For example, if you used the default service account name, run the following command:
    
    ```powershell
-   Get-AdUser -Identity $SamAccountName | Select SID
+   Get-AdUser -Identity "svc-teleport" | Select SID
    ```
    
-   Copy the security identifier—beginning with "S-"—returned. You'll use this value
-   for the `sid` field when you configure the `ldap` settings in a later step.
+   The command returns the security identifier for the specified account:
+
+   ```powershell
+   SID
+   ---
+   S-1-5-21-209875886-835680547-4265310078-1113
+   ```
+
+1. Copy the full security identifier—beginning with `S-`—returned. 
+   
+   You'll use this value for the `sid` field when you configure the `ldap` settings 
+   in a later step.
 
 ## Step 2/7. Prevent the service account from performing interactive logins
 
-The next steps modify group policy objects (GPOs) and changes to group Policies
+The next steps modify group policy objects (GPOs). Changes to group policies
 can take time to propagate to all hosts. You can force changes to take effect 
-immediately on your current host at any time by opening PowerShell and running 
-`gpupdate.exe /force`. The change might still take time to propagate to other 
+immediately on your current host by opening PowerShell and running 
+`gpupdate.exe /force`. However, the change might still take time to propagate to other 
 hosts in the domain.
 
-The Teleport service account is only needed to authenticate over LDAP, meaning
-that it needn't be able to log in to Windows machines like an ordinary user.
-Restrict it from doing so by creating a new Group Policy Object (GPO) linked to
-your entire domain, and then deny it interactive login.
+The Teleport service account is only needed to authenticate over LDAP. The account
+doesn't need to log on to Windows computers like an ordinary user.
+You can prevent the service account from being used to log on by creating a new 
+Group Policy Object (GPO) linked to your entire domain, and then denying interactive 
+logins.
 
 ### Create a GPO
 
-1. Open a PowerShell prompt and change the `$GPOName` variable below to your
-   desired GPO name, or leave the recommended name:
+1. Open PowerShell and specify a name for the new group policy object with the `$GPOName` variable:
 
-```powershell
-$GPOName="Block teleport-svc Interactive Login"
-```
+   ```powershell
+   $GPOName="Block teleport-svc Interactive Login"
+   ```
 
-1. Create the new GPO by running (from the same prompt):
+1. Create the new GPO by running the following command in the PowerShell console:
 
-```powershell
-New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
-```
+   ```powershell
+   New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
+   ```
 
 ### Deny interactive login
 
-1. Open the program named `Group Policy Management` and find the GPO you just
-   created
-   (`$FOREST > Domains > $DOMAIN > Group Policy Objects > Block teleport-svc Interactive Login`),
-   right-click on it and select `Edit...` from the context menu.
+1. Open **Group Policy Management** and expand Forest, Domains, your domian, and Group Policy Objects
+   to locate the group policy object you just created.
+   
+1. Select the group policy object, click **Action**, then select **Edit**.
 
-1. Select:
+1. Expand Computer Configuration, Policies, Windows Settings, Security Settings, Local Policies,
+   then select User Rights Assignment.
 
-   ```text
-   Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > User Rights Assignment
-   ```
+1. Doubleclick **Deny log on locally**, then select **Define these policy settings**.
 
-1. Double click `Deny log on locally` and in the popup, check `Define these policy settings`.
+1. Click **Add User or Group**, then click **Browse**. 
 
-1. Then click `Add User or Group...`, `Browse ...`, enter the SAM account name
-   of the user you created above (`svc-teleport`) and hit `Check Names` select
-   your Group, and then hit `OK` on all the windows.
+1. Type all or part of the service account name—for example, `svc-teleport`—then click **Check Names**. 
 
-1. Repeat steps 3 and 4 for `Deny log on through Remote Desktop Services` (in
-   lieu of `Deny log on locally`).
+1. Verify the **Teleport Service Account** is selected, then click **OK** in all the dialogs.
+
+1. Repeat these steps for **Deny log on through Remote Desktop Services**.
 
 <Figure align="left" bordered caption="Deny Interactive Login">
-  ![Deny Interactive Login](../../img/desktop-access/deny-interactive-login.png)
+  ![Deny interactive login](../../img/desktop-access/deny-interactive-login.png)
 </Figure>
 
-<Admonition type="tip" title="Disabling Password Authentication">
-  For added security, consider disabling username/password authentication completely via the GPO,
-  requiring access via Teleport's virtual smart card.
-</Admonition>
+  For added security, you can disable username and password authentication completely.
+  If you disable username and password authentication, only the Teleport virtual smart 
+  card can be used to access Windows computers in the Domain.
 
 ## Step 3/7. Configure a GPO to allow Teleport connections
 
-Next, we need to configure a GPO to allow Teleport desktop sessions. This
-includes telling your computers to trust Teleport's CA, allowing the
-certificate-based smart card authentication, and ensuring RDP is enabled.
+Next, you need to configure a group policy object that allows Teleport desktop sessions. 
+In this step, you'll configure computers to trust the Teleport certificate authority so that
+they accept the certificate-based smart card authentication, and ensure RDP is enabled.
 
 ### Export the Teleport CA
 
