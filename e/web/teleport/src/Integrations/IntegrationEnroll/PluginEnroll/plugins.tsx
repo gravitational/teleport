@@ -56,6 +56,7 @@ export type PluginBase = {
 
 export type SelfHostedPlugin = PluginBase & {
   hosted: false;
+  disableForTeam?: true;
 };
 
 export type HostedPlugin = PluginBase & {
@@ -67,6 +68,7 @@ export type HostedPlugin = PluginBase & {
   FormMixin?: () => JSX.Element;
   NextSteps?: (props: { successData?: EnrollSuccessResponse }) => JSX.Element;
   permissions?: CategoryPermissions[];
+  disableForTeam?: boolean;
 };
 
 export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
@@ -327,6 +329,7 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     icon: JamfIcon,
     url: 'https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise',
     hosted: true,
+    disableForTeam: true,
     fullName: 'Jamf Integration for Device Trust',
     Description: () => (
       <Text>

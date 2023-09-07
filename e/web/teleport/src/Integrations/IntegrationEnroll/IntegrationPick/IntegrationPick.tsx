@@ -16,6 +16,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
+
 import {
   Alert,
   Box,
@@ -32,7 +33,11 @@ import {
   IntegrationTiles,
   NoCodeIntegrationDescription,
 } from 'teleport/Integrations/Enroll';
-import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
+import {
+  ToolTipNoPermBadge,
+  BadgeTitle,
+} from 'teleport/components/ToolTipNoPermBadge';
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
   IntegrationEnrollEvent,
   userEventService,
@@ -43,6 +48,8 @@ import cfg from 'teleport/config';
 import { MachineIDIntegrationSection } from 'teleport/Integrations/Enroll/MachineIDIntegrationSection';
 
 import useTeleport from 'e-teleport/useTeleportE';
+
+import { getCTAForPlugin } from 'e-teleport/services/plugins';
 
 import {
   HostedPlugin,
@@ -81,7 +88,7 @@ export function IntegrationPick() {
     // So for enterprise, we will not render any tiles.
     //
     // For cloud, even if the user has no plugin access, we will still
-    // render the available tiles but it will disabled.
+    // render the available tiles but it will be disabled.
     available: cfg.isCloud ? defaultPlugins.filter(isHostedPlugin) : [],
     // selfHosted tiles will be rendered to
     // both enterprise and cloud teleport.
@@ -195,11 +202,20 @@ function PluginTile({
   type: HostedPlugin | SelfHostedPlugin;
   hasAccess: boolean;
 }) {
-  const isClickable = hasAccess && !pluginAlreadyEnrolled && plugin.hosted;
+  const hostedButNoAccess = !hasAccess && plugin.hosted;
+
+  const pluginAccess: PluginAccess =
+    plugin.disableForTeam && cfg.isUsageBasedBilling
+      ? 'requires-enterprise'
+      : hostedButNoAccess
+      ? 'denied'
+      : 'allowed';
+
+  const pluginEnrollable = pluginAccess === 'allowed' && !pluginAlreadyEnrolled;
 
   let tileProps;
 
-  if (isClickable) {
+  if (pluginEnrollable && plugin.hosted) {
     tileProps = {
       as: InternalLink,
       to: cfg.getIntegrationEnrollRoute(plugin.type),
@@ -221,11 +237,9 @@ function PluginTile({
     };
   }
 
-  const hostedButNoAccess = !hasAccess && plugin.hosted;
-
   return (
     <IntegrationTile
-      disabled={hostedButNoAccess}
+      disabled={pluginAccess !== 'allowed'}
       data-testid={`tile-${plugin.type}`}
       $exists={pluginAlreadyEnrolled}
       {...tileProps}
@@ -250,8 +264,43 @@ function PluginTile({
           />
         )}
       </Box>
-      {hostedButNoAccess && (
+      <RenderTooltip
+        pluginAccess={pluginAccess}
+        pluginName={plugin.name}
+        pluginType={plugin.type}
+      />
+    </IntegrationTile>
+  );
+}
+
+function isHostedPlugin(
+  plugin: HostedPlugin | SelfHostedPlugin
+): plugin is HostedPlugin {
+  return plugin.hosted;
+}
+
+function isSelfHostedPlugin(
+  plugin: HostedPlugin | SelfHostedPlugin
+): plugin is SelfHostedPlugin {
+  return !plugin.hosted;
+}
+
+type PluginAccess = 'allowed' | 'denied' | 'requires-enterprise';
+
+function RenderTooltip({
+  pluginAccess,
+  pluginName,
+  pluginType,
+}: {
+  pluginAccess: PluginAccess;
+  pluginName: string;
+  pluginType: PluginKind;
+}) {
+  switch (pluginAccess) {
+    case 'denied':
+      return (
         <ToolTipNoPermBadge
+          badgeTitle={BadgeTitle.LackingPermissions}
           children={
             <Box>
               <Text>
@@ -272,19 +321,29 @@ function PluginTile({
             </Box>
           }
         />
-      )}
-    </IntegrationTile>
-  );
-}
-
-function isHostedPlugin(
-  plugin: HostedPlugin | SelfHostedPlugin
-): plugin is HostedPlugin {
-  return plugin.hosted;
-}
-
-function isSelfHostedPlugin(
-  plugin: HostedPlugin | SelfHostedPlugin
-): plugin is SelfHostedPlugin {
-  return !plugin.hosted;
+      );
+    case 'requires-enterprise':
+      return (
+        <ToolTipNoPermBadge
+          badgeTitle={BadgeTitle.LackingEnterpriseLicense}
+          sticky={true}
+          children={
+            <Box textAlign="center" maxWidth="200px">
+              <Text>Unlock {pluginName} plugin with Teleport Enterprise</Text>
+              <ButtonLockedFeature
+                width="165px"
+                mt={2}
+                mb={1}
+                noIcon
+                event={getCTAForPlugin(pluginType)}
+              >
+                Contact Sales
+              </ButtonLockedFeature>
+            </Box>
+          }
+        />
+      );
+    default:
+      return null;
+  }
 }

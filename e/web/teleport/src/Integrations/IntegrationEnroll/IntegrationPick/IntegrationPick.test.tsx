@@ -15,11 +15,12 @@ import { IntegrationEnroll } from '../IntegrationEnroll';
 
 describe('test PluginPick.tsx', () => {
   const originalCloudFlag = cfg.isCloud; // should be false
+  const originalUsageBillingFlag = cfg.isUsageBasedBilling; // should be false
   beforeEach(() => {
     cfg.isCloud = true;
     jest
       .spyOn(pluginsService, 'fetchAvailableTypes')
-      .mockResolvedValue(['slack']);
+      .mockResolvedValue(['slack', 'jamf']);
     jest.spyOn(pluginsService, 'fetchPlugins').mockResolvedValue([]);
     jest
       .spyOn(userEventService, 'captureIntegrationEnrollEvent')
@@ -28,6 +29,7 @@ describe('test PluginPick.tsx', () => {
 
   afterEach(() => {
     cfg.isCloud = originalCloudFlag;
+    cfg.isCloud = originalUsageBillingFlag;
     jest.clearAllMocks();
   });
 
@@ -109,6 +111,26 @@ describe('test PluginPick.tsx', () => {
     expect(
       screen.getByRole('button', { name: /connect slack/i })
     ).toBeInTheDocument();
+  });
+
+  test('disableForTeam disables jamf plugin tile in team plan', async () => {
+    cfg.isUsageBasedBilling = true;
+    const ctx = createTeleportContextE();
+    renderIntegrationPicker(ctx);
+    await screen.findByText(/no-code integrations/i);
+
+    // eslint-disable-next-line jest-dom/prefer-enabled-disabled
+    expect(screen.getByTestId('tile-jamf')).toHaveAttribute('disabled');
+    expect(screen.getByTestId('tile-jamf')).not.toHaveAttribute('href');
+  });
+
+  test('show jamf plugin tiles in cloud plan', async () => {
+    cfg.isUsageBasedBilling = false;
+    const ctx = createTeleportContextE();
+    renderIntegrationPicker(ctx);
+    await screen.findByText(/no-code integrations/i);
+
+    expect(screen.getByTestId('tile-jamf')).toHaveAttribute('href');
   });
 });
 

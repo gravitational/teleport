@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 import { ContextProvider } from 'teleport';
 import {
@@ -15,12 +15,29 @@ import { IntegrationPick } from './IntegrationPick';
 
 const { worker, rest } = window.msw;
 
-const onboardSupportPluginKinds: PluginKind[] = ['slack', 'okta', 'opsgenie'];
+const onboardSupportPluginKinds: PluginKind[] = [
+  'slack',
+  'okta',
+  'opsgenie',
+  'jamf',
+];
+
+const defaultIsCloudFlag = cfg.oss.isCloud;
+const defaultIsUsageBasedBillingFlag = cfg.oss.isUsageBasedBilling;
 
 export default {
   title: 'TeleportE/Integrations/Picker',
   decorators: [
     Story => {
+      cfg.oss.isCloud = true;
+      useEffect(() => {
+        // Clean up
+        return () => {
+          cfg.oss.isCloud = defaultIsCloudFlag;
+          cfg.oss.isUsageBasedBilling = defaultIsUsageBasedBillingFlag;
+        };
+      }, []);
+
       // Reset request handlers added in individual stories.
       worker.resetHandlers();
       return <Story />;
@@ -81,6 +98,24 @@ export const NoAccess = () => {
       integrations: { ...noAccess, use: false },
     },
   });
+
+  return render(ctx);
+};
+
+export const RequiresEnterprise = () => {
+  cfg.oss.isUsageBasedBilling = true;
+  worker.use(
+    rest.get(cfg.api.pluginTypesPath, (req, res, ctx) => {
+      return res(ctx.json(onboardSupportPluginKinds));
+    })
+  );
+
+  worker.use(
+    rest.get(cfg.getPluginUrl(), (req, res, ctx) => {
+      return res(ctx.json(mockGetPluginsReply));
+    })
+  );
+  const ctx = createTeleportContextE();
 
   return render(ctx);
 };

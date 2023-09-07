@@ -1,18 +1,48 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { MemoryRouter, Route } from 'react-router';
 
 import cfg from 'teleport/config';
 
+import { ContextProvider } from 'teleport';
+
+import TeleportEContext from 'e-teleport/teleportContextE';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+
 import { PluginEnroll } from './PluginEnroll';
+
+const defaultIsUsageBasedBillingFlag = cfg.isUsageBasedBilling;
 
 export default {
   title: 'TeleportE/Integrations/Enroll',
+  decorators: [
+    Story => {
+      useEffect(() => {
+        // Clean up
+        return () => {
+          cfg.isUsageBasedBilling = defaultIsUsageBasedBillingFlag;
+        };
+      }, []);
+      return <Story />;
+    },
+  ],
 };
 
 export const EnrollSlack = () => renderPluginEnroll('');
 
 export const EnrollMattermost = () =>
   renderPluginEnroll('', cfg.getIntegrationEnrollRoute('mattermost'));
+
+export const EnrollJamf = () => {
+  cfg.isUsageBasedBilling = false;
+  const ctx = createTeleportContextE();
+  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('jamf'), ctx);
+};
+
+export const EnrollJamfDisableInTeam = () => {
+  cfg.isUsageBasedBilling = true;
+  const ctx = createTeleportContextE();
+  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('jamf'), ctx);
+};
 
 export const EnrollSuccess = () =>
   renderPluginEnroll(
@@ -31,12 +61,15 @@ export const EnrollFailed = () =>
 
 function renderPluginEnroll(
   search: string,
-  pathname = cfg.getIntegrationEnrollRoute('slack')
+  pathname = cfg.getIntegrationEnrollRoute('slack'),
+  ctx?: TeleportEContext
 ) {
   return (
     <MemoryRouter initialEntries={[{ pathname, search }]}>
       <Route path={cfg.routes.integrationEnroll}>
-        <PluginEnroll />
+        <ContextProvider ctx={ctx}>
+          <PluginEnroll />
+        </ContextProvider>
       </Route>
     </MemoryRouter>
   );

@@ -1,14 +1,16 @@
 import React, { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import styled from 'styled-components';
 import { ButtonPrimary, ButtonSecondary, Box, Flex, Text, Alert } from 'design';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import Validation, { Validator } from 'shared/components/Validation';
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getXCSRFToken } from 'teleport/services/api';
 import { Plugin } from 'teleport/services/integrations';
 
 import cfg from 'e-teleport/config';
-import { pluginsService } from 'e-teleport/services/plugins';
+import { pluginsService, getCTAForPlugin } from 'e-teleport/services/plugins';
 
 import { HostedPlugin } from './plugins';
 
@@ -57,8 +59,20 @@ export function SubmittablePluginForm({
     // Else let the default form submission event occur.
   }
 
+  const pluginRequiresEnterprise =
+    plugin.disableForTeam && cfg.oss.isUsageBasedBilling;
+  let wrapperStyle;
+  if (pluginRequiresEnterprise) {
+    // blurs the form
+    wrapperStyle = {
+      filter: 'blur(2px)',
+      pointerEvents: 'none',
+      userSelect: 'none',
+    };
+  }
+
   return (
-    <Box mt={3}>
+    <Box mt={3} style={{ position: 'relative' }}>
       <Text fontWeight="bold" typography="h4">
         {plugin.fullName}
       </Text>
@@ -66,67 +80,109 @@ export function SubmittablePluginForm({
         <Alert kind="danger" children={attempt.statusText} mb={3} mt={3} />
       )}
       {plugin.Description && <plugin.Description />}
-      {plugin.permissions?.length && (
-        <Flex gap={6} p={4} bg="levels.surface" borderRadius={2} mt={3} mb={4}>
-          {plugin.permissions.map((perm, index) => (
-            <Box key={index}>
-              <Text fontWeight="bold" typography="h6" mb={2}>
-                {perm.category}
-              </Text>
-              {perm.permissions.map(p => (
-                <Flex key={`${index}${p.title}`} alignItems="center">
-                  {p.title}{' '}
-                  {p.description && (
-                    <Flex ml={1}>
-                      <ToolTipInfo>{p.description}</ToolTipInfo>
-                    </Flex>
-                  )}
-                </Flex>
-              ))}
-            </Box>
-          ))}
-        </Flex>
-      )}
-      <Box mt={3}>
-        <Validation>
-          {/* A "normal" HTTP form is used here instead of an AJAX request,
-          since the user needs to be redirected to the OAuth provider after submitting. */}
-          {({ validator }) => (
-            <form
-              action={cfg.getPluginUrl()}
-              onSubmit={e => onSubmit(validator, e)}
-              method="POST"
-            >
-              <input type="hidden" name="csrf_token" value={getXCSRFToken()} />
-              <input type="hidden" name="event_id" value={eventId} />
-              {/* TODO: make this a proper input and validate against existing instances
-          when we start allowing multiple instances per type */}
-              <input
-                type="hidden"
-                name="name"
-                value={`${plugin.type}-default`}
-              />
-              <input type="hidden" name="type" value={plugin.type} />
-              <Box>{plugin.FormMixin && <plugin.FormMixin />}</Box>
-              <Box mt={6}>
-                <ButtonPrimary
-                  type="submit"
-                  mr={3}
-                  disabled={attempt.status === 'processing'}
-                >
-                  Connect {plugin.name}
-                </ButtonPrimary>
-                <ButtonSecondary
-                  as={Link}
-                  to={cfg.oss.getIntegrationEnrollRoute()}
-                >
-                  Back
-                </ButtonSecondary>
+      <Box style={wrapperStyle}>
+        {plugin.permissions?.length && (
+          <Flex
+            gap={6}
+            p={4}
+            bg="levels.surface"
+            borderRadius={2}
+            mt={3}
+            mb={4}
+          >
+            {plugin.permissions.map((perm, index) => (
+              <Box key={index}>
+                <Text fontWeight="bold" typography="h6" mb={2}>
+                  {perm.category}
+                </Text>
+                {perm.permissions.map(p => (
+                  <Flex key={`${index}${p.title}`} alignItems="center">
+                    {p.title}{' '}
+                    {p.description && (
+                      <Flex ml={1}>
+                        <ToolTipInfo>{p.description}</ToolTipInfo>
+                      </Flex>
+                    )}
+                  </Flex>
+                ))}
               </Box>
-            </form>
-          )}
-        </Validation>
+            ))}
+          </Flex>
+        )}
+
+        <Box mt={3}>
+          <Validation>
+            {/* A "normal" HTTP form is used here instead of an AJAX request,
+        since the user needs to be redirected to the OAuth provider after submitting. */}
+            {({ validator }) => (
+              <form
+                action={cfg.getPluginUrl()}
+                onSubmit={e => onSubmit(validator, e)}
+                method="POST"
+              >
+                <input
+                  type="hidden"
+                  name="csrf_token"
+                  value={getXCSRFToken()}
+                />
+                <input type="hidden" name="event_id" value={eventId} />
+                <input
+                  type="hidden"
+                  name="name"
+                  value={`${plugin.type}-default`}
+                />
+                <input type="hidden" name="type" value={plugin.type} />
+                <Box>{plugin.FormMixin && <plugin.FormMixin />}</Box>
+                <Box mt={6}>
+                  <ButtonPrimary
+                    type="submit"
+                    mr={3}
+                    disabled={attempt.status === 'processing'}
+                  >
+                    Connect {plugin.name}
+                  </ButtonPrimary>
+                  <ButtonSecondary
+                    as={Link}
+                    to={cfg.oss.getIntegrationEnrollRoute()}
+                  >
+                    Back
+                  </ButtonSecondary>
+                </Box>
+              </form>
+            )}
+          </Validation>
+        </Box>
       </Box>
+      {pluginRequiresEnterprise && (
+        <StyledMessageContainer>
+          Unlock {plugin.name} plugin with Teleport Enterprise{' '}
+          <ButtonLockedFeature
+            width="165px"
+            mt={2}
+            mb={1}
+            event={getCTAForPlugin(plugin.type)}
+          >
+            Contact Sales
+          </ButtonLockedFeature>
+        </StyledMessageContainer>
+      )}
     </Box>
   );
 }
+
+const StyledMessageContainer = styled(Flex)`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: ${({ theme }) => theme.colors.levels.elevated};
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  gap: 24px;
+  width: 600px;
+  box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2),
+    0 8px 10px 1px rgba(0, 0, 0, 0.14), 0 3px 14px 2px rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+`;

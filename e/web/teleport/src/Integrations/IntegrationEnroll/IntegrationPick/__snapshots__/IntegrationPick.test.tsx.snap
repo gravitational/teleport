@@ -251,6 +251,26 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
               </div>
             </div>
           </a>
+          <a
+            class="c9"
+            data-testid="tile-jamf"
+            href="/web/integrations/new/jamf"
+          >
+            <img
+              class="c12 c13"
+              src="file_stub"
+            />
+            <div
+              class="c14"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
+            >
+              <div
+                class="c11"
+              >
+                Jamf
+              </div>
+            </div>
+          </a>
         </div>
       </div>
       <div
@@ -1011,6 +1031,26 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
                 class="c11"
               >
                 Slack
+              </div>
+            </div>
+          </a>
+          <a
+            class="c13"
+            data-testid="tile-jamf"
+            href="/web/integrations/new/jamf"
+          >
+            <img
+              class="c14 c15"
+              src="file_stub"
+            />
+            <div
+              class="c16"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
+            >
+              <div
+                class="c11"
+              >
+                Jamf
               </div>
             </div>
           </a>

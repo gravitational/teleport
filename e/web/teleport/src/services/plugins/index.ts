@@ -1,1 +1,1 @@
-export { pluginsService, makePlugins } from './plugins';
+export { pluginsService, makePlugins, getCTAForPlugin } from './plugins';

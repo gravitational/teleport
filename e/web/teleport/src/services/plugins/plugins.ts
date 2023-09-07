@@ -1,5 +1,7 @@
 import api from 'teleport/services/api';
 
+import { CtaEvent } from 'teleport/services/userEvent';
+
 import cfg from 'e-teleport/config';
 
 import type { Plugin, PluginKind } from 'teleport/services/integrations';
@@ -38,4 +40,13 @@ function makePlugin(json: any): Plugin {
     kind: type,
     statusCode,
   };
+}
+
+export function getCTAForPlugin(plugin: PluginKind) {
+  switch (plugin) {
+    case 'jamf':
+      return CtaEvent.CTA_TRUSTED_DEVICES;
+    default:
+      return CtaEvent.CTA_UNSPECIFIED;
+  }
 }
