@@ -1,105 +1,249 @@
 package web
 
 import (
+	"context"
 	"net/http"
-	"strings"
-	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
 )
 
-func (p *Plugin) getAccessLists(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+// getAccessLists is the handler for GET /v1/enterprise/accesslist.
+func (p *Plugin) getAccessLists(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	accessListClt := clt.AccessListClient()
+	accessLlistClient := clt.AccessListClient()
 
 	// This will grab all access lists but in small chunks to not overload the grpc client.
 	// The web UI won't require "paginating" because we don't expect access lists to get
 	// in the thousands.
-	var accessLists []*accesslist.AccessList
+	var accessLists []*ui.AccessList
 	var nextKey string
 	for {
 		var page []*accesslist.AccessList
 		var err error
-		page, nextKey, err = accessListClt.ListAccessLists(r.Context(), 0, nextKey)
+		page, nextKey, err = accessLlistClient.ListAccessLists(r.Context(), 0, nextKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		accessLists = append(accessLists, page...)
+		for _, accessList := range page {
+			// None of our backends supports count, so we have to fetch all members to get the count.
+			members, err := listAllMembers(r.Context(), accessLlistClient, accessList.Metadata.Name)
+			// If the user doesn't have access to the access list, we want to return the access list
+			// without the members.
+			if err != nil && !trace.IsAccessDenied(err) {
+				return nil, trace.Wrap(err)
+			}
+
+			membersCount := len(members)
+
+			accessLists = append(accessLists, &ui.AccessList{
+				AccessList:   accessList,
+				MembersCount: &membersCount,
+			})
+		}
 
 		if nextKey == "" {
 			break
 		}
 	}
 
-	return ui.AccessListResponse{
+	return ui.AccessListsResponse{
 		AccessLists: accessLists,
 	}, nil
 }
 
-func (p *Plugin) getAccessList(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+// getAccessList is the handler for GET /v1/enterprise/accesslist/:accessListId.
+func (p *Plugin) getAccessList(_ http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	accessListId := params.ByName("accessListId")
+	accessLlistClient := clt.AccessListClient()
 
-	accessList, err := clt.AccessListClient().GetAccessList(r.Context(), accessListId)
+	accessList, err := accessLlistClient.GetAccessList(r.Context(), accessListId)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	members, err := listAllMembers(r.Context(), accessLlistClient, accessListId)
+	// If the user doesn't have access to the access list, we want to return the access list
+	// without the members.
+	if err != nil && !trace.IsAccessDenied(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	membersSpec := make([]accesslist.AccessListMemberSpec, 0, len(members))
+	for _, member := range members {
+		membersSpec = append(membersSpec, member.Spec)
+	}
+
 	return ui.AccessListResponse{
-		AccessList: accessList,
+		AccessList: &ui.AccessList{
+			AccessList: accessList,
+			Members:    membersSpec,
+		},
 	}, nil
 }
 
-func (p *Plugin) createAccessList(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+// listAllMembers is a helper function to list all members of an access list.
+func listAllMembers(ctx context.Context, accessLlistClient services.AccessLists, accessListId string) ([]*accesslist.AccessListMember, error) {
+	var pageToken string
+	allMembers := make([]*accesslist.AccessListMember, 0)
+
+	for {
+		var members []*accesslist.AccessListMember
+		var err error
+
+		members, pageToken, err = accessLlistClient.ListAccessListMembers(ctx, accessListId, 0 /* default page size */, pageToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		allMembers = append(allMembers, members...)
+
+		if pageToken == "" {
+			break
+		}
+	}
+
+	return allMembers, nil
+}
+
+// upsertAccessList is the handler for POST and PUT /v1/enterprise/accesslist.
+func (p *Plugin) upsertAccessList(_ http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	acessListClt := clt.AccessListClient()
-
-	var req ui.CreateAccessListRequest
+	var req ui.UpsertAccessListRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Use the title to create the resource name.
-	req.Title = strings.TrimSpace(req.Title)
-	accessListName := strings.ReplaceAll(req.Title, " ", "-")
-
-	auditDuration, err := time.ParseDuration(req.AuditDuration)
-	if err != nil {
-		return nil, trace.BadParameter("invalid audit duration format: %v", err)
+	accessListId := params.ByName("accessListId")
+	if accessListId == "" {
+		// Assume we are creating instead.
+		accessListId = uuid.New().String()
 	}
-	req.Spec.Audit.Frequency = auditDuration
 
-	accessList, err := accesslist.NewAccessList(header.Metadata{Name: accessListName}, req.Spec)
+	accessList, err := accesslist.NewAccessList(header.Metadata{Name: accessListId}, req.Spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	createdAccessList, err := acessListClt.UpsertAccessList(r.Context(), accessList)
+	// Convert members
+	members := make([]*accesslist.AccessListMember, 0, len(req.Members))
+	for _, member := range req.Members {
+		members = append(members, memberToAccessListMember(accessListId, member))
+	}
+
+	accessLlistClient := clt.AccessListClient()
+	createdAccessList, updatedMembers, err := accessLlistClient.UpsertAccessListWithMembers(r.Context(), accessList, members)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	memberSpecs := make([]accesslist.AccessListMemberSpec, 0, len(updatedMembers))
+	for _, member := range updatedMembers {
+		memberSpecs = append(memberSpecs, member.Spec)
 	}
 
 	return ui.AccessListResponse{
-		AccessList: createdAccessList,
+		AccessList: &ui.AccessList{
+			AccessList: createdAccessList,
+			Members:    memberSpecs,
+		},
 	}, nil
+}
+
+// deleteAccessList is the handler for DELETE /v1/enterprise/accesslist/:accessListId.
+func (p *Plugin) deleteAccessList(_ http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessListId := params.ByName("accessListId")
+	accessLlistClient := clt.AccessListClient()
+
+	// First, delete all members.
+	if err := accessLlistClient.DeleteAllAccessListMembersForAccessList(r.Context(), accessListId); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Then, delete the access list.
+	if err := accessLlistClient.DeleteAccessList(r.Context(), accessListId); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return web.OK(), nil
+}
+
+// addMembersToAccessList is the handler for POST /v1/enterprise/accesslist/:accessListId/members.
+func (p *Plugin) addMembersToAccessList(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
+	var req ui.UpsertAccessListRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessListId := params.ByName("accessListId")
+	accessLlistClient := clt.AccessListClient()
+
+	var addedMembers []accesslist.AccessListMemberSpec
+	for _, member := range req.Members {
+		alMember := memberToAccessListMember(accessListId, member)
+
+		upsertMember, err := accessLlistClient.UpsertAccessListMember(r.Context(), alMember)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		addedMembers = append(addedMembers, upsertMember.Spec)
+	}
+
+	return ui.AddAccessListMemberResponse{
+		Members: addedMembers,
+	}, nil
+}
+
+func memberToAccessListMember(accessListName string, member accesslist.AccessListMemberSpec) *accesslist.AccessListMember {
+	return &accesslist.AccessListMember{
+		ResourceHeader: header.ResourceHeader{
+			Kind:    types.KindAccessListMember,
+			Version: types.V3,
+			Metadata: header.Metadata{
+				Name: member.Name,
+			},
+		},
+		Spec: accesslist.AccessListMemberSpec{
+			AccessList: accessListName,
+			Name:       member.Name,
+			Joined:     member.Joined,
+			Expires:    member.Expires,
+			Reason:     member.Reason,
+			AddedBy:    member.AddedBy,
+		},
+	}
 }

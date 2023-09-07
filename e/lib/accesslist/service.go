@@ -373,10 +373,12 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 
 		member.Spec.AddedBy = user.GetIdentity().Username
 		member.Spec.Joined = s.clock.Now()
-	} else {
+	} else if err == nil {
 		// If the user already existed, use the old added by, reason, and joined.
 		member.Spec.AddedBy = oldMember.Spec.AddedBy
 		member.Spec.Joined = oldMember.Spec.Joined
+	} else {
+		return nil, trace.Wrap(err)
 	}
 
 	result, err := s.accessLists.UpsertAccessListMember(ctx, member)
@@ -416,8 +418,50 @@ func (s *Service) DeleteAllAccessListMembersForAccessList(ctx context.Context, r
 }
 
 // DeleteAllAccessListMembers hard deletes all access list members for all access lists (without deleting the access lists themselves).
-func (s *Service) DeleteAllAccessListMembers(ctx context.Context, req *accesslistv1.DeleteAllAccessListMembersRequest) (*emptypb.Empty, error) {
+func (s *Service) DeleteAllAccessListMembers(_ context.Context, _ *accesslistv1.DeleteAllAccessListMembersRequest) (*emptypb.Empty, error) {
 	return nil, trace.NotImplemented("DeleteAllAccessListMembers not supported in the gRPC service")
+}
+
+// UpsertAccessListWithMembers creates or updates an access list resource and its members.
+func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accesslistv1.UpsertAccessListWithMembersRequest) (*accesslistv1.UpsertAccessListWithMembersResponse, error) {
+	accessListName := req.AccessList.GetHeader().Metadata.Name
+	// Check if the caller is allowed to make any changes to the access list or members.
+	if err := s.authOrIsOwner(ctx, accessListName, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessList, err := conv.FromProto(req.AccessList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Convert members
+	members := make([]*accesslist.AccessListMember, 0, len(req.Members))
+	for _, member := range req.Members {
+		m, err := conv.FromMemberProto(member)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		members = append(members, m)
+	}
+
+	// Call the API.
+	updatedAccessList, updatedMembers, err := s.accessLists.UpsertAccessListWithMembers(ctx, accessList, members)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Convert members back to proto.
+	updatedProtoMembers := make([]*accesslistv1.Member, 0, len(req.Members))
+	for _, member := range updatedMembers {
+		updatedProtoMembers = append(updatedProtoMembers, conv.ToMemberProto(member))
+	}
+
+	// Return the updated access list and members.
+	return &accesslistv1.UpsertAccessListWithMembersResponse{
+		AccessList: conv.ToProto(updatedAccessList),
+		Members:    updatedProtoMembers,
+	}, nil
 }
 
 // Check if the user is either authorized for the access list or owns this access list.

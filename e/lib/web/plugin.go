@@ -175,7 +175,11 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 	h.GET("/enterprise/accesslist", h.WithAuth(p.getAccessLists))
 	h.GET("/enterprise/accesslist/:accessListId", h.WithAuth(p.getAccessList))
-	h.POST("/enterprise/accesslist", h.WithAuth(p.createAccessList))
+	// use the same handler for create and update
+	h.POST("/enterprise/accesslist", h.WithAuth(p.upsertAccessList))
+	h.PUT("/enterprise/accesslist/:accessListId", h.WithAuth(p.upsertAccessList))
+	h.DELETE("/enterprise/accesslist/:accessListId", h.WithAuth(p.deleteAccessList))
+	h.POST("/enterprise/accesslist/:accessListId/members", h.WithAuth(p.addMembersToAccessList))
 	h.GET("/enterprise/accesslistsuggestions/accessrequest/:requestId", h.WithClusterClientProvider(p.getSuggestedAccessListsHandle))
 
 	h.GET("/enterprise/releases", h.WithAuth(p.getReleases))

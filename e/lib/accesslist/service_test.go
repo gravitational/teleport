@@ -582,6 +582,66 @@ func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
 	require.Empty(t, members)
 }
 
+func TestService_UpsertAccessListWithMembers(t *testing.T) {
+	t.Parallel()
+
+	ctx, _, svc, clock := initSvc(t)
+
+	a1 := newAccessList(t, "1", clock)
+	a2 := newAccessList(t, "2", clock)
+
+	a1m1 := newAccessListMember(t, a1.GetName(), "user1", clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), "user2", clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), "user3", clock)
+	a2m2 := newAccessListMember(t, a2.GetName(), "user4", clock)
+
+	createAccessListsAndMembers(t, ctx, svc, []*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1})
+
+	// Sanity check
+	membersA1 := listAllAccessListMembers(ctx, t, svc, a1.GetName(), 2)
+	require.Len(t, membersA1, 2)
+
+	membersA2 := listAllAccessListMembers(ctx, t, svc, a2.GetName(), 2)
+	require.Len(t, membersA2, 1)
+
+	t.Run("remove one member", func(t *testing.T) {
+		_, err := svc.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
+			AccessList: conv.ToProto(a1),
+			Members:    conv.ToMembersProto([]*accesslist.AccessListMember{a1m1}),
+		})
+		require.NoError(t, err)
+
+		// One member should have been deleted
+		membersA1 = listAllAccessListMembers(ctx, t, svc, a1.GetName(), 2)
+		require.Len(t, membersA1, 1)
+	})
+
+	t.Run("add one member", func(t *testing.T) {
+		// Add one member to a2
+		_, err := svc.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
+			AccessList: conv.ToProto(a2),
+			Members:    conv.ToMembersProto([]*accesslist.AccessListMember{a2m1, a2m2}),
+		})
+		require.NoError(t, err)
+
+		// One member should have been added
+		membersA2 = listAllAccessListMembers(ctx, t, svc, a2.GetName(), 2)
+		require.Len(t, membersA2, 2)
+	})
+
+	t.Run("remove all members", func(t *testing.T) {
+		// If not members are provided all members should be deleted
+		_, err := svc.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
+			AccessList: conv.ToProto(a2),
+		})
+		require.NoError(t, err)
+
+		// All members should have been deleted
+		membersA2 = listAllAccessListMembers(ctx, t, svc, a2.GetName(), 2)
+		require.Len(t, membersA2, 0)
+	})
+}
+
 func TestService_AuthOrIsOwner(t *testing.T) {
 	t.Parallel()
 
