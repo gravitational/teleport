@@ -28,6 +28,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/kubectl/pkg/scheme"
 
 	"github.com/gravitational/teleport/lib/client"
@@ -47,6 +48,7 @@ func (k KubeListBenchmark) BenchBuilder(ctx context.Context, tc *client.Teleport
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	restCfg.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(500000, 500000)
 	clientset, err := kubernetes.NewForConfig(restCfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -154,35 +156,36 @@ func (k KubeExecBenchmark) BenchBuilder(ctx context.Context, tc *client.Teleport
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	stdin := tc.Stdin
+	stderr := tc.Stderr
 	if k.Interactive {
 		// If interactive, we need to set up a pty and we cannot use the
 		// stderr stream because the server will hang.
-		tc.Stderr = nil
+		stderr = nil
 	} else {
 		// If not interactive, we need to set up stdin to be nil so that
 		// the server wont wait for input.
-		tc.Stdin = nil
+		stdin = nil
 	}
-	exec, err := k.kubeExecOnPod(ctx, tc, restCfg)
+	exec, err := k.kubeExecOnPod(ctx, restCfg, stdin != nil, tc.Stdout != nil, stderr != nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return func(ctx context.Context) error {
-		stdin := tc.Stdin
 		if k.Interactive {
 			stdin = bytes.NewBuffer([]byte(strings.Join(k.Command, " ") + "\r\nexit\r\n"))
 		}
 		err := exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 			Stdin:  stdin,
 			Stdout: tc.Stdout,
-			Stderr: tc.Stderr,
+			Stderr: stderr,
 			Tty:    k.Interactive,
 		})
 		return trace.Wrap(err)
 	}, nil
 }
 
-func (k KubeExecBenchmark) kubeExecOnPod(ctx context.Context, tc *client.TeleportClient, restConfig *rest.Config) (remotecommand.Executor, error) {
+func (k KubeExecBenchmark) kubeExecOnPod(ctx context.Context, restConfig *rest.Config, hasStdin, hasStdout, hasStderr bool) (remotecommand.Executor, error) {
 	restClient, err := rest.RESTClientFor(restConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -197,9 +200,9 @@ func (k KubeExecBenchmark) kubeExecOnPod(ctx context.Context, tc *client.Telepor
 	req.VersionedParams(&corev1.PodExecOptions{
 		Container: k.ContainerName,
 		Command:   k.Command,
-		Stdin:     tc.Stdin != nil,
-		Stdout:    tc.Stdout != nil,
-		Stderr:    tc.Stderr != nil,
+		Stdin:     hasStdin,
+		Stdout:    hasStdout,
+		Stderr:    hasStderr,
 		TTY:       k.Interactive,
 	}, scheme.ParameterCodec)
 
