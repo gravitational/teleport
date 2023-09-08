@@ -46,9 +46,12 @@ type wrappedClient struct {
 
 // iterateGroups will iterate over the list of all Okta groups.
 func (w *wrappedClient) iterateGroups(ctx context.Context, fn func(*okta.Group) error) error {
-	// The default page size is 10000 here, which is fine for our purposes.
+	// The default page size is 10000 here, but that seems to be beyond what the HTTP client built
+	// into the go Okta client can handle, so I'm limiting it to 200.
 	// https://developer.okta.com/docs/reference/api/groups/#list-groups
-	oktaGroups, resp, err := w.client.Group.ListGroups(ctx, query.NewQueryParams())
+	oktaGroups, resp, err := w.client.Group.ListGroups(ctx, query.NewQueryParams(
+		query.WithLimit(200), // A smaller page size so that we don't blow up the go Okta HTTP client.
+	))
 	for {
 		if err != nil {
 			return trace.Wrap(w.oktaErrToTrace(ctx, err), "error when iterating through groups")

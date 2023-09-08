@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"encoding/base64"
+	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -49,7 +50,8 @@ import (
 const (
 	// 4 requests per second is the absolute maximum okta will allow due to End User Rate Limits.
 	// https://developer.okta.com/docs/reference/rl-additional-limits/#end-user-rate-limits
-	oktaAPICallsPerSecond = 4
+	oktaAPICallsPerSecond     = 4
+	oktaRequestTimeoutSeconds = 300 // Okta request timeout is 5 minutes.
 	// Default to running synchronizations every 10 minutes.
 	oktaDefaultTimeBetweenSyncs = 10 * time.Minute
 	oktaTransportIdleTimeout    = 30 * time.Second
@@ -333,14 +335,9 @@ func New(ctx context.Context, config Config) (*Service, error) {
 				Timeout: oktaConnectionTimeout,
 			}),
 
-			// By default, the rate limit backoff is 30 seconds and the number of retries is 2.
-			// This can cause assignment processing timeouts because we don't expect API calls to
-			// take 1 minute.
-			// This will retry more frequently (10 times) and after a shorter amount of time (10
-			// seconds) to hopefully succeed more quickly.
-			okta.WithRequestTimeout(30),
-			okta.WithRateLimitMaxBackOff(10),
-			okta.WithRateLimitMaxRetries(0),
+			// This will retry until the request timeout has passed, doing a backoff of up to 30 seconds.
+			okta.WithRequestTimeout(oktaRequestTimeoutSeconds),
+			okta.WithRateLimitMaxRetries(math.MaxInt32),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
