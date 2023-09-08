@@ -1,4 +1,4 @@
-.version: &version "13.3.8"
+.version: &version "13.3.9-dev.pkidomain.2"
 
 name: teleport-kube-agent
 apiVersion: v2
