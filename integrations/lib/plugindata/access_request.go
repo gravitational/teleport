@@ -56,13 +56,15 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 	data.ResolutionTag = ResolutionTag(dataMap["resolution"])
 	data.ResolutionReason = dataMap["resolve_reason"]
 
-	err = json.Unmarshal([]byte(dataMap["system_annotations"]), &data.SystemAnnotations)
-	if err != nil {
-		err = trace.Wrap(err)
-		return
-	}
-	if len(data.SystemAnnotations) == 0 {
-		data.SystemAnnotations = nil
+	if _, ok := dataMap["system_annotations"]; ok {
+		err = json.Unmarshal([]byte(dataMap["system_annotations"]), &data.SystemAnnotations)
+		if err != nil {
+			err = trace.Wrap(err)
+			return
+		}
+		if len(data.SystemAnnotations) == 0 {
+			data.SystemAnnotations = nil
+		}
 	}
 	return
 }

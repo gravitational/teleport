@@ -115,6 +115,6 @@ func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Rec
 	return &common.Recipient{
 		Name: recipient,
 		ID:   recipient,
-		Kind: common.RecipientKindRota,
+		Kind: common.RecipientKindRotation,
 	}, nil
 }
