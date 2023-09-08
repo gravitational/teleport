@@ -263,17 +263,13 @@ jobs:
 
       # Download the artifacts
       - name: Assume AWS role for downloading the artifacts
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@04b98b3f9e85f563fb061be8751a0352327246b0 # v3.0.1
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
           role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
           role-session-name: "gha-oprt-artifact-download-${{ github.run_number }}"
           role-duration-seconds: 900
-          # Given that the repo is private this should have a low security impact while making debugging easier
-          mask-aws-account-id: false
-      - name: Log the AWS role assumed
-        run: aws sts get-caller-identity
       - name: Define the version number used in the artifact download key
         run: |
           echo "Setting artifact download version..."
@@ -303,17 +299,13 @@ jobs:
           [ "$(ls -A "$DOWNLOAD_DIRECTORY")" ] && echo "Found $(ls -lA | wc -l) artifacts for $ARTIFACT_DOWNLOAD_VERSION" || (echo "No artifacts found for $ARTIFACT_DOWNLOAD_VERSION!"; exit 1)
       # Publish the package
       - name: Assume AWS role for deploying ${{ inputs.repo-type }} artifacts
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@04b98b3f9e85f563fb061be8751a0352327246b0 # v3.0.1
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
           role-to-assume: ${{ env.DEPLOYMENT_AWS_ROLE }}
           role-session-name: "gha-os-package-repo-tool-deploy-${{ github.run_number }}"
           role-duration-seconds: 3600  # 1 hour, the max that the Terraform module allows. DR takes a long time (6 hrs+) so this will cause DR to fail the first time.
-          # Given that the repo is private this should have a low security impact while making debugging easier
-          mask-aws-account-id: false
-      - name: Log the AWS role assumed
-        run: aws sts get-caller-identity
       - name: Setup GPG signing key
         uses: ./.github/actions/load-gpg-key
         with:

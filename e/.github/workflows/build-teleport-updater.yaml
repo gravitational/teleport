@@ -222,17 +222,13 @@ jobs:
           echo "ARTIFACT_BUCKET_PATH=$ARTIFACT_BUCKET_PATH" >> "$GITHUB_ENV"
           echo "ARTIFACT_CHECKSUM_BUCKET_PATH=$ARTIFACT_CHECKSUM_BUCKET_PATH" >> "$GITHUB_ENV"
       - name: Assume AWS role for uploading the artifacts
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@04b98b3f9e85f563fb061be8751a0352327246b0 # v3.0.1
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
           role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
           role-session-name: "gha-package-auto-updater-upload-${{ matrix.architecture }}-${{ matrix.package.file-extension }}-${{ github.run_number }}"
           role-duration-seconds: 900
-          # Given that the repo is private this should have a low security impact while making debugging easier
-          mask-aws-account-id: false
-      - name: Log the AWS role assumed
-        run: aws sts get-caller-identity
       - name: Upload the artifact to S3
         working-directory: ./assets/systemd-unit-upgrader/
         run: aws s3 cp "$PACKAGE_NAME" "$ARTIFACT_BUCKET_PATH"

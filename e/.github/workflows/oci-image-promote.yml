@@ -84,7 +84,7 @@ jobs:
           driver: docker-container
        
       - name: Assume AWS Promotion Role
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@04b98b3f9e85f563fb061be8751a0352327246b0 # v3.0.1
         with:
           aws-region:  us-west-2
           role-to-assume: ${{ inputs.promotion-role-arn }}
