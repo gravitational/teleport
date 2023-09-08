@@ -109,30 +109,189 @@ Specific kinds of architecture guides include:
 - Should be easy to navigate with a browser's search functionality. List all content on the same page.
 - Should avoid prose and be expressed with brevity.
 
-## General style rules
+## General guidance for engaging content
 
-Please refer to this style guide when determining how address questions about
-English grammar, usage, and so on. Since many of these rules have equally
-justifiable alternatives, a style guide prevents debates over these questions
-from getting in the way of documenting Teleport.
+There are three keys to writing content that engages the audience:
 
-<Notice type="tip">
+- Use the *second person* point of view to directly address the reader.
+- Use an *active voice* and *present tense* whenever possible.
+- Use a *conversational tone* that is not too formal or too chummy.
 
-If a commonly debated style question does not have a resolution in this guide
-(e.g., the Oxford comma), all we ask is that you keep your style consistent
-within a particular page to maintain a professional polish.
+### Point of view
 
-</Notice>
+In most cases, address the reader directly. For tutorials, use either first person 
+plural—we, us, our, ours—or second person point of view. Because tutorials provide a 
+more guided approach to a topic, using the first person plural is a more natural and 
+commonly-accepted practice than in other types of documentation.
 
-### Voice
+Use the first person point of view sparingly and with intention. When overused, the 
+first person narrative can overwhelm the sense of a shared experience and obscure the 
+reader's journey.
 
-The documentation should be technically precise and directed toward a technical
-audience, e.g., application developers, site reliability engineers, and security
-engineering team leads. 
+Don't use “I” or “me” unless it appears in the text of a user interface element.
 
-Even when describing Teleport generally, we should emphasize specific technical
-capabilities over broad statements of benefit. The aim is not to pique the
-audience's interest, but to provide information.
+Avoid using “we” unless you have a really good rationale for it. For example, if you 
+are documenting a recommended setting or practice, using “We recommend...” is ambiguous
+("we" being who exactly?) and potentially dangerous if something goes wrong. If there
+are industry best practices or recommendations, it's okay to indicate that instead of 
+using the royal or editorial "we" in documentation.
+
+### Passive constructions
+
+In spite of the axiom to never use the passive voice, there are situations where a 
+passive sentence structure might be appropriate. Don't twist a sentence into knots just 
+to avoid a passive construction. Passive voice does have its place, but be wary of using it.
+
+When writing about software, it's often tempting to describe what's happening from the 
+code point of view. However, there's almost always a human being with a goal or task to 
+complete who is initiating the activity that the software is executing. If you keep this 
+human presence in mind, your writing will be more dynamic, easier to follow, and more 
+interesting to read.
+
+### Contractions and conversational tone
+
+Contractions are generally acceptable because they give documentation a more natural 
+conversational tone—at least for English speakers. Be conscious of when and why you use 
+contractions.
+
+To keep the tone conversational but concise, adhere to the following common-sense guidelines:
+
+- Use common, well-known words whenever possible.
+
+- Don't use flowery language or literary flourish words and phrases like “and so forth”, 
+  “albeit”, “heretofore”, or “thus”.
+
+- Try to be precise in word choice. For example:
+
+  - Don't use “when”—implying eventuality and time—as interchangeable with “if”, which implies 
+    the possibility of something happening.
+  - Don't use phrases that introduce ambiguity. For example, instead of “When the process completes…” 
+    use “After the process completes…”.
+  - Think carefully about word choices like using “since” (implying a period of time) instead 
+    of “because” (implying cause and result) or using “once” (single occurrence) instead of 
+    “after” (each time).
+
+- Avoid using dead language words and phrases even if they are generally accepted as English 
+  words in practice. For example:
+
+  - Instead of “i.e.”, use “that is” or rewrite the sentence to make the meaning clear without 
+    needing extra qualification.
+  - Instead of “e.g.”, use “for example”.
+  - Instead of “via”, use an appropriate English substitute such as “by”, “through”, 
+    "from", or “using”.
+  - Instead of “etc.”, use “and so on” or revise the content to make the term unnecessary. 
+    For example, revise to use *such as* or *like* followed by an example or two.
+  - Instead of “caveat”, use an appropriate English substitute such as “notice”, 
+    “caution”, or “warning”.
+
+- Avoid adding unnecessary words or phrases. For example:
+
+  - Instead of “In order to”, just use “to”.
+  - Instead of “as well as”, just use “and”.
+  - Instead of “and then”, just use “then”.
+  - Avoid jargon, colloquialisms, and idiomatic phrases.
+
+- Avoid adverbs and subjective statements. For example, don't use words and phrases like 
+  easily, rapidly, simply, quickly.
+
+  - Experienced developers who ~~truly~~ prefer to skip the tutorial...
+  - We can ~~quickly~~ test this code is functioning as expected...
+
+### Headings
+
+All heading levels should use the following conventions:
+
+- Use sentence case. Sentence case means that only the initial word and proper nouns are 
+  capitalized.
+- Use active, present tense verbs in headings wherever appropriate, especially in the 
+  context of tutorials and how-to guides.
+- Use noun phrases for conceptual and reference topics whenever possible.
+- Summarize as succinctly as possible the content they contain.
+- Avoid generic headings like overview and introduction, if possible. While generic 
+  headings can be conceptually useful, they add no value to the content or the navigational 
+  experience.
+- Always contain content. A heading should never be immediately followed by another 
+  heading. As a best practice, avoid using headings strictly for navigation.
+
+### Limit heading levels
+
+As a best practice, avoid building an information hierarchy with more than three heading 
+levels. Most content can be effectively organized using two internal heading levels, making 
+it easier to navigate and scan for relevant topics. 
+
+### Topic titles
+
+Avoid using gerunds (verbs ending in -ing) in titles and headings. Procedure titles and 
+headings should answer the question: *What are you trying to do?* For example, if the answer 
+to *What are you trying to do?* is *I want to create an account*, the article heading 
+should be *Create an account*. In most cases, concept and reference topics that aren't 
+related to tasks are named with a noun phrase, such as *Trusted clusters*. 
+
+### Lists
+
+Introduce lists with a heading, a sentence, or a fragment that ends with a colon. 
+
+- Use **bulleted lists** for items that don't need to appear in order. Make all list 
+  items parallel in structure. For example, start each item in the list using a noun 
+  or a phrase that starts with a verb.
+- Use **numbered lists** only for processes and procedures that must be completed in 
+  sequential order.
+
+### Bullets
+
+Bullets are for unordered lists. The order of items in a bulleted list can imply 
+importance, but generally all list items are peers. Each list item should start with 
+a capital letter and end with a period unless all of the list items are single words 
+or short phrases of no more than four words. Use parallel structure in phrasing the 
+items in a list. For example, each list item might start with a verb, noun, or gerund. 
+
+### Numbered steps
+
+Only use numbered paragraphs for steps in procedures. If a procedure has more than nine steps, 
+always consider breaking it into subsections with headings. Ideally, each procedure or subtask 
+should be three to six steps, not have nested sub-steps, and have minimal embedded paragraphs 
+describing what happens—the result or outcome to expect—in an unnumbered paragraph following 
+the step. 
+
+### Pronouns
+
+Use gender-neutral pronouns, like “they” whenever possible. Generally, you can change any 
+noun from singular to plural to have subject-verb-pronoun agreement and avoid the use of 
+gender-specific pronouns like “he”, “him”, “his” or “she”, “her”, “hers”. Using "they" or 
+"their" with singular nouns is more generally accepted in modern conversational English, but
+it's rare you to need to use the disagreeing format in documentation.
+
+Be wary of impersonal and potentially ambiguous pronouns such as:
+
+- all, another, any
+- each, either
+- few, many, neither, none,
+- one, other
+- same, several, some, such
+- this, that, them, these, those
+
+If you use any of these impersonal pronouns, be sure you answer “of what?”, “of which?”, 
+or “as what?” in the sentence. Be especially cautious if you start a sentence with an
+indefinite pronoun like "This" followed by a verb. In most cases, the pronoun should be 
+followed by an object.
+
+## Teleport-specific styles
+
+Many style rules have equally justifiable alternatives. Following a common style guide 
+is intended to prevent debates over style questions from getting in the way of 
+documenting Teleport. If you don't see an answer to a style question in this guide, 
+follow your best judgement and keep the style you choose consistent within the 
+page you're working on to maintain a professional polish.
+
+### Tone
+
+The documentation should be technically precise and directed toward a generally 
+technical audience, for example, application developers, site reliability engineers, 
+and security engineering team leads. 
+
+Even when describing Teleport generally, emphasize specific technical capabilities 
+over broad statements of benefit. The aim is not to pique the audience's interest, but 
+to provide information.
 
 For example, rather than:
 
@@ -150,18 +309,14 @@ Some guides are intended for end users seeking to access resources in their
 cluster. For certain use cases, it may be necessary to adjust our usual voice
 for the audience of a specific guide.
 
-### Body text
-
-- Write sparser one to two-sentence groupings rather than lengthier blocks of text.
-- Use periods at the end of a line even in a list unless the ending item is a command.
-
 ### Code, commands, and configuration
 
 - `tsh`, `tctl`, and other core commands should be placed in backticks.
 
-- All ports or values should be enclosed in backticks, e.g., `443`.
+- All ports or values should be enclosed in backticks, for example, `443`.
 
-- Prefer putting commands (e.g., Bash scripts) into full-line code snippets. These will render with a handy copy button.
+- Put shell commands and scripts into full-line code snippets so that 
+  they render with a Copy button. For example:
 
    ```code
    $ echo "This is an example."
@@ -169,52 +324,52 @@ for the audience of a specific guide.
 
 ### Diagrams
 
-- Use [Teleport's lucidchart library](https://app.lucidchart.com/lucidchart/dfcf1f4a-5cf0-4758-8ebb-f6ea86900aba/edit) to create diagrams with a consistent design language.
+- Use the [Teleport Lucidchart library](https://app.lucidchart.com/lucidchart/dfcf1f4a-5cf0-4758-8ebb-f6ea86900aba/edit) to create diagrams with a consistent design language.
 - Diagram multistep sections using sequence diagrams that depict steps linearly.
-- Several great examples are available here: https://gravitational.slab.com/posts/diagrams-ix9nzhpd.
+- Several examples are available here: https://gravitational.slab.com/posts/diagrams-ix9nzhpd.
 
-### Footnotes
+### Product names
 
-- Footnotes should be ordered by appearance (chronological precedence). `2` should not come before `1`.
+- Full product names are treated as proper nouns and capitalized. 
+  For example, Teleport Auth Service and Teleport Proxy Service are proper nouns.
+  The terms proxy and service are common words and not proper nouns.
+  In general, avoid capitalizing terms and features. For example, don't capitalize 
+  common terms like server, node, agent, and so on. Overuse of capitalization
+  makes text more difficult to read.
+- Don't use quotes to refer to product names.
+- Product proper nouns should be bolded on first use.
 
-### Headings
+### Technical concepts and acronyms
 
-- Headings should be in sentence case. For example, "Next steps" is preferred over "Next Steps." We want to clarify proper nouns and products in headings by using sentence casing.
-
-### Lists
-
-- We prefer short paragraph blocks over bulleted or numbered lists. This leads to a preference for completeness and brevity rather than enumeration. 
-
-- When you do include a list, we prefer bullet points over numbered lists.
-
-- Use numbered lists for any sequence of steps, but use these sparingly. 
-
-  Each number should mention the total number of steps, e.g., "Step 1/5," so the reader knows how far along they are in the sequence.
-
-### Names of products, services, and features
-
-- Product proper nouns should be capitalized. Say "Trusted Cluster," not "trusted cluster."
-- Avoid using quotes to refer to product names, since they often have negative connotations. E.g, do not say, "Trusted Cluster."
-- Product proper nouns should be bolded on first use. "Trusted Cluster" should be **Trusted Cluster**.
-
-### Names of technical concepts
-
-- Within a single page, use consistent acronyms and concept keywords. For example, pick one of "2-factor," "two-factor", "2fa," or "tfa" within a given page.
-- Acronyms should always be introduced following a concept keyword and then consistently used thereafter.
+- Avoid using acronyms whenever possible.
+- If you use acronyms, be consistent and use the same acronym for any given
+  concept throughout the entire page. For example, don't use a combination 
+  of "multifactor", "2-factor," "two-factor", "2fa," or "tfa" within a given page.
+- Always use the full definition followed by the acronym in parentheses before using 
+  the acronym thereafter. For example, use "Network Level Authentication (NLA)"", not
+  "NLA (Network Level Authentication)"" or "NLA" on its own without its full definition. 
 
 ### Page titles
 
-- Should have all words capitalized except for determiners (`a`, `the`, etc.).
-- Should follow a `Title Name | Teleport Docs` format. The `| Teleport Docs` suffix will be added automatically by our static site generator.
-- The total character count should not exceed 70 for the entire title since this can impact SEO. Including the suffix `| Teleport Docs`, that leaves 55 characters for the article's title.
+- Should follow a `Title Name | Teleport Docs` format. The `| Teleport Docs` suffix 
+  is added automatically by the static site generator.
+- The total character count should not exceed 70 for the entire title since this can 
+  impact SEO. Including the suffix `| Teleport Docs`, that leaves 55 characters for 
+  the article's title.
 
 ### SEO
 
-- Make sure to have a good, well-worded description that uses common keywords around the subject. Also, liberally sprinkle said keywords throughout the article.
+- Every page should have a clearly-worded description that summarizes the content.
+- Descriptions should start with a verb and end with a period.
+- Description should include common keywords related to the subject matter whenever 
+  possible. 
+- Use keywords liberally throughout the article.
 
 ### Videos
 
-- Mac users should use Quicktime's `Cmd-Shift-5` to record a small part of the screen:
+- If you use macOS, you can record short videos with the Quicktime
+ Cmd-Shift-5 key combination and embed the video in a page with the following
+ Markdown:
 
   ![quicktime](../../../img/docs/quicktime.webp)
 
@@ -229,4 +384,3 @@ for the audience of a specific guide.
   # create WebM
   $ ffmpeg -i input.mov -c vp9 -b:v 0 -crf 41 output.webm
   ```
-
