@@ -1929,8 +1929,14 @@ func (process *TeleportProcess) initAuthService() error {
 
 	// clean up unused descriptors passed for proxy, but not used by it
 	warnOnErr(process.closeImportedDescriptors(teleport.ComponentAuth), log)
-	if cfg.Auth.EnableProxyProtocol {
-		log.Infof("Starting Auth service with external PROXY protocol support.")
+
+	if cfg.Auth.PROXYProtocolMode == multiplexer.PROXYProtocolOn {
+		log.Info("Starting Auth service with external PROXY protocol support.")
+	}
+	if cfg.Auth.PROXYProtocolMode == multiplexer.PROXYProtocolUnspecified {
+		log.Warn("'proxy_protocol' unspecified." +
+			"Starting Auth service with external PROXY protocol support, " +
+			" but IP pinned connection affected by PROXY headers will not be allowed.")
 	}
 
 	muxCAGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
@@ -1938,11 +1944,11 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	// use multiplexer to leverage support for proxy protocol.
 	mux, err := multiplexer.New(multiplexer.Config{
-		EnableExternalProxyProtocol: cfg.Auth.EnableProxyProtocol,
-		Listener:                    listener,
-		ID:                          teleport.Component(process.id),
-		CertAuthorityGetter:         muxCAGetter,
-		LocalClusterName:            clusterName,
+		PROXYProtocolMode:   cfg.Auth.PROXYProtocolMode,
+		Listener:            listener,
+		ID:                  teleport.Component(process.id),
+		CertAuthorityGetter: muxCAGetter,
+		LocalClusterName:    clusterName,
 	})
 	if err != nil {
 		listener.Close()
@@ -3460,11 +3466,11 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		}
 
 		mux, err := multiplexer.New(multiplexer.Config{
-			Listener:                    l,
-			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
-			ID:                          teleport.Component(teleport.ComponentProxy, "ssh"),
-			CertAuthorityGetter:         muxCAGetter,
-			LocalClusterName:            clusterName,
+			Listener:            l,
+			PROXYProtocolMode:   cfg.Proxy.PROXYProtocolMode,
+			ID:                  teleport.Component(teleport.ComponentProxy, "ssh"),
+			CertAuthorityGetter: muxCAGetter,
+			LocalClusterName:    clusterName,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3555,11 +3561,11 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			return nil, trace.Wrap(err)
 		}
 		listeners.mux, err = multiplexer.New(multiplexer.Config{
-			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
-			Listener:                    listener,
-			ID:                          teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
-			CertAuthorityGetter:         muxCAGetter,
-			LocalClusterName:            clusterName,
+			PROXYProtocolMode:   cfg.Proxy.PROXYProtocolMode,
+			Listener:            listener,
+			ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
+			CertAuthorityGetter: muxCAGetter,
+			LocalClusterName:    clusterName,
 		})
 		if err != nil {
 			listener.Close()
@@ -3578,18 +3584,18 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			}
 		}()
 		return &listeners, nil
-	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
+	case cfg.Proxy.PROXYProtocolMode != multiplexer.PROXYProtocolUnspecified && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
 		process.log.Debugf("Setup Proxy: Proxy protocol is enabled for web service, multiplexing is on.")
 		listener, err := process.importOrCreateListener(ListenerProxyWeb, cfg.Proxy.WebAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		listeners.mux, err = multiplexer.New(multiplexer.Config{
-			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
-			Listener:                    listener,
-			ID:                          teleport.Component(teleport.ComponentProxy, "web", process.id),
-			CertAuthorityGetter:         muxCAGetter,
-			LocalClusterName:            clusterName,
+			PROXYProtocolMode:   cfg.Proxy.PROXYProtocolMode,
+			Listener:            listener,
+			ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
+			CertAuthorityGetter: muxCAGetter,
+			LocalClusterName:    clusterName,
 		})
 		if err != nil {
 			listener.Close()
@@ -3638,11 +3644,11 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			if !cfg.Proxy.DisableDatabaseProxy && !cfg.Proxy.DisableTLS {
 				process.log.Debug("Setup Proxy: Multiplexing web and database proxy on the same port.")
 				listeners.mux, err = multiplexer.New(multiplexer.Config{
-					EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
-					Listener:                    listener,
-					ID:                          teleport.Component(teleport.ComponentProxy, "web", process.id),
-					CertAuthorityGetter:         muxCAGetter,
-					LocalClusterName:            clusterName,
+					PROXYProtocolMode:   cfg.Proxy.PROXYProtocolMode,
+					Listener:            listener,
+					ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
+					CertAuthorityGetter: muxCAGetter,
+					LocalClusterName:    clusterName,
 				})
 				if err != nil {
 					listener.Close()
@@ -3681,9 +3687,9 @@ func (process *TeleportProcess) initMinimalReverseTunnelListener(cfg *servicecfg
 		return trace.Wrap(err)
 	}
 	listeners.reverseTunnelMux, err = multiplexer.New(multiplexer.Config{
-		EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
-		Listener:                    listener,
-		ID:                          teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
+		PROXYProtocolMode: cfg.Proxy.PROXYProtocolMode,
+		Listener:          listener,
+		ID:                teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
 	})
 	if err != nil {
 		listener.Close()
@@ -4400,7 +4406,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Log:                      log,
 			IngressReporter:          ingressReporter,
 			KubernetesServersWatcher: kubeServerWatcher,
-			EnableProxyProtocol:      cfg.Proxy.EnableProxyProtocol,
+			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
 		})
 		if err != nil {
 			return trace.Wrap(err)

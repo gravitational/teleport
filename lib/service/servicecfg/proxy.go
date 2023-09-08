@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -52,8 +53,8 @@ type ProxyConfig struct {
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
 	ReverseTunnelListenAddr utils.NetAddr
 
-	// EnableProxyProtocol enables proxy protocol support
-	EnableProxyProtocol bool
+	// PROXYProtocolMode controls behavior related to PROXY protocol.
+	PROXYProtocolMode multiplexer.PROXYProtocolMode
 
 	// WebAddr is address for web portal of the proxy
 	WebAddr utils.NetAddr

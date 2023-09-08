@@ -351,7 +351,7 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 		return trace.Wrap(err)
 	}
 
-	clientIP, _, err := net.SplitHostPort(clientSrcAddr.String())
+	clientIP, clientPort, err := net.SplitHostPort(clientSrcAddr.String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -362,6 +362,15 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 				"client_ip": clientIP,
 				"pinned_ip": identity.PinnedIP,
 			}).Debug("Pinned IP and client IP mismatch")
+		}
+		return ErrIPPinningMismatch
+	}
+	if clientPort == "0" {
+		if log != nil {
+			log.WithFields(logrus.Fields{
+				"client_ip": clientIP,
+				"pinned_ip": identity.PinnedIP,
+			}).Warn("IP pining is not allowed for connections affected by PROXY protocol without explicitly setting 'proxy_protocol: on' in the config.")
 		}
 		return ErrIPPinningMismatch
 	}

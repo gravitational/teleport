@@ -7695,9 +7695,9 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 
 	mux, err := multiplexer.New(multiplexer.Config{
-		Listener:                    proxyListener,
-		EnableExternalProxyProtocol: false,
-		ID:                          teleport.Component(teleport.ComponentProxy, "ssh"),
+		Listener:          proxyListener,
+		PROXYProtocolMode: multiplexer.PROXYProtocolOff,
+		ID:                teleport.Component(teleport.ComponentProxy, "ssh"),
 		CertAuthorityGetter: func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 			return client.GetCertAuthority(ctx, id, loadKeys)
 		},

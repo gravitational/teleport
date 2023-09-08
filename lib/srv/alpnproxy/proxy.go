@@ -398,7 +398,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 	// We try to do quick early IP pinning check, if possible, and stop it on the proxy, without going further.
 	// It's based only on client cert. Client can still fail full IP pinning check later if their role now requires
 	// IP pinning but cert isn't pinned.
-	if err := checkCertIPPinning(tlsConn); err != nil {
+	if err := p.checkCertIPPinning(tlsConn); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -418,7 +418,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 	return trace.Wrap(handlerDesc.handle(ctx, handlerConn, connInfo))
 }
 
-func checkCertIPPinning(tlsConn *tls.Conn) error {
+func (p *Proxy) checkCertIPPinning(tlsConn *tls.Conn) error {
 	state := tlsConn.ConnectionState()
 
 	if len(state.PeerCertificates) == 0 {
@@ -430,12 +430,18 @@ func checkCertIPPinning(tlsConn *tls.Conn) error {
 		return trace.Wrap(err)
 	}
 
-	clientIP, err := utils.ClientIPFromConn(tlsConn)
+	clientIP, port, err := net.SplitHostPort(tlsConn.RemoteAddr().String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if identity.PinnedIP != "" && clientIP != identity.PinnedIP {
+	if identity.PinnedIP != "" && (clientIP != identity.PinnedIP || port == "0") {
+		if port == "0" {
+			p.log.WithFields(logrus.Fields{
+				"client_ip": clientIP,
+				"pinned_ip": identity.PinnedIP,
+			}).Warn("IP pining is not allowed for connections affected by PROXY protocol without explicitly setting 'proxy_protocol: on' in the config.")
+		}
 		return trace.Wrap(authz.ErrIPPinningMismatch)
 	}
 
