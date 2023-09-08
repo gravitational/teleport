@@ -3,6 +3,7 @@ package resource
 import (
 	"errors"
 	"go/ast"
+	"strings"
 )
 
 type Resource struct {
@@ -56,7 +57,7 @@ func NewFromDecl(decl *ast.GenDecl, filepath string) (Resource, error) {
 	}
 	return Resource{
 		SectionName: section,
-		Description: decl.Doc.Text(),
+		Description: strings.ReplaceAll(decl.Doc.Text(), "\n", " "),
 		SourcePath:  filepath,
 		Fields:      []Field{},
 		YAMLExample: "",
