@@ -34,7 +34,6 @@ import (
 // request is processed/updated.
 type Bot struct {
 	client      *Client
-	clusterName string
 	webProxyURL *url.URL
 }
 

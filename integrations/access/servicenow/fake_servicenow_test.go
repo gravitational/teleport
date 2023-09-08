@@ -44,8 +44,6 @@ type FakeServiceNow struct {
 	incidentUpdates   chan Incident
 	// Incident notes
 	newIncidentNotes chan string
-	// Responders
-	responderIDCounter uint64
 }
 
 type QueryValues url.Values
@@ -63,8 +61,6 @@ func (q QueryValues) GetAsSet(name string) stringset.StringSet {
 	}
 	return result
 }
-
-type fakeResponderByNameKey string
 
 type FakeIncident struct {
 	IncidentID string
@@ -171,7 +167,7 @@ func (s *FakeServiceNow) CheckIncidentUpdate(ctx context.Context) (Incident, err
 	}
 }
 
-func (s FakeServiceNow) StoreResponder(ctx context.Context, responderID string) string {
+func (s *FakeServiceNow) StoreResponder(ctx context.Context, responderID string) string {
 	s.objects.Store(responderID, responderID)
 	return responderID
 }

@@ -20,8 +20,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
 // GenericPluginData is a data associated with access request that we store in Teleport using UpdatePluginData API.
