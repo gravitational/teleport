@@ -441,9 +441,9 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 	}, nil
 }
 
-// awsOIDCConfigureAWSOIDCIdP returns a script that configures the AWS OIDC Integration in AWS.
+// awsOIDCConfigureIdP returns a script that configures the AWS OIDC Integration in AWS.
 // This creates an OIDC Identity Provider that trusts this Teleport instance.
-func (h *Handler) awsOIDCConfigureAWSOIDCIdP(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	ctx := r.Context()
 
 	queryParams := r.URL.Query()
