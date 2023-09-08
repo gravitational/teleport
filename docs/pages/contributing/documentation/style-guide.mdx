@@ -74,6 +74,114 @@ about trusted clusters in one page and have similar content as context in a how-
 When possible, you should reuse content rather than duplicate content, but it's perfectly
 fine to cover the same information in more than one place to serve different purposes.
 
+## How-to guides
+
+A how-to guide describes how to achieve a goal or complete a task. 
+Only the information that is pertinent to achieving that goal or completing the task is included. 
+With how-to guides, readers have enough information to know what they want to do—for example, 
+open a bank account—but not necessarily enough information to know how to do it.
+For example, the how-to guide for opening a bank account wouldn't explain what a bank account 
+is or why you might want to open one, but would focus on specific steps such as:
+
+1. Select an institution.
+1. Fill out an application.
+1. Deposit a minimum amount of currency.
+ 
+How-to guides often include links to additional information, but should not include 
+explanations that take the focus away from what the reader wants to accomplish.
+
+### What's in a how-to guide?
+
+In most cases, how-to guides contain the following sections:
+
+- Frontmatter with a guide title, description, and other information.
+  The title should be short and identify the subject of the how-to topic in the fewest words possible.
+  The description should be a sentence that starts with a verb and summarizes the content of the topic.
+  Additional information might include a video banner link, a list of keywords, or an alternate 
+  first-level heading.
+
+- One or more introductory paragraphs that explain what the task-at-hand is, the use case or 
+  scenario driving the reader to complete the task, and the expected outcome.
+  Avoid recreating content if you can refer a reader to a single, separate guide. 
+
+- Before you begin list of prerequisites.
+  Actions that are common to multiple topics that must be taken before starting the procedure 
+  in how-to topic are generally documented in include files and referenced in the
+  list of Prerequisites. 
+
+- Task step sections that break down the how-to procedure into manageable chunks or subtasks
+  with clearly-defined goals.
+  Currently, task step sections use headings that convey the current and total number of steps
+  involved to complete the procedure, for example, **Step 1/3. Add a local user**.
+
+  In most cases, task step sections include code examples, configuration settings, and 
+  screenshots to illustrate the actions the read should perform. Whenever possible, readers
+  should be able to copy and paste the example code and configurations with minimal changes 
+  to complete the procedure being documenting.
+
+- Next steps section can be used to add links to logically related topics, if applicable, or
+  to recommend related topics for further reading, such as reference topics related to the
+  procedure completed.
+
+### Using links, admonishments, and details in how-to guides
+
+You should avoid breaking the reader's focus in how-to guides. 
+For example, avoid adding links to other pages or to other sections in the same topic.
+Avoid inserting notices, tips, admonishments, or collapsed details sections unless
+absolutely necessary.
+
+If you do include a link in a how-to guide to external documentation,
+be sure to tell the reader why to follow the link and what information to glean from it.
+For example, use explicit information like "Follow the installation instructions in the 
+AWS documentation" instead of "Read the AWS documentation for more information".
+
+## Tutorials
+
+Tutorials—and, to some extent, Getting started guides—are designed to give first-time 
+Teleport users hands-on experience completing a set of explicit instructions. Tutorials 
+should be as simple and straightforward as possible. Tutorials must provide a positive 
+learning experience and a successful outcome with no unexpected behavior or unexplained 
+errors. It's okay for a tutorial to include a red herring to illustrate a common misstep 
+but the author must provide a sufficient explanation of the error and how to correct it.
+
+### What's in a tutorial?
+
+Tutorial or getting started guides contain much of the same content as how-to guides 
+but are focused on achieving learning objectives:
+
+- Frontmatter with a demo video to reach readers who prefer video.
+- One or more introductory paragraphs that explain what the tutorial demonstrates.
+- Before you begin list of the tools required to complete the tutorial.
+- Learning objectives that summarize what the reader will accomplish by completing the tutorial.
+- Task steps that the reader must follow in sequence to successfully complete the lesson.
+- Next steps section can be used to add links to logically related topics, if applicable, or
+  to recommend related topics for further reading, such as reference topics related to the
+  procedure completed.
+
+## Conceptual guides
+
+**Conceptual guides** and **Architecture guides** explain core concepts and how Teleport works
+at system, component, and operational levels.
+Guide for conceptual and architectural information can include the following types of topics:
+
+- **Networking** for audiences interested in networking concepts, components, and protocols.
+- **Security** for audiences interested in security protocols, cryptographic primitives, and 
+  reducing attack vectors.
+- **Deployment** for audiences interested in deployment architecture.
+
+### Reference manuals
+
+**Reference manuals** provide an exhaustive list of configuration options, API methods, 
+and other possible fields and values for the various ways in which users can interact with 
+Teleport.
+
+- Should be comprehensive. If listing configuration options, API paths, and so on, list 
+  all of them, rather than a few examples.
+- HTML or Markdown tables are often the best formats for this kind of article.
+- Should be easy to navigate with a browser's search functionality. List all content on 
+  the same page.
+- Should avoid prose and be expressed with brevity.
+
 ## General guidance for engaging content
 
 There are three keys to writing content that engages the audience:
@@ -498,114 +606,6 @@ format:
 For cross-references to external resources, use the title of the destination instead 
 of the URL of the destination. Avoid using links to unnamed destinations. For example, 
 don't use links like click <ins>here</ins> or see this <ins>article</ins>>.
-
-## How-to guides
-
-A how-to guide describes how to achieve a goal or complete a task. 
-Only the information that is pertinent to achieving that goal or completing the task is included. 
-With how-to guides, readers have enough information to know what they want to do—for example, 
-open a bank account—but not necessarily enough information to know how to do it.
-For example, the how-to guide for opening a bank account wouldn't explain what a bank account 
-is or why you might want to open one, but would focus on specific steps such as:
-
-1. Select an institution.
-1. Fill out an application.
-1. Deposit a minimum amount of currency.
- 
-How-to guides often include links to additional information, but should not include 
-explanations that take the focus away from what the reader wants to accomplish.
-
-### What's in a how-to guide?
-
-In most cases, how-to guides contain the following sections:
-
-- Frontmatter with a guide title, description, and other information.
-  The title should be short and identify the subject of the how-to topic in the fewest words possible.
-  The description should be a sentence that starts with a verb and summarizes the content of the topic.
-  Additional information might include a video banner link, a list of keywords, or an alternate 
-  first-level heading.
-
-- One or more introductory paragraphs that explain what the task-at-hand is, the use case or 
-  scenario driving the reader to complete the task, and the expected outcome.
-  Avoid recreating content if you can refer a reader to a single, separate guide. 
-
-- Before you begin list of prerequisites.
-  Actions that are common to multiple topics that must be taken before starting the procedure 
-  in how-to topic are generally documented in include files and referenced in the
-  list of Prerequisites. 
-
-- Task step sections that break down the how-to procedure into manageable chunks or subtasks
-  with clearly-defined goals.
-  Currently, task step sections use headings that convey the current and total number of steps
-  involved to complete the procedure, for example, **Step 1/3. Add a local user**.
-
-  In most cases, task step sections include code examples, configuration settings, and 
-  screenshots to illustrate the actions the read should perform. Whenever possible, readers
-  should be able to copy and paste the example code and configurations with minimal changes 
-  to complete the procedure being documenting.
-
-- Next steps section can be used to add links to logically related topics, if applicable, or
-  to recommend related topics for further reading, such as reference topics related to the
-  procedure completed.
-
-### Using links, admonishments, and details in how-to guides
-
-You should avoid breaking the reader's focus in how-to guides. 
-For example, avoid adding links to other pages or to other sections in the same topic.
-Avoid inserting notices, tips, admonishments, or collapsed details sections unless
-absolutely necessary.
-
-If you do include a link in a how-to guide to external documentation,
-be sure to tell the reader why to follow the link and what information to glean from it.
-For example, use explicit information like "Follow the installation instructions in the 
-AWS documentation" instead of "Read the AWS documentation for more information".
-
-## Tutorials
-
-Tutorials—and, to some extent, Getting started guides—are designed to give first-time 
-Teleport users hands-on experience completing a set of explicit instructions. Tutorials 
-should be as simple and straightforward as possible. Tutorials must provide a positive 
-learning experience and a successful outcome with no unexpected behavior or unexplained 
-errors. It's okay for a tutorial to include a red herring to illustrate a common misstep 
-but the author must provide a sufficient explanation of the error and how to correct it.
-
-### What's in a tutorial?
-
-Tutorial or getting started guides contain much of the same content as how-to guides 
-but are focused on achieving learning objectives:
-
-- Frontmatter with a demo video to reach readers who prefer video.
-- One or more introductory paragraphs that explain what the tutorial demonstrates.
-- Before you begin list of the tools required to complete the tutorial.
-- Learning objectives that summarize what the reader will accomplish by completing the tutorial.
-- Task steps that the reader must follow in sequence to successfully complete the lesson.
-- Next steps section can be used to add links to logically related topics, if applicable, or
-  to recommend related topics for further reading, such as reference topics related to the
-  procedure completed.
-
-## Conceptual guides
-
-**Conceptual guides** and **Architecture guides** explain core concepts and how Teleport works
-at system, component, and operational levels.
-Guide for conceptual and architectural information can include the following types of topics:
-
-- **Networking** for audiences interested in networking concepts, components, and protocols.
-- **Security** for audiences interested in security protocols, cryptographic primitives, and 
-  reducing attack vectors.
-- **Deployment** for audiences interested in deployment architecture.
-
-### Reference manuals
-
-**Reference manuals** provide an exhaustive list of configuration options, API methods, 
-and other possible fields and values for the various ways in which users can interact with 
-Teleport.
-
-- Should be comprehensive. If listing configuration options, API paths, and so on, list 
-  all of them, rather than a few examples.
-- HTML or Markdown tables are often the best formats for this kind of article.
-- Should be easy to navigate with a browser's search functionality. List all content on 
-  the same page.
-- Should avoid prose and be expressed with brevity.
 
 ## Teleport-specific styles
 
