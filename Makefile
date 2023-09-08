@@ -1463,7 +1463,7 @@ build-ui-e: ensure-js-deps
 
 .PHONY: docker-ui
 docker-ui:
-	$(MAKE) -C build.assets ui
+	$(MAKE) -C build.assets webassets
 
 # rustup-install-target-toolchain ensures the required rust compiler is
 # installed to build for $(ARCH)/$(OS) for the version of rust we use, as

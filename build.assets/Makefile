@@ -191,13 +191,12 @@ buildbox-arm:
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM) || true; fi;
 	docker build \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--cache-from $(BUILDBOX) \
-		--cache-from $(BUILDBOX_ARM) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--cache-from $(BUILDBOX_ARM) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
 
 CONNECT_VERSION ?= $(VERSION)
@@ -224,12 +223,6 @@ teleterm: buildbox-connect
 	# Always run this image as user 1000, as the Node base image assumes that.
 	docker run $(DOCKERFLAGS) -u 1000:1000 $(BUILDBOX_CONNECT) \
 		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
-
-# Builds webassets inside Docker.
-.PHONY:ui
-ui: buildbox
-	docker run -u $(UID):$(GID) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
-		bash -c "cd ../teleport && yarn install --frozen-lockfile && yarn build-ui"
 
 # Builds webassets inside the buildbox-connect container via the
 # Makefile (instead of calling yarn directly as the ui target above does)
@@ -308,7 +301,7 @@ test-helm-update-snapshots:
 integration: buildbox
 	docker run \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		make -C $(SRCDIR) FLAGS='-cover' integration"
+		make -C $(SRCDIR) FLAGS='-cover' integration
 
 .PHONY:integration-root
 integration-root: buildbox
@@ -382,9 +375,9 @@ enter/grpcbox: grpcbox
 # Don't use this target directly; call named Makefile targets like release-amd64.
 #
 .PHONY:release
-release: buildbox
+release: buildbox-centos7
 	@echo "Build Assets Release"
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
 # These are aliases used to make build commands uniform.
