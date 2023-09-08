@@ -259,6 +259,10 @@ clean:
 # tenant in the staging cluster.
 .PHONY: deploy-cloud
 deploy-cloud:
+ifneq ($(RELEASE),)
+	@echo "---> Deploying a published release to cloud tenant."
+	./scripts/deploy-cloud.sh
+else
 ifneq ($(CLOUD_SKIP_BUILD),)
 	@echo "---> Skipping build - use existing teleport binary \"$(BUILDDIR)/teleport\"."
 	@if [[ ! -f "$(BUILDDIR)/teleport" ]]; then \
@@ -272,6 +276,7 @@ else
 endif
 	@echo "---> Building docker image and deploying to cloud tenant."
 	./scripts/deploy-cloud.sh
+endif
 
 # make deploy-cloud-login - Ensures access to all services required to deploy
 # an image to a cloud tenant in the staging cluster.

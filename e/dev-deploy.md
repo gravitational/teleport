@@ -105,6 +105,13 @@ make TENANT=yourtenant deploy-cloud
 This make target will build the `teleport` binary and copy it into an base release image. The tag for the base image is derived from `version.go`. If you've branched from `master` and no base image is available yet for a new major version, override by providing `BASE_IMAGE_TAG`. The default docker repo is `public.ecr.aws/teleport-ent` (override with `BASE_IMAGE_REPO`).
 
 ```
+make TENANT=yourtenant RELEASE=14.0.0 deploy-cloud
+```
+
+This make target deploys the provided release to the tenant. The default docker repo is `public.ecr.aws/teleport-ent` (override with `BASE_IMAGE_REPO`).
+
+
+```
 make TENANT=yourtenant BASE_IMAGE_TAG=10.1.4 deploy-cloud
 ```
 
