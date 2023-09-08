@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -30,8 +31,8 @@ type AuthConfig struct {
 	// Enabled turns auth role on or off for this process
 	Enabled bool
 
-	// EnableProxyProtocol enables proxy protocol support
-	EnableProxyProtocol bool
+	// PROXYProtocolMode controls behavior related to PROXY protocol.
+	PROXYProtocolMode multiplexer.PROXYProtocolMode
 
 	// ListenAddr is the listening address of the auth service
 	ListenAddr utils.NetAddr
