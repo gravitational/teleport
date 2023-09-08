@@ -532,6 +532,7 @@ func (c *PluginDiscordSettings) CheckAndSetDefaults() error {
 	return nil
 }
 
+// CheckAndSetDefaults checks that the required fields for the servicenow plugin are set.
 func (c *PluginServiceNowSettings) CheckAndSetDefaults() error {
 	if c.ApiEndpoint == "" {
 		return trace.BadParameter("API endpoint must be set")

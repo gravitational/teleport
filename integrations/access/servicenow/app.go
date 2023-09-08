@@ -298,14 +298,14 @@ func (a *App) onResolvedRequest(ctx context.Context, req types.AccessRequest) er
 	case types.RequestState_APPROVED:
 		values, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationApprovedCloseCode]
 		if !ok || len(values) < 1 {
-			return trace.BadParameter("close code annotation missing form serviceNow configuration")
+			return trace.BadParameter("close code annotation missing form ServiceNow configuration")
 		}
 		closeCode = values[0]
 		state = ResolutionStateResolved
 	case types.RequestState_DENIED:
 		values, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationDeniedCloseCode]
 		if !ok || len(values) < 1 {
-			return trace.BadParameter("close code annotation missing form serviceNow configuration")
+			return trace.BadParameter("close code annotation missing form ServiceNow configuration")
 		}
 		closeCode = values[0]
 		state = ResolutionStateClosed
@@ -372,7 +372,7 @@ func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bo
 			incidentCtx, _ := logger.WithField(ctx, "servicenow_service_name", serviceName)
 
 			if err = a.createIncident(incidentCtx, serviceName, reqID, reqData); err != nil {
-				return isNew, trace.Wrap(err, "creating Servicenow incident")
+				return isNew, trace.Wrap(err, "creating ServiceNow incident")
 			}
 		}
 

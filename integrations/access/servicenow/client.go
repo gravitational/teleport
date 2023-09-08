@@ -19,6 +19,7 @@ package servicenow
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -90,10 +91,11 @@ func NewClient(conf ClientConfig) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if apiURL.Scheme == "http" && !strings.HasPrefix(apiURL.Host, "127.0.0.1") {
+	hostNoPort, _, err := net.SplitHostPort(apiURL.Host)
+	if apiURL.Scheme == "http" && hostNoPort != "127.0.0.1" {
 		return nil, trace.BadParameter("http scheme is only permitted for localhost: %v", apiURL.Host)
 	}
-	if !strings.HasPrefix(apiURL.Host, "127.0.0.1") {
+	if hostNoPort != "127.0.0.1" {
 		apiURL.Scheme = "https"
 	}
 
