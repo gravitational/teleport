@@ -100,7 +100,6 @@ func TestUpdateAccessList(t *testing.T) {
 		OwnershipRequires:  accesslist.Requires{Roles: []string{"admin"}, Traits: trait.Traits{}},
 		Grants:             accesslist.Grants{Roles: []string{"access"}, Traits: trait.Traits{}},
 		MembershipRequires: accesslist.Requires{Traits: trait.Traits{}},
-		Members:            []accesslist.Member{},
 		Audit:              accesslist.Audit{Frequency: time.Hour},
 	}
 
@@ -268,7 +267,6 @@ func createTestAccessList(t *testing.T, webPack *authWebPack, s *webSuite) strin
 		Owners:             []accesslist.Owner{{Name: "llama", Description: "llama desc"}},
 		OwnershipRequires:  accesslist.Requires{Roles: []string{"admin"}, Traits: trait.Traits{}},
 		Grants:             accesslist.Grants{Roles: []string{"access"}, Traits: trait.Traits{}},
-		Members:            []accesslist.Member{},
 		MembershipRequires: accesslist.Requires{Traits: trait.Traits{}},
 		Audit:              accesslist.Audit{Frequency: time.Hour},
 	}
