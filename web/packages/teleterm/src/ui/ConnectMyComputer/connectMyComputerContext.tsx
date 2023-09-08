@@ -87,6 +87,7 @@ export const ConnectMyComputerContextProvider: FC<{
     clustersService,
     configService,
     workspacesService,
+    usageService,
   } = useAppContext();
   clustersService.useState();
 
@@ -165,6 +166,7 @@ export const ConnectMyComputerContextProvider: FC<{
           props.rootClusterUri,
           true
         );
+        usageService.captureConnectMyComputerAgentStart(props.rootClusterUri);
         return server;
       } catch (error) {
         // in case of any error kill the agent
@@ -177,6 +179,7 @@ export const ConnectMyComputerContextProvider: FC<{
       connectMyComputerService,
       mainProcessClient,
       props.rootClusterUri,
+      usageService,
       workspacesService,
     ])
   );
