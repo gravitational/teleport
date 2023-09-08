@@ -266,6 +266,23 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
   ];
 
   const runSteps = useCallback(async () => {
+    function withSetupError<T extends () => Promise<[void, Error]>>(
+      fn: T,
+      failedStep: string
+    ): () => Promise<[void, Error]> {
+      return async () => {
+        const result = await fn();
+        const [, error] = result;
+        if (error) {
+          ctx.usageService.captureConnectMyComputerSetup(cluster.uri, {
+            success: false,
+            failedStep,
+          });
+        }
+        return result;
+      };
+    }
+
     // all steps have to be cleared when starting the setup process;
     // otherwise we could see old errors on retry
     // (the error would be cleared when the given step starts, but it would be too late)
@@ -275,10 +292,10 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
     setJoinClusterAttempt(makeEmptyAttempt());
 
     const actions = [
-      runCreateRoleAttempt,
-      runDownloadAgentAttempt,
-      runGenerateConfigFileAttempt,
-      runJoinClusterAttempt,
+      withSetupError(runCreateRoleAttempt, 'creating_role'),
+      withSetupError(runDownloadAgentAttempt, 'downloading_agent'),
+      withSetupError(runGenerateConfigFileAttempt, 'generating_config_file'),
+      withSetupError(runJoinClusterAttempt, 'joining_cluster'),
     ];
     for (const action of actions) {
       const [, error] = await action();
@@ -286,6 +303,9 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
         return;
       }
     }
+    ctx.usageService.captureConnectMyComputerSetup(cluster.uri, {
+      success: true,
+    });
     // Wait before navigating away from the document, so the user has time
     // to notice that all four steps have completed.
     await wait(750);
@@ -300,6 +320,8 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
     runGenerateConfigFileAttempt,
     runJoinClusterAttempt,
     markAgentAsConfigured,
+    ctx.usageService,
+    cluster.uri,
   ]);
 
   useEffect(() => {
