@@ -19,6 +19,7 @@ limitations under the License.
 package sshutils
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -461,7 +462,10 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// transmitted and received over the connection.
 	wconn := utils.NewTrackingConn(conn)
 
-	sconn, chans, reqs, err := ssh.NewServerConn(wconn, &s.cfg)
+	// wrap connection so we can safely discard incoming deprecated ProxyHelloSignature
+	wrappedConnection := wrapConnection(wconn, s.log)
+
+	sconn, chans, reqs, err := ssh.NewServerConn(wrappedConnection, &s.cfg)
 	if err != nil {
 		// Ignore EOF as these are triggered by loadbalancer health checks
 		if !errors.Is(err, io.EOF) {
@@ -745,4 +749,64 @@ type (
 type ClusterDetails struct {
 	RecordingProxy bool
 	FIPSEnabled    bool
+}
+
+// connectionWrapper allows the SSH server to handle ProxyHelloSignature handshake of older
+// clients. The payload is discarded.
+// DELETE IN 15.0 (anton): we need to keep it in v14 for compatibility purposes, because v13 nodes might send tracing context
+// through ProxyHelloSignature.
+type connectionWrapper struct {
+	net.Conn
+	logger logrus.FieldLogger
+
+	// upstreamReader reads from the underlying (wrapped) connection
+	upstreamReader io.Reader
+}
+
+const proxyHelloSignature = "Teleport-Proxy"
+
+// Read implements io.Read() part of net.Connection which allows us
+// peek at the beginning of SSH handshake (that's why we're wrapping the connection)
+func (c *connectionWrapper) Read(b []byte) (int, error) {
+	// handshake already took place, forward upstream:
+	if c.upstreamReader != nil {
+		return c.upstreamReader.Read(b)
+	}
+	// inspect the client's hello message and see if it's a teleport connecting?
+	buff := make([]byte, MaxVersionStringBytes)
+	n, err := c.Conn.Read(buff)
+	if err != nil {
+		// EOF happens quite often, don't pollute the logs with it
+		if !trace.IsEOF(err) {
+			c.logger.Error(err)
+		}
+		return n, err
+	}
+	// chop off extra unused bytes at the end of the buffer:
+	buff = buff[:n]
+	skip := 0
+
+	// are we reading from a Teleport proxy?
+	if bytes.HasPrefix(buff, []byte(proxyHelloSignature)) {
+		// the JSON payload ends with a binary zero:
+		payloadBoundary := bytes.IndexByte(buff, 0x00)
+		if payloadBoundary > 0 {
+			// Just skip and discard the payload
+			skip = payloadBoundary + 1
+		}
+	}
+
+	if c.upstreamReader == nil {
+		c.upstreamReader = io.MultiReader(bytes.NewBuffer(buff[skip:]), c.Conn)
+	}
+	return c.upstreamReader.Read(b)
+}
+
+// wrapConnection takes a network connection, wraps it into connectionWrapper
+// object (which overrides Read method) and returns the wrapper.
+func wrapConnection(conn net.Conn, logger logrus.FieldLogger) *connectionWrapper {
+	return &connectionWrapper{
+		Conn:   conn,
+		logger: logger,
+	}
 }
