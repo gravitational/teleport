@@ -16,7 +16,11 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { Resources } from './Resources';
+
+import { initialize, mswLoader } from 'msw-storybook-addon';
+
+import { rest, ResponseResolver, MockedRequest, RestContext } from 'msw';
+
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -25,8 +29,8 @@ import { databases } from 'teleport/Databases/fixtures';
 import { kubes } from 'teleport/Kubes/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
-import { initialize, mswLoader } from 'msw-storybook-addon';
-import { rest, ResponseResolver, MockedRequest, RestContext } from 'msw';
+
+import { Resources } from './Resources';
 
 initialize();
 
@@ -47,16 +51,6 @@ const allResources = [
   ...desktops,
   ...nodes,
 ];
-
-const Provider = props => {
-  const ctx = createTeleportContext();
-
-  return (
-    <MemoryRouter>
-      <ContextProvider ctx={ctx}>{props.children}</ContextProvider>
-    </MemoryRouter>
-  );
-};
 
 const story = (resolver: ResponseResolver<MockedRequest, RestContext>) => {
   const ctx = createTeleportContext();
