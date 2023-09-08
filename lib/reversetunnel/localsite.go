@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
@@ -246,7 +247,7 @@ func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types
 		return false
 	}
 	// the node is an agentless node, the connection must be forwarded
-	if params.TargetServer != nil && params.TargetServer.GetSubKind() == types.SubKindOpenSSHNode {
+	if params.TargetServer != nil && params.TargetServer.IsOpenSSHNode() {
 		return true
 	}
 	// proxy session recording mode is being used and an SSH session
@@ -283,7 +284,7 @@ func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, useTunnel
 }
 
 func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialParams, conn net.Conn, useTunnel bool) error {
-	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, params.AgentlessSigner != nil, params.From, params.OriginalClientDstAddr) {
+	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, params.IsAgentlessNode, params.From, params.OriginalClientDstAddr) {
 		return nil
 	}
 
@@ -355,8 +356,8 @@ func (s *localSite) adviseReconnect(ctx context.Context) {
 }
 
 func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
-	if params.GetUserAgent == nil && params.AgentlessSigner == nil {
-		return nil, trace.BadParameter("user agent getter and agentless signer both missing")
+	if params.GetUserAgent == nil && !params.IsAgentlessNode {
+		return nil, trace.BadParameter("agentless node require an agent getter")
 	}
 	s.log.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 
@@ -398,6 +399,7 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 	serverConfig := forward.ServerConfig{
 		AuthClient:      s.client,
 		UserAgent:       userAgent,
+		IsAgentlessNode: params.IsAgentlessNode,
 		AgentlessSigner: params.AgentlessSigner,
 		TargetConn:      targetConn,
 		SrcAddr:         params.From,
@@ -522,7 +524,70 @@ func stringOrEmpty(addr net.Addr) string {
 	return addr.String()
 }
 
+func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetServer types.Server) (*awsoidc.OpenTunnelEC2Response, error) {
+	awsInfo := targetServer.GetAWSInfo()
+	if awsInfo == nil {
+		return nil, trace.BadParameter("missing aws cloud metadata")
+	}
+
+	issuer, err := awsoidc.IssuerForCluster(ctx, s.accessPoint)
+	if err != nil {
+		return nil, trace.BadParameter("failed to get issuer %v", err)
+	}
+
+	token, err := s.client.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
+		Issuer: issuer,
+	})
+	if err != nil {
+		return nil, trace.BadParameter("failed to generate aws token: %v", err)
+	}
+
+	integration, err := s.client.GetIntegration(ctx, awsInfo.Integration)
+	if err != nil {
+		return nil, trace.BadParameter("failed to fetch integration details: %v", err)
+	}
+
+	if integration.GetAWSOIDCIntegrationSpec() == nil {
+		return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", awsInfo.Integration)
+	}
+
+	openTunnelClt, err := awsoidc.NewOpenTunnelEC2Client(ctx, &awsoidc.AWSClientRequest{
+		IntegrationName: integration.GetName(),
+		Token:           token,
+		RoleARN:         integration.GetAWSOIDCIntegrationSpec().RoleARN,
+		Region:          awsInfo.Region,
+	})
+	if err != nil {
+		return nil, trace.BadParameter("failed to create the ec2 open tunnel client: %v", err)
+	}
+
+	openTunnelResp, err := awsoidc.OpenTunnelEC2(ctx, openTunnelClt, awsoidc.OpenTunnelEC2Request{
+		Region:     awsInfo.Region,
+		VPCID:      awsInfo.VPCID,
+		EC2Address: targetServer.GetAddr(),
+	})
+	if err != nil {
+		return nil, trace.BadParameter("failed to open AWS EC2 Instance Connect Endpoint tunnel: %v", err)
+	}
+
+	// OpenTunnelResp has the tcp connection that should be used to access the EC2 instance directly.
+	return openTunnelResp, nil
+}
+
 func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Conn, useTunnel bool, err error) {
+	dialStart := s.srv.Clock.Now()
+
+	// Creates a connection to the target EC2 instance using its private IP.
+	// This relies on EC2 Instance Connect Endpoint service.
+	if params.TargetServer != nil && params.TargetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
+		eiceTunnelConn, err := s.setupTunnelForOpenSSHEICENode(s.srv.Context, params.TargetServer)
+		if err != nil {
+			return nil, false, trace.Wrap(err)
+		}
+
+		return newMetricConn(eiceTunnelConn.Tunnel, dialTypeDirect, dialStart, s.srv.Clock), false, nil
+	}
+
 	dreq := &sshutils.DialReq{
 		ServerID:      params.ServerID,
 		ConnType:      params.ConnType,
@@ -538,8 +603,6 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 		peerErr   error
 		directErr error
 	)
-
-	dialStart := s.srv.Clock.Now()
 
 	// If server ID matches a node that has self registered itself over the tunnel,
 	// return a tunnel connection to that node. Otherwise net.Dial to the target host.

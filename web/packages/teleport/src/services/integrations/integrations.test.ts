@@ -157,11 +157,11 @@ test('fetchAwsDatabases response', async () => {
 
 describe('fetchAwsDatabases() request body formatting', () => {
   test.each`
-    protocol             | expectedEngines               | expectedRdsType
-    ${'mysql'}           | ${['mysql', 'mariadb']}       | ${'instance'}
-    ${'postgres'}        | ${['postgres']}               | ${'instance'}
-    ${'aurora-mysql'}    | ${['aurora', 'aurora-mysql']} | ${'cluster'}
-    ${'aurora-postgres'} | ${['aurora-postgresql']}      | ${'cluster'}
+    protocol             | expectedEngines          | expectedRdsType
+    ${'mysql'}           | ${['mysql', 'mariadb']}  | ${'instance'}
+    ${'postgres'}        | ${['postgres']}          | ${'instance'}
+    ${'aurora-mysql'}    | ${['aurora-mysql']}      | ${'cluster'}
+    ${'aurora-postgres'} | ${['aurora-postgresql']} | ${'cluster'}
   `(
     'format protocol $protocol',
     async ({ protocol, expectedEngines, expectedRdsType }) => {

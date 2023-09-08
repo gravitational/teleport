@@ -30,6 +30,7 @@ import (
 type MemoryDBMock struct {
 	memorydbiface.MemoryDBAPI
 
+	Unauth    bool
 	Clusters  []*memorydb.Cluster
 	Users     []*memorydb.User
 	TagsByARN map[string][]*memorydb.Tag
@@ -60,6 +61,9 @@ func (m *MemoryDBMock) DescribeSubnetGroupsWithContext(aws.Context, *memorydb.De
 }
 
 func (m *MemoryDBMock) DescribeClustersWithContext(_ aws.Context, input *memorydb.DescribeClustersInput, _ ...request.Option) (*memorydb.DescribeClustersOutput, error) {
+	if m.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
 	if aws.StringValue(input.ClusterName) == "" {
 		return &memorydb.DescribeClustersOutput{
 			Clusters: m.Clusters,
@@ -77,6 +81,9 @@ func (m *MemoryDBMock) DescribeClustersWithContext(_ aws.Context, input *memoryd
 }
 
 func (m *MemoryDBMock) ListTagsWithContext(_ aws.Context, input *memorydb.ListTagsInput, _ ...request.Option) (*memorydb.ListTagsOutput, error) {
+	if m.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
 	if m.TagsByARN == nil {
 		return nil, trace.NotFound("no tags")
 	}
@@ -92,12 +99,18 @@ func (m *MemoryDBMock) ListTagsWithContext(_ aws.Context, input *memorydb.ListTa
 }
 
 func (m *MemoryDBMock) DescribeUsersWithContext(aws.Context, *memorydb.DescribeUsersInput, ...request.Option) (*memorydb.DescribeUsersOutput, error) {
+	if m.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
 	return &memorydb.DescribeUsersOutput{
 		Users: m.Users,
 	}, nil
 }
 
 func (m *MemoryDBMock) UpdateUserWithContext(_ aws.Context, input *memorydb.UpdateUserInput, opts ...request.Option) (*memorydb.UpdateUserOutput, error) {
+	if m.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
 	for _, user := range m.Users {
 		if aws.StringValue(user.Name) == aws.StringValue(input.UserName) {
 			return &memorydb.UpdateUserOutput{}, nil

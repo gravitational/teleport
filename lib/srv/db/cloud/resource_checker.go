@@ -72,16 +72,18 @@ func NewDiscoveryResourceChecker(cfg DiscoveryResourceCheckerConfig) (DiscoveryR
 		return nil, trace.Wrap(err)
 	}
 
-	c := &discoveryResourceChecker{}
-
-	// TODO(greedy52) implement url checker.
-	// TODO(greedy52) implement name checker.
-	if checker, err := newCrednentialsChecker(cfg); err != nil {
+	credentialsChecker, err := newCrednentialsChecker(cfg)
+	if err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		c.checkers = append(c.checkers, checker)
 	}
-	return c, nil
+
+	// TODO(greedy52) implement name checker.
+	return &discoveryResourceChecker{
+		checkers: []DiscoveryResourceChecker{
+			newURLChecker(cfg),
+			credentialsChecker,
+		},
+	}, nil
 }
 
 // discoveryResourceChecker is a composite checker.

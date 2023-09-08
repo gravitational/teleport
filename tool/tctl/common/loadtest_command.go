@@ -118,7 +118,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client auth.Client
 	errch := make(chan error, 1)
 
 	mknode := func(id string) types.Server {
-		node, err := types.NewServer(id, types.KindNode, types.ServerSpecV2{})
+		node, err := types.NewServer(id, types.KindNode, types.ServerSpecV2{Hostname: uuid.New().String()})
 		if err != nil {
 			panic(err)
 		}

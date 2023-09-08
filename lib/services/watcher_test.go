@@ -714,7 +714,7 @@ func TestAppWatcher(t *testing.T) {
 	}
 }
 
-func newApp(t *testing.T, name string) types.Application {
+func newApp(t *testing.T, name string) *types.AppV3 {
 	app, err := types.NewAppV3(types.Metadata{
 		Name: name,
 	}, types.AppSpecV3{
@@ -958,7 +958,7 @@ func TestNodeWatcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
-
+	require.NoError(t, w.WaitInitialization())
 	// Add some node servers.
 	nodes := make([]types.Server, 0, 5)
 	for i := 0; i < 5; i++ {
@@ -1028,7 +1028,7 @@ func TestKubeServerWatcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
-
+	require.NoError(t, w.WaitInitialization())
 	newKubeServer := func(t *testing.T, name, addr, hostID string) types.KubeServer {
 		kube, err := types.NewKubernetesClusterV3(
 			types.Metadata{

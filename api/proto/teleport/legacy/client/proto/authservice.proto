@@ -497,6 +497,12 @@ message Features {
   bool Assist = 18 [(gogoproto.jsontag) = "assist"];
   // DeviceTrust holds its namesake feature settings.
   DeviceTrustFeature DeviceTrust = 19 [(gogoproto.jsontag) = "device_trust,omitempty"];
+  // FeatureHiding enables hiding features from being discoverable for users who don't have the necessary permissions.
+  bool FeatureHiding = 20 [(gogoproto.jsontag) = "feature_hiding,omitempty"];
+  // AccessRequests holds its namesake feature settings.
+  AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
+  // CustomTheme holds the name of WebUI custom theme.
+  string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -510,6 +516,17 @@ message DeviceTrustFeature {
   // Meant for usage-based accounts, like Teleport Team. Has no effect if
   // [Features.IsUsageBased] is `false`.
   int32 devices_usage_limit = 2 [(gogoproto.jsontag) = "devices_usage_limit,omitempty"];
+}
+
+// AccessRequestsFeature holds the AccessRequest feature general and usage-based
+// settings.
+// Requires Teleport Enterprise.
+message AccessRequestsFeature {
+  // Usage-based limit for the number of limit for the number of
+  // access requests created in a calendar month.
+  // Meant for usage-based accounts, like Teleport Team. Has no effect if
+  // [Features.IsUsageBased] is `false`.
+  int32 monthly_request_limit = 1 [(gogoproto.jsontag) = "monthly_request_limit"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -1731,6 +1748,51 @@ message PaginatedResource {
   reserved "KubeService";
 }
 
+// ListUnifiedResourcesRequest is a request to receive a paginated list of unified resources
+message ListUnifiedResourcesRequest {
+  // Kinds is a list of kinds to match against a resource's kind. This can be used in a
+  // unified resource request that can include multiple types.
+  repeated string Kinds = 1 [(gogoproto.jsontag) = "kinds,omitempty"];
+  // Limit is the maximum amount of resources to retrieve.
+  int32 Limit = 2 [(gogoproto.jsontag) = "limit,omitempty"];
+  // StartKey is used to start listing resources from a specific spot. It
+  // should be set to the previous NextKey value if using pagination, or
+  // left empty.
+  string StartKey = 3 [(gogoproto.jsontag) = "start_key,omitempty"];
+  // Labels is a label-based matcher if non-empty.
+  map<string, string> Labels = 4 [(gogoproto.jsontag) = "labels,omitempty"];
+  // PredicateExpression defines boolean conditions that will be matched against the resource.
+  string PredicateExpression = 5 [(gogoproto.jsontag) = "predicate_expression,omitempty"];
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 6 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  // SortBy describes which resource field and which direction to sort by.
+  types.SortBy SortBy = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "sort_by,omitempty"
+  ];
+  // WindowsDesktopFilter specifies windows desktop specific filters.
+  types.WindowsDesktopFilter WindowsDesktopFilter = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "windows_desktop_filter,omitempty"
+  ];
+  // UseSearchAsRoles indicates that the response should include all resources
+  // the caller is able to request access to using search_as_roles
+  bool UseSearchAsRoles = 9 [(gogoproto.jsontag) = "use_search_as_roles,omitempty"];
+  // UsePreviewAsRoles indicates that the response should include all resources
+  // the caller would be able to access with their preview_as_roles
+  bool UsePreviewAsRoles = 10 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
+}
+
+// ListUnifiedResourceResponse response of ListUnifiedResources.
+message ListUnifiedResourcesResponse {
+  // Resources is a list of resource.
+  repeated PaginatedResource Resources = 1 [(gogoproto.jsontag) = "resources,omitempty"];
+  // NextKey is the next Key to use as StartKey in a ListResourcesRequest to
+  // continue retrieving pages of resource. If NextKey is empty, there are no
+  // more pages.
+  string NextKey = 2 [(gogoproto.jsontag) = "next_key,omitempty"];
+}
+
 // ListResourcesRequest defines a request to retrieve resources paginated. Only
 // one type of resource can be retrieved per request.
 //
@@ -1778,6 +1840,21 @@ message ListResourcesRequest {
   // UsePreviewAsRoles indicates that the response should include all resources
   // the caller would be able to access with their preview_as_roles
   bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
+}
+
+// GetSSHTargetsRequest gets all servers that might match an equivalent ssh dial request.
+message GetSSHTargetsRequest {
+  // Host is the target host as would be sent to the proxy during a dial request.
+  string Host = 1;
+  // Port is the ssh port. This value is optional, and both empty string and "0" are typically
+  // treated as meaning that any port should match.
+  string Port = 2;
+}
+
+// GetSSHTargetsResponse holds ssh servers that match an ssh targets request.
+message GetSSHTargetsResponse {
+  // Servers is a list of servers matching the supplied request.
+  repeated types.ServerV2 Servers = 1;
 }
 
 // ListResourceResponse response of ListResources.
@@ -2811,6 +2888,15 @@ service AuthService {
   // ListResources retrieves a paginated list of resources.
   rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
 
+  // ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
+  rpc ListUnifiedResources(ListUnifiedResourcesRequest) returns (ListUnifiedResourcesResponse);
+
+  // GetSSHTargets gets all servers that would match an equivalent ssh dial request. Note that this method
+  // returns all resources directly accessible to the user *and* all resources available via 'SearchAsRoles',
+  // which is what we want when handling things like ambiguous host errors and resource-based access requests,
+  // but may result in confusing behavior if it is used outside of those contexts.
+  rpc GetSSHTargets(GetSSHTargetsRequest) returns (GetSSHTargetsResponse);
+
   // GetDomainName returns local auth domain of the current auth server
   rpc GetDomainName(google.protobuf.Empty) returns (GetDomainNameResponse);
   // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster
@@ -2881,4 +2967,7 @@ service AuthService {
 
   // UpdateClusterMaintenanceConfig updates the current maintenance window config singleton.
   rpc UpdateClusterMaintenanceConfig(types.ClusterMaintenanceConfigV1) returns (google.protobuf.Empty);
+
+  // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
+  rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

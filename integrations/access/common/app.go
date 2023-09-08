@@ -34,7 +34,7 @@ import (
 const (
 	// minServerVersion is the minimal teleport version the plugin supports.
 	minServerVersion = "6.1.0-beta.1"
-	// grpcBackoffMaxDelay is a maximum time GRPC client waits before reconnection attempt.
+	// grpcBackoffMaxDelay is a maximum time gRPC client waits before reconnection attempt.
 	grpcBackoffMaxDelay = time.Second * 2
 	// InitTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
@@ -177,7 +177,7 @@ func (a *BaseApp) run(ctx context.Context) error {
 	if err := a.init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	watcherJob := watcherjob.NewJob(
+	watcherJob, err := watcherjob.NewJob(
 		a.apiClient,
 		watcherjob.Config{
 			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
@@ -185,6 +185,9 @@ func (a *BaseApp) run(ctx context.Context) error {
 		},
 		a.onWatcherEvent,
 	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	a.SpawnCriticalJob(watcherJob)
 	ok, err := watcherJob.WaitReady(ctx)
 	if err != nil {
@@ -434,7 +437,7 @@ func (a *BaseApp) updateMessages(ctx context.Context, reqID string, tag pd.Resol
 
 		// If resolution field is not empty then we already resolved the incident before. In this case we just quit.
 		if existing.AccessRequestData.ResolutionTag != pd.Unresolved {
-			return GenericPluginData{}, trace.CompareFailed("request is already resolved")
+			return GenericPluginData{}, trace.AlreadyExists("request is already resolved")
 		}
 
 		// Mark plugin data as resolved.
@@ -445,6 +448,15 @@ func (a *BaseApp) updateMessages(ctx context.Context, reqID string, tag pd.Resol
 	})
 	if trace.IsNotFound(err) {
 		log.Debug("Failed to update messages: plugin data is missing")
+		return nil
+	}
+	if trace.IsAlreadyExists(err) {
+		if tag != pluginData.ResolutionTag {
+			return trace.WrapWithMessage(err,
+				"cannot change the resolution tag of an already resolved request, existing: %s, event: %s",
+				pluginData.ResolutionTag, tag)
+		}
+		log.Debug("Request is already resolved, ignoring event")
 		return nil
 	}
 	if err != nil {

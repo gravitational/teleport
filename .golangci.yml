@@ -48,8 +48,12 @@ linters-settings:
             desc: 'use "github.com/sirupsen/logrus" instead'
           - pkg: github.com/siddontang/go/log
             desc: 'use "github.com/sirupsen/logrus" instead'
+          - pkg: github.com/tj/assert
+            desc: 'use "github.com/stretchr/testify/assert" instead'
           - pkg: go.uber.org/atomic
             desc: 'use "sync/atomic" instead'
+          - pkg: golang.design
+            desc: 'experimental project, not to be confused with official Go packages'
   gci:
     sections:
       - standard # Standard section: captures all standard packages.
@@ -73,6 +77,7 @@ output:
 
 run:
   go: '1.21'
+  build-tags: []
   skip-dirs:
     - (^|/)node_modules/
     - ^api/gen/
@@ -81,4 +86,4 @@ run:
     - ^rfd/
     - ^web/
   skip-dirs-use-default: false
-  timeout: 5m
+  timeout: 15m

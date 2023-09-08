@@ -81,11 +81,20 @@ func RemainingArgs(s kingpin.Settings) (target *[]string) {
 	return
 }
 
+const (
+	LogFormatJSON = "json"
+	LogFormatText = "text"
+)
+
 // CLIConf is configuration from the CLI.
 type CLIConf struct {
 	ConfigPath string
 
 	Debug bool
+
+	// LogFormat controls the format of logging. Can be either `json` or `text`.
+	// By default, this is `text`.
+	LogFormat string
 
 	// AuthServer is a Teleport auth server address. It may either point
 	// directly to an auth server, or to a Teleport proxy server in which case

@@ -169,7 +169,7 @@ func recordPrereleaseStatus(shellVersion, recordFilePath string) step {
 		fmt.Sprintf("mkdir -pv $(dirname %q)", recordFilePath),
 		fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
 		// If the tag is a prerelease, create a file who's existence shows that it is one
-		fmt.Sprintf("go run ./cmd/check -tag %s -check prerelease &> /dev/null || echo 'Version is a prerelease' > %q", shellVersion, recordFilePath),
+		fmt.Sprintf("CGO_ENABLED=0 go run ./cmd/check -tag %s -check prerelease &> /dev/null || echo 'Version is a prerelease' > %q", shellVersion, recordFilePath),
 		fmt.Sprintf("printf 'Version is '; [ ! -f \"%s\" ] && printf 'not '; echo 'a prerelease'", recordFilePath),
 	)
 

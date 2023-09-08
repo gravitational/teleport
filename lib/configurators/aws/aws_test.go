@@ -1147,7 +1147,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"rds:ModifyDBInstance", "rds:ModifyDBCluster"},
+						Actions:   []string{"rds:DescribeDBInstances", "rds:DescribeDBClusters", "rds:ModifyDBInstance", "rds:ModifyDBCluster"},
 					},
 					{
 						Effect:    awslib.EffectAllow,
@@ -1159,7 +1159,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"rds:ModifyDBInstance", "rds:ModifyDBCluster", "rds-db:connect"},
+						Actions:   []string{"rds:DescribeDBInstances", "rds:DescribeDBClusters", "rds:ModifyDBInstance", "rds:ModifyDBCluster", "rds-db:connect"},
 					},
 					{
 						Effect:    awslib.EffectAllow,
@@ -1180,6 +1180,11 @@ func TestAWSIAMDocuments(t *testing.T) {
 				statements: []*awslib.Statement{
 					{
 						Effect:    awslib.EffectAllow,
+						Resources: []string{"*"},
+						Actions:   []string{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints"},
+					},
+					{
+						Effect:    awslib.EffectAllow,
 						Resources: []string{roleTarget.String()},
 						Actions:   []string{"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"},
 					},
@@ -1188,7 +1193,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"rds-db:connect"},
+						Actions:   []string{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds-db:connect"},
 					},
 					{
 						Effect:    awslib.EffectAllow,
@@ -1209,6 +1214,11 @@ func TestAWSIAMDocuments(t *testing.T) {
 				statements: []*awslib.Statement{
 					{
 						Effect:    awslib.EffectAllow,
+						Resources: []string{"*"},
+						Actions:   []string{"redshift:DescribeClusters"},
+					},
+					{
+						Effect:    awslib.EffectAllow,
 						Resources: []string{roleTarget.String()},
 						Actions:   []string{"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"},
 					},
@@ -1217,7 +1227,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"redshift:GetClusterCredentials"},
+						Actions:   []string{"redshift:DescribeClusters", "redshift:GetClusterCredentials"},
 					},
 					{
 						Effect:    awslib.EffectAllow,
@@ -1235,11 +1245,18 @@ func TestAWSIAMDocuments(t *testing.T) {
 						},
 					},
 				},
+				statements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: []string{"*"},
+						Actions:   []string{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup"},
+					},
+				},
 				boundaryStatements: []*awslib.Statement{
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"sts:AssumeRole"},
+						Actions:   []string{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "sts:AssumeRole"},
 					},
 				},
 			},
@@ -1256,7 +1273,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"elasticache:DescribeUsers", "elasticache:ModifyUser"},
+						Actions:   []string{"elasticache:DescribeReplicationGroups", "elasticache:DescribeUsers", "elasticache:ModifyUser"},
 					},
 					{
 						Effect: awslib.EffectAllow,
@@ -1278,7 +1295,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"elasticache:DescribeUsers", "elasticache:ModifyUser", "elasticache:Connect"},
+						Actions:   []string{"elasticache:DescribeReplicationGroups", "elasticache:DescribeUsers", "elasticache:ModifyUser", "elasticache:Connect"},
 					},
 					{
 						Effect: awslib.EffectAllow,
@@ -1310,7 +1327,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"memorydb:DescribeUsers", "memorydb:UpdateUser"},
+						Actions:   []string{"memorydb:DescribeClusters", "memorydb:DescribeUsers", "memorydb:UpdateUser"},
 					},
 					{
 						Effect: awslib.EffectAllow,
@@ -1327,7 +1344,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"memorydb:DescribeUsers", "memorydb:UpdateUser"},
+						Actions:   []string{"memorydb:DescribeClusters", "memorydb:DescribeUsers", "memorydb:UpdateUser"},
 					},
 					{
 						Effect: awslib.EffectAllow,
@@ -1350,11 +1367,18 @@ func TestAWSIAMDocuments(t *testing.T) {
 						},
 					},
 				},
+				statements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: []string{"*"},
+						Actions:   []string{"es:DescribeDomains"},
+					},
+				},
 				boundaryStatements: []*awslib.Statement{
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"sts:AssumeRole"},
+						Actions:   []string{"es:DescribeDomains", "sts:AssumeRole"},
 					},
 				},
 			},
@@ -1373,7 +1397,17 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"rds:ModifyDBInstance", "rds:ModifyDBCluster"},
+						Actions:   []string{"rds:DescribeDBInstances", "rds:DescribeDBClusters", "rds:ModifyDBInstance", "rds:ModifyDBCluster"},
+					},
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: []string{"*"},
+						Actions:   []string{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints"},
+					},
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: []string{"*"},
+						Actions:   []string{"redshift:DescribeClusters"},
 					},
 					{
 						Effect:    awslib.EffectAllow,
@@ -1390,12 +1424,17 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"rds:ModifyDBInstance", "rds:ModifyDBCluster", "rds-db:connect"},
+						Actions:   []string{"rds:DescribeDBInstances", "rds:DescribeDBClusters", "rds:ModifyDBInstance", "rds:ModifyDBCluster", "rds-db:connect"},
 					},
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"redshift:GetClusterCredentials"},
+						Actions:   []string{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints"},
+					},
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: []string{"*"},
+						Actions:   []string{"redshift:DescribeClusters", "redshift:GetClusterCredentials"},
 					},
 					{
 						Effect:    awslib.EffectAllow,

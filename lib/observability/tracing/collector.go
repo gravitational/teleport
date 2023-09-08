@@ -33,6 +33,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // Collector is a simple in memory implementation of an OpenTelemetry Collector
@@ -84,7 +85,9 @@ func NewCollector(cfg CollectorConfig) (*Collector, error) {
 
 	c.httpServer = &http.Server{
 		Handler:           c,
-		ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		TLSConfig:         tlsConfig.Clone(),
 	}

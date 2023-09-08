@@ -7,12 +7,15 @@ If you want to configure Redis Standalone, please read [Database Access with Red
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="Redis cluster" dbConfigure="Redis cluster database with mutual TLS authentication" dbName="Redis cluster" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Redis Cluster Self-Hosted](../../../img/database-access/guides/rediscluster_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud","team"]}>
+</TabItem>
+<TabItem scope={["cloud","team"]} label="Teleport Cloud">
 ![Teleport Database Access Redis Cluster Cloud](../../../img/database-access/guides/rediscluster_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -84,8 +87,6 @@ The command will create three files:
 - `server.crt` with a generated user certificate
 
 You will need these files to enable mutual TLS on your Redis server.
-
-(!docs/pages/includes/database-access/rotation-note.mdx!)
 
 Use the generated secrets to enable mutual TLS in your `redis.conf` configuration
 file and restart the database:
@@ -205,3 +206,4 @@ communicating with Redis Cluster:
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

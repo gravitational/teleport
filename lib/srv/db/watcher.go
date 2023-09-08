@@ -117,6 +117,7 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 	watcher, err := discovery.NewWatcher(ctx, discovery.WatcherConfig{
 		Fetchers: append(awsFetchers, azureFetchers...),
 		Log:      logrus.WithField(trace.Component, "watcher:cloud"),
+		Origin:   types.OriginCloud,
 	})
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -162,17 +163,19 @@ func (s *Server) onCreate(ctx context.Context, resource types.ResourceWithLabels
 		return trace.BadParameter("expected types.Database, got %T", resource)
 	}
 
-	if s.monitoredDatabases.isDiscoveryResource(database) {
-		if err := s.cfg.discoveryResourceChecker.Check(ctx, database); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	// OnCreate receives a "new" resource from s.monitoredDatabases. Make a
 	// copy here so that any attribute changes to the proxied database will not
 	// affect database objects tracked in s.monitoredDatabases.
 	databaseCopy := database.Copy()
 	applyResourceMatchersToDatabase(databaseCopy, s.cfg.ResourceMatchers)
+
+	// Run DiscoveryResourceChecker after resource matchers are applied to make
+	// sure the correct AssumeRoleARN is used.
+	if s.monitoredDatabases.isDiscoveryResource(database) {
+		if err := s.cfg.discoveryResourceChecker.Check(ctx, databaseCopy); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return s.registerDatabase(ctx, databaseCopy)
 }
 

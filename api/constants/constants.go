@@ -183,6 +183,12 @@ const (
 	OktaAssignmentTargetUnknown = "unknown"
 )
 
+// LocalConnectors are the system connectors that use local auth.
+var LocalConnectors = []string{
+	LocalConnector,
+	PasswordlessConnector,
+}
+
 // SystemConnectors lists the names of the system-reserved connectors.
 var SystemConnectors = []string{
 	LocalConnector,

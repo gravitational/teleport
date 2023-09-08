@@ -18,14 +18,27 @@ import React from 'react';
 
 import { render } from 'design/utils/testing';
 
-import { Loaded, LoadedWithCTA } from './Sessions.story';
+import cfg from 'teleport/config';
+
+import {
+  Loaded,
+  ActiveSessionsCTA,
+  ModeratedSessionsCTA,
+} from './Sessions.story';
 
 test('loaded', () => {
   const { container } = render(<Loaded />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('loaded with CTA', () => {
-  const { container } = render(<LoadedWithCTA />);
+test('active sessions CTA', () => {
+  cfg.isUsageBasedBilling = true;
+  const { container } = render(<ActiveSessionsCTA />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('moderated sessions CTA', () => {
+  cfg.isUsageBasedBilling = true;
+  const { container } = render(<ModeratedSessionsCTA />);
   expect(container.firstChild).toMatchSnapshot();
 });

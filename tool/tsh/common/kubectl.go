@@ -379,7 +379,11 @@ func getKubeClusterName(args []string, teleportClusterName string) (string, erro
 		kubeName, err := kubeconfig.SelectedKubeCluster(kubeconfigLocation, teleportClusterName)
 		return kubeName, trace.Wrap(err)
 	}
-	kubeName := kubeconfig.KubeClusterFromContext(selectedContext, teleportClusterName)
+	kc, err := kubeconfig.Load(kubeconfigLocation)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	kubeName := kubeconfig.KubeClusterFromContext(selectedContext, kc.Contexts[selectedContext], teleportClusterName)
 	if kubeName == "" {
 		return "", trace.BadParameter("selected context %q does not belong to Teleport cluster %q", selectedContext, teleportClusterName)
 	}
@@ -497,7 +501,6 @@ func shouldUseKubeLocalProxy(cf *CLIConf, kubectlArgs []string) (*clientcmdapi.C
 		return nil, nil, false
 	}
 	return defaultConfig, kubeconfig.LocalProxyClusters{kubeCluster}, true
-
 }
 
 func isKubectlConfigCommand(kubectlCommand *cobra.Command, args []string) bool {

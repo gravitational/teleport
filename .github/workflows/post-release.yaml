@@ -2,7 +2,7 @@ name: Post-release
 
 on:
   release:
-    types: [published]
+    types: [released] # released does not include prereleases
   workflow_dispatch:
 
 permissions:
@@ -47,5 +47,63 @@ jobs:
     needs: release
     if: needs.release.outputs.type == 'latest'
     uses: gravitational/teleport/.github/workflows/update-ami-ids.yaml@master
+    secrets: inherit
     with:
       version: ${{ needs.release.outputs.version }}
+
+  update-docs-version:
+    name: Update docs version
+    runs-on: ubuntu-latest
+    environment: post-release
+    steps:
+      - name: Get Release Branch
+        id: get-branch
+        run: |
+          TAG=${{ github.event.release.tag_name }}
+          BRANCH="branch/$(echo -n $TAG | cut -d '.' -f 1)"
+          MAJOR=${BRANCH#"branch/v"} # trim the 'branch/v' prefix
+          VERSION=${TAG#"v"} # trim the leading v to get just the version
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "major=$MAJOR" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Generate GitHub token
+        id: generate_token
+        uses: tibdex/github-app-token@b62528385c34dbc9f38e5f4225ac829252d1ea92 # v1.8.0
+        with:
+          app_id: ${{ vars.APP_ID }}
+          private_key: ${{ secrets.PRIVATE_KEY }}
+
+      - name: Checkout Release Branch
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ steps.get-branch.outputs.branch }}
+
+      - name: Make PR
+        run: |
+          BRANCH_NAME="release-auto-branch-$(date +%s)"
+          git config --global user.email "noreply@github.com"
+          git config --global user.name "GitHub"
+
+          # update versions in docs/config.json
+          # for docker images replace version number after <docker image name>:
+          jq --arg major ${{ steps.get-branch.outputs.major }} \
+             --arg version ${{ steps.get-branch.outputs.version }} \
+             '.variables.teleport.major_version |= $major | 
+              .variables.teleport.version |= $version | 
+              .variables.teleport.plugin.version |= $version | 
+              .variables.teleport.latest_oss_docker_image |= sub(":.*";":")+$version | 
+              .variables.teleport.latest_oss_debug_docker_image |= sub(":.*";":")+$version | 
+              .variables.teleport.latest_ent_docker_image |= sub(":.*";":")+$version | 
+              .variables.teleport.latest_ent_debug_docker_image |= sub(":.*";":")+$version' \
+              docs/config.json > docs/confignew.json
+          cat docs/confignew.json
+          mv docs/confignew.json docs/config.json
+
+          git add docs/config.json
+          git switch -c $BRANCH_NAME
+          git commit -am "[auto] docs: Update version to ${{ github.event.release.tag_name }}"
+          git push --set-upstream origin $BRANCH_NAME
+          gh pr create --fill --label=automated --label=documentation --base=${{ steps.get-branch.outputs.branch }}
+        env:
+          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}

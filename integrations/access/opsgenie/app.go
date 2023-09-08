@@ -45,7 +45,7 @@ const (
 	pluginName = "opsgenie"
 	// minServerVersion is the minimal teleport version the plugin supports.
 	minServerVersion = "6.1.0"
-	// grpcBackoffMaxDelay is a maximum time GRPC client waits before reconnection attempt.
+	// grpcBackoffMaxDelay is a maximum time gRPC client waits before reconnection attempt.
 	grpcBackoffMaxDelay = time.Second * 2
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
@@ -115,7 +115,7 @@ func (a *App) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	watcherJob := watcherjob.NewJob(
+	watcherJob, err := watcherjob.NewJob(
 		a.teleport,
 		watcherjob.Config{
 			Watch:            types.Watch{Kinds: []types.WatchKind{types.WatchKind{Kind: types.KindAccessRequest}}},
@@ -123,6 +123,9 @@ func (a *App) run(ctx context.Context) error {
 		},
 		a.onWatcherEvent,
 	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	a.SpawnCriticalJob(watcherJob)
 	ok, err := watcherJob.WaitReady(ctx)
 	if err != nil {

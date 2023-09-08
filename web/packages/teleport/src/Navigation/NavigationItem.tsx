@@ -88,8 +88,14 @@ export function NavigationItem(props: NavigationItemProps) {
   const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
 
-  const { navigationItem, route, isLocked, lockedNavigationItem, lockedRoute } =
-    props.feature;
+  const {
+    navigationItem,
+    route,
+    isLocked,
+    lockedNavigationItem,
+    lockedRoute,
+    hideFromNavigation,
+  } = props.feature;
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -157,6 +163,10 @@ export function NavigationItem(props: NavigationItemProps) {
     },
     []
   );
+
+  if (hideFromNavigation) {
+    return null;
+  }
 
   // renderHighlightFeature returns red dot component if the feature recommendation state is 'NOTIFY'
   function renderHighlightFeature(featureName: NavTitle): JSX.Element {

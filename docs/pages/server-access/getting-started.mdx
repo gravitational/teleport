@@ -4,19 +4,27 @@ description: Getting started with Teleport server access.
 videoBanner: 8aiVin0LvmE
 ---
 
-Server access involves managing your resources, configuring new clusters, and
-issuing commands through a CLI or programmatically to an API.
+You can protect a server with Teleport by running the Teleport SSH Service on
+the server and enrolling it in your Teleport cluster. Once the server has joined
+your cluster, the Teleport RBAC system enforces secure access to the server, and
+administrators can identify security threats using the Teleport audit log.
 
-This guide introduces some of these common scenarios and how to interact with
-Teleport to accomplish them:
+The Teleport SSH Service opens a reverse SSH tunnel to the Teleport Proxy
+Service, and SSH client traffic uses this tunnel to connect to a server. This
+setup is similar to the [bastion
+pattern](https://goteleport.com/blog/ssh-bastion-host/).
 
-- SSH into a cluster using Teleport.
-- Introspect the cluster using Teleport features.
+This guides shows you how to:
 
-<Admonition type="tip" title="Tip">
-This guide also demonstrates how to configure Teleport Nodes using the **bastion
-pattern** so that only a single Node can be accessed publicly.
-</Admonition>
+- Enroll a server in your Teleport cluster.
+- SSH into a server using Teleport.
+- Inspect server resources in the cluster using Teleport commands.
+
+You can use Teleport to enable secure access to a Kubernetes node. To do so,
+modify your node's machine image to install and run the Teleport SSH Service as
+per the instructions in this guide. Do not run the SSH Service as a Kubernetes
+pod, as there is no guarantee that the SSH Service pod is running on a server
+that a user intends to access.
 
 <Figure
   align="center"
@@ -93,7 +101,8 @@ On your server, save `token.file` to an appropriate, secure, directory you have
 the rights and access to read. Next, generate a configuration file enabling
 Teleport's SSH Service.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 Change `tele.example.com` to the address of your Teleport Proxy Service. Assign
 the `--token` flag to the path where you saved `token.file`.
@@ -106,8 +115,8 @@ $ sudo teleport node configure \
    --proxy=tele.example.com:443
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
  Change `mytenant.teleport.sh` to your Teleport Cloud tenant address. Assign the
  `--token` flag to the path where you saved `token.file`.
@@ -120,7 +129,9 @@ $ sudo teleport node configure \
    --proxy=mytenant.teleport.sh:443
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 The `teleport node configure` command above placed a configuration file at
 `/etc/teleport.yaml`. The last step is to start Teleport, pointing it at this
@@ -164,7 +175,8 @@ We can use `tsh` to SSH into the cluster:
 
 ### Log in to the cluster
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 On your local machine, log in to your cluster through `tsh`, assigning the
 `--proxy` flag to the address of your Teleport Proxy Service:
@@ -174,8 +186,8 @@ On your local machine, log in to your cluster through `tsh`, assigning the
 $ tsh login --proxy=tele.example.com --user=myuser
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 On your local machine, log in to your cluster through `tsh`, assigning the
 `--proxy` flag to the address of your Teleport Cloud tenant:
@@ -185,14 +197,17 @@ On your local machine, log in to your cluster through `tsh`, assigning the
 $ tsh login --proxy=mytenant.teleport.sh:443 --user=myuser
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 You'll be prompted to supply the password and second factor we set up
 previously.
 
 `myuser` will now see something similar to:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```txt
 > Profile URL:      https://tele.example.com:443
@@ -208,8 +223,8 @@ Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 In this example, `myuser` is now logged into the `tele.example.com` cluster
 through Teleport SSH.
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```txt
 > Profile URL:        https://mytenant.teleport.sh:443
@@ -225,7 +240,9 @@ Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 In this example, `myuser` is now logged into the `mytenant.teleport.sh`
 cluster through Teleport SSH.
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ### Display cluster resources
 
@@ -281,22 +298,10 @@ into a server using a third-party tool. Compare the two equivalent commands:
   To use the `ssh` client generate a SSH configuration file and postfix
   the cluster name after the node name.
 
-  <ScopedBlock scope={["oss", "enterprise"]}>
-
     ```code
     $ tsh config > ssh_config_teleport
-    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.tele.example.com
+    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.example.teleport.sh
     ```
-
-   </ScopedBlock>
-  <ScopedBlock scope={["cloud"]}>
-
-    ```code
-    $ tsh config > ssh_config_teleport
-    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.mytenant.teleport.sh
-    ```
-
-   </ScopedBlock>
 
   </TabItem>
 </Tabs>
@@ -356,20 +361,20 @@ the `ls` command on each server and display the results in your terminal:
 $ tsh ssh root@env=example ls
 ```
 
-## Optional: Harden your bastion host
+## Optional: Harden your server
 
 We previously configured our Linux instance to leave port `22` open to easily
 configure and install Teleport. Feel free to compare Teleport SSH to your usual
 `ssh` commands.
 
-If you'd like to further experiment with using Teleport according to the bastion
-pattern:
+To harden your Teleport server:
 
 - Close port `22` on your private Linux instance now that your Teleport server is
   configured and running.
-- For self-hosted deployments, optionally close port `22` on your bastion host.
+- For self-hosted deployments, optionally close port `22` on your Proxy Service
+  host.
 - You'll be able to fully connect to the private instance and, for self-hosted
-  deployments, the bastion host, using `tsh ssh`.
+  deployments, the Proxy Service host, using `tsh ssh`.
 
 ## Conclusion
 
@@ -383,7 +388,7 @@ further Getting Started exercises.
 
 ## Next steps
 
-- Learn more about Teleport `tsh` through the [reference documentation](../reference/cli.mdx#tsh-ssh).
+- Learn more about Teleport `tsh` through the [reference documentation](../reference/cli/tsh.mdx#tsh-ssh).
 - Learn more about [Teleport servers](../architecture/nodes.mdx#connecting-to-nodes)
 - For a complete list of ports used by Teleport, read the [Networking Guide](../reference/networking.mdx).
 
@@ -394,3 +399,4 @@ further Getting Started exercises.
 - [How to SSH properly](https://goteleport.com/blog/how-to-ssh-properly/)
 - Consider whether [OpenSSH or Teleport SSH](https://goteleport.com/blog/openssh-vs-teleport/) is right for you.
 - [Labels](../management/admin/labels.mdx)
+

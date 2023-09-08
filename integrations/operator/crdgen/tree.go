@@ -128,7 +128,6 @@ func (forest *Forest) addMessageFromDesc(msgDesc *gogodesc.DescriptorProto, inde
 	}
 
 	return &message
-
 }
 
 func (file File) Forest() *Forest {

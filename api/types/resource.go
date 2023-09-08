@@ -18,6 +18,7 @@ package types
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -50,9 +51,15 @@ type Resource interface {
 	// GetMetadata returns object metadata
 	GetMetadata() Metadata
 	// GetResourceID returns resource ID
+	// Deprecated: use GetRevision instead
 	GetResourceID() int64
 	// SetResourceID sets resource ID
+	// Deprecated: use SetRevision instead
 	SetResourceID(int64)
+	// GetRevision returns the revision
+	GetRevision() string
+	// SetRevision sets the revision
+	SetRevision(string)
 	// CheckAndSetDefaults validates the Resource and sets any empty fields to
 	// default values.
 	CheckAndSetDefaults() error
@@ -277,13 +284,25 @@ func (h *ResourceHeader) GetVersion() string {
 }
 
 // GetResourceID returns resource ID
+// Deprecated: Use GetRevision instead.
 func (h *ResourceHeader) GetResourceID() int64 {
 	return h.Metadata.ID
 }
 
 // SetResourceID sets resource ID
+// Deprecated: Use SetRevision instead.
 func (h *ResourceHeader) SetResourceID(id int64) {
 	h.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (h *ResourceHeader) GetRevision() string {
+	return h.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (h *ResourceHeader) SetRevision(rev string) {
+	h.Metadata.SetRevision(rev)
 }
 
 // GetName returns the name of the resource
@@ -378,6 +397,16 @@ func (m *Metadata) SetID(id int64) {
 	m.ID = id
 }
 
+// GetRevision returns the revision
+func (m *Metadata) GetRevision() string {
+	return m.Revision
+}
+
+// SetRevision sets the revision
+func (m *Metadata) SetRevision(rev string) {
+	m.Revision = rev
+}
+
 // GetMetadata returns object metadata
 func (m *Metadata) GetMetadata() Metadata {
 	return *m
@@ -469,6 +498,21 @@ func MatchLabels(resource ResourceWithLabels, labels map[string]string) bool {
 	return true
 }
 
+// MatchKinds takes an array of strings that represent a Kind and
+// returns true if the resource's kind matches any item in the given array.
+func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
+	if len(kinds) == 0 {
+		return true
+	}
+	resourceKind := resource.GetKind()
+	switch resourceKind {
+	case KindApp, KindSAMLIdPServiceProvider:
+		return slices.Contains(kinds, KindApp)
+	default:
+		return slices.Contains(kinds, resourceKind)
+	}
+}
+
 // IsValidLabelKey checks if the supplied string matches the
 // label key regexp.
 func IsValidLabelKey(s string) bool {
@@ -509,6 +553,73 @@ func stringCompare(a string, b string, isDesc bool) bool {
 		return a > b
 	}
 	return a < b
+}
+
+var kindsOrder = []string{
+	"app", "db", "windows_desktop", "kube_cluster", "node",
+}
+
+// unifiedKindCompare compares two resource kinds and returns true if a is less than b.
+// Note that it's not just a simple string comparison, since the UI names these
+// kinds slightly differently, and hence uses a different alphabetical order for
+// them.
+//
+// If resources are of the same kind, this function falls back to comparing
+// their unified names.
+func unifiedKindCompare(a, b ResourceWithLabels, isDesc bool) bool {
+	ak := a.GetKind()
+	bk := b.GetKind()
+
+	if ak == bk {
+		return unifiedNameCompare(a, b, isDesc)
+	}
+
+	ia := slices.Index(kindsOrder, ak)
+	ib := slices.Index(kindsOrder, bk)
+	if ia < 0 && ib < 0 {
+		// Fallback for a case of two unknown resources.
+		return stringCompare(ak, bk, isDesc)
+	}
+	if isDesc {
+		return ia > ib
+	}
+	return ia < ib
+}
+
+func unifiedNameCompare(a ResourceWithLabels, b ResourceWithLabels, isDesc bool) bool {
+	var nameA, nameB string
+	resourceA, ok := a.(Server)
+	if ok {
+		nameA = resourceA.GetHostname()
+	} else {
+		nameA = a.GetName()
+	}
+
+	resourceB, ok := b.(Server)
+	if ok {
+		nameB = resourceB.GetHostname()
+	} else {
+		nameB = b.GetName()
+	}
+
+	return stringCompare(nameA, nameB, isDesc)
+}
+
+func (r ResourcesWithLabels) SortByCustom(by SortBy) error {
+	isDesc := by.IsDesc
+	switch by.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(r, func(i, j int) bool {
+			return unifiedNameCompare(r[i], r[j], isDesc)
+		})
+	case ResourceKind:
+		sort.SliceStable(r, func(i, j int) bool {
+			return unifiedKindCompare(r[i], r[j], isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for unified resource %q is not supported", by.Field, KindUnifiedResource)
+	}
+	return nil
 }
 
 // ListResourcesResponse describes a non proto response to ListResources.

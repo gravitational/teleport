@@ -24,7 +24,6 @@ import (
 	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	apiproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	proto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -530,14 +529,13 @@ func (s *Server) listResourcesUsingFakePagination(
 	fakeRsp, err := local.FakePaginate(
 		sortedClusters.AsResources(),
 		// map the request to the fake pagination request.
-		apiproto.ListResourcesRequest{
+		local.FakePaginateParams{
 			StartKey:            req.StartKey,
 			Limit:               req.Limit,
 			ResourceType:        req.ResourceType,
 			Labels:              req.Labels,
 			PredicateExpression: req.PredicateExpression,
 			SearchKeywords:      req.SearchKeywords,
-			NeedTotalCount:      req.NeedTotalCount,
 		},
 	)
 	if err != nil {

@@ -682,3 +682,85 @@ func TestPluginJiraValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestPluginDiscordValidation(t *testing.T) {
+	validSettings := func() *PluginSpecV1_Discord {
+		return &PluginSpecV1_Discord{
+			&PluginDiscordSettings{
+				RoleToRecipients: map[string]*DiscordChannels{
+					"*": &DiscordChannels{ChannelIds: []string{"1234567890"}},
+				},
+			},
+		}
+	}
+	validCreds := func() *PluginCredentialsV1 {
+		return &PluginCredentialsV1{
+			Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+				&PluginStaticCredentialsRef{
+					Labels: map[string]string{},
+				},
+			},
+		}
+	}
+
+	testCases := []struct {
+		name           string
+		mutateSettings func(*PluginSpecV1_Discord)
+		mutateCreds    func(*PluginCredentialsV1)
+		assertErr      require.ErrorAssertionFunc
+	}{
+		{
+			name:      "Valid",
+			assertErr: require.NoError,
+		}, {
+			name:           "Missing Settings",
+			mutateSettings: func(s *PluginSpecV1_Discord) { s.Discord = nil },
+			assertErr:      requireBadParameterError,
+		}, {
+			name: "Empty Role Mapping",
+			mutateSettings: func(s *PluginSpecV1_Discord) {
+				s.Discord.RoleToRecipients = map[string]*DiscordChannels{}
+			},
+			assertErr: reqireNamedBadParameterError("role_to_recipients"),
+		}, {
+			name: "Missing Default Mapping",
+			mutateSettings: func(s *PluginSpecV1_Discord) {
+				delete(s.Discord.RoleToRecipients, Wildcard)
+				s.Discord.RoleToRecipients["access"] = &DiscordChannels{
+					ChannelIds: []string{"1234567890"},
+				}
+			},
+			assertErr: reqireNamedBadParameterError("default entry"),
+		}, {
+			name:        "Missing Credentials",
+			mutateCreds: func(c *PluginCredentialsV1) { c.Credentials = nil },
+			assertErr:   requireBadParameterError,
+		}, {
+			name: "Invalid Credential Type",
+			mutateCreds: func(c *PluginCredentialsV1) {
+				c.Credentials = &PluginCredentialsV1_Oauth2AccessToken{}
+			},
+			assertErr: reqireNamedBadParameterError("static credentials"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := validSettings()
+			if tc.mutateSettings != nil {
+				tc.mutateSettings(settings)
+			}
+
+			creds := validCreds()
+			if tc.mutateCreds != nil {
+				tc.mutateCreds(creds)
+			}
+
+			plugin := NewPluginV1(
+				Metadata{Name: "uut"},
+				PluginSpecV1{Settings: settings},
+				creds)
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+}

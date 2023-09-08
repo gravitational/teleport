@@ -69,9 +69,6 @@ func (c BaseConfig) GetTeleportClient(ctx context.Context) (teleport.Client, err
 		Credentials: c.Teleport.Credentials(),
 		DialOpts: []grpc.DialOption{
 			grpc.WithConnectParams(grpc.ConnectParams{Backoff: bk, MinConnectTimeout: initTimeout}),
-			grpc.WithDefaultCallOptions(
-				grpc.WaitForReady(true),
-			),
 			grpc.WithReturnConnectionError(),
 		},
 	})

@@ -60,6 +60,11 @@ type kubeDetails struct {
 	// The list is updated periodically to include the latest custom resources
 	// that are added to the cluster.
 	rbacSupportedTypes rbacSupportedResources
+	// isClusterOffline is true if the cluster is offline.
+	// An offline cluster will not be able to serve any requests until it comes back online.
+	// The cluster is marked as offline if the cluster schema cannot be created
+	// and the list of supported types for RBAC cannot be generated.
+	isClusterOffline bool
 
 	cancelFunc context.CancelFunc
 	wg         sync.WaitGroup
@@ -110,11 +115,16 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		dynLabels.Sync()
 		go dynLabels.Start()
 	}
-
+	var isClusterOffline bool
 	// Create the codec factory and the list of supported types for RBAC.
 	codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(creds.getKubeClient())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		cfg.log.WithError(err).Warn("Failed to create cluster schema. Possibly the cluster is offline.")
+		// If the cluster is offline, we will not be able to create the codec factory
+		// and the list of supported types for RBAC.
+		// We mark the cluster as offline and continue to create the kubeDetails but
+		// the offline cluster will not be able to serve any requests until it comes back online.
+		isClusterOffline = true
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -125,6 +135,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		kubeCodecs:         codecFactory,
 		rbacSupportedTypes: rbacSupportedTypes,
 		cancelFunc:         cancel,
+		isClusterOffline:   isClusterOffline,
 	}
 
 	k.wg.Add(1)
@@ -147,6 +158,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 				k.rwMu.Lock()
 				k.kubeCodecs = codecFactory
 				k.rbacSupportedTypes = rbacSupportedTypes
+				k.isClusterOffline = false
 				k.rwMu.Unlock()
 			}
 		}
@@ -166,10 +178,15 @@ func (k *kubeDetails) Close() {
 }
 
 // getClusterSupportedResources returns the codec factory and the list of supported types for RBAC.
-func (k *kubeDetails) getClusterSupportedResources() (*serializer.CodecFactory, rbacSupportedResources) {
+func (k *kubeDetails) getClusterSupportedResources() (*serializer.CodecFactory, rbacSupportedResources, error) {
 	k.rwMu.RLock()
 	defer k.rwMu.RUnlock()
-	return &(k.kubeCodecs), k.rbacSupportedTypes
+	// If the cluster is offline, return an error because we don't have the schema
+	// for the cluster.
+	if k.isClusterOffline {
+		return nil, nil, trace.ConnectionProblem(nil, "kubernetes cluster %q is offline", k.kubeCluster.GetName())
+	}
+	return &(k.kubeCodecs), k.rbacSupportedTypes, nil
 }
 
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.

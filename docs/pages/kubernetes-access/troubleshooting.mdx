@@ -170,7 +170,7 @@ $ CLUSTER=cookie
 $ cat > values.yaml << EOF
 authToken: "${TOKEN}"
 proxyAddr: "${PROXY_ADDR}"
-roles: "kube"
+roles: "kube,app,discovery"
 joinParams:
   method: "token"
   tokenName: "${TOKEN}"
@@ -184,6 +184,15 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --create-namespace \
   --namespace=teleport-agent \
   --version (=teleport.version=)
+```
+
+Make sure that the Teleport agent pod is running. You should see one Teleport
+agent pod pod with a single ready container:
+
+```code
+$ kubectl -n teleport get pods
+NAME               READY   STATUS    RESTARTS   AGE
+teleport-agent-0   1/1     Running   0          32s
 ```
 
 Now that the cluster is labeled, you can split the `k8s-admin` role into two

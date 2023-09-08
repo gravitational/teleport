@@ -68,6 +68,8 @@ type Database interface {
 	GetStatusCA() string
 	// GetMySQL returns the database options from spec.
 	GetMySQL() MySQLOptions
+	// GetOracle returns the database options from spec.
+	GetOracle() OracleOptions
 	// GetMySQLServerVersion returns the MySQL server version either from configuration or
 	// reported by the database.
 	GetMySQLServerVersion() string
@@ -130,6 +132,11 @@ type Database interface {
 	// SupportsAutoUsers returns true if this database supports automatic
 	// user provisioning.
 	SupportsAutoUsers() bool
+	// GetEndpointType returns the endpoint type of the database, if available.
+	GetEndpointType() string
+	// GetCloud gets the cloud this database is running on, or an empty string if it
+	// isn't running on a cloud provider.
+	GetCloud() string
 }
 
 // NewDatabaseV3 creates a new database resource.
@@ -172,6 +179,16 @@ func (d *DatabaseV3) GetResourceID() int64 {
 // SetResourceID sets the database resource ID.
 func (d *DatabaseV3) SetResourceID(id int64) {
 	d.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (d *DatabaseV3) GetRevision() string {
+	return d.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (d *DatabaseV3) SetRevision(rev string) {
+	d.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns the database resource metadata.
@@ -281,6 +298,11 @@ func (d *DatabaseV3) GetAdminUser() string {
 	}
 	// If it's not in the spec, check labels (for auto-discovered databases).
 	return d.Metadata.Labels[DatabaseAdminLabel]
+}
+
+// GetOracle returns the Oracle options from spec.
+func (d *DatabaseV3) GetOracle() OracleOptions {
+	return d.Spec.Oracle
 }
 
 // SupportsAutoUsers returns true if this database supports automatic user
@@ -470,6 +492,21 @@ func (d *DatabaseV3) IsAWSHosted() bool {
 // Cloud SQL).
 func (d *DatabaseV3) IsCloudHosted() bool {
 	return d.IsAWSHosted() || d.IsCloudSQL() || d.IsAzure()
+}
+
+// GetCloud gets the cloud this database is running on, or an empty string if it
+// isn't running on a cloud provider.
+func (d *DatabaseV3) GetCloud() string {
+	switch {
+	case d.IsAWSHosted():
+		return CloudAWS
+	case d.IsCloudSQL():
+		return CloudGCP
+	case d.IsAzure():
+		return CloudAzure
+	default:
+		return ""
+	}
 }
 
 // getAWSType returns the database type.
@@ -947,6 +984,22 @@ func (d *DatabaseV3) SupportAWSIAMRoleARNAsUsers() bool {
 	return d.GetType() == DatabaseTypeMongoAtlas
 }
 
+// GetEndpointType returns the endpoint type of the database, if available.
+func (d *DatabaseV3) GetEndpointType() string {
+	if endpointType, ok := d.GetStaticLabels()[DiscoveryLabelEndpointType]; ok {
+		return endpointType
+	}
+	switch d.GetType() {
+	case DatabaseTypeElastiCache:
+		return d.GetAWS().ElastiCache.EndpointType
+	case DatabaseTypeMemoryDB:
+		return d.GetAWS().MemoryDB.EndpointType
+	case DatabaseTypeOpenSearch:
+		return d.GetAWS().OpenSearch.EndpointType
+	}
+	return ""
+}
+
 const (
 	// DatabaseProtocolPostgreSQL is the PostgreSQL database protocol.
 	DatabaseProtocolPostgreSQL = "postgres"
@@ -954,6 +1007,8 @@ const (
 	DatabaseProtocolClickHouseHTTP = "clickhouse-http"
 	// DatabaseProtocolClickHouse is the ClickHouse database native write protocol.
 	DatabaseProtocolClickHouse = "clickhouse"
+	// DatabaseProtocolMySQL is the MySQL database protocol.
+	DatabaseProtocolMySQL = "mysql"
 
 	// DatabaseTypeSelfHosted is the self-hosted type of database.
 	DatabaseTypeSelfHosted = "self-hosted"
@@ -1105,4 +1160,9 @@ func (s *IAMPolicyStatus) UnmarshalJSON(data []byte) error {
 
 	*s = IAMPolicyStatus(IAMPolicyStatus_value[stringVal])
 	return nil
+}
+
+// IsAuditLogEnabled returns if Oracle Audit Log was enabled
+func (o OracleOptions) IsAuditLogEnabled() bool {
+	return o.AuditUser != ""
 }

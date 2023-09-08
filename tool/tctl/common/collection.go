@@ -688,7 +688,7 @@ func (c *databaseServerCollection) writeText(w io.Writer, verbose bool) error {
 		labels := common.FormatLabels(server.GetDatabase().GetAllLabels(), verbose)
 		rows = append(rows, []string{
 			server.GetHostname(),
-			nameOrDiscoveredName(server.GetDatabase(), verbose),
+			common.FormatResourceName(server.GetDatabase(), verbose),
 			server.GetDatabase().GetProtocol(),
 			server.GetDatabase().GetURI(),
 			labels,
@@ -732,7 +732,7 @@ func (c *databaseCollection) writeText(w io.Writer, verbose bool) error {
 	for _, database := range c.databases {
 		labels := common.FormatLabels(database.GetAllLabels(), verbose)
 		rows = append(rows, []string{
-			nameOrDiscoveredName(database, verbose),
+			common.FormatResourceName(database, verbose),
 			database.GetProtocol(),
 			database.GetURI(),
 			labels,
@@ -877,7 +877,7 @@ func (c *kubeServerCollection) writeText(w io.Writer, verbose bool) error {
 		}
 		labels := common.FormatLabels(kube.GetAllLabels(), verbose)
 		rows = append(rows, []string{
-			nameOrDiscoveredName(kube, verbose),
+			common.FormatResourceName(kube, verbose),
 			labels,
 			server.GetTeleportVersion(),
 		})
@@ -929,7 +929,7 @@ func (c *kubeClusterCollection) writeText(w io.Writer, verbose bool) error {
 	for _, cluster := range c.clusters {
 		labels := common.FormatLabels(cluster.GetAllLabels(), verbose)
 		rows = append(rows, []string{
-			nameOrDiscoveredName(cluster, verbose),
+			common.FormatResourceName(cluster, verbose),
 			labels,
 		})
 	}
@@ -1191,19 +1191,4 @@ func (c *userGroupCollection) writeText(w io.Writer, verbose bool) error {
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
-}
-
-// nameOrDiscoveredName returns the resource's name or its name as originally
-// discovered in the cloud by the Teleport Discovery Service.
-// In verbose mode, it always returns the resource name.
-// In non-verbose mode, if the resource came from discovery and has the
-// discovered name label, it returns the discovered name.
-func nameOrDiscoveredName(r types.ResourceWithLabels, verbose bool) string {
-	if !verbose {
-		originalName, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
-		if ok && originalName != "" {
-			return originalName
-		}
-	}
-	return r.GetName()
 }

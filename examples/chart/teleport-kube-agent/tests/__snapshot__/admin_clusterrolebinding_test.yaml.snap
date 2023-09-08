@@ -1,4 +1,4 @@
-generate a admin cluster role binding when adminClusterRolebinding.create is true:
+generate a admin cluster role binding when adminClusterRoleBinding.create is true:
   1: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
@@ -12,7 +12,7 @@ generate a admin cluster role binding when adminClusterRolebinding.create is tru
     - apiGroup: rbac.authorization.k8s.io
       kind: Group
       name: cluster-admin
-generate a admin cluster role binding when adminClusterRolebinding.create is true and adminClusterRolebinding.name is set:
+generate a admin cluster role binding when adminClusterRoleBinding.create is true and adminClusterRoleBinding.name is set:
   1: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding

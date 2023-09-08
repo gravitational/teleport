@@ -845,6 +845,7 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 	})
 	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
+	conf.Databases.Enabled = true
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 	conf.Apps.Enabled = false

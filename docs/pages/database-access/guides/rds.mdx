@@ -16,12 +16,15 @@ In this guide, you will:
 1. Join the AWS RDS or Aurora databases to your Teleport cluster.
 1. Connect to the AWS RDS or Aurora database via the Teleport Database Service.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/rds_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access RDS Cloud](../../../img/database-access/guides/rds_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 <Admonition type="note" title="Supported versions">
 
@@ -138,7 +141,7 @@ the region associated with the RDS databases you would like Teleport to
 discover.
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --proxy=<Var name="example.teleport.sh:443" />  \
    --token=/tmp/token \
@@ -452,3 +455,4 @@ $ tsh db logout <Var name="postgres-rds" />
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
 - Set up [automatic database user provisioning](../rbac/configuring-auto-user-provisioning.mdx).
+

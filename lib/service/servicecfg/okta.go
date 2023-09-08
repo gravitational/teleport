@@ -14,6 +14,8 @@
 
 package servicecfg
 
+import "time"
+
 // OktaConfig specifies configuration for the Okta service.
 type OktaConfig struct {
 	// Enabled turns the Okta service on or off for this process
@@ -24,4 +26,7 @@ type OktaConfig struct {
 
 	// APITokenPath is the path to the Okta API token.
 	APITokenPath string
+
+	// SyncPeriod is the duration between synchronization calls.
+	SyncPeriod time.Duration
 }

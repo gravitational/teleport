@@ -46,6 +46,8 @@ const (
 	PluginTypePagerDuty = "pagerduty"
 	// PluginTypeMattermost is the PagerDuty access plugin
 	PluginTypeMattermost = "mattermost"
+	// PluginTypeDiscord indicates the Discord access plugin
+	PluginTypeDiscord = "discord"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -234,6 +236,20 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.PagerDuty.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+
+	case *PluginSpecV1_Discord:
+		if settings.Discord == nil {
+			return trace.BadParameter("missing Discord settings")
+		}
+		if err := settings.Discord.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Discord plugin must be used with the static credentials ref type")
+		}
+
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
 	}
@@ -290,6 +306,16 @@ func (p *PluginV1) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (p *PluginV1) SetResourceID(id int64) {
 	p.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (p *PluginV1) GetRevision() string {
+	return p.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (p *PluginV1) SetRevision(rev string) {
+	p.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns object metadata
@@ -378,6 +404,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypePagerDuty
 	case *PluginSpecV1_Mattermost:
 		return PluginTypeMattermost
+	case *PluginSpecV1_Discord:
+		return PluginTypeDiscord
 	default:
 		return PluginTypeUnknown
 	}
@@ -473,6 +501,18 @@ func (c *PluginPagerDutySettings) CheckAndSetDefaults() error {
 	if c.UserEmail == "" {
 		return trace.BadParameter("user_email must be set")
 	}
+	return nil
+}
+
+func (c *PluginDiscordSettings) CheckAndSetDefaults() error {
+	if len(c.RoleToRecipients) == 0 {
+		return trace.BadParameter("role_to_recipients must be set")
+	}
+
+	if _, present := c.RoleToRecipients[Wildcard]; !present {
+		return trace.BadParameter("role_to_recipients must contain default entry `*`")
+	}
+
 	return nil
 }
 

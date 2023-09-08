@@ -67,7 +67,10 @@ func TryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log logr
 	}
 
 	// the database name is not a string but an identifier, so we can't use query parameters for it
-	createDB := fmt.Sprintf("CREATE DATABASE \"%v\" TEMPLATE template0 ENCODING UTF8 LC_COLLATE 'C' LC_CTYPE 'C'", poolConfig.ConnConfig.Database)
+	createDB := fmt.Sprintf(
+		"CREATE DATABASE %v TEMPLATE template0 ENCODING UTF8 LC_COLLATE 'C' LC_CTYPE 'C'",
+		pgx.Identifier{poolConfig.ConnConfig.Database}.Sanitize(),
+	)
 	if _, err := pgConn.Exec(ctx, createDB, pgx.QueryExecModeExec); err != nil && !IsCode(err, pgerrcode.DuplicateDatabase) {
 		// CREATE will check permissions first and we may not have CREATEDB
 		// privileges in more hardened setups; the subsequent connection
@@ -234,6 +237,8 @@ func SetupAndMigrate(
 	tableName string,
 	schemas []string,
 ) error {
+	tableName = pgx.Identifier{tableName}.Sanitize()
+
 	var version int32
 	var migrateErr error
 

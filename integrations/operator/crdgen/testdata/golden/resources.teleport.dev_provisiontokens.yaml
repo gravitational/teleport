@@ -113,6 +113,35 @@ spec:
                   organization_id:
                     type: string
                 type: object
+              gcp:
+                description: GCP allows the configuration of options specific to the
+                  "gcp" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        locations:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        project_ids:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        service_accounts:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
+                    nullable: true
+                    type: array
+                type: object
               github:
                 description: GitHub allows the configuration of options specific to
                   the "github" join method.

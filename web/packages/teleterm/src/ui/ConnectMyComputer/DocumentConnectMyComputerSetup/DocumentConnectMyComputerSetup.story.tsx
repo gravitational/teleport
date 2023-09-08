@@ -18,7 +18,7 @@ import React from 'react';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { WorkspaceContextProvider } from 'teleterm/ui/Documents';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
@@ -51,17 +51,9 @@ export function Default() {
 
   return (
     <MockAppContextProvider appContext={appContext}>
-      <WorkspaceContextProvider
-        value={{
-          accessRequestsService: undefined,
-          documentsService:
-            appContext.workspacesService.getActiveWorkspaceDocumentService(),
-          localClusterUri: cluster.uri,
-          rootClusterUri: appContext.workspacesService.getRootClusterUri(),
-        }}
-      >
+      <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
         <DocumentConnectMyComputerSetup visible={true} doc={doc} />
-      </WorkspaceContextProvider>
+      </MockWorkspaceContextProvider>
     </MockAppContextProvider>
   );
 }

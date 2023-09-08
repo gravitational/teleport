@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai"
+	embeddinglib "github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -38,7 +39,7 @@ import (
 type ServiceConfig struct {
 	Backend        services.Assistant
 	Embeddings     *ai.SimpleRetriever
-	Embedder       ai.Embedder
+	Embedder       embeddinglib.Embedder
 	Authorizer     authz.Authorizer
 	Logger         *logrus.Entry
 	ResourceGetter ResourceGetter
@@ -48,6 +49,10 @@ type ServiceConfig struct {
 // Created to avoid circular dependencies.
 type ResourceGetter interface {
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
+	GetApp(ctx context.Context, name string) (types.Application, error)
+	GetDatabase(ctx context.Context, name string) (types.Database, error)
+	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 }
 
 // Service implements the teleport.assist.v1.AssistService RPC service.
@@ -59,7 +64,7 @@ type Service struct {
 	embeddings *ai.SimpleRetriever
 	// embedder is used to embed text into a vector.
 	// It can be nil if the OpenAI API key is not set.
-	embedder       ai.Embedder
+	embedder       embeddinglib.Embedder
 	authorizer     authz.Authorizer
 	log            *logrus.Entry
 	resourceGetter ResourceGetter
@@ -219,8 +224,13 @@ func (a *Service) IsAssistEnabled(ctx context.Context, _ *assist.IsAssistEnabled
 }
 
 func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAssistantEmbeddingsRequest) (*assist.GetAssistantEmbeddingsResponse, error) {
-	// TODO(jakule): The kind needs to be updated when we add more resources.
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindNode, types.VerbRead, types.VerbList)
+	switch msg.Kind {
+	case types.KindNode, types.KindKubernetesCluster, types.KindApp, types.KindDatabase, types.KindWindowsDesktop:
+	default:
+		return nil, trace.BadParameter("resource kind %v is not supported", msg.Kind)
+	}
+
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, msg.Kind, types.VerbRead, types.VerbList)
 	if err != nil {
 		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
 	}
@@ -239,28 +249,90 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 	}
 
 	// Use default values for the id and content, as we only care about the embeddings.
-	queryEmbeddings := ai.NewEmbedding(msg.Kind, "", embeddings[0], [32]byte{})
-	documents := a.embeddings.GetRelevant(queryEmbeddings, int(msg.Limit), func(id string, embedding *ai.Embedding) bool {
-		// Run RBAC check on the embedded resource.
-		node, err := a.resourceGetter.GetNode(ctx, defaults.Namespace, embedding.GetEmbeddedID())
-		if err != nil {
-			a.log.Tracef("failed to get node %q: %v", embedding.GetName(), err)
-			return false
-		}
-		return authCtx.Checker.CheckAccess(node, services.AccessState{MFAVerified: true}) == nil
-	})
+	queryEmbeddings := embeddinglib.NewEmbedding(msg.Kind, "", embeddings[0], [32]byte{})
+	accessChecker := accessCheckerForKind(ctx, a, authCtx, msg.Kind)
+	documents := a.embeddings.GetRelevant(queryEmbeddings, int(msg.Limit), accessChecker)
+	return assembleEmbeddingResponseForKind(ctx, a, msg.Kind, documents)
+}
 
+// userHasAccess returns true if the user should have access to the resource.
+func userHasAccess(authCtx *authz.Context, req interface{ GetUsername() string }) bool {
+	return !authz.IsCurrentUser(*authCtx, req.GetUsername()) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))
+}
+
+func assembleEmbeddingResponseForKind(ctx context.Context, a *Service, kind string, documents []*ai.Document) (*assist.GetAssistantEmbeddingsResponse, error) {
 	protoDocs := make([]*assist.EmbeddedDocument, 0, len(documents))
+
 	for _, doc := range documents {
-		node, err := a.resourceGetter.GetNode(ctx, defaults.Namespace, doc.GetEmbeddedID())
-		if err != nil {
-			return nil, trace.Wrap(err)
+		var content []byte
+
+		switch kind {
+		case types.KindNode:
+			node, err := a.resourceGetter.GetNode(ctx, defaults.Namespace, doc.GetEmbeddedID())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			content, err = embeddinglib.SerializeNode(node)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case types.KindKubernetesCluster:
+			cluster, err := a.resourceGetter.GetKubernetesCluster(ctx, doc.GetEmbeddedID())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			content, err = embeddinglib.SerializeKubeCluster(cluster)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case types.KindApp:
+			app, err := a.resourceGetter.GetApp(ctx, doc.GetEmbeddedID())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			content, err = embeddinglib.SerializeApp(app)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case types.KindDatabase:
+			db, err := a.resourceGetter.GetDatabase(ctx, doc.GetEmbeddedID())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			content, err = embeddinglib.SerializeDatabase(db)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case types.KindWindowsDesktop:
+			desktops, err := a.resourceGetter.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{
+				Name: doc.GetEmbeddedID(),
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			var desktop types.WindowsDesktop
+			for _, d := range desktops {
+				if d.GetName() == doc.GetEmbeddedID() {
+					desktop = d
+					break
+				}
+			}
+
+			if desktop == nil {
+				return nil, trace.NotFound("windows desktop %q not found", doc.GetEmbeddedID())
+			}
+
+			content, err = embeddinglib.SerializeWindowsDesktop(desktop)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 
-		content, err := ai.SerializeNode(node)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		protoDocs = append(protoDocs, &assist.EmbeddedDocument{
 			Id:              doc.GetEmbeddedID(),
 			Content:         string(content),
@@ -273,7 +345,63 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 	}, nil
 }
 
-// userHasAccess returns true if the user should have access to the resource.
-func userHasAccess(authCtx *authz.Context, req interface{ GetUsername() string }) bool {
-	return !authz.IsCurrentUser(*authCtx, req.GetUsername()) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))
+func accessCheckerForKind(ctx context.Context, a *Service, authCtx *authz.Context, kind string) func(id string, embedding *embeddinglib.Embedding) bool {
+	return func(id string, embedding *embeddinglib.Embedding) bool {
+		if embedding.EmbeddedKind != kind {
+			return false
+		}
+
+		var resource services.AccessCheckable
+		var err error
+
+		switch kind {
+		case types.KindNode:
+			resource, err = a.resourceGetter.GetNode(ctx, defaults.Namespace, embedding.GetEmbeddedID())
+			if err != nil {
+				a.log.Tracef("failed to get node %q: %v", embedding.GetName(), err)
+				return false
+			}
+
+		case types.KindKubernetesCluster:
+			resource, err = a.resourceGetter.GetKubernetesCluster(ctx, embedding.GetEmbeddedID())
+			if err != nil {
+				a.log.Tracef("failed to get kube cluster %q: %v", embedding.GetName(), err)
+				return false
+			}
+		case types.KindApp:
+			resource, err = a.resourceGetter.GetApp(ctx, embedding.GetEmbeddedID())
+			if err != nil {
+				a.log.Tracef("failed to get app %q: %v", embedding.GetName(), err)
+				return false
+			}
+		case types.KindDatabase:
+			resource, err = a.resourceGetter.GetDatabase(ctx, embedding.GetEmbeddedID())
+			if err != nil {
+				a.log.Tracef("failed to get database %q: %v", embedding.GetName(), err)
+				return false
+			}
+		case types.KindWindowsDesktop:
+			desktops, err := a.resourceGetter.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{
+				Name: embedding.GetEmbeddedID(),
+			})
+			if err != nil {
+				a.log.Tracef("failed to get windows desktop %q: %v", embedding.GetName(), err)
+				return false
+			}
+
+			for _, d := range desktops {
+				if d.GetName() == embedding.GetEmbeddedID() {
+					resource = d
+					break
+				}
+			}
+
+			if resource == nil {
+				a.log.Tracef("failed to find windows desktop %q: %v", embedding.GetName(), err)
+				return false
+			}
+		}
+
+		return authCtx.Checker.CheckAccess(resource, services.AccessState{MFAVerified: true}) == nil
+	}
 }

@@ -22,6 +22,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -119,6 +121,36 @@ func newSTSClient(ctx context.Context, req *AWSClientRequest) (*sts.Client, erro
 	}
 
 	return sts.NewFromConfig(*cfg), nil
+}
+
+// newEC2Client creates an [ec2.Client] using the provided Token, RoleARN and Region.
+func newEC2Client(ctx context.Context, req *AWSClientRequest) (*ec2.Client, error) {
+	cfg, err := newAWSConfig(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ec2.NewFromConfig(*cfg), nil
+}
+
+// newEC2InstanceConnectClient creates an [ec2instanceconnect.Client] using the provided Token, RoleARN and Region.
+func newEC2InstanceConnectClient(ctx context.Context, req *AWSClientRequest) (*ec2instanceconnect.Client, error) {
+	cfg, err := newAWSConfig(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ec2instanceconnect.NewFromConfig(*cfg), nil
+}
+
+// newAWSCredentialsProvider creates an [aws.CredentialsRetriever] using the provided Token, RoleARN and Region.
+func newAWSCredentialsProvider(ctx context.Context, req *AWSClientRequest) (aws.CredentialsProvider, error) {
+	cfg, err := newAWSConfig(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cfg.Credentials, nil
 }
 
 // IdentityToken is an implementation of [stscreds.IdentityTokenRetriever] for returning a static token.

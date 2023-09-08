@@ -148,6 +148,21 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			JoinMethod:    e.Method,
 			JoinTokenName: e.TokenName,
 		}
+
+	case *apievents.DeviceEvent2:
+		// Only count successful device authentication.
+		if !e.Success {
+			return nil
+		}
+
+		switch e.Metadata.GetType() {
+		case events.DeviceAuthenticateEvent:
+			return &DeviceAuthenticateEvent{
+				DeviceId:     e.Device.DeviceId,
+				UserName:     e.User,
+				DeviceOsType: e.Device.OsType.String(),
+			}
+		}
 	}
 
 	return nil

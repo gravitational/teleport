@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { TransitionGroup, CSSTransition } from 'react-transition-group';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { CSSTransition, TransitionGroup } from 'react-transition-group';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
@@ -154,7 +154,7 @@ export function StepSlider<T>(props: Props<T>) {
     // so these children's position themselves relative to parent.
     position: 'relative',
     // Height 'auto' is only ever used on the initial render to let it
-    // take up as much space it needs. Afterwards, it sets the starting
+    // take up as much space it needs. Afterward, it sets the starting
     // height.
     height: rootRef?.current?.style.height || 'auto',
     transition: `height ${tDuration}ms ease`,
@@ -186,7 +186,7 @@ export function StepSlider<T>(props: Props<T>) {
               setHasTransitionEnded(true);
             }}
           >
-            {$content}
+            <Box>{$content}</Box>
           </CSSTransition>
         </TransitionGroup>
       </Wrap>

@@ -33,7 +33,7 @@ package webauthn;
 
 import "gogoproto/gogo.proto";
 
-option go_package = "github.com/gravitational/teleport/api/types/webauthn";
+option go_package = "github.com/gravitational/teleport/api/types/webauthn;webauthnpb";
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
