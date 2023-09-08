@@ -3113,6 +3113,20 @@ export const events = [
     access_list_name: 'access-list',
     updated_by: 'mike',
   },
+  {
+    code: 'TAL009I',
+    event: 'access_list.create_with_members',
+    time: '2023-05-08T19:21:36.144Z',
+    access_list_name: 'access-list',
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL009E',
+    event: 'access_list.create_with_members',
+    time: '2023-05-08T19:21:36.144Z',
+    access_list_name: 'access-list',
+    updated_by: 'mike',
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.

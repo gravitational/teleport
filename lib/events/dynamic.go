@@ -327,6 +327,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessListMemberDelete{}
 	case AccessListMemberDeleteAllForAccessListEvent:
 		e = &events.AccessListMemberDeleteAllForAccessList{}
+	case AccessListCreateWithMembersEvent:
+		e = &events.AccessListCreateWithMembers{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 

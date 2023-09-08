@@ -567,6 +567,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AccessListMemberDeleteAllForAccessList{
 			AccessListMemberDeleteAllForAccessList: e,
 		}
+	case *AccessListCreateWithMembers:
+		out.Event = &OneOf_AccessListCreateWithMembers{
+			AccessListCreateWithMembers: e,
+		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
 		unknown := &Unknown{}
