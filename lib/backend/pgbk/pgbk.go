@@ -21,9 +21,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgtype/zeronull"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jonboulle/clockwork"
@@ -352,8 +352,8 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 		).QueryRow(func(row pgx.Row) error {
 			var value []byte
 			var expires zeronull.Timestamptz
-			var revision pgtype.UUID
-			if err := row.Scan(&value, &expires, &revision); err != nil {
+			var revision uuid.UUID
+			if err := row.Scan(&value, &expires, (*[16]byte)(&revision)); err != nil {
 				if errors.Is(err, pgx.ErrNoRows) {
 					return nil
 				}
@@ -364,7 +364,7 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 				Key:     key,
 				Value:   value,
 				Expires: time.Time(expires).UTC(),
-				// revision isn't supported in backend.Item yet
+				ID:      idFromRevision(revision),
 			}
 			return nil
 		})
@@ -409,15 +409,15 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 			items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
 				var key, value []byte
 				var expires zeronull.Timestamptz
-				var revision pgtype.UUID
-				if err := row.Scan(&key, &value, &expires, &revision); err != nil {
+				var revision uuid.UUID
+				if err := row.Scan(&key, &value, &expires, (*[16]byte)(&revision)); err != nil {
 					return backend.Item{}, err
 				}
 				return backend.Item{
 					Key:     key,
 					Value:   value,
 					Expires: time.Time(expires).UTC(),
-					// revision isn't supported in backend.Item yet
+					ID:      idFromRevision(revision),
 				}, nil
 			})
 			return trace.Wrap(err)

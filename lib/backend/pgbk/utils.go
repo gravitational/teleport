@@ -15,6 +15,8 @@
 package pgbk
 
 import (
+	"encoding/binary"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -38,6 +40,14 @@ func newRevision() pgtype.UUID {
 		Bytes: uuid.New(),
 		Valid: true,
 	}
+}
+
+// idFromRevision derives a value usable as a [backend.Item]'s ID from a
+// revision UUID.
+func idFromRevision(revision uuid.UUID) int64 {
+	u := binary.LittleEndian.Uint64(revision[:])
+	u &= 0x7fff_ffff_ffff_ffff
+	return int64(u)
 }
 
 // nonNil replaces a nil slice with an empty, non-nil one.
