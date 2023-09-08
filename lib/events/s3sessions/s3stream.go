@@ -106,10 +106,18 @@ func (h *Handler) abortUpload(ctx context.Context, upload events.StreamUpload) e
 	return nil
 }
 
+// maxPartsPerUpload is the maximum number of parts for a single multipart upload.
+// See https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html
+const maxPartsPerUpload = 10000
+
 // CompleteUpload completes the upload
 func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
 	if len(parts) == 0 {
 		return h.abortUpload(ctx, upload)
+	}
+	if len(parts) > maxPartsPerUpload {
+		return trace.BadParameter("too many parts for a single S3 upload (%d), "+
+			"must be less than %d", len(parts), maxPartsPerUpload)
 	}
 
 	start := time.Now()
@@ -161,7 +169,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 				ETag:   *part.ETag,
 			})
 		}
-		if !*re.IsTruncated {
+		if !aws.BoolValue(re.IsTruncated) {
 			break
 		}
 		partNumberMarker = re.PartNumberMarker

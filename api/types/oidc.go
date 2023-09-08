@@ -185,6 +185,16 @@ func (o *OIDCConnectorV3) SetResourceID(id int64) {
 	o.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (o *OIDCConnectorV3) GetRevision() string {
+	return o.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (o *OIDCConnectorV3) SetRevision(rev string) {
+	o.Metadata.SetRevision(rev)
+}
+
 // WithoutSecrets returns an instance of resource without secrets.
 func (o *OIDCConnectorV3) WithoutSecrets() Resource {
 	if o.GetClientSecret() == "" && o.GetGoogleServiceAccount() == "" {

@@ -1100,8 +1100,11 @@ func testDatabaseInfo(t *testing.T) {
 	require.NoError(t, err)
 	defaultDBUser := "admin"
 	defaultDBName := "default"
-	alice.SetDatabaseUsers([]string{defaultDBUser})
-	alice.SetDatabaseNames([]string{defaultDBName})
+	// add multiple allowed db names/users, to prevent default selection.
+	// these tests should use the db name/username from either cli flag or
+	// active cert only.
+	alice.SetDatabaseUsers([]string{defaultDBUser, "foo"})
+	alice.SetDatabaseNames([]string{defaultDBName, "bar"})
 	alice.SetRoles([]string{"access"})
 	databases := []servicecfg.Database{
 		{
@@ -1177,7 +1180,7 @@ func testDatabaseInfo(t *testing.T) {
 				Database:    defaultDBName,
 			}
 			t.Run(route.ServiceName, func(t *testing.T) {
-				t.Run("with active db cert", func(t *testing.T) {
+				t.Run("with route", func(t *testing.T) {
 					cf := &CLIConf{
 						Context:         ctx,
 						TracingProvider: tracing.NoopProvider(),
@@ -1196,15 +1199,18 @@ func testDatabaseInfo(t *testing.T) {
 					require.Equal(t, route.Protocol, db.GetProtocol())
 					require.Equal(t, dbInfo.database, db, "database should have been fetched and cached")
 				})
-				t.Run("without active db cert", func(t *testing.T) {
+				t.Run("without route", func(t *testing.T) {
+					err = Run(ctx, []string{"db", "login", route.ServiceName,
+						"--db-user", route.Username,
+						"--db-name", route.Database,
+					}, setHomePath(tmpHomePath))
+					require.NoError(t, err)
 					cf := &CLIConf{
 						Context:         ctx,
 						TracingProvider: tracing.NoopProvider(),
 						HomePath:        tmpHomePath,
 						tracer:          tracing.NoopTracer(teleport.ComponentTSH),
 						DatabaseService: route.ServiceName,
-						DatabaseUser:    route.Username,
-						DatabaseName:    route.Database,
 					}
 					tc, err := makeClient(cf)
 					require.NoError(t, err)

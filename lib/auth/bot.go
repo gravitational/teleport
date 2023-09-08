@@ -533,7 +533,7 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 	// This call bypasses RBAC check for users read on purpose.
 	// Users who are allowed to impersonate other users might not have
 	// permissions to read user data.
-	userState, err := s.getUserOrLoginState(ctx, username)
+	userState, err := s.GetUserOrLoginState(ctx, username)
 	if err != nil {
 		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", username)
 		return nil, trace.AccessDenied("access denied")

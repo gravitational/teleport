@@ -43,7 +43,7 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -162,6 +162,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		Region:                        req.Region,
 		AccountID:                     req.AccountID,
 		SubnetIDs:                     req.SubnetIDs,
+		SecurityGroups:                req.SecurityGroups,
 		ClusterName:                   req.ClusterName,
 		ServiceName:                   req.ServiceName,
 		TaskName:                      req.TaskName,
@@ -297,7 +298,7 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -330,6 +331,42 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 	}, nil
 }
 
+// awsOIDCListSecurityGroups returns a list of VPC Security Groups the ListSecurityGroups action of the AWS OIDC Integration.
+func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCListSecurityGroupsRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listSGClient, err := awsoidc.NewListSecurityGroupsClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.ListSecurityGroups(ctx,
+		listSGClient,
+		awsoidc.ListSecurityGroupsRequest{
+			VPCID:     req.VPCID,
+			NextToken: req.NextToken,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCListSecurityGroupsResponse{
+		NextToken:      resp.NextToken,
+		SecurityGroups: resp.SecurityGroups,
+	}, nil
+}
+
 // awsOIDCListEC2ICE returns a list of EC2 Instance Connect Endpoints using the ListEC2ICE action of the AWS OIDC Integration.
 func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
@@ -339,7 +376,7 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -364,5 +401,42 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 	return ui.AWSOIDCListEC2ICEResponse{
 		NextToken: resp.NextToken,
 		EC2ICEs:   resp.EC2ICEs,
+	}, nil
+}
+
+// awsOIDCDeployC2ICE creates an EC2 Instance Connect Endpoint.
+func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCDeployEC2ICERequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	createEC2ICEClient, err := awsoidc.NewCreateEC2ICEClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.CreateEC2ICE(ctx,
+		createEC2ICEClient,
+		awsoidc.CreateEC2ICERequest{
+			Cluster:          h.auth.clusterName,
+			IntegrationName:  awsClientReq.IntegrationName,
+			SubnetID:         req.SubnetID,
+			SecurityGroupIDs: req.SecurityGroupIDs,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCDeployEC2ICEResponse{
+		Name: resp.Name,
 	}, nil
 }

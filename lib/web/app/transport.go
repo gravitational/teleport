@@ -193,12 +193,15 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 	// We want the rewrite to happen using our own public address.
 	if host == t.c.identity.RouteToApp.PublicAddr {
 		// drop scheme and host, leaving only the relative path.
-		// since the path can be an empty string, canonicalize it as "/".
+		u.Host = ""
+		u.Scheme = ""
+
+		// since the path can be an empty string, canonicalize it to "/".
 		if u.Path == "" {
-			resp.Header.Set("Location", "/")
-		} else {
-			resp.Header.Set("Location", u.Path)
+			u.Path = "/"
 		}
+
+		resp.Header.Set("Location", u.String())
 	}
 	return nil
 }
