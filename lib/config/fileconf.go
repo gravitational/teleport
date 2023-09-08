@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
@@ -510,7 +511,7 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 		}
 
 		for _, region := range matcher.Regions {
-			if !awsutils.IsValidRegion(region) {
+			if err := awsapiutils.IsValidRegion(region); err != nil {
 				return trace.BadParameter("discovery service does not support region %q; supported regions are: %v",
 					region, awsutils.GetKnownRegions())
 			}

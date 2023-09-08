@@ -20,15 +20,36 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/utils/aws"
 )
 
+func TestGetKnownRegions(t *testing.T) {
+	// Picked a few regions just to make sure GetKnownRegions is returning
+	// something that includes these.
+	t.Run("hand picked", func(t *testing.T) {
+		for _, region := range []string{
+			"us-east-1",
+			"il-central-1",
+			"cn-north-1",
+			"us-gov-west-1",
+			"us-isob-east-1",
+		} {
+			require.Contains(t, GetKnownRegions(), region)
+		}
+	})
+
+	// Ideally this should be tested in api/utils/aws but api has no access
+	// to AWS SDK. If this fails aws.IsValidRegion should be updated.
+	t.Run("IsValidRegion", func(t *testing.T) {
+		for _, region := range GetKnownRegions() {
+			require.NoError(t, aws.IsValidRegion(region))
+		}
+	})
+
+}
 func TestIsKnownRegion(t *testing.T) {
-	for _, region := range []string{
-		"us-east-1",
-		"cn-north-1",
-		"us-gov-west-1",
-		"us-isob-east-1",
-	} {
+	for _, region := range GetKnownRegions() {
 		require.True(t, IsKnownRegion(region))
 	}
 
@@ -38,46 +59,4 @@ func TestIsKnownRegion(t *testing.T) {
 	} {
 		require.False(t, IsKnownRegion(region))
 	}
-}
-
-func TestIsValidRegion(t *testing.T) {
-	tests := []struct {
-		name         string
-		inputRegions []string
-		checkResult  require.BoolAssertionFunc
-	}{
-		{
-			// If this test fails, validRegionRegex must be updated.
-			name:         "known regions",
-			inputRegions: GetKnownRegions(),
-			checkResult:  require.True,
-		},
-		{
-			name: "valid regions",
-			inputRegions: []string{
-				"us-gov-central-1",
-				"xx-northwest-5",
-			},
-			checkResult: require.True,
-		},
-		{
-			name: "invalid regions",
-			inputRegions: []string{
-				"x-east-1",
-				"us-east-10",
-				"us-nowhere-1",
-				"us-xx-east-1",
-			},
-			checkResult: require.False,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			for _, region := range test.inputRegions {
-				test.checkResult(t, IsValidRegion(region), region)
-			}
-		})
-	}
-
 }
