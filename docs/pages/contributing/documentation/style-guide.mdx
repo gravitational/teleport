@@ -4,109 +4,153 @@ description: Use this reference to ensure our docs are consistent and effective
 ---
 
 To keep our documentation effective as Teleport develops, we need to ensure that we maintain a consistent approach to organizing information.
+---
+## Information types and pages
 
-## Kinds of pages
+Depending on your point of view and goals, information can be classified in different ways.
+The classic broad categories classify information as:
 
-Each documentation page at Teleport falls into one of five categories. Each page
-is self contained, and it is okay have duplicate content between different
-guides. This is encouraged to promote familiarity with the product.
+- Factual information
+- Conceptual information
+- Procedural information
+- Reference information
 
-- **[How-to guides](./style-guide.mdx#how-to-guides)**: Tutorials for intermediate readers who want to set up Teleport for a specific scenario.
-- **[Getting started articles](./style-guide.mdx#getting-started-articles)**: Designed to get the user up and running in the quickest way possible.
-- **[Architecture guides](./style-guide.mdx#architecture-guides)**: Guides that explain how Teleport works to advanced readers, e.g., architects, DevSecOps engineers, and SREs.
-- **[Conceptual guides](./style-guide.mdx#conceptual-guides)**: Explain concepts related to Teleport for users who want a deeper understanding of its functionality.
-- **[Reference manuals](./style-guide.mdx#reference-manuals)**: Provide a comprehensive list of configuration options, API methods, metrics, and other ways of interacting with Teleport.
+### Organizing information into purpose-driven documents
 
-### How-to guides
+These information categories often translate into separate documents—or
+sections within documents—that serve a specific purpose or audience. 
+For software documentation, you can typically structure information using the
+following basic information model:
 
-**How-to guides** are for readers who already have some familiarity with
-Teleport and want to set up Teleport for a specific scenario.
+- Tutorials are learning-oriented and designed to give a newcomer a positive, successful 
+  experience. Tutorials should be tested regularly to ensure they don't get stale and that
+  they always provide a successful result.
+- How-to guides are task-oriented with practical steps to achieve a specific goal. 
+  These guides assume that readers are familiar enough with Teleport that they know the task
+  they want to complete for a specific scenario but not necessarily how to complete it.
+- References are information-oriented technical descriptions of a system or its components.
+- Explanations are the conceptual framework for understanding how or why a system works.
+  Explanation provide the context that surrounds what people learn in a tutorial, do in a 
+  how-to guide, or look up in reference material.
 
-#### Expectations
+For more detailed information and examples of how to structure documentation using this 
+information model, see [The Grand Unified Theory of Documentation](https://documentation.divio.com/).
 
-- The introductory section should state the utility of completing the article.
+### Structuring content into pages
 
-- Do not recreate content across guides when it is possible to refer a reader to
-  a single, separate guide. Actions that are prerequisites to several topics but
-  *not* directly related to those topics should be documented in a single
-  location and referenced in a **Prerequisites** section at the top of the page. 
+In general, every page of documentation should have a purpose and be self-contained. 
+It's okay for information to be in multiple places and similar content can exist in 
+pages that serve different purposes. For example, you might have conceptual information
+about trusted clusters in one page and have similar content as context in a how-to topic.
+When possible, you should reuse content rather than duplicate content, but it's perfectly
+fine to cover the same information in more than one place to serve different purposes.
 
-- Do not break the reader's focus. Do not link the reader to another page—or
-  even another section within the same page—when it is possible to include the
-  same content in the current paragraph or section.
+## How-to guides
 
-  You can include a link in the body text of a how-to guide as long as you tell
-  the reader why to follow the link and what information to glean from it.
-  "Follow the installation instructions in the AWS documentation" does this,
-  while "Read the AWS documentation for more information" does not.
+A how-to guide describes how to achieve a goal or complete a task. 
+Only the information that is pertinent to achieving that goal or completing the task is included. 
+With how-to guides, readers have enough information to know what they want to do—for example, 
+open a bank account—but not necessarily enough information to know how to do it.
+For example, the how-to guide for opening a bank account wouldn't explain what a bank account 
+is or why you might want to open one, but would focus on specific steps such as:
 
-- Example code and configurations should be complete and pastable.
+1. Select an institution.
+1. Fill out an application.
+1. Deposit a minimum amount of currency.
+ 
+How-to guides often include links to additional information, but should not include 
+explanations that take the focus away from what the reader wants to accomplish.
 
-- Each step is clearly stated so users can easily follow the sequence. Section
-  headings should have a format similar to "Step 1/3. Add a local user"
+### What's in a how-to guide?
 
-#### Example outline
+In most cases, how-to guides contain the following sections:
 
-- Guide title: "Access Kubernetes on GKE"
-- The purpose of the guide
-- Prerequisites
-- Setup steps
-- Next steps
+- Frontmatter with a guide title, description, and other information.
+  The title should be short and identify the subject of the how-to topic in the fewest words possible.
+  The description should be a sentence that starts with a verb and summarizes the content of the topic.
+  Additional information might include a video banner link, a list of keywords, or an alternate 
+  first-level heading.
 
-### Getting started articles
+- One or more introductory paragraphs that explain what the task-at-hand is, the use case or 
+  scenario driving the reader to complete the task, and the expected outcome.
+  Avoid recreating content if you can refer a reader to a single, separate guide. 
 
-**Getting started guides** are designed to get a user up and running in the
-shortest way possible. They are intended for first-time Teleport users, and are
-often one of the first interactions they will have with the product. They should
-be fun and stress free.
+- Before you begin list of prerequisites.
+  Actions that are common to multiple topics that must be taken before starting the procedure 
+  in how-to topic are generally documented in include files and referenced in the
+  list of Prerequisites. 
 
-<Admonition type="note">
-  "Getting started" is a better term than "Quickstart".
-  Google "Getting started with React" vs. "React quickstart"
-  and compare the search results.
-</Admonition>
+- Task step sections that break down the how-to procedure into manageable chunks or subtasks
+  with clearly-defined goals.
+  Currently, task step sections use headings that convey the current and total number of steps
+  involved to complete the procedure, for example, **Step 1/3. Add a local user**.
 
-#### Expectations
+  In most cases, task step sections include code examples, configuration settings, and 
+  screenshots to illustrate the actions the read should perform. Whenever possible, readers
+  should be able to copy and paste the example code and configurations with minimal changes 
+  to complete the procedure being documenting.
 
-Getting started articles have the same expectations as how-to guides, plus the
-following:
+- Next steps section can be used to add links to logically related topics, if applicable, or
+  to recommend related topics for further reading, such as reference topics related to the
+  procedure completed.
 
-- It should be possible to complete the tutorial in 5–10 minutes.
-- Consider including a demo video in order to reach readers who prefer video.
+### Using links, admonishments, and details in how-to guides
 
-#### Example outline
+You should avoid breaking the reader's focus in how-to guides. 
+For example, avoid adding links to other pages or to other sections in the same topic.
+Avoid inserting notices, tips, admonishments, or collapsed details sections unless
+absolutely necessary.
 
-- Title: "SSO and Audit for Kubernetes in three steps"
-- Demo video
-- Prerequisites section: lists the tools used in the guide
-- Several sub-sections describing concrete steps that a user can verify they have completed
-- Wrap up with "Next steps" section.
+If you do include a link in a how-to guide to external documentation,
+be sure to tell the reader why to follow the link and what information to glean from it.
+For example, use explicit information like "Follow the installation instructions in the 
+AWS documentation" instead of "Read the AWS documentation for more information".
 
-### Architecture guides
+## Tutorials
 
-**Architecture guides** explain how Teleport works to advanced readers, e.g.,
-architects, DevSecOps engineers, and SREs. They describe high-level concepts
-with a narrow focus on architectural concerns, and are used to evaluate
-architectural decisions, configuration, and usage scenarios.
+Tutorials—and, to some extent, Getting started guides—are designed to give first-time 
+Teleport users hands-on experience completing a set of explicit instructions. Tutorials 
+should be as simple and straightforward as possible. Tutorials must provide a positive 
+learning experience and a successful outcome with no unexpected behavior or unexplained 
+errors. It's okay for a tutorial to include a red herring to illustrate a common misstep 
+but the author must provide a sufficient explanation of the error and how to correct it.
 
-Specific kinds of architecture guides include:
+### What's in a tutorial?
 
-- **Networking**: Readers are interested in learning about specific ports, components, and protocols that are or can be used.
-- **Security**: Lists security protocols and primitives. SecOps will look for an attack vector tree diagram.
-- **Deployment**: Should include a deployment diagram which in turn explains components and how they interact with databases and each other.
+Tutorial or getting started guides contain much of the same content as how-to guides 
+but are focused on achieving learning objectives:
 
-### Conceptual guides
+- Frontmatter with a demo video to reach readers who prefer video.
+- One or more introductory paragraphs that explain what the tutorial demonstrates.
+- Before you begin list of the tools required to complete the tutorial.
+- Learning objectives that summarize what the reader will accomplish by completing the tutorial.
+- Task steps that the reader must follow in sequence to successfully complete the lesson.
+- Next steps section can be used to add links to logically related topics, if applicable, or
+  to recommend related topics for further reading, such as reference topics related to the
+  procedure completed.
 
-**Conceptual guides** are a continuations of our architectural guides and distinct from how-to guides. They explain a concept that is relevant for understanding Teleport. Some overlap will be likely between conceptual guides and architecture guides.
+## Conceptual guides
+
+**Conceptual guides** and **Architecture guides** explain core concepts and how Teleport works
+at system, component, and operational levels.
+Guide for conceptual and architectural information can include the following types of topics:
+
+- **Networking** for audiences interested in networking concepts, components, and protocols.
+- **Security** for audiences interested in security protocols, cryptographic primitives, and 
+  reducing attack vectors.
+- **Deployment** for audiences interested in deployment architecture.
 
 ### Reference manuals
 
-**Reference manuals** provide an exhaustive list of configuration options, API methods, and other possible fields and values for the various ways in which users can interact with Teleport.
+**Reference manuals** provide an exhaustive list of configuration options, API methods, 
+and other possible fields and values for the various ways in which users can interact with 
+Teleport.
 
-#### Expectations
-- Should be comprehensive. If listing configuration options, API paths, and so on, list all of them, rather than a few examples.
-- HTML or Markdown tables are often the best formats for this kind of article .
-- Should be easy to navigate with a browser's search functionality. List all content on the same page.
+- Should be comprehensive. If listing configuration options, API paths, and so on, list 
+  all of them, rather than a few examples.
+- HTML or Markdown tables are often the best formats for this kind of article.
+- Should be easy to navigate with a browser's search functionality. List all content on 
+  the same page.
 - Should avoid prose and be expressed with brevity.
 
 ## General style rules
