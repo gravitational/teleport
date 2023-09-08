@@ -38,11 +38,14 @@ import { useInfiniteScroll } from 'teleport/components/hooks/useInfiniteScroll';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { useUrlFiltering } from 'teleport/components/hooks';
 
-import { ResourceCard } from './ResourceCard';
+import { ResourceCard, LoadingCard } from './ResourceCard';
 import SearchPanel from './SearchPanel';
 import { FilterPanel } from './FilterPanel';
 
 const RESOURCES_MAX_WIDTH = '1800px';
+
+//fetchMore size is 20 so lets add 20 loaders
+const loadingCardArray = new Array(20).fill(undefined);
 
 export function Resources() {
   const { isLeafCluster } = useStickyClusterId();
@@ -159,6 +162,9 @@ export function Resources() {
         {fetchedData.agents.map((agent, i) => (
           <ResourceCard key={i} onLabelClick={onLabelClick} resource={agent} />
         ))}
+        {/* Using index as key here is ok because these elements never change order */}
+        {attempt.status === 'processing' &&
+          loadingCardArray.map((_, i) => <LoadingCard key={i} />)}
       </ResourcesContainer>
       <div
         ref={infiniteScrollDetector}
