@@ -137,7 +137,7 @@ You can search for resources of kind `node`, `kube_cluster`, `db`, `app`, and
 `windows_desktop`. Teleport also supports searching and requesting access to
 resources within Kubernetes clusters.
 
-<Details title="List of Supported Kubernetes resources">
+<Details title="List of supported Kubernetes resources">
 
 Teleport supports searching and requesting access to the following Kubernetes resources:
 
@@ -146,8 +146,8 @@ Teleport supports searching and requesting access to the following Kubernetes re
   title="Resource Access Requests to Kubernetes Namespaces"
 >
 
-Requesting access to a Kubernetes Namespace allows you to access all resources
-in that namespace including the supported resources listed above. However, it
+Requesting access to a Kubernetes namespace allows you to access all resources
+in that namespace, including the supported resources listed above. However, it
 prevents you from access any resources belonging to another namespace.
 
 </Admonition>
@@ -447,7 +447,7 @@ command:
 ```code
 $ tsh request create <Var name="resource-id" />
 ```
-###### Namespaced-scoped Resources
+###### Namespaced-scoped resources
 
 For Kubernetes namespaced resources, the `resource-id` is in the following format:
 
@@ -478,7 +478,7 @@ the regular expression `/^nginx-[a-z0-9-]+$/`, run the following command:
 $ tsh request create --resources /teleport.example.com/pod/mycluster/*/^nginx-[a-z0-9-]+$
 ```
 
-###### Cluster-scoped Resources
+###### Cluster-scoped resources
 
 For Kubernetes cluster-scoped resources, the `resource-id` is in the following format:
 
