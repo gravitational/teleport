@@ -85,7 +85,10 @@ description: "string"`,
 				t.Fatalf("test fixture declaration is not a GenDecl")
 			}
 
-			assert.Equal(t, tc.expected, NewFromDecl(gd, "myfile.go"))
+			r, err := NewFromDecl(gd, "myfile.go")
+			assert.NoError(t, err)
+
+			assert.Equal(t, tc.expected, r)
 		})
 	}
 }
