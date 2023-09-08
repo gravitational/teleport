@@ -921,7 +921,11 @@
             },
             {
               "title": "Agentless OpenSSH Integration",
-              "slug": "/server-access/guides/openssh/"
+              "slug": "/server-access/guides/openssh/openssh"
+            },
+            {
+              "title": "Agentless OpenSSH Integration (Manual Install",
+              "slug": "/server-access/guides/openssh/openssh-manual-install"
             },
             {
               "title": "Recording Proxy Mode",
