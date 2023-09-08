@@ -46,9 +46,10 @@ import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { useUrlFiltering, useInfiniteScroll } from 'teleport/components/hooks';
 
-import { ResourceCard } from './ResourceCard';
+import { ResourceCard, resourceName } from './ResourceCard';
 import SearchPanel from './SearchPanel';
 import { FilterPanel } from './FilterPanel';
+import { UnifiedResource } from 'teleport/services/agents';
 
 const RESOURCES_MAX_WIDTH = '1800px';
 
@@ -147,7 +148,11 @@ export function Resources() {
       />
       <ResourcesContainer gap={2}>
         {resources.map((res, i) => (
-          <ResourceCard key={i} onLabelClick={onLabelClick} resource={res} />
+          <ResourceCard
+            key={resourceKey(res)}
+            onLabelClick={onLabelClick}
+            resource={res}
+          />
         ))}
       </ResourcesContainer>
       <div ref={setScrollDetector} />
@@ -173,7 +178,9 @@ export function Resources() {
   );
 }
 
-const INDICATOR_SIZE = '48px';
+function resourceKey(resource: UnifiedResource) {
+  return `${resource.kind}/${resourceName(resource)}`;
+}
 
 function NoResults({ query }: { query: string }) {
   // Prevent `No resources were found for ""` flicker.
@@ -221,6 +228,8 @@ const ErrorBoxInternal = styled(Box)`
   right: 0;
   margin: ${props => props.theme.space[1]}px 10% 0 10%;
 `;
+
+const INDICATOR_SIZE = '48px';
 
 // It's important to make the footer at least as big as the loading indicator,
 // since in the typical case, we want to avoid UI "jumping" when loading the

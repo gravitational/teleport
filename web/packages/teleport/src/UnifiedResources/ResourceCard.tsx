@@ -247,7 +247,7 @@ function CopyButton({ name }: { name: string }) {
   );
 }
 
-function resourceName(resource: UnifiedResource) {
+export function resourceName(resource: UnifiedResource) {
   return resource.kind === 'node' ? resource.hostname : resource.name;
 }
 
