@@ -223,12 +223,12 @@ details.
 
 By default, Teleport will allow users to request access to a role until the
 current session expires. This can be overridden by setting the `max_duration`
-when requesting access to a role. The `max_duration` allows to extend the
-access up to 7 days. The `max_duration` can be set in the web UI or via the
-`--max-duration` flag when using the `tsh` CLI.
+when requesting access to a role. The `max_duration` option allows users to
+extend their access up to 7 days. The `max_duration` can be set in the Web UI
+or via the `--max-duration` flag when using the `tsh` CLI.
 
 To enable the `max_duration` feature, the `max_duration` option must be set in
-the role definition.
+a user's role definition:
 ```yaml
 kind: role
 version: v5
