@@ -28,14 +28,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	"github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 func TestOpenTunnelRequest(t *testing.T) {
@@ -45,11 +43,9 @@ func TestOpenTunnelRequest(t *testing.T) {
 
 	baseReqFn := func() OpenTunnelEC2Request {
 		return OpenTunnelEC2Request{
-			Region:          "us-east-1",
-			InstanceID:      "i-123",
-			VPCID:           "vpc-id",
-			EC2SSHLoginUser: "ec2-user",
-			EC2Address:      "127.0.0.1:22",
+			Region:     "us-east-1",
+			VPCID:      "vpc-id",
+			EC2Address: "127.0.0.1:22",
 		}
 	}
 
@@ -76,28 +72,10 @@ func TestOpenTunnelRequest(t *testing.T) {
 			errCheck: isBadParamErrFn,
 		},
 		{
-			name: "missing instance id",
-			req: func() OpenTunnelEC2Request {
-				r := baseReqFn()
-				r.InstanceID = ""
-				return r
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
 			name: "missing vpc id",
 			req: func() OpenTunnelEC2Request {
 				r := baseReqFn()
 				r.VPCID = ""
-				return r
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "missing EC2SSHLoginUser",
-			req: func() OpenTunnelEC2Request {
-				r := baseReqFn()
-				r.EC2SSHLoginUser = ""
 				return r
 			},
 			errCheck: isBadParamErrFn,
@@ -126,9 +104,7 @@ func TestOpenTunnelRequest(t *testing.T) {
 			errCheck: require.NoError,
 			reqWithDefaults: OpenTunnelEC2Request{
 				Region:             "us-east-1",
-				InstanceID:         "i-123",
 				VPCID:              "vpc-id",
-				EC2SSHLoginUser:    "ec2-user",
 				EC2Address:         "127.0.0.1:22",
 				ec2OpenSSHPort:     "22",
 				ec2PrivateHostname: "127.0.0.1",
@@ -223,24 +199,13 @@ func TestOpenTunnelEC2(t *testing.T) {
 	}
 
 	resp, err := OpenTunnelEC2(ctx, m, OpenTunnelEC2Request{
-		EC2SSHLoginUser:   "os-user",
 		Region:            "us-east-1",
-		InstanceID:        "i-123",
 		VPCID:             "vpc-123",
 		EC2Address:        ec2Listener.Addr().String(),
 		websocketCustomCA: eiceWebsocketServer.Certificate(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-
-	t.Run("ssh signer public key and os user matches what was sent to AWS", func(t *testing.T) {
-		require.NotNil(t, resp.SSHSigner)
-
-		sshPublicKeyFromSigner := string(ssh.MarshalAuthorizedKey(resp.SSHSigner.PublicKey()))
-
-		require.Equal(t, sshPublicKeyFromSigner, m.sshKeySent)
-		require.Equal(t, "os-user", m.sshForUserSent)
-	})
 
 	// This test sends a ping from local listener to the EC2 Instance Connect endpoint
 	// Which sends it to the EC2 Instance, and it replies back the pong
@@ -273,21 +238,13 @@ func TestOpenTunnelEC2(t *testing.T) {
 }
 
 type mockOpenTunnelEC2Client struct {
-	ices           []ec2types.Ec2InstanceConnectEndpoint
-	sshKeySent     string
-	sshForUserSent string
+	ices []ec2types.Ec2InstanceConnectEndpoint
 }
 
 func (m *mockOpenTunnelEC2Client) DescribeInstanceConnectEndpoints(ctx context.Context, params *ec2.DescribeInstanceConnectEndpointsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeInstanceConnectEndpointsOutput, error) {
 	return &ec2.DescribeInstanceConnectEndpointsOutput{
 		InstanceConnectEndpoints: m.ices,
 	}, nil
-}
-
-func (m *mockOpenTunnelEC2Client) SendSSHPublicKey(ctx context.Context, params *ec2instanceconnect.SendSSHPublicKeyInput, optFns ...func(*ec2instanceconnect.Options)) (*ec2instanceconnect.SendSSHPublicKeyOutput, error) {
-	m.sshKeySent = *params.SSHPublicKey
-	m.sshForUserSent = *params.InstanceOSUser
-	return nil, nil
 }
 
 func (m *mockOpenTunnelEC2Client) Retrieve(ctx context.Context) (aws.Credentials, error) {

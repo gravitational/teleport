@@ -17,16 +17,16 @@ package pgbk
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype/zeronull"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -57,9 +57,9 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 				// or skipped, and it's not necessary but it's a nice touch that
 				// we'll be deleting expired items in expiration order
 				tag, err := b.pool.Exec(ctx,
-					"DELETE FROM kv WHERE key IN (SELECT key FROM kv"+
-						" WHERE expires IS NOT NULL AND expires <= now()"+
-						" ORDER BY expires LIMIT $1 FOR UPDATE)",
+					"DELETE FROM kv WHERE kv.key IN (SELECT kv_inner.key FROM kv AS kv_inner"+
+						" WHERE kv_inner.expires IS NOT NULL AND kv_inner.expires <= now()"+
+						" ORDER BY kv_inner.expires LIMIT $1 FOR UPDATE)",
 					b.cfg.ExpiryBatchSize,
 				)
 				if err != nil {
@@ -150,7 +150,7 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	// REPLICATION attribute yet
 	// HACK(espadolini): ALTER ROLE CURRENT_USER REPLICATION just crashes postgres on Azure
 	if _, err := conn.Exec(ctx,
-		fmt.Sprintf("ALTER ROLE \"%v\" REPLICATION", poolConfig.ConnConfig.User),
+		fmt.Sprintf("ALTER ROLE %v REPLICATION", pgx.Identifier{poolConfig.ConnConfig.User}.Sanitize()),
 		pgx.QueryExecModeExec,
 	); err != nil {
 		b.log.WithError(err).Debug("Failed to enable replication for the current user.")
@@ -172,13 +172,13 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	defer b.buf.Reset()
 
 	for ctx.Err() == nil {
-		events, err := b.pollChangeFeed(ctx, conn, slotName)
+		messages, err := b.pollChangeFeed(ctx, conn, slotName, b.cfg.ChangeFeedBatchSize)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// tight loop if we hit the batch size
-		if events >= int64(b.cfg.ChangeFeedBatchSize) {
+		if messages >= int64(b.cfg.ChangeFeedBatchSize) {
 			continue
 		}
 
@@ -192,85 +192,44 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 }
 
 // pollChangeFeed will poll the change feed and emit any fetched events, if any.
-// It returns the count of received/emitted events.
-func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, slotName string) (int64, error) {
+// It returns the count of received messages.
+func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, slotName string, batchSize int) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	t0 := time.Now()
 
-	// TODO(espadolini): it might be better to do the JSON deserialization
-	// (potentially with additional checks for the schema) on the auth side
 	rows, _ := conn.Query(ctx,
-		`WITH jdata AS (
-  SELECT
-    data::jsonb AS data
-  FROM pg_logical_slot_get_changes($1, NULL, $2,
-    'format-version', '2', 'add-tables', 'public.kv', 'include-transaction', 'false')
-)
-SELECT
-  data->>'action',
-  decode(COALESCE(data->'columns'->0->>'value', data->'identity'->0->>'value'), 'hex'),
-  decode(data->'columns'->1->>'value', 'hex'),
-  (data->'columns'->2->>'value')::timestamptz,
-  (data->'columns'->3->>'value')::uuid
-FROM jdata`, slotName, b.cfg.ChangeFeedBatchSize)
+		"SELECT data FROM pg_logical_slot_get_changes($1, NULL, $2, "+
+			"'format-version', '2', 'add-tables', 'public.kv', 'include-transaction', 'false')",
+		slotName, batchSize)
 
-	var action string
-	var key []byte
-	var value []byte
-	var expires zeronull.Timestamptz
-	var revision zeronull.UUID
-	tag, err := pgx.ForEachRow(rows, []any{&action, &key, &value, &expires, &revision}, func() error {
-		switch action {
-		case "I", "U":
-			b.buf.Emit(backend.Event{
-				Type: types.OpPut,
-				Item: backend.Item{
-					Key:     key,
-					Value:   value,
-					Expires: time.Time(expires),
-				},
-			})
-			return nil
-		case "D":
-			b.buf.Emit(backend.Event{
-				Type: types.OpDelete,
-				Item: backend.Item{
-					Key: key,
-				},
-			})
-			return nil
-		case "M":
-			b.log.Debug("Received WAL message.")
-			return nil
-		case "B", "C":
-			b.log.Debug("Received transaction message in change feed (should not happen).")
-			return nil
-		case "T":
-			// it could be possible to just reset the event buffer and
-			// continue from the next row but it's not worth the effort
-			// compared to just killing this connection and reconnecting,
-			// and this should never actually happen anyway - deleting
-			// everything from the backend would leave Teleport in a very
-			// broken state
-			return trace.BadParameter("received truncate WAL message, can't continue")
-		default:
-			return trace.BadParameter("received unknown WAL message %q", action)
+	var data []byte
+	tag, err := pgx.ForEachRow(rows, []any{(*pgtype.DriverBytes)(&data)}, func() error {
+		var w wal2jsonMessage
+		if err := json.Unmarshal(data, &w); err != nil {
+			return trace.Wrap(err, "unmarshaling wal2json message")
 		}
+
+		events, err := w.Events()
+		if err != nil {
+			return trace.Wrap(err, "processing wal2json message")
+		}
+
+		b.buf.Emit(events...)
+		return nil
 	})
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
 
-	events := tag.RowsAffected()
-
-	if events > 0 {
+	messages := tag.RowsAffected()
+	if messages > 0 {
 		b.log.WithFields(logrus.Fields{
-			"events":  events,
-			"elapsed": time.Since(t0).String(),
+			"messages": messages,
+			"elapsed":  time.Since(t0).String(),
 		}).Debug("Fetched change feed events.")
 	}
 
-	return events, nil
+	return messages, nil
 }
