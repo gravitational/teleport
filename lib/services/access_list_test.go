@@ -547,17 +547,6 @@ spec:
       gtrait2:
       - gvalue3
       - gvalue4
-  members:
-  - name: member1
-    joined: 2023-01-01T00:00:00Z
-    expires: 2024-01-01T00:00:00Z
-    reason: "because"
-    added_by: "test-user1"
-  - name: member2
-    joined: 2022-01-01T00:00:00Z
-    expires: 2025-01-01T00:00:00Z
-    reason: "because again"
-    added_by: "test-user2"
 `
 
 var accessListMemberYAML = `---
