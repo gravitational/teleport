@@ -15,15 +15,13 @@ Dynamic resources (also called "Teleport resources" in this RFD) are
 configuration objects that Teleport users can apply using `tctl`, Terraform, and
 other methods.
 
-The scope of this RFD is to automatically generate the "Dynamic resources"
-section of the resource reference (`docs/pages/reference/resources.mdx`), a list
-of the dynamic resources you can apply via `tctl`, from the Teleport source
-code. 
+The scope of this RFD is to automatically generate reference documents for
+resources you can apply via `tctl` from the Teleport source code. 
 
-To do this, write a program that we can run as a new Make target in a clone of
-`gravitational/teleport`. When we make changes to Teleport's dynamic resources,
-we can run the program manually, generate a new iteration of the reference, and
-manually open a pull request with the new content.
+To do this, we can write a program that we can run as a new Make target in a
+clone of `gravitational/teleport`. When we make changes to Teleport's dynamic
+resources, we can run the program manually, generate a new iteration of the
+reference, and manually open a pull request with the new content.
 
 The Make target will depend on `make grpc` so the generator always works from
 the latest `proto` files.
@@ -44,12 +42,10 @@ writing](https://github.com/gravitational/teleport/blob/58f20f0c3fcc9bb281528915
 
 ## Details
 
-The generator reads a [configuration](#configuration) that specifies struct
-types to generate references from. After parsing Go source files, the generator
-uses the resulting AST information to [populate a template](#the-output). 
-
-To do so, it builds [mappings](#working-with-parsed-go-source) that it can use
-to track type declarations in source packages. Using these mappings, it
+After parsing Go source files, the generator uses AST information to [populate a
+template](#the-output). To do so, it builds
+[mappings](#working-with-parsed-go-source) that it can use to track type
+declarations in source packages. Using these mappings, it
 [converts](#converting-structs-to-resources) struct types to template data. To
 document the types of struct fields, the generator writes [additional
 entries](#processing-field-types) to the reference template as appropriate.
@@ -62,25 +58,8 @@ the `github.com/gravitational/teleport/api/types.Metadata` type, since we
 include this field in all types that correspond to Teleport resources.
 
 For resources that we want to _exclude_ from the reference, the generator will
-read from a mapping of package paths to lists of named struct types within each
-package. 
-
-The program will declare the mapping within the Go code as a `map`.
-
-Here is an example:
-
-```go
-var exclude = map[string][]string{
-  "github.com/gravitational/teleport/api/types": {
-    "ProvisionTokenV2",
-    "AuthPreferenceV2",
-    "AccessRequestV3,
-  },
-  "github.com/gravitational/teleport/api/loginrulev1": {
-    "LoginRule",
-  },
-}
-```
+read from a mapping of package paths to lists of named struct types within a
+configuration file. 
 
 #### Alternative: Working from protobuf message definitions
 
@@ -113,157 +92,6 @@ I don't imagine this will be prohibitive, though, as long as we:
   consistency, clarity, and grammatical correctness.
 
 Having this Make target depend on `make grpc` will also automate this flow.
-
-### The output
-
-The output of the program will be a Teleport resource reference generated
-from a template.
-
-#### Template format and data
-
-The generator will produce a template based on a `Resource` struct with the
-following fields:
-
-```go
-type Resource struct {
-  SectionName string
-  Description string
-  SourcePath  string
-  Fields      []Field
-  YAMLExample string
-}
-
-type Field struct{
-  Name        string
-  Description string
-  Type        string
-}
-```
-
-The template will look similar to this, anticipating a `[]Resource`:
-
-```text
-{{ range . }}
-## {{ .SectionName }}
-
-{{ .Description }}
-
-{/*Automatically generated from: {{ .SourcePath}}*/}
-
-|Field Name|Description|Type|
-|---|---|---|
-{{ range .Fields }}
-|.Name|.Description|.Type|
-{{ end }} 
-
-{{ .YAMLExample }}
-{{ end }}
-```
-
-#### Template example
-
-Here is an example of a populated template for an application (`AppSpecV3` in
-`api/types/types.pb.go`): 
-
-```markdown
-## App Spec V3
-
-App Spec V3 is the specification for an application registered with Teleport.
-
-{/*Automatically generated from: api/types/types.pb.go*/}
-
-|Field Name|Description|Type|
-|---|---|---|
-|`uri`|The web app endpoint.|`string`|
-|`public_addr`|The public address the application is accessible at.|`string`|
-|`dynamic_labels`|The app's command labels.|`map[string]`[Command LabelV2](#command-label-v2)|
-|`insecure_skip_verify`|Disables app's TLS certificate verification.|`boolean`|
-|`rewrite`|A list of rewriting rules to apply to requests and responses.|[Rewrite](#rewrite)|
-|`aws`|Contains additional options for AWS applications.|[App AWS](#app-aws)|
-|`cloud`|Identifies the cloud instance the app represents.|`string`|
-
-\`\`\`yaml
-uri: string
-public_addr: string
-dynamic_labels:
- # ...
-insecure_skip_verify: true
-rewrite: 
- # ...
-aws:
- # ...
-cloud:
- # ...
-\`\`\`
-
-## Command Label V2
-
-Command Label V2 is a label that has a value as a result of the output generated
-by running command, e.g. hostname.
-
-{/*Automatically generated from: api/types/types.pb.go*/}
-
-|Field Name|Description|Type|
-|---|---|---|
-|`period`|A time between command runs.|[Duration](#duration)|
-|`command`|A command to run|`[]string`|
-|`result`|Captures standard output|`string`|
-
-\`\`\`yaml
-period: 10s
-command:
-- string
-- string
-- string
-result: string
-\`\`\`
-
-## Duration
-
-Duration is a Go [duration type](https://pkg.go.dev/time#Duration).
-
-{/*Loaded from example file at autogen/examples/duration.mdx*/}
-
-\`\`\`yaml
-10s
-\`\`\`
-
-## Rewrite
-
-Rewrite is a list of rewriting rules to apply to requests and responses.
-
-{/*Automatically generated from: api/types/types.pb.go*/}
-
-|Field Name|Description|Type|
-|---|---|---|
-|`redirect`|Defines a list of hosts which will be rewritten to the public address of the application if they occur in the "Location" header.|`[]string`|
-|`headers`|A list of headers to inject when passing the request over to the application.|`[]`[Header](#header)|
-
-\`\`\`yaml
-redirect: 
-- string
-- string
-- string
-headers:
-# ...
-\`\`\`
-
-## Header
-
-Header represents a single http header passed over to the proxied application.
-
-{/*Automatically generated from: api/types/types.pb.go*/}
-
-|Field Name|Description|Type|
-|---|---|---|
-|`name`|The http header name.|`string`|
-|`value`|The http header value.|`string`|
-
-\`\`\`yaml
-name: string
-value: string
-\`\`\`
-```
 
 ### Working with parsed Go source
 
@@ -378,26 +206,6 @@ exit with an error message.
 
 #### Custom fields
 
-Entries in the reference for custom fields, e.g., `Labels`, don't lend
-themselves to automatic generation because they implement custom unmarshalers,
-and we can't rely on `json` struct tags to indicate the types of these fields.
-
-For simplicity, we can describe custom fields by hardcoding their descriptions
-and example YAML values. The generator expects a custom type to include a
-comment with a description and example YAML. Everything in a custom type's
-comment between the following delimiters is treated as example YAML:
-
-```
-Example YAML:
----
-```
-
-Comments before the `Example YAML` delimiter are treated as the type's
-description.
-
-The generator exits with an error if a custom type has no `Example YAML` comment
-block, giving the operator an opportunity to add this.
-
 If a field of a struct type has a custom type, we will include a link to an
 entry for that type in the struct type's table. The YAML example will include an
 ellipsis, leaving it to the custom field's entry in the reference to provide the
@@ -418,37 +226,16 @@ example:
 \`\`\`
 ```
 
-Here is an example of a comment we could add to the `Labels` [type
-declaration](https://github.com/gravitational/teleport/blob/c91da46765953688d218dcba4a4ce7acf606639f/api/types/role.go#L1137-L1140):
+Entries in the reference for custom fields, e.g., `Labels`, don't lend
+themselves to automatic generation because they implement custom unmarshalers,
+and we can't rely on `json` struct tags to indicate the types of these fields.
+For the following field types, leave the `Type` column of the field table blank,
+and do not attempt to populate an example YAML value:
 
-```go
-// Labels is a wrapper around map
-// that can marshal and unmarshal itself
-// from scalar and list values
-// Example YAML:
-// 'env': 'test'
-// '*': '*'
-// 'region': ['us-west-1', -eu-central-1]
-// 'reg': ^us-west-1|eu-central-1$'
-// ---
-type Labels map[string]utils.Strings
-```
-
-This would lead to the following entry in the reference:
-
-```markdown
-## Labels
-
-Labels is a wrapper around map that can marshal and unmarshal itself from scalar
-and list values.
-
-\`\`\`yaml
-'env': 'test'
-'*': '*'
-'region': ['us-west-1', 'eu-central-1']
-'reg': '^us-west-1|eu-central-1$'
-\`\`\`
-```
+- Scalars with a custom type
+- Custom types declared outside the source tree, or in the standard library
+- Interfaces
+- Types with a custom unmarshaler
 
 #### Predeclared scalar types
 
@@ -555,44 +342,6 @@ field:
 ```
 
 The same rule would apply to, for example, `map[string]map[string]Header`.
-
-#### Named types
-
-For both named scalar types and named composite types, if the named type is not
-a struct, the generator looks for a manual override and returns an error if one
-is not available. This is because, for named composite types (e.g., `Labels`),
-it's likely that the source contains some custom unmarshaling logic that we will
-need to explain.
-
-If the type of a field is a named struct, the generator will produce another
-`Resource` based on that struct and insert it elsewhere in the reference
-template.
-
-For all named field types, the reference entry for the struct that contains the
-named field type will include an ellipsis in the example YAML. For example, the
-`CommandLabelV2` type appears within the `AppSpecV3` struct in the
-`dynamic_labels` field as shown below:
-
-```yaml
-uri: string
-public_addr: string
-dynamic_labels:
- # ...
-insecure_skip_verify: true
-rewrite: 
- # ...
-aws:
- # ...
-cloud:
- # ...
-```
-
-Users can then navigate to the `Command Label V2` section (using the link in the
-table above the example YAML) to see an example YAML document for this type.
-
-If the type of the field is an embedded struct, the generator will act as if the
-fields of the embedded struct are fields within the outer struct. Otherwise, the
-generator will follow the rules above.
 
 ## Test plan
 

@@ -1,0 +1,20 @@
+required_field_types:
+  - package: "types"
+    name: "ResourceHeader"
+  - package: "types"
+    name: "Metadata"
+source: "../../../../api"
+destination: "../../../../docs/pages/reference/tctl-resources"
+excluded_resource_types:
+  - package: "types"
+    name: "ResourceHeader"
+  # PluginV1 is not intended to be user facing, as it configures hosted plugins.
+  - package: "types"
+    name: "PluginV1"
+  - package: "types"
+    name: "Namespace"
+  # This is an entire resource with a custom unmarshaler, so we should take care
+  # to determine how to document it.
+  - package: "types"
+    name: "MFADevice"
+field_assignment_method: "setStaticFields"
