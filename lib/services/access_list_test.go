@@ -82,22 +82,6 @@ func TestAccessListUnmarshal(t *testing.T) {
 					"gtrait2": {"gvalue3", "gvalue4"},
 				},
 			},
-			Members: []accesslist.Member{
-				{
-					Name:    "member1",
-					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because",
-					AddedBy: "test-user1",
-				},
-				{
-					Name:    "member2",
-					Joined:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because again",
-					AddedBy: "test-user2",
-				},
-			},
 		},
 	)
 	require.NoError(t, err)
@@ -150,22 +134,6 @@ func TestAccessListMarshal(t *testing.T) {
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
-				},
-			},
-			Members: []accesslist.Member{
-				{
-					Name:    "member1",
-					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because",
-					AddedBy: "test-user1",
-				},
-				{
-					Name:    "member2",
-					Joined:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because again",
-					AddedBy: "test-user2",
 				},
 			},
 		},
@@ -293,102 +261,6 @@ func TestIsAccessListOwner(t *testing.T) {
 
 			accessList := newAccessList(t)
 			test.errAssertionFunc(t, IsAccessListOwner(test.identity, accessList))
-		})
-	}
-}
-
-// TODO(mdwn): Remove this.
-func TestIsMember(t *testing.T) {
-	tests := []struct {
-		name             string
-		identity         tlsca.Identity
-		memberCtx        context.Context
-		currentTime      time.Time
-		errAssertionFunc require.ErrorAssertionFunc
-	}{
-		{
-			name: "is member",
-			identity: tlsca.Identity{
-				Username: member1,
-				Groups:   []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			currentTime:      time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: require.NoError,
-		},
-		{
-			name: "is not a member",
-			identity: tlsca.Identity{
-				Username: member3,
-				Groups:   []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			currentTime: time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsNotFound(err))
-			},
-		},
-		{
-			name: "is expired member",
-			identity: tlsca.Identity{
-				Username: member1,
-				Groups:   []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			currentTime: time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsNotFound(err))
-			},
-		},
-		{
-			name: "is member with missing roles",
-			identity: tlsca.Identity{
-				Username: member1,
-				Groups:   []string{"mrole1"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			currentTime: time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsAccessDenied(err))
-			},
-		},
-		{
-			name: "is member with missing traits",
-			identity: tlsca.Identity{
-				Username: member1,
-				Groups:   []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1"},
-					"mtrait2": {"mvalue3"},
-				},
-			},
-			currentTime: time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsAccessDenied(err))
-			},
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			accessList := newAccessList(t)
-
-			test.errAssertionFunc(t, IsMember(test.identity, clockwork.NewFakeClockAt(test.currentTime), accessList))
 		})
 	}
 }
@@ -587,22 +459,6 @@ func newAccessList(t *testing.T) *accesslist.AccessList {
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
-				},
-			},
-			Members: []accesslist.Member{
-				{
-					Name:    member1,
-					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because",
-					AddedBy: ownerUser,
-				},
-				{
-					Name:    member2,
-					Joined:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because again",
-					AddedBy: ownerUser,
 				},
 			},
 		},
