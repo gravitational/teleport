@@ -25,14 +25,7 @@ Windows hosts that are accessible over RDP:
 The following diagram provides a simplified view of the architecture for managing
 access to Windows computers through Teleport:
 
-```mermaid
-flowchart TD
-    A(Client) -->|Teleport desktop protocol over webSockets| B(Teleport Proxy Service)
-    B <-->|Remote desktop protocol over mutual TLS| C(Teleport Windows Desktop Service)
-    C -->|RDP| D[Windows Server 2012]
-    C -->|RDP| E[Windows 10]
-    C -->|LDAP|F[Domain controller]
-```
+![Manage access to Windows through Teleport](../../img/desktop-access/windows-desktop-service-overview.png)
 
 It's worth noting that the Teleport Windows Desktop Service implements a minimal set 
 of remote desktop protocol features to minimize security vulnerabilities for Windows
