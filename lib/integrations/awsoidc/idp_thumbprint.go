@@ -20,7 +20,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"crypto/tls"
-	"fmt"
+	"encoding/hex"
 	"net/url"
 
 	"github.com/gravitational/trace"
@@ -82,5 +82,5 @@ func ThumbprintIdP(ctx context.Context, publicAddress string) (string, error) {
 	thumbprint := sha1.Sum(cert.Raw)
 
 	// Convert the thumbprint ([]bytes) into their hex representation.
-	return fmt.Sprintf("%x", thumbprint), nil
+	return hex.EncodeToString(thumbprint[:]), nil
 }

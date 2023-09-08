@@ -100,12 +100,12 @@ func (r *IdPIAMConfigureRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// IdPIAMConfigureClient describes the required methods to create the AWS OpenIDConnect IdP and a Role to .
+// IdPIAMConfigureClient describes the required methods to create the AWS OIDC IdP and a Role that trusts that identity provider.
 type IdPIAMConfigureClient interface {
 	// GetCallerIdentity returns information about the caller identity.
 	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 
-	// CreateOpenIDConnectProvider creates an IAM OpenID Connect Provider.
+	// CreateOpenIDConnectProvider creates an IAM OIDC IdP.
 	CreateOpenIDConnectProvider(ctx context.Context, params *iam.CreateOpenIDConnectProviderInput, optFns ...func(*iam.Options)) (*iam.CreateOpenIDConnectProviderOutput, error)
 
 	// CreateRole creates a new IAM Role.
@@ -139,7 +139,7 @@ func NewIdPIAMConfigureClient(ctx context.Context, region string) (IdPIAMConfigu
 	}, nil
 }
 
-// ConfigureIdPIAM creates a new IAM OpenID Connect Identity Provider in AWS.
+// ConfigureIdPIAM creates a new IAM OIDC IdP in AWS.
 //
 // The Provider URL is Teleport's Public Address.
 // It also creates a new Role configured to trust the recently created IdP.
