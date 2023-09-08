@@ -1,26 +1,54 @@
-{{ partialSuffix="" }}
-
 Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-On the node that is running the Database Service, create a configuration file
-depending how the database is registered:
+Create a configuration file at `/etc/teleport.yaml` (or modify an existing
+one):
 
-<Tabs>
+```code
+$ sudo cat > /etc/teleport.yaml <<EOF
+version: v3
+teleport:
+  nodename: "database-agent"
+  data_dir: "/var/lib/teleport"
+  proxy_server: <Var name="mytenant.teleport.sh:443" />
+  auth_token: "/tmp/token"
+proxy_service:
+  enabled: "no"
+auth_service:
+  enabled: "no"
+ssh_service:
+  enabled: "no"
+db_service:
+  enabled: "yes"
+  # Monitor dynamic resources from Auto-Discovery, tctl, Terraform:
+  resources:
+  - labels:
+      env: prod
+    aws:
+      # Optional AWS role that the Database Service will assume to access
+      # this database.
+      assume_role_arn: ""
+      # Optional AWS external ID that the Database Service will use to assume
+      # a role in an external AWS account.
+      external_id: ""
+  # Or, define an AWS {{ type }} database statically:
+  databases:
+  - name: example-{{ matcher }}
+    protocol: {{ protocol }}
+    uri: <Var name="{{ example }}" />
+    aws:
+      # Optional AWS role that the Database Service will assume to access
+      # this database.
+      assume_role_arn: ""
+      # Optional AWS external ID that the Database Service will use to assume
+      # a role in an external AWS account.
+      external_id: ""
+    static_labels:
+      env: prod
+EOF
+```
 
-<TabItem label="Dynamic Resources">
-(!docs/pages/includes/database-access/aws-create-db-configuration-dynamic-resources.mdx !)
+Update this sample configuration to match your environment.
 
 (!docs/pages/includes/database-access/aws-create-db-configuration-discovery.mdx type="{{type}}" matcher="{{matcher}}" !)
-</TabItem>
-
-<TabItem label="Static config">
-(!docs/pages/includes/database-access/aws-create-db-configuration-static{{partialSuffix}}.mdx matcher="{{matcher}}" protocol="{{protocol}}" example="{{example}}" !)
-</TabItem>
-
-<TabItem label="Modifying existing Database Service">
-(!docs/pages/includes/database-access/aws-create-db-configuration-modify{{partialSuffix}}.mdx matcher="{{matcher}}" protocol="{{protocol}}" example="{{example}}" !)
-</TabItem>
-
-</Tabs>

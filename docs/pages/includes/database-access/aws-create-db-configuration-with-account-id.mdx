@@ -1,10 +1,27 @@
-Modify your Teleport Database Service static configuration file:
+Install Teleport on the host where you will run the Teleport Database Service:
 
-```yaml
+(!docs/pages/includes/install-linux.mdx!)
+
+Create a configuration file at `/etc/teleport.yaml`, or modify an existing one:
+
+```code
+$ sudo cat > /etc/teleport.yaml <<EOF
+version: v3
+teleport:
+  nodename: "database-agent"
+  data_dir: "/var/lib/teleport"
+  proxy_server: <Var name="mytenant.teleport.sh:443" />
+  auth_token: "/tmp/token"
+proxy_service:
+  enabled: "no"
+auth_service:
+  enabled: "no"
+ssh_service:
+  enabled: "no"
 db_service:
   enabled: "yes"
-  # Dynamic resources from Auto-Discovery, tctl, Terraform:
-  resources
+  # Monitor dynamic resources from Auto-Discovery, tctl, Terraform:
+  resources:
   - labels:
       env: prod
     aws:
@@ -14,8 +31,7 @@ db_service:
       # Optional AWS external ID that the Database Service will use to assume
       # a role in an external AWS account.
       external_id: ""
-
-  # Statically defined databases:
+  # Or, define an AWS {{ type }} database statically:
   databases:
   - name: example-{{ matcher }}
     protocol: {{ protocol }}
@@ -31,4 +47,9 @@ db_service:
       external_id: ""
     static_labels:
       env: prod
+EOF
 ```
+
+Update this sample configuration to match your environment.
+
+(!docs/pages/includes/database-access/aws-create-db-configuration-discovery.mdx type="{{type}}" matcher="{{matcher}}" !)
