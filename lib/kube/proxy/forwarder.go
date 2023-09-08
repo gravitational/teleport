@@ -2162,13 +2162,13 @@ type clusterSession struct {
 	// connCtx is the context used to monitor the connection.
 	connCtx context.Context
 	// connMonitorCancel is the conn monitor connMonitorCancel function.
-	connMonitorCancel context.CancelFunc
+	connMonitorCancel context.CancelCauseFunc
 }
 
 // close cancels the connection monitor context if available.
 func (s *clusterSession) close() {
 	if s.connMonitorCancel != nil {
-		s.connMonitorCancel()
+		s.connMonitorCancel(io.EOF)
 	}
 }
 
@@ -2184,7 +2184,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		Cancel:  s.connMonitorCancel,
 	})
 	if err != nil {
-		s.connMonitorCancel()
+		s.connMonitorCancel(err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -2203,8 +2203,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		Emitter:               s.parent.cfg.AuthClient,
 	})
 	if err != nil {
-		tc.Close()
-		s.connMonitorCancel()
+		tc.CloseWithCause(err)
 		return nil, trace.Wrap(err)
 	}
 	return tc, nil
@@ -2264,7 +2263,7 @@ func (f *Forwarder) newClusterSession(ctx context.Context, authCtx authContext) 
 
 func (f *Forwarder) newClusterSessionRemoteCluster(ctx context.Context, authCtx authContext) (*clusterSession, error) {
 	f.log.Debugf("Forwarding kubernetes session for %v to remote cluster.", authCtx)
-	connCtx, cancel := context.WithCancel(ctx)
+	connCtx, cancel := context.WithCancelCause(ctx)
 	return &clusterSession{
 		parent:      f,
 		authContext: authCtx,
@@ -2312,7 +2311,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 		return nil, trace.Wrap(err)
 	}
 
-	connCtx, cancel := context.WithCancel(ctx)
+	connCtx, cancel := context.WithCancelCause(ctx)
 	f.log.Debugf("Handling kubernetes session for %v using local credentials.", authCtx)
 	return &clusterSession{
 		parent:                 f,
@@ -2328,7 +2327,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 }
 
 func (f *Forwarder) newClusterSessionDirect(ctx context.Context, authCtx authContext) (*clusterSession, error) {
-	connCtx, cancel := context.WithCancel(ctx)
+	connCtx, cancel := context.WithCancelCause(ctx)
 	return &clusterSession{
 		parent:      f,
 		authContext: authCtx,

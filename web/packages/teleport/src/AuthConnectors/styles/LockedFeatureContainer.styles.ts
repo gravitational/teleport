@@ -24,7 +24,6 @@ export const LockedFeatureContainer = styled(Flex)`
   flex-wrap: wrap;
   position: relative;
   justify-content: center;
-  margin-top: ${p => p.theme.space[4]}px;
   min-width: 224px;
 `;
 

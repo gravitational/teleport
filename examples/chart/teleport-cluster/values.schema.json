@@ -587,6 +587,11 @@
                             "type": "boolean",
                             "default": "false"
                         },
+                        "addPublicAddrs": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/addPublicAddrs",
+                            "type": "boolean",
+                            "default": "false"
+                        },
                         "enabled": {
                             "$id": "#/properties/highAvailability/properties/certManager/properties/enabled",
                             "type": "boolean",
