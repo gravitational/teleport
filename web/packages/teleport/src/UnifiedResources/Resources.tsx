@@ -27,9 +27,9 @@ import {
 } from 'design';
 import { Magnifier } from 'design/Icon';
 
-import { TextIcon } from 'teleport/Discover/Shared';
-
 import { Danger } from 'design/Alert';
+
+import { TextIcon } from 'teleport/Discover/Shared';
 
 import {
   FeatureBox,
@@ -46,10 +46,11 @@ import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { useUrlFiltering, useInfiniteScroll } from 'teleport/components/hooks';
 
+import { UnifiedResource } from 'teleport/services/agents';
+
 import { ResourceCard, resourceName } from './ResourceCard';
 import SearchPanel from './SearchPanel';
 import { FilterPanel } from './FilterPanel';
-import { UnifiedResource } from 'teleport/services/agents';
 
 const RESOURCES_MAX_WIDTH = '1800px';
 
@@ -147,7 +148,7 @@ export function Resources() {
         replaceHistory={replaceHistory}
       />
       <ResourcesContainer gap={2}>
-        {resources.map((res, i) => (
+        {resources.map(res => (
           <ResourceCard
             key={resourceKey(res)}
             onLabelClick={onLabelClick}
