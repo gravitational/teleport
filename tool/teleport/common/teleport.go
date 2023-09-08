@@ -455,7 +455,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEICECmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Role)
 
 	integrationConfAWSOIDCIdPCmd := integrationConfigureCmd.Command("awsoidc-idp", "Creates an IAM IdP (OIDC) in your AWS account to allow the AWS OIDC Integration to access AWS APIs.")
-	integrationConfAWSOIDCIdPCmd.Flag("cluster", "Teleport Cluster's name.").Required().StringVar(&ccf.
+	integrationConfAWSOIDCIdPCmd.Flag("cluster", "Teleport Cluster name.").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.Cluster)
 	integrationConfAWSOIDCIdPCmd.Flag("name", "Integration name.").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.Name)
