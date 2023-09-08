@@ -223,7 +223,7 @@ message AccessListMemberMetadata {
     (gogoproto.jsontag) = "joined_on,omitempty"
   ];
 
-  // RemovedOn is the date that the access list member was removed.
+  // RemovedOn is the date that the access list member was removed. Will only be populated for deletion.
   google.protobuf.Timestamp RemovedOn = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -3443,9 +3443,14 @@ message OneOf {
     events.OktaSyncFailure OktaSyncFailure = 123;
     events.OktaAssignmentResult OktaAssignmentResult = 124;
     events.ProvisionTokenCreate ProvisionTokenCreate = 125;
-    events.AccessListResource AccessListResource = 126;
-    events.AccessListMemberResource AccessListMemberResource = 127;
-    events.AccessListReview AccessListReview = 128;
+    events.AccessListCreate AccessListCreate = 126;
+    events.AccessListUpdate AccessListUpdate = 127;
+    events.AccessListDelete AccessListDelete = 128;
+    events.AccessListReview AccessListReview = 129;
+    events.AccessListMemberCreate AccessListMemberCreate = 130;
+    events.AccessListMemberUpdate AccessListMemberUpdate = 131;
+    events.AccessListMemberDelete AccessListMemberDelete = 132;
+    events.AccessListMemberDeleteAllForAccessList AccessListMemberDeleteAllForAccessList = 133;
   }
 }
 
@@ -4932,8 +4937,8 @@ message OktaAssignmentResult {
   ];
 }
 
-// AccessListResource is emitted when an access list is created, updated, or deleted.
-message AccessListResource {
+// AccessListCreate is emitted when an access list is created.
+message AccessListCreate {
   // metadata is common event metadata
   Metadata metadata = 1 [
     (gogoproto.nullable) = false,
@@ -4956,8 +4961,149 @@ message AccessListResource {
   ];
 }
 
-// AccessListMemberResource is emitted when an access list member is created, updated, or deleted.
-message AccessListMemberResource {
+// AccessListUpdate is emitted when an access list is updated.
+message AccessListUpdate {
+  // metadata is common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // resource is common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // status indicates whether the resource operation was successful.
+  Status status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListDelete is emitted when an access list is deleted.
+message AccessListDelete {
+  // metadata is common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // resource is common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // status indicates whether the resource operation was successful.
+  Status status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListMemberCreate is emitted when an access list member is created.
+message AccessListMemberCreate {
+  // metadata is common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // resource is common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // access_list_member is common access list member metadata.
+  AccessListMemberMetadata access_list_member = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // status indicates whether the resource operation was successful.
+  Status status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListMemberUpdate is emitted when an access list member is updated.
+message AccessListMemberUpdate {
+  // metadata is common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // resource is common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // access_list_member is common access list member metadata.
+  AccessListMemberMetadata access_list_member = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // status indicates whether the resource operation was successful.
+  Status status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListMemberDelete is emitted when an access list member is deleted.
+message AccessListMemberDelete {
+  // metadata is common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // resource is common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // access_list_member is common access list member metadata.
+  AccessListMemberMetadata access_list_member = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // status indicates whether the resource operation was successful.
+  Status status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListMemberDeleteAllForAccessList is emitted when all members are deleted for an access list.
+message AccessListMemberDeleteAllForAccessList {
   // metadata is common event metadata
   Metadata metadata = 1 [
     (gogoproto.nullable) = false,
