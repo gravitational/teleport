@@ -36,13 +36,11 @@ import (
 )
 
 const (
-	NotifyServiceName           = "Teleport Notifications"
-	NotifyServiceAnnotation     = types.TeleportNamespace + types.ReqAnnotationNotifyServicesLabel
-	CloseCodeDeniedAnnotation   = types.TeleportNamespace + types.ReqAnnotationDeniedCloseCode
-	CloseCodeApprovedAnnotation = types.TeleportNamespace + types.ReqAnnotationApprovedCloseCode
-	ResponderName1              = "ResponderID1"
-	ResponderName2              = "RespondeID2"
-	ResponderName3              = "RespondeID3"
+	NotifyServiceName       = "Teleport Notifications"
+	NotifyServiceAnnotation = types.TeleportNamespace + types.ReqAnnotationNotifyServicesLabel
+	ResponderName1          = "ResponderID1"
+	ResponderName2          = "RespondeID2"
+	ResponderName3          = "RespondeID3"
 )
 
 type ServiceNowSuite struct {
@@ -120,9 +118,7 @@ func (s *ServiceNowSuite) SetupSuite() {
 		Request: &types.AccessRequestConditions{
 			Roles: []string{"editor"},
 			Annotations: wrappers.Traits{
-				NotifyServiceAnnotation:     []string{NotifyServiceName},
-				CloseCodeApprovedAnnotation: []string{"approved"},
-				CloseCodeDeniedAnnotation:   []string{"denied"},
+				NotifyServiceAnnotation: []string{NotifyServiceName},
 			},
 		},
 	}
@@ -162,9 +158,7 @@ func (s *ServiceNowSuite) SetupSuite() {
 				Request: &types.AccessRequestConditions{
 					Roles: []string{"editor"},
 					Annotations: wrappers.Traits{
-						NotifyServiceAnnotation:     []string{ResponderName1, ResponderName2},
-						CloseCodeApprovedAnnotation: []string{"approved"},
-						CloseCodeDeniedAnnotation:   []string{"denied"},
+						NotifyServiceAnnotation: []string{ResponderName1, ResponderName2},
 					},
 				},
 			},
@@ -182,9 +176,7 @@ func (s *ServiceNowSuite) SetupSuite() {
 				Request: &types.AccessRequestConditions{
 					Roles: []string{"editor"},
 					Annotations: wrappers.Traits{
-						NotifyServiceAnnotation:     []string{NotifyServiceName},
-						CloseCodeApprovedAnnotation: []string{"approved"},
-						CloseCodeDeniedAnnotation:   []string{"denied"},
+						NotifyServiceAnnotation: []string{NotifyServiceName},
 					},
 					Thresholds: []types.AccessReviewThreshold{types.AccessReviewThreshold{Approve: 2, Deny: 2}},
 				},
@@ -279,6 +271,7 @@ func (s *ServiceNowSuite) SetupTest() {
 	var conf Config
 	conf.Teleport = s.teleportConfig
 	conf.ClientConfig.APIEndpoint = s.fakeServiceNow.URL()
+	conf.ClientConfig.CloseCode = "resolved"
 
 	s.appConfig = conf
 	s.currentRequestor = s.userNames.requestor
@@ -380,9 +373,9 @@ func (s *ServiceNowSuite) TestApproval() {
 	incident, err = s.fakeServiceNow.CheckIncidentUpdate(s.Context())
 	require.NoError(t, err)
 	require.Contains(t, incident.Description, "requested permissions")
-	assert.Contains(t, incident.CloseNotes, "Access request has been approved")
+	assert.Contains(t, incident.CloseNotes, "Access request has been resolved")
 	assert.Contains(t, incident.CloseNotes, "Reason: okay")
-	assert.Equal(t, incident.CloseCode, "approved")
+	assert.Equal(t, incident.CloseCode, "resolved")
 }
 
 func (s *ServiceNowSuite) TestDenial() {
@@ -401,10 +394,10 @@ func (s *ServiceNowSuite) TestDenial() {
 
 	incident, err = s.fakeServiceNow.CheckIncidentUpdate(s.Context())
 	require.NoError(t, err)
-	assert.Contains(t, incident.CloseNotes, "Access request has been denied")
+	assert.Contains(t, incident.CloseNotes, "Access request has been resolved")
 	assert.Contains(t, incident.CloseNotes, "Reason: not okay")
 	require.NoError(t, err)
-	assert.Equal(t, "denied", incident.CloseCode)
+	assert.Equal(t, "resolved", incident.CloseCode)
 }
 
 func (s *ServiceNowSuite) TestReviewNotes() {
@@ -493,13 +486,13 @@ func (s *ServiceNowSuite) TestApprovalByReview() {
 	data := s.checkPluginData(req.GetName(), func(data PluginData) bool {
 		return data.ReviewsCount == 2 && data.Resolution.State != ""
 	})
-	assert.Equal(t, Resolution{State: ResolutionStateResolved, CloseCode: "approved", Reason: "finally okay"}, data.Resolution)
+	assert.Equal(t, Resolution{State: ResolutionStateResolved, Reason: "finally okay"}, data.Resolution)
 
 	incident, err = s.fakeServiceNow.CheckIncidentUpdate(s.Context())
 	require.NoError(t, err)
-	assert.Contains(t, incident.CloseNotes, "Access request has been approved")
+	assert.Contains(t, incident.CloseNotes, "Access request has been resolved")
 	assert.Contains(t, incident.WorkNotes, "Reason: finally okay")
-	assert.Equal(t, "approved", incident.CloseCode)
+	assert.Equal(t, "resolved", incident.CloseCode)
 }
 
 func (s *ServiceNowSuite) TestDenialByReview() {
@@ -544,11 +537,11 @@ func (s *ServiceNowSuite) TestDenialByReview() {
 	data := s.checkPluginData(req.GetName(), func(data PluginData) bool {
 		return data.ReviewsCount == 2 && data.Resolution.State != ""
 	})
-	assert.Equal(t, Resolution{State: ResolutionStateClosed, CloseCode: "denied", Reason: "finally not okay"}, data.Resolution)
+	assert.Equal(t, Resolution{State: ResolutionStateClosed, Reason: "finally not okay"}, data.Resolution)
 
 	incident, err = s.fakeServiceNow.CheckIncidentUpdate(s.Context())
 	require.NoError(t, err)
-	assert.Contains(t, incident.CloseNotes, "Access request has been denied")
+	assert.Contains(t, incident.CloseNotes, "Access request has been resolved")
 	assert.Contains(t, incident.CloseNotes, "Reason: finally not okay")
-	assert.Equal(t, "denied", incident.CloseCode)
+	assert.Equal(t, "resolved", incident.CloseCode)
 }

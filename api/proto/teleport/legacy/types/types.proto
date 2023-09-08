@@ -5373,6 +5373,8 @@ message PluginServiceNowSettings {
   string username = 2 [(gogoproto.jsontag) = "username,omitempty"];
   // Password is the ServiceNow API password.
   string password = 3 [(gogoproto.jsontag) = "password,omitempty"];
+  // CloseCode is the close code that ServiceNow incidents will use.
+  string close_code = 4 [(gogoproto.jsontag) = "close_code,omitempty"];
 }
 
 message PluginPagerDutySettings {

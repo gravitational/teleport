@@ -289,28 +289,16 @@ func (a *App) onResolvedRequest(ctx context.Context, req types.AccessRequest) er
 
 	resolution := Resolution{Reason: req.GetResolveReason()}
 
-	var closeCode string
 	var state string
 
 	switch req.GetState() {
 	case types.RequestState_APPROVED:
-		values, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationApprovedCloseCode]
-		if !ok || len(values) < 1 {
-			return trace.BadParameter("close code annotation missing form ServiceNow configuration")
-		}
-		closeCode = values[0]
 		state = ResolutionStateResolved
 	case types.RequestState_DENIED:
-		values, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationDeniedCloseCode]
-		if !ok || len(values) < 1 {
-			return trace.BadParameter("close code annotation missing form ServiceNow configuration")
-		}
-		closeCode = values[0]
 		state = ResolutionStateClosed
 	default:
 		return trace.BadParameter("onResolvedRequest called with non resolved request")
 	}
-	resolution.CloseCode = closeCode
 	resolution.State = state
 
 	err := trace.Wrap(a.resolveIncident(ctx, req.GetName(), resolution))
@@ -519,8 +507,8 @@ func (a *App) resolveIncident(ctx context.Context, reqID string, resolution Reso
 			return PluginData{}, false
 		}
 
-		// If close notes field is not empty then we already resolved the incident before. In this case we just quit.
-		if existing.RequestData.Resolution.CloseCode != "" {
+		// If state field is not empty then we already resolved the incident before. In this case we just quit.
+		if existing.RequestData.Resolution.State != "" {
 			return PluginData{}, false
 		}
 

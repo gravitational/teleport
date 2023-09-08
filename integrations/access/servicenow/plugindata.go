@@ -45,7 +45,6 @@ func DecodePluginData(dataMap map[string]string) (data PluginData, err error) {
 		}
 		data.ReviewsCount = reviewsCount
 	}
-	data.Resolution.CloseCode = dataMap["close_code"]
 	data.Resolution.State = dataMap["state"]
 	data.Resolution.Reason = dataMap["resolve_reason"]
 	data.IncidentID = dataMap["incident_id"]
@@ -73,7 +72,6 @@ func EncodePluginData(data PluginData) map[string]string {
 	}
 	result["reviews_count"] = reviewsCountStr
 
-	result["close_code"] = data.Resolution.CloseCode
 	result["state"] = data.Resolution.State
 	result["resolve_reason"] = data.Resolution.Reason
 	return result

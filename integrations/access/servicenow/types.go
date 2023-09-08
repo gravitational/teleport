@@ -66,8 +66,6 @@ const (
 type Resolution struct {
 	// State is the state of the servicenow incident
 	State string
-	// CloseCode is the close code of the servicenow incident.
-	CloseCode string
 	// Reason is the reason the incident is being closed.
 	Reason string
 }

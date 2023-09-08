@@ -77,30 +77,18 @@ func (b *Bot) PostReviewReply(ctx context.Context, _ string, incidentID string, 
 func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRequestData, incidentData common.SentMessages, reviews []types.AccessReview) error {
 	var errs []error
 
-	var closeCode string
 	var state string
 
 	switch data.ResolutionTag {
 	case pd.ResolvedApproved:
-		values, ok := data.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationApprovedCloseCode]
-		if !ok || len(values) < 1 {
-			return trace.BadParameter("close code annotation missing from ServiceNow configuration")
-		}
-		closeCode = values[0]
 		state = ResolutionStateResolved
 	case pd.ResolvedDenied:
-		values, ok := data.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationDeniedCloseCode]
-		if !ok || len(values) < 1 {
-			return trace.BadParameter("close code annotation missing from ServiceNow configuration")
-		}
-		closeCode = values[0]
 		state = ResolutionStateClosed
 	}
 
 	resolution := Resolution{
-		CloseCode: closeCode,
-		State:     state,
-		Reason:    data.ResolutionReason,
+		State:  state,
+		Reason: data.ResolutionReason,
 	}
 	for _, incident := range incidentData {
 		if err := b.client.ResolveIncident(ctx, incident.MessageID, resolution); err != nil {
