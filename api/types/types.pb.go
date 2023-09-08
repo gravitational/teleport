@@ -38,6 +38,9 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 // This enum is set in a Sync.Map during an IAM task that checks for the
 // validity of IAM policy, and the database gets updated with the value
 // from this map during a heartbeat.
+// Example YAML:
+// ---
+// 0
 type IAMPolicyStatus int32
 
 const (
@@ -88,6 +91,9 @@ func (IAMPolicyStatus) EnumDescriptor() ([]byte, []int) {
 
 // DatabaseTLSMode represents the level of TLS verification performed by
 // DB agent when connecting to a database.
+// Example YAML:
+// ---
+// 0
 type DatabaseTLSMode int32
 
 const (
@@ -120,6 +126,9 @@ func (DatabaseTLSMode) EnumDescriptor() ([]byte, []int) {
 }
 
 // PrivateKeyType is the storage type of a private key.
+// Example YAML:
+// ---
+// 0
 type PrivateKeyType int32
 
 const (
@@ -156,6 +165,9 @@ func (PrivateKeyType) EnumDescriptor() ([]byte, []int) {
 }
 
 // ProxyListenerMode represents the cluster proxy listener mode.
+// Example YAML:
+// ---
+// 0
 type ProxyListenerMode int32
 
 const (
@@ -186,6 +198,9 @@ func (ProxyListenerMode) EnumDescriptor() ([]byte, []int) {
 }
 
 // RoutingStrategy determines the strategy used to route to nodes.
+// Example YAML:
+// ---
+// 0
 type RoutingStrategy int32
 
 const (
@@ -214,6 +229,9 @@ func (RoutingStrategy) EnumDescriptor() ([]byte, []int) {
 }
 
 // UserTokenUsage contains additional information about the intended usage of a user token.
+// Example YAML:
+// ---
+// 0
 type UserTokenUsage int32
 
 const (
@@ -251,6 +269,9 @@ func (UserTokenUsage) EnumDescriptor() ([]byte, []int) {
 }
 
 // RequestState represents the state of a request for escalated privilege.
+// Example YAML:
+// ---
+// 0
 type RequestState int32
 
 const (
@@ -297,6 +318,9 @@ func (RequestState) EnumDescriptor() ([]byte, []int) {
 // CreateHostUserMode determines whether host user creation should be
 // disabled or if host users should be cleaned up or kept after
 // sessions end.
+// Example YAML:
+// ---
+// 0
 type CreateHostUserMode int32
 
 const (
@@ -339,6 +363,9 @@ func (CreateHostUserMode) EnumDescriptor() ([]byte, []int) {
 
 // CreateDatabaseUserMode determines whether database user creation should be
 // disabled or if users should be cleaned up or kept after sessions end.
+// Example YAML:
+// ---
+// 0
 type CreateDatabaseUserMode int32
 
 const (
@@ -375,6 +402,9 @@ func (CreateDatabaseUserMode) EnumDescriptor() ([]byte, []int) {
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert.
+// Example YAML:
+// ---
+// 0
 type CertExtensionMode int32
 
 const (
@@ -401,6 +431,9 @@ func (CertExtensionMode) EnumDescriptor() ([]byte, []int) {
 
 // CertExtensionType represents the certificate type the extension is for.
 // Currently only ssh is supported.
+// Example YAML:
+// ---
+// ssh
 type CertExtensionType int32
 
 const (
@@ -490,6 +523,9 @@ func (AlertSeverity) EnumDescriptor() ([]byte, []int) {
 
 // RequireMFAType is a type of MFA requirement enforced outside of login,
 // such as per-session MFA or per-request PIV touch.
+// Example YAML:
+// ---
+// 0
 type RequireMFAType int32
 
 const (
@@ -665,6 +701,9 @@ func (KeepAlive_KeepAliveType) EnumDescriptor() ([]byte, []int) {
 
 // SigningAlg is the algorithm used for signing new SSH certificates using
 // SigningKeys.
+// Example YAML:
+// ---
+// 0
 type CertAuthoritySpecV2_SigningAlgType int32
 
 const (
@@ -697,6 +736,9 @@ func (CertAuthoritySpecV2_SigningAlgType) EnumDescriptor() ([]byte, []int) {
 }
 
 // FIPSEndpointState represents an AWS FIPS endpoint state.
+// Example YAML:
+// ---
+// 0
 type ClusterAuditConfigSpecV2_FIPSEndpointState int32
 
 const (
@@ -908,6 +950,9 @@ type KeepAlive struct {
 	// LeaseID is ID of the lease.
 	LeaseID int64 `protobuf:"varint,3,opt,name=LeaseID,proto3" json:"lease_id"`
 	// Expires is set to update expiry time of the resource.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires time.Time `protobuf:"bytes,4,opt,name=Expires,proto3,stdtime" json:"expires"`
 	// Type is the type (or kind) of the resource that's being kept alive.
 	Type KeepAlive_KeepAliveType `protobuf:"varint,9,opt,name=Type,proto3,enum=types.KeepAlive_KeepAliveType" json:"type"`
@@ -964,6 +1009,9 @@ type Metadata struct {
 	Labels map[string]string `protobuf:"bytes,5,rep,name=Labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Expires is a global expiry time header can be set on any resource in the
 	// system.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires *time.Time `protobuf:"bytes,6,opt,name=Expires,proto3,stdtime" json:"expires,omitempty"`
 	// ID is a record ID.
 	// Deprecated: Use revision instead.
@@ -1023,11 +1071,17 @@ type Rotation struct {
 	CurrentID string `protobuf:"bytes,4,opt,name=CurrentID,proto3" json:"current_id"`
 	// Started is set to the time when rotation has been started
 	// in case if the state of the rotation is "in_progress".
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Started time.Time `protobuf:"bytes,5,opt,name=Started,proto3,stdtime" json:"started,omitempty"`
 	// GracePeriod is a period during which old and new CA
 	// are valid for checking purposes, but only new CA is issuing certificates.
 	GracePeriod Duration `protobuf:"varint,6,opt,name=GracePeriod,proto3,casttype=Duration" json:"grace_period,omitempty"`
 	// LastRotated specifies the last time of the completed rotation.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	LastRotated time.Time `protobuf:"bytes,7,opt,name=LastRotated,proto3,stdtime" json:"last_rotated,omitempty"`
 	// Schedule is a rotation schedule - used in
 	// automatic mode to switch between phases.
@@ -1073,10 +1127,19 @@ var xxx_messageInfo_Rotation proto.InternalMessageInfo
 // for different phases.
 type RotationSchedule struct {
 	// UpdateClients specifies time to switch to the "Update clients" phase
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	UpdateClients time.Time `protobuf:"bytes,1,opt,name=UpdateClients,proto3,stdtime" json:"update_clients,omitempty"`
 	// UpdateServers specifies time to switch to the "Update servers" phase.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	UpdateServers time.Time `protobuf:"bytes,2,opt,name=UpdateServers,proto3,stdtime" json:"update_servers,omitempty"`
 	// Standby specifies time to switch to the "Standby" phase.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Standby              time.Time `protobuf:"bytes,3,opt,name=Standby,proto3,stdtime" json:"standby,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -2389,6 +2452,9 @@ type InstanceSpecV1 struct {
 	// AuthID is the ID of the auth server that most recently observed this instance.
 	AuthID string `protobuf:"bytes,4,opt,name=AuthID,proto3" json:"auth_id,omitempty"`
 	// LastSeen is the last time an auth server reported observing this instance.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	LastSeen time.Time `protobuf:"bytes,5,opt,name=LastSeen,proto3,stdtime" json:"last_seen,omitempty"`
 	// ControlLog is the log of recent important instance control events related to this instance. See comments
 	// on the InstanceControlLogEntry type for details.
@@ -2455,6 +2521,9 @@ type InstanceControlLogEntry struct {
 	ID uint64 `protobuf:"varint,2,opt,name=ID,proto3" json:"id,omitempty"`
 	// Time is the time at which the event represented by this entry occurred (used in determining
 	// ordering and expiry).
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Time time.Time `protobuf:"bytes,3,opt,name=Time,proto3,stdtime" json:"time,omitempty"`
 	// TTL is an optional custom time to live for this control log entry. Some control log entries
 	// (e.g. an upgrade failure) may require longer than normal TTLs in order to ensure visibility.
@@ -3644,6 +3713,9 @@ type ProvisionTokenV1 struct {
 	Roles []SystemRole `protobuf:"bytes,1,rep,name=Roles,proto3,casttype=SystemRole" json:"roles"`
 	// Expires is a global expiry time header can be set on any resource in the
 	// system.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires time.Time `protobuf:"bytes,2,opt,name=Expires,proto3,stdtime" json:"expires,omitempty"`
 	// Token is a token name
 	Token                string   `protobuf:"bytes,3,opt,name=Token,proto3" json:"token"`
@@ -5125,6 +5197,9 @@ func (m *ClusterNetworkingConfigSpecV2) XXX_DiscardUnknown() {
 var xxx_messageInfo_ClusterNetworkingConfigSpecV2 proto.InternalMessageInfo
 
 // TunnelStrategyV1 defines possible tunnel strategy types.
+// Example YAML:
+// ---
+// agent_connection_count: 2
 type TunnelStrategyV1 struct {
 	// Types that are valid to be assigned to Strategy:
 	//
@@ -5960,6 +6035,9 @@ type UserTokenSpecV3 struct {
 	// Usage is an optional field that provides more information about how this token will be used.
 	Usage UserTokenUsage `protobuf:"varint,3,opt,name=Usage,proto3,enum=types.UserTokenUsage" json:"usage,omitempty"`
 	// Created holds information about when the token was created
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Created              time.Time `protobuf:"bytes,4,opt,name=Created,proto3,stdtime" json:"created,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -6053,6 +6131,9 @@ type UserTokenSecretsSpecV3 struct {
 	// OTPKey is is a secret value of one time password secret generator
 	QRCode string `protobuf:"bytes,2,opt,name=QRCode,proto3" json:"qr_code,omitempty"`
 	// Created holds information about when the token was created
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Created              time.Time `protobuf:"bytes,3,opt,name=Created,proto3,stdtime" json:"created,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -6250,6 +6331,9 @@ type AccessReview struct {
 	// is being proposed.
 	Reason string `protobuf:"bytes,4,opt,name=Reason,proto3" json:"reason,omitempty"`
 	// Created is the time at which the review was created.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Created time.Time `protobuf:"bytes,5,opt,name=Created,proto3,stdtime" json:"created,omitempty"`
 	// Annotations is the proposed value of the request's resolve_annotations field.
 	Annotations github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,6,opt,name=Annotations,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"annotations,omitempty"`
@@ -6260,6 +6344,9 @@ type AccessReview struct {
 	// This field is only populated when the request is in the PROMOTED state.
 	AccessList *PromotedAccessList `protobuf:"bytes,9,opt,name=accessList,proto3" json:"access_list,omitempty"`
 	// AssumeStartTime is the time the requested roles can be assumed.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	AssumeStartTime      *time.Time `protobuf:"bytes,10,opt,name=AssumeStartTime,proto3,stdtime" json:"assume_start_time,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
@@ -6440,9 +6527,15 @@ type AccessRequestSpecV3 struct {
 	State RequestState `protobuf:"varint,3,opt,name=State,proto3,enum=types.RequestState" json:"state,omitempty"`
 	// Created encodes the time at which the request was registered with the auth
 	// server.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Created time.Time `protobuf:"bytes,4,opt,name=Created,proto3,stdtime" json:"created,omitempty"`
 	// Expires constrains the maximum lifetime of any login session for which this
 	// request is active.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires time.Time `protobuf:"bytes,5,opt,name=Expires,proto3,stdtime" json:"expires,omitempty"`
 	// RequestReason is an optional message explaining the reason for the request.
 	RequestReason string `protobuf:"bytes,6,opt,name=RequestReason,proto3" json:"request_reason,omitempty"`
@@ -6486,14 +6579,23 @@ type AccessRequestSpecV3 struct {
 	// auth server should only validate the access request.
 	DryRun bool `protobuf:"varint,16,opt,name=DryRun,proto3" json:"dry_run,omitempty"`
 	// MaxDuration indicates how long the access should be granted for.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	MaxDuration time.Time `protobuf:"bytes,17,opt,name=MaxDuration,proto3,stdtime" json:"max_duration,omitempty"`
 	// SessionTLL indicated how long a certificate for a session should be valid for.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	SessionTTL time.Time `protobuf:"bytes,18,opt,name=SessionTTL,proto3,stdtime" json:"session_ttl,omitempty"`
 	// PromotedAccessListTitle is the title of the access list that this request
 	// was promoted to. Used by WebUI to display the title of the access list.
 	// This field is only populated when the request is in the PROMOTED state.
 	AccessList *PromotedAccessList `protobuf:"bytes,20,opt,name=accessList,proto3" json:"access_list,omitempty"`
 	// AssumeStartTime is the time the requested roles can be assumed.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	AssumeStartTime      *time.Time `protobuf:"bytes,21,opt,name=AssumeStartTime,proto3,stdtime" json:"assume_start_time,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
@@ -8196,6 +8298,9 @@ type UserSpecV2 struct {
 	// Status is a login status of the user
 	Status LoginStatus `protobuf:"bytes,6,opt,name=Status,proto3" json:"status,omitempty"`
 	// Expires if set sets TTL on the user
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires time.Time `protobuf:"bytes,7,opt,name=Expires,proto3,stdtime" json:"expires"`
 	// CreatedBy holds information about agent or person created this user
 	CreatedBy CreatedBy `protobuf:"bytes,8,opt,name=CreatedBy,proto3" json:"created_by,omitempty"`
@@ -8295,8 +8400,14 @@ type LoginStatus struct {
 	// LockedMessage contains the message in case if user is locked
 	LockedMessage string `protobuf:"bytes,2,opt,name=LockedMessage,proto3" json:"locked_message,omitempty"`
 	// LockedTime contains time when user was locked
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	LockedTime time.Time `protobuf:"bytes,3,opt,name=LockedTime,proto3,stdtime" json:"locked_time,omitempty"`
 	// LockExpires contains time when this lock will expire
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	LockExpires          time.Time `protobuf:"bytes,4,opt,name=LockExpires,proto3,stdtime" json:"lock_expires,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -8341,6 +8452,9 @@ type CreatedBy struct {
 	// Identity if present means that user was automatically created by identity
 	Connector *ConnectorRef `protobuf:"bytes,1,opt,name=Connector,proto3" json:"connector,omitempty"`
 	// Time specifies when user was created
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Time time.Time `protobuf:"bytes,2,opt,name=Time,proto3,stdtime" json:"time"`
 	// User holds information about user
 	User                 UserRef  `protobuf:"bytes,3,opt,name=User,proto3" json:"user"`
@@ -8432,6 +8546,15 @@ var xxx_messageInfo_LocalAuthSecrets proto.InternalMessageInfo
 
 // MFADevice is a multi-factor authentication device, such as a security key or
 // an OTP app.
+// Example YAML:
+// ---
+// kind: mfa_device
+// version: v1
+// metadata:
+//
+//	name: "string"
+//
+// id: 00000000-0000-0000-0000-000000000000
 type MFADevice struct {
 	// Boilerplate for implementing the Resource interface.
 	Kind     string   `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
@@ -8988,6 +9111,9 @@ type TunnelConnectionSpecV2 struct {
 	// ProxyName is the name of the proxy server
 	ProxyName string `protobuf:"bytes,2,opt,name=ProxyName,proto3" json:"proxy_name"`
 	// LastHeartbeat is a time of the last heartbeat
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	LastHeartbeat time.Time `protobuf:"bytes,3,opt,name=LastHeartbeat,proto3,stdtime" json:"last_heartbeat,omitempty"`
 	// Type is the type of reverse tunnel, either proxy or node.
 	Type                 TunnelType `protobuf:"bytes,4,opt,name=Type,proto3,casttype=TunnelType" json:"type"`
@@ -9087,6 +9213,9 @@ type AcquireSemaphoreRequest struct {
 	// would cause more than MaxLeases to exist, acquisition must fail.
 	MaxLeases int64 `protobuf:"varint,3,opt,name=MaxLeases,proto3" json:"max_resources"`
 	// Expires is the time at which this lease expires.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires time.Time `protobuf:"bytes,4,opt,name=Expires,proto3,stdtime" json:"expires"`
 	// Holder identifies the entity holding the lease.
 	Holder               string   `protobuf:"bytes,5,opt,name=Holder,proto3" json:"holder"`
@@ -9137,6 +9266,9 @@ type SemaphoreLease struct {
 	// LeaseID uniquely identifies this lease.
 	LeaseID string `protobuf:"bytes,3,opt,name=LeaseID,proto3" json:"lease_id"`
 	// Expires is the time at which this lease expires.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires              time.Time `protobuf:"bytes,5,opt,name=Expires,proto3,stdtime" json:"expires"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -9181,6 +9313,9 @@ type SemaphoreLeaseRef struct {
 	// LeaseID is the unique ID of the lease.
 	LeaseID string `protobuf:"bytes,1,opt,name=LeaseID,proto3" json:"lease_id"`
 	// Expires is the time at which the lease expires.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires time.Time `protobuf:"bytes,2,opt,name=Expires,proto3,stdtime" json:"expires"`
 	// Holder identifies the lease holder.
 	Holder               string   `protobuf:"bytes,3,opt,name=Holder,proto3" json:"holder"`
@@ -9379,10 +9514,19 @@ type WebSessionSpecV2 struct {
 	// mitigation.
 	BearerToken string `protobuf:"bytes,5,opt,name=BearerToken,proto3" json:"bearer_token"`
 	// BearerTokenExpires is the absolute time when the token expires.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	BearerTokenExpires time.Time `protobuf:"bytes,6,opt,name=BearerTokenExpires,proto3,stdtime" json:"bearer_token_expires"`
 	// Expires is the absolute time when the session expires.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires time.Time `protobuf:"bytes,7,opt,name=Expires,proto3,stdtime" json:"expires"`
 	// LoginTime is the time this user recently logged in.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	LoginTime time.Time `protobuf:"bytes,8,opt,name=LoginTime,proto3,stdtime" json:"login_time"`
 	// IdleTimeout is the max time a user can be inactive in a session.
 	IdleTimeout Duration `protobuf:"varint,9,opt,name=IdleTimeout,proto3,casttype=Duration" json:"idle_timeout"`
@@ -9527,8 +9671,14 @@ type SAMLSessionData struct {
 	// ID is the identifier for the SAML session.
 	ID string `protobuf:"bytes,1,opt,name=ID,proto3" json:"id"`
 	// CreateTime is the time that the session was created.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	CreateTime time.Time `protobuf:"bytes,2,opt,name=CreateTime,proto3,stdtime" json:"create_time"`
 	// ExpireTime is the time that the session will expire.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	ExpireTime time.Time `protobuf:"bytes,3,opt,name=ExpireTime,proto3,stdtime" json:"expire_time"`
 	// Index is the session index that allows the IdP to uniquely identify a session.
 	Index string `protobuf:"bytes,4,opt,name=Index,proto3" json:"index"`
@@ -9793,6 +9943,9 @@ type RemoteClusterStatusV3 struct {
 	// Connection represents connection status, online or offline
 	Connection string `protobuf:"bytes,1,opt,name=Connection,proto3" json:"connection"`
 	// LastHeartbeat records last heartbeat of the cluster
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	LastHeartbeat        time.Time `protobuf:"bytes,2,opt,name=LastHeartbeat,proto3,stdtime" json:"last_heartbeat"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -10880,6 +11033,10 @@ type OIDCConnectorSpecV3 struct {
 	// This list should match the URLs on the provider's side. The URL used for a
 	// given auth request will be chosen to match the requesting Proxy's public
 	// address. If there is no match, the first url in the list will be used.
+	// Example YAML:
+	// - string
+	// - string
+	// - string
 	RedirectURLs github_com_gravitational_teleport_api_types_wrappers.Strings `protobuf:"bytes,14,opt,name=RedirectURLs,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Strings" json:"redirect_url"`
 	// AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.
 	AllowUnverifiedEmail bool `protobuf:"varint,15,opt,name=AllowUnverifiedEmail,proto3" json:"allow_unverified_email,omitempty"`
@@ -11568,6 +11725,9 @@ type GithubAuthRequest struct {
 	// Compatibility specifies OpenSSH compatibility flags.
 	Compatibility string `protobuf:"bytes,10,opt,name=Compatibility,proto3" json:"compatibility,omitempty"`
 	// Expires is a global expiry time header can be set on any resource in the system.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires *time.Time `protobuf:"bytes,11,opt,name=Expires,proto3,stdtime" json:"expires,omitempty"`
 	// RouteToCluster is the name of Teleport cluster to issue credentials for.
 	RouteToCluster string `protobuf:"bytes,12,opt,name=RouteToCluster,proto3" json:"route_to_cluster,omitempty"`
@@ -12201,8 +12361,14 @@ type LockSpecV2 struct {
 	// Message is the message displayed to locked-out users.
 	Message string `protobuf:"bytes,2,opt,name=Message,proto3" json:"message,omitempty"`
 	// Expires if set specifies when the lock ceases to be in force.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires *time.Time `protobuf:"bytes,3,opt,name=Expires,proto3,stdtime" json:"expires,omitempty"`
 	// CreatedAt is the date time that the lock was created.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	CreatedAt time.Time `protobuf:"bytes,4,opt,name=CreatedAt,proto3,stdtime" json:"created_at,omitempty"`
 	// CreatedBy is the username of the author of the lock.
 	CreatedBy            string   `protobuf:"bytes,5,opt,name=CreatedBy,proto3" json:"created_by,omitempty"`
@@ -12753,6 +12919,9 @@ type RegisterUsingTokenRequest struct {
 	// Expires is a desired time of the expiry of user certificates returned by
 	// registration. This only applies to bot joining, and will be ignored by
 	// node joining.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires              *time.Time `protobuf:"bytes,12,opt,name=Expires,proto3,stdtime" json:"expires,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
@@ -12852,6 +13021,9 @@ type RecoveryCodesSpecV1 struct {
 	Codes []RecoveryCode `protobuf:"bytes,1,rep,name=Codes,proto3" json:"codes"`
 	// Created is when the set of recovery codes were generated. Updated when a new set of recovery
 	// codes are inserted.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Created              time.Time `protobuf:"bytes,2,opt,name=Created,proto3,stdtime" json:"created"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -13078,8 +13250,14 @@ type SessionTrackerSpecV1 struct {
 	//
 	// This should match the timestamp in the corresponding `session.create` event.
 	// It's thus up to the tracker creator to set the correct timestamp.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Created time.Time `protobuf:"bytes,4,opt,name=Created,proto3,stdtime" json:"created,omitempty"`
 	// Expires encodes the time at which this session expires and becomes invalid.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires time.Time `protobuf:"bytes,5,opt,name=Expires,proto3,stdtime" json:"expires,omitempty"`
 	// AttachedData is arbitrary attached JSON serialized metadata.
 	AttachedData string `protobuf:"bytes,6,opt,name=AttachedData,proto3" json:"attached,omitempty"`
@@ -13219,6 +13397,9 @@ type Participant struct {
 	// Mode is the participant mode.
 	Mode string `protobuf:"bytes,3,opt,name=Mode,proto3" json:"mode,omitempty"`
 	// LastActive is the last time this party was active in the session.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	LastActive           time.Time `protobuf:"bytes,4,opt,name=LastActive,proto3,stdtime" json:"last_active,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -13884,6 +14065,9 @@ type ClusterAlertSpec struct {
 	// Message is the user-facing message associated with the alert.
 	Message string `protobuf:"bytes,2,opt,name=Message,proto3" json:"message"`
 	// Created is the time at which the alert was generated.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Created              time.Time `protobuf:"bytes,3,opt,name=Created,proto3,stdtime" json:"created,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -13987,6 +14171,9 @@ type AlertAcknowledgement struct {
 	// acknowledged (e.g. 'alice will fix next week').
 	Reason string `protobuf:"bytes,2,opt,name=Reason,proto3" json:"reason,omitempty"`
 	// Expires is the time after which the acknowledgement expires.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires              time.Time `protobuf:"bytes,4,opt,name=Expires,proto3,stdtime" json:"expires,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -15303,8 +15490,11 @@ func (*PluginCredentialsV1) XXX_OneofWrappers() []interface{} {
 }
 
 type PluginOAuth2AccessTokenCredentials struct {
-	AccessToken          string    `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
-	RefreshToken         string    `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	AccessToken  string `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	RefreshToken string `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Expires              time.Time `protobuf:"bytes,3,opt,name=expires,proto3,stdtime" json:"expires"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -16167,8 +16357,14 @@ var xxx_messageInfo_AgentUpgradeWindow proto.InternalMessageInfo
 // scheduled windows.
 type ScheduledAgentUpgradeWindow struct {
 	// Start is the start time of the upgrade window.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Start time.Time `protobuf:"bytes,1,opt,name=Start,proto3,stdtime" json:"start"`
 	// Stop is the stop time of the upgrade window.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	Stop                 time.Time `protobuf:"bytes,2,opt,name=Stop,proto3,stdtime" json:"stop"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -16566,11 +16762,17 @@ type OktaAssignmentSpecV1 struct {
 	Targets []*OktaAssignmentTargetV1 `protobuf:"bytes,2,rep,name=Targets,proto3" json:"targets"`
 	// CleanupTime is an optional field that notes when the assignment should be cleaned up.
 	// If absent, the assignment will never be cleaned up.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	CleanupTime time.Time `protobuf:"bytes,3,opt,name=CleanupTime,proto3,stdtime" json:"cleanup_time"`
 	// Status is the status of the assignment.
 	Status OktaAssignmentSpecV1_OktaAssignmentStatus `protobuf:"varint,4,opt,name=status,proto3,enum=types.OktaAssignmentSpecV1_OktaAssignmentStatus" json:"status"`
 	// LastTransition is an optional field that notes when the last state transition
 	// occurred for this action. If absent, this object has never transitioned.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	LastTransition time.Time `protobuf:"bytes,5,opt,name=LastTransition,proto3,stdtime" json:"last_transition"`
 	// Finalized is set when the assignment has been properly cleaned up.
 	Finalized            bool     `protobuf:"varint,6,opt,name=Finalized,proto3" json:"finalized"`

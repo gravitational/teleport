@@ -719,7 +719,7 @@ test-helm-update-snapshots: helmunit/installed
 # Runs all Go tests except integration, called by CI/CD.
 #
 .PHONY: test-go
-test-go: test-go-prepare test-go-unit test-go-touch-id test-go-tsh test-go-chaos
+test-go: test-go-prepare test-go-unit test-go-touch-id test-go-tsh test-go-chaos test-go-unit-tooling
 
 #
 # Runs a test to ensure no environment variable leak into build binaries.
@@ -762,6 +762,15 @@ test-go-unit:
 test-go-unit-tbot: FLAGS ?= -race -shuffle on
 test-go-unit-tbot:
 	$(CGOFLAG) go test -cover -json $(FLAGS) $(ADDFLAGS) ./tool/tbot/... ./lib/tbot/... \
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| gotestsum --raw-command -- cat
+
+# Runs unit tests for tooling and generators
+.PHONY: test-go-unit-tooling
+test-go-unit-tooling: FLAGS ?= -race -shuffle on
+test-go-unit-tooling:
+	cd ./build.assets/tooling && \
+	$(CGOFLAG) go test ./... -cover -json $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 

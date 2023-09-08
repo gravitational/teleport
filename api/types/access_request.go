@@ -643,6 +643,9 @@ func (u *AccessRequestUpdate) Check() error {
 
 // RequestStrategy is an indicator of how access requests
 // should be handled for holders of a given role.
+// Example YAML:
+// ---
+// optional
 type RequestStrategy string
 
 const (

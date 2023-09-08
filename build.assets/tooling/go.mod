@@ -75,4 +75,6 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
+require golang.org/x/tools v0.16.1
+
 replace github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33

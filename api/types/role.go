@@ -1336,6 +1336,10 @@ func CopyRulesSlice(in []Rule) []Rule {
 // Labels is a wrapper around map
 // that can marshal and unmarshal itself
 // from scalar and list values
+// Example YAML:
+// ---
+// label1: [val1, val2]
+// label2: val3
 type Labels map[string]utils.Strings
 
 // ToProto returns a protobuf-compatible representation of Labels.
@@ -1411,6 +1415,9 @@ func NewBoolP(b bool) *Bool {
 }
 
 // Bool is a wrapper around boolean values
+// Example YAML:
+// ---
+// true|false
 type Bool bool
 
 // Value returns boolean value of the wrapper
@@ -1478,6 +1485,9 @@ func (b *Bool) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // that can take multiple values:
 // * true, false and non-set (when pointer is nil)
 // and can marshal itself to protobuf equivalent BoolValue
+// Example YAML:
+// ---
+// true, false
 type BoolOption struct {
 	// Value is a value of the option
 	Value bool

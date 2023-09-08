@@ -26,6 +26,14 @@ import (
 
 // Traits is a wrapper around map with string
 // slices as values
+// Example YAML:
+// ---
+// key1:
+// - "value1"
+// - "value2"
+// key2:
+// - "value1"
+// - "value2"
 type Traits map[string][]string
 
 func (l Traits) protoType() *LabelValues {
@@ -92,6 +100,11 @@ func (l Traits) Size() int {
 
 // Strings is a list of string that can unmarshal from list of strings
 // or a scalar string from scalar yaml or json property
+// Example YAML:
+// ---
+// - "string"
+// - "string"
+// - "string"
 type Strings []string
 
 func (s *Strings) protoType() *StringValues {

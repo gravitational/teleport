@@ -29,6 +29,9 @@ import (
 )
 
 // JoinMethod is the method used for new nodes to join the cluster.
+// Example YAML:
+// ---
+// "token"
 type JoinMethod string
 
 const (
@@ -90,6 +93,9 @@ func ValidateJoinMethod(method JoinMethod) error {
 	return nil
 }
 
+// Example YAML:
+// ---
+// in_cluster
 type KubernetesJoinType string
 
 var (

@@ -25,6 +25,9 @@ import (
 // SystemRole identifies the role of an SSH connection. Unlike "user roles"
 // introduced as part of RBAC in Teleport 1.4+ these are built-in roles used
 // for different Teleport components when connecting to each other.
+// Example YAML:
+// ---
+// Node
 type SystemRole string
 
 // SystemRoles is a TeleportRole list

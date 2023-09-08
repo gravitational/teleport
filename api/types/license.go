@@ -162,6 +162,9 @@ type License interface {
 
 // FeatureSource defines where the list of features enabled
 // by the license is.
+// Example YAML:
+// ---
+// license
 type FeatureSource string
 
 const (
