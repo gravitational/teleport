@@ -1084,6 +1084,26 @@ Setting `highAvailability.certManager.addCommonName` to `true` will instruct `ce
       issuerName: letsencrypt-production
   ```
 
+### `highAvailability.certManager.addPublicAddrs`
+
+| Type   | Default value | `teleport.yaml` equivalent                                        |
+|--------|---------------|-------------------------------------------------------------------|
+| `bool` | `false`       | `proxy_service.https_keypairs` (to provide your own certificates) |
+
+Setting `highAvailability.certManager.addPublicAddrs` to `true` will instruct `cert-manager` to also add any additional addresses configured under the `publicAddr` chart value
+in its certificate signing request to the issuing CA.
+
+`values.yaml` example:
+
+  ```yaml
+  publicAddr: ['teleport.example.com:443']
+  highAvailability:
+    certManager:
+      enabled: true
+      addPublicAddrs: true
+      issuerName: letsencrypt-production
+  ```
+
 ### `highAvailability.certManager.issuerName`
 
 | Type     | Default value | `teleport.yaml` equivalent |
