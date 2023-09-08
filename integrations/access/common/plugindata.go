@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
+	"github.com/gravitational/trace"
 )
 
 // GenericPluginData is a data associated with access request that we store in Teleport using UpdatePluginData API.
@@ -44,7 +45,11 @@ type SentMessages []MessageData
 func DecodePluginData(dataMap map[string]string) (GenericPluginData, error) {
 	data := GenericPluginData{}
 
-	data.AccessRequestData = plugindata.DecodeAccessRequestData(dataMap)
+	var err error
+	data.AccessRequestData, err = plugindata.DecodeAccessRequestData(dataMap)
+	if err != nil {
+		return GenericPluginData{}, trace.Wrap(err)
+	}
 
 	if channelID, timestamp := dataMap["channel_id"], dataMap["timestamp"]; channelID != "" && timestamp != "" {
 		data.SentMessages = append(data.SentMessages, MessageData{ChannelID: channelID, MessageID: timestamp})
@@ -62,7 +67,10 @@ func DecodePluginData(dataMap map[string]string) (GenericPluginData, error) {
 
 // EncodePluginData serializes a GenericPluginData struct into a string map.
 func EncodePluginData(data GenericPluginData) (map[string]string, error) {
-	result := plugindata.EncodeAccessRequestData(data.AccessRequestData)
+	result, err := plugindata.EncodeAccessRequestData(data.AccessRequestData)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	var encodedMessages []string
 	for _, msg := range data.SentMessages {

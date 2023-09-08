@@ -84,14 +84,14 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 	case pd.ResolvedApproved:
 		values, ok := data.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationApprovedCloseCode]
 		if !ok || len(values) < 1 {
-			return trace.BadParameter("close code annotation missing form serviceNow configuration")
+			return trace.BadParameter("close code annotation missing from serviceNow configuration")
 		}
 		closeCode = values[0]
 		state = ResolutionStateResolved
 	case pd.ResolvedDenied:
 		values, ok := data.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationDeniedCloseCode]
 		if !ok || len(values) < 1 {
-			return trace.BadParameter("close code annotation missing form serviceNow configuration")
+			return trace.BadParameter("close code annotation missing from serviceNow configuration")
 		}
 		closeCode = values[0]
 		state = ResolutionStateClosed
