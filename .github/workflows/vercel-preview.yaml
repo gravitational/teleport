@@ -1,5 +1,6 @@
 name: Deploy Vercel Preview
 permissions:
+  # Required in order to comment on PRs with a deployment link
   pull-requests: write
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -21,7 +22,7 @@ jobs:
       - name: Extract branch name
         run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
         id: extract_branch
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           repository: 'gravitational/docs'
       - name: Configure Submodules
