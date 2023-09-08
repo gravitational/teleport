@@ -85,9 +85,7 @@ func (s *ServiceNowSuite) SetupSuite() {
 	me, err := user.Current()
 	require.NoError(t, err)
 
-	// We set such a big timeout because integration.NewFromEnv could start
-	// downloading a Teleport *-bin.tar.gz file which can take a long time.
-	ctx := s.SetContextTimeout(1 * time.Minute)
+	ctx := s.SetContextTimeout(30 * time.Second)
 
 	teleport, err := integration.NewFromEnv(ctx)
 	require.NoError(t, err)
