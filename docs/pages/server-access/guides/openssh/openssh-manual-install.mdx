@@ -266,7 +266,8 @@ authenticate the `sshd` host using the host certificate you generated earlier.
 
 First, make sure you have logged in to your Teleport cluster:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 ```code
 $ tsh status
@@ -280,8 +281,8 @@ $ tsh status
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["enterprise"]}>
+</TabItem>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
 ```code
 $ tsh status
@@ -295,8 +296,8 @@ $ tsh status
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh status
@@ -310,7 +311,8 @@ $ tsh status
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
+</TabItem>
+</Tabs>
 
 On your local machine, run the following `tsh` command. This will print a
 configuration block that tells your SSH client to use credentials managed by
