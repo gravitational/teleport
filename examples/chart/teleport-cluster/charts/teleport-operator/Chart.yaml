@@ -1,4 +1,4 @@
-.version: &version "13.3.9-dev.pkidomain.2"
+.version: &version "13.3.9-dev.pkidomain.3"
 
 name: teleport-operator
 apiVersion: v2
