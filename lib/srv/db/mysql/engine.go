@@ -89,9 +89,23 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Automatically create the database user if needed.
+	cancelAutoUserLease, err := e.GetUserProvisioner(e).Activate(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		err := e.GetUserProvisioner(e).Deactivate(ctx, sessionCtx)
+		if err != nil {
+			e.Log.WithError(err).Error("Failed to deactivate the user.")
+		}
+	}()
+
 	// Establish connection to the MySQL server.
 	serverConn, err := e.connect(ctx, sessionCtx)
 	if err != nil {
+		defer cancelAutoUserLease()
 		if trace.IsLimitExceeded(err) {
 			return trace.LimitExceeded("could not connect to the database, please try again later")
 		}
@@ -104,11 +118,15 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		}
 	}()
 
+	// Release the auto-users semaphore now that we've successfully connected.
+	cancelAutoUserLease()
+
 	// Internally, updateServerVersion() updates databases only when database version
 	// is not set, or it has changed since previous call.
 	if err := e.updateServerVersion(sessionCtx, serverConn); err != nil {
 		// Log but do not fail connection if the version update fails.
 		e.Log.WithError(err).Warnf("Failed to update the MySQL server version.")
+
 	}
 
 	// Send back OK packet to indicate auth/connect success. At this point
@@ -154,6 +172,16 @@ func (e *Engine) updateServerVersion(sessionCtx *common.Session, serverConn *cli
 
 // checkAccess does authorization check for MySQL connection about to be established.
 func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
+	// When using auto-provisioning, force the database username to be same
+	// as Teleport username. If it's not provided explicitly, some database
+	// clients get confused and display incorrect username.
+	if sessionCtx.AutoCreateUser {
+		if sessionCtx.DatabaseUser != sessionCtx.Identity.Username {
+			return trace.AccessDenied("please use your Teleport username (%q) to connect instead of %q",
+				sessionCtx.Identity.Username, sessionCtx.DatabaseUser)
+		}
+	}
+
 	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
