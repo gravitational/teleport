@@ -3794,6 +3794,7 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 		Cluster: clusterMain,
 		Host:    main.InstanceListeners.ReverseTunnel,
 	})
+	require.NoError(t, err)
 
 	testAgentlessConn(t, leafTC, tc, node)
 
