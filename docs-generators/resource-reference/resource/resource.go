@@ -16,6 +16,15 @@ type Field struct {
 	Type        string
 }
 
-func NewFromDecl(decl *ast.GenDecl) Resource {
-	return Resource{}
+// NewFromDecl creates a Resource object from the provided *GenDecl. filepath is
+// the Go source file where the declaration was made, and is used only for
+// printing.
+func NewFromDecl(decl *ast.GenDecl, filepath string) Resource {
+	return Resource{
+		SectionName: "",
+		Description: decl.Doc.Text(),
+		SourcePath:  filepath,
+		Fields:      []Field{},
+		YAMLExample: "",
+	}
 }
