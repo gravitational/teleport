@@ -6,7 +6,7 @@ create-cluster:
 # gets kubernetes credentials
 .PHONY: get-creds
 get-creds:
-	eksctl utils write-kubeconfig
+	eksctl utils -f cluster.yaml write-kubeconfig
 
 # deletes the eks cluster
 .PHONY: destroy
