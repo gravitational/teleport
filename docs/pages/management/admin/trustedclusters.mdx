@@ -21,8 +21,8 @@ instance running on the root cluster.
 ## Who uses trusted clusters?
 
 Most organizations don't need to configure trusted clusters. In most cases, you can add 
-reverse-tunnel proxy instances and enroll and manage thousands of resources without creating a new 
-cluster.
+multiple Teleport Proxy Service instances to enroll and manage thousands of resources 
+without creating a new cluster.
 
 However, there are a few specific scenarios where trusted clusters can be particularly useful.
 For example, if you have a large and widely-distributed infrastructure or must provide access
@@ -80,15 +80,14 @@ on the leaf cluster and service running on the root cluster:
 
 ![Service interaction in a trusted cluster](../../../img/trusted-clusters/trusted-cluster-service-interaction.png)
 
-
 Note that trusted clusters only work in one direction. 
 Users from the leaf cluster can't see or connect to resources in the root cluster.
 
 ## Role relationships in a trusted cluster
 
-As noted in [How it works](#how-it-works), leaf clusters are autonomous. They have their own state, roles, 
-and local users. This autonomy enables leaf cluster administrators to decide how to map the identity of the 
-external users to their local cluster roles. 
+Leaf clusters are autonomous in that they have their own state, roles, and local users. This autonomy 
+enables leaf cluster administrators to decide how to map the identity of the external users to their 
+local cluster roles. 
 The following diagram provides a simplified view of how role mapping works using the same trusted
 cluster with `msp-root.example.com` as the root cluster and `leaf-east.example.com` as the leaf cluster:
 
@@ -134,16 +133,6 @@ to learn how to:
 To complete the steps in this guide, verify your environment meets the following requirements:
 
 - Access to **two** Teleport cluster instances.
-
-  - Teleport Community Edition or Teleport Enterprise if you manage the Teleport clusters on your own network.
-  - Teleport Team or Teleport Enterprise Cloud if you access Teleport as a managed cloud-based service.
-
-  For information about setting up a self-hosted Teleport Enterprise cluster, see [Deploying a High 
-  Availability Teleport Cluster](../../deploy-a-cluster/high-availability.mdx).
-  To begin a free trial of Teleport Team or upgrade to Teleport Enterprise Cloud, visit the cloud
-  service [sign up page](https://goteleport.com/signup/).
-  For information about the differences between Teleport editions, see [Comparing 
-  editions](../../choose-an-edition/introduction.mdx#comparing-editions).
 
   The two clusters should be at the same version or, at most, the leaf cluster can be one major version 
   behind the root cluster version.
@@ -367,9 +356,36 @@ following content:
    - Set `spec.tunnel_addr` to the reverse tunnel address of the Teleport Proxy Service in the root cluster.
    - Set `spec.web_proxy_addr` to the address of the Teleport Proxy Service on the root cluster. 
    - Set `spec.role_map` to map Teleport roles from the root cluster to roles in the leaf cluster.
+   
+   **Look up cluster addresses**
 
-   If you aren't sure of what values to set for the `tunnel_addr` or `web_proxy_addr`,
-   see [Commands to look up cluster addresses](./trusted-cluster-address-lookup.mdx).
+   If you aren't sure of what values to use for cluster settings such as the `tunnel_addr` or `web_proxy_addr`, 
+   you can often look up the information using command-line tools that parse and extract machine-readable data 
+   from JSON files. One of the most common of these tools is `jq`. You can download `jq` for most operating 
+   systems from the [jqlang](https://jqlang.github.io/jq/download/) website.
+   
+   To get cluster addresses using `jq`:
+   
+   1. Set the `PROXY` environment variable to retrieve information about your Teleport cluster 
+      by replacing `teleport.example.com` with your Teleport cluster domain:
+      
+      ```code
+      $ PROXY=teleport.example.com
+      ```
+   
+   1. Extract the `tunnel_addr` for your cluster by running the following command:
+   
+      ```code
+      $ curl https://$PROXY/webapi/ping | jq 'if .proxy.tls_routing_enabled == true then .proxy.ssh.public_addr else .proxy.ssh.ssh_tunnel_public_addr end'      
+      ```
+
+   1. Extract the `web_proxy_addr` for your cluster by running the following command:
+      
+      ```code
+      $ curl https://$PROXY/webapi/ping | jq .proxy.ssh.public_addr
+      ```
+   
+   **Map root cluster roles to leaf cluster roles**
 
    You use the `role_map` setting in the `trusted_cluster` resource configuration to define how 
    roles from the root cluster map to roles on the leaf cluster. In this example, users assigned 
@@ -383,7 +399,7 @@ following content:
 
    Role mapping can be quite powerful for managing access in trusted clusters. For more information
    about how to use role mapping to restrict access to leaf clusters and examples of the accepted
-   syntax, see [Role mapping  in trusted clusters](#role-mapping-in-trusted-clusters).
+   syntax, see [Role mapping syntax and expressions](#role-mapping-syntax-and-expressions).
 
 1. Sign out of the root cluster by running the following command:
    
@@ -580,7 +596,7 @@ in the leaf cluster by running the following commands:
    Linux ip-172-3-2-205 5.15.0-1041-aws #46~20.04.1-Ubuntu SMP Wed Jul 19 15:39:29 UTC 2023 aarch64 aarch64 aarch64 GNU/Linux
    ```
 
-## Role mapping in trusted clusters
+## Role mapping syntax and expressions
 
 In this guide, you saw a simple example of role mapping.
 However, you can define more sophisticated role mapping for trusted clusters using wildcards, regular expressions, 
