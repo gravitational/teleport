@@ -1,16 +1,11 @@
 ---
 title: Configure access for local Windows users
-description: Configure passwordless access for local Windows users on Windows computers that aren't joined to an Active Directory domain.
+description: Use Teleport to configure passwordless access for local Windows users.
 videoBanner: 9DyKQbg4ORc
 ---
 
 This guide demonstrates how to configure Teleport to provide secure, passwordless access
 to Microsoft Windows desktops that aren't joined to an Active Directory domain.
-
-The following diagram provides a simplified view of how you configure Teleport
- for local Windows users:
-
-![Configure access for local Windows users](../../img/desktop-access/windows-local-users.png)
 
 ## Prerequisites
 
@@ -22,7 +17,7 @@ To complete the steps in this guide, verify your environment meets the following
   However, you must generate a new invitation token to add the Windows Desktop Service
   to an existing Teleport instance.
 - A physical or virtual machine running Microsoft Windows with Remote Desktop enabled 
-  and the RDP port—typically, port 3389—open for inbound connections from the Linux server.
+  and the RDP port (typically port 3389) open for inbound connections from the Linux server.
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Prepare Windows
@@ -36,31 +31,28 @@ To prepare a Windows computer:
 
 1. Open a Command Prompt (`cmd.exe`) window on the Windows computer you want to enroll.
 
-1. Export the Teleport user certificate authority by running the following command:
+1. Export the Teleport user certificate authority by running the following command using your Teleport cluster address:
 
    ```code
-   $ curl -o teleport.cer https://teleport-proxy.example.com/webapi/auth/export?type=windows
+   $ curl -o teleport.cer <Var name="https://teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
 1. Download the Teleport Windows Auth [setup program](https://cdn.teleport.dev/teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe).
 
-1. Doubleclick the executable you downloaded to run the Teleport Windows Auth Setup program 
+1. Double-click the executable you downloaded to run the Teleport Windows Auth Setup program 
 interactively and select the Teleport certificate that you exported when prompted.
 
    The setup program:
 
-   - Installs the selected Teleport certificate.
-   - Loads the required dynamic link library (DLL) for Teleport to use.
+   - Enables Windows to trust the Teleport certificate authority.
+   - Installs the required dynamic link library (DLL) for Teleport to use.
    - Disables Network Level Authentication (NLA) for remote desktop services. 
 
 1. Restart the computer.
 
 
-After you download the setup program so it's available on the Windows computer, 
-you can run the program from the command-line instead of interactively to automate 
-the process. In a Command Prompt window or PowerShell terminal, run following command 
-to install the Teleport certificate, load the DLL, disable NLA, and restart the 
-computer in a single step:
+If you want to automate the installation process, you can run the setup program from 
+an administrative Command Prompt or PowerShell console with the following command:
 
 ```code
 $ teleport-windows-auth-setup.exe install --cert=teleport.cer -r
@@ -120,6 +112,7 @@ following for the Windows Desktop Service:
      enabled: yes
      non_ad_hosts:
      - 192.0.2.156
+   
    auth_service:
      enabled: no
    proxy_service:
@@ -131,19 +124,21 @@ following for the Windows Desktop Service:
    In this file:
 
    - Set the `proxy_server` to the address of your Teleport cluster.
-   - List the Windows IP addresses or DNS names under `non_ad_hosts`.
+   - List the Windows IP addresses or host names under `non_ad_hosts`.
 
    Teleport can't automatically discover Windows desktops without Active Directory. 
-   Therefore, you must specify the Windows IP addresses or DNS names that you want to 
-   enroll using the Teleport configuration file or use the Teleport API  
-   to build your own integration. You can find an example of API integration on 
-   [GitHub](https://github.com/gravitational/teleport/tree/master/examples/desktop-registration).
+   Therefore, you must specify the Windows IP addresses or host names that you want to 
+   enroll using the Teleport configuration file or use the Teleport API to build your own 
+   integration. 
+   
+   You can find an example of API integration on 
+  [GitHub](https://github.com/gravitational/teleport/tree/master/examples/desktop-registration).
 
 1. (Optional) Add labels for the Windows Desktop Service to the configuration file.
 
    You can attach labels to Windows computers by matching to their hostnames.
    For example, the following adds the `cloud: ec2` label to computers that have 
-   EC2 private IP DNS names matching `.us-east-2.compute.internal`:
+   host names ending with `.us-east-2.compute.internal`:
 
    ```diff
    version: v3
@@ -160,6 +155,9 @@ following for the Windows Desktop Service:
    +      labels:
    +        cloud: ec2
    ```
+
+   For more information about using labels and roles, see [Configure Windows-specific 
+   role permissions](./rbac.mdx).
 
 1. (!docs/pages/includes/start-teleport.mdx service="the Teleport Windows Desktop Service"!)
 
@@ -191,6 +189,10 @@ To configure a role for desktop access:
    - Set `windows_desktop_labels` to specify any labels you want to use to allow or deny access to specific hosts.
    - Set `windows_desktop_logins` to specify the Windows logins that Teleport users assigned to the role
    can use to access Windows desktops.
+
+   Depending on how you configure role-based access controls for Windows, Teleport can create local user logins 
+   automatically from the `windows_desktop_logins` you specify. For more information about enabling Teleport
+   to create local Windows logins, see [Logins](./rbac#logins).
 
 1. Apply the new role to your cluster by running the following command:
 
