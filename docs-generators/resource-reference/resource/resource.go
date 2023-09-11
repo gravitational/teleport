@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -78,19 +79,42 @@ func getSectionName(spec *ast.TypeSpec) string {
 
 // makeYAMLExample creates an example YAML document illustrating the fields
 // within the declaration.
-func makeYAMLExample(node yamlTypeNode) (string, error) {
-	// TODO Add a recursive function here that takes a yamlTypeNode and a
-	// partial buffer, writing example values to the buffer based on the node.
-	// Call this function for all children of each node.
+func makeYAMLExample(fields *ast.FieldList) (string, error) {
+	// Write part of a potentially complex type to the YAML example.
+	// Assumes that the part will be on the same line as its predecessor.
+	addNodeToExample := func(example bytes.Buffer, node yamlTypeNode) error {
+		// TODO: In the recursive function:
+		// TODO: handle custom fields per the "Custom fields" section of the RFD
+		// TODO: handle predeclared composite types per the relevant section of the
+		// RFD.
+		// TODO: handle named types per the relevant section of the RFD
 
-	// TODO: In the recursive function:
-	// TODO: handle custom fields per the "Custom fields" section of the RFD
-	// TODO: handle predeclared scalar types per the "Custom fields" section of
-	// the RFD.
-	// TODO: handle predeclared composite types per the relevant section of the
-	// RFD.
-	// TODO: handle named types per the relevant section of the RFD
-	return "", nil
+		switch node.kind {
+		case stringKind:
+			example.WriteString("string")
+		case numberKind:
+			example.WriteString("1")
+		case boolKind:
+			example.WriteString("true")
+		}
+		return nil
+	}
+
+	var buf bytes.Buffer
+
+	for _, field := range fields.List {
+		tn, err := getYAMLType(field)
+		if err != nil {
+			return "", err
+		}
+
+		buf.WriteString("- " + getJSONTag(field.Tag.Value) + ":")
+		if err := addNodeToExample(buf, tn); err != nil {
+			return "", err
+		}
+	}
+
+	return buf.String(), nil
 }
 
 // Key-value pair for the "json" tag within a struct tag. Keys and values are
