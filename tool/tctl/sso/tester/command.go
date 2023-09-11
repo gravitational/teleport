@@ -98,7 +98,7 @@ func (cmd *SSOTestCommand) getSupportedKinds() []string {
 func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c auth.ClientI) error {
 	reader := os.Stdin
 	if cmd.connectorFileName != "" {
-		f, err := utils.OpenFile(cmd.connectorFileName, true)
+		f, err := utils.OpenFileAllowingSymlinks(cmd.connectorFileName)
 		if err != nil {
 			return trace.Wrap(err, "could not open connector spec file %v", cmd.connectorFileName)
 		}
