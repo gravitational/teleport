@@ -178,6 +178,9 @@ as the `in_cluster` variant.
     ProvisionToken.
   b. The JWT is not expired, and at the time of issue, the JWTs TTL was short.
     This ensures that users are using the recommended configured TTL value.
+    As the Kubernetes minimum TTL is 10 minutes, we will ensure that this has
+    been configured to at most 30 minutes to allow for some flexibility in
+    configuration.
   c. The JWTs audience claim matches the cluster name.
   d. The JWT includes the `kubernetes.io` claim which binds it to a specified
     namespace and pod.
