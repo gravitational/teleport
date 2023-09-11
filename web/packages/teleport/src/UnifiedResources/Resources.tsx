@@ -43,9 +43,12 @@ import SearchPanel from './SearchPanel';
 import { FilterPanel } from './FilterPanel';
 
 const RESOURCES_MAX_WIDTH = '1800px';
+// get 48 resources to start
+const INITIAL_FETCH_SIZE = 48;
+// increment by 24 every fetch
+const FETCH_MORE_SIZE = 24;
 
-//fetchMore size is 20 so lets add 20 loaders
-const loadingCardArray = new Array(20).fill(undefined);
+const loadingCardArray = new Array(FETCH_MORE_SIZE).fill(undefined);
 
 export function Resources() {
   const { isLeafCluster } = useStickyClusterId();
@@ -71,6 +74,8 @@ export function Resources() {
   const { fetchInitial, fetchedData, attempt, fetchMore } = useInfiniteScroll({
     fetchFunc: teleCtx.resourceService.fetchUnifiedResources,
     clusterId,
+    initialFetchSize: INITIAL_FETCH_SIZE,
+    fetchMoreSize: FETCH_MORE_SIZE,
     params,
   });
 
