@@ -24,11 +24,14 @@ import {
   WorkspacesService,
 } from 'teleterm/ui/services/workspacesService';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
+import * as uri from 'teleterm/ui/uri';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import { ImmutableStore } from '../immutableStore';
 
-import { TrackedConnectionOperationsFactory } from './trackedConnectionOperationsFactory';
+import {
+  TrackedConnectionOperationsFactory
+} from './trackedConnectionOperationsFactory';
 import {
   createGatewayConnection,
   createKubeConnection,
@@ -152,7 +155,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     });
   }
 
-  removeItemsBelongingToRootCluster(clusterUri: string): void {
+  removeItemsBelongingToRootCluster(clusterUri: uri.RootClusterUri): void {
     this.setState(draft => {
       draft.connections = draft.connections.filter(i => {
         const { rootClusterUri } =
@@ -162,7 +165,20 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     });
   }
 
-  async disconnectAndRemove(connections: TrackedConnection[]): Promise<void> {
+  async disconnectAndRemoveItemsBelongingToResource(
+    resourceUri: uri.ResourceUri
+  ): Promise<void> {
+    const connections = this.getConnections().filter(s => {
+      if (routing.parseServerUri(resourceUri)) {
+        return s.kind === 'connection.server' && s.serverUri === resourceUri;
+      }
+      if (
+        routing.parseDbUri(resourceUri) ||
+        routing.parseKubeUri(resourceUri)
+      ) {
+        return s.kind === 'connection.gateway' && s.targetUri === resourceUri;
+      }
+    });
     await Promise.all([
       connections.map(async connection => {
         await this.disconnectItem(connection.id);

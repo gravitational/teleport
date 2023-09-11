@@ -27,18 +27,30 @@ import {
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { TerminalsService } from 'teleterm/ui/services/terminals';
-import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
+import {
+  ConnectionTrackerService
+} from 'teleterm/ui/services/connectionTracker';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
-import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
-import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
+import {
+  KeyboardShortcutsService
+} from 'teleterm/ui/services/keyboardShortcuts';
+import {
+  WorkspacesService
+} from 'teleterm/ui/services/workspacesService/workspacesService';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
 import { ReloginService } from 'teleterm/ui/services/relogin/reloginService';
-import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications/tshdNotificationService';
-import { HeadlessAuthenticationService } from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
+import {
+  TshdNotificationsService
+} from 'teleterm/ui/services/tshdNotifications/tshdNotificationService';
+import {
+  HeadlessAuthenticationService
+} from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
-import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
+import {
+  ConnectMyComputerService
+} from 'teleterm/ui/services/connectMyComputer';
 import { ConfigService } from 'teleterm/services/config';
 import { IAppContext } from 'teleterm/ui/types';
 
@@ -138,8 +150,7 @@ export default class AppContext implements IAppContext {
     );
     this.connectMyComputerService = new ConnectMyComputerService(
       this.mainProcessClient,
-      tshClient,
-      this.connectionTracker
+      tshClient
     );
     this.headlessAuthenticationService = new HeadlessAuthenticationService(
       mainProcessClient,
