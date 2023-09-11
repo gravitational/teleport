@@ -3,6 +3,7 @@ package resource
 import (
 	"errors"
 	"go/ast"
+	"regexp"
 	"strings"
 )
 
@@ -61,11 +62,36 @@ func makeYAMLExample(fields *ast.FieldList) (string, error) {
 	return "", nil
 }
 
+// Key-value pair for the "json" tag within a struct tag. Keys and values are
+// separated by colons. Values are surrounded by double quotes.
+// See: https://pkg.go.dev/reflect#StructTag
+var jsonTagKeyValue = regexp.MustCompile(`json:"([^"]+)"`)
+
+// getYAMLTag returns the "json" tag value from the struct tag expression in
+// tags.
+func getJSONTag(tags string) string {
+	kv := jsonTagKeyValue.FindStringSubmatch(tags)
+
+	// No "yaml" tag, or a "yaml" tag with no value.
+	if len(kv) != 2 {
+		return ""
+	}
+
+	return kv[1]
+}
+
 // makeFields assembles a slice of human-readable information about fields
 // within a Go struct.
 func makeFields(fields *ast.FieldList) ([]Field, error) {
-	// TODO: Make the field list
-	return []Field{}, nil
+	result := make([]Field, len(fields.List))
+	for i, field := range fields.List {
+		f := Field{
+			Description: strings.Trim(strings.ReplaceAll(field.Doc.Text(), "\n", " "), " "),
+			Name:        getJSONTag(field.Tag.Value),
+		}
+		result[i] = f
+	}
+	return result, nil
 }
 
 // NewFromDecl creates a Resource object from the provided *GenDecl. filepath is
@@ -95,7 +121,7 @@ func NewFromDecl(decl *ast.GenDecl, filepath string) (Resource, error) {
 	section := getSectionName(ts)
 	return Resource{
 		SectionName: section,
-		Description: strings.ReplaceAll(decl.Doc.Text(), "\n", " "),
+		Description: strings.Trim(strings.ReplaceAll(decl.Doc.Text(), "\n", " "), " "),
 		SourcePath:  filepath,
 		Fields:      fld,
 		YAMLExample: yml,

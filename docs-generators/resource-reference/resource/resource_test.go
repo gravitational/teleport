@@ -92,3 +92,34 @@ description: "string"`,
 		})
 	}
 }
+
+func TestGetJSONTag(t *testing.T) {
+	cases := []struct {
+		description string
+		input       string
+		expected    string
+	}{
+		{
+			description: "one well-formed struct tag",
+			input:       `json:"my_tag"`,
+			expected:    "my_tag",
+		},
+		{
+			description: "multiple well-formed struct tags",
+			input:       `json:"json_tag" yaml:"yaml_tag" other:"other-tag"`,
+			expected:    "json_tag",
+		},
+		{
+			description: "empty JSON tag",
+			input:       `json:"" yaml:"yaml_tag" other:"other-tag"`,
+			expected:    "",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			g := getJSONTag(c.input)
+			assert.Equal(t, c.expected, g)
+		})
+	}
+}
