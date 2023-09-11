@@ -364,7 +364,7 @@ func (s *ServiceNowSuite) TestApproval() {
 
 	req := s.createAccessRequest()
 
-	incident, err := s.fakeServiceNow.CheckNewIncident(s.Context())
+	_, err := s.fakeServiceNow.CheckNewIncident(s.Context())
 	require.NoError(t, err, "no new incidents stored")
 
 	err = s.ruler().ApproveAccessRequest(s.Context(), req.GetName(), "okay")
