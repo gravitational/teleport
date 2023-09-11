@@ -28,7 +28,7 @@ import type * as uri from 'teleterm/ui/uri';
 export class ConnectMyComputerService {
   constructor(
     private mainProcessClient: MainProcessClient,
-    private tshClient: TshClient,
+    private tshClient: TshClient
   ) {}
 
   async downloadAgent(): Promise<void> {
