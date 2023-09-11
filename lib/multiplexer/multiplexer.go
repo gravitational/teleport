@@ -90,6 +90,11 @@ type Config struct {
 	CertAuthorityGetter CertAuthorityGetter
 	// LocalClusterName set the local cluster for the multiplexer, it's used in PROXY headers verification.
 	LocalClusterName string
+
+	// IgnoreSelfConnections is used for tests, it makes multiplexer ignore the fact that it's self
+	// connection (coming from same IP as the listening address) when deciding if it should drop connection with
+	// missing required PROXY header. This is needed since all connections in tests are self connections.
+	IgnoreSelfConnections bool
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
@@ -406,7 +411,8 @@ const (
 	invalidProxyLineError                 = "invalid PROXY line"
 	invalidProxyV2LineError               = "invalid PROXY v2 line"
 	invalidProxySignatureError            = "could not verify PROXY signature for connection"
-	missingProxyLine                      = `PROXY protocol is enabled but required PROXY header wasn't received. 
+	missingProxyLine                      = `connection (%s -> %s) rejected because PROXY protocol is enabled but required
+PROXY header wasn't received. 
 Make sure you have correct configuration, only enable "proxy_protocol: on" if Teleport is running behind PROXY-enabled load balancer.`
 	unknownProtocolError = "unknown protocol"
 	unexpectedPROXYLine  = `unexpected PROXY line. Connection will be allowed, but this is usually a result of misconfiguration - 
@@ -542,8 +548,12 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			proxyLine = newPROXYLine
 			// repeat the cycle to detect the protocol
 		case ProtoTLS, ProtoSSH, ProtoHTTP, ProtoPostgres:
-			if m.PROXYProtocolMode == PROXYProtocolOn && !unsignedPROXYLineReceived {
-				return nil, trace.BadParameter(missingProxyLine)
+			selfConnection, err := m.isSelfConnection(conn)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !selfConnection && m.PROXYProtocolMode == PROXYProtocolOn && !unsignedPROXYLineReceived {
+				return nil, trace.BadParameter(missingProxyLine, conn.RemoteAddr().String(), conn.LocalAddr().String())
 			}
 
 			return &Conn{
@@ -556,6 +566,23 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 	}
 	// if code ended here after three attempts, something is wrong
 	return nil, trace.BadParameter(unknownProtocolError)
+}
+
+func (m *Mux) isSelfConnection(conn net.Conn) (bool, error) {
+	if m.IgnoreSelfConnections {
+		return false, nil
+	}
+
+	remoteHost, _, err := net.SplitHostPort(conn.RemoteAddr().String())
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	localHost, _, err := net.SplitHostPort(conn.LocalAddr().String())
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return remoteHost == localHost, nil
 }
 
 // Protocol defines detected protocol type.
