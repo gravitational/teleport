@@ -256,6 +256,8 @@ export const ConnectMyComputerContextProvider: FC<{
         }
       }
 
+      // We have to remove connections before removing the agent directory, because
+      // we get the node UUID from the that directory.
       await removeConnections();
       ctx.workspacesService.removeConnectMyComputerState(rootClusterUri);
       await ctx.connectMyComputerService.removeAgentDirectory(rootClusterUri);
