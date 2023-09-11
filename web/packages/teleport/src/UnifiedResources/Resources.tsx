@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect, useRef } from 'react';
-import { Box, Indicator, Flex } from 'design';
-
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
+import { Box, Indicator, Flex, Text } from 'design';
+import { Magnifier } from 'design/Icon';
+
+import { TextIcon } from 'teleport/Discover/Shared';
 
 import {
   FeatureBox,
@@ -72,6 +74,17 @@ export function Resources() {
   useEffect(() => {
     fetchInitial();
   }, [clusterId, search]);
+
+  const noResults =
+    attempt.status === 'success' && fetchedData.agents.length === 0;
+
+  const [isSearchEmpty, setIsSearchEmpty] = useState(true);
+
+  // Using a useEffect for this prevents the "Add your first resource" component from being
+  // shown for a split second when making a search after a search that yielded no results.
+  useEffect(() => {
+    setIsSearchEmpty(!params?.query && !params?.search);
+  }, [params.query, params.search]);
 
   const infiniteScrollDetector = useRef(null);
 
@@ -162,15 +175,44 @@ export function Resources() {
           </Box>
         )}
       </div>
-      {attempt.status === 'success' && fetchedData.agents.length === 0 && (
+      {noResults && isSearchEmpty && (
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}
           emptyStateInfo={emptyStateInfo}
         />
       )}
+      {noResults && !isSearchEmpty && (
+        <NoResults query={params?.query || params?.search} />
+      )}
     </FeatureBox>
   );
+}
+
+function NoResults({ query }: { query: string }) {
+  // Prevent `No resources were found for ""` flicker.
+  if (query) {
+    return (
+      <Box p={8} mt={3} mx="auto" maxWidth="720px" textAlign="center">
+        <TextIcon typography="h3">
+          <Magnifier />
+          No resources were found for&nbsp;
+          <Text
+            as="span"
+            bold
+            css={`
+              max-width: 270px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            `}
+          >
+            {query}
+          </Text>
+        </TextIcon>
+      </Box>
+    );
+  }
+  return null;
 }
 
 const ResourcesContainer = styled(Flex)`
@@ -189,4 +231,5 @@ const emptyStateInfo: EmptyStateInfo = {
     title: 'No Resources Found',
     resource: 'resources',
   },
+  resourceType: 'unified_resource',
 };

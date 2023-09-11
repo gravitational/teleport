@@ -178,8 +178,9 @@ func TestListEC2(t *testing.T) {
 					SubKind: "openssh-ec2-ice",
 					Metadata: types.Metadata{
 						Labels: map[string]string{
-							"account-id": "123456789012",
-							"region":     "us-east-1",
+							"account-id":               "123456789012",
+							"region":                   "us-east-1",
+							"teleport.dev/instance-id": "i-123456789abcedf",
 						},
 						Namespace: "default",
 					},

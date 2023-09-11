@@ -25,27 +25,32 @@ For main, test with a role that has access to all resources.
 - [ ] Verify that Collapse/Expand works and collapsed has icon `>`, and expand has icon `v`
 - [ ] Verify that it automatically expands and highlights the item on page refresh
 
+### Unified Resources
+- [ ] Verify that scrolling to the bottom of the page renders more resources
+- [ ] Verify that all resource types are visible if no filters are present
+- [ ] Verify that "Search" by (host)name, address, labels works for all resources
 #### Servers aka Nodes
-- [ ] Verify that "Servers" table shows all joined nodes
+- [ ] Verify that "Servers" type shows all joined nodes
 - [ ] Verify that "Connect" button shows a list of available logins
-- [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values
-- [ ] Verify that "Search" by hostname, address, labels works
 - [ ] Verify that terminal opens when clicking on one of the available logins
-- [ ] Verify that clicking on `Add Server` button renders dialogue set to `Automatically` view
-  - [ ] Verify clicking on `Regenerate Script` regenerates token value in the bash command
-  - [ ] Verify using the bash command successfully adds the server (refresh server list)
-  - [ ] Verify that clicking on `Manually` tab renders manual steps
-  - [ ] Verify that clicking back to `Automatically` tab renders bash command
-
+- [ ] Verify that clicking on `Add Resource` button correctly sends to the resource discovery page
 #### Applications
-- [ ] Verify that clicking on `Add Application` button renders dialogue
-  - [ ] Verify input validation (prevent empty value and invalid url)
-  - [ ] Verify after input and clicking on `Generate Script`, bash command is rendered
-  - [ ] Verify clicking on `Regenerate` button regenerates token value in bash command
-
+- [ ] Verify that the app icons are correctly displayed
+- [ ] Verify that filtering types by Application includes applications in the page
+- [ ] Verify that the `Launch` button for applications correctly send to the app
+- [ ] Verify that the `Launch` button for AWS apps correctly renders an IAM role selection window 
 #### Databases
-- [ ] Verify that clicking on `Add Database` button renders dialogue for manual instructions:
-  - [ ] Verify selecting different options on `Step 4` changes `Step 5` commands
+- [ ] Verify that the database subtype icons are correctly displayed
+- [ ] Verify that filtering types by Databases includes databases in the page
+- [ ] Verify that clicking `Connect` renders the dialog with correct information
+
+#### Kubes
+- [ ] Verify that filtering types by Kubes includes kubes in the page
+- [ ] Verify that clicking `Connect` renders the dialog with correct information
+
+#### Desktops
+- [ ] Verify that filtering types by Desktops includes desktops in the page
+- [ ] Verify that clicking `Connect` renders a login selection and that the logins are completely in view
 #### Active Sessions
 - [ ] Verify that "empty" state is handled
 - [ ] Verify that it displays the session when session is active
@@ -284,8 +289,6 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 
 #### Node List Tab
 - [ ] Verify that Cluster selector works (URL should change too)
-- [ ] Verify that Quick launcher input works
-- [ ] Verify that Quick launcher input handles input errors
 - [ ] Verify that "Connect" button shows a list of available logins
 - [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values
 - [ ] Verify that "Search" by hostname, address, labels work
