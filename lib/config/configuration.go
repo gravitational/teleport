@@ -272,7 +272,7 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 
 // ReadResources loads a set of resources from a file.
 func ReadResources(filePath string) ([]types.Resource, error) {
-	reader, err := utils.OpenFile(filePath)
+	reader, err := utils.OpenFile(filePath, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
