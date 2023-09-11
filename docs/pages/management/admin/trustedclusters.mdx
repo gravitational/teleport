@@ -697,7 +697,7 @@ leaf cluster and running the following command:
 $ tctl create --force trusted_cluster.yaml
 ```
 
-### Role mapping and labels
+### Role mapping and cluster-level labels
 
 In this guide, you learned how you can combine role mapping and labels to manage access to leaf cluster resources.
 You should note that you can use a certificate issued for a root cluster to connect directly 
@@ -706,7 +706,14 @@ the trust relationship between the root and leaf clusters provides the desired b
 
 However, this trust relationship can also be exploited if you use cluster labels to enforce authorization 
 restrictions. Because the leaf cluster trusts the certificate authority of the root cluster, that certificate 
-can be used to bypass any leaf-specific cluster labels that are intended to restrict access to the leaf cluster. 
+can be used to bypass any leaf-specific `cluster_labels` settings that might be intended to restrict access to 
+the leaf cluster. For example, assume you assign the leaf cluster a label using the following command:
+
+```text
+tctl update rc/leaf --set-labels=env=prod
+```
+
+This label can't prevent access to the leaf cluster if a user has a certificate signed by the root cluster.
 Because of the potential security vulnerability, you should use role mapping as the primary way to restrict access 
 to leaf clusters and use `cluster_labels` for filtering and limiting the visibility of leaf cluster resources.
 
