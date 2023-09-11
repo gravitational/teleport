@@ -378,6 +378,19 @@ steps:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Install Rust Toolchain
+  commands:
+  - $ProgressPreference = 'SilentlyContinue'
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Push-Location "$TeleportSrc/build.assets"
+  - $RustVersion = $(make print-rust-version).Trim()
+  - Pop-Location
+  - Install-Rust -RustVersion $RustVersion -ToolchainDir "$Workspace/toolchains"
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Install Node Toolchain
   commands:
   - $ProgressPreference = 'SilentlyContinue'
@@ -460,6 +473,7 @@ steps:
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Go -ToolchainDir "$Workspace/toolchains"
+  - Enable-Rust -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
   - cd "$TeleportSrc\e\windowsauth"
@@ -691,6 +705,19 @@ steps:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Install Rust Toolchain
+  commands:
+  - $ProgressPreference = 'SilentlyContinue'
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Push-Location "$TeleportSrc/build.assets"
+  - $RustVersion = $(make print-rust-version).Trim()
+  - Pop-Location
+  - Install-Rust -RustVersion $RustVersion -ToolchainDir "$Workspace/toolchains"
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Install Node Toolchain
   commands:
   - $ProgressPreference = 'SilentlyContinue'
@@ -725,6 +752,7 @@ steps:
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Go -ToolchainDir "$Workspace/toolchains"
+  - Enable-Rust -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
   - cd "$TeleportSrc\e\windowsauth"
@@ -1268,7 +1296,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.21.0
+  RUNTIME: go1.21.1
 trigger:
   event:
     include:
@@ -1477,7 +1505,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.21.0
+  RUNTIME: go1.21.1
 trigger:
   event:
     include:
@@ -1685,7 +1713,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.21.0
+  RUNTIME: go1.21.1
 trigger:
   event:
     include:
@@ -1900,7 +1928,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.21.0
+  RUNTIME: go1.21.1
 trigger:
   event:
     include:
@@ -3200,7 +3228,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.21.0
+  RUNTIME: go1.21.1
 trigger:
   event:
     include:
@@ -4026,7 +4054,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.21.0
+  RUNTIME: go1.21.1
 trigger:
   event:
     include:
@@ -5355,7 +5383,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.21.0
+  RUNTIME: go1.21.1
 trigger:
   event:
     include:
@@ -6160,8 +6188,8 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - mkdir -pv "/go/vars"
-  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
-    "build") > "/go/vars/release-environment.txt"
+  - (CGO_ENABLED=0 go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo
+    "promote" || echo "build") > "/go/vars/release-environment.txt"
   depends_on:
   - Check out code
 - name: Publish Teleport to stable/${DRONE_TAG} apt repo
@@ -8044,7 +8072,9 @@ steps:
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport14
-    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.1
+    --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=amd64 --build-arg BUILD_ARCH=amd64
+    /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v14-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v14-amd64-builder"
@@ -8086,7 +8116,9 @@ steps:
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport14
-    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc --build-arg GOLANG_VERSION=go1.21.1
+    --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm --build-arg BUILD_ARCH=amd64
+    /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v14-arm-builder"
   - rm -rf "/tmp/teleport-operator-v14-arm-builder"
@@ -8128,7 +8160,9 @@ steps:
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport14
-    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.1
+    --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm64 --build-arg BUILD_ARCH=amd64
+    /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v14-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v14-arm64-builder"
@@ -8521,8 +8555,8 @@ steps:
   - git checkout -qf "${DRONE_TAG}"
   - mkdir -pv $(dirname "/go/vars/release-is-prerelease")
   - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag $DRONE_TAG -check prerelease &> /dev/null || echo 'Version
-    is a prerelease' > "/go/vars/release-is-prerelease"
+  - CGO_ENABLED=0 go run ./cmd/check -tag $DRONE_TAG -check prerelease &> /dev/null
+    || echo 'Version is a prerelease' > "/go/vars/release-is-prerelease"
   - printf 'Version is '; [ ! -f "/go/vars/release-is-prerelease" ] && printf 'not
     '; echo 'a prerelease'
 - name: Wait for docker
@@ -11560,7 +11594,9 @@ steps:
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport14
-    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.1
+    --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=amd64 --build-arg BUILD_ARCH=amd64
+    /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v13-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v13-amd64-builder"
@@ -11604,7 +11640,9 @@ steps:
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport14
-    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc --build-arg GOLANG_VERSION=go1.21.1
+    --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm --build-arg BUILD_ARCH=amd64
+    /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v13-arm-builder"
   - rm -rf "/tmp/teleport-operator-v13-arm-builder"
@@ -11648,7 +11686,9 @@ steps:
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport14
-    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.1
+    --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm64 --build-arg BUILD_ARCH=amd64
+    /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v13-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v13-arm64-builder"
@@ -13972,7 +14012,9 @@ steps:
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport14
-    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.1
+    --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=amd64 --build-arg BUILD_ARCH=amd64
+    /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v12-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v12-amd64-builder"
@@ -14016,7 +14058,9 @@ steps:
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport14
-    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc --build-arg GOLANG_VERSION=go1.21.1
+    --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm --build-arg BUILD_ARCH=amd64
+    /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v12-arm-builder"
   - rm -rf "/tmp/teleport-operator-v12-arm-builder"
@@ -14060,7 +14104,9 @@ steps:
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport14
-    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.1
+    --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm64 --build-arg BUILD_ARCH=amd64
+    /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v12-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v12-arm64-builder"
@@ -16384,7 +16430,9 @@ steps:
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport14
-    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.1
+    --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=amd64 --build-arg BUILD_ARCH=amd64
+    /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v11-amd64-builder"
@@ -16428,7 +16476,9 @@ steps:
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport14
-    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc --build-arg GOLANG_VERSION=go1.21.1
+    --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm --build-arg BUILD_ARCH=amd64
+    /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm-builder"
@@ -16472,7 +16522,9 @@ steps:
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport14
-    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.1
+    --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm64 --build-arg BUILD_ARCH=amd64
+    /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm64-builder"
@@ -17069,6 +17121,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: db22e0dbdfaf7b438259c59d1648a2de7dfc266c308fc650ccc1dd496f4dbd11
+hmac: 144d7235593bbd5252fd5b7387e88f7473bebbb84ffa03431c7e9ccd875015ec
 
 ...

@@ -6,10 +6,6 @@ description: Learn how to manage local users in Teleport. Local users are stored
 In Teleport, **local users** are users managed directly via Teleport, rather
 than a third-party identity provider.
 
-Local user accounts can be used alongside external user accounts managed via
-GitHub<ScopedBlock scope={["enterprise", "cloud"]}> as well as OIDC and SAML
-2.0</ScopedBlock>.
-
 This guide shows you how to:
 
 - [Add local users](./users.mdx#adding-local-users)
@@ -37,16 +33,19 @@ Let's look at this table:
 
 Let's add a new user to Teleport using the `tctl` tool:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```code
 $ tctl users add joe --logins=joe,root --roles=access,editor
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```code
 $ tctl users add joe --logins=joe,root --roles=access,editor,reviewer
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Teleport generates an auto-expiring token (with a TTL of one hour) and prints
 the token URL, which must be used before the TTL expires.
@@ -138,3 +137,4 @@ information, see [GitHub SSO](../../access-controls/sso/github-sso.mdx).
 
 </TabItem>
 </Tabs>
+

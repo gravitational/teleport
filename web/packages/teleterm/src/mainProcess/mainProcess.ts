@@ -48,7 +48,10 @@ import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
 import { resolveNetworkAddress } from './resolveNetworkAddress';
 import { WindowsManager } from './windowsManager';
 import { downloadAgent, FileDownloader } from './agentDownloader';
-import { createAgentConfigFile } from './createAgentConfigFile';
+import {
+  createAgentConfigFile,
+  isAgentConfigFileCreated,
+} from './createAgentConfigFile';
 import { AgentRunner } from './agentRunner';
 import { terminateWithTimeout } from './terminateWithTimeout';
 
@@ -92,6 +95,7 @@ export default class MainProcess {
     this.windowsManager = opts.windowsManager;
     this.agentRunner = new AgentRunner(
       this.settings,
+      path.join(__dirname, 'agentCleanupDaemon.js'),
       (rootClusterUri, state) => {
         const window = this.windowsManager.getWindow();
         if (window.isDestroyed()) {
@@ -154,7 +158,7 @@ export default class MainProcess {
 
     createFileLoggerService({
       dev: this.settings.dev,
-      dir: this.settings.userDataDir,
+      dir: this.settings.logsDir,
       name: 'tshd',
       loggerNameColor: LoggerColor.Cyan,
       passThroughMode: true,
@@ -174,7 +178,7 @@ export default class MainProcess {
 
     createFileLoggerService({
       dev: this.settings.dev,
-      dir: this.settings.userDataDir,
+      dir: this.settings.logsDir,
       name: 'shared',
       loggerNameColor: LoggerColor.Yellow,
       passThroughMode: true,
@@ -309,6 +313,28 @@ export default class MainProcess {
           rootClusterUri: args.rootClusterUri,
           labels: args.labels,
         })
+    );
+
+    ipcMain.handle(
+      'main-process-connect-my-computer-is-agent-config-file-created',
+      async (
+        _,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => isAgentConfigFileCreated(this.settings, args.rootClusterUri)
+    );
+
+    ipcMain.handle(
+      'main-process-connect-my-computer-kill-agent',
+      async (
+        _,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => {
+        await this.agentRunner.kill(args.rootClusterUri);
+      }
     );
 
     ipcMain.handle(

@@ -68,6 +68,8 @@ type Database interface {
 	GetStatusCA() string
 	// GetMySQL returns the database options from spec.
 	GetMySQL() MySQLOptions
+	// GetOracle returns the database options from spec.
+	GetOracle() OracleOptions
 	// GetMySQLServerVersion returns the MySQL server version either from configuration or
 	// reported by the database.
 	GetMySQLServerVersion() string
@@ -179,6 +181,16 @@ func (d *DatabaseV3) SetResourceID(id int64) {
 	d.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (d *DatabaseV3) GetRevision() string {
+	return d.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (d *DatabaseV3) SetRevision(rev string) {
+	d.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns the database resource metadata.
 func (d *DatabaseV3) GetMetadata() Metadata {
 	return d.Metadata
@@ -286,6 +298,11 @@ func (d *DatabaseV3) GetAdminUser() string {
 	}
 	// If it's not in the spec, check labels (for auto-discovered databases).
 	return d.Metadata.Labels[DatabaseAdminLabel]
+}
+
+// GetOracle returns the Oracle options from spec.
+func (d *DatabaseV3) GetOracle() OracleOptions {
+	return d.Spec.Oracle
 }
 
 // SupportsAutoUsers returns true if this database supports automatic user
@@ -990,6 +1007,8 @@ const (
 	DatabaseProtocolClickHouseHTTP = "clickhouse-http"
 	// DatabaseProtocolClickHouse is the ClickHouse database native write protocol.
 	DatabaseProtocolClickHouse = "clickhouse"
+	// DatabaseProtocolMySQL is the MySQL database protocol.
+	DatabaseProtocolMySQL = "mysql"
 
 	// DatabaseTypeSelfHosted is the self-hosted type of database.
 	DatabaseTypeSelfHosted = "self-hosted"
@@ -1141,4 +1160,9 @@ func (s *IAMPolicyStatus) UnmarshalJSON(data []byte) error {
 
 	*s = IAMPolicyStatus(IAMPolicyStatus_value[stringVal])
 	return nil
+}
+
+// IsAuditLogEnabled returns if Oracle Audit Log was enabled
+func (o OracleOptions) IsAuditLogEnabled() bool {
+	return o.AuditUser != ""
 }

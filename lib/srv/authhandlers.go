@@ -433,7 +433,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		// exists and it is an agentless node, preform an RBAC check.
 		// Otherwise if the target node does not exist the node is
 		// probably an unregistered SSH node; do not preform an RBAC check
-		if h.c.TargetServer != nil && h.c.TargetServer.GetSubKind() == types.SubKindOpenSSHNode {
+		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
 			err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.TargetServer, teleportUser, conn.User())
 		}
 	} else {
@@ -513,6 +513,11 @@ func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicK
 func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh.PublicKey) error {
 	// Use the server's shutdown context.
 	ctx := h.c.Server.Context()
+
+	// For SubKindOpenSSHEICENode we use SSH Keys (EC2 does not support Certificates in ec2.SendSSHPublicKey).
+	if h.c.Server.TargetMetadata().ServerSubKind == types.SubKindOpenSSHEICENode {
+		return nil
+	}
 
 	// If strict host key checking is enabled, reject host key fallback.
 	recConfig, err := h.c.AccessPoint.GetSessionRecordingConfig(ctx)

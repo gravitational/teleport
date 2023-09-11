@@ -51,6 +51,7 @@ exports[`empty state for enterprise, can create 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 224px;
+  text-transform: none;
 }
 
 .c11:hover,
@@ -95,6 +96,7 @@ exports[`empty state for enterprise, can create 1`] = `
   padding: 0px 24px;
   margin-left: 24px;
   width: 224px;
+  text-transform: none;
 }
 
 .c12:hover,
@@ -249,8 +251,7 @@ exports[`empty state for enterprise, can create 1`] = `
               kind="primary"
               width="224px"
             >
-              Add 
-              application
+              Add Resource
             </button>
           </a>
           <a
@@ -341,44 +342,48 @@ exports[`failed state 1`] = `
   cursor: auto;
 }
 
-.c36 {
-  align-items: center;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  outline: none;
-  border-radius: 50%;
-  overflow: visible;
+.c34 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
   justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
   text-align: center;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
+  text-decoration: none;
+  text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  font-size: 16px;
-  height: 32px;
-  width: 32px;
-  margin-left: 0px;
-  margin-right: 0px;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 90px;
+  text-transform: none;
 }
 
-.c36:disabled {
-  color: rgba(255,255,255,0.36);
+.c34:hover,
+.c34:focus {
+  background: rgba(255,255,255,0.07);
 }
 
-.c36:disabled {
-  color: rgba(255,255,255,0.36);
-  cursor: default;
-}
-
-.c36:hover:enabled,
-.c36:focus:enabled {
+.c34:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c36:active:enabled {
-  background: rgba(255,255,255,0.18);
+.c34:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c38 {
@@ -400,6 +405,7 @@ exports[`failed state 1`] = `
   height: 32px;
   width: 32px;
   margin-left: 0px;
+  margin-right: 0px;
 }
 
 .c38:disabled {
@@ -417,6 +423,45 @@ exports[`failed state 1`] = `
 }
 
 .c38:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c40 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c40:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c40:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c40:hover:enabled,
+.c40:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c40:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -456,7 +501,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c32 {
+.c35 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -504,7 +549,7 @@ exports[`failed state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #f57c00;
+  background-color: #1976d2;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -515,7 +560,18 @@ exports[`failed state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #00796b;
+  background-color: #e64a19;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c32 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #f57c00;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -526,14 +582,14 @@ exports[`failed state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #1976d2;
+  background-color: #00796b;
   border-radius: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.c35 {
+.c37 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -664,7 +720,7 @@ exports[`failed state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c34 {
+.c36 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -701,11 +757,11 @@ exports[`failed state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 svg {
+.c39 svg {
   font-size: 20px;
 }
 
-.c37 svg:before {
+.c39 svg:before {
   padding-left: 1px;
 }
 
@@ -964,12 +1020,12 @@ exports[`failed state 1`] = `
               </strong>
                - 
               <strong>
-                6
+                9
               </strong>
                of
                
               <strong>
-                6
+                9
               </strong>
             </div>
           </div>
@@ -1122,6 +1178,180 @@ exports[`failed state 1`] = `
                   color="light"
                   font-size="3"
                 >
+                  T
+                </div>
+              </div>
+            </td>
+            <td>
+              TheOtherOne
+            </td>
+            <td>
+              This is a Jenkins app
+            </td>
+            <td>
+              https://jenkins.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  icon: jenkins
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/jenkins.two/one/jenkins.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c31"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  G
+                </div>
+              </div>
+            </td>
+            <td>
+              Grafana
+            </td>
+            <td>
+              This is a Grafana app
+            </td>
+            <td>
+              https://grafana.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  env: prod
+                </div>
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/g.one/one/grafana.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c30"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  C
+                </div>
+              </div>
+            </td>
+            <td>
+              Company Chat
+            </td>
+            <td>
+              This is the employee slack channel
+            </td>
+            <td>
+              https://slack.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  env: prod
+                </div>
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  icon: slack
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/s.one/one/slack.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c32"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
                   s
                 </div>
               </div>
@@ -1158,7 +1388,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c31"
+                class="c33"
                 height="32px"
                 width="32px"
               >
@@ -1218,7 +1448,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c31"
+                class="c33"
                 height="32px"
                 width="32px"
               >
@@ -1277,7 +1507,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c30"
+                class="c32"
                 height="32px"
                 width="32px"
               >
@@ -1334,13 +1564,13 @@ exports[`failed state 1`] = `
               align="right"
             >
               <button
-                class="c29"
+                class="c34"
                 kind="border"
-                width="88px"
+                width="90px"
               >
-                LAUNCH
+                Launch
                 <span
-                  class="c32 icon icon-chevrondown"
+                  class="c35 icon icon-chevrondown"
                   color="text.slightlyMuted"
                 >
                   <svg
@@ -1364,7 +1594,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c33"
+                class="c30"
                 height="32px"
                 width="32px"
               >
@@ -1421,17 +1651,17 @@ exports[`failed state 1`] = `
         </tbody>
       </table>
       <nav
-        class="c34"
+        class="c36"
       >
         <div
-          class="c35"
+          class="c37"
           width="100%"
         >
           <div
             class="c21"
           >
             <button
-              class="c36 c37"
+              class="c38 c39"
               title="Previous page"
             >
               <span
@@ -1455,7 +1685,7 @@ exports[`failed state 1`] = `
               </span>
             </button>
             <button
-              class="c38 c37"
+              class="c40 c39"
               title="Next page"
             >
               <span
@@ -1515,6 +1745,7 @@ exports[`loaded state 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c3:hover,
@@ -1575,44 +1806,48 @@ exports[`loaded state 1`] = `
   cursor: auto;
 }
 
-.c36 {
-  align-items: center;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  outline: none;
-  border-radius: 50%;
-  overflow: visible;
+.c34 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
   justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
   text-align: center;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
+  text-decoration: none;
+  text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  font-size: 16px;
-  height: 32px;
-  width: 32px;
-  margin-left: 0px;
-  margin-right: 0px;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 90px;
+  text-transform: none;
 }
 
-.c36:disabled {
-  color: rgba(255,255,255,0.36);
+.c34:hover,
+.c34:focus {
+  background: rgba(255,255,255,0.07);
 }
 
-.c36:disabled {
-  color: rgba(255,255,255,0.36);
-  cursor: default;
-}
-
-.c36:hover:enabled,
-.c36:focus:enabled {
+.c34:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c36:active:enabled {
-  background: rgba(255,255,255,0.18);
+.c34:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c38 {
@@ -1634,6 +1869,7 @@ exports[`loaded state 1`] = `
   height: 32px;
   width: 32px;
   margin-left: 0px;
+  margin-right: 0px;
 }
 
 .c38:disabled {
@@ -1651,6 +1887,45 @@ exports[`loaded state 1`] = `
 }
 
 .c38:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c40 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c40:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c40:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c40:hover:enabled,
+.c40:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c40:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -1690,7 +1965,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c32 {
+.c35 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1738,7 +2013,7 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #f57c00;
+  background-color: #1976d2;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -1749,7 +2024,18 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #00796b;
+  background-color: #e64a19;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c32 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #f57c00;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -1760,14 +2046,14 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #1976d2;
+  background-color: #00796b;
   border-radius: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.c35 {
+.c37 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -1898,7 +2184,7 @@ exports[`loaded state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c34 {
+.c36 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1935,11 +2221,11 @@ exports[`loaded state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 svg {
+.c39 svg {
   font-size: 20px;
 }
 
-.c37 svg:before {
+.c39 svg:before {
   padding-left: 1px;
 }
 
@@ -2097,8 +2383,7 @@ exports[`loaded state 1`] = `
           title=""
           width="240px"
         >
-          Add 
-          application
+          Add application
         </button>
       </a>
     </div>
@@ -2204,12 +2489,12 @@ exports[`loaded state 1`] = `
               </strong>
                - 
               <strong>
-                6
+                9
               </strong>
                of
                
               <strong>
-                6
+                9
               </strong>
             </div>
           </div>
@@ -2362,6 +2647,180 @@ exports[`loaded state 1`] = `
                   color="light"
                   font-size="3"
                 >
+                  T
+                </div>
+              </div>
+            </td>
+            <td>
+              TheOtherOne
+            </td>
+            <td>
+              This is a Jenkins app
+            </td>
+            <td>
+              https://jenkins.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  icon: jenkins
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/jenkins.two/one/jenkins.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c31"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  G
+                </div>
+              </div>
+            </td>
+            <td>
+              Grafana
+            </td>
+            <td>
+              This is a Grafana app
+            </td>
+            <td>
+              https://grafana.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  env: prod
+                </div>
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/g.one/one/grafana.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c30"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  C
+                </div>
+              </div>
+            </td>
+            <td>
+              Company Chat
+            </td>
+            <td>
+              This is the employee slack channel
+            </td>
+            <td>
+              https://slack.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  env: prod
+                </div>
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  icon: slack
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/s.one/one/slack.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c32"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
                   s
                 </div>
               </div>
@@ -2398,7 +2857,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c31"
+                class="c33"
                 height="32px"
                 width="32px"
               >
@@ -2458,7 +2917,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c31"
+                class="c33"
                 height="32px"
                 width="32px"
               >
@@ -2517,7 +2976,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c30"
+                class="c32"
                 height="32px"
                 width="32px"
               >
@@ -2574,13 +3033,13 @@ exports[`loaded state 1`] = `
               align="right"
             >
               <button
-                class="c29"
+                class="c34"
                 kind="border"
-                width="88px"
+                width="90px"
               >
-                LAUNCH
+                Launch
                 <span
-                  class="c32 icon icon-chevrondown"
+                  class="c35 icon icon-chevrondown"
                   color="text.slightlyMuted"
                 >
                   <svg
@@ -2604,7 +3063,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c33"
+                class="c30"
                 height="32px"
                 width="32px"
               >
@@ -2661,17 +3120,17 @@ exports[`loaded state 1`] = `
         </tbody>
       </table>
       <nav
-        class="c34"
+        class="c36"
       >
         <div
-          class="c35"
+          class="c37"
           width="100%"
         >
           <div
             class="c21"
           >
             <button
-              class="c36 c37"
+              class="c38 c39"
               title="Previous page"
             >
               <span
@@ -2695,7 +3154,7 @@ exports[`loaded state 1`] = `
               </span>
             </button>
             <button
-              class="c38 c37"
+              class="c40 c39"
               title="Next page"
             >
               <span

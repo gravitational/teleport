@@ -169,6 +169,14 @@ export interface DocumentConnectMyComputerSetup extends DocumentBase {
   rootClusterUri: uri.RootClusterUri;
 }
 
+export interface DocumentConnectMyComputerStatus extends DocumentBase {
+  kind: 'doc.connect_my_computer_status';
+  // `DocumentConnectMyComputerStatus` always operates on the root cluster, so in theory `rootClusterUri` is not needed.
+  // However, there are a few components in the system, such as `getResourceUri`, which need to determine the relation
+  // between a document and a cluster just by looking at the document fields.
+  rootClusterUri: uri.RootClusterUri;
+}
+
 export type DocumentTerminal =
   | DocumentPtySession
   | DocumentGatewayCliClient
@@ -182,7 +190,8 @@ export type Document =
   | DocumentGateway
   | DocumentCluster
   | DocumentTerminal
-  | DocumentConnectMyComputerSetup;
+  | DocumentConnectMyComputerSetup
+  | DocumentConnectMyComputerStatus;
 
 export function isDocumentTshNodeWithLoginHost(
   doc: Document

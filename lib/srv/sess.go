@@ -1073,8 +1073,7 @@ func (s *session) sessionRecordingMode() string {
 	subKind := s.serverMeta.ServerSubKind
 
 	// agentless connections always record the session at the proxy
-	if !services.IsRecordAtProxy(sessionRecMode) && (subKind == types.SubKindOpenSSHNode ||
-		subKind == types.SubKindOpenSSHEICENode) {
+	if !services.IsRecordAtProxy(sessionRecMode) && types.IsOpenSSHNodeSubKind(subKind) {
 		if services.IsRecordSync(sessionRecMode) {
 			sessionRecMode = types.RecordAtProxySync
 		} else {
@@ -1982,7 +1981,8 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 				LastActive: s.registry.clock.Now().UTC(),
 			},
 		},
-		HostID: s.registry.Srv.ID(),
+		HostID:        s.registry.Srv.ID(),
+		TargetSubKind: s.serverMeta.ServerSubKind,
 	}
 
 	if s.scx.env[teleport.EnvSSHSessionInvited] != "" {

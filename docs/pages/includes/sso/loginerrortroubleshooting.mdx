@@ -1,14 +1,13 @@
 Troubleshooting SSO configuration can be challenging. Usually a Teleport administrator
 must be able to:
 
-<ScopedBlock scope={["enterprise"]}>
-- Ensure that HTTP/TLS certificates are configured properly for both the Teleport
-  Proxy Service and the SSO provider.
-</ScopedBlock>
 - Be able to see what SAML/OIDC claims and values are getting exported and passed
   by the SSO provider to Teleport.
 - Be able to see how Teleport maps the received claims to role mappings as defined
   in the connector.
+- For self-hosted Teleport Enterprise clusters, ensure that HTTP/TLS
+  certificates are configured properly for both the Teleport Proxy Service and
+  the SSO provider.
 
 If something is not working, we recommend to:
 
@@ -58,3 +57,4 @@ spec:
       'env': 'dev'
 version: v5
 ```
+

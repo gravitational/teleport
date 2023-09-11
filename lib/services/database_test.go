@@ -753,6 +753,7 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 				{SubnetIdentifier: aws.String("subnet-1234567890abcdef1")},
 				{SubnetIdentifier: aws.String("subnet-1234567890abcdef2")},
 			},
+			VpcId: aws.String("vpc-asd"),
 		},
 	}
 	expected, err := types.NewDatabaseV3(types.Metadata{
@@ -784,6 +785,7 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 					"subnet-1234567890abcdef1",
 					"subnet-1234567890abcdef2",
 				},
+				VPCID: "vpc-asd",
 			},
 		},
 	})

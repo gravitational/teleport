@@ -278,6 +278,8 @@ func TestReviewThresholds(t *testing.T) {
 		propose types.RequestState
 		// expect is the expected post-review state of the request (defaults to pending)
 		expect types.RequestState
+
+		errCheck require.ErrorAssertionFunc
 	}
 
 	tts := []struct {
@@ -314,10 +316,61 @@ func TestReviewThresholds(t *testing.T) {
 					propose: approve,
 					expect:  approve,
 				},
-				{ // adds second denial to all thresholds, no effect since a state-transition was already triggered.
+			},
+		},
+		{
+			desc:      "trying to deny an already approved request",
+			requestor: "alice", // permitted by role populist
+			reviews: []review{
+				{ // cannot review own requests
+					author:   "alice",
+					noReview: true,
+				},
+				{ // no matching allow directives
+					author:   g.user(t, "military"),
+					noReview: true,
+				},
+				{ // adds one approval to all thresholds
+					author:  g.user(t, "proletariat", "intelligentsia", "military"),
+					propose: approve,
+				},
+				{ // adds one denial to all thresholds
 					author:  g.user(t, "proletariat", "intelligentsia", "military"),
 					propose: deny,
+				},
+				{ // adds second approval to all thresholds, triggers "uprising".
+					author:  g.user(t, "proletariat", "intelligentsia", "military"),
+					propose: approve,
 					expect:  approve,
+				},
+				{ // adds second denial but request was already approved.
+					author:  g.user(t, "proletariat", "intelligentsia", "military"),
+					propose: deny,
+					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+						require.ErrorIs(tt, err, trace.AccessDenied("the access request has been already approved"), i...)
+					},
+				},
+			},
+		},
+		{
+			desc:      "trying to approve an already denied request",
+			requestor: "bob", // permitted by role general
+			reviews: []review{
+				{ // 1 of 2 required denials
+					author:  g.user(t, "military"),
+					propose: deny,
+				},
+				{ // 2 of 2 required denials
+					author:  g.user(t, "military"),
+					propose: deny,
+					expect:  deny,
+				},
+				{ // tries to approve but it was already denied
+					author:  g.user(t, "military"),
+					propose: approve,
+					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+						require.ErrorIs(tt, err, trace.AccessDenied("the access request has been already denied"), i...)
+					},
 				},
 			},
 		},
@@ -574,6 +627,11 @@ func TestReviewThresholds(t *testing.T) {
 			require.True(t, ok, "scenario=%q, rev=%d", tt.desc, ri)
 
 			err = ApplyAccessReview(req, rev, author)
+			if rt.errCheck != nil {
+				rt.errCheck(t, err)
+				continue
+			}
+
 			require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
 			require.Equal(t, rt.expect.String(), req.GetState().String(), "scenario=%q, rev=%d", tt.desc, ri)
 		}
@@ -1946,6 +2004,8 @@ func TestMaxDuration(t *testing.T) {
 		expectedAccessDuration time.Duration
 		// expectedSessionTTL is the expected session TTL
 		expectedSessionTTL time.Duration
+		// DryRun is true if the request is a dry run
+		dryRun bool
 	}{
 		{
 			desc:                   "role maxDuration is respected",
@@ -1954,6 +2014,15 @@ func TestMaxDuration(t *testing.T) {
 			maxDuration:            7 * day,
 			expectedAccessDuration: 3 * day,
 			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc:                   "dry run allows for longer maxDuration then 7d",
+			requestor:              "alice",
+			roles:                  []string{"requestedRole"},
+			maxDuration:            10 * day,
+			expectedAccessDuration: 3 * day,
+			expectedSessionTTL:     8 * time.Hour,
+			dryRun:                 true,
 		},
 		{
 			desc:                   "maxDuration not set, default maxTTL (8h)",
@@ -2047,9 +2116,11 @@ func TestMaxDuration(t *testing.T) {
 
 			req.SetCreationTime(now)
 			req.SetMaxDuration(now.Add(tt.maxDuration))
+			req.SetDryRun(tt.dryRun)
 
 			require.NoError(t, validator.Validate(context.Background(), req, identity))
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetAccessExpiry())
+			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetMaxDuration())
 			require.Equal(t, now.Add(tt.expectedSessionTTL), req.GetSessionTLL())
 		})
 	}

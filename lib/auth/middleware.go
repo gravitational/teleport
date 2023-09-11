@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -148,7 +149,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// sets up grpc metrics interceptor
+	// sets up gRPC metrics interceptor
 	grpcMetrics := metrics.CreateGRPCServerMetrics(cfg.Metrics.GRPCServerLatency, prometheus.Labels{teleport.TagServer: "teleport-auth"})
 	err = metrics.RegisterPrometheusCollectors(grpcMetrics)
 	if err != nil {
@@ -201,11 +202,11 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	server.cfg.TLS.GetConfigForClient = server.GetConfigForClient
 
 	server.grpcServer, err = NewGRPCServer(GRPCServerConfig{
-		TLS:               server.cfg.TLS,
-		Middleware:        authMiddleware,
-		APIConfig:         cfg.APIConfig,
-		UnaryInterceptor:  authMiddleware.UnaryInterceptor(),
-		StreamInterceptor: authMiddleware.StreamInterceptor(),
+		TLS:                server.cfg.TLS,
+		Middleware:         authMiddleware,
+		APIConfig:          cfg.APIConfig,
+		UnaryInterceptors:  authMiddleware.UnaryInterceptors(),
+		StreamInterceptors: authMiddleware.StreamInterceptors(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -263,7 +264,7 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 	return trace.NewAggregate(errors...)
 }
 
-// Serve starts GRPC and HTTP1.1 services on the mux listener
+// Serve starts gRPC and HTTP1.1 services on the mux listener
 func (t *TLSServer) Serve() error {
 	errC := make(chan error, 2)
 	go func() {
@@ -353,7 +354,7 @@ type Middleware struct {
 	AcceptedUsage []string
 	// Limiter is a rate and connection limiter
 	Limiter *limiter.Limiter
-	// GRPCMetrics is the configured grpc metrics for the interceptors
+	// GRPCMetrics is the configured gRPC metrics for the interceptors
 	GRPCMetrics *om.ServerMetrics
 	// EnableCredentialsForwarding allows the middleware to receive impersonation
 	// identity from the client if it presents a valid proxy certificate.
@@ -467,43 +468,35 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 	return handler(srv, &authenticatedStream{ctx: ctx, ServerStream: serverStream})
 }
 
-// UnaryInterceptor returns a gPRC unary interceptor which performs rate
-// limiting, authenticates requests, and passes the user information as context
-// metadata.
-func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
-	if a.GRPCMetrics != nil {
-		return utils.ChainUnaryServerInterceptors(
-			otelgrpc.UnaryServerInterceptor(),
-			om.UnaryServerInterceptor(a.GRPCMetrics),
-			utils.GRPCServerUnaryErrorInterceptor,
-			a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
-			a.withAuthenticatedUserUnaryInterceptor,
-		)
-	}
-	return utils.ChainUnaryServerInterceptors(
+// UnaryInterceptors returns the gRPC unary interceptor chain.
+func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
+	is := []grpc.UnaryServerInterceptor{
 		otelgrpc.UnaryServerInterceptor(),
-		utils.GRPCServerUnaryErrorInterceptor,
+	}
+
+	if a.GRPCMetrics != nil {
+		is = append(is, om.UnaryServerInterceptor(a.GRPCMetrics))
+	}
+
+	return append(is,
+		interceptors.GRPCServerUnaryErrorInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor,
 	)
 }
 
-// StreamInterceptor returns a gPRC stream interceptor which performs rate
-// limiting, authenticates requests, and passes the user information as context
-// metadata.
-func (a *Middleware) StreamInterceptor() grpc.StreamServerInterceptor {
-	if a.GRPCMetrics != nil {
-		return utils.ChainStreamServerInterceptors(
-			otelgrpc.StreamServerInterceptor(),
-			om.StreamServerInterceptor(a.GRPCMetrics),
-			utils.GRPCServerStreamErrorInterceptor,
-			a.Limiter.StreamServerInterceptor,
-			a.withAuthenticatedUserStreamInterceptor,
-		)
-	}
-	return utils.ChainStreamServerInterceptors(
+// StreamInterceptors returns the gRPC stream interceptor chain.
+func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
+	is := []grpc.StreamServerInterceptor{
 		otelgrpc.StreamServerInterceptor(),
-		utils.GRPCServerStreamErrorInterceptor,
+	}
+
+	if a.GRPCMetrics != nil {
+		is = append(is, om.StreamServerInterceptor(a.GRPCMetrics))
+	}
+
+	return append(is,
+		interceptors.GRPCServerStreamErrorInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor,
 	)

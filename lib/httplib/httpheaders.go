@@ -84,7 +84,7 @@ var stripeSecurityPolicy = cspMap{
 }
 
 var wasmSecurityPolicy = cspMap{
-	"script-src": {"'wasm-unsafe-eval'"},
+	"script-src": {"'self'", "'wasm-unsafe-eval'"},
 }
 
 // combineCSPMaps combines multiple CSP maps into a single map.

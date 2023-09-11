@@ -382,6 +382,16 @@ func (p *ProvisionTokenV2) SetResourceID(id int64) {
 	p.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (p *ProvisionTokenV2) GetRevision() string {
+	return p.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (p *ProvisionTokenV2) SetRevision(rev string) {
+	p.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns metadata
 func (p *ProvisionTokenV2) GetMetadata() Metadata {
 	return p.Metadata

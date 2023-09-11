@@ -853,8 +853,8 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 
 	roleSet := make([]types.Role, len(a.RoleSet))
 	copy(roleSet, a.RoleSet)
-	slices.SortStableFunc(roleSet, func(a types.Role, b types.Role) bool {
-		return strings.Compare(a.GetName(), b.GetName()) == -1
+	slices.SortStableFunc(roleSet, func(a types.Role, b types.Role) int {
+		return strings.Compare(a.GetName(), b.GetName())
 	})
 
 	seenSudoers := make(map[string]struct{})
@@ -1106,11 +1106,41 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap
 	}, nil
 }
 
+// UserState is a representation of a user's current state.
+type UserState interface {
+	// GetName returns the username associated with the user state.
+	GetName() string
+
+	// GetRoles returns the roles associated with the user's current state.
+	GetRoles() []string
+
+	// GetTraits returns the traits associated with the user's current sate.
+	GetTraits() map[string][]string
+
+	// GetUserType returns the user type for the user login state.
+	GetUserType() types.UserType
+
+	// IsBot returns true if the user belongs to a bot.
+	IsBot() bool
+
+	// BotGenerationLabel returns the bot generation label for the user.
+	BotGenerationLabel() string
+}
+
 // AccessInfoFromUser return a new AccessInfo populated from the roles and
 // traits held be the given user. This should only be used in cases where the
 // user does not have any active access requests (initial web login, initial
 // tbot certs, tests).
+// TODO(mdwn): Remove this once enterprise has been moved away from this function.
 func AccessInfoFromUser(user types.User) *AccessInfo {
+	return AccessInfoFromUserState(user)
+}
+
+// AccessInfoFromUserState return a new AccessInfo populated from the roles and
+// traits held be the given user state. This should only be used in cases where the
+// user does not have any active access requests (initial web login, initial
+// tbot certs, tests).
+func AccessInfoFromUserState(user UserState) *AccessInfo {
 	roles := user.GetRoles()
 	traits := user.GetTraits()
 	return &AccessInfo{

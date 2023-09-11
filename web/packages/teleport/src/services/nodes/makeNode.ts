@@ -18,10 +18,12 @@ import { Node } from './types';
 
 export default function makeNode(json: any): Node {
   json = json ?? {};
-  const { id, siteId, hostname, addr, tunnel, tags, sshLogins } = json;
+  const { id, siteId, subKind, hostname, addr, tunnel, tags, sshLogins } = json;
 
   return {
+    kind: 'node',
     id,
+    subKind: formatSubKindInfo(subKind),
     clusterId: siteId,
     hostname,
     labels: tags ?? [],
@@ -29,4 +31,15 @@ export default function makeNode(json: any): Node {
     tunnel,
     sshLogins: sshLogins ?? [],
   };
+}
+
+function formatSubKindInfo(subKind: string) {
+  switch (subKind) {
+    case 'openssh-ec2-ice':
+    case 'openssh':
+      return 'OpenSSH Server';
+
+    default:
+      return 'SSH Server';
+  }
 }

@@ -31,9 +31,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/digitorus/pkcs7"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"go.mozilla.org/pkcs7"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"

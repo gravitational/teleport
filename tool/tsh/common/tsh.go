@@ -53,7 +53,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -66,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
+	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -103,8 +103,6 @@ const (
 	mfaModePlatform = "platform"
 	// mfaModeOTP utilizes only OTP devices.
 	mfaModeOTP = "otp"
-
-	hostnameOrIDPredicateTemplate = `resource.spec.hostname == "%[1]s" || resource.metadata.name == "%[1]s"`
 )
 
 // CLIConf stores command line arguments and flags:
@@ -364,12 +362,6 @@ type CLIConf struct {
 
 	// LocalProxyPort is a port used by local proxy listener.
 	LocalProxyPort string
-	// LocalProxyCertFile is the client certificate used by local proxy.
-	// DEPRECATED DELETE IN 14.0
-	LocalProxyCertFile string
-	// LocalProxyKeyFile is the client key used by local proxy.
-	// DEPRECATED DELETE IN 14.0
-	LocalProxyKeyFile string
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
 	LocalProxyTunnel bool
 
@@ -481,6 +473,10 @@ type CLIConf struct {
 	// authentication function.
 	// Defaults to [dtauthn.NewCeremony().Run].
 	DTAuthnRunCeremony client.DTAuthnRunCeremonyFunc
+
+	// WebauthnLogin allows tests to override the Webauthn Login func.
+	// Defaults to [wancli.Login].
+	WebauthnLogin client.WebauthnLoginFunc
 
 	// LeafClusterName is the optional name of a leaf cluster to connect to instead
 	LeafClusterName string
@@ -797,9 +793,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	proxyDB.Arg("db", "The name of the database to start local proxy for").StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
-	// --cert-file and --key-file are deprecated in favor of --tunnel flag.
-	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").Hidden().StringVar(&cf.LocalProxyCertFile)
-	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").Hidden().StringVar(&cf.LocalProxyKeyFile)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
 	proxyDB.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
 	proxyDB.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
@@ -887,7 +880,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML,
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
-	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
+	play.Arg("session-id", "ID or path to session file to play").Required().StringVar(&cf.SessionID)
 
 	// scp
 	scp := app.Command("scp", "Transfer files to a remote SSH node.")
@@ -972,6 +965,16 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchExecKube.Arg("command", "Command to execute on a pod").Required().StringsVar(&cf.RemoteCommand)
 	benchExecKube.Flag("container", "Selects the container to exec into.").StringVar(&benchKubeOpts.container)
 	benchExecKube.Flag("interactive", "Create interactive Kube session").BoolVar(&cf.BenchInteractive)
+
+	benchPostgres := bench.Command("postgres", "Run PostgreSQL database benchmark tests").Hidden()
+	benchPostgres.Flag("db-user", "Database user used to connect to the target database. The user must have enough permissions on the database to execute all the benchmark queries.").StringVar(&cf.DatabaseUser)
+	benchPostgres.Flag("db-name", "Database name where benchmark queries will be executed.").StringVar(&cf.DatabaseName)
+	benchPostgres.Arg("database", "Teleport target database name or the direct database URI. Available databases can be retrieved by running `tsh db ls`. When using direct connection, the benchmark will issue connections directly to this database, and no Teleport is involved in the testing. It must contain all the connection information, including authentication credentials.").StringVar(&cf.DatabaseService)
+
+	benchMySQL := bench.Command("mysql", "Run MySQL database benchmark tests").Hidden()
+	benchMySQL.Flag("db-user", "Database user used to connect to the target database. The user must have enough permissions on the database to execute all the benchmark queries.").StringVar(&cf.DatabaseUser)
+	benchMySQL.Flag("db-name", "Database name where benchmark queries will be executed.").StringVar(&cf.DatabaseName)
+	benchMySQL.Arg("database", "Teleport target database name or the direct database URI. Available databases can be retrieved by running `tsh db ls`. When using direct connection, the benchmark will issue connections directly to this database, and no Teleport is involved in the testing. It must contain all the connection information, including authentication credentials.").StringVar(&cf.DatabaseService)
 
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout.").Hidden()
@@ -1280,6 +1283,26 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 				Interactive:   cf.BenchInteractive,
 			},
 		)
+	case benchPostgres.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmarkdb.PostgresBenchmark{
+				DBService:          cf.DatabaseService,
+				DBUser:             cf.DatabaseUser,
+				DBName:             cf.DatabaseName,
+				InsecureSkipVerify: cf.InsecureSkipVerify,
+			},
+		)
+	case benchMySQL.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmarkdb.MySQLBenchmark{
+				DBService:          cf.DatabaseService,
+				DBUser:             cf.DatabaseUser,
+				DBName:             cf.DatabaseName,
+				InsecureSkipVerify: cf.InsecureSkipVerify,
+			},
+		)
 	case join.FullCommand():
 		err = onJoin(&cf)
 	case scp.FullCommand():
@@ -1408,6 +1431,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = deviceCmd.enroll.run(&cf)
 	case deviceCmd.collect.FullCommand():
 		err = deviceCmd.collect.run(&cf)
+	case deviceCmd.assetTag.FullCommand():
+		err = deviceCmd.assetTag.run(&cf)
 	case deviceCmd.keyget.FullCommand():
 		err = deviceCmd.keyget.run(&cf)
 	case deviceCmd.activateCredential.FullCommand():
@@ -2594,7 +2619,7 @@ func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string
 	return row
 }
 
-func printNodesAsText(output io.Writer, nodes []types.Server, verbose bool) error {
+func printNodesAsText[T types.Server](output io.Writer, nodes []T, verbose bool) error {
 	var rows [][]string
 	for _, n := range nodes {
 		rows = append(rows, getNodeRow("", "", n, verbose))
@@ -3058,32 +3083,27 @@ func accessRequestForSSH(ctx context.Context, _ *CLIConf, tc *client.TeleportCli
 	}
 	defer clt.Close()
 
-	// Match on hostname or host ID, user could have given either
-	expr := fmt.Sprintf(hostnameOrIDPredicateTemplate, tc.Host)
-
-	nodes, err := apiclient.GetAllResources[types.Server](ctx, clt.AuthClient, &proto.ListResourcesRequest{
-		Namespace:           apidefaults.Namespace,
-		ResourceType:        types.KindNode,
-		UseSearchAsRoles:    true,
-		PredicateExpression: expr,
+	rsp, err := clt.AuthClient.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
+		Host: tc.Host,
+		Port: strconv.Itoa(tc.HostPort),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(nodes) > 1 {
+	if len(rsp.Servers) > 1 {
 		// Ambiguous hostname matches should have been handled by onSSH and
 		// would not make it here, this is a sanity check. Ambiguous host ID
 		// matches should be impossible.
 		return nil, trace.NotFound("hostname %q is ambiguous and matches multiple nodes, unable to request access", tc.Host)
 	}
-	if len(nodes) == 0 {
+	if len(rsp.Servers) == 0 {
 		// Did not find any nodes by hostname or ID.
 		return nil, trace.NotFound("node %q not found, unable to request access", tc.Host)
 	}
 
 	// At this point we have exactly 1 node.
-	node := nodes[0]
+	node := rsp.Servers[0]
 	requestResourceIDs := []types.ResourceID{{
 		ClusterName: tc.SiteName,
 		Kind:        types.KindNode,
@@ -3216,15 +3236,19 @@ func onSSH(cf *CLIConf) error {
 		})
 		if err != nil {
 			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
-				// Match on hostname or host ID, user could have given either
-				expr := fmt.Sprintf(hostnameOrIDPredicateTemplate, tc.Host)
-				tc.PredicateExpression = expr
-				nodes, err := tc.ListNodesWithFilters(cf.Context)
+				clt, err := tc.ConnectToCluster(cf.Context)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				rsp, err := clt.AuthClient.GetSSHTargets(cf.Context, &proto.GetSSHTargetsRequest{
+					Host: tc.Host,
+					Port: strconv.Itoa(tc.HostPort),
+				})
 				if err != nil {
 					return trace.Wrap(err)
 				}
 				fmt.Fprintf(cf.Stderr(), "error: ambiguous host could match multiple nodes\n\n")
-				printNodesAsText(cf.Stderr(), nodes, true)
+				printNodesAsText(cf.Stderr(), rsp.Servers, true)
 				fmt.Fprintf(cf.Stderr(), "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
 				fmt.Fprintf(cf.Stderr(), "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
 				fmt.Fprintf(cf.Stderr(), "\n")
@@ -3269,13 +3293,13 @@ func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		return trace.Wrap(&common.ExitCodeError{Code: 255})
 	}
-	fmt.Printf("\n")
-	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
-	fmt.Printf("* Requests failed: %v\n", result.RequestsFailed)
+	fmt.Fprintf(cf.Stdout(), "\n")
+	fmt.Fprintf(cf.Stdout(), "* Requests originated: %v\n", result.RequestsOriginated)
+	fmt.Fprintf(cf.Stdout(), "* Requests failed: %v\n", result.RequestsFailed)
 	if result.LastError != nil {
-		fmt.Printf("* Last error: %v\n", result.LastError)
+		fmt.Fprintf(cf.Stdout(), "* Last error: %v\n", result.LastError)
 	}
-	fmt.Printf("\nHistogram\n\n")
+	fmt.Fprintf(cf.Stdout(), "\nHistogram\n\n")
 	t := asciitable.MakeTable([]string{"Percentile", "Response Duration"})
 	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {
 		t.AddRow([]string{
@@ -3283,16 +3307,16 @@ func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
 			fmt.Sprintf("%v ms", result.Histogram.ValueAtQuantile(quantile)),
 		})
 	}
-	if _, err := io.Copy(os.Stdout, t.AsBuffer()); err != nil {
+	if _, err := io.Copy(cf.Stdout(), t.AsBuffer()); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("\n")
+	fmt.Fprintf(cf.Stdout(), "\n")
 	if cf.BenchExport {
 		path, err := benchmark.ExportLatencyProfile(cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
+			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
 		} else {
-			fmt.Printf("latency profile saved: %v\n", path)
+			fmt.Fprintf(cf.Stdout(), "latency profile saved: %v\n", path)
 		}
 	}
 	return nil
@@ -3711,6 +3735,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.MockSSOLogin = cf.MockSSOLogin
 	c.MockHeadlessLogin = cf.MockHeadlessLogin
 	c.DTAuthnRunCeremony = cf.DTAuthnRunCeremony
+	c.WebauthnLogin = cf.WebauthnLogin
 
 	// pass along MySQL/Postgres path overrides (only used in tests).
 	c.OverrideMySQLOptionFilePath = cf.overrideMySQLOptionFilePath
@@ -4845,7 +4870,15 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient) error {
 	if len(cf.KubernetesCluster) == 0 {
 		return nil
 	}
-	err := updateKubeConfig(cf, tc, "" /* update the default kubeconfig */, "" /* do not override the context name */)
+	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// update the default kubeconfig
+	kubeConfigPath := ""
+	// do not override the context name
+	overrideContextName := ""
+	err = updateKubeConfig(cf, tc, kubeConfigPath, overrideContextName, kubeStatus)
 	return trace.Wrap(err)
 }
 

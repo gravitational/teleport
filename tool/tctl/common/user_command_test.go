@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
 )
 
@@ -65,7 +66,7 @@ func TestTrimDurationSuffix(t *testing.T) {
 }
 
 func TestUserAdd(t *testing.T) {
-	dynAddr := newDynamicServiceAddr(t)
+	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -73,11 +74,11 @@ func TestUserAdd(t *testing.T) {
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: dynAddr.authAddr,
+				ListenAddress: dynAddr.AuthAddr,
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := context.Background()
 	client := getAuthClient(ctx, t, fileConfig)
 
@@ -217,7 +218,7 @@ func TestUserAdd(t *testing.T) {
 }
 
 func TestUserUpdate(t *testing.T) {
-	dynAddr := newDynamicServiceAddr(t)
+	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -225,11 +226,11 @@ func TestUserUpdate(t *testing.T) {
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: dynAddr.authAddr,
+				ListenAddress: dynAddr.AuthAddr,
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := context.Background()
 	client := getAuthClient(ctx, t, fileConfig)
 

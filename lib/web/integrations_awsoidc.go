@@ -43,7 +43,7 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -93,7 +93,7 @@ func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p htt
 		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
 	}
 
-	issuer, err := h.issuerFromPublicAddr()
+	issuer, err := awsoidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -162,6 +162,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		Region:                        req.Region,
 		AccountID:                     req.AccountID,
 		SubnetIDs:                     req.SubnetIDs,
+		SecurityGroups:                req.SecurityGroups,
 		ClusterName:                   req.ClusterName,
 		ServiceName:                   req.ServiceName,
 		TaskName:                      req.TaskName,
@@ -234,7 +235,44 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 		fmt.Sprintf("--task-role=%s", taskRole),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs: strings.Join(argsList, " "),
+		TeleportArgs:   strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the browser to complete the database enrollment.",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	fmt.Fprint(w, script)
+
+	return nil, trace.Wrap(err)
+}
+
+// awsOIDCConfigureEICEIAM returns a script that configures the required IAM permissions to enable the usage of EC2 Instance Connect Endpoint
+// to access EC2 instances.
+func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	queryParams := r.URL.Query()
+
+	awsRegion := queryParams.Get("awsRegion")
+	if err := aws.IsValidRegion(awsRegion); err != nil {
+		return nil, trace.BadParameter("invalid awsRegion")
+	}
+
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role")
+	}
+
+	// The script must execute the following command:
+	// teleport integration configure eice-iam
+	argsList := []string{
+		"integration", "configure", "eice-iam",
+		fmt.Sprintf("--aws-region=%s", awsRegion),
+		fmt.Sprintf("--role=%s", role),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs:   strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the browser to complete the EC2 enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -260,18 +298,18 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	listDBsClient, err := awsoidc.NewListEC2Client(ctx, awsClientReq)
+	listEC2Client, err := awsoidc.NewListEC2Client(ctx, awsClientReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	resp, err := awsoidc.ListEC2(ctx,
-		listDBsClient,
+		listEC2Client,
 		awsoidc.ListEC2Request{
 			Integration: awsClientReq.IntegrationName,
 			Region:      req.Region,
@@ -290,5 +328,115 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 	return ui.AWSOIDCListEC2Response{
 		NextToken: resp.NextToken,
 		Servers:   servers,
+	}, nil
+}
+
+// awsOIDCListSecurityGroups returns a list of VPC Security Groups the ListSecurityGroups action of the AWS OIDC Integration.
+func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCListSecurityGroupsRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listSGClient, err := awsoidc.NewListSecurityGroupsClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.ListSecurityGroups(ctx,
+		listSGClient,
+		awsoidc.ListSecurityGroupsRequest{
+			VPCID:     req.VPCID,
+			NextToken: req.NextToken,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCListSecurityGroupsResponse{
+		NextToken:      resp.NextToken,
+		SecurityGroups: resp.SecurityGroups,
+	}, nil
+}
+
+// awsOIDCListEC2ICE returns a list of EC2 Instance Connect Endpoints using the ListEC2ICE action of the AWS OIDC Integration.
+func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCListEC2ICERequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listEC2ICEClient, err := awsoidc.NewListEC2ICEClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.ListEC2ICE(ctx,
+		listEC2ICEClient,
+		awsoidc.ListEC2ICERequest{
+			Region:    req.Region,
+			VPCID:     req.VPCID,
+			NextToken: req.NextToken,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCListEC2ICEResponse{
+		NextToken: resp.NextToken,
+		EC2ICEs:   resp.EC2ICEs,
+	}, nil
+}
+
+// awsOIDCDeployC2ICE creates an EC2 Instance Connect Endpoint.
+func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCDeployEC2ICERequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	createEC2ICEClient, err := awsoidc.NewCreateEC2ICEClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.CreateEC2ICE(ctx,
+		createEC2ICEClient,
+		awsoidc.CreateEC2ICERequest{
+			Cluster:          h.auth.clusterName,
+			IntegrationName:  awsClientReq.IntegrationName,
+			SubnetID:         req.SubnetID,
+			SecurityGroupIDs: req.SecurityGroupIDs,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCDeployEC2ICEResponse{
+		Name: resp.Name,
 	}, nil
 }

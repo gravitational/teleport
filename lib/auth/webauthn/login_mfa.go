@@ -21,7 +21,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // ErrInvalidCredentials is a special kind of credential "NotFound" error, where
@@ -39,8 +40,8 @@ type LoginIdentity interface {
 
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
-	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
-	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error)
 	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
 }
 
@@ -89,7 +90,7 @@ type LoginFlow struct {
 // assertion.
 // As a side effect Begin may assign (and record in storage) a WebAuthn ID for
 // the user.
-func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertion, error) {
+func (f *LoginFlow) Begin(ctx context.Context, user string) (*wantypes.CredentialAssertion, error) {
 	lf := &loginFlow{
 		U2F:         f.U2F,
 		Webauthn:    f.Webauthn,
@@ -103,7 +104,7 @@ func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertio
 // It returns the MFADevice used to solve the challenge. If login is successful,
 // Finish has the side effect of updating the counter and last used timestamp of
 // the returned device.
-func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAssertionResponse) (*types.MFADevice, error) {
+func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse) (*types.MFADevice, error) {
 	lf := &loginFlow{
 		U2F:         f.U2F,
 		Webauthn:    f.Webauthn,
@@ -125,11 +126,11 @@ func (m mfaIdentity) GetTeleportUserByWebauthnID(_ context.Context, _ []byte) (s
 // userSessionStorage implements sessionIdentity using LoginFlow.
 type userSessionStorage LoginFlow
 
-func (s *userSessionStorage) Upsert(ctx context.Context, user string, sd *wantypes.SessionData) error {
+func (s *userSessionStorage) Upsert(ctx context.Context, user string, sd *wanpb.SessionData) error {
 	return s.Identity.UpsertWebauthnSessionData(ctx, user, scopeLogin, sd)
 }
 
-func (s *userSessionStorage) Get(ctx context.Context, user string, _ string) (*wantypes.SessionData, error) {
+func (s *userSessionStorage) Get(ctx context.Context, user string, _ string) (*wanpb.SessionData, error) {
 	return s.Identity.GetWebauthnSessionData(ctx, user, scopeLogin)
 }
 

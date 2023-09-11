@@ -10,11 +10,15 @@ Teleport.
 
 ## Prerequisites
 
-- A GitHub organization with at least one team. <ScopedBlock scope="oss">This
-  organization must not have external SSO set up, or Teleport will refuse to
-  create the GitHub authentication connector.</ScopedBlock><ScopedBlock
-  scope={["enterprise", "cloud"]}>This organization can be hosted from either
-  GitHub Cloud or GitHub Enterprise Server.</ScopedBlock>
+- A GitHub organization with at least one team. 
+
+  In Teleport Community Edition and Teleport Team, this organization must not
+  have external SSO set up, or Teleport will refuse to create the GitHub
+  authentication connector.
+
+  In Teleport Enterprise and Enterprise Cloud, organization can be hosted from
+  either GitHub Cloud or GitHub Enterprise Server.
+
 - Teleport role with access to maintaining `github` resources for using `tctl`
   from the Desktop. This is available in the default `editor` role.
 
@@ -31,9 +35,8 @@ App's "Authentication callback URL" is the following:
 https://PROXY_ADDRESS/v1/webapi/github/
 ```
 
-`PROXY_ADDRESS` must be <ScopedBlock scope={["oss", "enterprise"]}>the public
-address of the Teleport Proxy Service</ScopedBlock><ScopedBlock
-scope="cloud">your Teleport Cloud tenant address</ScopedBlock>.
+Replace `PROXY_ADDRESS` with be the public address of the Teleport Proxy Service
+or your Teleport Cloud workspace URL (e.g., `example.teleport.sh`).
 
 The app must have the `read:org` scope in order to be able to read org and team
 membership details.
@@ -47,8 +50,12 @@ Create a client secret to use along with the client ID in the next step:
 
 ## Step 2/3. Create a GitHub authentication connector
 
-Define a GitHub authentication connector using `tctl`. Update this example
-command with:
+In this section, you will define a GitHub authentication connector using `tctl`.
+
+On your workstation, create a file called `client-secret.txt` consisting only of
+your client secret.
+
+Update this example command with:
 
 - Your OAuth app's client ID and client secret created during the previous step.
 - The roles you want to map from your GitHub organization to Teleport roles.
@@ -61,24 +68,34 @@ for a full reference of flags for this command:
 ```code
 $ tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
---secret=<Var name="GITHUB-CLIENT-SECRET"/> \
---teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
+--secret=$(cat client-secret.txt) \
+--teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
 > github.yaml
 ```
+<Admonition type="tip">
+  GitHub organizations and teams should be referred to by their slug, not display name.
+  To create the slug, GitHub replaces special characters in the name string, changes all words to lowercase,
+  and replaces spaces with a `-` separator. For example, `My TEam Näme` would become `my-team-name`.
+  You can confirm the slug in GitHub Web application URLs or via the GitHub API.
+  Example: navigate to the team `My Team` in the GitHub web application.
+  The URL `https://github.com/orgs/org-name/teams/my-team`
+  shows the slug is `my-team`.
+</Admonition>
 
 The contents of `github.yaml` should resemble the following:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```yaml
 kind: github
 metadata:
   name: github
 spec:
-  api_endpoint_url: ""
+  api_endpoint_url: https://api.github.com
   client_id: <client-id>
   client_secret: <client-secret>
   display: GitHub
-  endpoint_url: ""
+  endpoint_url: https://github.com
   redirect_url: https://<proxy-address>/v1/webapi/github/callback
   teams_to_logins: null
   teams_to_roles:
@@ -86,12 +103,12 @@ spec:
       roles:
         - access
         - editor
-      team: GITHUB-TEAM
+      team: github-team
 version: v3
 ```
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope={["enterprise", "cloud"]}>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```yaml
 kind: github
 metadata:
@@ -105,15 +122,17 @@ spec:
   redirect_url: https://<proxy-address>/v1/webapi/github/callback
   teams_to_logins: null
   teams_to_roles:
-    - organization: ORG-NAME
+    - organization: org-name
       roles:
         - access
         - editor
         - reviewer
-      team: GITHUB-TEAM
+      team: github-team
 version: v3
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 <Details title="Mapping multiple roles">
 You can add multiple instances of the `--teams-to-roles` flag or edit the connector
@@ -122,26 +141,26 @@ file to define multiple mappings. For example:
 ```code
 $  tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
---secret=<Var name="GITHUB-CLIENT-SECRET"/> \
---teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
---teams-to-roles="ORG-NAME,administrators,admins \
---teams-to-roles="DIFFERENT-ORG,developers,dev \
+--secret=$(cat client-secret.txt) \
+--teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
+--teams-to-roles="org-name,administrators,admins \
+--teams-to-roles="different-org,developers,dev \
 > github.yaml
 ```
 
 ```yaml
 spec.
   teams_to_roles:
-    - organization: ORG-NAME
+    - organization: org-name
       roles:
         - access
         - editor
-      team: GITHUB-TEAM
-    - organization: ORG-NAME
+      team: github-team
+    - organization: org-name
       roles:
         - admins
       team: administrators
-    - organization: DIFFERENT-ORG
+    - organization: different-org
       roles:
         - devs
       team: developers
@@ -157,8 +176,8 @@ instance endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters:
 ```code
 $ tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
---secret=<Var name="GITHUB-CLIENT-SECRET"/> \
---teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
+--secret=$(cat client-secret.txt) \
+--teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
 --endpoint-url=https://<Var name="github-enterprise-server-address"/>
 --api-endpoint-url=https://<Var name="api-github-enterprise-server-address"/>
 > github.yaml
@@ -251,7 +270,8 @@ Here is an example role configuration snippet using the trait variable:
 You can now log in with Teleport using GitHub SSO. Run the following to log out
 of Teleport and log in again using GitHub SSO.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh logout
@@ -261,8 +281,8 @@ If browser window does not open automatically, open it by clicking on the link:
  http://127.0.0.1:56334/6bf976e6-a4be-4898-94eb-8a7b01af2158
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh logout
@@ -272,7 +292,9 @@ If browser window does not open automatically, open it by clicking on the link:
  http://127.0.0.1:56334/6bf976e6-a4be-4898-94eb-8a7b01af2158
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 You can also log to the web UI using GitHub by clicking **Other sign-in options** at the login screen.
 
@@ -290,7 +312,8 @@ After logging in successfully, you will see the following:
 
 You will receive the details of your user session within the CLI:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 ```code
 > Profile URL:        https://tele.example.com:443
@@ -305,10 +328,10 @@ You will receive the details of your user session within the CLI:
   Extensions:         permit-port-forwarding, permit-pty, private-key-policy
 ```
 
-</ScopedBlock>
+</TabItem>
 
 
-<ScopedBlock scope={["enterprise"]}>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
 ```code
 > Profile URL:        https://tele.example.com:443
@@ -323,9 +346,9 @@ You will receive the details of your user session within the CLI:
   Extensions:         permit-port-forwarding, permit-pty, private-key-policy
 ```
 
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope={["cloud"]}>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 > Profile URL:        https://mytenant.teleport.sh:443
@@ -341,7 +364,9 @@ You will receive the details of your user session within the CLI:
 
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Step 4/4. Configure authentication preference
 
@@ -370,7 +395,8 @@ spec:
 version: v2
 ```
 
-For `rp_id`, use the public address of your <ScopedBlock scope={["oss", "enterprise"]}>Teleport Proxy Service</ScopedBlock><ScopedBlock scope="cloud">Teleport Cloud tenant</ScopedBlock>.
+For `rp_id`, use the public address of your Teleport Proxy Service or Teleport
+Cloud workspace.
 
 When you save and close the temporary file, `tctl` will update the resource:
 
@@ -397,3 +423,27 @@ After logging out of `tsh`, you can log back in without specifying
 ## Troubleshooting
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
+
+### Teams Not Mapping to Roles
+
+If you are not seeing teams mapping to roles as expected confirm you 
+are using the slug of the organizations and teams in the connector.
+To create the slug, GitHub replaces special characters in the name string,
+changes all words to lowercase, and replaces spaces with a `-` separator.
+For example, "My TEam Näme" would become `my-team-name`.
+The GitHub Web application URLs and GitHub API can provide the slug.
+
+Example: navigate to the team `My Team` in the GitHub web application.
+The URL `https://github.com/orgs/org-name/teams/my-team`
+shows the slug is `my-team`. Update the teams to roles mapping.
+
+```yaml
+  teams_to_roles:
+    - organization: my-org
+      roles:
+        - access
+        - editor
+        - reviewer
+      team: my-team
+```
+

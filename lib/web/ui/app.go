@@ -18,6 +18,9 @@ package ui
 
 import (
 	"fmt"
+	"sort"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -27,6 +30,8 @@ import (
 
 // App describes an application
 type App struct {
+	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
+	Kind string `json:"kind"`
 	// Name is the name of the application.
 	Name string `json:"name"`
 	// Description is the app description.
@@ -75,6 +80,77 @@ type MakeAppsConfig struct {
 	AppServersAndSAMLIdPServiceProviders types.AppServersOrSAMLIdPServiceProviders
 	// Identity is identity of the logged in user.
 	Identity *tlsca.Identity
+	// UserGroupLookup is a map of user groups to provide to each App
+	UserGroupLookup map[string]types.UserGroup
+	// Logger is a logger used for debugging while making an app
+	Logger logrus.FieldLogger
+}
+
+// MakeApp creates an application object for the WebUI.
+func MakeApp(app types.Application, c MakeAppsConfig) App {
+	labels := makeLabels(app.GetAllLabels())
+	fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
+	userGroups := c.AppsToUserGroups[app.GetName()]
+	appsToUserGroups := map[string]types.UserGroups{}
+	var ugs types.UserGroups
+	for _, userGroupName := range app.GetUserGroups() {
+		userGroup := c.UserGroupLookup[userGroupName]
+		if userGroup == nil {
+			c.Logger.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
+			continue
+		}
+
+		ugs = append(ugs, userGroup)
+	}
+	sort.Sort(ugs)
+	appsToUserGroups[app.GetName()] = ugs
+
+	userGroupAndDescriptions := make([]UserGroupAndDescription, len(userGroups))
+	for i, userGroup := range userGroups {
+		userGroupAndDescriptions[i] = UserGroupAndDescription{
+			Name:        userGroup.GetName(),
+			Description: userGroup.GetMetadata().Description,
+		}
+	}
+
+	resultApp := App{
+		Kind:         types.KindApp,
+		Name:         app.GetName(),
+		Description:  app.GetDescription(),
+		URI:          app.GetURI(),
+		PublicAddr:   app.GetPublicAddr(),
+		Labels:       labels,
+		ClusterID:    c.AppClusterName,
+		FQDN:         fqdn,
+		AWSConsole:   app.IsAWSConsole(),
+		FriendlyName: services.FriendlyName(app),
+		UserGroups:   userGroupAndDescriptions,
+		SAMLApp:      false,
+	}
+
+	if app.IsAWSConsole() {
+		resultApp.AWSRoles = aws.FilterAWSRoles(c.Identity.AWSRoleARNs,
+			app.GetAWSAccountID())
+	}
+
+	return resultApp
+}
+
+// MakeSAMLApp creates a SAMLIdPServiceProvider object for the WebUI.
+func MakeSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
+	labels := makeLabels(app.GetAllLabels())
+	resultApp := App{
+		Kind:         types.KindApp,
+		Name:         app.GetName(),
+		Description:  "SAML Application",
+		PublicAddr:   "",
+		Labels:       labels,
+		ClusterID:    c.AppClusterName,
+		FriendlyName: services.FriendlyName(app),
+		SAMLApp:      true,
+	}
+
+	return resultApp
 }
 
 // MakeApps creates application objects (either Application Servers or SAML IdP Service Provider) for the WebUI.
@@ -97,6 +173,7 @@ func MakeApps(c MakeAppsConfig) []App {
 			}
 
 			resultApp := App{
+				Kind:         types.KindApp,
 				Name:         appOrSP.GetName(),
 				Description:  appOrSP.GetDescription(),
 				URI:          app.GetURI(),
@@ -119,6 +196,7 @@ func MakeApps(c MakeAppsConfig) []App {
 		} else {
 			labels := makeLabels(appOrSP.GetSAMLIdPServiceProvider().GetAllLabels())
 			resultApp := App{
+				Kind:         types.KindApp,
 				Name:         appOrSP.GetName(),
 				Description:  appOrSP.GetDescription(),
 				PublicAddr:   appOrSP.GetPublicAddr(),

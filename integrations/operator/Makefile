@@ -12,9 +12,6 @@ IMG ?= teleport-operator:latest
 # across all builds.
 include ../../build.assets/versions.mk
 
-GO_ENV_ARCH := $(shell go env GOARCH)
-ARCH ?= $(GO_ENV_ARCH)
-
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -29,18 +26,25 @@ include ./envtest.mk
 
 # Configure which compiler and buildbox to use
 OS ?= $(shell go env GOOS)
+# ARCH is the architecture of the current machine. For cross-compilation, use
+# TARGETARCH instead.
 ARCH ?= $(shell go env GOARCH)
+# TARGETARCH is the architecture to build for, which may be different from the
+# architecture of the current machine. Accepted values are: amd64, arm, arm64 and 386.
+# For native builds ARCH == TARGETARCH.
+TARGETARCH ?= $(ARCH)
+
 ifeq ("$(OS)","linux")
-ifeq ("$(ARCH)","amd64")
+ifeq ("$(TARGETARCH)","amd64")
 COMPILER ?= x86_64-linux-gnu-gcc
 PLATFORM_BUILDBOX ?= $(BUILDBOX)
-else ifeq ("$(ARCH)","386")
-COMPILER ?= x86_64-linux-gnu-gcc
+else ifeq ("$(TARGETARCH)","386")
+COMPILER ?= i686-linux-gnu-gcc
 PLATFORM_BUILDBOX ?= $(BUILDBOX)
-else ifeq ("$(ARCH)","arm")
+else ifeq ("$(TARGETARCH)","arm")
 COMPILER ?= arm-linux-gnueabihf-gcc
 PLATFORM_BUILDBOX ?= $(BUILDBOX_ARM)
-else ifeq ("$(ARCH)","arm64")
+else ifeq ("$(TARGETARCH)","arm64")
 COMPILER ?= aarch64-linux-gnu-gcc
 PLATFORM_BUILDBOX ?= $(BUILDBOX_ARM)
 endif
@@ -134,8 +138,9 @@ run: manifests generate fmt vet ## Run a controller from your host.
 docker-build: ## Build docker image with the manager.
 	docker buildx build --platform="$(OS)/$(ARCH)" \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg PROTOC_VER=$(PROTOC_VER) \
+		--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
 		--build-arg BUILDARCH=$(ARCH) \
+		--build-arg TARGETARCH=$(TARGETARCH) \
 		--build-arg COMPILER_NAME=$(COMPILER) -t ${IMG} --load ../.. -f ./Dockerfile
 
 .PHONY: docker-push

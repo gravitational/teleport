@@ -26,12 +26,14 @@ test('correct formatting of apps fetch response', async () => {
   expect(response).toEqual({
     agents: [
       {
+        kind: 'app',
         id: 'cluster-id-app-name-app-name.example.com',
         name: 'app-name',
         description: 'some description',
         uri: 'http://localhost:3001',
         publicAddr: 'app-name.example.com',
         labels: [{ name: 'env', value: 'dev' }],
+        guessedAppIconName: 'Application',
         clusterId: 'cluster-id',
         fqdn: 'app-name.example.com',
         friendlyName: '',
@@ -46,6 +48,7 @@ test('correct formatting of apps fetch response', async () => {
         samlAppSsoUrl: '',
       },
       {
+        kind: 'app',
         id: 'cluster-id-cloud-app-cloud://some-addr',
         name: 'cloud-app',
         description: '',
@@ -54,6 +57,7 @@ test('correct formatting of apps fetch response', async () => {
         labels: [],
         clusterId: 'cluster-id',
         fqdn: '',
+        guessedAppIconName: 'Application',
         friendlyName: '',
         launchUrl: '',
         awsRoles: [],
@@ -65,11 +69,13 @@ test('correct formatting of apps fetch response', async () => {
         samlAppSsoUrl: '',
       },
       {
+        kind: 'app',
         id: 'cluster-id-tcp-app-tcp://some-addr',
         name: 'tcp-app',
         description: '',
         uri: 'tcp://some-addr',
         publicAddr: '',
+        guessedAppIconName: 'Application',
         labels: [],
         clusterId: 'cluster-id',
         fqdn: '',
@@ -84,6 +90,7 @@ test('correct formatting of apps fetch response', async () => {
         samlAppSsoUrl: '',
       },
       {
+        kind: 'app',
         id: 'cluster-id-saml-app-',
         name: 'saml-app',
         description: 'SAML Application',
@@ -91,6 +98,7 @@ test('correct formatting of apps fetch response', async () => {
         publicAddr: '',
         labels: [],
         clusterId: 'cluster-id',
+        guessedAppIconName: 'Application',
         fqdn: '',
         friendlyName: '',
         launchUrl: '',

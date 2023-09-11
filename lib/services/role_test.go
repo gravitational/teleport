@@ -7456,7 +7456,7 @@ func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 		currentUser: user,
 	}
 
-	accessInfo := AccessInfoFromUser(user)
+	accessInfo := AccessInfoFromUserState(user)
 	accessChecker, err := NewAccessCheckerForRemoteCluster(context.Background(), accessInfo, "clustername", currentUserRoleGetter)
 	require.NoError(t, err)
 

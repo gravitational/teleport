@@ -2,6 +2,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
+const CopyPlugin = require('copy-webpack-plugin');
 const resolvepath = require('@gravitational/build/webpack/resolvepath');
 const configFactory = require('@gravitational/build/webpack/webpack.base');
 
@@ -65,7 +66,20 @@ const cfg = {
     'node-pty': 'commonjs2 node-pty',
   },
 
-  plugins: [new CleanWebpackPlugin()],
+  plugins: [
+    new CleanWebpackPlugin(),
+    // Instead of adding agentCleanupDaemon.js as a separate entry, copy it to the dist dir as is.
+    // We want the daemon in prod to be as close as possible to the daemon in tests.
+    // See agentCleanupDaemon.js for the rationale.
+    new CopyPlugin({
+      patterns: [
+        {
+          from: './src/agentCleanupDaemon/agentCleanupDaemon.js',
+          to: 'agentCleanupDaemon.js',
+        },
+      ],
+    }),
+  ],
 
   /**
    * Disables webpack processing of __dirname and __filename.

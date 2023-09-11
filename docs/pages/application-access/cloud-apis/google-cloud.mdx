@@ -235,32 +235,7 @@ $ gcloud compute instances start <Var name="vm-name" /> --zone <Var name="google
 </TabItem>
 </Tabs>
 
-### Get a join token
-
-Establish trust between your Teleport cluster and your new Application Service
-instance by creating a join token:
-
-```code
-$ tctl nodes add --roles=app
-The invite token: (=presets.tokens.first=)
-This token will expire in 30 minutes.
-Run this on the new node to join the cluster:
-> teleport start \
-   --roles=app \
-   --token=(=presets.tokens.first=) \
-   --ca-pin=(=presets.ca_pin=) \
-   --auth-server=192.0.2.255:3025
-Please note:
-  - This invitation token will expire in 30 minutes
-  - 192.0.2.255:3025 must be reachable from the new node
-```
-
-On the host where you will install the Teleport Application Service, create a
-file called `/tmp/token` that consists only of your token:
-
-```code
-$ echo <Var name="join-token" /> | sudo tee /tmp/token
-```
+(!docs/pages/includes/application-access/app-service-join-token.mdx!)
 
 ### Install the Teleport Application Service
 

@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -57,9 +57,9 @@ func makeKubeGateway(cfg Config) (Kube, error) {
 
 	k := &kube{base}
 
-	// A key is required here for generating local CAs. It can be any key.
-	// Reading the provided key path to avoid generating a new one.
-	key, err := keys.LoadPrivateKey(k.cfg.KeyPath)
+	// Generate a new private key for the proxy. The client's existing private key may be
+	// a hardware-backed private key, which cannot be added to the local proxy kube config.
+	key, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -204,16 +204,4 @@ func (k *kube) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certific
 		return trace.Wrap(utils.RemoveFileIfExist(k.KubeconfigPath()))
 	})
 	return nil
-}
-
-func (k *kube) CLICommand() (*api.GatewayCLICommand, error) {
-	// TODO(greedy52) currently kube must implement CLICommand in order to pass
-	// Kube to CLICommandProvider. We should revisit gateway design/flows like
-	// this. For example, one alternative is to move gateway.CLICommand to
-	// daemon.GatewayCLICommand as daemon owns all CLICommandProvider.
-	cmd, err := k.cfg.CLICommandProvider.GetCommand(k)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return makeCLICommand(cmd), nil
 }

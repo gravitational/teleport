@@ -38,7 +38,7 @@ type Config struct {
 	Log      logger.Config      `toml:"log"`
 
 	// Teleport is a handle to the client to use when communicating with
-	// the Teleport auth server. The Jira app will create a GRPC-based
+	// the Teleport auth server. The Jira app will create a gRPC-based
 	// client on startup if this is not set.
 	Client teleport.Client
 
@@ -109,7 +109,7 @@ func (c *JiraConfig) CheckAndSetDefaults() error {
 }
 
 // LoadTLSConfig loads client crt/key files and root authorities, and
-// generates a tls.Config suitable for use with a GRPC client.
+// generates a tls.Config suitable for use with a gRPC client.
 func (c *Config) LoadTLSConfig() (*tls.Config, error) {
 	var tc tls.Config
 	clientCert, err := tls.LoadX509KeyPair(c.Teleport.ClientCrt, c.Teleport.ClientKey)

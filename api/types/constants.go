@@ -148,6 +148,10 @@ const (
 	// It uses the private key created above to SSH into the host.
 	SubKindOpenSSHEICENode = "openssh-ec2-ice"
 
+	// KindUnifiedResource is a meta Kind that is used for the unified resource search present on
+	// the webUI and Connect. It allows us to query and return multiple kinds at the same time
+	KindUnifiedResource = "unified_resource"
+
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
 
@@ -217,7 +221,7 @@ const (
 	KindKubeClusterRole = "clusterrole"
 
 	// KindKubeRole is a Kubernetes Role resource type.
-	KindKubeRole = "role"
+	KindKubeRole = "kube_role"
 
 	// KindKubeClusterRoleBinding is a Kubernetes Cluster Role Binding resource type.
 	KindKubeClusterRoleBinding = "clusterrolebinding"
@@ -452,6 +456,9 @@ const (
 
 	// KindUserLoginState is a UserLoginState resource
 	KindUserLoginState = "user_login_state"
+
+	// KindAccessListMember is an AccessListMember resource
+	KindAccessListMember = "access_list_member"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"
@@ -752,18 +759,18 @@ const (
 
 	// DiscoveryLabelWindowsDNSHostName is the DNS hostname of an LDAP object.
 	DiscoveryLabelWindowsDNSHostName = TeleportNamespace + "/dns_host_name"
-	//DiscoveryLabelWindowsComputerName is the name of an LDAP object.
+	// DiscoveryLabelWindowsComputerName is the name of an LDAP object.
 	DiscoveryLabelWindowsComputerName = TeleportNamespace + "/computer_name"
-	//DiscoveryLabelWindowsOS is the operating system of an LDAP object.
+	// DiscoveryLabelWindowsOS is the operating system of an LDAP object.
 	DiscoveryLabelWindowsOS = TeleportNamespace + "/os"
-	//DiscoveryLabelWindowsOSVersion operating system version of an LDAP object.
+	// DiscoveryLabelWindowsOSVersion operating system version of an LDAP object.
 	DiscoveryLabelWindowsOSVersion = TeleportNamespace + "/os_version"
-	//DiscoveryLabelWindowsOU is an LDAP objects's OU.
+	// DiscoveryLabelWindowsOU is an LDAP objects's OU.
 	DiscoveryLabelWindowsOU = TeleportNamespace + "/ou"
-	//DiscoveryLabelWindowsIsDomainController is whether an LDAP object is a
+	// DiscoveryLabelWindowsIsDomainController is whether an LDAP object is a
 	// domain controller.
 	DiscoveryLabelWindowsIsDomainController = TeleportNamespace + "/is_domain_controller"
-	//DiscoveryLabelWindowsDomain is an Active Directory domain name.
+	// DiscoveryLabelWindowsDomain is an Active Directory domain name.
 	DiscoveryLabelWindowsDomain = TeleportNamespace + "/windows_domain"
 	// DiscoveryLabelLDAPPrefix is the prefix used when applying any custom
 	// labels per the discovery LDAP attribute labels configuration.
@@ -969,6 +976,9 @@ const (
 
 	// ResourceSpecType refers to a resource field named "type".
 	ResourceSpecType = "type"
+
+	// ResourceKind refers to a resource field named "kind".
+	ResourceKind = "kind"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.

@@ -110,7 +110,6 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 		eventsCh:      make(chan events.UploadEvent, cfg.ConcurrentUploads),
 		eventPreparer: &events.NoOpPreparer{},
 	}
-
 	return uploader, nil
 }
 
@@ -129,14 +128,21 @@ type Uploader struct {
 	cfg UploaderConfig
 	log *log.Entry
 
-	eventsCh chan events.UploadEvent
-	closeC   chan struct{}
-	wg       sync.WaitGroup
+	eventsCh  chan events.UploadEvent
+	closeC    chan struct{}
+	wg        sync.WaitGroup
+	mu        sync.Mutex
+	isClosing bool
 
 	eventPreparer *events.NoOpPreparer
 }
 
 func (u *Uploader) Close() {
+	// TODO(tigrato): prevent close to be called before Serve starts.
+	u.mu.Lock()
+	u.isClosing = true
+	u.mu.Unlock()
+
 	close(u.closeC)
 	// wait for all uploads to finish
 	u.wg.Wait()
@@ -167,8 +173,22 @@ func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
 
 // Serve runs the uploader until stopped
 func (u *Uploader) Serve(ctx context.Context) error {
+	// Check if close operation is already in progress.
+	// We need to do this because Serve is spawned in a goroutine
+	// and Close can be called before Serve starts which ends up in a data
+	// race because Close is waiting for wg to be 0 and Serve is adding to wg.
+	// To avoid this, we check if Close is already in progress and return
+	// immediately. If Close is not in progress, we add to wg under the mutex
+	// lock to ensure that Close can't reach wg.Wait() before Serve adds to wg.
+	u.mu.Lock()
+	if u.isClosing {
+		u.mu.Unlock()
+		return nil
+	}
 	u.wg.Add(1)
+	u.mu.Unlock()
 	defer u.wg.Done()
+
 	u.log.Infof("uploader will scan %v every %v", u.cfg.ScanDir, u.cfg.ScanPeriod.String())
 	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step:  u.cfg.ScanPeriod,

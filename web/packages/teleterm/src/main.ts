@@ -227,7 +227,7 @@ function updateSessionDataPath() {
 function initMainLogger(settings: types.RuntimeSettings) {
   const service = createFileLoggerService({
     dev: settings.dev,
-    dir: settings.userDataDir,
+    dir: settings.logsDir,
     name: 'main',
     loggerNameColor: LoggerColor.Magenta,
   });

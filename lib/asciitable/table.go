@@ -214,17 +214,17 @@ func (t *Table) IsHeadless() bool {
 // ignored - it is the caller's responsibility to ensure the indices are in
 // range.
 func (t *Table) SortRowsBy(colIdxKey []int, stable bool) {
-	lessFn := func(a, b []string) bool {
+	lessFn := func(a, b []string) int {
 		for _, col := range colIdxKey {
 			limit := min(len(a), len(b))
 			if col >= limit {
 				continue
 			}
 			if a[col] != b[col] {
-				return a[col] < b[col]
+				return strings.Compare(a[col], b[col])
 			}
 		}
-		return false
+		return 0 // Rows are equal.
 	}
 	if stable {
 		slices.SortStableFunc(t.rows, lessFn)

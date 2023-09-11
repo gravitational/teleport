@@ -112,6 +112,12 @@ type ClusterNetworkingConfig interface {
 
 	// SetAssistCommandExecutionWorkers sets the number of parallel command execution workers for Assist
 	SetAssistCommandExecutionWorkers(n int32)
+
+	// GetCaseInsensitiveRouting gets the case-insensitive routing option.
+	GetCaseInsensitiveRouting() bool
+
+	// SetCaseInsensitiveRouting sets the case-insenstivie routing option.
+	SetCaseInsensitiveRouting(cir bool)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -183,6 +189,16 @@ func (c *ClusterNetworkingConfigV2) GetResourceID() int64 {
 // SetResourceID sets resource ID.
 func (c *ClusterNetworkingConfigV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (c *ClusterNetworkingConfigV2) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *ClusterNetworkingConfigV2) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
 }
 
 // Origin returns the origin value of the resource.
@@ -389,6 +405,16 @@ func (c *ClusterNetworkingConfigV2) GetAssistCommandExecutionWorkers() int32 {
 // SetAssistCommandExecutionWorkers sets the number of parallel command execution workers for Assist
 func (c *ClusterNetworkingConfigV2) SetAssistCommandExecutionWorkers(n int32) {
 	c.Spec.AssistCommandExecutionWorkers = n
+}
+
+// GetCaseInsensitiveRouting gets the case-insensitive routing option.
+func (c *ClusterNetworkingConfigV2) GetCaseInsensitiveRouting() bool {
+	return c.Spec.CaseInsensitiveRouting
+}
+
+// SetCaseInsensitiveRouting sets the case-insensitive routing option.
+func (c *ClusterNetworkingConfigV2) SetCaseInsensitiveRouting(cir bool) {
+	c.Spec.CaseInsensitiveRouting = cir
 }
 
 // MarshalYAML defines how a proxy listener mode should be marshaled to a string

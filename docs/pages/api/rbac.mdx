@@ -277,8 +277,9 @@ As with all Teleport users, the Teleport Auth Service authenticates the
 case, we will request the credentials manually by *impersonating* the
 `sync-kubernetes-rbac` role and user.
 
-<ScopedBlock scope={["oss", "enterprise"]}>If you are using `tctl` from the Auth
-Service host, you will already have impersonation privileges.</ScopedBlock>
+If you are running a self-hosted Teleport Enterprise deployment and are using
+`tctl` from the Auth Service host, you will already have impersonation
+privileges.
 
 To grant your user impersonation privileges for `sync-kubernetes-rbac`, define a role
 called `sync-kubernetes-rbac-impersonator` by pasting the following YAML document into
@@ -323,7 +324,7 @@ Request a token that the Kubernetes Service will use to join your Teleport
 cluster:
 
 ```code
-$ tctl tokens add --type=kube --ttl=10000h --format=json
+$ tctl tokens add --type=kube,app,discovery --ttl=10000h --format=json
 ```
 
 Copy this token so you can use it when running the Teleport Kubernetes Service.
@@ -344,6 +345,7 @@ requested earlier:
 ```code
 $ helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=minikube \
+  --set roles="kube\,app\,discovery" \
   --set proxyAddr=<Var name="proxy-address" /> \
   --set authToken=<Var name="token" /> \
   --create-namespace \

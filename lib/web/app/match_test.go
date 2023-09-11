@@ -42,13 +42,21 @@ func TestMatchHealthy(t *testing.T) {
 	testCases := map[string]struct {
 		dialErr error
 		match   bool
+		app     types.AppServer
 	}{
 		"WithHealthyApp": {
 			match: true,
+			app:   mustNewAppServer(t, types.OriginDynamic),
 		},
 		"WithUnhealthyApp": {
 			dialErr: errors.New("failed to connect"),
 			match:   false,
+			app:     mustNewAppServer(t, types.OriginDynamic),
+		},
+		"WithUnhealthyOktaApp": {
+			dialErr: errors.New("failed to connect"),
+			match:   true,
+			app:     mustNewAppServer(t, types.OriginOkta),
 		},
 	}
 
@@ -60,22 +68,32 @@ func TestMatchHealthy(t *testing.T) {
 				},
 			}, "")
 
-			app, err := types.NewAppV3(
-				types.Metadata{
-					Name:      "test-app",
-					Namespace: defaults.Namespace,
-				},
-				types.AppSpecV3{
-					URI: "https://app.localhost",
-				},
-			)
-			require.NoError(t, err)
-
-			appServer, err := types.NewAppServerV3FromApp(app, "localhost", "123")
-			require.NoError(t, err)
-			require.Equal(t, test.match, match(context.Background(), appServer))
+			require.Equal(t, test.match, match(context.Background(), test.app))
 		})
 	}
+}
+
+func mustNewAppServer(t *testing.T, origin string) types.AppServer {
+	t.Helper()
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name:      "test-app",
+			Namespace: defaults.Namespace,
+			Labels: map[string]string{
+				types.OriginLabel: origin,
+			},
+		},
+		types.AppSpecV3{
+			URI: "https://app.localhost",
+		},
+	)
+	require.NoError(t, err)
+
+	appServer, err := types.NewAppServerV3FromApp(app, "localhost", "123")
+	require.NoError(t, err)
+
+	return appServer
 }
 
 type mockProxyClient struct {

@@ -21,10 +21,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
+	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 
@@ -374,6 +376,21 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
 
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(srv.AuthServer.CloseContext(), services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			QueueSize:    defaults.UnifiedResourcesQueueSize,
+			Component:    teleport.ComponentUnifiedResource,
+			Client:       srv.AuthServer,
+			MaxStaleness: time.Minute,
+		},
+		ResourceGetter: srv.AuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.AuthServer.SetUnifiedResourcesCache(unifiedResourcesCache)
+
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(srv.AuthServer.CloseContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,
 	})
@@ -417,18 +434,22 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo := services.AccessInfoFromUser(user)
+	userState, err := a.AuthServer.GetUserOrLoginState(context.Background(), user.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessInfo := services.AccessInfoFromUserState(userState)
 	checker, err := services.NewAccessChecker(accessInfo, a.ClusterName, a.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	certs, err := a.AuthServer.generateUserCert(certRequest{
-		user:          user,
+		user:          userState,
 		ttl:           ttl,
 		compatibility: compatibility,
 		publicKey:     key,
 		checker:       checker,
-		traits:        user.GetTraits(),
+		traits:        userState.GetTraits(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -475,7 +496,11 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		accessInfo := services.AccessInfoFromUser(user)
+		userState, err := authServer.GetUserOrLoginState(context.Background(), user.GetName())
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		accessInfo := services.AccessInfoFromUserState(userState)
 		checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), authServer)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -486,12 +511,12 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 
 		certs, err := authServer.generateUserCert(certRequest{
 			publicKey:        pub,
-			user:             user,
+			user:             userState,
 			ttl:              identity.TTL,
 			usage:            identity.AcceptedUsage,
 			routeToCluster:   identity.RouteToCluster,
 			checker:          checker,
-			traits:           user.GetTraits(),
+			traits:           userState.GetTraits(),
 			renewable:        identity.Renewable,
 			generation:       identity.Generation,
 			deviceExtensions: DeviceExtensions(id.Identity.DeviceExtensions),
@@ -719,10 +744,6 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 	}
 	tlsConfig.Time = cfg.AuthServer.Clock().Now
 
-	// Go 1.21 changed the default behavior of TLS servers.
-	// See https://go.dev/doc/go1.21#crypto/tls.
-	tlsConfig.SessionTicketsDisabled = true
-
 	accessPoint, err := NewAdminAuthServer(srv.AuthServer.AuthServer, srv.AuthServer.AuditLog)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -899,17 +920,29 @@ func (t *TestTLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, err
 
 // CloneClient uses the same credentials as the passed client
 // but forces the client to be recreated
-func (t *TestTLSServer) CloneClient(clt *Client) *Client {
+func (t *TestTLSServer) CloneClient(tt *testing.T, clt *Client) *Client {
+	tlsConfig := clt.Config()
+	// When cloning a client, we want to make sure that we don't reuse
+	// the same session ticket cache. The session ticket cache should not be
+	// shared between all clients that use the same TLS config.
+	// Reusing the cache will skip the TLS handshake and may introduce a weird
+	// behavior in tests.
+	if !tlsConfig.SessionTicketsDisabled {
+		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(utils.DefaultLRUCapacity)
+	}
+
 	newClient, err := NewClient(client.Config{
 		Addrs: []string{t.Addr().String()},
 		Credentials: []client.Credentials{
-			client.LoadTLS(clt.Config()),
+			client.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(tt, err)
+
+	tt.Cleanup(func() {
+		require.NoError(tt, newClient.Close())
+	})
 	return newClient
 }
 
