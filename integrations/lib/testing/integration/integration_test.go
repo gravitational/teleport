@@ -19,11 +19,12 @@ package integration
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api"
 	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/gravitational/teleport/api"
 )
 
 type IntegrationSuite struct {
