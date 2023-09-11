@@ -828,28 +828,15 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	require.NoError(t, nodeSvc.Start())
 	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
 
-	// watcher waits for the node to be added
-	addWatcher, err := authServer.NewWatcher(ctx, types.Watch{
-		Kinds: []types.WatchKind{
-			{Kind: types.KindNode},
-		},
-	})
+	// waits for the node to be added
+	require.Eventually(t, func() bool {
+		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeConfig.HostUUID)
+		return err == nil
+	}, time.Minute, time.Second, "waiting for node to join cluster")
+
+	//  stop the node before attempting to remove it, to more closely resemble what's going to happen in production
+	err = nodeSvc.Close()
 	require.NoError(t, err)
-	defer addWatcher.Close()
-
-	select {
-	case <-time.After(time.Second * 10):
-		t.Fatalf("Timeout waiting for event.")
-	case event := <-addWatcher.Events():
-		if event.Type != types.OpInit {
-			t.Fatalf("Unexpected event type.")
-		}
-		require.Equal(t, event.Type, types.OpInit)
-	case <-addWatcher.Done():
-		t.Fatal(addWatcher.Error())
-	}
-
-	WaitForResource(t, addWatcher, types.KindNode, nodeConfig.HostUUID)
 
 	// test
 	_, err = handler.DeleteConnectMyComputerNode(ctx, &api.DeleteConnectMyComputerNodeRequest{
@@ -857,32 +844,11 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	})
 	require.NoError(t, err)
 
-	// watcher waits for the node to be deleted
-	deleteWatcher, err := authServer.NewWatcher(ctx, types.Watch{
-		Kinds: []types.WatchKind{
-			{Kind: types.KindNode},
-		},
-	})
-	require.NoError(t, err)
-	defer deleteWatcher.Close()
-
-	select {
-	case <-time.After(time.Second * 10):
-		t.Fatalf("Timeout waiting for event.")
-	case event := <-deleteWatcher.Events():
-		if event.Type != types.OpInit {
-			t.Fatalf("Unexpected event type.")
-		}
-		require.Equal(t, event.Type, types.OpInit)
-	case <-deleteWatcher.Done():
-		t.Fatal(deleteWatcher.Error())
-	}
-
-	waitForResourceToBeDeleted(t, deleteWatcher, types.KindNode, nodeConfig.HostUUID)
-
-	_, err = authServer.GetNode(ctx, defaults.Namespace, nodeConfig.HostUUID)
-	// The token should no longer exist.
-	require.True(t, trace.IsNotFound(err))
+	// waits for the node to be deleted
+	require.Eventually(t, func() bool {
+		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeConfig.HostUUID)
+		return trace.IsNotFound(err)
+	}, time.Minute, time.Second, "waiting for node to be deleted")
 }
 
 // mustLogin logs in as the given user by completely skipping the actual login flow and saving valid
