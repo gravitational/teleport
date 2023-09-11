@@ -4027,9 +4027,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
 				return ctx, trace.Wrap(err)
 			}),
-			PROXYSigner:  proxySigner,
-			OpenAIConfig: cfg.OpenAIConfig,
-			NodeWatcher:  nodeWatcher,
+			PROXYSigner:    proxySigner,
+			OpenAIConfig:   cfg.OpenAIConfig,
+			NodeWatcher:    nodeWatcher,
+			TracerProvider: process.TracingProvider,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {

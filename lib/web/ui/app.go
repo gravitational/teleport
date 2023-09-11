@@ -128,6 +128,11 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		SAMLApp:      false,
 	}
 
+	if app.IsAWSConsole() {
+		resultApp.AWSRoles = aws.FilterAWSRoles(c.Identity.AWSRoleARNs,
+			app.GetAWSAccountID())
+	}
+
 	return resultApp
 }
 

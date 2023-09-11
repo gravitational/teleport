@@ -19,17 +19,17 @@
       "source": "devbox-search",
       "version": "1.10.0"
     },
-    "buf@latest": {
-      "last_modified": "2023-07-30T12:29:02Z",
-      "resolved": "github:NixOS/nixpkgs/3acb5c4264c490e7714d503c7166a3fde0c51324#buf",
+    "buf@1.26.1": {
+      "last_modified": "2023-08-30T00:25:28Z",
+      "resolved": "github:NixOS/nixpkgs/a63a64b593dcf2fe05f7c5d666eb395950f36bc9#buf",
       "source": "devbox-search",
-      "version": "1.25.0"
+      "version": "1.26.1"
     },
     "gci@latest": {
-      "last_modified": "2023-05-14T19:13:12Z",
-      "resolved": "github:NixOS/nixpkgs/3007746b3f5bfcb49e102b517bca891822a41b31#gci",
+      "last_modified": "2023-08-30T00:25:28Z",
+      "resolved": "github:NixOS/nixpkgs/a63a64b593dcf2fe05f7c5d666eb395950f36bc9#gci",
       "source": "devbox-search",
-      "version": "0.10.1"
+      "version": "0.11.0"
     },
     "git@latest": {
       "last_modified": "2023-07-23T03:35:12Z",
@@ -37,17 +37,17 @@
       "source": "devbox-search",
       "version": "2.41.0"
     },
-    "go@1.20.6": {
-      "last_modified": "2023-07-30T12:29:02Z",
-      "resolved": "github:NixOS/nixpkgs/3acb5c4264c490e7714d503c7166a3fde0c51324#go",
+    "go@1.21.0": {
+      "last_modified": "2023-08-22T06:04:29Z",
+      "resolved": "github:NixOS/nixpkgs/9d757ec498666cc1dcc6f2be26db4fd3e1e9ab37#go_1_21",
       "source": "devbox-search",
-      "version": "1.20.6"
+      "version": "1.21.0"
     },
-    "golangci-lint@latest": {
-      "last_modified": "2023-06-30T04:44:22Z",
-      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#golangci-lint",
+    "golangci-lint@1.54.2": {
+      "last_modified": "2023-08-30T00:25:28Z",
+      "resolved": "github:NixOS/nixpkgs/a63a64b593dcf2fe05f7c5d666eb395950f36bc9#golangci-lint",
       "source": "devbox-search",
-      "version": "1.53.3"
+      "version": "1.54.2"
     },
     "gotestsum@latest": {
       "last_modified": "2023-07-23T03:35:12Z",
@@ -79,10 +79,10 @@
       "version": "18.16.1"
     },
     "openssl@latest": {
-      "last_modified": "2023-07-23T03:35:12Z",
-      "resolved": "github:NixOS/nixpkgs/af8cd5ded7735ca1df1a1174864daab75feeb64a#openssl",
+      "last_modified": "2023-08-30T00:25:28Z",
+      "resolved": "github:NixOS/nixpkgs/a63a64b593dcf2fe05f7c5d666eb395950f36bc9#openssl",
       "source": "devbox-search",
-      "version": "3.0.9"
+      "version": "3.0.10"
     },
     "patchelf@latest": {
       "last_modified": "2023-05-14T19:13:12Z",

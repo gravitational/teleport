@@ -20,7 +20,9 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"sort"
@@ -529,7 +531,16 @@ func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, 
 	activeConnections.With(labels).Inc()
 	defer activeConnections.With(labels).Dec()
 
-	return trace.Wrap(utils.ProxyConn(ctx, clientConn, serviceConn))
+	err = utils.ProxyConn(ctx, clientConn, serviceConn)
+
+	// The clientConn is closed by utils.ProxyConn on successful io.Copy thus
+	// possibly causing utils.ProxyConn to return io.EOF from
+	// context.Cause(ctx), as monitor context is closed when
+	// TrackingReadConn.Close() is called.
+	if errors.Is(err, io.EOF) {
+		return nil
+	}
+	return trace.Wrap(err)
 }
 
 // Authorize authorizes the provided client TLS connection.

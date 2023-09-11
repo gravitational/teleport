@@ -51,6 +51,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -64,6 +65,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -671,6 +673,7 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 		JoinMethod:   types.JoinMethodIAM,
 		PublicTLSKey: pubTLS,
 		PublicSSHKey: []byte(fixtures.SSHCAPublicKey),
+		Insecure:     lib.IsInsecureDevMode(),
 	})
 	require.NoError(t, err, trace.DebugReport(err))
 }
@@ -692,7 +695,7 @@ func mustFindKubePod(t *testing.T, tc *client.TeleportClient) {
 	require.Equal(t, types.KindKubePod, response.Resources[0].Kind)
 }
 
-func mustConnectDatabaseGateway(t *testing.T, gw gateway.Gateway) {
+func mustConnectDatabaseGateway(t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
 	t.Helper()
 
 	dbGateway, err := gateway.AsDatabase(gw)
