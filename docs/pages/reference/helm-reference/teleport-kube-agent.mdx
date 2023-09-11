@@ -300,10 +300,8 @@ These sub-values must be configured for the agent to connect to a cluster.
 `joinParams.method` defines which join method will be used to join the Teleport cluster.
 Possible values are `token`, `iam` and `ec2`.
 
-- For `iam`, see [Joining Nodes Via AWS IAM
-  Role](../../agents/join-services-to-your-cluster/aws-iam.mdx).
-- For `ec2`, see [Joining Nodes Via AWS IAM
-  Role](../../agents/join-services-to-your-cluster/aws-ec2.mdx).
+- For `iam`, see [Joining Nodes Via AWS IAM Role](../../agents/join-services-to-your-cluster/aws-iam.mdx).
+- For `ec2`, see [Joining Nodes Via AWS EC2 Identity Document](../../agents/join-services-to-your-cluster/aws-ec2.mdx).
 - For `token` (default value), the token must be provided through `joinParams.tokenName` or
   [through an existing Kubernetes Secret](#joinTokenSecret).
 
