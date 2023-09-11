@@ -14,22 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
 import * as Alerts from 'design/Alert';
 import { CircleCheck, CircleCross, CirclePlay, Spinner } from 'design/Icon';
 
-import * as types from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import {
@@ -43,62 +35,25 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
 
-interface DocumentConnectMyComputerSetupProps {
-  visible: boolean;
-  doc: types.DocumentConnectMyComputerSetup;
-}
-
 const logger = new Logger('DocumentConnectMyComputerSetup');
 
-export function DocumentConnectMyComputerSetup(
-  props: DocumentConnectMyComputerSetupProps
-) {
+// TODO(gzdunek): Rename to `Setup`
+export function DocumentConnectMyComputerSetup() {
   const [step, setStep] = useState<'information' | 'agent-setup'>(
     'information'
   );
-  const { isAgentConfiguredAttempt } = useConnectMyComputerContext();
-  const { rootClusterUri, documentsService } = useWorkspaceContext();
-  const shouldRedirectToStatusDocument =
-    isAgentConfiguredAttempt.status === 'success' &&
-    isAgentConfiguredAttempt.data;
-  const isRedirectingRef = useRef(false);
-
-  // useLayoutEffect instead of useEffect to prevent flashing the Setup document just before
-  // opening the Status document.
-  // TODO(ravicious): This is a hack and should be replaced with some other mechanism.
-  useLayoutEffect(() => {
-    // This redirect will happen when reopening the app with a status document,
-    // but also when the setup finishes.
-    if (shouldRedirectToStatusDocument && !isRedirectingRef.current) {
-      isRedirectingRef.current = true;
-
-      const statusDocument =
-        documentsService.createConnectMyComputerStatusDocument({
-          rootClusterUri,
-        });
-      documentsService.replace(props.doc.uri, statusDocument);
-    }
-  }, [
-    documentsService,
-    props.doc.uri,
-    rootClusterUri,
-    shouldRedirectToStatusDocument,
-  ]);
+  const { rootClusterUri } = useWorkspaceContext();
 
   return (
-    <Document visible={props.visible}>
-      <Box maxWidth="590px" mx="auto" mt="4" px="5" width="100%">
-        <Text typography="h3" mb="4">
-          Connect My Computer
-        </Text>
-        {step === 'information' && (
-          <Information onSetUpAgentClick={() => setStep('agent-setup')} />
-        )}
-        {step === 'agent-setup' && (
-          <AgentSetup rootClusterUri={rootClusterUri} />
-        )}
-      </Box>
-    </Document>
+    <Box maxWidth="590px" mx="auto" mt="4" px="5" width="100%">
+      <Text typography="h3" mb="4">
+        Connect My Computer
+      </Text>
+      {step === 'information' && (
+        <Information onSetUpAgentClick={() => setStep('agent-setup')} />
+      )}
+      {step === 'agent-setup' && <AgentSetup rootClusterUri={rootClusterUri} />}
+    </Box>
   );
 }
 

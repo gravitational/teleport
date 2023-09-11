@@ -26,7 +26,7 @@ import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { DocumentConnectMyComputerSetup } from './DocumentConnectMyComputerSetup';
 
 export default {
-  title: 'Teleterm/ConnectMyComputer/DocumentConnectMyComputerSetup',
+  title: 'Teleterm/ConnectMyComputer/Setup',
 };
 
 export function Default() {

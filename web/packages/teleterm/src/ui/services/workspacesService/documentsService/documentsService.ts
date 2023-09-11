@@ -32,8 +32,7 @@ import {
   Document,
   DocumentAccessRequests,
   DocumentCluster,
-  DocumentConnectMyComputerSetup,
-  DocumentConnectMyComputerStatus,
+  DocumentConnectMyComputer,
   DocumentGateway,
   DocumentGatewayKube,
   DocumentGatewayCliClient,
@@ -216,64 +215,32 @@ export class DocumentsService {
     };
   }
 
-  openConnectMyComputerSetupDocument(opts: {
+  openConnectMyComputerDocument(opts: {
     // URI of the root cluster could be passed to the `DocumentsService`
     // constructor and then to the document, instead of being taken from the parameter.
     // However, we decided not to do so because other documents are based only on the provided parameters.
     rootClusterUri: RootClusterUri;
   }): void {
-    const existingDoc = this.findFirstOfKind('doc.connect_my_computer_setup');
+    const existingDoc = this.findFirstOfKind('doc.connect_my_computer');
     if (existingDoc) {
       this.open(existingDoc.uri);
       return;
     }
 
-    const doc = this.createConnectMyComputerSetupDocument(opts);
+    const doc = this.createConnectMyComputerDocument(opts);
     this.add(doc);
     this.open(doc.uri);
   }
 
-  createConnectMyComputerSetupDocument(opts: {
+  createConnectMyComputerDocument(opts: {
     // URI of the root cluster could be passed to the `DocumentsService`
     // constructor and then to the document, instead of being taken from the parameter.
     // However, we decided not to do so because other documents are based only on the provided parameters.
     rootClusterUri: RootClusterUri;
-  }): DocumentConnectMyComputerSetup {
+  }): DocumentConnectMyComputer {
     return {
       uri: routing.getDocUri({ docId: unique() }),
-      kind: 'doc.connect_my_computer_setup' as const,
-      title: 'Connect My Computer',
-      rootClusterUri: opts.rootClusterUri,
-    };
-  }
-
-  //TODO(gzdunek): Instead of having this method, consider something like openOrSwitch(document) to allow only one instance of a document.
-  openConnectMyComputerStatusDocument(opts: {
-    // URI of the root cluster could be passed to the `DocumentsService`
-    // constructor and then to the document, instead of being taken from the parameter.
-    // However, we decided not to do so because other documents are based only on the provided parameters.
-    rootClusterUri: RootClusterUri;
-  }): void {
-    const existingDoc = this.findFirstOfKind('doc.connect_my_computer_status');
-    if (existingDoc) {
-      this.open(existingDoc.uri);
-      return;
-    }
-
-    const doc = this.createConnectMyComputerStatusDocument(opts);
-    this.add(doc);
-    this.open(doc.uri);
-  }
-
-  createConnectMyComputerStatusDocument(opts: {
-    // URI of the root cluster could be passed to the `DocumentsService`
-    // constructor and then to the document, instead of being taken from the parameter.
-    // However, we decided not to do so because other documents are based only on the provided parameters.
-    rootClusterUri: RootClusterUri;
-  }): DocumentConnectMyComputerStatus {
-    return {
-      uri: routing.getDocUri({ docId: unique() }),
-      kind: 'doc.connect_my_computer_status',
+      kind: 'doc.connect_my_computer' as const,
       title: 'Connect My Computer',
       rootClusterUri: opts.rootClusterUri,
     };
