@@ -34,7 +34,10 @@ import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { Server, TshAbortSignal } from 'teleterm/services/tshd/types';
 import createAbortController from 'teleterm/services/tshd/createAbortController';
-import { isAccessDeniedError } from 'teleterm/services/tshd/errors';
+import {
+  isAccessDeniedError,
+  isNotFoundError,
+} from 'teleterm/services/tshd/errors';
 
 import { assertUnreachable, retryWithRelogin } from '../utils';
 
@@ -220,10 +223,17 @@ export const ConnectMyComputerContextProvider: FC<{
 
   const removeConnections = useCallback(async () => {
     const { rootClusterId } = routing.parseClusterUri(rootClusterUri).params;
-    const nodeName =
-      await connectMyComputerService.getConnectMyComputerNodeName(
+    let nodeName: string;
+    try {
+      nodeName = await connectMyComputerService.getConnectMyComputerNodeName(
         rootClusterUri
       );
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return;
+      }
+      throw error;
+    }
     const nodeUri = routing.getServerUri({ rootClusterId, serverId: nodeName });
     await ctx.connectionTracker.disconnectAndRemoveItemsBelongingToResource(
       nodeUri

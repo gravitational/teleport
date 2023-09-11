@@ -379,7 +379,7 @@ func (n *NodeJoinWait) Run(ctx context.Context, accessAndIdentity AccessAndIdent
 }
 
 func (n *NodeJoinWait) getNodeNameFromHostUUIDFile(ctx context.Context, cluster *clusters.Cluster) (string, error) {
-	dataDir := filepath.Join(getAgentDataDir(n.cfg.AgentsDir, cluster.ProfileName), utils.HostUUIDFile)
+	dataDir := getAgentDataDir(n.cfg.AgentsDir, cluster.ProfileName)
 
 	// NodeJoinWait gets executed when the agent is booting up, so the host UUID file might not exist
 	// on disk yet. Use a ticker to periodically check for its existence.
@@ -536,10 +536,16 @@ type NodeDelete struct {
 // Run grabs the host UUID of an agent from a disk and deletes the node with that name.
 func (n *NodeDelete) Run(ctx context.Context, presence Presence, cluster *clusters.Cluster) error {
 	hostUUID, err := utils.ReadHostUUID(getAgentDataDir(n.cfg.AgentsDir, cluster.ProfileName))
+	if trace.IsNotFound(err) {
+		return nil
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	err = presence.DeleteNode(ctx, apidefaults.Namespace, hostUUID)
+	if trace.IsNotFound(err) {
+		return nil
+	}
 	return trace.Wrap(err)
 }
 
