@@ -385,8 +385,8 @@ func TestNodeNameGet(t *testing.T) {
 	require.NoError(t, err)
 	hostUUID := mustMakeHostUUIDFile(t, nodeName.cfg.AgentsDir, cluster.ProfileName)
 
-	readUUid, err := nodeName.Get(cluster)
+	readUUID, err := nodeName.Get(cluster)
 
 	require.NoError(t, err)
-	require.Equal(t, readUUid, hostUUID)
+	require.Equal(t, readUUID, hostUUID)
 }
