@@ -17,3 +17,7 @@
 export function isAccessDeniedError(error: Error): boolean {
   return (error.message as string)?.includes('access denied');
 }
+
+export function isNotFoundError(error: Error): boolean {
+  return (error.message as string)?.includes('NOT_FOUND');
+}
