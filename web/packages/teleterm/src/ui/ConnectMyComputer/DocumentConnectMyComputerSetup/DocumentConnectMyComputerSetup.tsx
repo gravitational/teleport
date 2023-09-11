@@ -266,8 +266,8 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
   ];
 
   const runSteps = useCallback(async () => {
-    function withSetupError<T extends () => Promise<[void, Error]>>(
-      fn: T,
+    function withEventOnFailure(
+      fn: () => Promise<[void, Error]>,
       failedStep: string
     ): () => Promise<[void, Error]> {
       return async () => {
@@ -292,10 +292,13 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
     setJoinClusterAttempt(makeEmptyAttempt());
 
     const actions = [
-      withSetupError(runCreateRoleAttempt, 'creating_role'),
-      withSetupError(runDownloadAgentAttempt, 'downloading_agent'),
-      withSetupError(runGenerateConfigFileAttempt, 'generating_config_file'),
-      withSetupError(runJoinClusterAttempt, 'joining_cluster'),
+      withEventOnFailure(runCreateRoleAttempt, 'setting_up_role'),
+      withEventOnFailure(runDownloadAgentAttempt, 'downloading_agent'),
+      withEventOnFailure(
+        runGenerateConfigFileAttempt,
+        'generating_config_file'
+      ),
+      withEventOnFailure(runJoinClusterAttempt, 'joining_cluster'),
     ];
     for (const action of actions) {
       const [, error] = await action();
