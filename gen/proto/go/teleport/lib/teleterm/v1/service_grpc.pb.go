@@ -176,7 +176,7 @@ type TerminalServiceClient interface {
 	WaitForConnectMyComputerNodeJoin(ctx context.Context, in *WaitForConnectMyComputerNodeJoinRequest, opts ...grpc.CallOption) (*WaitForConnectMyComputerNodeJoinResponse, error)
 	// DeleteConnectMyComputerNode deletes the Connect My Computer node.
 	DeleteConnectMyComputerNode(ctx context.Context, in *DeleteConnectMyComputerNodeRequest, opts ...grpc.CallOption) (*DeleteConnectMyComputerNodeResponse, error)
-	// GetConnectMyComputerNodeName reads the Connect My Computer node name from a disk.
+	// GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
 	GetConnectMyComputerNodeName(ctx context.Context, in *GetConnectMyComputerNodeNameRequest, opts ...grpc.CallOption) (*GetConnectMyComputerNodeNameResponse, error)
 }
 
@@ -654,7 +654,7 @@ type TerminalServiceServer interface {
 	WaitForConnectMyComputerNodeJoin(context.Context, *WaitForConnectMyComputerNodeJoinRequest) (*WaitForConnectMyComputerNodeJoinResponse, error)
 	// DeleteConnectMyComputerNode deletes the Connect My Computer node.
 	DeleteConnectMyComputerNode(context.Context, *DeleteConnectMyComputerNodeRequest) (*DeleteConnectMyComputerNodeResponse, error)
-	// GetConnectMyComputerNodeName reads the Connect My Computer node name from a disk.
+	// GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
 	GetConnectMyComputerNodeName(context.Context, *GetConnectMyComputerNodeNameRequest) (*GetConnectMyComputerNodeNameResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }

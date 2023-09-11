@@ -142,7 +142,7 @@ service TerminalService {
   rpc WaitForConnectMyComputerNodeJoin(WaitForConnectMyComputerNodeJoinRequest) returns (WaitForConnectMyComputerNodeJoinResponse);
   // DeleteConnectMyComputerNode deletes the Connect My Computer node.
   rpc DeleteConnectMyComputerNode(DeleteConnectMyComputerNodeRequest) returns (DeleteConnectMyComputerNodeResponse);
-  // GetConnectMyComputerNodeName reads the Connect My Computer node name from a disk.
+  // GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
   rpc GetConnectMyComputerNodeName(GetConnectMyComputerNodeNameRequest) returns (GetConnectMyComputerNodeNameResponse);
 }
 

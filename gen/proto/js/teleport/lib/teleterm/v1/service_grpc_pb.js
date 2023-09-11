@@ -1138,7 +1138,7 @@ deleteConnectMyComputerNode: {
     responseSerialize: serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerNodeResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerNodeResponse,
   },
-  // GetConnectMyComputerNodeName reads the Connect My Computer node name from a disk.
+  // GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
 getConnectMyComputerNodeName: {
     path: '/teleport.lib.teleterm.v1.TerminalService/GetConnectMyComputerNodeName',
     requestStream: false,
