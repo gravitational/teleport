@@ -491,6 +491,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			JoinMethod:           process.Config.JoinMethod,
 			CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 			FIPS:                 process.Config.FIPS,
+			Insecure:             lib.IsInsecureDevMode(),
 		}
 		if registerParams.JoinMethod == types.JoinMethodAzure {
 			registerParams.AzureParams = auth.AzureParams{

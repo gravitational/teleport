@@ -744,6 +744,14 @@ test-go-unit:
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 
+# Runs tbot unit tests
+.PHONY: test-go-unit-tbot
+test-go-unit-tbot: FLAGS ?= -race -shuffle on
+test-go-unit-tbot:
+	$(CGOFLAG) go test -cover -json $(FLAGS) $(ADDFLAGS) ./tool/tbot/... ./lib/tbot/... \
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| gotestsum --raw-command -- cat
+
 # rdpclient and libfido2 don't play well together, so we run libfido2 tests
 # separately.
 # TODO(codingllama): Run libfido2 tests along with others once RDP doesn't

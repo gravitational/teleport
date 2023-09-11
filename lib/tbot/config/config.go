@@ -176,6 +176,9 @@ type CLIConf struct {
 	// DiagAddr is the address the diagnostics http service should listen on.
 	// If not set, no diagnostics listener is created.
 	DiagAddr string
+
+	// Insecure instructs `tbot` to trust the Auth Server without verifying the CA.
+	Insecure bool
 }
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.
@@ -275,9 +278,9 @@ type BotConfig struct {
 	// renewal.
 	ReloadCh <-chan struct{} `yaml:"-"`
 
-	// Insecure configures the bot to blindly trust the certificates offered by
-	// the auth server. Used for tests.
-	Insecure bool `yaml:"-"`
+	// Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification.
+	// Do not use in production.
+	Insecure bool `yaml:"insecure,omitempty"`
 }
 
 func (conf *BotConfig) CipherSuites() []uint16 {
@@ -343,6 +346,21 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	if conf.Onboarding.JoinMethod != types.JoinMethodUnspecified {
 		if !slices.Contains(SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
 			return trace.BadParameter("unrecognized join method: %q", conf.Onboarding.JoinMethod)
+		}
+	}
+
+	// Validate Insecure and CA Settings
+	if conf.Insecure {
+		if len(conf.Onboarding.CAPins) > 0 {
+			return trace.BadParameter("the option ca-pin is mutually exclusive with --insecure")
+		}
+
+		if conf.Onboarding.CAPath != "" {
+			return trace.BadParameter("the option ca-path is mutually exclusive with --insecure")
+		}
+	} else {
+		if len(conf.Onboarding.CAPins) > 0 && conf.Onboarding.CAPath != "" {
+			return trace.BadParameter("the options ca-pin and ca-path are mutually exclusive")
 		}
 	}
 
@@ -633,6 +651,10 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err, "validating merged bot config")
+	}
+
+	if cf.Insecure {
+		config.Insecure = true
 	}
 
 	return config, nil
