@@ -78,14 +78,14 @@ func getJSONTag(tags string) string {
 		return ""
 	}
 
-	return kv[1]
+	return strings.TrimSuffix(kv[1], ",omitempty")
 }
 
 // makeFields assembles a slice of human-readable information about fields
 // within a Go struct.
 func makeFields(fields *ast.FieldList) ([]Field, error) {
-	result := make([]Field, len(fields.List))
-	for i, field := range fields.List {
+	var result []Field
+	for _, field := range fields.List {
 		desc := strings.Trim(strings.ReplaceAll(field.Doc.Text(), "\n", " "), " ")
 		if len(field.Names) > 1 {
 			return []Field{}, fmt.Errorf("field %+v contains more than one name", field)
@@ -94,12 +94,22 @@ func makeFields(fields *ast.FieldList) ([]Field, error) {
 		if len(field.Names) == 0 {
 			return []Field{}, fmt.Errorf("field %+v has no names", field)
 		}
-		name := field.Names[0]
-		f := Field{
-			Description: descriptionWithoutName(desc, name.Name),
-			Name:        getJSONTag(field.Tag.Value),
+		name := field.Names[0].Name
+		jsonName := getJSONTag(field.Tag.Value)
+		// This field is ignored, so skip it.
+		// See: https://pkg.go.dev/encoding/json#Marshal
+		if jsonName == "-" {
+			continue
 		}
-		result[i] = f
+		// Using the exported field declaration name as the field name
+		// per JSON marshaling rules.
+		if jsonName == "" {
+			jsonName = name
+		}
+		result = append(result, Field{
+			Description: descriptionWithoutName(desc, name),
+			Name:        jsonName,
+		})
 	}
 	return result, nil
 }
