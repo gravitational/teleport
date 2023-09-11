@@ -38,6 +38,7 @@ const (
 
 // User represents teleport embedded user or external user.
 type User interface {
+	ResourceWithLabels
 	// ResourceWithSecrets provides common resource properties
 	ResourceWithSecrets
 	ResourceWithOrigin
@@ -547,4 +548,28 @@ func (i *ExternalIdentity) Check() error {
 		return trace.BadParameter("Username: missing username")
 	}
 	return nil
+}
+
+var _ ResourceWithLabels = (*UserV2)(nil)
+
+func (u *UserV2) GetAllLabels() map[string]string {
+	return u.Metadata.Labels
+}
+
+func (u *UserV2) GetLabel(key string) (string, bool) {
+	value, ok := u.Metadata.Labels[key]
+	return value, ok
+}
+
+func (u *UserV2) GetStaticLabels() map[string]string {
+	return u.Metadata.Labels
+}
+
+func (u *UserV2) SetStaticLabels(sl map[string]string) {
+	u.Metadata.Labels = sl
+}
+
+func (u *UserV2) MatchSearch(values []string) bool {
+	// TODO(tcsc): Work out correct behaviour here
+	return MatchSearch(nil, values, nil)
 }

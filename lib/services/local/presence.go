@@ -1531,6 +1531,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindUserGroup:
 		keyPrefix = []string{userGroupPrefix}
 		unmarshalItemFunc = backendItemToUserGroup
+	case types.KindUser:
+		keyPrefix = []string{"web/users"}
+		unmarshalItemFunc = backendItemToUser
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1867,6 +1870,16 @@ func backendItemToWindowsDesktopService(item backend.Item) (types.ResourceWithLa
 // `types.UserGroup`, returning it as a `types.ResourceWithLabels`.
 func backendItemToUserGroup(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalUserGroup(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+	)
+}
+
+// backendItemToUserGroup unmarshals `backend.Item` into a
+// `types.User`, returning it as a `types.ResourceWithLabels`.
+func backendItemToUser(item backend.Item) (types.ResourceWithLabels, error) {
+	return services.UnmarshalUser(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
