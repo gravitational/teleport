@@ -263,8 +263,9 @@ func TestMux(t *testing.T) {
 		require.NoError(t, err)
 
 		mux, err := New(Config{
-			Listener:          listener,
-			PROXYProtocolMode: PROXYProtocolOn,
+			Listener:              listener,
+			PROXYProtocolMode:     PROXYProtocolOn,
+			IgnoreSelfConnections: true,
 		})
 		require.NoError(t, err)
 		go mux.Serve()
