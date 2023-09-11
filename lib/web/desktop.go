@@ -40,7 +40,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
@@ -49,7 +48,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
@@ -61,7 +61,7 @@ func (h *Handler) desktopConnectHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
 	desktopName := p.ByName("desktopName")
 	if desktopName == "" {
@@ -95,7 +95,7 @@ func (h *Handler) createDesktopConnection(
 	clusterName string,
 	log *logrus.Entry,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	site reversetunnel.RemoteSite,
 ) error {
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -168,6 +168,18 @@ func (h *Handler) createDesktopConnection(
 		validServiceIDs[i], validServiceIDs[j] = validServiceIDs[j], validServiceIDs[i]
 	})
 
+	pc, err := proxyClient(r.Context(), sctx, h.ProxyHostPort(), username, h.cfg.PROXYSigner)
+	if err != nil {
+		return sendTDPError(trace.Wrap(err))
+	}
+	defer pc.Close()
+
+	// Issue certificate for TLS config and pass MFA check if required.
+	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, sctx, desktopName, username, site.GetName())
+	if err != nil {
+		return sendTDPError(err)
+	}
+
 	clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(r.Context())
 
 	c := &connector{
@@ -183,16 +195,6 @@ func (h *Handler) createDesktopConnection(
 	}
 	defer serviceConn.Close()
 
-	pc, err := proxyClient(r.Context(), sctx, h.ProxyHostPort(), username, h.cfg.PROXYSigner)
-	if err != nil {
-		return sendTDPError(trace.Wrap(err))
-	}
-	defer pc.Close()
-
-	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, sctx, desktopName, username, site.GetName())
-	if err != nil {
-		return sendTDPError(err)
-	}
 	serviceConnTLS := tls.Client(serviceConn, tlsConfig)
 
 	if err := serviceConnTLS.HandshakeContext(r.Context()); err != nil {
@@ -243,16 +245,6 @@ func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser
 	}
 	return pc, nil
 }
-
-const (
-	// SNISuffix is the server name suffix used during SNI to specify the
-	// target desktop to connect to. The client (proxy_service) will use SNI
-	// like "${UUID}.desktop.teleport.cluster.local" to pass the UUID of the
-	// desktop.
-	// This is a copy of the same constant in `lib/srv/desktop/desktop.go` to
-	// prevent depending on `lib/srv` in `lib/web`.
-	SNISuffix = ".desktop." + constants.APIDomain
-)
 
 func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyClient, sessCtx *SessionContext, desktopName, username, siteName string) (*tls.Config, error) {
 	pk, err := keys.ParsePrivateKey(sessCtx.cfg.Session.GetPriv())
@@ -318,14 +310,14 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 	}
 	tlsConfig.Certificates = []tls.Certificate{certConf}
 	// Pass target desktop name via SNI.
-	tlsConfig.ServerName = desktopName + SNISuffix
+	tlsConfig.ServerName = desktopName + desktop.SNISuffix
 	return tlsConfig, nil
 }
 
 type connector struct {
 	log           *logrus.Entry
 	clt           auth.ClientI
-	site          reversetunnelclient.RemoteSite
+	site          reversetunnel.RemoteSite
 	clientSrcAddr net.Addr
 	clientDstAddr net.Addr
 }
@@ -360,7 +352,7 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (net.Conn, 
 
 	*c.log = *c.log.WithField("windows-service-uuid", service.GetName())
 	*c.log = *c.log.WithField("windows-service-addr", service.GetAddr())
-	return c.site.DialTCP(reversetunnelclient.DialParams{
+	return c.site.DialTCP(reversetunnel.DialParams{
 		From:                  c.clientSrcAddr,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
 		ConnType:              types.WindowsDesktopTunnel,

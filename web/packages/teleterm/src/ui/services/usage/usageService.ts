@@ -171,44 +171,6 @@ export class UsageService {
     });
   }
 
-  captureConnectMyComputerSetup(
-    uri: ClusterOrResourceUri,
-    properties: { success: true } | { success: false; failedStep: string }
-  ): void {
-    const clusterProperties = this.getClusterProperties(uri);
-    if (!clusterProperties) {
-      this.logger.warn(
-        `Missing cluster data for ${uri}, skipping connectMyComputerSetup event`
-      );
-      return;
-    }
-    this.reportEvent(clusterProperties.authClusterId, {
-      connectMyComputerSetup: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
-        success: properties.success,
-        failedStep:
-          (properties.success === false && properties.failedStep) || undefined,
-      },
-    });
-  }
-
-  captureConnectMyComputerAgentStart(uri: ClusterOrResourceUri): void {
-    const clusterProperties = this.getClusterProperties(uri);
-    if (!clusterProperties) {
-      this.logger.warn(
-        `Missing cluster data for ${uri}, skipping connectMyComputerAgentStart event`
-      );
-      return;
-    }
-    this.reportEvent(clusterProperties.authClusterId, {
-      connectMyComputerAgentStart: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
-      },
-    });
-  }
-
   private reportNonAnonymizedEvent(prehogEventReq: PrehogEventReq): void {
     this.reportEvent('', prehogEventReq);
   }

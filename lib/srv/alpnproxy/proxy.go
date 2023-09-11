@@ -123,7 +123,7 @@ func ExtractMySQLEngineVersion(fn func(ctx context.Context, conn net.Conn) error
 			}
 			// The version should never be longer than 255 characters including
 			// the prefix, but better to be safe.
-			versionEnd := 255
+			var versionEnd = 255
 			if len(alpn) < versionEnd {
 				versionEnd = len(alpn)
 			}
@@ -152,7 +152,7 @@ func (r *Router) CheckAndSetDefaults() error {
 	return nil
 }
 
-// AddKubeHandler adds the handle for Kubernetes protocol (distinguishable by  "kube-teleport-proxy-alpn." SNI prefix).
+// AddKubeHandler adds the handle for Kubernetes protocol (distinguishable by  "kube." SNI prefix).
 func (r *Router) AddKubeHandler(handler HandlerFunc) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
@@ -596,6 +596,11 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 }
 
 func shouldRouteToKubeService(sni string) bool {
+	// DELETE IN 14.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	if strings.HasPrefix(sni, constants.KubeSNIPrefix) {
+		return true
+	}
+
 	return strings.HasPrefix(sni, constants.KubeTeleportProxyALPNPrefix)
 }
 

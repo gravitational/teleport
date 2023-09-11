@@ -26,7 +26,6 @@ test('correct formatting of apps fetch response', async () => {
   expect(response).toEqual({
     agents: [
       {
-        kind: 'app',
         id: 'cluster-id-app-name-app-name.example.com',
         name: 'app-name',
         description: 'some description',
@@ -47,7 +46,6 @@ test('correct formatting of apps fetch response', async () => {
         samlAppSsoUrl: '',
       },
       {
-        kind: 'app',
         id: 'cluster-id-cloud-app-cloud://some-addr',
         name: 'cloud-app',
         description: '',
@@ -67,7 +65,6 @@ test('correct formatting of apps fetch response', async () => {
         samlAppSsoUrl: '',
       },
       {
-        kind: 'app',
         id: 'cluster-id-tcp-app-tcp://some-addr',
         name: 'tcp-app',
         description: '',
@@ -87,7 +84,6 @@ test('correct formatting of apps fetch response', async () => {
         samlAppSsoUrl: '',
       },
       {
-        kind: 'app',
         id: 'cluster-id-saml-app-',
         name: 'saml-app',
         description: 'SAML Application',

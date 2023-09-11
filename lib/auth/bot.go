@@ -371,16 +371,16 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 }
 
 // validateGenerationLabel validates and updates a generation label.
-func (s *Server) validateGenerationLabel(ctx context.Context, userState services.UserState, certReq *certRequest, currentIdentityGeneration uint64) error {
+func (s *Server) validateGenerationLabel(ctx context.Context, username string, certReq *certRequest, currentIdentityGeneration uint64) error {
 	// Fetch the user, bypassing the cache. We might otherwise fetch a stale
 	// value in case of a rapid certificate renewal.
-	user, err := s.Services.GetUser(userState.GetName(), false)
+	user, err := s.Services.GetUser(username, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var currentUserGeneration uint64
-	label := userState.BotGenerationLabel()
+	label := user.BotGenerationLabel()
 	if label != "" {
 		currentUserGeneration, err = strconv.ParseUint(label, 10, 64)
 		if err != nil {
@@ -533,7 +533,7 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 	// This call bypasses RBAC check for users read on purpose.
 	// Users who are allowed to impersonate other users might not have
 	// permissions to read user data.
-	userState, err := s.getUserOrLoginState(ctx, username)
+	userState, err := s.GetUserOrLoginState(ctx, username)
 	if err != nil {
 		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", username)
 		return nil, trace.AccessDenied("access denied")
@@ -579,7 +579,7 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 		generation:    generation,
 	}
 
-	if err := s.validateGenerationLabel(ctx, userState, &certReq, 0); err != nil {
+	if err := s.validateGenerationLabel(ctx, userState.GetName(), &certReq, 0); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

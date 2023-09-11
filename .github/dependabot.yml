@@ -9,22 +9,25 @@ updates:
     ignore:
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
+      # Breaks backwards compatibility
+      - dependency-name: github.com/go-webauthn/webauthn
+      # TODO(greedy52): Update mongo-driver and fix API changes.
+      - dependency-name: go.mongodb.org/mongo-driver
       # Must be kept in-sync with libbpf
       - dependency-name: github.com/aquasecurity/libbpfgo
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
       - dependency-name: github.com/coreos/go-oidc
       - dependency-name: github.com/go-mysql-org/go-mysql
+      - dependency-name: github.com/go-redis/redis/v9
       - dependency-name: github.com/gogo/protobuf
       - dependency-name: github.com/julienschmidt/httprouter
       - dependency-name: github.com/keys-pub/go-libfido2
       - dependency-name: github.com/microsoft/go-mssqldb
-      - dependency-name: github.com/redis/go-redis/v9
       - dependency-name: github.com/vulcand/predicate
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - zmb3
 
@@ -34,10 +37,12 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
+    ignore:
+      # Forked/replaced dependencies
+      - dependency-name: golang.org/x/crypto
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - zmb3
 
@@ -59,19 +64,6 @@ updates:
       - zmb3
 
   - package-ecosystem: gomod
-    directory: "/assets/backport"
-    schedule:
-      interval: weekly
-      day: "sunday"
-      time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
-    reviewers:
-      - codingllama
-      - jentfoo
-      - rosstimothy
-      - zmb3
-
-  - package-ecosystem: gomod
     directory: "/build.assets/tooling"
     schedule:
       interval: weekly
@@ -88,20 +80,6 @@ updates:
       - rosstimothy
       - zmb3
 
-  - package-ecosystem: gomod
-    directory: "/integrations/kube-agent-updater"
-    schedule:
-      interval: weekly
-      day: "sunday"
-      time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
-    reviewers:
-      - codingllama
-      - hugoShaka
-      - jentfoo
-      - rosstimothy
-      - zmb3
-
   - package-ecosystem: cargo
     directory: "/"
     schedule:
@@ -111,8 +89,6 @@ updates:
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
-      - ibeckermayer
-      - jentfoo
       - rosstimothy
       - zmb3
 
@@ -125,7 +101,5 @@ updates:
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
-      - ibeckermayer
-      - jentfoo
       - rosstimothy
       - zmb3

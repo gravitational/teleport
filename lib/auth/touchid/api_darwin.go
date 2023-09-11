@@ -290,7 +290,7 @@ func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
 	})
 	if res < 0 {
 		errMsg := C.GoString(errMsgC)
-		return nil, errorFromStatus("listing credentials", res, errMsg)
+		return nil, errorFromStatus("listing credentials", int(res), errMsg)
 	}
 
 	return infos, nil

@@ -70,7 +70,7 @@ type TestAuthServerConfig struct {
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
-	// Streamer allows a test to set its own session recording streamer.
+	// Streamer allows a test to set its own audit events streamer.
 	Streamer events.Streamer
 	// AuditLog allows a test to configure its own audit log.
 	AuditLog events.AuditLogSessionStreamer
@@ -374,21 +374,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
 
-	unifiedResourcesCache, err := services.NewUnifiedResourceCache(srv.AuthServer.CloseContext(), services.UnifiedResourceCacheConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			QueueSize:    defaults.UnifiedResourcesQueueSize,
-			Component:    teleport.ComponentUnifiedResource,
-			Client:       srv.AuthServer,
-			MaxStaleness: time.Minute,
-		},
-		ResourceGetter: srv.AuthServer,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	srv.AuthServer.SetUnifiedResourcesCache(unifiedResourcesCache)
-
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(srv.AuthServer.CloseContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,
 	})
@@ -432,7 +417,7 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userState, err := a.AuthServer.getUserOrLoginState(context.Background(), user.GetName())
+	userState, err := a.AuthServer.GetUserOrLoginState(context.Background(), user.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -494,7 +479,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		userState, err := authServer.getUserOrLoginState(context.Background(), user.GetName())
+		userState, err := authServer.GetUserOrLoginState(context.Background(), user.GetName())
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -531,7 +516,6 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKey,
 				PublicSSHKey: pub,
-				SystemRoles:  id.AdditionalSystemRoles,
 			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

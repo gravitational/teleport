@@ -20,7 +20,7 @@ import { ResourceKind } from '../Shared/ResourceKind';
 
 import type { DiscoverEventResource } from 'teleport/services/userEvent';
 
-import type { ResourceIconName } from 'design/ResourceIcon';
+import type { ResourceIconName } from './icons';
 
 export enum DatabaseLocation {
   Aws,
@@ -86,5 +86,4 @@ export enum SearchResource {
   DESKTOP = 'desktop',
   KUBERNETES = 'kubernetes',
   SERVER = 'server',
-  UNIFIED_RESOURCE = 'unified_resource',
 }

@@ -64,17 +64,18 @@ func TestChatComplete(t *testing.T) {
 	require.NoError(t, err)
 
 	// And created conversation.
-	toolContext := &model.ToolContext{
-		User: "bob",
-	}
+	const testUser = "bob"
 	conversationResp, err := authSrv.AuthServer.CreateAssistantConversation(ctx, &assist.CreateAssistantConversationRequest{
-		Username:    toolContext.User,
+		Username:    testUser,
 		CreatedTime: timestamppb.Now(),
 	})
 	require.NoError(t, err)
 
 	// When a chat is created.
-	chat, err := client.NewChat(ctx, authSrv.AuthServer, toolContext, conversationResp.Id)
+	toolsConfig := model.ToolsConfig{
+		DisableEmbeddingsTool: true,
+	}
+	chat, err := client.NewChat(ctx, authSrv.AuthServer, conversationResp.Id, testUser, toolsConfig)
 	require.NoError(t, err)
 
 	t.Run("new conversation is new", func(t *testing.T) {
@@ -115,7 +116,7 @@ func TestChatComplete(t *testing.T) {
 	t.Run("check what messages are stored in the backend", func(t *testing.T) {
 		// backend should have 3 messages: welcome message, user message, command response.
 		messages, err := authSrv.AuthServer.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
-			Username:       toolContext.User,
+			Username:       testUser,
 			ConversationId: conversationResp.Id,
 		})
 		require.NoError(t, err)

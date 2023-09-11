@@ -94,6 +94,9 @@ type DialReq struct {
 	// ConnType is the type of connection requested, either node or application.
 	ConnType types.TunnelType `json:"conn_type"`
 
+	// TeleportVersion shows what teleport version is the node that we're trying to dial
+	TeleportVersion string `json:"teleport_version,omitempty"`
+
 	// ClientSrcAddr is the original observed client address, it is used to propagate
 	// correct client IP through indirect connections inside teleport
 	ClientSrcAddr string `json:"client_src_addr,omitempty"`

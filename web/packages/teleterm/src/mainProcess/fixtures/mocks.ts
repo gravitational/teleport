@@ -20,7 +20,6 @@ import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mo
 // teleterm/services/config/index.ts reexports the config service client which depends on electron.
 // Importing electron breaks the fixtures if that's done from within storybook.
 import { createConfigService } from 'teleterm/services/config/configService';
-import { AgentProcessState } from 'teleterm/mainProcess/types';
 
 export class MockMainProcessClient implements MainProcessClient {
   configService: ReturnType<typeof createConfigService>;
@@ -38,10 +37,7 @@ export class MockMainProcessClient implements MainProcessClient {
   }
 
   getResolvedChildProcessAddresses = () =>
-    Promise.resolve({
-      tsh: '',
-      shared: '',
-    });
+    Promise.resolve({ tsh: '', shared: '' });
 
   openTerminalContextMenu() {}
 
@@ -50,10 +46,7 @@ export class MockMainProcessClient implements MainProcessClient {
   openTabContextMenu() {}
 
   showFileSaveDialog() {
-    return Promise.resolve({
-      canceled: false,
-      filePath: '',
-    });
+    return Promise.resolve({ canceled: false, filePath: '' });
   }
 
   fileStorage = createMockFileStorage();
@@ -83,34 +76,6 @@ export class MockMainProcessClient implements MainProcessClient {
   subscribeToNativeThemeUpdate() {
     return { cleanup: () => undefined };
   }
-
-  downloadAgent() {
-    return Promise.resolve();
-  }
-
-  createAgentConfigFile() {
-    return Promise.resolve();
-  }
-
-  isAgentConfigFileCreated() {
-    return Promise.resolve(false);
-  }
-
-  killAgent(): Promise<void> {
-    return Promise.resolve();
-  }
-
-  runAgent(): Promise<void> {
-    return Promise.resolve();
-  }
-
-  getAgentState(): AgentProcessState {
-    return { status: 'not-started' };
-  }
-
-  subscribeToAgentUpdate() {
-    return { cleanup: () => undefined };
-  }
 }
 
 export const makeRuntimeSettings = (
@@ -119,13 +84,9 @@ export const makeRuntimeSettings = (
   platform: 'darwin' as const,
   dev: true,
   userDataDir: '',
-  sessionDataDir: '',
-  tempDataDir: '',
-  agentBinaryPath: '',
   binDir: '',
   certsDir: '',
   kubeConfigsDir: '',
-  logsDir: '',
   defaultShell: '',
   tshd: {
     insecure: true,
@@ -144,8 +105,5 @@ export const makeRuntimeSettings = (
   arch: 'arm64',
   osVersion: '22.2.0',
   appVersion: '11.1.0',
-  isLocalBuild: runtimeSettings?.appVersion === '1.0.0-dev',
-  username: 'alice',
-  hostname: 'staging-mac-mini',
   ...runtimeSettings,
 });

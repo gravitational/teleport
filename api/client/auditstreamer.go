@@ -58,8 +58,7 @@ func (c *Client) ResumeAuditStream(ctx context.Context, sessionID, uploadID stri
 			ResumeStream: &proto.ResumeStream{
 				SessionID: sessionID,
 				UploadID:  uploadID,
-			},
-		},
+			}},
 	})
 }
 
@@ -67,8 +66,7 @@ func (c *Client) ResumeAuditStream(ctx context.Context, sessionID, uploadID stri
 func (c *Client) CreateAuditStream(ctx context.Context, sessionID string) (events.Stream, error) {
 	return c.createOrResumeAuditStream(ctx, proto.AuditStreamRequest{
 		Request: &proto.AuditStreamRequest_CreateStream{
-			CreateStream: &proto.CreateStream{SessionID: sessionID},
-		},
+			CreateStream: &proto.CreateStream{SessionID: sessionID}},
 	})
 }
 
@@ -107,9 +105,9 @@ func (s *auditStreamer) Status() <-chan events.StreamStatus {
 	return s.statusCh
 }
 
-// RecordEvent records adds an event to a session recording.
-func (s *auditStreamer) RecordEvent(ctx context.Context, event events.PreparedSessionEvent) error {
-	oneof, err := events.ToOneOf(event.GetAuditEvent())
+// EmitAuditEvent emits audit event.
+func (s *auditStreamer) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
+	oneof, err := events.ToOneOf(event)
 	if err != nil {
 		return trace.Wrap(err)
 	}

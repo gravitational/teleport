@@ -419,8 +419,6 @@ func getDatabaseConnTester(protocol string) (databasePinger, error) {
 		return &database.PostgresPinger{}, nil
 	case defaults.ProtocolMySQL:
 		return &database.MySQLPinger{}, nil
-	case defaults.ProtocolSQLServer:
-		return &database.SQLServerPinger{}, nil
 	}
 	return nil, trace.NotImplemented("database protocol %q is not supported yet for testing connection", protocol)
 }

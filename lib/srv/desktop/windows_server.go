@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -42,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/recorder"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -116,6 +117,8 @@ type WindowsService struct {
 	ldapConfigured  bool
 	ldapInitialized bool
 	ldapCertRenew   *time.Timer
+
+	streamer libevents.Streamer
 
 	// lastDisoveryResults stores the results of the most recent LDAP search
 	// when desktop discovery is enabled.
@@ -374,6 +377,17 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		}
 	}()
 
+	recConfig, err := s.cfg.AccessPoint.GetSessionRecordingConfig(s.closeCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	streamer, err := s.newStreamer(s.closeCtx, recConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.streamer = streamer
+
 	if err := s.startServiceHeartbeat(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -396,21 +410,44 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	return s, nil
 }
 
-func (s *WindowsService) newSessionRecorder(recConfig types.SessionRecordingConfig, sessionID string) (libevents.SessionPreparerRecorder, error) {
-	return recorder.New(recorder.Config{
-		SessionID:    session.ID(sessionID),
-		ServerID:     s.cfg.Heartbeat.HostUUID,
+func (s *WindowsService) newStreamWriter(record bool, sessionID string) (libevents.StreamWriter, error) {
+	// AuditWriter doesn't always respect the RecordOuptut field,
+	// so ensure the session isn't recorded by using a discard stream.
+	// See https://github.com/gravitational/teleport/issues/16773
+	if !record {
+		return &libevents.DiscardStream{}, nil
+	}
+
+	return libevents.NewAuditWriter(libevents.AuditWriterConfig{
+		Component:    teleport.ComponentWindowsDesktop,
 		Namespace:    apidefaults.Namespace,
+		Context:      s.closeCtx,
 		Clock:        s.cfg.Clock,
 		ClusterName:  s.clusterName,
-		RecordingCfg: recConfig,
-		SyncStreamer: s.cfg.AuthClient,
-		DataDir:      s.cfg.DataDir,
-		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentWindowsDesktop),
-		// Session stream is using server context, not session context,
-		// to make sure that session is uploaded even after it is closed
-		Context: s.closeCtx,
+		SessionID:    session.ID(sessionID),
+		Streamer:     s.streamer,
+		ServerID:     s.cfg.Heartbeat.HostUUID,
+		RecordOutput: true,
 	})
+}
+
+// newStreamer creates a streamer (sync or async) based on the cluster configuration.
+// Synchronous streamers send events directly to the auth server, and blocks if the server
+// cannot keep up. Asynchronous streamers buffers the events to disk and uploads them later.
+func (s *WindowsService) newStreamer(ctx context.Context, recConfig types.SessionRecordingConfig) (libevents.Streamer, error) {
+	if services.IsRecordSync(recConfig.GetMode()) {
+		s.cfg.Log.Debugf("using sync streamer (for mode %v)", recConfig.GetMode())
+		return s.cfg.AuthClient, nil
+	}
+	s.cfg.Log.Debugf("using async streamer (for mode %v)", recConfig.GetMode())
+	uploadDir := filepath.Join(s.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
+		libevents.StreamingSessionsDir, apidefaults.Namespace)
+	fileStreamer, err := filesessions.NewStreamer(uploadDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return libevents.NewTeeStreamer(fileStreamer, s.cfg.Emitter), nil
 }
 
 func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
@@ -790,18 +827,16 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 
 	// in order for the session to be recorded, the cluster's session recording mode must
 	// not be "off" and the user's roles must enable recording
-	var recConfig types.SessionRecordingConfig
-	var recordSession bool
-	if !authCtx.Checker.RecordDesktopSession() {
-		recConfig = types.DefaultSessionRecordingConfig()
-		recConfig.SetMode(types.RecordOff)
-		log.Infof("desktop session %v will not be recorded, user %v's roles disable recording", string(sessionID), authCtx.User.GetName())
-	} else {
-		recConfig, err = s.cfg.AccessPoint.GetSessionRecordingConfig(ctx)
+	recordSession := false
+	if authCtx.Checker.RecordDesktopSession() {
+		recConfig, err := s.cfg.AccessPoint.GetSessionRecordingConfig(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		recordSession = recConfig.GetMode() != types.RecordOff
+	} else {
+		log.Infof("desktop session %v will not be recorded, user %v's roles disable recording", string(sessionID), authCtx.User.GetName())
 	}
 
 	var windowsUser string
@@ -827,7 +862,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		return trace.Wrap(err)
 	}
 
-	recorder, err := s.newSessionRecorder(recConfig, string(sessionID))
+	sw, err := s.newStreamWriter(recordSession, string(sessionID))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -838,20 +873,20 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	// the client.
 	defer func() {
 		go func() {
-			if err := recorder.Close(context.Background()); err != nil {
+			if err := sw.Close(context.Background()); err != nil {
 				log.WithError(err).Errorf("closing stream writer for desktop session %v", sessionID.String())
 			}
 		}()
 	}()
 
 	delay := timer()
-	tdpConn.OnSend = s.makeTDPSendHandler(ctx, recorder, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
-	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, recorder, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
+	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
+	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
 
 	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
 	groups, err := authCtx.Checker.DesktopGroups(desktop)
 	if err != nil && !trace.IsAccessDenied(err) {
-		s.onSessionStart(ctx, recorder, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 	createUsers := err == nil
@@ -869,7 +904,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
 	})
 	if err != nil {
-		s.onSessionStart(ctx, recorder, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
@@ -903,20 +938,19 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		// if we can't establish a connection monitor then we can't enforce RBAC.
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
-		s.onSessionStart(ctx, recorder, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
-	s.onSessionStart(ctx, recorder, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
+	s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
 	err = rdpc.Run(ctx)
-	s.onSessionEnd(ctx, recorder, &identity, sessionStartTime, recordSession, windowsUser, string(sessionID), desktop)
+	s.onSessionEnd(ctx, sw, &identity, sessionStartTime, recordSession, windowsUser, string(sessionID), desktop)
 
 	return trace.Wrap(err)
 }
 
-func (s *WindowsService) makeTDPSendHandler(ctx context.Context, recorder libevents.SessionPreparerRecorder, delay func() int64,
-	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn,
-) func(m tdp.Message, b []byte) {
+func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
+	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
 		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
@@ -935,37 +969,34 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, recorder libeve
 				// ones are around 2000 bytes. Anything approaching the limit of a single protobuf
 				// is likely some sort of DoS attempt and not legitimate RDP traffic, so we don't log it.
 				s.cfg.Log.Warnf("refusing to record %d byte PNG frame, image too large", len(b))
-			} else {
-				if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
-					s.cfg.Log.WithError(err).Warning("could not record desktop recording event")
-				}
+			} else if err := emitter.EmitAuditEvent(ctx, e); err != nil {
+				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
 		case byte(tdp.TypeClipboardData):
 			if clip, ok := m.(tdp.ClipboardData); ok {
 				// the TDP send handler emits a clipboard receive event, because we
 				// received clipboard data from the remote desktop and are sending
 				// it on the TDP connection
-				s.onClipboardReceive(ctx, id, sessionID, desktopAddr, int32(len(clip)))
+				s.onClipboardReceive(ctx, emitter, id, sessionID, desktopAddr, int32(len(clip)))
 			}
 		case byte(tdp.TypeSharedDirectoryAcknowledge):
 			if message, ok := m.(tdp.SharedDirectoryAcknowledge); ok {
-				s.onSharedDirectoryAcknowledge(ctx, id, sessionID, desktopAddr, message)
+				s.onSharedDirectoryAcknowledge(ctx, emitter, id, sessionID, desktopAddr, message)
 			}
 		case byte(tdp.TypeSharedDirectoryReadRequest):
 			if message, ok := m.(tdp.SharedDirectoryReadRequest); ok {
-				s.onSharedDirectoryReadRequest(ctx, id, sessionID, desktopAddr, message, tdpConn)
+				s.onSharedDirectoryReadRequest(ctx, emitter, id, sessionID, desktopAddr, message, tdpConn)
 			}
 		case byte(tdp.TypeSharedDirectoryWriteRequest):
 			if message, ok := m.(tdp.SharedDirectoryWriteRequest); ok {
-				s.onSharedDirectoryWriteRequest(ctx, id, sessionID, desktopAddr, message, tdpConn)
+				s.onSharedDirectoryWriteRequest(ctx, emitter, id, sessionID, desktopAddr, message, tdpConn)
 			}
 		}
 	}
 }
 
-func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, recorder libevents.SessionPreparerRecorder, delay func() int64,
-	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn,
-) func(m tdp.Message) {
+func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
+	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn) func(m tdp.Message) {
 	return func(m tdp.Message) {
 		switch msg := m.(type) {
 		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
@@ -985,22 +1016,20 @@ func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, recorder lib
 				// screen spec, mouse button, and mouse move are fixed size messages,
 				// so they cannot exceed the maximum size
 				s.cfg.Log.Warnf("refusing to record %d byte %T message", len(b), m)
-			} else {
-				if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
-					s.cfg.Log.WithError(err).Warning("could not record desktop recording event")
-				}
+			} else if err := emitter.EmitAuditEvent(ctx, e); err != nil {
+				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
 		case tdp.ClipboardData:
 			// the TDP receive handler emits a clipboard send event, because we
 			// received clipboard data from the user (over TDP) and are sending
 			// it to the remote desktop
-			s.onClipboardSend(ctx, id, sessionID, desktopAddr, int32(len(msg)))
+			s.onClipboardSend(ctx, emitter, id, sessionID, desktopAddr, int32(len(msg)))
 		case tdp.SharedDirectoryAnnounce:
-			s.onSharedDirectoryAnnounce(ctx, id, sessionID, desktopAddr, m.(tdp.SharedDirectoryAnnounce), tdpConn)
+			s.onSharedDirectoryAnnounce(ctx, emitter, id, sessionID, desktopAddr, m.(tdp.SharedDirectoryAnnounce), tdpConn)
 		case tdp.SharedDirectoryReadResponse:
-			s.onSharedDirectoryReadResponse(ctx, id, sessionID, desktopAddr, msg)
+			s.onSharedDirectoryReadResponse(ctx, emitter, id, sessionID, desktopAddr, msg)
 		case tdp.SharedDirectoryWriteResponse:
-			s.onSharedDirectoryWriteResponse(ctx, id, sessionID, desktopAddr, msg)
+			s.onSharedDirectoryWriteResponse(ctx, emitter, id, sessionID, desktopAddr, msg)
 		}
 	}
 }
@@ -1027,8 +1056,7 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 // staticHostHeartbeatInfo generates the Windows Desktop resource
 // for heartbeating statically defined hosts
 func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
-	getHostLabels func(string) map[string]string, nonAD bool,
-) func() (types.Resource, error) {
+	getHostLabels func(string) map[string]string, nonAD bool) func() (types.Resource, error) {
 	return func() (types.Resource, error) {
 		addr := netAddr.String()
 		name, err := s.nameForStaticHost(addr)
@@ -1201,7 +1229,6 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 		}},
 		HostUser: id.Username,
 		Created:  s.cfg.Clock.Now(),
-		HostID:   s.cfg.Heartbeat.HostUUID,
 	}
 
 	s.cfg.Log.Debugf("Creating tracker for session %v", sessionID)

@@ -784,7 +784,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 // connectToNode attempts to connect to the host with the already
 // provisioned certs for the user.
 func (t *sshBaseHandler) connectToNode(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
-	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
+	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
 
@@ -840,7 +840,7 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws WSConn
 	}
 
 	// connect to the node again with the new certs
-	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
+	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1109,14 +1109,20 @@ func (t *TerminalStream) handleWindowResize(ctx context.Context, envelope Envelo
 		return
 	}
 
-	var e map[string]string
+	var e map[string]interface{}
 	err := json.Unmarshal([]byte(envelope.Payload), &e)
 	if err != nil {
 		t.log.Warnf("Failed to parse resize payload: %v", err)
 		return
 	}
 
-	params, err := session.UnmarshalTerminalParams(e["size"])
+	size, ok := e["size"].(string)
+	if !ok {
+		t.log.Errorf("expected size to be of type string, got type %T instead", size)
+		return
+	}
+
+	params, err := session.UnmarshalTerminalParams(size)
 	if err != nil {
 		t.log.Warnf("Failed to retrieve terminal size: %v", err)
 		return

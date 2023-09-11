@@ -21,7 +21,7 @@ import { FetchStatus, SortType } from 'design/DataTable/types';
 
 import { Kube } from 'teleport/services/kube';
 import { AuthType } from 'teleport/services/user';
-import { ResourceLabel, ResourceFilter } from 'teleport/services/agents';
+import { AgentLabel, AgentFilter } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 
 import ConnectDialog from '../ConnectDialog';
@@ -131,12 +131,12 @@ type Props = {
   fetchNext: () => void;
   fetchPrev: () => void;
   fetchStatus: FetchStatus;
-  params: ResourceFilter;
-  setParams: (params: ResourceFilter) => void;
+  params: AgentFilter;
+  setParams: (params: AgentFilter) => void;
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
-  onLabelClick: (label: ResourceLabel) => void;
+  onLabelClick: (label: AgentLabel) => void;
   accessRequestId?: string;
   pageIndicators: PageIndicators;
 };

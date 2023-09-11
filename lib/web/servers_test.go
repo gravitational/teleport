@@ -50,6 +50,7 @@ func TestCreateNode(t *testing.T) {
 				InstanceID:  "i-123",
 				Region:      "us-east-1",
 				VPCID:       "vpc-abcd",
+				SubnetID:    "subnet-123",
 				Integration: "myintegration",
 			},
 		}

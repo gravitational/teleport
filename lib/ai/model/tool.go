@@ -19,18 +19,11 @@ package model
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
-	"sync"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
-	"gopkg.in/yaml.v3"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
 	embeddinglib "github.com/gravitational/teleport/lib/ai/embedding"
@@ -42,56 +35,33 @@ const (
 	// in the proxy cache. We always do embedding lookups if the cluster is larger than this number.
 	proxyLookupClusterMaxSize = 100
 	maxEmbeddingsPerLookup    = 10
-
-	// TODO(joel): remove/change when migrating to embeddings
-	maxShownRequestableItems = 50
 )
-
-// *ToolContext contains various "data" which is commonly needed by various tools.
-type ToolContext struct {
-	assist.AssistEmbeddingServiceClient
-	AccessRequestClient
-	AccessPoint
-	services.AccessChecker
-	NodeWatcher NodeWatcher
-	User        string
-	ClusterName string
-}
-
-// NodeWatcher abstracts away services.NodeWatcher for testing purposes.
-type NodeWatcher interface {
-	// GetNodes returns a list of nodes that match the given filter.
-	GetNodes(ctx context.Context, fn func(n services.Node) bool) []types.Server
-
-	// NodeCount returns the number of nodes in the cluster.
-	NodeCount() int
-}
-
-// AccessPoint allows reading resources from proxy cache.
-type AccessPoint interface {
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
-}
-
-// AccessRequestClient abstracts away the access request client for testing purposes.
-type AccessRequestClient interface {
-	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
-	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
-}
 
 // Tool is an interface that allows the agent to interact with the outside world.
 // It is used to implement things such as vector document retrieval and command execution.
 type Tool interface {
 	Name() string
 	Description() string
-	Run(ctx context.Context, toolCtx *ToolContext, input string) (string, error)
+	Run(ctx context.Context, input string) (string, error)
 }
-type CommandExecutionTool struct{}
+type commandExecutionTool struct{}
 
-func (c *CommandExecutionTool) Name() string {
+type commandExecutionToolInput struct {
+	// Command is a unix command to execute.
+	Command string `json:"command"`
+
+	// Nodes is a list of hostnames to execute the command on.
+	Nodes []string `json:"nodes"`
+
+	// Labels is a list of labels specifying node groups to execute the command on.
+	Labels []Label `json:"labels"`
+}
+
+func (c *commandExecutionTool) Name() string {
 	return "Command Execution"
 }
 
-func (c *CommandExecutionTool) Description() string {
+func (c *commandExecutionTool) Description() string {
 	return fmt.Sprintf(`Execute a command on a set of remote nodes based on a set of node names or/and a set of labels.
 The input must be a JSON object with the following schema:
 
@@ -105,8 +75,8 @@ The input must be a JSON object with the following schema:
 `, "```", "```")
 }
 
-func (c *CommandExecutionTool) Run(_ context.Context, _ *ToolContext, _ string) (string, error) {
-	// This is stubbed because CommandExecutionTool is handled specially.
+func (c *commandExecutionTool) Run(_ context.Context, _ string) (string, error) {
+	// This is stubbed because commandExecutionTool is handled specially.
 	// This is because execution of this tool breaks the loop and returns a command suggestion to the user.
 	// It is still handled as a tool because testing has shown that the LLM behaves better when it is treated as a tool.
 	//
@@ -114,10 +84,10 @@ func (c *CommandExecutionTool) Run(_ context.Context, _ *ToolContext, _ string) 
 	return "", trace.NotImplemented("not implemented")
 }
 
-// parseInput is called in a special case if the planned tool is CommandExecutionTool.
-// This is because CommandExecutionTool is handled differently from most other tools and forcibly terminates the thought loop.
-func (*CommandExecutionTool) parseInput(input string) (*CompletionCommand, error) {
-	output, err := parseJSONFromModel[CompletionCommand](input)
+// parseInput is called in a special case if the planned tool is commandExecutionTool.
+// This is because commandExecutionTool is handled differently from most other tools and forcibly terminates the thought loop.
+func (*commandExecutionTool) parseInput(input string) (*commandExecutionToolInput, error) {
+	output, err := parseJSONFromModel[commandExecutionToolInput](input)
 	if err != nil {
 		return nil, err
 	}
@@ -139,279 +109,19 @@ func (*CommandExecutionTool) parseInput(input string) (*CompletionCommand, error
 	return &output, nil
 }
 
-type AccessRequestListRequestableRolesTool struct{}
-
-func (*AccessRequestListRequestableRolesTool) Name() string {
-	return "List Requestable Roles"
+type NodeGetter interface {
+	GetNodes(ctx context.Context, fn func(n services.Node) bool) []types.Server
+	NodeCount() int
 }
 
-func (*AccessRequestListRequestableRolesTool) Description() string {
-	return "List all roles that can be requested via access requests."
+type embeddingRetrievalTool struct {
+	assistClient      assist.AssistEmbeddingServiceClient
+	nodeClient        NodeGetter
+	userAccessChecker services.AccessChecker
+	currentUser       string
 }
 
-func (a *AccessRequestListRequestableRolesTool) Run(ctx context.Context, toolCtx *ToolContext, input string) (string, error) {
-	roles := toolCtx.AccessChecker.Roles()
-	requestable := make(map[string]struct{}, 0)
-	for _, role := range roles {
-		for _, requestableRole := range role.GetAccessRequestConditions(types.Allow).Roles {
-			requestable[requestableRole] = struct{}{}
-		}
-	}
-	for _, role := range roles {
-		for _, requestableRole := range role.GetAccessRequestConditions(types.Deny).Roles {
-			delete(requestable, requestableRole)
-		}
-	}
-
-	resp := strings.Builder{}
-	for role := range requestable {
-		resp.Write([]byte(role))
-		resp.Write([]byte("\n"))
-	}
-
-	if resp.Len() == 0 {
-		return "No requestable roles found", nil
-	}
-
-	return resp.String(), nil
-}
-
-type AccessRequestListRequestableResourcesTool struct{}
-
-func (*AccessRequestListRequestableResourcesTool) Name() string {
-	return "List Requestable Resources"
-}
-
-func (*AccessRequestListRequestableResourcesTool) Description() string {
-	return `List all resources with IDs that can be requested via access requests.
-This includes nodes via SSH access.`
-}
-
-func (a *AccessRequestListRequestableResourcesTool) Run(ctx context.Context, toolCtx *ToolContext, input string) (string, error) {
-	foundResources := make([]promptResource, 0)
-	foundResourcesMu := &sync.Mutex{}
-	g := new(errgroup.Group)
-
-	searchAndAppend := func(resourceType string, convert func(types.Resource) (promptResource, error)) error {
-		list, err := toolCtx.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType:     resourceType,
-			Limit:            maxShownRequestableItems,
-			UseSearchAsRoles: true,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		for _, resource := range list.Resources {
-			resource, err := convert(resource)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			foundResourcesMu.Lock()
-			foundResources = append(foundResources, resource)
-			foundResourcesMu.Unlock()
-		}
-
-		return nil
-	}
-	searchAndAppendPlain := func(resourceType string) error {
-		return searchAndAppend(resourceType, func(resource types.Resource) (promptResource, error) {
-			return promptResource{
-				Name:    resource.GetName(),
-				Kind:    resource.GetKind(),
-				SubKind: resource.GetSubKind(),
-				Labels:  resource.GetMetadata().Labels,
-			}, nil
-		})
-	}
-
-	g.Go(func() error {
-		return searchAndAppend(types.KindNode, func(resource types.Resource) (promptResource, error) {
-			return promptResource{
-				Name:         resource.GetName(),
-				Kind:         resource.GetKind(),
-				SubKind:      resource.GetSubKind(),
-				Labels:       resource.GetMetadata().Labels,
-				FriendlyName: resource.(types.Server).GetHostname(),
-			}, nil
-		})
-	})
-	g.Go(func() error { return searchAndAppendPlain(types.KindApp) })
-	g.Go(func() error { return searchAndAppendPlain(types.KindKubernetesCluster) })
-	g.Go(func() error { return searchAndAppendPlain(types.KindDatabase) })
-	g.Go(func() error { return searchAndAppendPlain(types.KindWindowsDesktop) })
-
-	if err := g.Wait(); err != nil {
-		return "", trace.Wrap(err)
-	}
-	sb := strings.Builder{}
-	total := 0
-	for _, resource := range foundResources {
-		yaml, err := yaml.Marshal(resource)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		sb.WriteString(string(yaml))
-		sb.WriteString("\n")
-
-		total++
-		if total >= maxShownRequestableItems {
-			break
-		}
-	}
-
-	if sb.Len() == 0 {
-		return "No requestable resources found", nil
-	}
-
-	return sb.String(), nil
-}
-
-type promptResource struct {
-	Name         string            `yaml:"name"`
-	Kind         string            `yaml:"kind"`
-	SubKind      string            `yaml:"subkind"`
-	Labels       map[string]string `yaml:"labels"`
-	FriendlyName string            `yaml:"friendly_name,omitempty"`
-}
-
-type AccessRequestCreateTool struct{}
-
-func (*AccessRequestCreateTool) Name() string {
-	return "Create Access Requests"
-}
-
-func (*AccessRequestCreateTool) Description() string {
-	return fmt.Sprintf(`Create an access request with a set of roles to, a set of resource UUIDs, a reason, and a set of suggested reviewers.
-A valid access request must be either for one or more roles or for one or more resource IDs.
-If the user is not specific enough, you may try to determine the correct roles or resource UUIDs by any means you see fit.
-
-The input must be a JSON object with the following schema:
-
-%vjson
-{
-	"roles": []string, \\ The optional set of roles being requested
-	"resources": []{
-		"type": string, \\ The resource type
-		"id": string, \\ The resource name
-		"friendlyName": string \\ Optional display-friendly name for the resource
-	}, \\ The optional set of UUIDs for resources being requested
-	"reason": string, \\ A reason for the request. This cannot be made up or inferred, it must be explicitly said by the user
-	"suggested_reviewers": []string \\ An optional list of suggested reviewers; these must be Teleport usernames
-}
-%v
-`, "```", "```")
-}
-
-func (*AccessRequestCreateTool) Run(ctx context.Context, toolCtx *ToolContext, input string) (string, error) {
-	// This is stubbed because AccessRequestCreateTool is handled specially.
-	// This is because execution of this tool breaks the loop and returns a suggestion UI prompt.
-	// It is still handled as a tool because testing has shown that the LLM behaves better when it is treated as a tool.
-	//
-	// In addition, treating it as a Tool interface item simplifies the display and prompt assembly logic significantly.
-	return "", trace.NotImplemented("not implemented")
-}
-
-func (*AccessRequestCreateTool) parseInput(input string) (*AccessRequest, error) {
-	output, err := parseJSONFromModel[AccessRequest](input)
-	if err != nil {
-		return nil, err
-	}
-
-	if output.Reason == "" {
-		return nil, &invalidOutputError{
-			coarse: "access request create: missing reason",
-			detail: "a reason must be specified for the access request",
-		}
-	}
-
-	if len(output.Roles) == 0 && len(output.Resources) == 0 {
-		return nil, &invalidOutputError{
-			coarse: "access request create: no requested roles or resources",
-			detail: "an access request must be for one or more roles OR one or more resources",
-		}
-	}
-
-	for i, resource := range output.Resources {
-		if resource.Type == "" {
-			return nil, &invalidOutputError{
-				coarse: "access request create: missing type at index " + strconv.Itoa(i),
-				detail: "a type must be provided for each resource",
-			}
-		}
-
-		if resource.Name == "" {
-			return nil, &invalidOutputError{
-				coarse: "access request create: missing name at index " + strconv.Itoa(i),
-				detail: "a name must be provided for each resource",
-			}
-		}
-
-		if resource.Type == types.KindNode {
-			if _, err := uuid.Parse(resource.Name); err != nil {
-				return nil, &invalidOutputError{
-					coarse: "access request create: invalid name at index " + strconv.Itoa(i),
-					detail: "a name must be a valid UUID",
-				}
-			}
-		}
-	}
-
-	return &output, nil
-}
-
-type AccessRequestsListTool struct{}
-
-func (*AccessRequestsListTool) Name() string {
-	return "List Access Requests"
-}
-
-func (*AccessRequestsListTool) Description() string {
-	return "List all access requests that the user has access to."
-}
-
-func (*AccessRequestsListTool) Run(ctx context.Context, toolCtx *ToolContext, input string) (string, error) {
-	requests, err := toolCtx.GetAccessRequests(ctx, types.AccessRequestFilter{
-		User: toolCtx.User,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	items := make([]accessRequestLLMItem, 0, len(requests))
-	for _, request := range requests {
-		items = append(items, accessRequestLLMItem{
-			Roles:              request.GetRoles(),
-			RequestReason:      request.GetRequestReason(),
-			SuggestedReviewers: request.GetSuggestedReviewers(),
-			State:              request.GetState().String(),
-			ResolveReason:      request.GetResolveReason(),
-			Created:            request.GetCreationTime().Format(time.RFC3339),
-		})
-	}
-
-	itemYaml, err := yaml.Marshal(items)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return string(itemYaml), nil
-}
-
-type accessRequestLLMItem struct {
-	Roles              []string `yaml:"roles"`
-	RequestReason      string   `yaml:"request_reason"`
-	SuggestedReviewers []string `yaml:"suggested_reviewers"`
-	State              string   `yaml:"state"`
-	ResolveReason      string   `yaml:"resolved_reason"`
-	Created            string   `yaml:"created"`
-}
-
-type EmbeddingRetrievalTool struct{}
-
-type EmbeddingRetrievalToolInput struct {
+type embeddingRetrievalToolInput struct {
 	Question string `json:"question"`
 }
 
@@ -421,9 +131,9 @@ type EmbeddingRetrievalToolInput struct {
 // successful and the result can be used. If the boolean is false, the caller
 // must not use the returned result and perform a Node lookup via other means
 // (embeddings lookup).
-func (e *EmbeddingRetrievalTool) tryNodeLookupFromProxyCache(ctx context.Context, toolCtx *ToolContext) (bool, string, error) {
-	nodes := toolCtx.NodeWatcher.GetNodes(ctx, func(node services.Node) bool {
-		err := toolCtx.CheckAccess(node, services.AccessState{MFAVerified: true})
+func (e *embeddingRetrievalTool) tryNodeLookupFromProxyCache(ctx context.Context) (bool, string, error) {
+	nodes := e.nodeClient.GetNodes(ctx, func(node services.Node) bool {
+		err := e.userAccessChecker.CheckAccess(node, services.AccessState{MFAVerified: true})
 		return err == nil
 	})
 	if len(nodes) == 0 || len(nodes) > maxEmbeddingsPerLookup {
@@ -441,7 +151,7 @@ func (e *EmbeddingRetrievalTool) tryNodeLookupFromProxyCache(ctx context.Context
 	return true, sb.String(), nil
 }
 
-func (e *EmbeddingRetrievalTool) Run(ctx context.Context, toolCtx *ToolContext, input string) (string, error) {
+func (e *embeddingRetrievalTool) Run(ctx context.Context, input string) (string, error) {
 	inputCmd, outErr := e.parseInput(input)
 	if outErr == nil {
 		// If we failed to parse the input, we can still send the payload for embedding retrieval.
@@ -452,8 +162,8 @@ func (e *EmbeddingRetrievalTool) Run(ctx context.Context, toolCtx *ToolContext, 
 	log.Tracef("embedding retrieval input: %v", input)
 
 	// Threshold to avoid looping over all nodes on large clusters
-	if toolCtx.NodeWatcher != nil && toolCtx.NodeWatcher.NodeCount() < proxyLookupClusterMaxSize {
-		ok, result, err := e.tryNodeLookupFromProxyCache(ctx, toolCtx)
+	if e.nodeClient != nil && e.nodeClient.NodeCount() < proxyLookupClusterMaxSize {
+		ok, result, err := e.tryNodeLookupFromProxyCache(ctx)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -462,8 +172,8 @@ func (e *EmbeddingRetrievalTool) Run(ctx context.Context, toolCtx *ToolContext, 
 		}
 	}
 
-	resp, err := toolCtx.GetAssistantEmbeddings(ctx, &assist.GetAssistantEmbeddingsRequest{
-		Username: toolCtx.User,
+	resp, err := e.assistClient.GetAssistantEmbeddings(ctx, &assist.GetAssistantEmbeddingsRequest{
+		Username: e.currentUser,
 		Kind:     types.KindNode, // currently only node embeddings are supported
 		Limit:    maxEmbeddingsPerLookup,
 		Query:    input,
@@ -489,11 +199,11 @@ func (e *EmbeddingRetrievalTool) Run(ctx context.Context, toolCtx *ToolContext, 
 	return sb.String(), nil
 }
 
-func (e *EmbeddingRetrievalTool) Name() string {
+func (e *embeddingRetrievalTool) Name() string {
 	return "Nodes names and labels retrieval"
 }
 
-func (e *EmbeddingRetrievalTool) Description() string {
+func (e *embeddingRetrievalTool) Description() string {
 	return fmt.Sprintf(`Ask about existing remote nodes that user has access to fetch node names or/and set of labels. 
 Always use this capability before returning generating any command. Do not assume that the user has access to any nodes. Returning a command without checking for access will result in an error.
 Always prefer to use labler rather than node names.
@@ -506,8 +216,8 @@ The input must be a JSON object with the following schema:
 `, "```", "```")
 }
 
-func (*EmbeddingRetrievalTool) parseInput(input string) (*EmbeddingRetrievalToolInput, error) {
-	output, err := parseJSONFromModel[EmbeddingRetrievalToolInput](input)
+func (*embeddingRetrievalTool) parseInput(input string) (*embeddingRetrievalToolInput, error) {
+	output, err := parseJSONFromModel[embeddingRetrievalToolInput](input)
 	if err != nil {
 		return nil, err
 	}

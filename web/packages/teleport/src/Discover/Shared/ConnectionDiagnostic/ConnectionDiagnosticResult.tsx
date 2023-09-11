@@ -40,21 +40,21 @@ export function ConnectionDiagnosticResult({
   if (attempt.status === 'processing') {
     $diagnosisStateComponent = (
       <TextIcon>
-        <Icons.Restore size="medium" mr={2} />
+        <Icons.Restore fontSize={4} />
         Testing in-progress
       </TextIcon>
     );
   } else if (attempt.status === 'failed' || (diagnosis && !diagnosis.success)) {
     $diagnosisStateComponent = (
       <TextIcon>
-        <Icons.Warning size="medium" ml={1} mr={1} color="error.main" />
+        <Icons.Warning ml={1} color="error.main" />
         Testing failed
       </TextIcon>
     );
   } else if (attempt.status === 'success' && diagnosis?.success) {
     $diagnosisStateComponent = (
       <TextIcon>
-        <Icons.CircleCheck size="medium" ml={1} mr={1} color="success" />
+        <Icons.CircleCheck ml={1} color="success" />
         Testing complete
       </TextIcon>
     );
@@ -108,8 +108,8 @@ export function ConnectionDiagnosticResult({
                 }
                 if (trace.status === 'success') {
                   return (
-                    <TextIcon key={index}>
-                      <Icons.CircleCheck size="medium" color="success" mr={1} />
+                    <TextIcon key={index} css={{ alignItems: 'baseline' }}>
+                      <Icons.CircleCheck mr={1} color="success" />
                       {trace.details}
                     </TextIcon>
                   );
@@ -119,7 +119,7 @@ export function ConnectionDiagnosticResult({
                 // of failed or success.
                 return (
                   <TextIcon key={index}>
-                    <Icons.Question size="medium" mr={1} />
+                    <Icons.Question mr={1} />
                     {trace.details}
                   </TextIcon>
                 );
@@ -141,8 +141,8 @@ const ErrorWithDetails = ({
 }) => {
   const [showMore, setShowMore] = useState(false);
   return (
-    <TextIcon>
-      <Icons.CircleCross size="medium" mr={1} color="error.main" />
+    <TextIcon css={{ alignItems: 'baseline' }}>
+      <Icons.CircleCross mr={1} color="error.main" />
       <div>
         <div>{details}</div>
         <div>

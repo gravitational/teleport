@@ -417,7 +417,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	})
 
 	// Wait for proxy to become ready.
-	_, err = proxy.WaitForEventTimeout(30*time.Second, service.ProxyWebServerReady)
+	_, err = proxy.WaitForEventTimeout(10*time.Second, service.ProxyWebServerReady)
 	require.NoError(t, err, "proxy web server didn't start after 10s")
 
 	return auth, proxy, provisionToken
@@ -438,7 +438,6 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	cfg.SetToken(token)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
-	cfg.Proxy.Enabled = false
 	cfg.Databases.Enabled = true
 	cfg.Databases.Databases = dbs
 	cfg.Databases.ResourceMatchers = resMatchers
@@ -453,7 +452,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	})
 
 	// Wait for database agent to start.
-	_, err = db.WaitForEventTimeout(30*time.Second, service.DatabasesReady)
+	_, err = db.WaitForEventTimeout(10*time.Second, service.DatabasesReady)
 	require.NoError(t, err, "database server didn't start after 10s")
 
 	return db

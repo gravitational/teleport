@@ -319,13 +319,8 @@ func TestUpdateWithExec(t *testing.T) {
 				Cluster:          clusterName,
 				AuthInfo:         authInfoName,
 				LocationOfOrigin: kubeconfigPath,
-				Extensions: map[string]runtime.Object{
-					teleportKubeClusterNameExtension: &runtime.Unknown{
-						Raw:         []byte(fmt.Sprintf("%q", kubeCluster)),
-						ContentType: "application/json",
-					},
-				},
-				Namespace: tt.namespace,
+				Extensions:       map[string]runtime.Object{},
+				Namespace:        tt.namespace,
 			}
 			config, err := Load(kubeconfigPath)
 			require.NoError(t, err)
@@ -391,12 +386,7 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		Cluster:          clusterName,
 		AuthInfo:         contextName,
 		LocationOfOrigin: kubeconfigPath,
-		Extensions: map[string]runtime.Object{
-			teleportKubeClusterNameExtension: &runtime.Unknown{
-				Raw:         []byte(fmt.Sprintf("%q", kubeCluster)),
-				ContentType: "application/json",
-			},
-		},
+		Extensions:       map[string]runtime.Object{},
 	}
 
 	config, err := Load(kubeconfigPath)
@@ -586,76 +576,4 @@ func genUserKey(hostname string) (*client.Key, []byte, error) {
 			TLSCertificates: [][]byte{caCert},
 		}},
 	}, caCert, nil
-}
-
-func TestKubeClusterFromContext(t *testing.T) {
-	type args struct {
-		contextName     string
-		ctx             *clientcmdapi.Context
-		teleportCluster string
-	}
-	tests := []struct {
-		name string
-		args args
-		want string
-	}{
-		{
-			name: "context name is cluster name",
-			args: args{
-				contextName:     "cluster1",
-				ctx:             &clientcmdapi.Context{Cluster: "cluster1"},
-				teleportCluster: "cluster1",
-			},
-			want: "cluster1",
-		},
-		{
-			name: "context name is {teleport-cluster}-cluster name",
-			args: args{
-				contextName:     "telecluster-cluster1",
-				ctx:             &clientcmdapi.Context{Cluster: "cluster1"},
-				teleportCluster: "telecluster",
-			},
-			want: "cluster1",
-		},
-		{
-			name: "context name is {kube-cluster} name",
-			args: args{
-				contextName:     "cluster1",
-				ctx:             &clientcmdapi.Context{Cluster: "telecluster"},
-				teleportCluster: "telecluster",
-			},
-			want: "cluster1",
-		},
-		{
-			name: "kube cluster name is set in extension",
-			args: args{
-				contextName: "cluster1",
-				ctx: &clientcmdapi.Context{
-					Cluster: "telecluster",
-					Extensions: map[string]runtime.Object{
-						teleportKubeClusterNameExtension: &runtime.Unknown{
-							Raw: []byte("\"another\""),
-						},
-					},
-				},
-				teleportCluster: "telecluster",
-			},
-			want: "another",
-		},
-		{
-			name: "context isn't from teleport",
-			args: args{
-				contextName:     "cluster1",
-				ctx:             &clientcmdapi.Context{Cluster: "someothercluster"},
-				teleportCluster: "telecluster",
-			},
-			want: "",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := KubeClusterFromContext(tt.args.contextName, tt.args.ctx, tt.args.teleportCluster)
-			require.Equal(t, tt.want, got)
-		})
-	}
 }

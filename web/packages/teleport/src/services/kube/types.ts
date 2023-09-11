@@ -14,11 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { ResourceLabel } from 'teleport/services/agents';
+import { AgentLabel } from 'teleport/services/agents';
 export interface Kube {
-  kind: 'kube_cluster';
   name: string;
-  labels: ResourceLabel[];
+  labels: AgentLabel[];
   users?: string[];
   groups?: string[];
 }

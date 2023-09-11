@@ -214,64 +214,6 @@ export namespace ConnectUserJobRoleUpdateEvent {
     }
 }
 
-export class ConnectConnectMyComputerSetup extends jspb.Message { 
-    getClusterName(): string;
-    setClusterName(value: string): ConnectConnectMyComputerSetup;
-
-    getUserName(): string;
-    setUserName(value: string): ConnectConnectMyComputerSetup;
-
-    getSuccess(): boolean;
-    setSuccess(value: boolean): ConnectConnectMyComputerSetup;
-
-    getFailedStep(): string;
-    setFailedStep(value: string): ConnectConnectMyComputerSetup;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ConnectConnectMyComputerSetup.AsObject;
-    static toObject(includeInstance: boolean, msg: ConnectConnectMyComputerSetup): ConnectConnectMyComputerSetup.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ConnectConnectMyComputerSetup, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ConnectConnectMyComputerSetup;
-    static deserializeBinaryFromReader(message: ConnectConnectMyComputerSetup, reader: jspb.BinaryReader): ConnectConnectMyComputerSetup;
-}
-
-export namespace ConnectConnectMyComputerSetup {
-    export type AsObject = {
-        clusterName: string,
-        userName: string,
-        success: boolean,
-        failedStep: string,
-    }
-}
-
-export class ConnectConnectMyComputerAgentStart extends jspb.Message { 
-    getClusterName(): string;
-    setClusterName(value: string): ConnectConnectMyComputerAgentStart;
-
-    getUserName(): string;
-    setUserName(value: string): ConnectConnectMyComputerAgentStart;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ConnectConnectMyComputerAgentStart.AsObject;
-    static toObject(includeInstance: boolean, msg: ConnectConnectMyComputerAgentStart): ConnectConnectMyComputerAgentStart.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ConnectConnectMyComputerAgentStart, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ConnectConnectMyComputerAgentStart;
-    static deserializeBinaryFromReader(message: ConnectConnectMyComputerAgentStart, reader: jspb.BinaryReader): ConnectConnectMyComputerAgentStart;
-}
-
-export namespace ConnectConnectMyComputerAgentStart {
-    export type AsObject = {
-        clusterName: string,
-        userName: string,
-    }
-}
-
 export class SubmitConnectEventRequest extends jspb.Message { 
     getDistinctId(): string;
     setDistinctId(value: string): SubmitConnectEventRequest;
@@ -325,18 +267,6 @@ export class SubmitConnectEventRequest extends jspb.Message {
     setUserJobRoleUpdate(value?: ConnectUserJobRoleUpdateEvent): SubmitConnectEventRequest;
 
 
-    hasConnectMyComputerSetup(): boolean;
-    clearConnectMyComputerSetup(): void;
-    getConnectMyComputerSetup(): ConnectConnectMyComputerSetup | undefined;
-    setConnectMyComputerSetup(value?: ConnectConnectMyComputerSetup): SubmitConnectEventRequest;
-
-
-    hasConnectMyComputerAgentStart(): boolean;
-    clearConnectMyComputerAgentStart(): void;
-    getConnectMyComputerAgentStart(): ConnectConnectMyComputerAgentStart | undefined;
-    setConnectMyComputerAgentStart(value?: ConnectConnectMyComputerAgentStart): SubmitConnectEventRequest;
-
-
     getEventCase(): SubmitConnectEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -360,8 +290,6 @@ export namespace SubmitConnectEventRequest {
         accessRequestAssumeRole?: ConnectAccessRequestAssumeRoleEvent.AsObject,
         fileTransferRun?: ConnectFileTransferRunEvent.AsObject,
         userJobRoleUpdate?: ConnectUserJobRoleUpdateEvent.AsObject,
-        connectMyComputerSetup?: ConnectConnectMyComputerSetup.AsObject,
-        connectMyComputerAgentStart?: ConnectConnectMyComputerAgentStart.AsObject,
     }
 
     export enum EventCase {
@@ -380,10 +308,6 @@ export namespace SubmitConnectEventRequest {
     FILE_TRANSFER_RUN = 8,
 
     USER_JOB_ROLE_UPDATE = 9,
-
-    CONNECT_MY_COMPUTER_SETUP = 10,
-
-    CONNECT_MY_COMPUTER_AGENT_START = 11,
 
     }
 

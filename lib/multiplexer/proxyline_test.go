@@ -586,16 +586,6 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 	}
 }
 
-func FuzzReadProxyLineV1(f *testing.F) {
-	f.Add([]byte(sampleProxyV1Line))
-
-	f.Fuzz(func(t *testing.T, b []byte) {
-		require.NotPanics(t, func() {
-			_, _ = ReadProxyLine(bufio.NewReader(bytes.NewReader(b)))
-		})
-	})
-}
-
 func FuzzReadProxyLineV2(f *testing.F) {
 	f.Add(sampleProxyV2LineTLV)
 	f.Add(sampleProxyV2Line)

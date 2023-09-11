@@ -72,9 +72,7 @@ $ kubectl label namespace teleport-cluster 'pod-security.kubernetes.io/enforce=b
 namespace/teleport-cluster labeled
 ```
 
-(!docs/pages/includes//enterprise/obtainlicense.mdx!)
-
-Create a secret called "license" in the namespace you created:
+(!docs/pages/includes/enterprise/obtainlicense.mdx!)
 
 ```code
 $ kubectl -n teleport-cluster create secret generic license --from-file=license.pem

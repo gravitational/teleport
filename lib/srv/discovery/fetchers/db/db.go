@@ -29,18 +29,18 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-type makeAWSFetcherFunc func(awsFetcherConfig) (common.Fetcher, error)
+type makeAWSFetcherFunc func(context.Context, cloud.AWSClients, string, types.Labels, types.AssumeRole) (common.Fetcher, error)
 type makeAzureFetcherFunc func(azureFetcherConfig) (common.Fetcher, error)
 
 var (
 	makeAWSFetcherFuncs = map[string][]makeAWSFetcherFunc{
-		services.AWSMatcherRDS:                {newRDSDBInstancesFetcher, newRDSAuroraClustersFetcher},
-		services.AWSMatcherRDSProxy:           {newRDSDBProxyFetcher},
-		services.AWSMatcherRedshift:           {newRedshiftFetcher},
-		services.AWSMatcherRedshiftServerless: {newRedshiftServerlessFetcher},
-		services.AWSMatcherElastiCache:        {newElastiCacheFetcher},
-		services.AWSMatcherMemoryDB:           {newMemoryDBFetcher},
-		services.AWSMatcherOpenSearch:         {newOpenSearchFetcher},
+		services.AWSMatcherRDS:                {makeRDSInstanceFetcher, makeRDSAuroraFetcher},
+		services.AWSMatcherRDSProxy:           {makeRDSProxyFetcher},
+		services.AWSMatcherRedshift:           {makeRedshiftFetcher},
+		services.AWSMatcherRedshiftServerless: {makeRedshiftServerlessFetcher},
+		services.AWSMatcherElastiCache:        {makeElastiCacheFetcher},
+		services.AWSMatcherMemoryDB:           {makeMemoryDBFetcher},
+		services.AWSMatcherOpenSearch:         {makeOpenSearchFetcher},
 	}
 
 	makeAzureFetcherFuncs = map[string][]makeAzureFetcherFunc{
@@ -76,13 +76,7 @@ func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []t
 
 			for _, makeFetcher := range makeFetchers {
 				for _, region := range matcher.Regions {
-					fetcher, err := makeFetcher(awsFetcherConfig{
-						AWSClients: clients,
-						Type:       matcherType,
-						AssumeRole: assumeRole,
-						Labels:     matcher.Tags,
-						Region:     region,
-					})
+					fetcher, err := makeFetcher(ctx, clients, region, matcher.Tags, assumeRole)
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
@@ -126,6 +120,125 @@ func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher
 	return result, nil
 }
 
+// makeRDSInstanceFetcher returns RDS instance fetcher for the provided region and tags.
+func makeRDSInstanceFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
+	rds, err := clients.GetAWSRDSClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fetcher, err := newRDSDBInstancesFetcher(rdsFetcherConfig{
+		Region:     region,
+		Labels:     tags,
+		RDS:        rds,
+		AssumeRole: assumeRole,
+	})
+	return fetcher, trace.Wrap(err)
+}
+
+// makeRDSAuroraFetcher returns RDS Aurora fetcher for the provided region and tags.
+func makeRDSAuroraFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
+	rds, err := clients.GetAWSRDSClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fetcher, err := newRDSAuroraClustersFetcher(rdsFetcherConfig{
+		Region:     region,
+		Labels:     tags,
+		RDS:        rds,
+		AssumeRole: assumeRole,
+	})
+	return fetcher, trace.Wrap(err)
+}
+
+// makeRDSProxyFetcher returns RDS proxy fetcher for the provided region and tags.
+func makeRDSProxyFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
+	rds, err := clients.GetAWSRDSClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newRDSDBProxyFetcher(rdsFetcherConfig{
+		Region:     region,
+		Labels:     tags,
+		RDS:        rds,
+		AssumeRole: assumeRole,
+	})
+}
+
+// makeRedshiftFetcher returns Redshift fetcher for the provided region and tags.
+func makeRedshiftFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
+	redshift, err := clients.GetAWSRedshiftClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newRedshiftFetcher(redshiftFetcherConfig{
+		Region:     region,
+		Labels:     tags,
+		Redshift:   redshift,
+		AssumeRole: assumeRole,
+	})
+}
+
+// makeElastiCacheFetcher returns ElastiCache fetcher for the provided region and tags.
+func makeElastiCacheFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
+	elastiCache, err := clients.GetAWSElastiCacheClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newElastiCacheFetcher(elastiCacheFetcherConfig{
+		Region:      region,
+		Labels:      tags,
+		ElastiCache: elastiCache,
+		AssumeRole:  assumeRole,
+	})
+}
+
+// makeMemoryDBFetcher returns MemoryDB fetcher for the provided region and tags.
+func makeMemoryDBFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
+	memorydb, err := clients.GetAWSMemoryDBClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newMemoryDBFetcher(memoryDBFetcherConfig{
+		Region:     region,
+		Labels:     tags,
+		MemoryDB:   memorydb,
+		AssumeRole: assumeRole,
+	})
+}
+
+// makeOpenSearchFetcher returns OpenSearch fetcher for the provided region and tags.
+func makeOpenSearchFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
+	opensearch, err := clients.GetAWSOpenSearchClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newOpenSearchFetcher(openSearchFetcherConfig{
+		Region:     region,
+		Labels:     tags,
+		openSearch: opensearch,
+		AssumeRole: assumeRole,
+	})
+}
+
+// makeRedshiftServerlessFetcher returns Redshift Serverless fetcher for the
+// provided region and tags.
+func makeRedshiftServerlessFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
+	client, err := clients.GetAWSRedshiftServerlessClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newRedshiftServerlessFetcher(redshiftServerlessFetcherConfig{
+		Region:     region,
+		Labels:     tags,
+		Client:     client,
+		AssumeRole: assumeRole,
+	})
+}
+
 // filterDatabasesByLabels filters input databases with provided labels.
 func filterDatabasesByLabels(databases types.Databases, labels types.Labels, log logrus.FieldLogger) types.Databases {
 	var matchedDatabases types.Databases
@@ -140,6 +253,14 @@ func filterDatabasesByLabels(databases types.Databases, labels types.Labels, log
 		}
 	}
 	return matchedDatabases
+}
+
+// applyAssumeRoleToDatabases applies assume role settings from fetcher to databases.
+func applyAssumeRoleToDatabases(databases types.Databases, assumeRole types.AssumeRole) {
+	for _, db := range databases {
+		db.SetAWSAssumeRole(assumeRole.RoleARN)
+		db.SetAWSExternalID(assumeRole.ExternalID)
+	}
 }
 
 // flatten flattens a nested slice [][]T to []T.

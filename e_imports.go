@@ -73,7 +73,6 @@ import (
 	_ "github.com/russellhaering/gosaml2"
 	_ "github.com/russellhaering/gosaml2/types"
 	_ "github.com/russellhaering/goxmldsig"
-	_ "github.com/sijms/go-ora/v2"
 	_ "github.com/sirupsen/logrus"
 	_ "github.com/stretchr/testify/assert"
 	_ "github.com/stretchr/testify/require"

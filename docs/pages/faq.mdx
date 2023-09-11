@@ -107,9 +107,9 @@ Yes. You can copy and paste using a mouse.
 
 Please refer to our [Networking](./reference/networking.mdx) guide.
 
-## Does Teleport support authentication via OAuth, SAML, or Active Directory?
+## Does Teleport support authentication via OIDC, SAML, or Active Directory?
 
-Teleport offers this feature for the [Enterprise versions of Teleport](choose-an-edition/teleport-enterprise/introduction.mdx).
+Teleport offers this feature for the [Enterprise Cloud](choose-an-edition/teleport-cloud/introduction.mdx) and [Enterprise](choose-an-edition/teleport-enterprise/introduction.mdx) versions of Teleport.
 
 ## Why do I see an alert that some agents are out of date?
 
@@ -120,12 +120,6 @@ users to upgrade.
 
 This check is performed against all cluster components, including the Proxy
 Service and Auth Service, as well as agents running other Teleport Services.
-
-## What is the minimum TLS version that Teleport requires?
-
-Teleport requires a minimum of TLS version 1.2.
-
-This means that when applications and clients establish or accept TLS connections with Teleport processes, they must use TLS 1.2 or a higher protocol version. Teleport enforces this requirement in all operations that involve TLS connections.
 
 ## Can I suppress warnings about available upgrades?
 

@@ -19,7 +19,6 @@ import Logger, { NullService } from 'teleterm/logger';
 import {
   Document,
   DocumentGateway,
-  DocumentGatewayKube,
   DocumentTshNodeWithLoginHost,
   DocumentTshNodeWithServerId,
   WorkspacesService,
@@ -78,13 +77,6 @@ it('removeItemsBelongingToRootCluster removes connections', () => {
       gatewayUri: '/gateways/4f68927b-579c-47a8-b965-efa8159203c9',
     },
     {
-      kind: 'connection.kube',
-      connected: true,
-      id: 'root-cluster-kube-id',
-      title: 'test-kube-id',
-      kubeUri: '/clusters/localhost/kubes/test-kube-id',
-    },
-    {
       kind: 'connection.server',
       connected: true,
       id: 'qT6-nUuDlGEk6kVmnMvt8',
@@ -98,7 +90,7 @@ it('removeItemsBelongingToRootCluster removes connections', () => {
   const service = getTestSetupWithMockedConnections({ connections });
   service.removeItemsBelongingToRootCluster('/clusters/localhost');
   expect(service.getConnections()).toEqual([
-    { clusterName: 'remote_leaf', ...connections[4] },
+    { clusterName: 'remote_leaf', ...connections[3] },
   ]);
 });
 
@@ -188,32 +180,6 @@ it('ignores doc.terminal_tsh_node docs with no serverUri', () => {
   ]);
 
   expect(connectionTrackerService.getConnections()).toEqual([]);
-});
-
-it('creates a kube connection for doc.gateway_kube', () => {
-  const document: DocumentGatewayKube = {
-    kind: 'doc.gateway_kube',
-    uri: '/docs/test-kube-id',
-    title: 'Test title',
-    rootClusterId: 'localhost',
-    leafClusterId: undefined,
-    targetUri: '/clusters/localhost/kubes/test-kube-id',
-    origin: 'resource_table',
-  };
-
-  const { connectionTrackerService } = getTestSetupWithMockedDocuments([
-    document,
-  ]);
-
-  const connection =
-    connectionTrackerService.findConnectionByDocument(document);
-  expect(connection).toEqual({
-    kind: 'connection.kube',
-    id: expect.any(String),
-    title: document.title,
-    connected: true,
-    kubeUri: '/clusters/localhost/kubes/test-kube-id',
-  });
 });
 
 function getTestSetupWithMockedConnections({

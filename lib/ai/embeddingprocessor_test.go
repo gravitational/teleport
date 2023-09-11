@@ -48,7 +48,7 @@ type MockEmbedder struct {
 	timesCalled map[string]int
 }
 
-func (m *MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]embedding.Vector64, error) {
+func (m MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]embedding.Vector64, error) {
 	result := make([]embedding.Vector64, len(input))
 	for i, text := range input {
 		name := strings.Split(text, "\n")[0]

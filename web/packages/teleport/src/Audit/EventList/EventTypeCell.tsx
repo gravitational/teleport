@@ -17,12 +17,12 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Cell } from 'design/DataTable';
-import * as Icons from 'design/Icon';
+import Icon, * as Icons from 'design/Icon/Icon';
 
 import { eventCodes, Event, EventCode } from 'teleport/services/audit';
 import cfg from 'teleport/config';
 
-const EventIconMap: Record<EventCode, any> = {
+const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.AUTH_ATTEMPT_FAILURE]: Icons.Info,
   [eventCodes.EXEC_FAILURE]: Icons.Cli,
   [eventCodes.EXEC]: Icons.Cli,
@@ -178,10 +178,10 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.DEVICE_UPDATE]: Icons.Info,
   [eventCodes.MFA_DEVICE_ADD]: Icons.Info,
   [eventCodes.MFA_DEVICE_DELETE]: Icons.Info,
-  [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCard,
-  [eventCodes.BILLING_CARD_DELETE]: Icons.CreditCard,
-  [eventCodes.BILLING_CARD_UPDATE]: Icons.CreditCard,
-  [eventCodes.BILLING_INFORMATION_UPDATE]: Icons.CreditCard,
+  [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCardAlt2,
+  [eventCodes.BILLING_CARD_DELETE]: Icons.CreditCardAlt2,
+  [eventCodes.BILLING_CARD_UPDATE]: Icons.CreditCardAlt2,
+  [eventCodes.BILLING_INFORMATION_UPDATE]: Icons.CreditCardAlt2,
   [eventCodes.CLIENT_DISCONNECT]: Icons.Info,
   [eventCodes.PORTFORWARD]: Icons.Info,
   [eventCodes.PORTFORWARD_FAILURE]: Icons.Info,
@@ -225,11 +225,12 @@ const EventIconMap: Record<EventCode, any> = {
 };
 
 export default function renderTypeCell(event: Event, clusterId: string) {
-  const Icon = EventIconMap[event.code] || Icons.ListThin;
+  const IconType = EventIconMap[event.code] || Icons.List;
 
   const iconProps = {
-    p: 1,
-    mr: 3,
+    p: '1',
+    mr: '3',
+    fontSize: '3',
   };
 
   // use button for interactive ssh sessions
@@ -266,7 +267,7 @@ export default function renderTypeCell(event: Event, clusterId: string) {
   return (
     <Cell style={{ verticalAlign: 'inherit' }}>
       <StyledEventType>
-        <Icon {...iconProps} size="medium" />
+        <Icon {...iconProps} as={IconType} />
         {event.codeDesc}
       </StyledEventType>
     </Cell>

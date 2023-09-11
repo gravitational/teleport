@@ -38,8 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func setup() (*WindowsService, *tlsca.Identity, *eventstest.MockRecorderEmitter) {
-	emitter := &eventstest.MockRecorderEmitter{}
+func setup() (*WindowsService, *tlsca.Identity, *eventstest.MockEmitter) {
+	emitter := &eventstest.MockEmitter{}
 	log := logrus.New()
 	log.SetOutput(io.Discard)
 
@@ -68,7 +68,6 @@ func setup() (*WindowsService, *tlsca.Identity, *eventstest.MockRecorderEmitter)
 
 func TestSessionStartEvent(t *testing.T) {
 	s, id, emitter := setup()
-	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	desktop := &types.WindowsDesktopV3{
 		ResourceHeader: types.ResourceHeader{
@@ -139,7 +138,7 @@ func TestSessionStartEvent(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			s.onSessionStart(
 				context.Background(),
-				emitterPreparer,
+				s.cfg.Emitter,
 				id,
 				s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 				"Administrator",
@@ -161,7 +160,6 @@ func TestSessionStartEvent(t *testing.T) {
 
 func TestSessionEndEvent(t *testing.T) {
 	s, id, emitter := setup()
-	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	desktop := &types.WindowsDesktopV3{
 		ResourceHeader: types.ResourceHeader{
@@ -183,7 +181,7 @@ func TestSessionEndEvent(t *testing.T) {
 
 	s.onSessionEnd(
 		context.Background(),
-		emitterPreparer,
+		s.cfg.Emitter,
 		id,
 		startTime,
 		true,
@@ -273,13 +271,11 @@ func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			s, id, emitter := setup()
-			emitterPreparer := libevents.WithNoOpPreparer(emitter)
-
 			recvHandler := s.makeTDPReceiveHandler(context.Background(),
-				emitterPreparer, func() int64 { return 0 },
+				emitter, func() int64 { return 0 },
 				id, sid, desktopAddr, &tdp.Conn{})
 			sendHandler := s.makeTDPSendHandler(context.Background(),
-				emitterPreparer, func() int64 { return 0 },
+				emitter, func() int64 { return 0 },
 				id, sid, desktopAddr, &tdp.Conn{})
 
 			if test.sendsSda {
@@ -435,13 +431,11 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			s, id, emitter := setup()
-			emitterPreparer := libevents.WithNoOpPreparer(emitter)
-
 			recvHandler := s.makeTDPReceiveHandler(context.Background(),
-				emitterPreparer, func() int64 { return 0 },
+				emitter, func() int64 { return 0 },
 				id, sid, desktopAddr, &tdp.Conn{})
 			sendHandler := s.makeTDPSendHandler(context.Background(),
-				emitterPreparer, func() int64 { return 0 },
+				emitter, func() int64 { return 0 },
 				id, sid, desktopAddr, &tdp.Conn{})
 			if test.sendsSda {
 				// SharedDirectoryAnnounce initializes the nameCache.
@@ -611,13 +605,11 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			s, id, emitter := setup()
-			emitterPreparer := libevents.WithNoOpPreparer(emitter)
-
 			recvHandler := s.makeTDPReceiveHandler(context.Background(),
-				emitterPreparer, func() int64 { return 0 },
+				emitter, func() int64 { return 0 },
 				id, sid, desktopAddr, &tdp.Conn{})
 			sendHandler := s.makeTDPSendHandler(context.Background(),
-				emitterPreparer, func() int64 { return 0 },
+				emitter, func() int64 { return 0 },
 				id, sid, desktopAddr, &tdp.Conn{})
 			if test.sendsSda {
 				// SharedDirectoryAnnounce initializes the nameCache.
@@ -707,11 +699,10 @@ func TestDesktopSharedDirectoryStartEventAuditCacheMax(t *testing.T) {
 	var did uint32 = 2
 
 	s, id, emitter := setup()
-	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 	testConn := &testConn{}
 	tdpConn := tdp.NewConn(testConn)
 	recvHandler := s.makeTDPReceiveHandler(context.Background(),
-		emitterPreparer, func() int64 { return 0 },
+		emitter, func() int64 { return 0 },
 		id, sid, desktopAddr, tdpConn)
 
 	// Set the audit cache entry to the maximum allowable size
@@ -781,14 +772,13 @@ func TestDesktopSharedDirectoryReadEventAuditCacheMax(t *testing.T) {
 	var length uint32 = 1000
 
 	s, id, emitter := setup()
-	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 	testConn := &testConn{}
 	tdpConn := tdp.NewConn(testConn)
 	recvHandler := s.makeTDPReceiveHandler(context.Background(),
-		emitterPreparer, func() int64 { return 0 },
+		emitter, func() int64 { return 0 },
 		id, sid, desktopAddr, tdpConn)
 	sendHandler := s.makeTDPSendHandler(context.Background(),
-		emitterPreparer, func() int64 { return 0 },
+		emitter, func() int64 { return 0 },
 		id, sid, desktopAddr, tdpConn)
 
 	// Send a SharedDirectoryAnnounce
@@ -873,14 +863,13 @@ func TestDesktopSharedDirectoryWriteEventAuditCacheMax(t *testing.T) {
 	var length uint32 = 1000
 
 	s, id, emitter := setup()
-	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 	testConn := &testConn{}
 	tdpConn := tdp.NewConn(testConn)
 	recvHandler := s.makeTDPReceiveHandler(context.Background(),
-		emitterPreparer, func() int64 { return 0 },
+		emitter, func() int64 { return 0 },
 		id, sid, desktopAddr, tdpConn)
 	sendHandler := s.makeTDPSendHandler(context.Background(),
-		emitterPreparer, func() int64 { return 0 },
+		emitter, func() int64 { return 0 },
 		id, sid, desktopAddr, tdpConn)
 
 	// Send a SharedDirectoryAnnounce

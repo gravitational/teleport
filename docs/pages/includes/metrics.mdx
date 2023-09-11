@@ -112,20 +112,6 @@
 | `teleport_proxy_db_connection_tls_config_time_seconds` | histogram | Teleport Proxy | Time to fetch TLS configuration for the connection to DB service from Proxy service.                                                     |
 | `teleport_proxy_db_active_connections_total`           | gauge     | Teleport Proxy | Number of currently active connections to DB service from Proxy service.                                                                 |
 
-## Database Service
-
-| Name                                        | Type      | Component                 | Description                                                            |
-| ------------------------------------------- | --------- | ------------------------- | ---------------------------------------------------------------------- |
-| `teleport_db_messages_from_client_total`    | counter   | Teleport Database Service | Number of messages (packets) received from the DB client.              |
-| `teleport_db_messages_from_server_total`    | counter   | Teleport Database Service | Number of messages (packets) received from the DB server.              |
-| `teleport_db_method_call_count_total`       | counter   | Teleport Database Service | Number of times a DB method was called.                                |
-| `teleport_db_method_call_latency_seconds`   | histogram | Teleport Database Service | Call latency for a DB method calls.                                    |
-| `teleport_db_initialized_connections_total` | counter   | Teleport Database Service | Number of initialized DB connections.                                  |
-| `teleport_db_active_connections_total`      | gauge     | Teleport Database Service | Number of active DB connections.                                       |
-| `teleport_db_connection_durations_seconds`  | histogram | Teleport Database Service | Duration of DB connection.                                             |
-| `teleport_db_connection_setup_time_seconds` | histogram | Teleport Database Service | Initial time to setup DB connection, before any requests are handled.  |
-| `teleport_db_errors_total`                  | counter   | Teleport Database Service | Number of synthetic DB errors sent to the client.                      |
-
 ### Kubernetes Access
 
 The following tables identify all metrics available in the proxy service if

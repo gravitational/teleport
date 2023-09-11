@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { Cross as CloseIcon } from 'design/Icon';
+import { Close as CloseIcon } from 'design/Icon';
 import { space } from 'design/system';
 import { Flex, Text } from 'design';
 
@@ -34,7 +34,6 @@ export default function TabItem(props: Props) {
       </StyledTabButton>
       <StyledCloseButton title="Close" onClick={onClose}>
         <CloseIcon
-          size="small"
           css={`
             transition: none;
             color: inherit;
@@ -115,6 +114,7 @@ const StyledCloseButton = styled.button`
   padding: 0;
   margin: 0 8px 0 0;
   transition: all 0.3s;
+  color: ${props => props.theme.colors.text.main};
 
   &:hover {
     color: ${props => props.theme.colors.text.primaryInverse};

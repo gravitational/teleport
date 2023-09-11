@@ -16,46 +16,80 @@ package db
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/opensearchservice/opensearchserviceiface"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// newOpenSearchFetcher returns a new AWS fetcher for OpenSearch databases.
-func newOpenSearchFetcher(cfg awsFetcherConfig) (common.Fetcher, error) {
-	return newAWSFetcher(cfg, &openSearchPlugin{})
+// openSearchFetcherConfig is the OpenSearch databases fetcher configuration.
+type openSearchFetcherConfig struct {
+	// Labels is a selector to match cloud databases.
+	Labels types.Labels
+	// openSearch is the OpenSearch API client.
+	openSearch opensearchserviceiface.OpenSearchServiceAPI
+	// Region is the AWS region to query databases in.
+	Region string
+	// AssumeRole is the AWS IAM role to assume before discovering databases.
+	AssumeRole types.AssumeRole
 }
 
-// openSearchPlugin retrieves OpenSearch databases.
-type openSearchPlugin struct{}
-
-func (f *openSearchPlugin) ComponentShortName() string {
-	return "opensearch"
+// CheckAndSetDefaults validates the config and sets defaults.
+func (c *openSearchFetcherConfig) CheckAndSetDefaults() error {
+	if len(c.Labels) == 0 {
+		return trace.BadParameter("missing parameter Labels")
+	}
+	if c.openSearch == nil {
+		return trace.BadParameter("missing parameter openSearch")
+	}
+	if c.Region == "" {
+		return trace.BadParameter("missing parameter Region")
+	}
+	return nil
 }
 
-// GetDatabases returns OpenSearch databases.
-func (f *openSearchPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
-	opensearchClient, err := cfg.AWSClients.GetAWSOpenSearchClient(ctx,
-		cfg.Region, cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID))
-	if err != nil {
+// openSearchFetcher retrieves OpenSearch databases.
+type openSearchFetcher struct {
+	awsFetcher
+
+	cfg openSearchFetcherConfig
+	log logrus.FieldLogger
+}
+
+// newOpenSearchFetcher returns a new OpenSearch databases fetcher instance.
+func newOpenSearchFetcher(config openSearchFetcherConfig) (common.Fetcher, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	domains, err := getOpenSearchDomains(ctx, opensearchClient)
+	return &openSearchFetcher{
+		cfg: config,
+		log: logrus.WithFields(logrus.Fields{
+			trace.Component: "watch:opensearch",
+			"labels":        config.Labels,
+			"region":        config.Region,
+			"role":          config.AssumeRole,
+		}),
+	}, nil
+}
+
+// Get returns OpenSearch databases matching the watcher's selectors.
+func (f *openSearchFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
+	domains, err := getOpenSearchDomains(ctx, f.cfg.openSearch)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var eligibleDomains []*opensearchservice.DomainStatus
 	for _, domain := range domains {
 		if !services.IsOpenSearchDomainAvailable(domain) {
-			cfg.Log.Debugf("OpenSearch domain %q is unavailable. Skipping.", aws.StringValue(domain.DomainName))
+			f.log.Debugf("OpenSearch domain %q is unavailable. Skipping.", aws.StringValue(domain.DomainName))
 			continue
 		}
 
@@ -63,29 +97,37 @@ func (f *openSearchPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 	}
 
 	if len(eligibleDomains) == 0 {
-		return nil, nil
+		return types.ResourcesWithLabels{}, nil
 	}
 
 	var databases types.Databases
 	for _, domain := range eligibleDomains {
-		tags, err := getOpenSearchResourceTags(ctx, opensearchClient, domain.ARN)
+		tags, err := getOpenSearchResourceTags(ctx, f.cfg.openSearch, domain.ARN)
 
 		if err != nil {
 			if trace.IsAccessDenied(err) {
-				cfg.Log.WithError(err).Debug("No permissions to list resource tags")
+				f.log.WithError(err).Debug("No permissions to list resource tags")
 			} else {
-				cfg.Log.WithError(err).Infof("Failed to list resource tags for OpenSearch domain %q.", aws.StringValue(domain.DomainName))
+				f.log.WithError(err).Infof("Failed to list resource tags for OpenSearch domain %q.", aws.StringValue(domain.DomainName))
 			}
 		}
 
 		dbs, err := services.NewDatabasesFromOpenSearchDomain(domain, tags)
 		if err != nil {
-			cfg.Log.WithError(err).Infof("Could not convert OpenSearch domain %q configuration to database resource.", aws.StringValue(domain.DomainName))
+			f.log.WithError(err).Infof("Could not convert OpenSearch domain %q configuration to database resource.", aws.StringValue(domain.DomainName))
 		} else {
 			databases = append(databases, dbs...)
 		}
 	}
-	return databases, nil
+
+	applyAssumeRoleToDatabases(databases, f.cfg.AssumeRole)
+	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log).AsResources(), nil
+}
+
+// String returns the fetcher's string description.
+func (f *openSearchFetcher) String() string {
+	return fmt.Sprintf("openSearchFetcher(Region=%v, Labels=%v)",
+		f.cfg.Region, f.cfg.Labels)
 }
 
 // getOpenSearchDomains fetches all OpenSearch domains.

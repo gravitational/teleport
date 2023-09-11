@@ -326,17 +326,6 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
             origin: 'reopened_session',
           };
         }
-
-        // When the documents are reopened, doc.connect_my_computer_status is replaced
-        // with doc.connect_my_computer_setup.
-        // This is needed to prevent showing the status document when the agent is not configured
-        // (or its configuration has been removed).
-        if (d.kind === 'doc.connect_my_computer_status') {
-          return {
-            ...d,
-            kind: 'doc.connect_my_computer_setup',
-          };
-        }
         return d;
       });
       workspace.location = workspace.previous.location;

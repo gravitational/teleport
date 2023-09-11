@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // TestWatcher verifies that database server properly detects and applies
@@ -292,7 +291,6 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
 	setDiscoveryGroupLabel(redshiftServerlessDatabase, "")
 	redshiftServerlessDatabase.SetOrigin(types.OriginCloud)
-	discovery.ApplyAWSDatabaseNameSuffix(redshiftServerlessDatabase, services.AWSMatcherRedshiftServerless)
 	// Test an Azure fetcher.
 	azSQLServer, azSQLServerDatabase := makeAzureSQLServer(t, "discovery-azure", "group")
 	setDiscoveryGroupLabel(azSQLServerDatabase, "")
@@ -405,6 +403,5 @@ func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types
 	}
 	database, err := services.NewDatabaseFromAzureSQLServer(server)
 	require.NoError(t, err)
-	discovery.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherSQLServer)
 	return server, database
 }

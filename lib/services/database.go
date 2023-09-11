@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -147,6 +146,13 @@ func ValidateDatabase(db types.Database) error {
 		return trace.Wrap(err)
 	}
 
+	// This was added in v14 and backported, except that it's intentionally
+	// called here instead of in CheckAndSetDefaults for backwards
+	// compatibility.
+	if err := types.ValidateDatabaseName(db.GetName()); err != nil {
+		return trace.Wrap(err, "invalid database name")
+	}
+
 	if !slices.Contains(defaults.DatabaseProtocols, db.GetProtocol()) {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v", db.GetName(), db.GetProtocol(), defaults.DatabaseProtocols)
 	}
@@ -167,10 +173,6 @@ func ValidateDatabase(db types.Database) error {
 	} else if db.GetProtocol() == defaults.ProtocolSnowflake {
 		if !strings.Contains(db.GetURI(), defaults.SnowflakeURL) {
 			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
-		}
-	} else if db.GetProtocol() == defaults.ProtocolClickHouse || db.GetProtocol() == defaults.ProtocolClickHouseHTTP {
-		if err := validateClickhouseURI(db); err != nil {
-			return trace.Wrap(err)
 		}
 	} else if needsURIValidation(db) {
 		if _, _, err := net.SplitHostPort(db.GetURI()); err != nil {
@@ -245,24 +247,6 @@ func needsADValidation(db types.Database) bool {
 	}
 
 	return true
-}
-
-func validateClickhouseURI(db types.Database) error {
-	u, err := url.Parse(db.GetURI())
-	if err != nil {
-		return trace.BadParameter("failed to parse uri: %v", err)
-	}
-	var requiredSchema string
-	if db.GetProtocol() == defaults.ProtocolClickHouse {
-		requiredSchema = "clickhouse"
-	}
-	if db.GetProtocol() == defaults.ProtocolClickHouseHTTP {
-		requiredSchema = "https"
-	}
-	if u.Scheme != requiredSchema {
-		return trace.BadParameter("invalid uri schema: %s for %v database protocol", u.Scheme, db.GetProtocol())
-	}
-	return nil
 }
 
 // needsURIValidation returns whether a database URI needs to be validated.
@@ -620,8 +604,10 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 		return nil, trace.Wrap(err)
 	}
 
+	var vpcID string
 	var subnets []string
 	if rdsInstance.DBSubnetGroup != nil {
+		vpcID = aws.StringValue(rdsInstance.DBSubnetGroup.VpcId)
 		subnets = make([]string, 0, len(rdsInstance.DBSubnetGroup.Subnets))
 		for _, s := range rdsInstance.DBSubnetGroup.Subnets {
 			if s.SubnetIdentifier == nil || *s.SubnetIdentifier == "" {
@@ -640,6 +626,7 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
 			IAMAuth:    rdsInstance.IAMDatabaseAuthenticationEnabled,
 			Subnets:    subnets,
+			VPCID:      vpcID,
 		},
 	}, nil
 }
@@ -1023,7 +1010,7 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	})
 }
 
-// NewDatabasesFromOpenSearchDomain creates database resources from an OpenSearch domain.
+// NewDatabasesFromOpenSearchDomain creates a database resource from an OpenSearch domain.
 func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
 	var databases types.Databases
 
@@ -1615,6 +1602,7 @@ func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 		labels[types.DiscoveryLabelAccountID] = meta.AccountID
 		labels[types.DiscoveryLabelRegion] = meta.Region
 	}
+	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudAWS
 	return labels
 }
@@ -1635,6 +1623,7 @@ func labelsFromMetaAndEndpointType(meta *types.AWS, endpointType string, extraLa
 // azureTagsToLabels converts Azure tags to a labels map.
 func azureTagsToLabels(tags map[string]string) map[string]string {
 	labels := make(map[string]string)
+	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudAzure
 	return addLabels(labels, tags)
 }
@@ -1927,8 +1916,6 @@ const (
 	// RDSEngineMariaDB is RDS engine name for MariaDB instances.
 	RDSEngineMariaDB = "mariadb"
 	// RDSEngineAurora is RDS engine name for Aurora MySQL 5.6 compatible clusters.
-	// This reached EOF on Feb 28, 2023.
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.MySQL56.EOL.html
 	RDSEngineAurora = "aurora"
 	// RDSEngineAuroraMySQL is RDS engine name for Aurora MySQL 5.7 compatible clusters.
 	RDSEngineAuroraMySQL = "aurora-mysql"

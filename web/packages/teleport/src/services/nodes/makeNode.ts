@@ -21,7 +21,6 @@ export default function makeNode(json: any): Node {
   const { id, siteId, hostname, addr, tunnel, tags, sshLogins } = json;
 
   return {
-    kind: 'node',
     id,
     clusterId: siteId,
     hostname,

@@ -21,6 +21,9 @@ import (
 	"strings"
 )
 
+var observationPrefix = "Observation: "
+var thoughtPrefix = "Thought: "
+
 const PromptSummarizeTitle = `You will be given a message. Create a short summary of that message.
 Respond only with summary, nothing else.`
 

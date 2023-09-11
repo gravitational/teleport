@@ -79,7 +79,7 @@ type testPack struct {
 	bk          backend.Backend
 	clusterName types.ClusterName
 	a           *Server
-	mockEmitter *eventstest.MockRecorderEmitter
+	mockEmitter *eventstest.MockEmitter
 }
 
 func newTestPack(
@@ -100,7 +100,7 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
-	p.mockEmitter = &eventstest.MockRecorderEmitter{}
+	p.mockEmitter = &eventstest.MockEmitter{}
 	authConfig := &InitConfig{
 		Backend:                p.bk,
 		ClusterName:            p.clusterName,
@@ -573,26 +573,96 @@ func TestUserLock(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestAuth_SetStaticTokens(t *testing.T) {
+func requireTokenExpiry(t *testing.T, token types.ProvisionToken, expectExpiry time.Duration) {
+	t.Helper()
+	actualTTL := time.Until(token.Expiry())
+	diff := actualTTL - expectExpiry
+	require.True(
+		t,
+		diff <= time.Minute && diff >= (-1*time.Minute),
+		"Token TTL should be within one minute of the desired TTL",
+	)
+}
+
+func TestTokensCRUD(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 	ctx := context.Background()
 
-	roles := types.SystemRoles{types.RoleProxy}
-	st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{{
-			Token:   "static-token-value",
-			Roles:   roles,
-			Expires: time.Unix(0, 0).UTC(),
-		}},
+	t.Run("GenerateToken: default TTL", func(t *testing.T) {
+		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+			Roles: types.SystemRoles{types.RoleNode},
+		})
+		require.NoError(t, err)
+		require.Len(t, tokenName, 2*TokenLenBytes)
+
+		// Ensure GetTokens returns token
+		tokens, err := s.a.GetTokens(ctx)
+		require.NoError(t, err)
+		require.Len(t, tokens, 1)
+		require.Equal(t, tokens[0].GetName(), tokenName)
+
+		tokenResource, err := s.a.ValidateToken(ctx, tokenName)
+		require.NoError(t, err)
+		roles := tokenResource.GetRoles()
+		require.True(t, roles.Include(types.RoleNode))
+		require.False(t, roles.Include(types.RoleProxy))
+		// Check that GenerateToken applies a default TTL
+		requireTokenExpiry(t, tokenResource, defaults.ProvisioningTokenTTL)
 	})
-	require.NoError(t, err)
-	err = s.a.SetStaticTokens(st)
-	require.NoError(t, err)
-	token, err := s.a.ValidateToken(ctx, "static-token-value")
-	require.NoError(t, err)
-	fetchesRoles := token.GetRoles()
-	require.Equal(t, fetchesRoles, roles)
+
+	t.Run("GenerateToken: defined TTL", func(t *testing.T) {
+		// generate persistent token with defined TTL
+		desiredTTL := 6 * time.Hour
+		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+			Roles: types.SystemRoles{types.RoleNode},
+			TTL:   proto.Duration(desiredTTL),
+		})
+		require.NoError(t, err)
+		token, err := s.a.GetToken(ctx, tokenName)
+		require.NoError(t, err)
+		requireTokenExpiry(t, token, desiredTTL)
+		require.NoError(t, s.a.DeleteToken(ctx, tokenName))
+	})
+
+	t.Run("GenerateToken: defined token name", func(t *testing.T) {
+		customToken := "custom-token"
+		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+			Roles: types.SystemRoles{types.RoleNode},
+			Token: customToken,
+		})
+		require.NoError(t, err)
+		require.Equal(t, tokenName, customToken)
+		token, err := s.a.ValidateToken(ctx, tokenName)
+		require.NoError(t, err)
+		roles := token.GetRoles()
+		require.True(t, roles.Include(types.RoleNode))
+		require.False(t, roles.Include(types.RoleProxy))
+		err = s.a.DeleteToken(ctx, customToken)
+		require.NoError(t, err)
+	})
+
+	// TODO(strideynet): In Teleport 14.0.0 when GenerateToken is removed
+	// break this SetStaticTokens test out into its own test as the rest of
+	// this test is removed.
+	t.Run("SetStaticTokens", func(t *testing.T) {
+		// lets use static tokens now
+		roles := types.SystemRoles{types.RoleProxy}
+		st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+			StaticTokens: []types.ProvisionTokenV1{{
+				Token:   "static-token-value",
+				Roles:   roles,
+				Expires: time.Unix(0, 0).UTC(),
+			}},
+		})
+		require.NoError(t, err)
+		err = s.a.SetStaticTokens(st)
+		require.NoError(t, err)
+		token, err := s.a.ValidateToken(ctx, "static-token-value")
+		require.NoError(t, err)
+		fetchesRoles := token.GetRoles()
+		require.Equal(t, fetchesRoles, roles)
+	})
 }
 
 type tokenCreatorAndDeleter interface {
@@ -994,7 +1064,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 }
 
 func TestEmitSSOLoginFailureEvent(t *testing.T) {
-	mockE := &eventstest.MockRecorderEmitter{}
+	mockE := &eventstest.MockEmitter{}
 
 	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), false)
 
@@ -1970,7 +2040,7 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 
 	user, role, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
 	require.NoError(t, err)
-	userState, err := p.a.getUserOrLoginState(ctx, user.GetName())
+	userState, err := p.a.GetUserOrLoginState(ctx, user.GetName())
 	require.NoError(t, err)
 	accessInfo := services.AccessInfoFromUserState(userState)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
@@ -2029,7 +2099,7 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 	require.NoError(t, p.a.UpsertRole(ctx, ulsRole1))
 	require.NoError(t, p.a.UpsertRole(ctx, ulsRole2))
 
-	userState, err = p.a.getUserOrLoginState(ctx, user.GetName())
+	userState, err = p.a.GetUserOrLoginState(ctx, user.GetName())
 	require.NoError(t, err)
 	accessInfo = services.AccessInfoFromUserState(userState)
 	accessChecker, err = services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
@@ -2106,7 +2176,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	mockEmitter := &eventstest.MockRecorderEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	authServer.emitter = mockEmitter
 
 	ctx := context.Background()
@@ -2421,7 +2491,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &eventstest.MockRecorderEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{

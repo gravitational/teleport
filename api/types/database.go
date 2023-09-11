@@ -68,8 +68,6 @@ type Database interface {
 	GetStatusCA() string
 	// GetMySQL returns the database options from spec.
 	GetMySQL() MySQLOptions
-	// GetOracle returns the database options from spec.
-	GetOracle() OracleOptions
 	// GetMySQLServerVersion returns the MySQL server version either from configuration or
 	// reported by the database.
 	GetMySQLServerVersion() string
@@ -288,11 +286,6 @@ func (d *DatabaseV3) GetAdminUser() string {
 	}
 	// If it's not in the spec, check labels (for auto-discovered databases).
 	return d.Metadata.Labels[DatabaseAdminLabel]
-}
-
-// GetOracle returns the Oracle options from spec.
-func (d *DatabaseV3) GetOracle() OracleOptions {
-	return d.Spec.Oracle
 }
 
 // SupportsAutoUsers returns true if this database supports automatic user
@@ -597,6 +590,9 @@ var validDatabaseNameRegexp = regexp.MustCompile(`^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z
 // need to be a valid subdomain but use the same validation logic for the
 // simplicity and consistency, except two differences: don't restrict names to
 // 63 chars in length and allow upper case chars.
+// This was added in v14 and backported, except that it's intentionally called
+// in lib/services:ValidateDatabase instead of within CheckAndSetDefaults below
+// for backwards compatibility.
 func ValidateDatabaseName(name string) error {
 	return ValidateResourceName(validDatabaseNameRegexp, name)
 }
@@ -606,10 +602,6 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	d.setStaticFields()
 	if err := d.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-
-	if err := ValidateDatabaseName(d.GetName()); err != nil {
-		return trace.Wrap(err, "invalid database name")
 	}
 
 	for key := range d.Spec.DynamicLabels {
@@ -831,27 +823,6 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			d.GetName(), d.GetProtocol(), d.GetType())
 	}
 
-	switch protocol := d.GetProtocol(); protocol {
-	case DatabaseProtocolClickHouseHTTP, DatabaseProtocolClickHouse:
-		const (
-			clickhouseNativeSchema = "clickhouse"
-			clickhouseHTTPSchema   = "https"
-		)
-		parts := strings.Split(d.GetURI(), ":")
-		if len(parts) == 3 {
-			break
-		} else if len(parts) != 2 {
-			return trace.BadParameter("invalid ClickHouse URL %s", d.GetURI())
-		}
-
-		if !strings.HasPrefix(d.Spec.URI, clickhouseHTTPSchema) && protocol == DatabaseProtocolClickHouseHTTP {
-			d.Spec.URI = fmt.Sprintf("%s://%s", clickhouseHTTPSchema, d.Spec.URI)
-		}
-		if protocol == DatabaseProtocolClickHouse {
-			d.Spec.URI = fmt.Sprintf("%s://%s", clickhouseNativeSchema, d.Spec.URI)
-		}
-	}
-
 	return nil
 }
 
@@ -993,12 +964,6 @@ func (d *DatabaseV3) GetEndpointType() string {
 const (
 	// DatabaseProtocolPostgreSQL is the PostgreSQL database protocol.
 	DatabaseProtocolPostgreSQL = "postgres"
-	// DatabaseProtocolClickHouseHTTP is the ClickHouse database HTTP protocol.
-	DatabaseProtocolClickHouseHTTP = "clickhouse-http"
-	// DatabaseProtocolClickHouse is the ClickHouse database native write protocol.
-	DatabaseProtocolClickHouse = "clickhouse"
-	// DatabaseProtocolMySQL is the MySQL database protocol.
-	DatabaseProtocolMySQL = "mysql"
 
 	// DatabaseTypeSelfHosted is the self-hosted type of database.
 	DatabaseTypeSelfHosted = "self-hosted"
@@ -1150,9 +1115,4 @@ func (s *IAMPolicyStatus) UnmarshalJSON(data []byte) error {
 
 	*s = IAMPolicyStatus(IAMPolicyStatus_value[stringVal])
 	return nil
-}
-
-// IsAuditLogEnabled returns if Oracle Audit Log was enabled
-func (o OracleOptions) IsAuditLogEnabled() bool {
-	return o.AuditUser != ""
 }

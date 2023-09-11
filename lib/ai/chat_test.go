@@ -27,9 +27,7 @@ import (
 	"github.com/sashabaranov/go-openai"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai/model"
-	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestChat_PromptTokens(t *testing.T) {
@@ -53,7 +51,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hello",
 				},
 			},
-			want: 721,
+			want: 610,
 		},
 		{
 			name: "system and user messages",
@@ -67,7 +65,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hi LLM.",
 				},
 			},
-			want: 729,
+			want: 618,
 		},
 		{
 			name: "tokenize our prompt",
@@ -81,15 +79,17 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Show me free disk space on localhost node.",
 				},
 			},
-			want: 932,
+			want: 821,
 		},
 	}
 
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			responses := []string{
-				generateCommandResponse(t),
+				generateCommandResponse(),
 			}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "text/event-stream")
@@ -109,10 +109,9 @@ func TestChat_PromptTokens(t *testing.T) {
 
 			client := NewClientFromConfig(cfg)
 
-			toolContext := model.ToolContext{
-				User: "Bob",
-			}
-			chat := client.NewChat(&toolContext)
+			toolsConfig := model.ToolsConfig{DisableEmbeddingsTool: true}
+			chat, err := client.NewChat("Bob", toolsConfig)
+			require.NoError(t, err)
 
 			for _, message := range tt.messages {
 				chat.Insert(message.Role, message.Content)
@@ -130,16 +129,11 @@ func TestChat_PromptTokens(t *testing.T) {
 }
 
 func TestChat_Complete(t *testing.T) {
-	beforeModules := modules.GetModules()
-	modules.SetModules(&modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-	t.Cleanup(func() { modules.SetModules(beforeModules) })
+	t.Parallel()
 
 	responses := [][]byte{
 		[]byte(generateTextResponse()),
-		[]byte(generateCommandResponse(t)),
-		[]byte(generateAccessRequestResponse(t)),
+		[]byte(generateCommandResponse()),
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -158,13 +152,12 @@ func TestChat_Complete(t *testing.T) {
 	cfg.BaseURL = server.URL + "/v1"
 	client := NewClientFromConfig(cfg)
 
-	toolContext := model.ToolContext{
-		User: "Bob",
-	}
-	chat := client.NewChat(&toolContext)
+	toolsConfig := model.ToolsConfig{DisableEmbeddingsTool: true}
+	chat, err := client.NewChat("Bob", toolsConfig)
+	require.NoError(t, err)
 
 	ctx := context.Background()
-	_, _, err := chat.Complete(ctx, "Hello", func(aa *model.AgentAction) {})
+	_, _, err = chat.Complete(ctx, "Hello", func(aa *model.AgentAction) {})
 	require.NoError(t, err)
 
 	chat.Insert(openai.ChatMessageRoleUser, "Show me free disk space on localhost node.")
@@ -190,20 +183,6 @@ func TestChat_Complete(t *testing.T) {
 		require.Equal(t, "df -h", command.Command)
 		require.Len(t, command.Nodes, 1)
 		require.Equal(t, "localhost", command.Nodes[0])
-	})
-
-	t.Run("access request creation", func(t *testing.T) {
-		msg, _, err := chat.Complete(ctx, "Now, request access to the resource with kind node, hostname Alpha.local and the Name a35161f0-a2dc-48e7-bdd2-49b81926cab7", func(aa *model.AgentAction) {})
-		require.NoError(t, err)
-
-		require.IsType(t, &model.AccessRequest{}, msg)
-		request := msg.(*model.AccessRequest)
-		require.Empty(t, request.Roles)
-		require.Empty(t, request.SuggestedReviewers)
-		require.Equal(t, "maintenance", request.Reason)
-		require.Len(t, request.Resources, 1)
-		require.Equal(t, "a35161f0-a2dc-48e7-bdd2-49b81926cab7", request.Resources[0].Name)
-		require.Equal(t, "Alpha.local", request.Resources[0].FriendlyName)
 	})
 }
 
@@ -234,7 +213,7 @@ func generateTextResponse() string {
 }
 
 // generateCommandResponse generates a response for the command "df -h" on the node "localhost"
-func generateCommandResponse(t *testing.T) string {
+func generateCommandResponse() string {
 	dataBytes := []byte{}
 	dataBytes = append(dataBytes, []byte("event: message\n")...)
 
@@ -247,7 +226,7 @@ func generateCommandResponse(t *testing.T) string {
 	}
 	actionJson, err := json.Marshal(actionObj)
 	if err != nil {
-		require.NoError(t, err)
+		panic(err)
 	}
 
 	obj := struct {
@@ -259,51 +238,7 @@ func generateCommandResponse(t *testing.T) string {
 	}
 	json, err := json.Marshal(obj)
 	if err != nil {
-		require.NoError(t, err)
-	}
-
-	data := fmt.Sprintf(`{"id":"1","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":%v}]}`, string(json))
-	dataBytes = append(dataBytes, []byte("data: "+data+"\n\n")...)
-
-	dataBytes = append(dataBytes, []byte("event: done\n")...)
-	dataBytes = append(dataBytes, []byte("data: [DONE]\n\n")...)
-
-	return string(dataBytes)
-}
-
-func generateAccessRequestResponse(t *testing.T) string {
-	dataBytes := []byte{}
-	dataBytes = append(dataBytes, []byte("event: message\n")...)
-
-	actionObj := model.PlanOutput{
-		Action: "Create Access Requests",
-		ActionInput: struct {
-			SuggestedReviewers []string         `json:"suggested_reviewers"`
-			Roles              []string         `json:"roles"`
-			Resources          []model.Resource `json:"resources"`
-			Reason             string           `json:"reason"`
-		}{
-			nil,
-			nil,
-			[]model.Resource{{Type: types.KindNode, Name: "a35161f0-a2dc-48e7-bdd2-49b81926cab7", FriendlyName: "Alpha.local"}},
-			"maintenance",
-		},
-	}
-	actionJson, err := json.Marshal(actionObj)
-	if err != nil {
-		require.NoError(t, err)
-	}
-
-	obj := struct {
-		Content string `json:"content"`
-		Role    string `json:"role"`
-	}{
-		Content: string(actionJson),
-		Role:    "assistant",
-	}
-	json, err := json.Marshal(obj)
-	if err != nil {
-		require.NoError(t, err)
+		panic(err)
 	}
 
 	data := fmt.Sprintf(`{"id":"1","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":%v}]}`, string(json))

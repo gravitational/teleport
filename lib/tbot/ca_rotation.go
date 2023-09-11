@@ -84,41 +84,6 @@ func (rd *debouncer) attempt() {
 	})
 }
 
-type channelBroadcaster struct {
-	mu      sync.Mutex
-	chanSet map[chan struct{}]struct{}
-}
-
-func (cb *channelBroadcaster) subscribe() (ch chan struct{}, unsubscribe func()) {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
-	ch = make(chan struct{}, 1)
-	cb.chanSet[ch] = struct{}{}
-	// Returns a function that should be called to unsubscribe the channel
-	return ch, func() {
-		cb.mu.Lock()
-		defer cb.mu.Unlock()
-		_, ok := cb.chanSet[ch]
-		if ok {
-			delete(cb.chanSet, ch)
-			close(ch)
-		}
-	}
-}
-
-func (cb *channelBroadcaster) broadcast() {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
-	for ch := range cb.chanSet {
-		select {
-		case ch <- struct{}{}:
-			// Successfully sent notification
-		default:
-			// Channel already has valued queued
-		}
-	}
-}
-
 const caRotationRetryBackoff = time.Second * 2
 
 // caRotationLoop continually triggers `watchCARotations` until the context is
@@ -126,9 +91,22 @@ const caRotationRetryBackoff = time.Second * 2
 //
 // caRotationLoop also manages debouncing the renewals across multiple watch
 // attempts.
-func (b *Bot) caRotationLoop(ctx context.Context, reload func()) error {
+func (b *Bot) caRotationLoop(ctx context.Context) error {
 	rd := debouncer{
-		f:              reload,
+		f: func() {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			select {
+			case b.reloadChan <- struct{}{}:
+				b.log.Infof("Renewal triggered due to CA rotation.")
+			default:
+				b.log.Debugf("Renewal already queued, ignoring reload request.")
+			}
+		},
 		debouncePeriod: time.Second * 10,
 	}
 	jitter := retryutils.NewJitter()
@@ -169,17 +147,9 @@ func (b *Bot) caRotationLoop(ctx context.Context, reload func()) error {
 // attempts to trigger a renewal via the debounced reload channel when it
 // detects the entry into an important rotation phase.
 func (b *Bot) watchCARotations(ctx context.Context, queueReload func()) error {
+	clusterName := b.ident().ClusterName
 	b.log.Debugf("Attempting to establish watch for CA events")
-
-	ident := b.ident()
-	client, err := b.AuthenticatedUserClientFromIdentity(ctx, ident)
-	if err != nil {
-		return trace.Wrap(err, "creating client for ca watcher")
-	}
-	defer client.Close()
-
-	clusterName := ident.ClusterName
-	watcher, err := client.NewWatcher(ctx, types.Watch{
+	watcher, err := b.Client().NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindCertAuthority,
 			Filter: types.CertAuthorityFilter{

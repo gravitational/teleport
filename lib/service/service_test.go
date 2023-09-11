@@ -56,7 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/athena"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -477,7 +477,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				string(teleport.PrincipalLocalhost),
 				string(teleport.PrincipalLoopbackV4),
 				string(teleport.PrincipalLoopbackV6),
-				reversetunnelclient.LocalKubernetes,
+				reversetunnel.LocalKubernetes,
 				"proxy-ssh-public-1",
 				"proxy-ssh-public-2",
 				"proxy-tunnel-public-1",
@@ -540,7 +540,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				string(teleport.PrincipalLocalhost),
 				string(teleport.PrincipalLoopbackV4),
 				string(teleport.PrincipalLoopbackV6),
-				reversetunnelclient.LocalKubernetes,
+				reversetunnel.LocalKubernetes,
 				"kube-public-1",
 				"kube-public-2",
 			},
@@ -616,7 +616,7 @@ type mockAccessPoint struct {
 }
 
 type mockReverseTunnelServer struct {
-	reversetunnelclient.Server
+	reversetunnel.Server
 }
 
 func TestSetupProxyTLSConfig(t *testing.T) {
@@ -645,7 +645,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch-ping",
 				"teleport-opensearch-ping",
 				"teleport-dynamodb-ping",
-				"teleport-clickhouse-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
@@ -664,7 +663,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch",
 				"teleport-opensearch",
 				"teleport-dynamodb",
-				"teleport-clickhouse",
 			},
 		},
 		{
@@ -683,7 +681,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch-ping",
 				"teleport-opensearch-ping",
 				"teleport-dynamodb-ping",
-				"teleport-clickhouse-ping",
 				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
 				"h2",
@@ -705,7 +702,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch",
 				"teleport-opensearch",
 				"teleport-dynamodb",
-				"teleport-clickhouse",
 			},
 		},
 	}
@@ -868,7 +864,7 @@ func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck
 	nodeProc, err := NewTeleport(nodeCfg)
 	require.NoError(t, err)
 
-	c, err := nodeProc.reconnectToAuthService(types.RoleInstance)
+	c, err := nodeProc.reconnectToAuthService(types.RoleNode)
 	if skipVersionCheck {
 		require.NoError(t, err)
 		require.NotNil(t, c)

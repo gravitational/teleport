@@ -320,6 +320,9 @@ const (
 )
 
 const (
+	// KubeSNIPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
+	// DELETE IN 13.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	KubeSNIPrefix = "kube."
 	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
 )
@@ -395,6 +398,14 @@ const (
 	// TraitHostUserGID is the name of the variable used to specify
 	// the GID to create host user account with.
 	TraitHostUserGID = "host_user_gid"
+)
+const (
+	// ProxyHelloSignature is a string which Teleport proxy will send
+	// right after the initial SSH "handshake/version" message if it detects
+	// talking to a Teleport server.
+	//
+	// This is also leveraged by tsh to propagate its tracing span ID.
+	ProxyHelloSignature = "Teleport-Proxy"
 )
 
 const (

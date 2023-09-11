@@ -96,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/resourceusage"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -121,16 +122,6 @@ const (
 
 	// mfaDeviceNameMaxLen is the maximum length of a device name.
 	mfaDeviceNameMaxLen = 30
-)
-
-const (
-	OSSDesktopsCheckPeriod  = 5 * time.Minute
-	OSSDesktopsAlertID      = "oss-desktops"
-	OSSDesktopsAlertMessage = "Your cluster is beyond its allocation of 5 non-Active Directory Windows desktops. " +
-		"Reach out for unlimited desktops with Teleport Enterprise."
-
-	OSSDesktopAlertLink = "https://goteleport.com/r/upgrade-community?utm_campaign=CTA_windows_local"
-	OSSDesktopsLimit    = 5
 )
 
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
@@ -201,7 +192,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Emitter = events.NewDiscardEmitter()
 	}
 	if cfg.Streamer == nil {
-		cfg.Streamer = events.NewDiscardStreamer()
+		cfg.Streamer = events.NewDiscardEmitter()
 	}
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
@@ -337,7 +328,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cancelFunc:          cancelFunc,
 		closeCtx:            closeCtx,
 		emitter:             cfg.Emitter,
-		Streamer:            cfg.Streamer,
+		streamer:            cfg.Streamer,
 		Unstable:            local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:            services,
 		Cache:               services,
@@ -667,9 +658,9 @@ type Server struct {
 	// Emitter is events emitter, used to submit discrete events
 	emitter apievents.Emitter
 
-	// Streamer is an events session streamer, used to create continuous
+	// streamer is events sessionstreamer, used to create continuous
 	// session related streams
-	events.Streamer
+	streamer events.Streamer
 
 	// keyStore manages all CA private keys, which  may or may not be backed by
 	// HSMs
@@ -677,10 +668,6 @@ type Server struct {
 
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
-
-	// UnifiedResourceCache is a cache of multiple resource kinds to be presented
-	// in a unified manner in the web UI.
-	UnifiedResourceCache *services.UnifiedResourceCache
 
 	inventory *inventory.Controller
 
@@ -836,13 +823,7 @@ func (a *Server) CloseContext() context.Context {
 	return a.closeCtx
 }
 
-// SetUnifiedResourcesCache sets the unified resource cache.
-func (a *Server) SetUnifiedResourcesCache(unifiedResourcesCache *services.UnifiedResourceCache) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	a.UnifiedResourceCache = unifiedResourcesCache
-}
-
+// SetLockWatcher sets the lock watcher.
 func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
@@ -986,17 +967,6 @@ func (a *Server) runPeriodicOperations() {
 	})
 	defer instancePeriodics.Stop()
 
-	var ossDesktopsCheck <-chan time.Time
-	if modules.GetModules().BuildType() == modules.BuildOSS {
-		ossDesktopsCheck = interval.New(interval.Config{
-			Duration:      OSSDesktopsCheckPeriod,
-			FirstDuration: utils.HalfJitter(time.Second * 10),
-			Jitter:        retryutils.NewHalfJitter(),
-		}).Next()
-	} else if err := a.DeleteClusterAlert(ctx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
-		log.Warnf("Can't delete OSS non-AD desktops limit alert: %v", err)
-	}
-
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
 	go func() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
@@ -1058,8 +1028,6 @@ func (a *Server) runPeriodicOperations() {
 			// instance periodics are rate-limited and may be time-consuming in large
 			// clusters, so launch them in the background.
 			go a.doInstancePeriodics(ctx)
-		case <-ossDesktopsCheck:
-			a.syncDesktopsLimitAlert(ctx)
 		}
 	}
 }
@@ -1140,7 +1108,7 @@ func (a *Server) handleUpgradeEnrollPrompt(ctx context.Context, msg string, shou
 	const alertTTL = time.Minute * 30
 
 	if !shouldPrompt {
-		if err := a.DeleteClusterAlert(ctx, upgradeEnrollAlertID); err != nil {
+		if err := a.DeleteClusterAlert(ctx, upgradeEnrollAlertID); err != nil && !trace.IsNotFound(err) {
 			log.Warnf("Failed to delete %s alert: %v", upgradeEnrollAlertID, err)
 		}
 		return
@@ -1432,7 +1400,6 @@ func (a *Server) Close() error {
 			errs = append(errs, err)
 		}
 	}
-
 	return trace.NewAggregate(errs...)
 }
 
@@ -1725,8 +1692,8 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	}
 }
 
-// getUserOrLoginState will return the given user or the login state associated with the user.
-func (a *Server) getUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
+// GetUserOrLoginState will return the given user or the login state associated with the user.
+func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
 	uls, err := a.GetUserLoginState(ctx, username)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
@@ -1811,7 +1778,7 @@ type GenerateUserTestCertsRequest struct {
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
-	userState, err := a.getUserOrLoginState(context.Background(), req.Username)
+	userState, err := a.GetUserOrLoginState(context.Background(), req.Username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1871,7 +1838,7 @@ type AppTestCertRequest struct {
 // GenerateUserAppTestCert generates an application specific certificate, used
 // internally for tests.
 func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error) {
-	userState, err := a.getUserOrLoginState(context.Background(), req.Username)
+	userState, err := a.GetUserOrLoginState(context.Background(), req.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1941,7 +1908,7 @@ type DatabaseTestCertRequest struct {
 // GenerateDatabaseTestCert generates a database access certificate for the
 // provided parameters. Used only internally in tests.
 func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, error) {
-	userState, err := a.getUserOrLoginState(context.Background(), req.Username)
+	userState, err := a.GetUserOrLoginState(context.Background(), req.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3453,7 +3420,7 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 // CreateWebSession creates a new web session for user without any
 // checks, is used by admins
 func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
-	u, err := a.getUserOrLoginState(ctx, user)
+	u, err := a.GetUserOrLoginState(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3464,6 +3431,41 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 		LoginTime: a.clock.Now().UTC(),
 	})
 	return session, trace.Wrap(err)
+}
+
+// GenerateToken generates multi-purpose authentication token.
+// Deprecated: Use CreateToken or UpdateToken.
+// DELETE IN 14.0.0, replaced by methods above (strideynet).
+func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
+	ttl := defaults.ProvisioningTokenTTL
+	if req.TTL != 0 {
+		ttl = req.TTL.Get()
+	}
+	expires := a.clock.Now().UTC().Add(ttl)
+
+	if req.Token == "" {
+		token, err := utils.CryptoRandomHex(TokenLenBytes)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		req.Token = token
+	}
+
+	token, err := types.NewProvisionToken(req.Token, req.Roles, expires)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if len(req.Labels) != 0 {
+		meta := token.GetMetadata()
+		meta.Labels = req.Labels
+		token.SetMetadata(meta)
+	}
+
+	if err := a.CreateToken(ctx, token); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return req.Token, nil
 }
 
 // ExtractHostID returns host id based on the hostname
@@ -3658,6 +3660,18 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		TLSCACerts: services.GetTLSCerts(ca),
 		SSHCACerts: services.GetSSHCheckingKeys(ca),
 	}, nil
+}
+
+// UnstableAssertSystemRole is not a stable part of the public API. Used by older
+// instances to prove that they hold a given system role.
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+func (a *Server) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
+	return trace.Wrap(a.Unstable.AssertSystemRole(ctx, req))
+}
+
+func (a *Server) UnstableGetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.UnstableSystemRoleAssertionSet, error) {
+	set, err := a.Unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
+	return set, trace.Wrap(err)
 }
 
 func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) error {
@@ -3973,7 +3987,7 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 
 // NewWebSession creates and returns a new web session for the specified request
 func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
-	userState, err := a.getUserOrLoginState(ctx, req.User)
+	userState, err := a.GetUserOrLoginState(ctx, req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4343,8 +4357,11 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 	}
 
 	kind := usagereporter.ResourceKindNode
-	if server.GetSubKind() == types.SubKindOpenSSHNode {
+	switch server.GetSubKind() {
+	case types.SubKindOpenSSHNode:
 		kind = usagereporter.ResourceKindNodeOpenSSH
+	case types.SubKindOpenSSHEICENode:
+		kind = usagereporter.ResourceKindNodeOpenSSHEICE
 	}
 
 	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
@@ -4425,16 +4442,6 @@ func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.Database
 	return lease, nil
 }
 
-func (a *Server) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
-	if err := a.Services.DeleteWindowsDesktop(ctx, hostID, name); err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := a.desktopsLimitExceeded(ctx); err != nil {
-		log.Warnf("Can't check OSS non-AD desktops limit: %v", err)
-	}
-	return nil
-}
-
 // CreateWindowsDesktop implements [services.WindowsDesktops] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
@@ -4481,70 +4488,6 @@ func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 	})
 
 	return nil
-}
-
-func (a *Server) streamWindowsDesktops(ctx context.Context, startKey string) stream.Stream[types.WindowsDesktop] {
-	var done bool
-	return stream.PageFunc(func() ([]types.WindowsDesktop, error) {
-		if done {
-			return nil, io.EOF
-		}
-		resp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
-			Limit:    50,
-			StartKey: startKey,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		startKey = resp.NextKey
-		done = startKey == ""
-		return resp.Desktops, nil
-	})
-}
-
-func (a *Server) syncDesktopsLimitAlert(ctx context.Context) {
-	exceeded, err := a.desktopsLimitExceeded(ctx)
-	if err != nil {
-		log.Warnf("Can't check OSS non-AD desktops limit: %v", err)
-	}
-	if !exceeded {
-		return
-	}
-	alert, err := types.NewClusterAlert(OSSDesktopsAlertID, OSSDesktopsAlertMessage,
-		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
-		types.WithAlertLabel(types.AlertOnLogin, "yes"),
-		types.WithAlertLabel(types.AlertPermitAll, "yes"),
-		types.WithAlertLabel(types.AlertLink, OSSDesktopAlertLink),
-		types.WithAlertExpires(time.Now().Add(OSSDesktopsCheckPeriod)))
-	if err != nil {
-		log.Warnf("Can't create OSS non-AD desktops limit alert: %v", err)
-	}
-	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
-		log.Warnf("Can't upsert OSS non-AD desktops limit alert: %v", err)
-	}
-}
-
-// desktopsLimitExceeded checks if number of non-AD desktops exceeds limit for OSS distribution. Returns always false for Enterprise.
-func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
-	if modules.GetModules().BuildType() != modules.BuildOSS {
-		return false, nil
-	}
-
-	desktops := stream.FilterMap(
-		a.streamWindowsDesktops(ctx, ""),
-		func(d types.WindowsDesktop) (struct{}, bool) {
-			return struct{}{}, d.NonAD()
-		},
-	)
-	count := 0
-	for desktops.Next() {
-		count++
-		if count > OSSDesktopsLimit {
-			desktops.Done()
-			return true, nil
-		}
-	}
-	return false, trace.Wrap(desktops.Done())
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
@@ -4625,6 +4568,42 @@ func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRe
 
 		req.StartKey = resp.NextKey
 	}
+}
+
+// CreateAuditStream creates audit event stream
+func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
+	streamer, err := a.modeStreamer(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return streamer.CreateAuditStream(ctx, sid)
+}
+
+// ResumeAuditStream resumes the stream that has been created
+func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+	streamer, err := a.modeStreamer(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return streamer.ResumeAuditStream(ctx, sid, uploadID)
+}
+
+// modeStreamer creates streamer based on the event mode
+func (a *Server) modeStreamer(ctx context.Context) (events.Streamer, error) {
+	recConfig, err := a.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// In sync mode, auth server forwards session control to the event log
+	// in addition to sending them and data events to the record storage.
+	if services.IsRecordSync(recConfig.GetMode()) {
+		return events.NewTeeStreamer(a.streamer, a.emitter), nil
+	}
+	// In async mode, clients submit session control events
+	// during the session in addition to writing a local
+	// session recording to be uploaded at the end of the session,
+	// so forwarding events here will result in duplicate events.
+	return a.streamer, nil
 }
 
 // CreateApp creates a new application resource.

@@ -451,12 +451,12 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithChainUnaryInterceptor(
-			otelgrpc.UnaryClientInterceptor(),
+			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
-			otelgrpc.StreamClientInterceptor(),
+			otelStreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 			breaker.StreamClientInterceptor(cb),
 		),
@@ -486,6 +486,36 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	return nil
 }
+
+// TODO(noah): Once we upgrade to go 1.21, change invocations of this to
+// sync.OnceValue
+func onceValue[T any](f func() T) func() T {
+	var (
+		value T
+		once  sync.Once
+	)
+	return func() T {
+		once.Do(func() {
+			value = f()
+		})
+		return value
+	}
+}
+
+// We wrap the creation of the otelgrpc interceptors in a sync.Once - this is
+// because each time this is called, they create a new underlying metric. If
+// something (e.g tbot) is repeatedly creating new clients and closing them,
+// then this leads to a memory leak since the underlying metric is not cleaned
+// up.
+// See https://github.com/gravitational/teleport/issues/30759
+// See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
+var otelStreamClientInterceptor = onceValue(func() grpc.StreamClientInterceptor {
+	return otelgrpc.StreamClientInterceptor()
+})
+
+var otelUnaryClientInterceptor = onceValue(func() grpc.UnaryClientInterceptor {
+	return otelgrpc.UnaryClientInterceptor()
+})
 
 // ConfigureALPN configures ALPN SNI cluster routing information in TLS settings allowing for
 // allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
@@ -909,6 +939,16 @@ func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	return cert, nil
 }
 
+// UnstableAssertSystemRole is not a stable part of the public API.  Used by older
+// instances to prove that they hold a given system role.
+//
+// DELETE IN: 11.0 (server side method should continue to exist until 12.0 for back-compat reasons,
+// but v11 clients should no longer need this method)
+func (c *Client) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
+	_, err := c.grpc.UnstableAssertSystemRole(ctx, &req)
+	return trail.FromGRPC(err)
+}
+
 // EmitAuditEvent sends an auditable event to the auth server.
 func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	grpcEvent, err := events.ToOneOf(event)
@@ -1211,6 +1251,34 @@ func (c *Client) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 	}
 
 	return resp.GetSession(), nil
+}
+
+// GetAppSessions gets all application web sessions.
+func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
+	var (
+		nextToken string
+		sessions  []types.WebSession
+	)
+
+	// Leverages ListAppSessions instead of GetAppSessions to prevent
+	// the server from having to send all sessions in a single message.
+	// If there are enough sessions it can cause the max message size to be
+	// exceeded.
+	for {
+		webSessions, token, err := c.ListAppSessions(ctx, defaults.DefaultChunkSize, nextToken, "")
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+
+		sessions = append(sessions, webSessions...)
+		if token == "" {
+			break
+		}
+
+		nextToken = token
+	}
+
+	return sessions, nil
 }
 
 // ListAppSessions gets a paginated list of application web sessions.
@@ -1817,7 +1885,7 @@ func (c *Client) GetServerInfos(ctx context.Context) stream.Stream[types.ServerI
 	return stream.Func(func() (types.ServerInfo, error) {
 		si, err := serverInfos.Recv()
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if trace.IsEOF(err) {
 				// io.EOF signals that stream has completed successfully
 				return nil, io.EOF
 			}
@@ -1952,7 +2020,15 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 			V2: tokenV2,
 		},
 	})
-	return trail.FromGRPC(err)
+	if err != nil {
+		err := trail.FromGRPC(err)
+		if trace.IsNotImplemented(err) {
+			_, err := c.grpc.UpsertToken(ctx, tokenV2)
+			return trail.FromGRPC(err)
+		}
+		return err
+	}
+	return nil
 }
 
 // CreateToken creates a provision token.
@@ -1967,7 +2043,15 @@ func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) er
 			V2: tokenV2,
 		},
 	})
-	return trail.FromGRPC(err)
+	if err != nil {
+		err := trail.FromGRPC(err)
+		if trace.IsNotImplemented(err) {
+			_, err := c.grpc.CreateToken(ctx, tokenV2)
+			return trail.FromGRPC(err)
+		}
+		return err
+	}
+	return nil
 }
 
 // DeleteToken deletes a provision token by name.
@@ -3077,30 +3161,10 @@ func (c *Client) GetResources(ctx context.Context, req *proto.ListResourcesReque
 	return resp, trail.FromGRPC(err)
 }
 
-// ListUnifiedResources returns a paginated list of unified resources that the user has access to.
-// `nextKey` is used as `startKey` in another call to ListUnifiedResources to retrieve
-// the next page.
-// It will return a `trace.LimitExceeded` error if the page exceeds gRPC max
-// message size.
-func (c *Client) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := c.grpc.ListUnifiedResources(ctx, req)
-	return resp, trail.FromGRPC(err)
-}
-
 // GetResourcesClient is an interface used by GetResources to abstract over implementations of
 // the ListResources method.
 type GetResourcesClient interface {
 	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
-}
-
-// ListUnifiedResourcesClient is an interface used by ListUnifiedResources to abstract over implementations of
-// the ListUnifiedResources method.
-type ListUnifiedResourcesClient interface {
-	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
 }
 
 // ResourcePage holds a page of results from [GetResourcePage].
@@ -3113,86 +3177,6 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 	Total int
 	// NextKey is the start of the next page
 	NextKey string
-}
-
-// getResourceFromProtoPage extracts the resource from the PaginatedResource returned
-// from the rpc ListUnifiedResources
-func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.ResourceWithLabels, error) {
-	var out types.ResourceWithLabels
-	if r := resource.GetNode(); r != nil {
-		out = r
-		return out, nil
-	} else if r := resource.GetDatabaseServer(); r != nil {
-		out = r
-		return out, nil
-	} else if r := resource.GetDatabaseService(); r != nil {
-		out = r
-		return out, nil
-	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil {
-		out = r
-		return out, nil
-	} else if r := resource.GetWindowsDesktop(); r != nil {
-		out = r
-		return out, nil
-	} else if r := resource.GetWindowsDesktopService(); r != nil {
-		out = r
-		return out, nil
-	} else if r := resource.GetKubeCluster(); r != nil {
-		out = r
-		return out, nil
-	} else if r := resource.GetKubernetesServer(); r != nil {
-		out = r
-		return out, nil
-	} else if r := resource.GetUserGroup(); r != nil {
-		out = r
-		return out, nil
-	} else if r := resource.GetAppServer(); r != nil {
-		out = r
-		return out, nil
-	} else {
-		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
-	}
-}
-
-// ListUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
-func ListUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (ResourcePage[types.ResourceWithLabels], error) {
-	var out ResourcePage[types.ResourceWithLabels]
-
-	// Set the limit to the default size if one was not provided within
-	// an acceptable range.
-	if req.Limit == 0 || req.Limit > int32(defaults.DefaultChunkSize) {
-		req.Limit = int32(defaults.DefaultChunkSize)
-	}
-
-	for {
-		resp, err := clt.ListUnifiedResources(ctx, req)
-		if err != nil {
-			if trace.IsLimitExceeded(err) {
-				// Cut chunkSize in half if gRPC max message size is exceeded.
-				req.Limit /= 2
-				// This is an extremely unlikely scenario, but better to cover it anyways.
-				if req.Limit == 0 {
-					return out, trace.Wrap(trail.FromGRPC(err), "resource is too large to retrieve")
-				}
-
-				continue
-			}
-
-			return out, trail.FromGRPC(err)
-		}
-
-		for _, respResource := range resp.Resources {
-			resource, err := getResourceFromProtoPage(respResource)
-			if err != nil {
-				return out, trace.Wrap(err)
-			}
-			out.Resources = append(out.Resources, resource)
-		}
-
-		out.NextKey = resp.NextKey
-
-		return out, nil
-	}
 }
 
 // GetResourcePage is a helper for getting a single page of resources that match the provide request.
@@ -3392,44 +3376,6 @@ func GetKubernetesResourcesWithFilters(ctx context.Context, clt kubeproto.KubeSe
 		}
 	}
 	return resources, nil
-}
-
-// GetSSHTargets gets all servers that would match an equivalent ssh dial request. Note that this method
-// returns all resources directly accessible to the user *and* all resources available via 'SearchAsRoles',
-// which is what we want when handling things like ambiguous host errors and resource-based access requests,
-// but may result in confusing behavior if it is used outside of those contexts.
-func (c *Client) GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error) {
-	rsp, err := c.grpc.GetSSHTargets(ctx, req)
-	if err := trail.FromGRPC(err); !trace.IsNotImplemented(err) {
-		return rsp, err
-	}
-
-	// if we got a not implemented error, fallback to client-side filtering
-	servers, err := GetAllResources[*types.ServerV2](ctx, c, &proto.ListResourcesRequest{
-		ResourceType:     types.KindNode,
-		UseSearchAsRoles: true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// we only get here if we hit a NotImplementedError from GetSSHTargets, which means
-	// we should be performing client-side filtering with default parameters instead.
-	routeMatcher := utils.NewSSHRouteMatcher(req.Host, req.Port, false)
-
-	// do client-side filtering
-	filtered := servers[:0]
-	for _, srv := range servers {
-		if !routeMatcher.RouteToServer(srv) {
-			continue
-		}
-
-		filtered = append(filtered, srv)
-	}
-
-	return &proto.GetSSHTargetsResponse{
-		Servers: filtered,
-	}, nil
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.

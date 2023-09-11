@@ -146,11 +146,9 @@ func copyDatabasesWithAWSAssumeRole(role types.AssumeRole, databases ...types.Da
 	}
 	out := make(types.Databases, 0, len(databases))
 	for _, db := range databases {
-		dbCopy := db.Copy()
-		dbCopy.SetAWSAssumeRole(role.RoleARN)
-		dbCopy.SetAWSExternalID(role.ExternalID)
-		out = append(out, dbCopy)
+		out = append(out, db.Copy())
 	}
+	applyAssumeRoleToDatabases(out, role)
 	return out
 }
 

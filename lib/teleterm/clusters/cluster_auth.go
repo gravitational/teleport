@@ -184,17 +184,12 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 	c.clusterClient.LocalAgent().UpdateUsername(key.Username)
 	c.clusterClient.Username = key.Username
 
-	proxyClient, rootAuthClient, err := c.clusterClient.ConnectToRootCluster(ctx, key)
-	if err != nil {
+	if err := c.clusterClient.ActivateKey(ctx, key); err != nil {
 		return trace.Wrap(err)
 	}
-	defer func() {
-		rootAuthClient.Close()
-		proxyClient.Close()
-	}()
 
 	// Attempt device login. This activates a fresh key if successful.
-	if err := c.clusterClient.AttemptDeviceLogin(ctx, key, rootAuthClient); err != nil {
+	if err := c.clusterClient.AttemptDeviceLogin(ctx, key); err != nil {
 		return trace.Wrap(err)
 	}
 

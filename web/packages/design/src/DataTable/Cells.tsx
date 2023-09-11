@@ -47,10 +47,7 @@ export function SortHeaderCell<T>({
   if (serversideProps) {
     return (
       <th>
-        <a
-          onClick={handleServersideClick}
-          style={{ display: 'flex', alignItems: 'center' }}
-        >
+        <a onClick={handleServersideClick}>
           {text}
           <SortIndicator
             sortDir={
@@ -66,7 +63,7 @@ export function SortHeaderCell<T>({
 
   return (
     <th>
-      <a onClick={onClick} style={{ display: 'flex', alignItems: 'center' }}>
+      <a onClick={onClick}>
         {text}
         <SortIndicator sortDir={dir} />
       </a>
@@ -80,14 +77,14 @@ export function SortIndicator<T>({
   sortDir?: SortHeaderCellProps<T>['dir'];
 }) {
   if (sortDir === 'DESC') {
-    return <Icons.ChevronDown title="sort items desc" />;
+    return <Icons.SortDesc title="sort items desc" />;
   }
 
   if (sortDir === 'ASC') {
-    return <Icons.ChevronUp title="sort items asc" />;
+    return <Icons.SortAsc title="sort items asc" />;
   }
 
-  return <Icons.ChevronsVertical title="sort items" />;
+  return <Icons.Sort title="sort items" />;
 }
 
 export const TextCell = ({ data }) => <Cell>{`${data || ''}`}</Cell>;

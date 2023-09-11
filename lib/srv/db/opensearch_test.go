@@ -200,7 +200,7 @@ func TestAuditOpenSearch(t *testing.T) {
 }
 
 func withOpenSearch(name string, opts ...opensearch.TestServerOption) withDatabaseOption {
-	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		OpenSearchServer, err := opensearch.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,

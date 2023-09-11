@@ -19,13 +19,13 @@ import { FetchStatus, Page } from 'design/DataTable/types';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import {
-  ResourcesResponse,
-  UnifiedResource,
-  ResourceFilter,
+  AgentResponse,
+  AgentKind,
+  AgentFilter,
 } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
 
-export function useServerSidePagination<T extends UnifiedResource>({
+export function useServerSidePagination<T extends AgentKind>({
   fetchFunc,
   clusterId,
   params,
@@ -35,7 +35,7 @@ export function useServerSidePagination<T extends UnifiedResource>({
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
   const [page, setPage] = useState<Page>({ keys: [], index: 0 });
 
-  const [fetchedData, setFetchedData] = useState<ResourcesResponse<T>>({
+  const [fetchedData, setFetchedData] = useState<AgentResponse<T>>({
     agents: [],
     startKey: '',
     totalCount: 0,
@@ -138,17 +138,17 @@ export function useServerSidePagination<T extends UnifiedResource>({
   };
 }
 
-type Props<T extends UnifiedResource> = {
+type Props<T extends AgentKind> = {
   fetchFunc: (
     clusterId: string,
     params: UrlResourcesParams
-  ) => Promise<ResourcesResponse<T>>;
+  ) => Promise<AgentResponse<T>>;
   clusterId: string;
-  params: ResourceFilter;
+  params: AgentFilter;
   pageSize?: number;
 };
 
-type State<T extends UnifiedResource> = {
+type State<T extends AgentKind> = {
   pageIndicators: PageIndicators;
   fetch: () => void;
   fetchNext: (() => void) | null;
@@ -157,7 +157,7 @@ type State<T extends UnifiedResource> = {
   fetchStatus: FetchStatus;
   page: Page;
   pageSize: number;
-  fetchedData: ResourcesResponse<T>;
+  fetchedData: AgentResponse<T>;
 };
 
 /** Contains the values needed to display 'Showing X - X of X' on the top right of the table. */

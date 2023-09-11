@@ -18,7 +18,6 @@ package types
 
 import (
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -470,17 +469,6 @@ func MatchLabels(resource ResourceWithLabels, labels map[string]string) bool {
 	return true
 }
 
-// MatchKinds takes an array of strings that represent a Kind and
-// returns true if the resource's kind matches any item in the given array.
-func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
-	if len(kinds) == 0 {
-		return true
-	}
-	resourceKind := resource.GetKind()
-
-	return slices.Contains(kinds, resourceKind)
-}
-
 // IsValidLabelKey checks if the supplied string matches the
 // label key regexp.
 func IsValidLabelKey(s string) bool {
@@ -521,73 +509,6 @@ func stringCompare(a string, b string, isDesc bool) bool {
 		return a > b
 	}
 	return a < b
-}
-
-var kindsOrder = []string{
-	"app", "db", "windows_desktop", "kube_cluster", "node",
-}
-
-// unifiedKindCompare compares two resource kinds and returns true if a is less than b.
-// Note that it's not just a simple string comparison, since the UI names these
-// kinds slightly differently, and hence uses a different alphabetical order for
-// them.
-//
-// If resources are of the same kind, this function falls back to comparing
-// their unified names.
-func unifiedKindCompare(a, b ResourceWithLabels, isDesc bool) bool {
-	ak := a.GetKind()
-	bk := b.GetKind()
-
-	if ak == bk {
-		return unifiedNameCompare(a, b, isDesc)
-	}
-
-	ia := slices.Index(kindsOrder, ak)
-	ib := slices.Index(kindsOrder, bk)
-	if ia < 0 && ib < 0 {
-		// Fallback for a case of two unknown resources.
-		return stringCompare(ak, bk, isDesc)
-	}
-	if isDesc {
-		return ia > ib
-	}
-	return ia < ib
-}
-
-func unifiedNameCompare(a ResourceWithLabels, b ResourceWithLabels, isDesc bool) bool {
-	var nameA, nameB string
-	resourceA, ok := a.(Server)
-	if ok {
-		nameA = resourceA.GetHostname()
-	} else {
-		nameA = a.GetName()
-	}
-
-	resourceB, ok := b.(Server)
-	if ok {
-		nameB = resourceB.GetHostname()
-	} else {
-		nameB = b.GetName()
-	}
-
-	return stringCompare(nameA, nameB, isDesc)
-}
-
-func (r ResourcesWithLabels) SortByCustom(by SortBy) error {
-	isDesc := by.IsDesc
-	switch by.Field {
-	case ResourceMetadataName:
-		sort.SliceStable(r, func(i, j int) bool {
-			return unifiedNameCompare(r[i], r[j], isDesc)
-		})
-	case ResourceKind:
-		sort.SliceStable(r, func(i, j int) bool {
-			return unifiedKindCompare(r[i], r[j], isDesc)
-		})
-	default:
-		return trace.NotImplemented("sorting by field %q for unified resource %q is not supported", by.Field, KindUnifiedResource)
-	}
-	return nil
 }
 
 // ListResourcesResponse describes a non proto response to ListResources.

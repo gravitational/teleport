@@ -42,7 +42,7 @@ import { ServiceDeployMethod } from './Database/common';
 import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
-import type { ResourceLabel } from 'teleport/services/agents';
+import type { AgentLabel } from 'teleport/services/agents';
 import type { ResourceSpec } from './SelectResource';
 import type {
   AwsRdsDatabase,
@@ -458,7 +458,7 @@ type BaseMeta = {
   // agentMatcherLabels are labels that will be used by the agent
   // to pick up the newly created database (looks for matching labels).
   // At least one must match.
-  agentMatcherLabels: ResourceLabel[];
+  agentMatcherLabels: AgentLabel[];
 };
 
 // NodeMeta describes the fields for node resource

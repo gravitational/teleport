@@ -46,7 +46,7 @@ import {
 
 import { resourceKindToPreferredResource } from 'teleport/Discover/Shared/ResourceKind';
 
-import { DiscoverIcon } from './icons';
+import { icons } from './icons';
 
 import { SearchResource } from './types';
 
@@ -196,7 +196,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
                   )}
                   <Flex px={2} alignItems="center">
                     <Flex mr={3} justifyContent="center" width="24px">
-                      <DiscoverIcon name={r.icon} />
+                      {icons[r.icon]}
                     </Flex>
                     <Box>
                       {pretitle && (
@@ -262,7 +262,7 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
           background: ${props => props.theme.colors.error.main};
         `}
       >
-        <Icons.Cross size="small" />
+        <Icons.Close fontSize="18px" />
       </Box>
       <Text>Clear search</Text>
     </Flex>

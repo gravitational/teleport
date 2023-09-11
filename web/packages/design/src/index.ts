@@ -44,7 +44,6 @@ import Menu, { MenuItem, MenuItemIcon } from './Menu';
 import { Pill } from './Pill';
 import Popover from './Popover';
 import { TextArea } from './TextArea';
-import { ResourceIcon } from './ResourceIcon';
 
 import type { TextAreaProps } from './TextArea';
 
@@ -74,7 +73,6 @@ export {
   Pill,
   Popover,
   Image,
-  ResourceIcon,
   SideNav,
   SideNavItem,
   StepSlider,

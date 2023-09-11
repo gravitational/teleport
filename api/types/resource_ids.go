@@ -52,17 +52,13 @@ func (id *ResourceID) validateK8sSubResource() error {
 	if id.SubResourceName == "" {
 		return trace.BadParameter("resource of kind %q must include a subresource name", id.Kind)
 	}
-	isResourceNamespaceScoped := slices.Contains(KubernetesClusterWideResourceKinds, id.Kind)
+
 	switch split := strings.Split(id.SubResourceName, "/"); {
-	case isResourceNamespaceScoped && len(split) != 1:
-		return trace.BadParameter("subresource %q must follow the following format: <name>", id.SubResourceName)
-	case isResourceNamespaceScoped && split[0] == "":
-		return trace.BadParameter("subresource %q must include a non-empty name: <name>", id.SubResourceName)
-	case !isResourceNamespaceScoped && len(split) != 2:
+	case len(split) != 2:
 		return trace.BadParameter("subresource %q must follow the following format: <namespace>/<name>", id.SubResourceName)
-	case !isResourceNamespaceScoped && split[0] == "":
+	case split[0] == "":
 		return trace.BadParameter("subresource %q must include a non-empty namespace: <namespace>/<name>", id.SubResourceName)
-	case !isResourceNamespaceScoped && split[1] == "":
+	case split[1] == "":
 		return trace.BadParameter("subresource %q must include a non-empty name: <namespace>/<name>", id.SubResourceName)
 	}
 
@@ -97,7 +93,6 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 	}
 	switch {
 	case slices.Contains(KubernetesResourcesKinds, resourceID.Kind):
-		isResourceNamespaceScoped := slices.Contains(KubernetesClusterWideResourceKinds, resourceID.Kind)
 		// Kubernetes forbids slashes "/" in Namespaces and Pod names, so it's safe to
 		// explode the resourceID.Name and extract the last two entries as namespace
 		// and name.
@@ -107,12 +102,9 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 		// will fail because, for kind=pod, it's mandatory to present a non-empty
 		// namespace and name.
 		splits := strings.Split(resourceID.Name, "/")
-		if !isResourceNamespaceScoped && len(splits) >= 3 {
+		if len(splits) >= 3 {
 			resourceID.Name = strings.Join(splits[:len(splits)-2], "/")
 			resourceID.SubResourceName = strings.Join(splits[len(splits)-2:], "/")
-		} else if isResourceNamespaceScoped && len(splits) >= 2 {
-			resourceID.Name = strings.Join(splits[:len(splits)-1], "/")
-			resourceID.SubResourceName = strings.Join(splits[len(splits)-1:], "/")
 		}
 	}
 

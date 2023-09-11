@@ -258,26 +258,11 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 			name:             "db server",
 			searchNotDefined: true,
 			newResource: func(t *testing.T) ResourceWithLabels {
-				db, err := NewDatabaseV3(Metadata{
-					Name:        "foo",
-					Description: "bar",
-					Labels:      labels,
-				}, DatabaseSpecV3{
-					Protocol: "baz",
-					URI:      "_",
-					AWS: AWS{
-						Redshift: Redshift{
-							ClusterID: "_",
-						},
-					},
-				})
-				require.NoError(t, err)
 				dbServer, err := NewDatabaseServerV3(Metadata{
 					Name: "foo",
 				}, DatabaseServerSpecV3{
 					HostID:   "_",
 					Hostname: "_",
-					Database: db,
 				})
 				require.NoError(t, err)
 

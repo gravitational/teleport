@@ -38,7 +38,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/circleci"
@@ -205,7 +204,7 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 
 	// add EC2 Identity Document to params if required for given join method
 	if params.JoinMethod == types.JoinMethodEC2 {
-		if !aws.IsEC2NodeID(params.ID.HostUUID) {
+		if !utils.IsEC2NodeID(params.ID.HostUUID) {
 			return nil, trace.BadParameter(
 				`Host ID %q is not valid when using the EC2 join method, `+
 					`try removing the "host_uuid" file in your teleport data dir `+
@@ -715,6 +714,9 @@ type ReRegisterParams struct {
 	Rotation types.Rotation
 	// SystemRoles is a set of additional system roles held by the instance.
 	SystemRoles []types.SystemRole
+	// Used by older instances to requisition a multi-role cert by individually
+	// proving which system roles are held.
+	UnstableSystemRoleAssertionID string
 }
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
@@ -728,15 +730,16 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	}
 	certs, err := params.Client.GenerateHostCerts(context.Background(),
 		&proto.HostCertsRequest{
-			HostID:               params.ID.HostID(),
-			NodeName:             params.ID.NodeName,
-			Role:                 params.ID.Role,
-			AdditionalPrincipals: params.AdditionalPrincipals,
-			DNSNames:             params.DNSNames,
-			PublicTLSKey:         params.PublicTLSKey,
-			PublicSSHKey:         params.PublicSSHKey,
-			Rotation:             rotation,
-			SystemRoles:          params.SystemRoles,
+			HostID:                        params.ID.HostID(),
+			NodeName:                      params.ID.NodeName,
+			Role:                          params.ID.Role,
+			AdditionalPrincipals:          params.AdditionalPrincipals,
+			DNSNames:                      params.DNSNames,
+			PublicTLSKey:                  params.PublicTLSKey,
+			PublicSSHKey:                  params.PublicSSHKey,
+			Rotation:                      rotation,
+			SystemRoles:                   params.SystemRoles,
+			UnstableSystemRoleAssertionID: params.UnstableSystemRoleAssertionID,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

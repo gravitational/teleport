@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // TestRDSFetchers tests RDS instance fetcher and Aurora cluster fetcher (as
@@ -206,7 +205,6 @@ func makeRDSInstance(t *testing.T, name, region string, labels map[string]string
 	instance := mocks.RDSInstance(name, region, labels, opts...)
 	database, err := services.NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRDS)
 	return instance, database
 }
 
@@ -214,7 +212,6 @@ func makeRDSCluster(t *testing.T, name, region string, labels map[string]string,
 	cluster := mocks.RDSCluster(name, region, labels, opts...)
 	database, err := services.NewDatabaseFromRDSCluster(cluster)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRDS)
 	return cluster, database
 }
 
@@ -249,9 +246,6 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 	require.NoError(t, err)
 	databases = append(databases, customDatabases...)
 
-	for _, db := range databases {
-		common.ApplyAWSDatabaseNameSuffix(db, services.AWSMatcherRDS)
-	}
 	return cluster, databases
 }
 

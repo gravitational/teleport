@@ -36,7 +36,7 @@ export default {
     Story => {
       // Reset request handlers added in individual stories.
       worker.resetHandlers();
-      clearCachedJoinTokenResult([ResourceKind.Server]);
+      clearCachedJoinTokenResult(ResourceKind.Server);
       return <Story />;
     },
   ],

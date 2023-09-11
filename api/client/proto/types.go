@@ -65,20 +65,6 @@ func (req *ListResourcesRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CheckAndSetDefaults checks and sets default values.
-func (req *ListUnifiedResourcesRequest) CheckAndSetDefaults() error {
-	// If the Limit parameter was not provided instead of returning an error fallback to the default limit.
-	if req.Limit == 0 {
-		req.Limit = apidefaults.DefaultChunkSize
-	}
-
-	if req.Limit < 0 {
-		return trace.BadParameter("negative parameter: limit")
-	}
-
-	return nil
-}
-
 // RequiresFakePagination checks if we need to fallback to GetXXX calls
 // that retrieves entire resources upfront rather than working with subsets.
 func (req *ListResourcesRequest) RequiresFakePagination() bool {

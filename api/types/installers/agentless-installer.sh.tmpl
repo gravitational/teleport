@@ -79,11 +79,9 @@ get_labels() {
 }
 
 install_teleport() {
-  # shellcheck disable=SC1091
   . /etc/os-release
 
   PACKAGE_LIST="jq {{ .TeleportPackage }}"
-  # shellcheck disable=SC2050
   if [[ "{{ .AutomaticUpgrades }}" == "true" ]]; then
     PACKAGE_LIST="${PACKAGE_LIST} {{ .TeleportPackage }}-updater"
   fi
@@ -93,7 +91,7 @@ install_teleport() {
     # adding the key apt shows a key signing error when installing teleport.
     if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
       curl -o /tmp/teleport-pubkey.asc https://apt.releases.teleport.dev/gpg
-      sudo apt-key add /tmp/teleport-pubkey.asc
+      cat /tmp/teleport-pubkey.asc | sudo apt-key add -
       echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list
       rm /tmp/teleport-pubkey.asc
     else
@@ -104,7 +102,7 @@ install_teleport() {
     sudo apt-get install -y ${PACKAGE_LIST}
   elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
     if [ "$ID" = "rhel" ]; then
-      VERSION_ID=${VERSION_ID//\.*/} # convert version numbers like '7.2' to only include the major version
+      VERSION_ID=$(echo "$VERSION_ID" | sed 's/\..*//') # convert version numbers like '7.2' to only include the major version
     fi
     sudo yum-config-manager --add-repo \
       "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
@@ -121,7 +119,7 @@ install_teleport() {
   TOKEN="$1"
 
   if ! test -f /usr/local/bin/teleport; then
-    install_teleport
+	  install_teleport
   fi
 
   IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")

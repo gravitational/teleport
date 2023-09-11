@@ -72,20 +72,12 @@ type Database struct {
 	Azure DatabaseAzure
 	// AdminUser contains information about database admin user.
 	AdminUser DatabaseAdminUser
-	// Oracle are additional Oracle database options.
-	Oracle OracleOptions
 }
 
-// DatabaseAdminUser contains information about database admin user.
+// DatabaesAdminUser contains information about database admin user.
 type DatabaseAdminUser struct {
 	// Name is the database admin username (e.g. "postgres").
 	Name string
-}
-
-// OracleOptions are additional Oracle options.
-type OracleOptions struct {
-	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
-	AuditUser string
 }
 
 // CheckAndSetDefaults validates the database proxy configuration.
@@ -160,7 +152,6 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		AdminUser: &types.DatabaseAdminUser{
 			Name: d.AdminUser.Name,
 		},
-		Oracle: convOracleOptions(d.Oracle),
 		AWS: types.AWS{
 			AccountID:     d.AWS.AccountID,
 			AssumeRoleARN: d.AWS.AssumeRoleARN,
@@ -206,12 +197,6 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			IsFlexiServer: d.Azure.IsFlexiServer,
 		},
 	})
-}
-
-func convOracleOptions(o OracleOptions) types.OracleOptions {
-	return types.OracleOptions{
-		AuditUser: o.AuditUser,
-	}
 }
 
 // MySQLOptions are additional MySQL options.

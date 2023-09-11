@@ -96,20 +96,12 @@ reflected in both the tab title and the status bar.
 1. Select the Kubes section.
 1. Look for the cluster you wish to connect to and click the Connect button to the right.
 
-Alternatively, you can look for the cluster in the search bar and press `Enter`
-to connect to it.
+A new local terminal tab will open which is preconfigured with the `$KUBECONFIG` environment variable
+pointing to a configuration for the specified cluster. Any tools that you have installed that respect
+the `$KUBECONFIG` environment variable (`kubectl`, `helm`, etc.) will work without additional configuration.
+To identify the path to this config for use in other tools, run `echo $KUBECONFIG`.
 
-A new local terminal tab will open which is preconfigured with the `KUBECONFIG`
-environment variable pointing to a configuration for the specified cluster. Any
-tools that respect the `KUBECONFIG` environment variable (`kubectl`, `helm`,
-etc.) will work without additional configuration. To identify the path to this
-config for use in other tools, inspect the value of the `KUBECONFIG`
-environment variable.
-
-The value of the `KUBECONFIG` environment variable will persist between app
-restarts, but this configuration file will not be available or usable when the
-Kubernetes cluster is removed from the connection list in the top left, or when
-Teleport Connect is closed.
+Alternatively, you can look for the cluster in the search bar and press `Enter` to connect to it.
 
 ## Connecting to a database
 

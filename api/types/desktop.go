@@ -131,10 +131,6 @@ type WindowsDesktop interface {
 	// NonAD checks whether this is a standalone host that
 	// is not joined to an Active Directory domain.
 	NonAD() bool
-	// Copy returns a copy of this windows desktop
-	Copy() *WindowsDesktopV3
-	// CloneResource returns a copy of the WindowDesktop as a ResourceWithLabels
-	CloneResource() ResourceWithLabels
 }
 
 var _ WindowsDesktop = &WindowsDesktopV3{}
@@ -201,15 +197,6 @@ func (d *WindowsDesktopV3) MatchSearch(values []string) bool {
 	return MatchSearch(fieldVals, values, nil)
 }
 
-// Copy returns a copy of this windows desktop object.
-func (d *WindowsDesktopV3) Copy() *WindowsDesktopV3 {
-	return utils.CloneProtoMsg(d)
-}
-
-func (d *WindowsDesktopV3) CloneResource() ResourceWithLabels {
-	return d.Copy()
-}
-
 // DeduplicateDesktops deduplicates desktops by name.
 func DeduplicateDesktops(desktops []WindowsDesktop) (result []WindowsDesktop) {
 	seen := make(map[string]struct{})
@@ -234,7 +221,7 @@ func (f *WindowsDesktopFilter) Match(req WindowsDesktop) bool {
 	return true
 }
 
-// WindowsDesktops represents a list of Windows desktops.
+// WindowsDesktops represents a list of windows desktops.
 type WindowsDesktops []WindowsDesktop
 
 // Len returns the slice length.

@@ -233,19 +233,14 @@ async function setUpPtyProcess(
   if (doc.kind === 'doc.terminal_tsh_node') {
     ctx.usageService.captureProtocolUse(clusterUri, 'ssh', doc.origin);
   }
-  if (doc.kind === 'doc.terminal_tsh_kube' || doc.kind === 'doc.gateway_kube') {
+  if (doc.kind === 'doc.terminal_tsh_kube') {
     ctx.usageService.captureProtocolUse(clusterUri, 'kube', doc.origin);
   }
 
   const openContextMenu = () => ctx.mainProcessClient.openTerminalContextMenu();
 
   const refreshTitle = async () => {
-    // TODO(ravicious): Enable updating cwd in doc.gateway_kube titles by
-    // moving title-updating logic to DocumentsService. The logic behind
-    // updating the title should be encapsulated in a single place, so that
-    // useDocumentTerminal doesn't need to know the details behind the title of
-    // each document kind.
-    if (doc.kind !== 'doc.terminal_shell') {
+    if (cmd.kind !== 'pty.shell') {
       return;
     }
 
@@ -352,7 +347,6 @@ function createCmd(
     };
   }
 
-  // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
   if (doc.kind === 'doc.terminal_tsh_kube') {
     return {
       ...doc,
@@ -392,39 +386,6 @@ function createCmd(
       env,
       proxyHost,
       clusterName,
-    };
-  }
-
-  if (doc.kind === 'doc.gateway_kube') {
-    const gateway = clustersService.findGatewayByConnectionParams(
-      doc.targetUri,
-      ''
-    );
-    if (!gateway) {
-      throw new Error(`No gateway found for ${doc.targetUri}`);
-    }
-
-    const env = tshdGateway.getCliCommandEnv(gateway.gatewayCliCommand);
-
-    if ('KUBECONFIG' in env === false) {
-      // This shouldn't happen as 'KUBECONFIG' is the sole purpose of the CLI
-      // command for a kube gateway.
-      throw new Error(
-        `No KUBECONFIG provided for gateway ${gateway.targetUri}`
-      );
-    }
-    const initMessage =
-      `Started a local proxy for Kubernetes cluster "${gateway.targetName}".\r\n\r\n` +
-      'The KUBECONFIG env var can be used with third-party tools as long as the proxy is running.\r\n' +
-      'Close the proxy from Connections in the top left corner or by closing Teleport Connect.\r\n\r\n' +
-      'Try "kubectl version" to test the connection.\r\n\r\n';
-
-    return {
-      kind: 'pty.shell',
-      proxyHost,
-      clusterName,
-      env,
-      initMessage,
     };
   }
 

@@ -419,14 +419,6 @@ func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CheckAndSetDefaults validates and set the default values
-func (s *PluginOpsgenieAccessSettings) CheckAndSetDefaults() error {
-	if s.ApiEndpoint == "" {
-		return trace.BadParameter("opsgenie api endpoint url must be set")
-	}
-	return nil
-}
-
 // CheckAndSetDefaults validates and set the default values.
 func (s *PluginJamfSettings) CheckAndSetDefaults() error {
 	if s.JamfSpec.ApiEndpoint == "" {
@@ -449,6 +441,14 @@ func (s *PluginJiraSettings) CheckAndSetDefaults() error {
 		return trace.BadParameter("Jira issue type must be set")
 	}
 
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default values
+func (s *PluginOpsgenieAccessSettings) CheckAndSetDefaults() error {
+	if s.ApiEndpoint == "" {
+		return trace.BadParameter("opsgenie api endpoint url must be set")
+	}
 	return nil
 }
 

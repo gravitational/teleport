@@ -135,7 +135,7 @@ const (
 
 	// ReadHeadersTimeout is a default TCP timeout when we wait
 	// for the response headers to arrive
-	ReadHeadersTimeout = 10 * time.Second
+	ReadHeadersTimeout = time.Second
 
 	// DatabaseConnectTimeout is a timeout for connecting to a database via
 	// database access.
@@ -321,9 +321,6 @@ const (
 	// ProxyQueueSize is proxy service queue size
 	ProxyQueueSize = 8192
 
-	// UnifiedResourcesQueueSize is the unified resource watcher queue size
-	UnifiedResourcesQueueSize = 8192
-
 	// NodeQueueSize is node service queue size
 	NodeQueueSize = 128
 
@@ -363,6 +360,17 @@ const (
 	// LimiterMaxConcurrentSignatures limits maximum number of concurrently
 	// generated signatures by the auth server
 	LimiterMaxConcurrentSignatures = 10
+)
+
+// Default rate limits for unauthenticated passwordless endpoints.
+const (
+	// LimiterPasswordlessPeriod is the default period for passwordless limiters.
+	LimiterPasswordlessPeriod = 1 * time.Minute
+	// LimiterPasswordlessAverage is the default average for passwordless
+	// limiters.
+	LimiterPasswordlessAverage = 10
+	// LimiterPasswordlessBurst is the default burst for passwordless limiters.
+	LimiterPasswordlessBurst = 20
 )
 
 // Default rate limits for unauthenticated endpoints.
@@ -455,11 +463,6 @@ const (
 	ProtocolOpenSearch = "opensearch"
 	// ProtocolDynamoDB is the DynamoDB database protocol.
 	ProtocolDynamoDB = "dynamodb"
-	// ProtocolClickHouse is the ClickHouse database native write protocol.
-	// (https://clickhouse.com/docs/en/interfaces/tcp)
-	ProtocolClickHouse = "clickhouse"
-	// ProtocolClickHouseHTTP is the ClickHouse database HTTP protocol.
-	ProtocolClickHouseHTTP = "clickhouse-http"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -476,11 +479,9 @@ var DatabaseProtocols = []string{
 	ProtocolElasticsearch,
 	ProtocolOpenSearch,
 	ProtocolDynamoDB,
-	ProtocolClickHouse,
-	ProtocolClickHouseHTTP,
 }
 
-// ReadableDatabaseProtocol returns a more human-readable string of the
+// ReadableDatabaseProtocol returns a more human readable string of the
 // provided database protocol.
 func ReadableDatabaseProtocol(p string) string {
 	switch p {
@@ -508,10 +509,6 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Cassandra"
 	case ProtocolDynamoDB:
 		return "DynamoDB"
-	case ProtocolClickHouse:
-		return "Clickhouse"
-	case ProtocolClickHouseHTTP:
-		return "Clickhouse (HTTP)"
 	default:
 		// Unknown protocol. Return original string.
 		return p

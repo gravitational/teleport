@@ -45,7 +45,7 @@ func TestRun_Configure(t *testing.T) {
 		return cpy
 	}
 
-	baseArgs := []string{"configure", "--join-method", "token"}
+	baseArgs := []string{"configure"}
 	tests := []struct {
 		name string
 		args []string

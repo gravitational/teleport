@@ -14,11 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { ResourceLabel } from 'teleport/services/agents';
+import { AgentLabel } from 'teleport/services/agents';
 
 // Desktop is a remote desktop.
 export type Desktop = {
-  kind: 'windows_desktop';
   // OS is the os of this desktop.
   os: 'windows' | 'linux' | 'darwin';
   // Name is name (uuid) of the windows desktop.
@@ -26,7 +25,7 @@ export type Desktop = {
   // Addr is the network address the desktop can be reached at.
   addr: string;
   // Labels.
-  labels: ResourceLabel[];
+  labels: AgentLabel[];
   // The list of logins this user can use on this desktop.
   logins: string[];
 
@@ -36,7 +35,6 @@ export type Desktop = {
 
 // DesktopService is a Windows Desktop Service.
 export type WindowsDesktopService = {
-  kind: 'windows_desktop_service';
   // Name is name (uuid) of the windows desktop service.
   name: string;
   // Hostname is the hostname of the windows desktop service.
@@ -44,7 +42,7 @@ export type WindowsDesktopService = {
   // Addr is the network address the desktop service can be reached at.
   addr: string;
   // Labels.
-  labels: ResourceLabel[];
+  labels: AgentLabel[];
 };
 
 export type WindowsDesktopServicesResponse = {

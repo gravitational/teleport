@@ -30,7 +30,6 @@ test('correct formatting of database fetch response', async () => {
   expect(response).toEqual({
     agents: [
       {
-        kind: 'db',
         name: 'aurora',
         description: 'PostgreSQL 11.6: AWS Aurora',
         type: 'Amazon RDS PostgreSQL',
@@ -51,7 +50,6 @@ test('correct formatting of database fetch response', async () => {
         },
       },
       {
-        kind: 'db',
         name: 'self-hosted',
         type: 'Self-hosted PostgreSQL',
         protocol: 'postgres',

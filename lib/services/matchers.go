@@ -17,8 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -142,19 +140,18 @@ type ResourceSeenKey struct{ name, addr string }
 // is not provided but is provided for kind `KubernetesCluster`.
 func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter, seenMap map[ResourceSeenKey]struct{}) (bool, error) {
 	var specResource types.ResourceWithLabels
-	resourceKind := resource.GetKind()
 
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	resourceKey := ResourceSeenKey{}
-	switch resourceKind {
+	switch filter.ResourceKind {
 	case types.KindNode,
 		types.KindDatabaseService,
-		types.KindKubernetesCluster,
+		types.KindKubernetesCluster, types.KindKubePod,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
 		types.KindUserGroup:
 		specResource = resource
-		resourceKey.name = fmt.Sprintf("%s/%s", specResource.GetName(), resourceKind)
+		resourceKey.name = specResource.GetName()
 
 	case types.KindKubeServer:
 		if seenMap != nil {
@@ -162,41 +159,44 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		}
 		return matchAndFilterKubeClusters(resource, filter)
 
+	case types.KindAppServer:
+		server, ok := resource.(types.AppServer)
+		if !ok {
+			return false, trace.BadParameter("expected types.AppServer, got %T", resource)
+		}
+		specResource = server.GetApp()
+		app := server.GetApp()
+		resourceKey.name = app.GetName()
+		resourceKey.addr = app.GetPublicAddr()
+
 	case types.KindDatabaseServer:
 		server, ok := resource.(types.DatabaseServer)
 		if !ok {
 			return false, trace.BadParameter("expected types.DatabaseServer, got %T", resource)
 		}
 		specResource = server.GetDatabase()
-		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
+		resourceKey.name = specResource.GetName()
 
-	case types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
+	case types.KindAppOrSAMLIdPServiceProvider:
 		switch appOrSP := resource.(type) {
 		case types.AppServer:
 			app := appOrSP.GetApp()
 			specResource = app
-			resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
+			resourceKey.name = app.GetName()
 			resourceKey.addr = app.GetPublicAddr()
 		case types.SAMLIdPServiceProvider:
 			specResource = appOrSP
-			resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
+			resourceKey.name = appOrSP.GetName()
 		default:
 			return false, trace.BadParameter("expected types.SAMLIdPServiceProvider or types.AppServer, got %T", resource)
 		}
 	default:
-		// We check if the resource kind is a Kubernetes resource kind to reduce the amount of
-		// of cases we need to handle. If the resource type didn't match any arm before
-		// and it is not a Kubernetes resource kind, we return an error.
-		if !slices.Contains(types.KubernetesResourcesKinds, filter.ResourceKind) {
-			return false, trace.NotImplemented("filtering for resource kind %q not supported", resourceKind)
-		}
-		specResource = resource
-		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
+		return false, trace.NotImplemented("filtering for resource kind %q not supported", filter.ResourceKind)
 	}
 
 	var match bool
 
-	if filter.IsSimple() {
+	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" {
 		match = true
 	}
 
@@ -234,10 +234,6 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		}
 	}
 
-	if !types.MatchKinds(resource, filter.Kinds) {
-		return false, nil
-	}
-
 	if !types.MatchLabels(resource, filter.Labels) {
 		return false, nil
 	}
@@ -256,7 +252,7 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 //     modified in place with only the matched clusters
 //  3. only returns true if the service contained any matched cluster
 func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
-	if filter.IsSimple() {
+	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" {
 		return true, nil
 	}
 
@@ -283,19 +279,6 @@ type MatchResourceFilter struct {
 	SearchKeywords []string
 	// PredicateExpression holds boolean conditions that must be matched.
 	PredicateExpression string
-	// Kinds is a list of resourceKinds to be used when doing a unified resource query.
-	// It will filter out any kind not present in the list. If the list is not present or empty
-	// then all kinds are valid and will be returned (still subject to other included filters)
-	Kinds []string
-}
-
-// IsSimple is used to short-circuit matching when a filter doesn't specify anything more
-// specific than resource kind.
-func (m *MatchResourceFilter) IsSimple() bool {
-	return len(m.Labels) == 0 &&
-		len(m.SearchKeywords) == 0 &&
-		m.PredicateExpression == "" &&
-		len(m.Kinds) == 0
 }
 
 const (
@@ -385,15 +368,4 @@ const (
 var SupportedGCPMatchers = []string{
 	GCPMatcherKubernetes,
 	GCPMatcherCompute,
-}
-
-const (
-	// KubernetesMatchersApp is app matcher type for Kubernetes services
-	KubernetesMatchersApp = "app"
-)
-
-// SupportedKubernetesMatchers is a list of Kubernetes matchers supported by
-// Teleport discovery service
-var SupportedKubernetesMatchers = []string{
-	KubernetesMatchersApp,
 }

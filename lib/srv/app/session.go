@@ -20,10 +20,12 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/sirupsen/logrus"
@@ -34,8 +36,8 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/recorder"
-	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/events/filesessions"
+	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -111,17 +113,14 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 	}
 
 	// Create the stream writer that will write this chunk to the audit log.
-	// Audit stream is using server context, not session context,
-	// to make sure that session is uploaded even after it is closed.
-	rec, err := s.newSessionRecorder(s.closeContext, sess.id)
+	streamWriter, err := s.newStreamWriter(sess.id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess.streamCloser = rec
+	sess.streamCloser = streamWriter
 
 	audit, err := common.NewAudit(common.AuditConfig{
-		Emitter:  s.c.Emitter,
-		Recorder: rec,
+		Emitter: streamWriter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -197,17 +196,19 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 		return trace.Wrap(err)
 	}
 
-	delegate := reverseproxy.NewHeaderRewriter()
-	sess.handler, err = reverseproxy.New(
-		reverseproxy.WithFlushInterval(100*time.Millisecond),
-		reverseproxy.WithRoundTripper(transport),
-		reverseproxy.WithLogger(sess.log),
-		reverseproxy.WithRewriter(common.NewHeaderRewriter(delegate)),
+	delegate := forward.NewHeaderRewriter()
+	fwd, err := forward.New(
+		forward.FlushInterval(100*time.Millisecond),
+		forward.RoundTripper(transport),
+		forward.Logger(logrus.StandardLogger()),
+		forward.WebsocketRewriter(common.NewHeaderRewriter(transport.ws, delegate)),
+		forward.WebsocketDial(transport.ws.dialer),
+		forward.Rewriter(common.NewHeaderRewriter(delegate)),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	sess.handler = fwd
 	return nil
 }
 
@@ -284,11 +285,11 @@ func (s *Server) closeSession(sess *sessionChunk) {
 	}
 }
 
-// newSessionRecorder creates a session stream that will be used to record
+// newStreamWriter creates a session stream that will be used to record
 // requests that occur within this session chunk and upload the recording
 // to the Auth server.
-func (s *Server) newSessionRecorder(ctx context.Context, chunkID string) (events.SessionPreparerRecorder, error) {
-	recConfig, err := s.c.AccessPoint.GetSessionRecordingConfig(ctx)
+func (s *Server) newStreamWriter(chunkID string) (events.StreamWriter, error) {
+	recConfig, err := s.c.AccessPoint.GetSessionRecordingConfig(s.closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -298,23 +299,51 @@ func (s *Server) newSessionRecorder(ctx context.Context, chunkID string) (events
 		return nil, trace.Wrap(err)
 	}
 
-	rec, err := recorder.New(recorder.Config{
-		SessionID:    rsession.ID(chunkID),
-		ServerID:     s.c.HostID,
-		Namespace:    apidefaults.Namespace,
+	// Create a sync or async streamer depending on configuration of cluster.
+	streamer, err := s.newStreamer(chunkID, recConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	streamWriter, err := events.NewAuditWriter(events.AuditWriterConfig{
+		// Audit stream is using server context, not session context,
+		// to make sure that session is uploaded even after it is closed
+		Context:      s.closeContext,
+		Streamer:     streamer,
 		Clock:        s.c.Clock,
+		SessionID:    rsession.ID(chunkID),
+		Namespace:    apidefaults.Namespace,
+		ServerID:     s.c.HostID,
+		RecordOutput: recConfig.GetMode() != types.RecordOff,
+		Component:    teleport.ComponentApp,
 		ClusterName:  clusterName.GetClusterName(),
-		RecordingCfg: recConfig,
-		SyncStreamer: s.c.AuthClient,
-		DataDir:      s.c.DataDir,
-		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentApp),
-		Context:      ctx,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return rec, nil
+	return streamWriter, nil
+}
+
+// newStreamer returns sync or async streamer based on the configuration
+// of the server and the session, sync streamer sends the events
+// directly to the auth server and blocks if the events can not be received,
+// async streamer buffers the events to disk and uploads the events later
+func (s *Server) newStreamer(chunkID string, recConfig types.SessionRecordingConfig) (events.Streamer, error) {
+	if services.IsRecordSync(recConfig.GetMode()) {
+		s.log.Debugf("Using sync streamer for session chunk %v.", chunkID)
+		return s.c.AuthClient, nil
+	}
+
+	s.log.Debugf("Using async streamer for session chunk %v.", chunkID)
+	uploadDir := filepath.Join(
+		s.c.DataDir, teleport.LogsDir, teleport.ComponentUpload,
+		events.StreamingSessionsDir, apidefaults.Namespace,
+	)
+	fileStreamer, err := filesessions.NewStreamer(uploadDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return events.NewTeeStreamer(fileStreamer, s.c.Emitter), nil
 }
 
 // createTracker creates a new session tracker for the session chunk.
@@ -333,7 +362,6 @@ func (s *Server) createTracker(sess *sessionChunk, identity *tlsca.Identity, app
 		Created:      s.c.Clock.Now(),
 		AppName:      appName, // app name is only present in RouteToApp for CLI sessions
 		AppSessionID: identity.RouteToApp.SessionID,
-		HostID:       s.c.HostID,
 	}
 
 	s.log.Debugf("Creating tracker for session chunk %v", sess.id)

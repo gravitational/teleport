@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 )
 
 func TestRemoteClientCache(t *testing.T) {
@@ -57,12 +57,12 @@ func TestRemoteClientCache(t *testing.T) {
 	require.Zero(t, openCount.Load())
 }
 
-func newMockRemoteSite(name string) reversetunnelclient.RemoteSite {
+func newMockRemoteSite(name string) reversetunnel.RemoteSite {
 	return &mockRemoteSite{name: name}
 }
 
 type mockRemoteSite struct {
-	reversetunnelclient.RemoteSite
+	reversetunnel.RemoteSite
 	name string
 }
 
@@ -98,7 +98,7 @@ func TestGetUserClient(t *testing.T) {
 	sctx := SessionContext{
 		cfg: SessionContextConfig{
 			RootClusterName: "local",
-			newRemoteClient: func(ctx context.Context, sessionContext *SessionContext, site reversetunnelclient.RemoteSite) (auth.ClientI, error) {
+			newRemoteClient: func(ctx context.Context, sessionContext *SessionContext, site reversetunnel.RemoteSite) (auth.ClientI, error) {
 				return newMockClientI(&openCount, nil), nil
 			},
 		},

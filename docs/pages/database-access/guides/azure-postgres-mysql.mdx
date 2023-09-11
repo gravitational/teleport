@@ -56,7 +56,7 @@ Create the Database Service configuration.
   URI (e.g. `mytenant.teleport.sh:443`):
 
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
     -o file \
     --proxy=teleport.example.com:443 \
     --token=/tmp/token \
@@ -72,7 +72,7 @@ Create the Database Service configuration.
   URI (e.g. `mytenant.teleport.sh:443`):
 
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
     -o file \
     --proxy=teleport.example.com:443 \
     --token=/tmp/token \
@@ -86,7 +86,7 @@ Create the Database Service configuration.
 Run the following command on your Database Service host:
 
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
     -o file \
     --proxy=teleport.example.com:443 \
     --token=/tmp/token \
@@ -145,9 +145,9 @@ spec:
 
 | Flag                       | Description                                                                                                                              |
 |----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `--db-users` | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
-| `--db-names` | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
-| `--db-labels` | List of labels assigned to the database the user will be able to access. A wildcard entry allows any database.                           |
+| <nobr>`--db-users`</nobr>  | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
+| <nobr>`--db-names`</nobr>  | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
+| <nobr>`--db-labels`</nobr> | List of labels assigned to the database the user will be able to access. A wildcard entry allows any database.                           |
 
 Save this file and apply it to your Teleport cluster:
 

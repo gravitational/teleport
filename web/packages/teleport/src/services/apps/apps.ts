@@ -16,7 +16,7 @@
 
 import api from 'teleport/services/api';
 import cfg, { UrlAppParams, UrlResourcesParams } from 'teleport/config';
-import { ResourcesResponse } from 'teleport/services/agents';
+import { AgentResponse } from 'teleport/services/agents';
 
 import makeApp from './makeApps';
 import { App } from './types';
@@ -25,7 +25,7 @@ const service = {
   fetchApps(
     clusterId: string,
     params: UrlResourcesParams
-  ): Promise<ResourcesResponse<App>> {
+  ): Promise<AgentResponse<App>> {
     return api.get(cfg.getApplicationsUrl(clusterId, params)).then(json => {
       const items = json?.items || [];
 

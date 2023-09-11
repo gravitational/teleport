@@ -35,7 +35,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -136,8 +135,6 @@ func (e *Engine) SendError(err error) {
 }
 
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
-	observe := common.GetConnectionSetupTimeObserver(sessionCtx.Database)
-
 	var err error
 	e.accountName, e.snowflakeHost, err = parseConnectionString(sessionCtx.Database.GetURI())
 	if err != nil {
@@ -153,18 +150,13 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	clientConnReader := bufio.NewReader(e.clientConn)
 
-	observe()
-
-	msgFromClient := common.GetMessagesFromClientMetric(e.sessionCtx.Database)
-	msgFromServer := common.GetMessagesFromServerMetric(e.sessionCtx.Database)
-
 	for {
 		req, err := http.ReadRequest(clientConnReader)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		err = e.process(ctx, sessionCtx, req, msgFromClient, msgFromServer)
+		err = e.process(ctx, sessionCtx, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -173,9 +165,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 // process reads request from connected Snowflake client, processes the requests/responses and send data back
 // to the client.
-func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) error {
-	msgFromClient.Inc()
-
+func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request) error {
 	snowflakeToken, err := e.getConnectionToken(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -203,8 +193,6 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 		return trace.Wrap(err)
 	}
 	defer resp.Body.Close()
-
-	msgFromServer.Inc()
 
 	switch req.URL.Path {
 	case loginRequestPath:

@@ -25,7 +25,7 @@ import {
   useJoinTokenSuspender,
 } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
-import { ResourceLabel } from 'teleport/services/agents';
+import { AgentLabel } from 'teleport/services/agents';
 import cfg from 'teleport/config';
 import { Database } from 'teleport/services/databases';
 
@@ -82,19 +82,14 @@ export default function Container({ toggleDeployMethod }: DeployServiceProp) {
     <Validation>
       {({ validator }) => (
         <CatchError
-          onRetry={() => clearCachedJoinTokenResult([ResourceKind.Database])}
+          onRetry={() => clearCachedJoinTokenResult(ResourceKind.Database)}
           fallbackFn={fbProps => (
             <Box>
               {heading}
               <Labels {...labelProps} />
               <Box>
                 <TextIcon mt={3}>
-                  <Icons.Warning
-                    size="medium"
-                    ml={1}
-                    mr={2}
-                    color="error.main"
-                  />
+                  <Icons.Warning ml={1} color="error.main" />
                   Encountered Error: {fbProps.error.message}
                 </TextIcon>
               </Box>
@@ -133,9 +128,9 @@ export default function Container({ toggleDeployMethod }: DeployServiceProp) {
 }
 
 export function ManualDeploy(props: {
-  labels: ResourceLabel[];
-  setLabels(l: ResourceLabel[]): void;
-  dbLabels: ResourceLabel[];
+  labels: AgentLabel[];
+  setLabels(l: AgentLabel[]): void;
+  dbLabels: AgentLabel[];
   validator: Validator;
   toggleDeployMethod(): void;
 }) {
@@ -143,7 +138,7 @@ export function ManualDeploy(props: {
 
   // Fetches join token.
   const { joinToken } = useJoinTokenSuspender(
-    [ResourceKind.Database],
+    ResourceKind.Database,
     props.labels
   );
 
@@ -211,7 +206,7 @@ export function ManualDeploy(props: {
             white-space: pre;
           `}
         >
-          <Icons.Restore size="medium" mr={2} />
+          <Icons.Restore fontSize={4} />
         </TextIcon>
         After running the command above, we'll automatically detect your new
         Teleport database service.

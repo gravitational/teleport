@@ -90,7 +90,14 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] Login via platform authenticator
       - [ ] Touch ID
       - [ ] Windows Hello
-    - [ ] Login via WebAuthn using an U2F/CTAP1 device
+    - [ ] Login via WebAuthn using an U2F device
+
+    U2F devices must be registered in a previous version of Teleport.
+
+    Using Teleport v9, set `auth_service.authentication.second_factor = u2f`,
+    restart the server and then register an U2F device (`tsh mfa add`). Upgrade
+    the installation to the current Teleport version (one major at a time) and try to
+    log in using the U2F device as your second factor - it should work.
 
   - [ ] Login OIDC
   - [ ] Login SAML
@@ -100,10 +107,8 @@ as well as an upgrade of the previous version of Teleport.
 - [ ] Backends
   - [ ] Teleport runs with etcd
   - [ ] Teleport runs with dynamodb
-    - [ ] AWS integration tests are passing
   - [ ] Teleport runs with SQLite
   - [ ] Teleport runs with Firestore
-    - [ ] GCP integration tests are passing
 
 - [ ] Session Recording
   - [ ] Session recording can be disabled
@@ -125,10 +130,6 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Network request are blocked when a policy deny them.
 
 - [ ] Audit Log
-  - [ ] Audit log with dynamodb
-    - [ ] AWS integration tests are passing
-  - [ ] Audit log with Firestore
-    - [ ] GCP integration tests are passing
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID
     - [ ] `server_id` is the ID of the node in "session_recording: node" mode
@@ -429,8 +430,6 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
     - [ ] OIDC Screenshots are up-to-date
 - [ ] All providers with guides in docs are covered in this test plan
 - [ ] Login Rules work to transform traits from SSO provider
-- [ ] SAML IdP guide instructions work
-    - [ ] SAML IdP screenshots are up to date
 
 ### GitHub External SSO
 
@@ -480,11 +479,10 @@ connectors are accepted, invalid are rejected with sensible error messages.
 - [ ] Join a Teleport node running in the same Kubernetes cluster via a Kubernetes ProvisionToken
 
 ### Azure Node Joining
-[Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/azure/)
+[Docs](https://goteleport.com/docs/management/guides/joining-nodes-azure/)
 - [ ] Join a Teleport node running in an Azure VM
 
 ### GCP Node Joining
-[Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/gcp/)
 - [ ] Join a Teleport node running in a GCP VM.
 
 ### Cloud Labels
@@ -844,7 +842,7 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Test Applications screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all apps registered are shown
   - [ ] Verify that clicking on the app icon takes you to another tab
-  - [ ] Verify `Add Application` links to documentation.
+  - [ ] Verify using the bash command produced from `Add Application` dialogue works (refresh app screen to see it registered)
 
 ## Database Access
 
@@ -1155,16 +1153,6 @@ tsh bench web sessions --max=5000 --web user ls
   - Set up Teleport in a trusted cluster configuration where the root and leaf cluster has a w_d_s connected via tunnel (w_d_s running as a separate process)
     - [ ] Confirm that windows desktop sessions can be made on root cluster
     - [ ] Confirm that windows desktop sessions can be made on leaf cluster
-- Non-AD setup
-  - [ ] Installer in GUI mode finishes successfully on instance that is not part of domain
-  - [ ] Installer works correctly invoked from command line
-  - [ ] Non-AD instance can be added to `non_ad_hosts` section in config file and is visible in UI
-  - [ ] Non-AD can be added as dynamic resource and is visible in UI
-  - [ ] Non-AD instance has label `teleport.dev/ad: false`
-  - [ ] Connecting to non-AD instance works with Enterprise license
-  - [ ] Connecting to non-AD instance fails with OSS
-  - [ ] Installer in GUI mode successfully uninstalls Authentication Package (logging in is not possible)
-  - [ ] Installer successfully uninstalls Authentication Package (logging in is not possible) when invoked from command line
 
 ## Binaries compatibility
 
@@ -1240,18 +1228,6 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] `kubectl get po` after `tsh kube login`
   - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
 
-
-## Proxy Peering
-
-[Proxy Peering docs](https://goteleport.com/docs/architecture/proxy-peering/)
-
-- Verify that Proxy Peering works for the following protocols:
-  - [ ] SSH
-  - [ ] Kubernetes
-  - [ ] Database
-  - [ ] Windows Desktop
-  - [ ] App Access
-
 ## EC2 Discovery
 
 [EC2 Discovery docs](https://goteleport.com/docs/ver/11.0/server-access/guides/ec2-discovery/)
@@ -1265,64 +1241,47 @@ TODO(lxea): replace links with actual docs once merged
     - [ ] Large numbers of EC2 instances (51+) are all successfully added to the cluster
   - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
 
-## Azure Discovery
+## Documentation
 
-[Azure Discovery docs](https://goteleport.com/docs/server-access/guides/azure-discovery/)
-- Verify Azure VM discovery
-  - [ ] Only Azure VMs matching given Azure tags have the installer executed on them
-  - [ ] Only the IAM permissions mentioned in the discovery docs are required for operation
-  - [ ] Custom scripts specified in different matchers are executed
-  - [ ] New Azure VMs with matching Azure tags are discovered and added to the teleport cluster
-    - [ ] Large numbers of Azure VMs (51+) are all successfully added to the cluster
-  - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
+Checks should be performed on the version of documentation corresponding to the
+major release we're testing for. For example, for Teleport 12 release use
+`branch/v12` branch and make sure to select "Version 12.0" in the documentation
+version switcher.
 
-## GCP Discovery
+- [ ] Verify installation instructions are accurate:
+  - [ ] Self-hosted: https://goteleport.com/docs/installation
+  - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/downloads/?scope=cloud
 
-[GCP Discovery docs](https://goteleport.com/docs/server-access/guides/gcp-discovery/)
+- [ ] Verify getting started instructions are accurate:
+  - [ ] OSS: https://goteleport.com/docs/deploy-a-cluster/open-source/
+  - [ ] Enterprise: https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise
+  - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/introduction/?scope=cloud
+  - [ ] Helm: https://goteleport.com/docs/deploy-a-cluster/helm-deployments/kubernetes-cluster/?scope=enterprise
 
-- Verify GCP instance discovery
-  - [ ] Only GCP instances matching given GCP tags have the installer executed on them
-  - [ ] Only the IAM permissions mentioned in the discovery docs are required for operation
-  - [ ] Custom scripts specified in different matchers are executed
-  - [ ] New GCP instances with matching GCP tags are discovered and added to the teleport cluster
-    - [ ] Large numbers of GCP instances (51+) are all successfully added to the cluster
-  - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
+- [ ] Verify upcoming releases page is accurate:
+  - [ ] https://goteleport.com/docs/preview/upcoming-releases/?scope=enterprise
+  - [ ] Only exists for the default docs version.
 
-## IP Pinning
+- [ ] Verify Teleport versions throughout documentation are correct and reflect upcoming release:
+  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1128
+  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1176-L1186
+  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1146-L1153
 
-Add a role with `pin_source_ip: true` (requires Enterprise) to test IP pinning.
-Testing will require changing your IP (that Teleport Proxy sees).
-Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning/?scope=enterprise)
+- [ ] Verify that all necessary documentation for the release was backported to release branch:
+  - [ ] Diff between master and release branch and make sure there are no missed PRs
 
-- Verify that it works for SSH Access
-  - [ ] You can access tunnel node with `tsh ssh` on root cluster
-  - [ ] You can access direct access node with `tsh ssh` on root cluster
-  - [ ] You can access tunnel node from Web UI on root cluster
-  - [ ] You can access direct access node from Web UI on root cluster
-  - [ ] You can access tunnel node with `tsh ssh` on leaf cluster
-  - [ ] You can access direct access node with `tsh ssh` on leaf cluster
-  - [ ] You can access tunnel node from Web UI on leaf cluster
-  - [ ] You can access direct access node from Web UI on leaf cluster
-  - [ ] You can download files from nodes in Web UI (small arrows at top left corner)
-  - [ ] If you change your IP you no longer can access nodes.
-- Verify that it works for Kube Access
-  - [ ] You can access Kubernetes cluster through standalone Kube service on root cluster
-  - [ ] You can access Kubernetes cluster through agent inside Kubernetes on root cluster
-  - [ ] You can access Kubernetes cluster through standalone Kube service on leaf cluster
-  - [ ] You can access Kubernetes cluster through agent inside Kubernetes on leaf cluster
-  - [ ] If you change your IP you no longer can access Kube clusters.
-- Verify that it works for DB Access
-  - [ ] You can access DB servers on root cluster
-  - [ ] You can access DB servers on leaf cluster
-  - [ ] If you change your IP you no longer can access DB servers.
-- Verify that it works for App Access
-  - [ ] You can access App service on root cluster
-  - [ ] You can access App service on leaf cluster
-  - [ ] If you change your IP you no longer can access App services.
-- Verify that it works for Desktop Access
-  - [ ] You can access Desktop service on root cluster
-  - [ ] You can access Desktop service on leaf cluster
-  - [ ] If you change your IP you no longer can access Desktop services.
+- [ ] Verify deprecated Teleport versions are added to the older versions page
+  - [ ] https://goteleport.com/docs/older-versions/
+
+- [ ] Verify `gravitational/docs` version configuration:
+  - [ ] Verify latest version in `gravitational/docs/config.json`
+  - [ ] Verify `gravitational/docs/.gitmodules` contains latest release
+
+- [ ] Verify changelog is up-to-date and complete for the default docs version:
+  - [ ] https://goteleport.com/docs/changelog/
+
+- [ ] Verify supported versions table in FAQ:
+  - [ ] https://goteleport.com/docs/faq/#supported-versions
 
 ## Resources
 

@@ -16,15 +16,12 @@ limitations under the License.
 
 package bot
 
-import "context"
-
 // Destination can persist renewable certificates.
 type Destination interface {
-	// Init attempts to initialize this destination for use. Init should be
+	// Init attempts to initialize this destination for writing. Init should be
 	// idempotent and may write informational log messages if resources are
 	// created.
-	// This must be called before Read or Write.
-	Init(ctx context.Context, subdirs []string) error
+	Init(subdirs []string) error
 
 	// Verify is run before renewals to check for any potential problems with
 	// the destination. These errors may be informational (logged warnings) or
@@ -32,23 +29,14 @@ type Destination interface {
 	Verify(keys []string) error
 
 	// Write stores data to the destination with the given name.
-	Write(ctx context.Context, name string, data []byte) error
+	Write(name string, data []byte) error
 
 	// Read fetches data from the destination with a given name.
-	Read(ctx context.Context, name string) ([]byte, error)
+	Read(name string) ([]byte, error)
 
 	// TryLock attempts to lock a destination. This is non-blocking, and will
 	// return an error if it is not possible to lock the destination.
 	// TryLock should be used to lock a destination so it cannot be used by
 	// multiple processes of tbot concurrently.
 	TryLock() (func() error, error)
-
-	// CheckAndSetDefaults validates the configuration and sets any defaults.
-	//
-	// This must be called before other methods on Destination can be called.
-	CheckAndSetDefaults() error
-
-	// MarshalYAML enables the yaml package to correctly marshal the Destination
-	// as YAML including the type header.
-	MarshalYAML() (interface{}, error)
 }

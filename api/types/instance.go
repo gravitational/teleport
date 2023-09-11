@@ -286,8 +286,8 @@ func (i *InstanceV1) AppendControlLog(entries ...InstanceControlLogEntry) {
 		// panics in proto logic).
 		i.Spec.ControlLog[idx].Time = entry.Time.UTC()
 	}
-	slices.SortFunc(i.Spec.ControlLog, func(a, b InstanceControlLogEntry) int {
-		return int(a.Time.UnixNano() - b.Time.UnixNano())
+	slices.SortFunc(i.Spec.ControlLog, func(a, b InstanceControlLogEntry) bool {
+		return a.Time.Before(b.Time)
 	})
 }
 

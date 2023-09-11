@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base32"
 	"encoding/pem"
@@ -49,7 +50,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -1168,20 +1168,6 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	}
 }
 
-func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
-	database, err := types.NewDatabaseV3(
-		types.Metadata{
-			Name: name,
-		},
-		types.DatabaseSpecV3{
-			Protocol: protocol,
-			URI:      uri,
-		},
-	)
-	require.NoError(t, err)
-	return database
-}
-
 func TestGenerateUserSingleUseCert(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise, // required for IP pinning.
@@ -1230,11 +1216,11 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 	// Register a database.
-
 	db, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: "db-a",
 	}, types.DatabaseServerSpecV3{
-		Database: mustCreateDatabase(t, "db-a", "postgres", "localhost"),
+		Protocol: "postgres",
+		URI:      "localhost",
 		Hostname: "localhost",
 		HostID:   "localhost",
 	})
@@ -2278,9 +2264,10 @@ func TestGenerateHostCerts(t *testing.T) {
 	require.NotNil(t, certs)
 }
 
-// TestInstanceCertAndControlStream uses an instance cert to send an
-// inventory ping via the control stream.
+// TestInstanceCertAndControlStream attempts to generate an instance cert via the
+// assertion API and use it to handle an inventory ping via the control stream.
 func TestInstanceCertAndControlStream(t *testing.T) {
+	const assertionID = "test-assertion"
 	const serverID = "test-server"
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -2288,17 +2275,68 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 
 	srv := newTestTLSServer(t)
 
-	instanceClt, err := srv.NewClient(TestIdentity{
-		I: authz.BuiltinRole{
-			Role: types.RoleInstance,
-			AdditionalSystemRoles: []types.SystemRole{
-				types.RoleNode,
-			},
-			Username: serverID,
-		},
-	})
+	roles := []types.SystemRole{
+		types.RoleNode,
+		types.RoleAuth,
+		types.RoleProxy,
+	}
+
+	clt, err := srv.NewClient(TestServerID(types.RoleNode, serverID))
 	require.NoError(t, err)
-	defer instanceClt.Close()
+	defer clt.Close()
+
+	priv, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	req := proto.HostCertsRequest{
+		HostID:       serverID,
+		Role:         types.RoleInstance,
+		PublicSSHKey: pub,
+		PublicTLSKey: pubTLS,
+		SystemRoles:  roles,
+		// assertion ID is omitted initially to test
+		// the failure case
+	}
+
+	// request should fail since clt only holds RoleNode
+	_, err = clt.GenerateHostCerts(ctx, &req)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// perform assertions
+	for _, role := range roles {
+		func() {
+			clt, err := srv.NewClient(TestServerID(role, serverID))
+			require.NoError(t, err)
+			defer clt.Close()
+
+			err = clt.UnstableAssertSystemRole(ctx, proto.UnstableSystemRoleAssertion{
+				ServerID:    serverID,
+				AssertionID: assertionID,
+				SystemRole:  role,
+			})
+			require.NoError(t, err)
+		}()
+	}
+
+	// set assertion ID
+	req.UnstableSystemRoleAssertionID = assertionID
+
+	// assertion should allow us to generate certs
+	certs, err := clt.GenerateHostCerts(ctx, &req)
+	require.NoError(t, err)
+
+	// make an instance client
+	instanceCert, err := tls.X509KeyPair(certs.TLS, priv)
+	require.NoError(t, err)
+	instanceClt := srv.NewClientWithCert(instanceCert)
+
+	// instance cert can self-renew without assertions
+	req.UnstableSystemRoleAssertionID = ""
+	_, err = instanceClt.GenerateHostCerts(ctx, &req)
+	require.NoError(t, err)
 
 	stream, err := instanceClt.InventoryControlStream(ctx)
 	require.NoError(t, err)
@@ -2307,7 +2345,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	err = stream.Send(ctx, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: types.SystemRoles{types.RoleInstance},
+		Services: roles,
 	})
 	require.NoError(t, err)
 
@@ -2352,59 +2390,6 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 
 	// ensure that bg ping routine was successful
 	require.NoError(t, <-pingErr)
-}
-
-func TestGetSSHTargets(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	clt, err := srv.NewClient(TestAdmin())
-	require.NoError(t, err)
-
-	upper, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
-		Hostname:  "Foo",
-		UseTunnel: true,
-	}, nil)
-	require.NoError(t, err)
-
-	lower, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
-		Hostname:  "foo",
-		UseTunnel: true,
-	}, nil)
-	require.NoError(t, err)
-
-	other, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
-		Hostname:  "bar",
-		UseTunnel: true,
-	}, nil)
-	require.NoError(t, err)
-
-	for _, node := range []types.Server{upper, lower, other} {
-		_, err = clt.UpsertNode(ctx, node)
-		require.NoError(t, err)
-	}
-
-	rsp, err := clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
-		Host: "foo",
-		Port: "0",
-	})
-	require.NoError(t, err)
-	require.Len(t, rsp.Servers, 1)
-	require.Equal(t, rsp.Servers[0].GetHostname(), "foo")
-
-	cnc := types.DefaultClusterNetworkingConfig()
-	cnc.SetCaseInsensitiveRouting(true)
-	err = clt.SetClusterNetworkingConfig(ctx, cnc)
-	require.NoError(t, err)
-
-	rsp, err = clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
-		Host: "foo",
-		Port: "0",
-	})
-	require.NoError(t, err)
-	require.Len(t, rsp.Servers, 2)
-	require.ElementsMatch(t, []string{rsp.Servers[0].GetHostname(), rsp.Servers[1].GetHostname()}, []string{"foo", "Foo"})
 }
 
 func TestNodesCRUD(t *testing.T) {
@@ -2732,6 +2717,7 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fetch all apps.
+	app2.SetOrigin(types.OriginDynamic)
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
@@ -3300,7 +3286,8 @@ func TestListResources(t *testing.T) {
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name: name,
 				}, types.DatabaseServerSpecV3{
-					Database: mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432"),
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "localhost:5432",
 					Hostname: "localhost",
 					HostID:   uuid.New().String(),
 				})
@@ -3483,7 +3470,7 @@ func TestCustomRateLimiting(t *testing.T) {
 		},
 		{
 			name:  "RPC CreateAuthenticateChallenge",
-			burst: defaults.LimiterBurst,
+			burst: defaults.LimiterPasswordlessBurst,
 			fn: func(clt *Client) error {
 				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
 				return err
@@ -3835,6 +3822,180 @@ func TestExport(t *testing.T) {
 	}
 }
 
+// TestGRPCServer_CreateToken tests the handler of the deprecated CreateToken
+// RPC.
+func TestGRPCServer_CreateToken(t *testing.T) {
+	ctx := context.Background()
+	server := newTestTLSServer(t)
+
+	// Allow us to directly invoke the deprecated gRPC methods with
+	// authentication.
+	user := TestAdmin()
+	ctx = authz.ContextWithUser(ctx, user.I)
+
+	// Test default expiry is applied.
+	t.Run("undefined-expiry", func(t *testing.T) {
+		tokenName := "undefined-expiry"
+		roles := types.SystemRoles{types.RoleNode}
+		token, err := types.NewProvisionToken(
+			tokenName,
+			roles,
+			time.Time{},
+		)
+		require.NoError(t, err)
+		_, err = server.TLSServer.grpcServer.CreateToken(
+			ctx, token.(*types.ProvisionTokenV2),
+		)
+		require.NoError(t, err)
+		token, err = server.TLSServer.grpcServer.GetToken(
+			ctx, &types.ResourceRequest{Name: tokenName},
+		)
+		require.NoError(t, err)
+		require.Equal(t, tokenName, token.GetName())
+		ttl := token.Expiry().Sub(server.Clock().Now())
+		defaultTTL := defaults.ProvisioningTokenTTL
+		require.LessOrEqual(t, ttl, defaultTTL)
+		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
+	})
+
+	// Test set expiry is applied.
+	t.Run("set-expiry", func(t *testing.T) {
+		tokenName := "set-expiry"
+		roles := types.SystemRoles{types.RoleNode}
+		ttl := time.Hour * 24
+		token, err := types.NewProvisionToken(
+			tokenName,
+			roles,
+			server.Clock().Now().Add(ttl),
+		)
+		require.NoError(t, err)
+		_, err = server.TLSServer.grpcServer.CreateToken(
+			ctx, token.(*types.ProvisionTokenV2),
+		)
+		require.NoError(t, err)
+		token, err = server.TLSServer.grpcServer.GetToken(
+			ctx, &types.ResourceRequest{Name: tokenName},
+		)
+		require.NoError(t, err)
+		require.Equal(t, tokenName, token.GetName())
+		actualTTL := token.Expiry().Sub(server.Clock().Now())
+		require.LessOrEqual(t, actualTTL, ttl)
+		require.GreaterOrEqual(t, actualTTL, ttl-(time.Second*10))
+	})
+
+	// Test expiry in past is changed to default
+	t.Run("past-expiry", func(t *testing.T) {
+		tokenName := "past-expiry"
+		roles := types.SystemRoles{types.RoleNode}
+		token, err := types.NewProvisionToken(
+			tokenName,
+			roles,
+			server.Clock().Now().Add(-1*time.Hour),
+		)
+		require.NoError(t, err)
+		_, err = server.TLSServer.grpcServer.CreateToken(
+			ctx, token.(*types.ProvisionTokenV2),
+		)
+		require.NoError(t, err)
+		token, err = server.TLSServer.grpcServer.GetToken(
+			ctx, &types.ResourceRequest{Name: tokenName},
+		)
+		require.NoError(t, err)
+		require.Equal(t, tokenName, token.GetName())
+		ttl := token.Expiry().Sub(server.Clock().Now())
+		defaultTTL := defaults.ProvisioningTokenTTL
+		require.LessOrEqual(t, ttl, defaultTTL)
+		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
+	})
+}
+
+// TestGRPCServer_UpsertToken tests the handler of the deprecated CreateToken
+// RPC.
+func TestGRPCServer_UpsertToken(t *testing.T) {
+	ctx := context.Background()
+	server := newTestTLSServer(t)
+
+	// Allow us to directly invoke the deprecated gRPC methods with
+	// authentication.
+	user := TestAdmin()
+	ctx = authz.ContextWithUser(ctx, user.I)
+
+	// Test default expiry is applied.
+	t.Run("undefined-expiry", func(t *testing.T) {
+		tokenName := "undefined-expiry"
+		roles := types.SystemRoles{types.RoleNode}
+		token, err := types.NewProvisionToken(
+			tokenName,
+			roles,
+			time.Time{},
+		)
+		require.NoError(t, err)
+		_, err = server.TLSServer.grpcServer.UpsertToken(
+			ctx, token.(*types.ProvisionTokenV2),
+		)
+		require.NoError(t, err)
+		token, err = server.TLSServer.grpcServer.GetToken(
+			ctx, &types.ResourceRequest{Name: tokenName},
+		)
+		require.NoError(t, err)
+		require.Equal(t, tokenName, token.GetName())
+		ttl := token.Expiry().Sub(server.Clock().Now())
+		defaultTTL := defaults.ProvisioningTokenTTL
+		require.LessOrEqual(t, ttl, defaultTTL)
+		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
+	})
+
+	// Test set expiry is applied.
+	t.Run("set-expiry", func(t *testing.T) {
+		tokenName := "set-expiry"
+		roles := types.SystemRoles{types.RoleNode}
+		ttl := time.Hour * 24
+		token, err := types.NewProvisionToken(
+			tokenName,
+			roles,
+			server.Clock().Now().Add(ttl),
+		)
+		require.NoError(t, err)
+		_, err = server.TLSServer.grpcServer.UpsertToken(
+			ctx, token.(*types.ProvisionTokenV2),
+		)
+		require.NoError(t, err)
+		token, err = server.TLSServer.grpcServer.GetToken(
+			ctx, &types.ResourceRequest{Name: tokenName},
+		)
+		require.NoError(t, err)
+		require.Equal(t, tokenName, token.GetName())
+		actualTTL := token.Expiry().Sub(server.Clock().Now())
+		require.LessOrEqual(t, actualTTL, ttl)
+		require.GreaterOrEqual(t, actualTTL, ttl-(time.Second*10))
+	})
+
+	// Test expiry in past is changed to default
+	t.Run("past-expiry", func(t *testing.T) {
+		tokenName := "past-expiry"
+		roles := types.SystemRoles{types.RoleNode}
+		token, err := types.NewProvisionToken(
+			tokenName,
+			roles,
+			server.Clock().Now().Add(-1*time.Hour),
+		)
+		require.NoError(t, err)
+		_, err = server.TLSServer.grpcServer.UpsertToken(
+			ctx, token.(*types.ProvisionTokenV2),
+		)
+		require.NoError(t, err)
+		token, err = server.TLSServer.grpcServer.GetToken(
+			ctx, &types.ResourceRequest{Name: tokenName},
+		)
+		require.NoError(t, err)
+		require.Equal(t, tokenName, token.GetName())
+		ttl := token.Expiry().Sub(server.Clock().Now())
+		defaultTTL := defaults.ProvisioningTokenTTL
+		require.LessOrEqual(t, ttl, defaultTTL)
+		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
+	})
+}
+
 // TestSAMLValidation tests that SAML validation does not perform an HTTP
 // request if the calling user does not have permissions to create or update
 // a SAML connector.
@@ -4026,13 +4187,13 @@ func TestRoleVersions(t *testing.T) {
 
 	wildcardLabels := types.Labels{types.Wildcard: {types.Wildcard}}
 
-	newRole := func(version string, spec types.RoleSpecV6) types.Role {
-		role, err := types.NewRoleWithVersion("test_rule", version, spec)
+	newRole := func(spec types.RoleSpecV6) types.Role {
+		role, err := types.NewRole("test_rule", spec)
 		require.NoError(t, err)
 		return role
 	}
 
-	role := newRole(types.V7, types.RoleSpecV6{
+	role := newRole(types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			NodeLabels:               wildcardLabels,
 			AppLabels:                wildcardLabels,
@@ -4041,27 +4202,12 @@ func TestRoleVersions(t *testing.T) {
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, services.RW()),
 			},
-			KubernetesLabels: wildcardLabels,
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Name:      types.Wildcard,
-				},
-			},
 		},
 		Deny: types.RoleConditions{
 			KubernetesLabels:               types.Labels{"env": {"prod"}},
 			ClusterLabels:                  types.Labels{"env": {"prod"}},
 			ClusterLabelsExpression:        `labels["env"] == "prod"`,
 			WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Name:      types.Wildcard,
-				},
-			},
 		},
 	})
 
@@ -4081,33 +4227,9 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc: "up to date",
 			clientVersions: []string{
-				"14.0.0-alpha.1", "15.1.2", api.Version, "",
+				minSupportedLabelExpressionVersion.String(), "13.3.0", "14.0.0-alpha.1", "15.1.2", "",
 			},
 			expectedRole: role,
-		},
-		{
-			desc: "downgrade role to v6 but supports label expressions",
-			clientVersions: []string{
-				minSupportedLabelExpressionVersion.String(), "13.3.0",
-			},
-			expectedRole: newRole(types.V6, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					NodeLabels:               wildcardLabels,
-					AppLabels:                wildcardLabels,
-					AppLabelsExpression:      `labels["env"] == "staging"`,
-					DatabaseLabelsExpression: `labels["env"] == "staging"`,
-					Rules: []types.Rule{
-						types.NewRule(types.KindRole, services.RW()),
-					},
-				},
-				Deny: types.RoleConditions{
-					KubernetesLabels:               wildcardLabels,
-					ClusterLabels:                  types.Labels{"env": {"prod"}},
-					ClusterLabelsExpression:        `labels["env"] == "prod"`,
-					WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
-				},
-			}),
-			expectDowngraded: true,
 		},
 		{
 			desc:           "bad client versions",
@@ -4117,7 +4239,7 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc:           "label expressions downgraded",
 			clientVersions: []string{"13.0.11", "12.4.3", "6.0.0"},
-			expectedRole: newRole(types.V6,
+			expectedRole: newRole(
 				types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						// None of the allow labels change
@@ -4131,7 +4253,7 @@ func TestRoleVersions(t *testing.T) {
 					},
 					Deny: types.RoleConditions{
 						// These fields don't change
-						KubernetesLabels:               wildcardLabels,
+						KubernetesLabels:               types.Labels{"env": {"prod"}},
 						ClusterLabelsExpression:        `labels["env"] == "prod"`,
 						WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
 						// These all get set to wildcard deny because there is

@@ -17,9 +17,6 @@ limitations under the License.
 package stream
 
 import (
-	"errors"
-	"io"
-
 	"github.com/gravitational/trace"
 )
 
@@ -74,7 +71,7 @@ func (stream *streamFunc[T]) Done() error {
 	for _, fn := range stream.doneFuncs {
 		fn()
 	}
-	if errors.Is(stream.err, io.EOF) {
+	if trace.IsEOF(stream.err) {
 		return nil
 	}
 	return stream.err
@@ -353,7 +350,7 @@ func (stream *rateLimit[T]) Done() error {
 		return err
 	}
 
-	if errors.Is(stream.waitErr, io.EOF) {
+	if trace.IsEOF(stream.waitErr) {
 		return nil
 	}
 

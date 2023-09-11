@@ -38,7 +38,7 @@ import {
 import { useCreateDatabase, State } from './useCreateDatabase';
 import { CreateDatabaseDialog } from './CreateDatabaseDialog';
 
-import type { ResourceLabel } from 'teleport/services/agents';
+import type { AgentLabel } from 'teleport/services/agents';
 
 export function CreateDatabase() {
   const state = useCreateDatabase();
@@ -58,7 +58,7 @@ export function CreateDatabaseView({
 }: State) {
   const [dbName, setDbName] = useState('');
   const [dbUri, setDbUri] = useState('');
-  const [labels, setLabels] = useState<ResourceLabel[]>([]);
+  const [labels, setLabels] = useState<AgentLabel[]>([]);
   const [dbPort, setDbPort] = useState(getDefaultDatabasePort(dbEngine));
 
   const [finishedFirstStep, setFinishedFirstStep] = useState(false);

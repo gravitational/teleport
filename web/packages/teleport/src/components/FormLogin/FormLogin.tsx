@@ -172,7 +172,7 @@ const Passwordless = ({
       >
         <Flex alignItems="center" justifyContent="space-between">
           <Flex alignItems="center">
-            <Key mr={3} size="medium" />
+            <Key mr={3} fontSize={16} />
             <Box>
               <Text typography="h6">Passwordless</Text>
               <Text
@@ -185,7 +185,7 @@ const Passwordless = ({
               </Text>
             </Box>
           </Flex>
-          <ArrowForward size="medium" />
+          <ArrowForward fontSize={16} />
         </Flex>
       </StyledPaswordlessBtn>
     </Box>
@@ -297,7 +297,7 @@ const LocalForm = ({
                   maxWidth="50%"
                   width="100%"
                   data-testid="mfa-select"
-                  label="Two-factor type"
+                  label="Two-factor Type"
                   value={mfaType}
                   options={mfaOptions}
                   onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
@@ -309,7 +309,7 @@ const LocalForm = ({
                 {mfaType.value === 'otp' && (
                   <FieldInput
                     width="50%"
-                    label="Authenticator code"
+                    label="Authenticator Code"
                     rule={requiredToken}
                     autoComplete="one-time-code"
                     inputMode="numeric"

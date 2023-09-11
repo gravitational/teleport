@@ -22,7 +22,7 @@ import { DbProtocol } from 'shared/services/databases';
 
 import { AuthType } from 'teleport/services/user';
 import { Database } from 'teleport/services/databases';
-import { ResourceLabel, ResourceFilter } from 'teleport/services/agents';
+import { AgentLabel, AgentFilter } from 'teleport/services/agents';
 import ConnectDialog from 'teleport/Databases/ConnectDialog';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 
@@ -155,12 +155,12 @@ type Props = {
   fetchNext: () => void;
   fetchPrev: () => void;
   fetchStatus: FetchStatus;
-  params: ResourceFilter;
-  setParams: (params: ResourceFilter) => void;
+  params: AgentFilter;
+  setParams: (params: AgentFilter) => void;
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
-  onLabelClick: (label: ResourceLabel) => void;
+  onLabelClick: (label: AgentLabel) => void;
   accessRequestId?: string;
   pageIndicators: PageIndicators;
 };

@@ -26,7 +26,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 
+	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
@@ -37,8 +39,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -52,7 +53,7 @@ type HandlerConfig struct {
 	// AccessPoint is caching client to auth.
 	AccessPoint auth.ProxyAccessPoint
 	// ProxyClient holds connections to leaf clusters.
-	ProxyClient reversetunnelclient.Tunnel
+	ProxyClient reversetunnel.Tunnel
 	// ProxyPublicAddrs contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
 	// CipherSuites is the list of TLS cipher suites that have been configured
@@ -128,8 +129,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	// Create the application routes.
 	h.router = httprouter.New()
 	h.router.UseRawPath = true
-	h.router.POST("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(h.handleAuth)))
-	h.router.OPTIONS("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(nil)))
+	h.router.POST("/x-teleport-auth", makeRouterHandler(h.handleAuth))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
 	h.router.NotFound = h.withAuth(h.handleHttp)
 
@@ -138,6 +138,56 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 
 // ServeHTTP hands the request to the request router.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/x-teleport-auth" {
+		// Allow minimal CORS from only the proxy origin
+		// This allows for requests from the proxy to `POST` to `/x-teleport-auth` and only
+		// permits the headers `X-Cookie-Value` and `X-Subject-Cookie-Value`.
+		// This is for the web UI to post a request to the application to get the proper app session
+		// cookie set on the right application subdomain.
+		w.Header().Set("Access-Control-Allow-Methods", "POST")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Headers", "X-Cookie-Value, X-Subject-Cookie-Value")
+
+		// Validate that the origin for the request matches any of the public proxy addresses.
+		// This is instead of protecting via CORS headers, as that only supports a single domain.
+		originValue := r.Header.Get("Origin")
+		origin, err := url.Parse(originValue)
+		if err != nil {
+			h.log.Errorf("malformed Origin header: %v", err)
+
+			w.WriteHeader(http.StatusBadRequest)
+
+			return
+		}
+
+		var match bool
+		originPort := origin.Port()
+		if originPort == "" {
+			originPort = "443"
+		}
+
+		for _, addr := range h.c.ProxyPublicAddrs {
+			if strconv.Itoa(addr.Port(0)) == originPort && addr.Host() == origin.Hostname() {
+				match = true
+				break
+			}
+		}
+
+		if !match {
+			w.WriteHeader(http.StatusForbidden)
+
+			return
+		}
+
+		// As we've already checked the origin matches a public proxy address, we can allow requests from that origin
+		// We do this dynamically as this header can only contain one value
+		w.Header().Set("Access-Control-Allow-Origin", originValue)
+
+		if r.Method == http.MethodOptions {
+			return
+		}
+	}
+
 	h.router.ServeHTTP(w, r)
 }
 
@@ -287,7 +337,7 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 	// if it is not an agent connection problem, return without creating a new
 	// session.
 	if !trace.IsConnectionProblem(err) {
-		reverseproxy.DefaultHandler.ServeHTTP(w, req, err)
+		oxyutils.DefaultHandler.ServeHTTP(w, req, err)
 		return
 	}
 
@@ -304,19 +354,7 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return
 	}
-	// NOTE: This handler is called by the forwarder when it encounters an error
-	// during the `ServeHTTP` call. This means that the request forwarding was not successful.
-	// Since the request was not forwarded, and above we ignore all errors that are not
-	// connection problems, we can safely assume that the request body was not read.
-	// This happens because the connection problem is returned by the DialContext
-	// function, which is the HTTP transport requires before reading the request body.
-	// Although the request body is not read, the request body is closed by the
-	// HTTP Transport but we replace the request body in (*Handler).handleForward
-	// with a NopCloser so that the request body can be closed multiple times without
-	// impacting the request forwarding.
-	// If in the future we decide to retry requests that fail for other reasons,
-	// we need to support body rewinding with `req.GetBody` together with a
-	// `io.TeeReader` to read the request body and then rewind it.
+
 	session.fwd.ServeHTTP(w, req)
 }
 

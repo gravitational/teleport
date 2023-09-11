@@ -76,14 +76,12 @@ func (s *Handler) RemoveCluster(ctx context.Context, req *api.RemoveClusterReque
 
 // GetCluster returns a cluster
 func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*api.Cluster, error) {
-	cluster, _, err := s.DaemonService.ResolveClusterWithDetails(ctx, req.ClusterUri)
+	cluster, err := s.DaemonService.ResolveClusterWithDetails(ctx, req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	apiRootClusterWithDetails, err := newAPIRootClusterWithDetails(cluster)
-
-	return apiRootClusterWithDetails, trace.Wrap(err)
+	return newAPIRootClusterWithDetails(cluster), nil
 }
 
 func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
@@ -105,24 +103,17 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 	return apiCluster
 }
 
-func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cluster, error) {
+func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) *api.Cluster {
 	apiCluster := newAPIRootCluster(cluster.Cluster)
 
 	apiCluster.Features = &api.Features{
 		AdvancedAccessWorkflows: cluster.Features.GetAdvancedAccessWorkflows(),
-		IsUsageBasedBilling:     cluster.Features.GetIsUsageBased(),
 	}
 	apiCluster.LoggedInUser.RequestableRoles = cluster.RequestableRoles
 	apiCluster.LoggedInUser.SuggestedReviewers = cluster.SuggestedReviewers
 	apiCluster.AuthClusterId = cluster.AuthClusterID
-	apiCluster.LoggedInUser.Acl = cluster.ACL
-	userType, err := clusters.UserTypeFromString(cluster.UserType)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	apiCluster.LoggedInUser.UserType = userType
 
-	return apiCluster, nil
+	return apiCluster
 }
 
 func newAPILeafCluster(leaf clusters.LeafCluster) *api.Cluster {

@@ -22,7 +22,9 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport14
+      image: ghcr.io/gravitational/teleport-buildbox:teleport13
+      env:
+        GO_LINT_FLAGS: --timeout=15m
 
     steps:
       - name: Checkout
@@ -35,53 +37,8 @@ jobs:
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $( realpath . ) && git diff --exit-code -- go.mod go.sum api/go.mod api/go.sum
 
-      # Run various golangci-lint checks.
-      # TODO(codingllama): Using go.work could save a bunch of repetition here.
-      - name: golangci-lint (api)
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: latest
-          working-directory: api
-      - name: golangci-lint (teleport)
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: latest
-          args: --build-tags libfido2,piv
-      - name: golangci-lint (kube-agent-updater)
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: latest
-          working-directory: integrations/kube-agent-updater
-      - name: golangci-lint (assets/backport)
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: latest
-          working-directory: assets/backport
-      - name: golangci-lint (build.assets/tooling)
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: latest
-          working-directory: build.assets/tooling
-
-      - uses: bufbuild/buf-setup-action@v1
-        with:
-          github_token: ${{ github.token }}
-          version: latest
-      - uses: bufbuild/buf-lint-action@v1
-      - name: buf breaking --against=parent
-        uses: bufbuild/buf-breaking-action@v1
-        with:
-          against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
-      - name: buf breaking --against=master
-        uses: bufbuild/buf-breaking-action@v1
-        if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
-        with:
-          against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=master"
-
-      # TODO(codingllama): Consider https://github.com/actions-rs/clippy-check
-      #  for Rust.
-      - name: Run (non-action) linters
-        run: make lint-no-actions
+      - name: Run linter
+        run: make lint
 
       - name: Check if protos are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
@@ -90,3 +47,22 @@ jobs:
       - name: Check if Operator CRDs are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make crds-up-to-date
+
+      # The `buf breaking` check is twofold: we always check for compatibility
+      # breaks against the base of the PR, and in backports we check for
+      # compatibility breaks _from_ the tip of master. It's possible to add
+      # fields just to release branches and not master, but it requires
+      # reserving the appropriate field numbers and field names in master (as it
+      # should!).
+
+      # We run a separate fetch because even with a fetch-depth of 0 in
+      # actions/checkout I'm not sure that we're guaranteed to have all the refs
+      # we need (especially the tip of master in backports), but it's a shallow
+      # fetch for a specific tree by hash, so it should be pretty fast.
+
+      - name: Check protos for breakage against parent
+        run: buf breaking . --against "https://github.com/${{ github.repository }}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
+
+      - name: Check protos for breakage from master
+        if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
+        run: buf breaking "https://github.com/${{ github.repository }}.git#branch=master" --against .

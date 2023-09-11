@@ -35,9 +35,9 @@ export default function DocumentBlank(props: PropTypes) {
     <Document visible={visible}>
       <Flex flexDirection="column" alignItems="center" flex="1">
         <Icons.Cli
-          size={256}
-          mt={10}
-          mb={6}
+          fontSize="256px"
+          mt="10"
+          mb="6"
           css={`
             color: ${props => props.theme.colors.spotBackground[1]};
           `}

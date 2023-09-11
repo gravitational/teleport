@@ -56,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -65,7 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
-	websession "github.com/gravitational/teleport/lib/web/session"
 )
 
 const (
@@ -259,7 +257,7 @@ type TeleInstance struct {
 	// Internal stuff...
 	Process              *service.TeleportProcess
 	Config               *servicecfg.Config
-	Tunnel               reversetunnelclient.Server
+	Tunnel               reversetunnel.Server
 	RemoteClusterWatcher *reversetunnel.RemoteClusterTunnelManager
 
 	// Nodes is a list of additional nodes
@@ -845,7 +843,6 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 	})
 	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
-	conf.Databases.Enabled = true
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 	conf.Apps.Enabled = false
@@ -1035,7 +1032,7 @@ type ProxyConfig struct {
 }
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
-func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunnelclient.Server, *service.TeleportProcess, error) {
+func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *service.TeleportProcess, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName+"-"+cfg.Name)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1072,8 +1069,6 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	}
 	tconf.Proxy.ReverseTunnelListenAddr.Addr = cfg.ReverseTunnelAddr
 	tconf.Proxy.WebAddr.Addr = cfg.WebAddr
-	tconf.Proxy.Kube.Enabled = cfg.KubeAddr != ""
-	tconf.Proxy.Kube.ListenAddr.Addr = cfg.KubeAddr
 	tconf.Proxy.DisableReverseTunnel = false
 	tconf.Proxy.DisableWebService = cfg.DisableWebService
 	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
@@ -1081,10 +1076,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	tconf.FileDescriptors = cfg.FileDescriptors
-	// apply options
-	for _, o := range opts {
-		o(tconf)
-	}
+
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
 	process, err := service.NewTeleport(tconf)
@@ -1109,12 +1101,12 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	log.Debugf("Teleport proxy (in instance %v) started: %v/%v events received.",
 		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
 
-	// Extract and set reversetunnelclient.Server and reversetunnel.AgentPool upon
+	// Extract and set reversetunnel.Server and reversetunnel.AgentPool upon
 	// receipt of a ProxyReverseTunnelReady event
 	for _, re := range receivedEvents {
 		switch re.Name {
 		case service.ProxyReverseTunnelReady:
-			ts, ok := re.Payload.(reversetunnelclient.Server)
+			ts, ok := re.Payload.(reversetunnel.Server)
 			if ok {
 				return ts, process, nil
 			}
@@ -1126,18 +1118,6 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	// in `StartAndWait()`.
 	return nil, nil, trace.Errorf("Missing expected %v event in %v",
 		service.ProxyReverseTunnelReady, receivedEvents)
-}
-
-// Option is a functional option for configuring a ProxyConfig
-type Option func(*servicecfg.Config)
-
-// WithLegacyKubeProxy enables the legacy kube proxy.
-func WithLegacyKubeProxy(kubeconfig string) Option {
-	return func(tconf *servicecfg.Config) {
-		tconf.Proxy.Kube.Enabled = true
-		tconf.Proxy.Kube.KubeconfigPath = kubeconfig
-		tconf.Proxy.Kube.LegacyKubeProxy = true
-	}
 }
 
 // Reset re-creates the teleport instance based on the same configuration
@@ -1214,10 +1194,6 @@ func (i *TeleInstance) Start() error {
 		expectedEvents = append(expectedEvents, service.KubernetesReady)
 	}
 
-	if i.Config.Discovery.Enabled {
-		expectedEvents = append(expectedEvents, service.DiscoveryReady)
-	}
-
 	expectedEvents = append(expectedEvents, service.InstanceReady)
 
 	// Start the process and block until the expected events have arrived.
@@ -1226,12 +1202,12 @@ func (i *TeleInstance) Start() error {
 		return trace.Wrap(err)
 	}
 
-	// Extract and set reversetunnelclient.Server and reversetunnel.AgentPool upon
+	// Extract and set reversetunnel.Server and reversetunnel.AgentPool upon
 	// receipt of a ProxyReverseTunnelReady and ProxyAgentPoolReady respectively.
 	for _, re := range receivedEvents {
 		switch re.Name {
 		case service.ProxyReverseTunnelReady:
-			ts, ok := re.Payload.(reversetunnelclient.Server)
+			ts, ok := re.Payload.(reversetunnel.Server)
 			if ok {
 				i.Tunnel = ts
 			}
@@ -1420,8 +1396,8 @@ func (i *TeleInstance) NewWebClient(cfg ClientConfig) (*WebClient, error) {
 		return nil, trace.BadParameter("unexpected number of cookies returned; got %d, want %d", len(cookies), 1)
 	}
 	cookie := cookies[0]
-	if cookie.Name != websession.CookieName {
-		return nil, trace.BadParameter("unexpected session cookies returned; got %s, want %s", cookie.Name, websession.CookieName)
+	if cookie.Name != web.CookieName {
+		return nil, trace.BadParameter("unexpected session cookies returned; got %s, want %s", cookie.Name, web.CookieName)
 	}
 
 	tc, err := i.NewUnauthenticatedClient(cfg)

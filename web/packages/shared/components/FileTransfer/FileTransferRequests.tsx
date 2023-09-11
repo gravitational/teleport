@@ -90,7 +90,7 @@ const OwnForm = ({ request, onCancel }: OwnFormProps) => {
           {getOwnPendingText(request)}
         </Text>
         <ButtonBorder onClick={() => onCancel(request.requestID, false)}>
-          <Icons.Cross size="small" />
+          <Icons.Cross fontSize="16px" />
         </ButtonBorder>
       </Flex>
     </Box>
@@ -133,11 +133,11 @@ const ResponseForm = ({
           block
           onClick={() => onApprove(request.requestID, true)}
         >
-          <Icons.Check size="small" mr={2} />
+          <Icons.Check fontSize="16px" mr={2} />
           Approve
         </ButtonBorder>
         <ButtonBorder block onClick={() => onDeny(request.requestID, false)}>
-          <Icons.Cross size="small" mr={2} />
+          <Icons.Cross fontSize="16px" mr={2} />
           Deny
         </ButtonBorder>
       </Flex>

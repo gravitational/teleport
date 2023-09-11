@@ -26,8 +26,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 

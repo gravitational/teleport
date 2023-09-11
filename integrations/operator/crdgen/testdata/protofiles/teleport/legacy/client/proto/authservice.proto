@@ -629,6 +629,13 @@ message GetAppSessionResponse {
   types.WebSessionV2 Session = 1 [(gogoproto.jsontag) = "session"];
 }
 
+// GetAppSessionsResponse contains all the requested application web sessions.
+// DELETE IN 13.0. Deprecated, use ListAppSessions instead
+message GetAppSessionsResponse {
+  // Sessions is a list of application web sessions.
+  repeated types.WebSessionV2 Sessions = 1 [(gogoproto.jsontag) = "sessions"];
+}
+
 // ListAppSessionRequest are the parameters used to request an application web session.
 //
 // Follows the pagination semantics of
@@ -2388,6 +2395,9 @@ service AuthService {
 
   // GetAppSession gets an application web session.
   rpc GetAppSession(GetAppSessionRequest) returns (GetAppSessionResponse);
+  // GetAppSessions gets all application web sessions.
+  // DELETE IN 13.0. Deprecated, use ListAppSessions instead
+  rpc GetAppSessions(google.protobuf.Empty) returns (GetAppSessionsResponse);
   // ListAppSessions gets all application web sessions.
   rpc ListAppSessions(ListAppSessionsRequest) returns (ListAppSessionsResponse);
   // CreateAppSession creates an application web session. Application web

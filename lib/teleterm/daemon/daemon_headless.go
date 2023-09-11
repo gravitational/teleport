@@ -31,7 +31,7 @@ import (
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
 func (s *Service) UpdateHeadlessAuthenticationState(ctx context.Context, clusterURI, headlessID string, state api.HeadlessAuthenticationState) error {
-	cluster, _, err := s.ResolveCluster(clusterURI)
+	cluster, err := s.ResolveCluster(clusterURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -44,20 +44,16 @@ func (s *Service) UpdateHeadlessAuthenticationState(ctx context.Context, cluster
 }
 
 // StartHeadlessHandlers starts a headless watcher for the given cluster URI.
-//
-// If waitInit is true, this method will wait for the watcher to connect to the
-// Auth Server and receive an OpInit event to indicate that the watcher is fully
-// initialized and ready to catch headless events.
-func (s *Service) StartHeadlessWatcher(uri string, waitInit bool) error {
+func (s *Service) StartHeadlessWatcher(uri string) error {
 	s.headlessWatcherClosersMu.Lock()
 	defer s.headlessWatcherClosersMu.Unlock()
 
-	cluster, _, err := s.ResolveCluster(uri)
+	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = s.startHeadlessWatcher(cluster, waitInit)
+	err = s.startHeadlessWatcher(cluster)
 	return trace.Wrap(err)
 }
 
@@ -73,8 +69,7 @@ func (s *Service) StartHeadlessWatchers() error {
 
 	for _, c := range clusters {
 		if c.Connected() {
-			// Don't wait for the headless watcher to initialize as this could slow down startup.
-			if err := s.startHeadlessWatcher(c, false /* waitInit */); err != nil {
+			if err := s.startHeadlessWatcher(c); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -83,12 +78,9 @@ func (s *Service) StartHeadlessWatchers() error {
 	return nil
 }
 
-// startHeadlessWatcher starts a headless watcher for the given cluster.
-//
-// If waitInit is true, this method will wait for the watcher to connect to the
-// Auth Server and receive an OpInit event to indicate that the watcher is fully
-// initialized and ready to catch headless events.
-func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster, waitInit bool) error {
+// startHeadlessWatcher starts a background process to watch for pending headless
+// authentications for this cluster.
+func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster) error {
 	// If there is already a watcher for this cluster, close and replace it.
 	// This may occur after relogin, for example.
 	if err := s.stopHeadlessWatcher(cluster.URI.String()); err != nil && !trace.IsNotFound(err) {
@@ -129,9 +121,6 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster, waitInit bool)
 		pendingRequests[name] = cancel
 	}
 
-	pendingWatcherInitialized := make(chan struct{})
-	pendingWatcherInitializedOnce := sync.Once{}
-
 	watch := func() error {
 		pendingWatcher, closePendingWatcher, err := cluster.WatchPendingHeadlessAuthentications(watchCtx)
 		if err != nil {
@@ -144,21 +133,6 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster, waitInit bool)
 			return trace.Wrap(err)
 		}
 		defer closeResolutionWatcher()
-
-		// Wait for the pending watcher to finish initializing. the resolution watcher is not as critical,
-		// so we skip waiting for it.
-
-		select {
-		case event := <-pendingWatcher.Events():
-			if event.Type != types.OpInit {
-				return trace.BadParameter("expected init event, got %v instead", event.Type)
-			}
-			pendingWatcherInitializedOnce.Do(func() { close(pendingWatcherInitialized) })
-		case <-pendingWatcher.Done():
-			return trace.Wrap(pendingWatcher.Error())
-		case <-watchCtx.Done():
-			return trace.Wrap(watchCtx.Err())
-		}
 
 		retry.Reset()
 
@@ -259,14 +233,6 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster, waitInit bool)
 			}
 		}
 	}()
-
-	if waitInit {
-		select {
-		case <-pendingWatcherInitialized:
-		case <-watchCtx.Done():
-			return trace.Wrap(watchCtx.Err())
-		}
-	}
 
 	return nil
 }

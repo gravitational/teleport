@@ -185,7 +185,7 @@ func TestExecKubeService(t *testing.T) {
 
 			req, err := generateExecRequest(
 				generateExecRequestConfig{
-					addr:          testCtx.KubeProxyAddress(),
+					addr:          testCtx.KubeServiceAddress(),
 					podName:       podName,
 					podNamespace:  podNamespace,
 					containerName: podContainerName,

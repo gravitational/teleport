@@ -108,7 +108,7 @@ export function NewMfaDevice(props: NewMfaDeviceProps) {
         <OnboardCard ref={refCallback}>
           <Flex mb={3} alignItems="center">
             <ArrowBack
-              size="large"
+              fontSize={30}
               mr={3}
               onClick={() => {
                 clearSubmitAttempt();
@@ -197,7 +197,7 @@ export function NewMfaDevice(props: NewMfaDeviceProps) {
             <Flex alignItems="center" height={100}>
               <FieldInput
                 rule={requiredField('Device name is required')}
-                label="Device name"
+                label="Device Name"
                 placeholder="Name"
                 ref={deviceNameInputRef}
                 width={mfaType?.value === 'otp' ? '50%' : '100%'}
@@ -210,7 +210,7 @@ export function NewMfaDevice(props: NewMfaDeviceProps) {
               {mfaType?.value === 'otp' && (
                 <FieldInput
                   width="50%"
-                  label="Authenticator code"
+                  label="Authenticator Code"
                   rule={requiredToken}
                   inputMode="numeric"
                   autoComplete="one-time-code"

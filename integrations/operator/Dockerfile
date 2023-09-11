@@ -1,43 +1,6 @@
+ARG BUILDBOX
 # BUILDPLATFORM is provided by Docker/buildx
-FROM --platform=$BUILDPLATFORM docker.io/debian:11 as builder
-ARG BUILDARCH
-
-## Install dependencies.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    ca-certificates \
-    unzip \
-    # x86_64 dependencies and build tools
-    build-essential \
-    # ARM dependencies
-    libc6-dev-armhf-cross \
-    gcc-arm-linux-gnueabihf \
-    # ARM64 dependencies
-    libc6-dev-arm64-cross \
-    gcc-aarch64-linux-gnu \
-    # i386 dependencies
-    libc6-dev-i386-cross \
-    gcc-i686-linux-gnu
-
-# Install Go.
-ARG GOLANG_VERSION
-RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
-    chmod a+w /var/lib && \
-    chmod a-w /
-ENV GOPATH="/go" \
-    GOROOT="/opt/go" \
-    PATH="$PATH:/opt/go/bin:/go/bin"
-
-# Install protoc.
-ARG PROTOC_VERSION # eg, "3.20.2"
-RUN VERSION="$PROTOC_VERSION" && \
-  PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
-  PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
-  curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
-  unzip "$PB_FILE" -d /usr/local && \
-  rm -f "$PB_FILE"
-
-## Build the operator
+FROM --platform=$BUILDPLATFORM $BUILDBOX as builder
 
 WORKDIR /go/src/github.com/gravitational/teleport
 
@@ -65,9 +28,7 @@ COPY integrations/operator/namespace.go integrations/operator/namespace.go
 # Compiler package should use host-triplet-agnostic name (i.e. "x86-64-linux-gnu-gcc" instead of "gcc")
 #  in most cases, to avoid issues on systems with multiple versions of gcc (i.e. buildboxes)
 # TARGETOS and TARGETARCH are provided by Docker/buildx, but must be explicitly listed here
-ARG COMPILER_NAME
-ARG TARGETOS
-ARG TARGETARCH
+ARG COMPILER_NAME TARGETOS TARGETARCH
 
 # Build the program
 # CGO is required for github.com/gravitational/teleport/lib/system

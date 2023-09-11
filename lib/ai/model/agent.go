@@ -28,13 +28,16 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
 	// The internal name used to create actions when the agent encounters an error, such as when parsing output.
 	actionException = "_Exception"
 
-	// The maximum amount of thought <-> observation iterations the agent is allowed to perform.
+	// The maximum amount of thought<-> observation iterations the agent is allowed to perform.
 	maxIterations = 15
 
 	// The maximum amount of time the agent is allowed to spend before yielding a final answer.
@@ -44,15 +47,73 @@ const (
 	finalResponseHeader = "<FINAL RESPONSE>"
 )
 
+// NewExecutionTool creates a new execution tool. The execution tool is responsible for executing commands.
+func NewExecutionTool() Tool {
+	return &commandExecutionTool{}
+}
+
+// NewGenerateTool creates a new generation tool. The generation tool is responsible for generating Bash commands.
+func NewGenerateTool() Tool {
+	return &commandGenerationTool{}
+}
+
+// NewRetrievalTool creates a new retrieval tool. The retrieval tool is responsible for retrieving embeddings.
+func NewRetrievalTool(assistClient assist.AssistEmbeddingServiceClient,
+	nodeClient NodeGetter,
+	userAccessChecker services.AccessChecker,
+	currentUser string,
+) Tool {
+	return &embeddingRetrievalTool{
+		assistClient:      assistClient,
+		currentUser:       currentUser,
+		nodeClient:        nodeClient,
+		userAccessChecker: userAccessChecker,
+	}
+}
+
 // NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.
-func NewAgent(toolCtx *ToolContext, tools ...Tool) *Agent {
-	return &Agent{tools, toolCtx}
+func NewAgent(tools ...Tool) (*Agent, error) {
+	if len(tools) == 0 {
+		return nil, trace.BadParameter("at least one tool is required")
+	}
+
+	return &Agent{
+		tools: tools,
+	}, nil
+}
+
+// ToolsConfig contains all the tool configuration and clients the tools
+// can potentially leverage to interact with Teleport. Such clients can be used
+// to list resources or check RBAC rules for example.
+type ToolsConfig struct {
+	// DisableEmbeddingsTool disables the embedding retrieval tool, useful in tests.
+	DisableEmbeddingsTool bool
+	// EmbeddingsClient is required when the embeddings tool is enabled.
+	EmbeddingsClient assist.AssistEmbeddingServiceClient
+	// AccessChecker is required when NodeClient is set
+	AccessChecker services.AccessChecker
+	// NodeClient is optional, when set, the tools might attempt to search for
+	// nodes directly from cache on small clusters.
+	NodeClient *services.NodeWatcher
+}
+
+// CheckAndSetDefaults checks if the ToolsConfig is valid and sets defaults
+// when needed.
+func (a *ToolsConfig) CheckAndSetDefaults() error {
+	if !a.DisableEmbeddingsTool {
+		if a.EmbeddingsClient == nil {
+			return trace.BadParameter("Embeddings client is mandatory when embedding tool is enabled")
+		}
+		if a.NodeClient != nil && a.AccessChecker == nil {
+			return trace.BadParameter("AccessChecker is required when NodeClient is set")
+		}
+	}
+	return nil
 }
 
 // Agent is a model storing static state which defines some properties of the chat model.
 type Agent struct {
-	tools   []Tool
-	toolCtx *ToolContext
+	tools []Tool
 }
 
 // AgentAction is an event type representing the decision to take a single action, typically a tool invocation.
@@ -73,7 +134,7 @@ type AgentAction struct {
 // agentFinish is an event type representing the decision to finish a thought
 // loop and return a final text answer to the user.
 type agentFinish struct {
-	// output must be Message, StreamingMessage, CompletionCommand, AccessRequest.
+	// output must be Message, StreamingMessage or CompletionCommand
 	output any
 }
 
@@ -141,16 +202,6 @@ type stepOutput struct {
 	observation string
 }
 
-func (e *executionState) isRepeatAction(action *AgentAction) bool {
-	for _, previousAction := range e.intermediateSteps {
-		if previousAction.Action == action.Action && previousAction.Input == action.Input {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progressUpdates func(*AgentAction)) (stepOutput, error) {
 	log.Trace("agent entering takeNextStep")
 	defer log.Trace("agent exiting takeNextStep")
@@ -160,13 +211,14 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		log.Tracef("agent encountered an invalid output error: %v, attempting to recover", err)
 		action := &AgentAction{
 			Action: actionException,
-			Log:    "Invalid or incomplete response: " + err.Error(),
+			Input:  observationPrefix + "Invalid or incomplete response",
+			Log:    thoughtPrefix + err.Error(),
 		}
 
 		// The exception tool is currently a bit special, the observation is always equal to the input.
 		// We can expand on this in the future to make it handle errors better.
 		log.Tracef("agent decided on action %v and received observation %v", action.Action, action.Input)
-		return stepOutput{action: action, observation: action.Log}, nil
+		return stepOutput{action: action, observation: action.Input}, nil
 	}
 	if err != nil {
 		log.Tracef("agent encountered an error: %v", err)
@@ -177,11 +229,6 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 	if finish != nil {
 		log.Trace("agent picked finish, returning")
 		return stepOutput{finish: finish}, nil
-	}
-
-	// we check against repeat actions to get the LLM out of confusion loops faster.
-	if state.isRepeatAction(action) {
-		return stepOutput{action: action, observation: "You've already ran this tool with this input."}, nil
 	}
 
 	// If action is set, the agent is not done and called upon a tool.
@@ -199,49 +246,45 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		log.Tracef("agent picked an unknown tool %v", action.Action)
 		action := &AgentAction{
 			Action: actionException,
-			Log:    fmt.Sprintf("No tool with name %s exists.", action.Action),
+			Input:  observationPrefix + "Unknown tool",
+			Log:    fmt.Sprintf("%s No tool with name %s exists.", thoughtPrefix, action.Action),
 		}
 
-		return stepOutput{action: action, observation: action.Log}, nil
+		return stepOutput{action: action, observation: action.Input}, nil
 	}
 
-	// Here we switch on the tool type because even though all tools are presented as equal to the LLM
-	// some are marked special and break the typical tool execution loop; those are handled here instead.
-	switch tool := tool.(type) {
-	case *CommandExecutionTool:
-		completion, err := tool.parseInput(action.Input)
-		if err != nil {
-			action := &AgentAction{
-				Action: actionException,
-				Log:    "Invalid or incomplete response: " + err.Error(),
-			}
-
-			return stepOutput{action: action, observation: action.Log}, nil
-		}
-
-		log.Tracef("agent decided on command execution, let's translate to an agentFinish")
-		return stepOutput{finish: &agentFinish{output: completion}}, nil
-	case *AccessRequestCreateTool:
-		accessRequest, err := tool.parseInput(action.Input)
-		if err != nil {
-			action := &AgentAction{
-				Action: actionException,
-				Log:    "Invalid or incomplete response: " + err.Error(),
-			}
-
-			return stepOutput{action: action, observation: action.Log}, nil
-		}
-
-		return stepOutput{finish: &agentFinish{output: accessRequest}}, nil
-	case *CommandGenerationTool:
+	if tool, ok := tool.(*commandExecutionTool); ok {
 		input, err := tool.parseInput(action.Input)
 		if err != nil {
 			action := &AgentAction{
 				Action: actionException,
-				Log:    "Invalid or incomplete response: " + err.Error(),
+				Input:  observationPrefix + "Invalid or incomplete response",
+				Log:    thoughtPrefix + err.Error(),
 			}
 
-			return stepOutput{action: action, observation: action.Log}, nil
+			return stepOutput{action: action, observation: action.Input}, nil
+		}
+
+		completion := &CompletionCommand{
+			Command: input.Command,
+			Nodes:   input.Nodes,
+			Labels:  input.Labels,
+		}
+
+		log.Tracef("agent decided on command execution, let's translate to an agentFinish")
+		return stepOutput{finish: &agentFinish{output: completion}}, nil
+	}
+
+	if tool, ok := tool.(*commandGenerationTool); ok {
+		input, err := tool.parseInput(action.Input)
+		if err != nil {
+			action := &AgentAction{
+				Action: actionException,
+				Input:  observationPrefix + "Invalid or incomplete response",
+				Log:    thoughtPrefix + err.Error(),
+			}
+
+			return stepOutput{action: action, observation: action.Input}, nil
 		}
 		completion := &GeneratedCommand{
 			Command: input.Command,
@@ -249,13 +292,13 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 
 		log.Tracef("agent decided on command generation, let's translate to an agentFinish")
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
-	default:
-		runOut, err := tool.Run(ctx, a.toolCtx, action.Input)
-		if err != nil {
-			return stepOutput{}, trace.Wrap(err)
-		}
-		return stepOutput{action: action, observation: runOut}, nil
 	}
+
+	runOut, err := tool.Run(ctx, action.Input)
+	if err != nil {
+		return stepOutput{}, trace.Wrap(err)
+	}
+	return stepOutput{action: action, observation: runOut}, nil
 }
 
 func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, *agentFinish, error) {
@@ -270,7 +313,7 @@ func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, 
 	stream, err := state.llm.CreateChatCompletionStream(
 		ctx,
 		openai.ChatCompletionRequest{
-			Model:       openai.GPT432K,
+			Model:       openai.GPT4,
 			Messages:    prompt,
 			Temperature: 0.3,
 			Stream:      true,
@@ -335,14 +378,10 @@ func (a *Agent) createPrompt(chatHistory, agentScratchpad []openai.ChatCompletio
 func (a *Agent) constructScratchpad(intermediateSteps []AgentAction, observations []string) []openai.ChatCompletionMessage {
 	var thoughts []openai.ChatCompletionMessage
 	for i, action := range intermediateSteps {
-		if len(action.Reasoning) != 0 {
-			thoughts = append(thoughts, openai.ChatCompletionMessage{
-				Role:    openai.ChatMessageRoleAssistant,
-				Content: action.Reasoning,
-			})
-		}
-
 		thoughts = append(thoughts, openai.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleAssistant,
+			Content: action.Log,
+		}, openai.ChatCompletionMessage{
 			Role:    openai.ChatMessageRoleUser,
 			Content: conversationToolResponse(observations[i]),
 		})

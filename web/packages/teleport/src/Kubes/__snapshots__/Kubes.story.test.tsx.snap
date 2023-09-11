@@ -298,7 +298,7 @@ exports[`failed 1`] = `
   width: 100%;
 }
 
-.c26 {
+.c27 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -325,22 +325,35 @@ exports[`failed 1`] = `
   padding: 0px 16px;
 }
 
-.c26:hover,
-.c26:focus {
+.c27:hover,
+.c27:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c26:active {
+.c27:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c26:disabled {
+.c27:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c29 {
+.c21 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c32 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c30 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -362,25 +375,29 @@ exports[`failed 1`] = `
   margin-right: 0px;
 }
 
-.c29:disabled {
+.c30 .c20 {
+  color: inherit;
+}
+
+.c30:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c29:disabled {
+.c30:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c29:hover:enabled,
-.c29:focus:enabled {
+.c30:hover:enabled,
+.c30:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c29:active:enabled {
+.c30:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c31 {
+.c33 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -401,21 +418,25 @@ exports[`failed 1`] = `
   margin-left: 0px;
 }
 
-.c31:disabled {
+.c33 .c20 {
+  color: inherit;
+}
+
+.c33:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c31:disabled {
+.c33:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c31:hover:enabled,
-.c31:focus:enabled {
+.c33:hover:enabled,
+.c33:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c31:active:enabled {
+.c33:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -428,7 +449,7 @@ exports[`failed 1`] = `
   margin: 0px;
 }
 
-.c22 {
+.c23 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -437,12 +458,6 @@ exports[`failed 1`] = `
   margin: 0px;
   margin-right: 4px;
   color: #FFFFFF;
-}
-
-.c20 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c6 {
@@ -459,25 +474,25 @@ exports[`failed 1`] = `
   align-items: center;
 }
 
-.c21 {
+.c22 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c24 {
+.c25 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
 }
 
-.c28 {
+.c29 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
   justify-content: flex-end;
 }
 
-.c23 {
+.c24 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -486,39 +501,39 @@ exports[`failed 1`] = `
   width: 100%;
 }
 
-.c23 > thead > tr > th,
-.c23 > tbody > tr > th,
-.c23 > tfoot > tr > th,
-.c23 > thead > tr > td,
-.c23 > tbody > tr > td,
-.c23 > tfoot > tr > td {
+.c24 > thead > tr > th,
+.c24 > tbody > tr > th,
+.c24 > tfoot > tr > th,
+.c24 > thead > tr > td,
+.c24 > tbody > tr > td,
+.c24 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c23 > thead > tr > th:first-child,
-.c23 > tbody > tr > th:first-child,
-.c23 > tfoot > tr > th:first-child,
-.c23 > thead > tr > td:first-child,
-.c23 > tbody > tr > td:first-child,
-.c23 > tfoot > tr > td:first-child {
+.c24 > thead > tr > th:first-child,
+.c24 > tbody > tr > th:first-child,
+.c24 > tfoot > tr > th:first-child,
+.c24 > thead > tr > td:first-child,
+.c24 > tbody > tr > td:first-child,
+.c24 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c23 > thead > tr > th:last-child,
-.c23 > tbody > tr > th:last-child,
-.c23 > tfoot > tr > th:last-child,
-.c23 > thead > tr > td:last-child,
-.c23 > tbody > tr > td:last-child,
-.c23 > tfoot > tr > td:last-child {
+.c24 > thead > tr > th:last-child,
+.c24 > tbody > tr > th:last-child,
+.c24 > tfoot > tr > th:last-child,
+.c24 > thead > tr > td:last-child,
+.c24 > tbody > tr > td:last-child,
+.c24 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c23 > tbody > tr > td {
+.c24 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c23 > thead > tr > th {
+.c24 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -532,20 +547,22 @@ exports[`failed 1`] = `
   white-space: nowrap;
 }
 
-.c23 > thead > tr > th svg {
-  height: 12px;
+.c24 > thead > tr > th .c20 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
 }
 
-.c23 > tbody > tr > td {
+.c24 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c23 tbody tr {
+.c24 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c23 tbody tr:hover {
+.c24 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
@@ -561,7 +578,7 @@ exports[`failed 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c27 {
+.c28 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -578,7 +595,7 @@ exports[`failed 1`] = `
   border-radius: 8px;
 }
 
-.c25 {
+.c26 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -594,15 +611,15 @@ exports[`failed 1`] = `
   cursor: pointer;
 }
 
-.c25:hover {
+.c26:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c30 svg {
+.c31 .c20 {
   font-size: 20px;
 }
 
-.c30 svg:before {
+.c31 .c20:before {
   padding-left: 1px;
 }
 
@@ -858,35 +875,16 @@ exports[`failed 1`] = `
             style="line-height: 0px;"
           >
             <span
-              class="c20 icon icon-info"
+              class="c20 c21 icon icon-info_outline "
               style="cursor: pointer; font-size: 20px;"
-            >
-              <svg
-                fill="currentColor"
-                height="20"
-                viewBox="0 0 24 24"
-                width="20"
-              >
-                <path
-                  d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                />
-                <path
-                  d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                />
-                <path
-                  clip-rule="evenodd"
-                  d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                  fill-rule="evenodd"
-                />
-              </svg>
-            </span>
+            />
           </div>
         </div>
         <div
-          class="c21"
+          class="c22"
         >
           <div
-            class="c22"
+            class="c23"
             color="text.main"
             style="text-transform: uppercase;"
           >
@@ -908,32 +906,17 @@ exports[`failed 1`] = `
       </div>
     </form>
     <table
-      class="c23"
+      class="c24"
     >
       <thead>
         <tr>
           <th>
-            <a
-              style="display: flex; align-items: center;"
-            >
+            <a>
               Name
               <span
-                class="c20 icon icon-chevronup"
+                class="c20 c21 icon icon-chevron-up "
                 title="sort items asc"
-              >
-                <svg
-                  fill="currentColor"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  width="24"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M11.4697 6.96967C11.7626 6.67678 12.2374 6.67678 12.5303 6.96967L20.0303 14.4697C20.3232 14.7626 20.3232 15.2374 20.0303 15.5303C19.7374 15.8232 19.2626 15.8232 18.9697 15.5303L12 8.56066L5.03033 15.5303C4.73744 15.8232 4.26256 15.8232 3.96967 15.5303C3.67678 15.2374 3.67678 14.7626 3.96967 14.4697L11.4697 6.96967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
+              />
             </a>
           </th>
           <th
@@ -953,16 +936,16 @@ exports[`failed 1`] = `
           </td>
           <td>
             <div
-              class="c24"
+              class="c25"
             >
               <div
-                class="c25"
+                class="c26"
                 kind="secondary"
               >
                 kernel: 4.15.0-51-generic
               </div>
               <div
-                class="c25"
+                class="c26"
                 kind="secondary"
               >
                 env: prod
@@ -973,7 +956,7 @@ exports[`failed 1`] = `
             align="right"
           >
             <button
-              class="c26"
+              class="c27"
               kind="border"
             >
               Connect
@@ -986,10 +969,10 @@ exports[`failed 1`] = `
           </td>
           <td>
             <div
-              class="c24"
+              class="c25"
             >
               <div
-                class="c25"
+                class="c26"
                 kind="secondary"
               >
                 env: staging
@@ -1000,7 +983,7 @@ exports[`failed 1`] = `
             align="right"
           >
             <button
-              class="c26"
+              class="c27"
               kind="border"
             >
               Connect
@@ -1013,16 +996,16 @@ exports[`failed 1`] = `
           </td>
           <td>
             <div
-              class="c24"
+              class="c25"
             >
               <div
-                class="c25"
+                class="c26"
                 kind="secondary"
               >
                 cluster-name: some-cluster-name
               </div>
               <div
-                class="c25"
+                class="c26"
                 kind="secondary"
               >
                 env: idk
@@ -1033,7 +1016,7 @@ exports[`failed 1`] = `
             align="right"
           >
             <button
-              class="c26"
+              class="c27"
               kind="border"
             >
               Connect
@@ -1043,59 +1026,32 @@ exports[`failed 1`] = `
       </tbody>
     </table>
     <nav
-      class="c27"
+      class="c28"
     >
       <div
-        class="c28"
+        class="c29"
         width="100%"
       >
         <div
-          class="c21"
+          class="c22"
         >
           <button
-            class="c29 c30"
+            class="c30 c31"
             title="Previous page"
           >
             <span
-              class="c20 icon icon-circlearrowleft"
-            >
-              <svg
-                fill="currentColor"
-                height="24"
-                viewBox="0 0 24 24"
-                width="24"
-              >
-                <path
-                  d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
-                />
-                <path
-                  clip-rule="evenodd"
-                  d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
-                  fill-rule="evenodd"
-                />
-              </svg>
-            </span>
+              class="c20 c32 icon icon-arrow-left-circle "
+              font-size="3"
+            />
           </button>
           <button
-            class="c31 c30"
+            class="c33 c31"
             title="Next page"
           >
             <span
-              class="c20 icon icon-circlearrowright"
-            >
-              <svg
-                fill="currentColor"
-                height="24"
-                viewBox="0 0 24 24"
-                width="24"
-              >
-                <path
-                  clip-rule="evenodd"
-                  d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
-                  fill-rule="evenodd"
-                />
-              </svg>
-            </span>
+              class="c20 c32 icon icon-arrow-right-circle "
+              font-size="3"
+            />
           </button>
         </div>
       </div>
@@ -1154,7 +1110,7 @@ exports[`loaded 1`] = `
   cursor: auto;
 }
 
-.c26 {
+.c27 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1181,22 +1137,35 @@ exports[`loaded 1`] = `
   padding: 0px 16px;
 }
 
-.c26:hover,
-.c26:focus {
+.c27:hover,
+.c27:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c26:active {
+.c27:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c26:disabled {
+.c27:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c29 {
+.c21 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c32 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c30 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1218,25 +1187,29 @@ exports[`loaded 1`] = `
   margin-right: 0px;
 }
 
-.c29:disabled {
+.c30 .c20 {
+  color: inherit;
+}
+
+.c30:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c29:disabled {
+.c30:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c29:hover:enabled,
-.c29:focus:enabled {
+.c30:hover:enabled,
+.c30:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c29:active:enabled {
+.c30:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c31 {
+.c33 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1257,21 +1230,25 @@ exports[`loaded 1`] = `
   margin-left: 0px;
 }
 
-.c31:disabled {
+.c33 .c20 {
+  color: inherit;
+}
+
+.c33:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c31:disabled {
+.c33:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c31:hover:enabled,
-.c31:focus:enabled {
+.c33:hover:enabled,
+.c33:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c31:active:enabled {
+.c33:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -1284,7 +1261,7 @@ exports[`loaded 1`] = `
   margin: 0px;
 }
 
-.c22 {
+.c23 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -1293,12 +1270,6 @@ exports[`loaded 1`] = `
   margin: 0px;
   margin-right: 4px;
   color: #FFFFFF;
-}
-
-.c20 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c6 {
@@ -1315,25 +1286,25 @@ exports[`loaded 1`] = `
   align-items: center;
 }
 
-.c21 {
+.c22 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c24 {
+.c25 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
 }
 
-.c28 {
+.c29 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
   justify-content: flex-end;
 }
 
-.c23 {
+.c24 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -1342,39 +1313,39 @@ exports[`loaded 1`] = `
   width: 100%;
 }
 
-.c23 > thead > tr > th,
-.c23 > tbody > tr > th,
-.c23 > tfoot > tr > th,
-.c23 > thead > tr > td,
-.c23 > tbody > tr > td,
-.c23 > tfoot > tr > td {
+.c24 > thead > tr > th,
+.c24 > tbody > tr > th,
+.c24 > tfoot > tr > th,
+.c24 > thead > tr > td,
+.c24 > tbody > tr > td,
+.c24 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c23 > thead > tr > th:first-child,
-.c23 > tbody > tr > th:first-child,
-.c23 > tfoot > tr > th:first-child,
-.c23 > thead > tr > td:first-child,
-.c23 > tbody > tr > td:first-child,
-.c23 > tfoot > tr > td:first-child {
+.c24 > thead > tr > th:first-child,
+.c24 > tbody > tr > th:first-child,
+.c24 > tfoot > tr > th:first-child,
+.c24 > thead > tr > td:first-child,
+.c24 > tbody > tr > td:first-child,
+.c24 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c23 > thead > tr > th:last-child,
-.c23 > tbody > tr > th:last-child,
-.c23 > tfoot > tr > th:last-child,
-.c23 > thead > tr > td:last-child,
-.c23 > tbody > tr > td:last-child,
-.c23 > tfoot > tr > td:last-child {
+.c24 > thead > tr > th:last-child,
+.c24 > tbody > tr > th:last-child,
+.c24 > tfoot > tr > th:last-child,
+.c24 > thead > tr > td:last-child,
+.c24 > tbody > tr > td:last-child,
+.c24 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c23 > tbody > tr > td {
+.c24 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c23 > thead > tr > th {
+.c24 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -1388,20 +1359,22 @@ exports[`loaded 1`] = `
   white-space: nowrap;
 }
 
-.c23 > thead > tr > th svg {
-  height: 12px;
+.c24 > thead > tr > th .c20 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
 }
 
-.c23 > tbody > tr > td {
+.c24 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c23 tbody tr {
+.c24 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c23 tbody tr:hover {
+.c24 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
@@ -1417,7 +1390,7 @@ exports[`loaded 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c27 {
+.c28 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1434,7 +1407,7 @@ exports[`loaded 1`] = `
   border-radius: 8px;
 }
 
-.c25 {
+.c26 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -1450,15 +1423,15 @@ exports[`loaded 1`] = `
   cursor: pointer;
 }
 
-.c25:hover {
+.c26:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c30 svg {
+.c31 .c20 {
   font-size: 20px;
 }
 
-.c30 svg:before {
+.c31 .c20:before {
   padding-left: 1px;
 }
 
@@ -1651,7 +1624,8 @@ exports[`loaded 1`] = `
         title=""
         width="240px"
       >
-        Add kubernetes
+        Add 
+        kubernetes
       </button>
     </a>
   </div>
@@ -1719,35 +1693,16 @@ exports[`loaded 1`] = `
             style="line-height: 0px;"
           >
             <span
-              class="c20 icon icon-info"
+              class="c20 c21 icon icon-info_outline "
               style="cursor: pointer; font-size: 20px;"
-            >
-              <svg
-                fill="currentColor"
-                height="20"
-                viewBox="0 0 24 24"
-                width="20"
-              >
-                <path
-                  d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                />
-                <path
-                  d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                />
-                <path
-                  clip-rule="evenodd"
-                  d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                  fill-rule="evenodd"
-                />
-              </svg>
-            </span>
+            />
           </div>
         </div>
         <div
-          class="c21"
+          class="c22"
         >
           <div
-            class="c22"
+            class="c23"
             color="text.main"
             style="text-transform: uppercase;"
           >
@@ -1769,32 +1724,17 @@ exports[`loaded 1`] = `
       </div>
     </form>
     <table
-      class="c23"
+      class="c24"
     >
       <thead>
         <tr>
           <th>
-            <a
-              style="display: flex; align-items: center;"
-            >
+            <a>
               Name
               <span
-                class="c20 icon icon-chevronup"
+                class="c20 c21 icon icon-chevron-up "
                 title="sort items asc"
-              >
-                <svg
-                  fill="currentColor"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  width="24"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M11.4697 6.96967C11.7626 6.67678 12.2374 6.67678 12.5303 6.96967L20.0303 14.4697C20.3232 14.7626 20.3232 15.2374 20.0303 15.5303C19.7374 15.8232 19.2626 15.8232 18.9697 15.5303L12 8.56066L5.03033 15.5303C4.73744 15.8232 4.26256 15.8232 3.96967 15.5303C3.67678 15.2374 3.67678 14.7626 3.96967 14.4697L11.4697 6.96967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
+              />
             </a>
           </th>
           <th
@@ -1814,16 +1754,16 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c24"
+              class="c25"
             >
               <div
-                class="c25"
+                class="c26"
                 kind="secondary"
               >
                 kernel: 4.15.0-51-generic
               </div>
               <div
-                class="c25"
+                class="c26"
                 kind="secondary"
               >
                 env: prod
@@ -1834,7 +1774,7 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c26"
+              class="c27"
               kind="border"
             >
               Connect
@@ -1847,10 +1787,10 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c24"
+              class="c25"
             >
               <div
-                class="c25"
+                class="c26"
                 kind="secondary"
               >
                 env: staging
@@ -1861,7 +1801,7 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c26"
+              class="c27"
               kind="border"
             >
               Connect
@@ -1874,16 +1814,16 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c24"
+              class="c25"
             >
               <div
-                class="c25"
+                class="c26"
                 kind="secondary"
               >
                 cluster-name: some-cluster-name
               </div>
               <div
-                class="c25"
+                class="c26"
                 kind="secondary"
               >
                 env: idk
@@ -1894,7 +1834,7 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c26"
+              class="c27"
               kind="border"
             >
               Connect
@@ -1904,59 +1844,32 @@ exports[`loaded 1`] = `
       </tbody>
     </table>
     <nav
-      class="c27"
+      class="c28"
     >
       <div
-        class="c28"
+        class="c29"
         width="100%"
       >
         <div
-          class="c21"
+          class="c22"
         >
           <button
-            class="c29 c30"
+            class="c30 c31"
             title="Previous page"
           >
             <span
-              class="c20 icon icon-circlearrowleft"
-            >
-              <svg
-                fill="currentColor"
-                height="24"
-                viewBox="0 0 24 24"
-                width="24"
-              >
-                <path
-                  d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
-                />
-                <path
-                  clip-rule="evenodd"
-                  d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
-                  fill-rule="evenodd"
-                />
-              </svg>
-            </span>
+              class="c20 c32 icon icon-arrow-left-circle "
+              font-size="3"
+            />
           </button>
           <button
-            class="c31 c30"
+            class="c33 c31"
             title="Next page"
           >
             <span
-              class="c20 icon icon-circlearrowright"
-            >
-              <svg
-                fill="currentColor"
-                height="24"
-                viewBox="0 0 24 24"
-                width="24"
-              >
-                <path
-                  clip-rule="evenodd"
-                  d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
-                  fill-rule="evenodd"
-                />
-              </svg>
-            </span>
+              class="c20 c32 icon icon-arrow-right-circle "
+              font-size="3"
+            />
           </button>
         </div>
       </div>

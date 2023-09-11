@@ -360,6 +360,7 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				},
 			}},
 			nil
+
 	}
 
 	return nil, trace.BadParameter("invalid event %s", req.Event)

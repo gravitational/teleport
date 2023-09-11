@@ -23,18 +23,18 @@ import (
 	"github.com/gravitational/trace"
 )
 
-type CommandGenerationTool struct{}
+type commandGenerationTool struct{}
 
-type CommandGenerationToolInput struct {
+type commandGenerationToolInput struct {
 	// Command is a unix command to execute.
 	Command string `json:"command"`
 }
 
-func (c *CommandGenerationTool) Name() string {
+func (c *commandGenerationTool) Name() string {
 	return "Command Generation"
 }
 
-func (c *CommandGenerationTool) Description() string {
+func (c *commandGenerationTool) Description() string {
 	// acknowledgement field is used to convince the LLM to return the JSON.
 	// Base on my testing LLM ignores the JSON when the schema has only one field.
 	// Adding additional "pseudo-fields" to the schema makes the LLM return the JSON.
@@ -49,8 +49,8 @@ The input must be a JSON object with the following schema:
 `, "```", "```")
 }
 
-func (c *CommandGenerationTool) Run(_ context.Context, toolCtx *ToolContext, _ string) (string, error) {
-	// This is stubbed because CommandGenerationTool is handled specially.
+func (c *commandGenerationTool) Run(_ context.Context, _ string) (string, error) {
+	// This is stubbed because commandGenerationTool is handled specially.
 	// This is because execution of this tool breaks the loop and returns a command suggestion to the user.
 	// It is still handled as a tool because testing has shown that the LLM behaves better when it is treated as a tool.
 	//
@@ -58,10 +58,10 @@ func (c *CommandGenerationTool) Run(_ context.Context, toolCtx *ToolContext, _ s
 	return "", trace.NotImplemented("not implemented")
 }
 
-// parseInput is called in a special case if the planned tool is CommandExecutionTool.
-// This is because CommandExecutionTool is handled differently from most other tools and forcibly terminates the thought loop.
-func (*CommandGenerationTool) parseInput(input string) (*CommandGenerationToolInput, error) {
-	output, err := parseJSONFromModel[CommandGenerationToolInput](input)
+// parseInput is called in a special case if the planned tool is commandExecutionTool.
+// This is because commandExecutionTool is handled differently from most other tools and forcibly terminates the thought loop.
+func (*commandGenerationTool) parseInput(input string) (*commandGenerationToolInput, error) {
+	output, err := parseJSONFromModel[commandGenerationToolInput](input)
 	if err != nil {
 		return nil, err
 	}

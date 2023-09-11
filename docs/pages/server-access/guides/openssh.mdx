@@ -75,8 +75,8 @@ Change the command-line options to assign the following values:
 - Set to the address and port of the node that will join the cluster.
 - Set to the token value.
 
-Check that your new node is listed with `tsh ls` or in the Web UI. You can edit the
-hostname and labels with `tctl edit nodes/<hostname>`.  If the hostname isn't unique, get the UUID
+Check that your new node is listed with `tsh ls` or in the Web UI.  You can edit the
+hostname and labels with `tctl edit nodes/<hostname>`.  If the hostname isn't unique get the UUID
 from `tctl nodes ls -v` and edit with `tctl edit nodes/<uuid>`.
 
 ## Step 2/3. Generate an SSH client configuration
@@ -149,7 +149,6 @@ This command creates an SSH configuration file at a nonstandard location in
 order to make it easier to clean up, but you can append the output of
 `tsh config` to the default SSH config file (`~/.ssh/config`) if you wish.
 
-
 <Details title="How does the config work?">
 
 Teleport implements an SSH server that includes several **subsystems**, or
@@ -210,13 +209,6 @@ authenticate the host via the certificate we generated earlier.
   $ tsh.exe config | out-file .ssh\config -encoding utf8 -append
   ```
 
-</Details>
-
-<Details title="Dialing uppercase hostnames with OpenSSH">
-Routing in Teleport clusters is case-sensitive by default, but OpenSSH always lowercases hostnames. If you
-are using an OpenSSH client and have hosts with uppercase letters in their hostnames, you may need to set
-`case_insensitive_routing: true` in either the `auth_service` block of your Teleport config, or in the
-`cluster_networking_config` resource.
 </Details>
 
 <Admonition

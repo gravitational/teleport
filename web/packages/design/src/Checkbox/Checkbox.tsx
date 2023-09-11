@@ -17,7 +17,6 @@
 import styled from 'styled-components';
 
 import { Flex } from 'design';
-import { space } from 'design/system';
 
 export const CheckboxWrapper = styled(Flex)`
   padding: 8px;
@@ -40,6 +39,4 @@ export const CheckboxInput = styled.input`
   &:hover {
     cursor: pointer;
   }
-
-  ${space}
 `;

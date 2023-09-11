@@ -279,6 +279,8 @@ type Identity interface {
 type AppSession interface {
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
+	// GetAppSessions gets all application web sessions.
+	GetAppSessions(context.Context) ([]types.WebSession, error)
 	// ListAppSessions gets a paginated list of application web sessions.
 	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
 	// UpsertAppSession upserts an application web session.

@@ -202,7 +202,7 @@ func TestAuditDynamoDB(t *testing.T) {
 }
 
 func withDynamoDB(name string, opts ...dynamodb.TestServerOption) withDatabaseOption {
-	return func(t testing.TB, _ context.Context, testCtx *testContext) types.Database {
+	return func(t *testing.T, _ context.Context, testCtx *testContext) types.Database {
 		config := common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,

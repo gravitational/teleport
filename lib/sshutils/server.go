@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -40,6 +41,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -125,6 +127,10 @@ const (
 	// SSH version string
 	// https://tools.ietf.org/html/rfc4253
 	MaxVersionStringBytes = 255
+
+	// TrueClientAddrVar environment variable is used by the web UI to pass
+	// the remote IP (user's IP) from the browser/HTTP session into an SSH session
+	TrueClientAddrVar = "TELEPORT_CLIENT_ADDR"
 
 	// caGetterTimeout is the timeout on getting host cert authority, that is used in
 	// signed PROXY headers verification.
@@ -818,7 +824,7 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	n, err := c.Conn.Read(buff)
 	if err != nil {
 		// EOF happens quite often, don't pollute the logs with it
-		if !errors.Is(err, io.EOF) {
+		if !trace.IsEOF(err) {
 			c.logger.Error(err)
 		}
 		return n, err
@@ -827,6 +833,21 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	buff = buff[:n]
 	skip := 0
 
+	// are we reading from a Teleport proxy?
+	if bytes.HasPrefix(buff, []byte(constants.ProxyHelloSignature)) {
+		// the JSON payload ends with a binary zero:
+		payloadBoundary := bytes.IndexByte(buff, 0x00)
+		if payloadBoundary > 0 {
+			var hp sshutils.HandshakePayload
+			payload := buff[len(constants.ProxyHelloSignature):payloadBoundary]
+			if err = json.Unmarshal(payload, &hp); err != nil {
+				c.logger.Error(err)
+			} else {
+				c.traceContext = hp.TracingContext
+			}
+			skip = payloadBoundary + 1
+		}
+	}
 	if bytes.HasPrefix(buff, multiplexer.ProxyV2Prefix) {
 		reader := bufio.NewReader(io.MultiReader(bytes.NewBuffer(buff), c.Conn))
 

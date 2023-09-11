@@ -39,7 +39,7 @@ func NewSystemAutomaticAccessApproverRole() types.Role {
 	}
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemAutomaticAccessApprovalRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -101,7 +101,7 @@ func NewSystemAutomaticAccessBotUser() types.User {
 func NewPresetEditorRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -175,7 +175,7 @@ func NewPresetEditorRole() types.Role {
 func NewPresetAccessRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -206,10 +206,9 @@ func NewPresetAccessRole() types.Role {
 				DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      types.Wildcard,
+						Kind:      types.KindKubePod,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
-						Verbs:     []string{types.Wildcard},
 					},
 				},
 				Rules: []types.Rule{
@@ -242,7 +241,7 @@ func NewPresetAccessRole() types.Role {
 func NewPresetAuditorRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -362,6 +361,118 @@ func NewPresetGroupAccessRole() types.Role {
 		},
 	}
 	return role
+}
+
+// NewPresetDeviceAdminRole returns the preset "device-admin" role, or nil for
+// non-Enterprise builds.
+// The role is used to administer trusted devices.
+func NewPresetDeviceAdminRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetDeviceAdminRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Administer trusted devices",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+				},
+			},
+		},
+	}
+}
+
+// NewPresetDeviceEnrollRole returns the preset "device-enroll" role, or nil for
+// non-Enterprise builds.
+// The role is used to grant device enrollment powers to users.
+func NewPresetDeviceEnrollRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetDeviceEnrollRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Grant permission to enroll trusted devices",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindDevice, []string{types.VerbEnroll}),
+				},
+			},
+		},
+	}
+}
+
+// NewPresetRequireTrustedDeviceRole returns the preset "require-trusted-device"
+// role, or nil for non-Enterprise builds.
+// The role is used as a basis for requiring trusted device access to
+// resources.
+func NewPresetRequireTrustedDeviceRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetRequireTrustedDeviceRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Require trusted device to access resources",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				DeviceTrustMode: constants.DeviceTrustModeRequired,
+			},
+			Allow: types.RoleConditions{
+				// All SSH nodes.
+				Logins: []string{"{{internal.logins}}"},
+				NodeLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+
+				// All k8s nodes.
+				KubeGroups: []string{
+					"{{internal.kubernetes_groups}}",
+					// Common/example groups.
+					"system:masters",
+					"developers",
+					"viewers",
+				},
+				KubernetesLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+
+				// All DB nodes.
+				DatabaseLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+				DatabaseNames: []string{types.Wildcard},
+				DatabaseUsers: []string{types.Wildcard},
+			},
+		},
+	}
 }
 
 // bootstrapRoleMetadataLabels are metadata labels that will be applied to each role.

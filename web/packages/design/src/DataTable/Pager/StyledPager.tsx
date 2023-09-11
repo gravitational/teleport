@@ -17,12 +17,13 @@
 import styled from 'styled-components';
 
 import { ButtonIcon } from 'design';
+import Icon from 'design/Icon';
 
 export const StyledArrowBtn = styled(ButtonIcon)`
-  svg {
+  ${Icon} {
     font-size: 20px;
   }
-  svg:before {
+  ${Icon}:before {
     // arrow icons have some padding that makes them look slightly off-center, padding compensates it
     padding-left: 1px;
   }

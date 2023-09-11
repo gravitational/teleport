@@ -454,11 +454,7 @@ func (s *LocalSupervisor) WaitForEvent(ctx context.Context, name string) (Event,
 func (s *LocalSupervisor) WaitForEventTimeout(timeout time.Duration, name string) (Event, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	event, err := s.WaitForEvent(ctx, name)
-	if err != nil && ctx.Err() != nil {
-		return event, trace.Errorf("timeout waiting for event %q (%s)", name, timeout)
-	}
-	return event, trace.Wrap(err)
+	return s.WaitForEvent(ctx, name)
 }
 
 func (s *LocalSupervisor) ListenForEvents(ctx context.Context, name string, eventC chan<- Event) {

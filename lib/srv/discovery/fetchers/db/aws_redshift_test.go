@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestRedshiftFetcher(t *testing.T) {
@@ -78,7 +77,6 @@ func makeRedshiftCluster(t *testing.T, region, env string, opts ...func(*redshif
 
 	database, err := services.NewDatabaseFromRedshiftCluster(cluster)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRedshift)
 	return cluster, database
 }
 

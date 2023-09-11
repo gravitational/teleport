@@ -236,13 +236,6 @@ spec:
                           description: Namespace is the resource namespace. It supports
                             wildcards.
                           type: string
-                        verbs:
-                          description: Verbs are the allowed Kubernetes verbs for
-                            the following resource.
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
                       type: object
                     type: array
                   kubernetes_users:
@@ -697,13 +690,6 @@ spec:
                           description: Namespace is the resource namespace. It supports
                             wildcards.
                           type: string
-                        verbs:
-                          description: Verbs are the allowed Kubernetes verbs for
-                            the following resource.
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
                       type: object
                     type: array
                   kubernetes_users:
@@ -1113,7 +1099,7 @@ spec:
                     type: string
                   request_prompt:
                     description: RequestPrompt is an optional message which tells
-                      users what they aught to request.
+                      users what they aught to
                     type: string
                   require_session_mfa:
                     description: RequireMFAType is the type of MFA requirement enforced
@@ -1433,13 +1419,6 @@ spec:
                           description: Namespace is the resource namespace. It supports
                             wildcards.
                           type: string
-                        verbs:
-                          description: Verbs are the allowed Kubernetes verbs for
-                            the following resource.
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
                       type: object
                     type: array
                   kubernetes_users:
@@ -1894,13 +1873,6 @@ spec:
                           description: Namespace is the resource namespace. It supports
                             wildcards.
                           type: string
-                        verbs:
-                          description: Verbs are the allowed Kubernetes verbs for
-                            the following resource.
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
                       type: object
                     type: array
                   kubernetes_users:
@@ -2310,7 +2282,7 @@ spec:
                     type: string
                   request_prompt:
                     description: RequestPrompt is an optional message which tells
-                      users what they aught to request.
+                      users what they aught to
                     type: string
                   require_session_mfa:
                     description: RequireMFAType is the type of MFA requirement enforced

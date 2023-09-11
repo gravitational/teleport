@@ -71,14 +71,14 @@ func TestMemberFromProtoNils(t *testing.T) {
 	member.Spec.Expires = nil
 
 	_, err = FromMemberProto(member)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	// Reason is empty
 	member = ToMemberProto(newAccessListMember(t, "access-list-member"))
 	member.Spec.Reason = ""
 
 	_, err = FromMemberProto(member)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	// AddedBy is empty
 	member = ToMemberProto(newAccessListMember(t, "access-list-member"))

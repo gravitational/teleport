@@ -26,6 +26,9 @@ export default function AgentButtonAdd(props: Props) {
   const { canCreate, isLeafCluster, onClick, agent, beginsWithVowel } = props;
   const disabled = isLeafCluster || !canCreate;
 
+  // Don't render button if it's disabled and feature hiding is enabled.
+  const hidden = disabled && cfg.hideInaccessibleFeatures;
+
   let title = '';
   if (!canCreate) {
     title = `You do not have access to add ${
@@ -39,11 +42,15 @@ export default function AgentButtonAdd(props: Props) {
     } ${agent} to a leaf cluster is not supported`;
   }
 
+  if (hidden) {
+    return null;
+  }
+
   return (
     <Link
       to={{
         pathname: `${cfg.routes.root}/discover`,
-        state: { entity: agent !== 'unified_resource' ? agent : null },
+        state: { entity: agent },
       }}
       style={{ textDecoration: 'none' }}
     >
@@ -53,7 +60,7 @@ export default function AgentButtonAdd(props: Props) {
         width="240px"
         onClick={onClick}
       >
-        {agent === 'unified_resource' ? 'Enroll New Resource' : `Add ${agent}`}
+        Add {agent}
       </ButtonPrimary>
     </Link>
   );

@@ -1692,116 +1692,6 @@ func TestSessionTTL(t *testing.T) {
 	}
 }
 
-func TestAutoRequest(t *testing.T) {
-	t.Parallel()
-
-	clock := clockwork.NewFakeClock()
-
-	empty, err := types.NewRole("empty", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	promptRole, err := types.NewRole("prompt", types.RoleSpecV6{
-		Options: types.RoleOptions{
-			RequestPrompt: "test prompt",
-		},
-	})
-	require.NoError(t, err)
-
-	optionalRole, err := types.NewRole("optional", types.RoleSpecV6{
-		Options: types.RoleOptions{
-			RequestAccess: types.RequestStrategyOptional,
-		},
-	})
-	require.NoError(t, err)
-
-	reasonRole, err := types.NewRole("reason", types.RoleSpecV6{
-		Options: types.RoleOptions{
-			RequestAccess: types.RequestStrategyReason,
-		},
-	})
-	require.NoError(t, err)
-
-	alwaysRole, err := types.NewRole("always", types.RoleSpecV6{
-		Options: types.RoleOptions{
-			RequestAccess: types.RequestStrategyAlways,
-		},
-	})
-	require.NoError(t, err)
-
-	cases := []struct {
-		name      string
-		roles     []types.Role
-		assertion func(t *testing.T, validator *RequestValidator)
-	}{
-		{
-			name: "no roles",
-			assertion: func(t *testing.T, validator *RequestValidator) {
-				require.False(t, validator.requireReason)
-				require.False(t, validator.autoRequest)
-				require.Empty(t, validator.prompt)
-			},
-		},
-		{
-			name:  "with prompt",
-			roles: []types.Role{empty, optionalRole, promptRole},
-			assertion: func(t *testing.T, validator *RequestValidator) {
-				require.False(t, validator.requireReason)
-				require.False(t, validator.autoRequest)
-				require.Equal(t, "test prompt", validator.prompt)
-			},
-		},
-		{
-			name:  "with auto request",
-			roles: []types.Role{alwaysRole},
-			assertion: func(t *testing.T, validator *RequestValidator) {
-				require.False(t, validator.requireReason)
-				require.True(t, validator.autoRequest)
-				require.Empty(t, validator.prompt)
-			},
-		},
-		{
-			name:  "with prompt and auto request",
-			roles: []types.Role{promptRole, alwaysRole},
-			assertion: func(t *testing.T, validator *RequestValidator) {
-				require.False(t, validator.requireReason)
-				require.True(t, validator.autoRequest)
-				require.Equal(t, "test prompt", validator.prompt)
-			},
-		},
-		{
-			name:  "with reason and auto prompt",
-			roles: []types.Role{reasonRole},
-			assertion: func(t *testing.T, validator *RequestValidator) {
-				require.True(t, validator.requireReason)
-				require.True(t, validator.autoRequest)
-				require.Empty(t, validator.prompt)
-			},
-		},
-	}
-
-	for _, test := range cases {
-		user, err := types.NewUser("foo")
-		require.NoError(t, err)
-
-		getter := &mockGetter{
-			users: make(map[string]types.User),
-			roles: make(map[string]types.Role),
-		}
-
-		for _, r := range test.roles {
-			getter.roles[r.GetName()] = r
-			user.AddRole(r.GetName())
-		}
-
-		getter.users[user.GetName()] = user
-
-		validator, err := NewRequestValidator(context.Background(), clock, getter, user.GetName(), ExpandVars(true))
-		require.NoError(t, err)
-		test.assertion(t, &validator)
-	}
-
-}
-
 type mockClusterGetter struct {
 	localCluster   types.ClusterName
 	remoteClusters map[string]types.RemoteCluster
@@ -2004,6 +1894,8 @@ func TestMaxDuration(t *testing.T) {
 		expectedAccessDuration time.Duration
 		// expectedSessionTTL is the expected session TTL
 		expectedSessionTTL time.Duration
+		// DryRun is true if the request is a dry run
+		dryRun bool
 	}{
 		{
 			desc:                   "role maxDuration is respected",
@@ -2012,6 +1904,15 @@ func TestMaxDuration(t *testing.T) {
 			maxDuration:            7 * day,
 			expectedAccessDuration: 3 * day,
 			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc:                   "dry run allows for longer maxDuration then 7d",
+			requestor:              "alice",
+			roles:                  []string{"requestedRole"},
+			maxDuration:            10 * day,
+			expectedAccessDuration: 3 * day,
+			expectedSessionTTL:     8 * time.Hour,
+			dryRun:                 true,
 		},
 		{
 			desc:                   "maxDuration not set, default maxTTL (8h)",
@@ -2105,9 +2006,11 @@ func TestMaxDuration(t *testing.T) {
 
 			req.SetCreationTime(now)
 			req.SetMaxDuration(now.Add(tt.maxDuration))
+			req.SetDryRun(tt.dryRun)
 
 			require.NoError(t, validator.Validate(context.Background(), req, identity))
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetAccessExpiry())
+			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetMaxDuration())
 			require.Equal(t, now.Add(tt.expectedSessionTTL), req.GetSessionTLL())
 		})
 	}

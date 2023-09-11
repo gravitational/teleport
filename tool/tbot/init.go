@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/user"
@@ -43,9 +42,14 @@ const aclTestFailedMessage = "ACLs are not usable for destination %s; " +
 	"Change the destination's ACL mode to `off` to silence this warning."
 
 // getInitArtifacts returns a map of all desired artifacts for the destination
-func getInitArtifacts(output config.Output) map[string]bool {
+func getInitArtifacts(destination *config.DestinationConfig) (map[string]bool, error) {
 	// true = directory, false = regular file
 	toCreate := map[string]bool{}
+
+	destImpl, err := destination.GetDestination()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Collect all base artifacts and filter for the destination.
 	for _, artifact := range identity.GetArtifacts() {
@@ -55,11 +59,18 @@ func getInitArtifacts(output config.Output) map[string]bool {
 	}
 
 	// Collect all config template artifacts.
-	for _, fd := range output.Describe() {
-		toCreate[fd.Name] = fd.IsDir
+	for _, templateConfig := range destination.Configs {
+		template, err := templateConfig.GetConfigTemplate()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, file := range template.Describe(destImpl) {
+			toCreate[file.Name] = file.IsDir
+		}
 	}
 
-	return toCreate
+	return toCreate, nil
 }
 
 // getExistingArtifacts fetches all entries in a destination directory
@@ -380,27 +391,25 @@ func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*user.User, *user
 }
 
 func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	var output config.Output
+	var destination *config.DestinationConfig
 	var err error
-	// First, resolve the correct output. If using a config file with only
+
+	// First, resolve the correct destination. If using a config file with only
 	// 1 destination we can assume we want to init that one; otherwise,
 	// --init-dir is required.
 	if cf.InitDir == "" {
-		if len(botConfig.Outputs) == 1 {
-			output = botConfig.Outputs[0]
+		if len(botConfig.Destinations) == 1 {
+			destination = botConfig.Destinations[0]
 		} else {
-			return trace.BadParameter("An output to initialize must be specified with --init-dir")
+			return trace.BadParameter("A destination to initialize must be specified with --init-dir")
 		}
 	} else {
-		output, err = botConfig.GetOutputByPath(cf.InitDir)
+		destination, err = botConfig.GetDestinationByPath(cf.InitDir)
 		if err != nil {
 			return trace.WrapWithMessage(err, "Could not find specified destination %q", cf.InitDir)
 		}
 
-		if output == nil {
+		if destination == nil {
 			// TODO: in the future if/when other backends are supported,
 			// destination might be nil because the user tried to enter a non
 			// filesystem path, so this error message could be misleading.
@@ -409,7 +418,10 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		}
 	}
 
-	destImpl := output.GetDestination()
+	destImpl, err := destination.GetDestination()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	destDir, ok := destImpl.(*config.DestinationDirectory)
 	if !ok {
@@ -418,9 +430,14 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	log.Infof("Initializing destination: %s", destImpl)
 
+	subdirs, err := destination.ListSubdirectories()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create the directory if needed. We haven't checked directory ownership,
 	// but it will fail when the ACLs are created if anything is misconfigured.
-	if err := output.Init(ctx); err != nil {
+	if err := destDir.Init(subdirs); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -466,7 +483,11 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	}
 
 	// Next, resolve what we want and what we already have.
-	desired := getInitArtifacts(output)
+	desired, err := getInitArtifacts(destination)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	existing, err := getExistingArtifacts(destDir.Path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -539,7 +560,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		}
 	}
 
-	log.Infof("destination %s has been initialized. Note that these files "+
+	log.Infof("Destination %s has been initialized. Note that these files "+
 		"will be empty and invalid until the bot issues certificates.",
 		destImpl)
 

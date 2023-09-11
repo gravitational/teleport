@@ -18,7 +18,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Text, Box, Flex, Link } from 'design';
 import { Danger } from 'design/Alert';
-import { Info } from 'design/Icon';
+import { InfoFilled } from 'design/Icon';
 import TextEditor from 'shared/components/TextEditor';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import Validation from 'shared/components/Validation';
@@ -90,7 +90,7 @@ export function MutualTlsView({
           </Box>
           <StyledBox mb={6}>
             <Flex mb={2}>
-              <Info size="medium" mr={1} />
+              <InfoFilled fontSize={18} mr={1} mt="2px" />
               <Text bold>After Running the Command</Text>
             </Flex>
             <DbEngineInstructions dbEngine={dbEngine} />

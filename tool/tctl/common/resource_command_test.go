@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
@@ -77,12 +76,6 @@ func TestDatabaseServerResource(t *testing.T) {
 						CACertFile: caCertFilePath,
 					},
 				},
-				{
-					Name:        "db3",
-					Description: "Example MySQL",
-					Protocol:    "mysql",
-					URI:         "localhost:33308",
-				},
 			},
 		},
 		Proxy: config.Proxy{
@@ -100,26 +93,7 @@ func TestDatabaseServerResource(t *testing.T) {
 		},
 	}
 
-	db1, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "example",
-		Description: "Example MySQL",
-		Labels:      map[string]string{types.OriginLabel: types.OriginConfigFile},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolMySQL,
-		URI:      "localhost:33306",
-		CACert:   fixtures.TLSCACertPEM,
-		AdminUser: &types.DatabaseAdminUser{
-			Name: "",
-		},
-		TLS: types.DatabaseTLS{
-			Mode:       types.DatabaseTLSMode_VERIFY_FULL,
-			ServerName: "db.example.com",
-			CACert:     fixtures.TLSCACertPEM,
-		},
-	})
-	require.NoError(t, err)
-
-	db2, err := types.NewDatabaseV3(types.Metadata{
+	wantDB, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "example2",
 		Description: "Example PostgreSQL",
 		Labels:      map[string]string{types.OriginLabel: types.OriginConfigFile},
@@ -138,25 +112,6 @@ func TestDatabaseServerResource(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	db3, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "db3",
-		Description: "Example MySQL",
-		Labels:      map[string]string{types.OriginLabel: types.OriginConfigFile},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolMySQL,
-		URI:      "localhost:33308",
-		CACert:   fixtures.TLSCACertPEM,
-		AdminUser: &types.DatabaseAdminUser{
-			Name: "",
-		},
-		TLS: types.DatabaseTLS{
-			Mode:       types.DatabaseTLSMode_VERIFY_FULL,
-			ServerName: "db.example.com",
-			CACert:     fixtures.TLSCACertPEM,
-		},
-	})
-	require.NoError(t, err)
-
 	_ = makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	var out []*types.DatabaseServerV3
@@ -165,35 +120,21 @@ func TestDatabaseServerResource(t *testing.T) {
 	buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buff, &out)
-	require.Len(t, out, 3)
+	require.Len(t, out, 2)
+
+	wantServer := fmt.Sprintf("%v/%v", types.KindDatabaseServer, wantDB.GetName())
 
 	// get specific database server
-	wantServer := fmt.Sprintf("%v/%v", types.KindDatabaseServer, db2.GetName())
 	buff, err = runResourceCommand(t, fileConfig, []string{"get", wantServer, "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buff, &out)
 	require.Len(t, out, 1)
 	gotDB := out[0].GetDatabase()
-	require.Empty(t, cmp.Diff([]types.Database{db2}, []types.Database{gotDB},
+	require.Empty(t, cmp.Diff([]types.Database{wantDB}, []types.Database{gotDB},
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace", "Expires"),
 	))
 
-	// get database servers by prefix of name
-	wantServersPrefix := fmt.Sprintf("%v/%v", types.KindDatabaseServer, "exam")
-	buff, err = runResourceCommand(t, fileConfig, []string{"get", wantServersPrefix, "--format=json"})
-	require.NoError(t, err)
-	mustDecodeJSON(t, buff, &out)
-	require.Len(t, out, 2)
-	gotDBs := types.DatabaseServers{out[0], out[1]}.ToDatabases()
-	require.Empty(t, cmp.Diff([]types.Database{db1, db2}, gotDBs,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace", "Expires"),
-	))
-
-	// remove database servers by prefix is an error
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", wantServersPrefix})
-	require.ErrorContains(t, err, "db_server/exam matches multiple database servers")
-
-	// remove database server by name
+	// remove database server
 	_, err = runResourceCommand(t, fileConfig, []string{"rm", wantServer})
 	require.NoError(t, err)
 
@@ -201,17 +142,106 @@ func TestDatabaseServerResource(t *testing.T) {
 	require.Error(t, err)
 	require.IsType(t, &trace.NotFoundError{}, err.(*trace.TraceErr).OrigError())
 
-	// remove database server by prefix name.
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", wantServersPrefix})
-	require.NoError(t, err)
-
-	buff, err = runResourceCommand(t, fileConfig, []string{"get", "db_server", "--format=json"})
+	buff, err = runResourceCommand(t, fileConfig, []string{"get", "db", "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buff, &out)
+	require.Len(t, out, 0)
+}
+
+// TestDatabaseResource tests tctl commands that manage database resources.
+func TestDatabaseResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Databases: config.Databases{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
+	dbA, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "db-a",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+
+	dbB, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "db-b",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+		TLS: types.DatabaseTLS{
+			Mode: types.DatabaseTLSMode_VERIFY_CA,
+		},
+	})
+	require.NoError(t, err)
+
+	var out []*types.DatabaseV3
+
+	// Initially there are no databases.
+	buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabase, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 0)
+
+	// Create the databases.
+	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
+	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
+	_, err = runResourceCommand(t, fileConfig, []string{"create", dbYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the databases, should have 2.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindDatabase, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 2)
+	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbA, dbB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+	))
+
+	// Fetch specific database.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/db-b", types.KindDatabase), "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
 	require.Len(t, out, 1)
-	gotDBs = types.DatabaseServers{out[0]}.ToDatabases()
-	require.Empty(t, cmp.Diff([]types.Database{db3}, gotDBs,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace", "Expires"),
+	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+	))
+
+	// Remove a database.
+	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/db-a", types.KindDatabase)})
+	require.NoError(t, err)
+
+	// Fetch all databases again, should have 1.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindDatabase, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
 }
 
@@ -411,6 +441,98 @@ func TestIntegrationResource(t *testing.T) {
 	})
 }
 
+// TestAppResource tests tctl commands that manage application resources.
+func TestAppResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+			Logger: config.Log{
+				Severity: "debug",
+			},
+		},
+		Apps: config.Apps{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
+	appA, err := types.NewAppV3(types.Metadata{
+		Name:   "appA",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost1",
+	})
+	require.NoError(t, err)
+
+	appB, err := types.NewAppV3(types.Metadata{
+		Name:   "appB",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost2",
+	})
+	require.NoError(t, err)
+
+	var out []*types.AppV3
+
+	// Initially there are no apps.
+	buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindApp, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 0)
+
+	// Create the apps.
+	appYAMLPath := filepath.Join(t.TempDir(), "app.yaml")
+	require.NoError(t, os.WriteFile(appYAMLPath, []byte(appYAML), 0644))
+	_, err = runResourceCommand(t, fileConfig, []string{"create", appYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the apps, should have 2.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindApp, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Empty(t, cmp.Diff([]*types.AppV3{appA, appB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+	))
+
+	// Fetch specific app.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/appB", types.KindApp), "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Empty(t, cmp.Diff([]*types.AppV3{appB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+	))
+
+	// Remove an app.
+	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/appA", types.KindApp)})
+	require.NoError(t, err)
+
+	// Fetch all apps again, should have 1.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindApp, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Empty(t, cmp.Diff([]*types.AppV3{appB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+	))
+}
+
 func TestCreateLock(t *testing.T) {
 	dynAddr := newDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
@@ -526,70 +648,34 @@ const (
 	dbYAML = `kind: db
 version: v3
 metadata:
-  name: foo
+  name: db-a
+spec:
+  protocol: "postgres"
+  uri: "localhost:5432"
+---
+kind: db
+version: v3
+metadata:
+  name: db-b
 spec:
   protocol: "mysql"
   uri: "localhost:3306"
   tls:
-    mode: "verify-ca"
----
-kind: db
-version: v3
-metadata:
-  name: foo-bar
-spec:
-  protocol: "postgres"
-  uri: "localhost:5433"
-  tls:
-    mode: "verify-full"
----
-kind: db
-version: v3
-metadata:
-  name: foo-bar-baz
-spec:
-  protocol: "postgres"
-  uri: "localhost:5432"`
+    mode: "verify-ca"`
 
 	appYAML = `kind: app
 version: v3
 metadata:
-  name: foo
+  name: appA
 spec:
   uri: "localhost1"
 ---
 kind: app
 version: v3
 metadata:
-  name: foo-bar
+  name: appB
 spec:
-  uri: "localhost2"
----
-kind: app
-version: v3
-metadata:
-  name: foo-bar-baz
-spec:
-  uri: "localhost3"`
-
-	kubeYAML = `
-kind: kube_cluster
-version: v3
-metadata:
-  name: foo
-spec: {}
----
-kind: kube_cluster
-version: v3
-metadata:
-  name: foo-bar
-spec: {}
----
-kind: kube_cluster
-version: v3
-metadata:
-  name: foo-bar-baz
-spec: {}`
+  uri: "localhost2"`
 
 	lockYAML = `kind: lock
 version: v2
@@ -837,336 +923,6 @@ func TestUpsertVerb(t *testing.T) {
 			require.Equal(t, test.expected, actual)
 		})
 	}
-}
-
-type dynamicResourceTest[T types.ResourceWithLabels] struct {
-	kind                string
-	resourceYAML        string
-	fooResource         T
-	fooBarResource      T
-	fooBarBazResource   T
-	runPrefixNameChecks bool
-}
-
-func (test *dynamicResourceTest[T]) setup(t *testing.T) *config.FileConfig {
-	t.Helper()
-	requireResource := func(t *testing.T, r T, name string) {
-		t.Helper()
-		require.NotNil(t, r, "dynamicResourceTest requires a resource named %q", name)
-		require.Equal(t, r.GetName(), name, "dynamicResourceTest requires a resource named %q", name)
-	}
-	requireResource(t, test.fooResource, "foo")
-	requireResource(t, test.fooBarResource, "foo-bar")
-	requireResource(t, test.fooBarBazResource, "foo-bar-baz")
-	dynAddr := newDynamicServiceAddr(t)
-	fileConfig := &config.FileConfig{
-		Global: config.Global{
-			DataDir: t.TempDir(),
-		},
-		Proxy: config.Proxy{
-			Service: config.Service{
-				EnabledFlag: "true",
-			},
-			WebAddr: dynAddr.webAddr,
-			TunAddr: dynAddr.tunnelAddr,
-		},
-		Auth: config.Auth{
-			Service: config.Service{
-				EnabledFlag:   "true",
-				ListenAddress: dynAddr.authAddr,
-			},
-		},
-	}
-	_ = makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
-	return fileConfig
-}
-
-func (test *dynamicResourceTest[T]) run(t *testing.T) {
-	t.Helper()
-	fileConfig := test.setup(t)
-	var out []T
-
-	// Initially there are no resources.
-	buf, err := runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
-	require.NoError(t, err)
-	mustDecodeJSON(t, buf, &out)
-	require.Len(t, out, 0)
-
-	// Create the resources.
-	yamlPath := filepath.Join(t.TempDir(), "resources.yaml")
-	require.NoError(t, os.WriteFile(yamlPath, []byte(test.resourceYAML), 0644))
-	_, err = runResourceCommand(t, fileConfig, []string{"create", yamlPath})
-	require.NoError(t, err)
-
-	// Fetch all resources.
-	buf, err = runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
-	require.NoError(t, err)
-	mustDecodeJSON(t, buf, &out)
-	require.Len(t, out, 3)
-	require.Empty(t, cmp.Diff([]T{test.fooResource, test.fooBarResource, test.fooBarBazResource}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
-	))
-
-	// Fetch specific resource.
-	buf, err = runResourceCommand(t, fileConfig,
-		[]string{"get", fmt.Sprintf("%v/%v", test.kind, test.fooResource.GetName()), "--format=json"})
-	require.NoError(t, err)
-	mustDecodeJSON(t, buf, &out)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff([]T{test.fooResource}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
-	))
-
-	// Remove a resource.
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/%v", test.kind, test.fooBarResource.GetName())})
-	require.NoError(t, err)
-
-	// Fetch all resources again.
-	buf, err = runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
-	require.NoError(t, err)
-	mustDecodeJSON(t, buf, &out)
-	require.Len(t, out, 2)
-	require.Empty(t, cmp.Diff([]T{test.fooResource, test.fooBarBazResource}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
-	))
-
-	if !test.runPrefixNameChecks {
-		return
-	}
-
-	// Test prefix name behavior.
-	// Removing multiple resources ("foo" and "foo-bar-baz")by prefix name is an error.
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/%v", test.kind, "f")})
-	require.ErrorContains(t, err, "matches multiple")
-
-	// Remove "foo-bar-baz" resource by a prefix of its name.
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/%v", test.kind, "foo-bar-b")})
-	require.NoError(t, err)
-
-	// Fetch all resources again.
-	buf, err = runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
-	require.NoError(t, err)
-	mustDecodeJSON(t, buf, &out)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff([]T{test.fooResource}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
-	))
-}
-
-// TestDatabaseResource tests tctl commands that manage database resources.
-func TestDatabaseResource(t *testing.T) {
-	t.Parallel()
-	dbFoo, err := types.NewDatabaseV3(types.Metadata{
-		Name:   "foo",
-		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolMySQL,
-		URI:      "localhost:3306",
-		TLS: types.DatabaseTLS{
-			Mode: types.DatabaseTLSMode_VERIFY_CA,
-		},
-	})
-	require.NoError(t, err)
-	dbFooBar, err := types.NewDatabaseV3(types.Metadata{
-		Name:   "foo-bar",
-		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5433",
-		TLS: types.DatabaseTLS{
-			Mode: types.DatabaseTLSMode_VERIFY_FULL,
-		},
-	})
-	require.NoError(t, err)
-	dbFooBarBaz, err := types.NewDatabaseV3(types.Metadata{
-		Name:   "foo-bar-baz",
-		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-	})
-	require.NoError(t, err)
-
-	require.NoError(t, err)
-	test := dynamicResourceTest[*types.DatabaseV3]{
-		kind:                types.KindDatabase,
-		resourceYAML:        dbYAML,
-		fooResource:         dbFoo,
-		fooBarResource:      dbFooBar,
-		fooBarBazResource:   dbFooBarBaz,
-		runPrefixNameChecks: true,
-	}
-	test.run(t)
-}
-
-// TestKubeClusterResource tests tctl commands that manage dynamic kube cluster resources.
-func TestKubeClusterResource(t *testing.T) {
-	t.Parallel()
-	kubeFoo, err := types.NewKubernetesClusterV3(types.Metadata{
-		Name:   "foo",
-		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
-	}, types.KubernetesClusterSpecV3{})
-	require.NoError(t, err)
-	kubeFooBar, err := types.NewKubernetesClusterV3(types.Metadata{
-		Name:   "foo-bar",
-		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
-	}, types.KubernetesClusterSpecV3{})
-	require.NoError(t, err)
-	kubeFooBarBaz, err := types.NewKubernetesClusterV3(types.Metadata{
-		Name:   "foo-bar-baz",
-		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
-	}, types.KubernetesClusterSpecV3{})
-	require.NoError(t, err)
-	test := dynamicResourceTest[*types.KubernetesClusterV3]{
-		kind:                types.KindKubernetesCluster,
-		resourceYAML:        kubeYAML,
-		fooResource:         kubeFoo,
-		fooBarResource:      kubeFooBar,
-		fooBarBazResource:   kubeFooBarBaz,
-		runPrefixNameChecks: true,
-	}
-	test.run(t)
-}
-
-// TestAppResource tests tctl commands that manage application resources.
-func TestAppResource(t *testing.T) {
-	t.Parallel()
-	appFoo, err := types.NewAppV3(types.Metadata{
-		Name:   "foo",
-		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
-	}, types.AppSpecV3{
-		URI: "localhost1",
-	})
-	require.NoError(t, err)
-	appFooBar, err := types.NewAppV3(types.Metadata{
-		Name:   "foo-bar",
-		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
-	}, types.AppSpecV3{
-		URI: "localhost2",
-	})
-	require.NoError(t, err)
-	appFooBarBaz, err := types.NewAppV3(types.Metadata{
-		Name:   "foo-bar-baz",
-		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
-	}, types.AppSpecV3{
-		URI: "localhost3",
-	})
-	require.NoError(t, err)
-	test := dynamicResourceTest[*types.AppV3]{
-		kind:              types.KindApp,
-		resourceYAML:      appYAML,
-		fooResource:       appFoo,
-		fooBarResource:    appFooBar,
-		fooBarBazResource: appFooBarBaz,
-	}
-	test.run(t)
-}
-
-func TestGetOneResourceNameToDelete(t *testing.T) {
-	foo1 := mustCreateNewKubeServer(t, "foo", "host-foo", nil)
-	foo2 := mustCreateNewKubeServer(t, "foo", "host-foo", nil)
-	fooBar := mustCreateNewKubeServer(t, "foo-bar", "host-foo-bar", nil)
-	baz := mustCreateNewKubeServer(t, "baz", "host-baz", nil)
-	tests := []struct {
-		desc            string
-		refName         string
-		wantErrContains string
-		resources       []types.KubeServer
-		wantName        string
-	}{
-		{
-			desc:      "one resource is ok",
-			refName:   "baz",
-			resources: []types.KubeServer{baz},
-			wantName:  "baz",
-		},
-		{
-			desc:      "multiple resources with same name is ok",
-			refName:   "foo",
-			resources: []types.KubeServer{foo1, foo2},
-			wantName:  "foo",
-		},
-		{
-			desc:            "zero resources is an error",
-			refName:         "xxx",
-			wantErrContains: `kubernetes server "xxx" not found`,
-		},
-		{
-			desc:            "multiple resources with different names is an error",
-			refName:         "f",
-			resources:       []types.KubeServer{foo1, foo2, fooBar},
-			wantErrContains: "matches multiple",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			ref := services.Ref{Kind: types.KindKubeServer, Name: test.refName}
-			resDesc := "kubernetes server"
-			name, err := getOneResourceNameToDelete(test.resources, ref, resDesc)
-			if test.wantErrContains != "" {
-				require.ErrorContains(t, err, test.wantErrContains)
-				return
-			}
-			require.Equal(t, test.wantName, name)
-		})
-	}
-}
-
-func TestFilterByNameOrPrefix(t *testing.T) {
-	foo1 := mustCreateNewKubeServer(t, "foo", "host-foo", nil)
-	foo2 := mustCreateNewKubeServer(t, "foo", "host-foo", nil)
-	fooBar := mustCreateNewKubeServer(t, "foo-bar", "host-foo-bar", nil)
-	baz := mustCreateNewKubeServer(t, "baz", "host-baz", nil)
-	resources := []types.KubeServer{
-		foo1, foo2, fooBar, baz,
-	}
-	hostNameGetter := func(ks types.KubeServer) string { return ks.GetHostname() }
-	tests := []struct {
-		desc           string
-		filter         string
-		altNameGetters []altNameFn[types.KubeServer]
-		want           []types.KubeServer
-	}{
-		{
-			desc:   "filters by exact name first",
-			filter: "foo",
-			want:   []types.KubeServer{foo1, foo2},
-		},
-		{
-			desc:   "filters by prefix name",
-			filter: "fo",
-			want:   []types.KubeServer{foo1, foo2, fooBar},
-		},
-		{
-			desc:           "checks alt names for exact matches first",
-			filter:         "host-foo",
-			altNameGetters: []altNameFn[types.KubeServer]{hostNameGetter},
-			want:           []types.KubeServer{foo1, foo2},
-		},
-		{
-			desc:           "checks alt names for prefix matches",
-			filter:         "host-f",
-			altNameGetters: []altNameFn[types.KubeServer]{hostNameGetter},
-			want:           []types.KubeServer{foo1, foo2, fooBar},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			got := filterByNameOrPrefix(resources, test.filter, test.altNameGetters...)
-			require.Empty(t, cmp.Diff(test.want, got))
-		})
-	}
-}
-
-func TestFormatAmbiguousDeleteMessage(t *testing.T) {
-	ref := services.Ref{Kind: types.KindDatabase, Name: "x"}
-	resDesc := "database"
-	names := []string{"xbbb", "xaaa", "xccc", "xb"}
-	got := formatAmbiguousDeleteMessage(ref, resDesc, names)
-	require.Contains(t, got, "db/x matches multiple databases", "should have formated the ref used and pluralized the resource description")
-	wantSortedNames := strings.Join([]string{"xaaa", "xb", "xbbb", "xccc"}, "\n")
-	require.Contains(t, got, wantSortedNames, "should have sorted the matching names")
-	require.Contains(t, got, "$ tctl rm db/xaaa", "should have contained an example command")
 }
 
 // requireEqual creates an assertion function with a bound `expected` value

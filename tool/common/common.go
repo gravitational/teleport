@@ -171,19 +171,3 @@ func FormatLabels(labels map[string]string, verbose bool) string {
 	namespaced = append(namespaced, teleportNamespaced...)
 	return strings.Join(append(result, namespaced...), ",")
 }
-
-// FormatResourceName returns the resource's name or its name as originally
-// discovered in the cloud by the Teleport Discovery Service.
-// In verbose mode, it always returns the resource name.
-// In non-verbose mode, if the resource came from discovery and has the
-// discovered name label, it returns the discovered name.
-func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
-	if !verbose {
-		// return the (shorter) discovered name in non-verbose mode.
-		discoveredName, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
-		if ok && discoveredName != "" {
-			return discoveredName
-		}
-	}
-	return r.GetName()
-}

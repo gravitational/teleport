@@ -8,7 +8,11 @@
     "importHelpers": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "jsx": "react-jsx",
     "module": "esnext",
     "moduleResolution": "node",
@@ -17,23 +21,43 @@
     "skipLibCheck": true,
     "sourceMap": false,
     "target": "esnext",
-    "types": ["node", "@emotion/core", "@types/wicg-file-system-access"],
+    "types": [
+      "node",
+      "@emotion/core",
+      "@types/wicg-file-system-access"
+    ],
     "paths": {
-      "//": [
-        "generator still uses 'grpc' package that has been deprecated in favor of '@grpc/grpc-js'"
+      "grpc": [
+        "node_modules/@grpc/grpc-js"
+      ], // generator still uses "grpc" package that has been deprecated in favor of "@grpc/grpc-js"
+      "shared/*": [
+        "web/packages/shared/*"
       ],
-      "grpc": ["node_modules/@grpc/grpc-js"],
-      "shared/*": ["web/packages/shared/*"],
-      "design/*": ["web/packages/design/src/*"],
-      "design": ["web/packages/design/src/"],
-      "teleport/*": ["web/packages/teleport/src/*"],
-      "teleport": ["web/packages/teleport/src/"],
-      "teleterm/*": ["web/packages/teleterm/src/*"],
-      "e-teleport/*": ["e/web/teleport/src/*"],
-      "e-teleterm/*": ["e/web/teleterm/src/*"],
-      "gen-proto-js/*": ["gen/proto/js/*"]
-    },
-    "outDir": "dist"
+      "design/*": [
+        "web/packages/design/src/*"
+      ],
+      "design": [
+        "web/packages/design/src/"
+      ],
+      "teleport/*": [
+        "web/packages/teleport/src/*"
+      ],
+      "teleport": [
+        "web/packages/teleport/src/"
+      ],
+      "teleterm/*": [
+        "web/packages/teleterm/src/*"
+      ],
+      "e-teleport/*": [
+        "e/web/teleport/src/*"
+      ],
+      "e-teleterm/*": [
+        "e/web/teleterm/src/*"
+      ],
+      "gen-proto-js/*": [
+        "gen/proto/js/*"
+      ]
+    }
   },
   "include": [
     "e/web/**/*.ts",
@@ -45,10 +69,10 @@
     "web/**/*.js",
     "web/**/*.jsx"
   ],
-  "references": [{ "path": "./tsconfig.node.json" }],
+  "references": [{ "path": "./tsconfig.node.json"}],
   "exclude": [
     "**/vite.config.ts",
-    "web/packages/build/vite/*",
+    "web/packages/build/**/*",
     "node_modules",
     "**/node_modules/*",
     "dist",

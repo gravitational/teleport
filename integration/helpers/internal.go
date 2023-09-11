@@ -40,7 +40,7 @@ func StartAndWait(process *service.TeleportProcess, expectedEvents []string) ([]
 	// wait for all events to arrive or a timeout. if all the expected events
 	// from above are not received, this instance will not start
 	receivedEvents := make([]service.Event, 0, len(expectedEvents))
-	ctx, cancel := context.WithTimeout(process.ExitContext(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(process.ExitContext(), 10*time.Second)
 	defer cancel()
 	for _, eventName := range expectedEvents {
 		if event, err := process.WaitForEvent(ctx, eventName); err == nil {

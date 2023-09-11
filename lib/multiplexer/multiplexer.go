@@ -39,6 +39,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -546,10 +547,11 @@ func (p Protocol) String() string {
 }
 
 var (
-	proxyPrefix   = []byte{'P', 'R', 'O', 'X', 'Y'}
-	ProxyV2Prefix = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
-	sshPrefix     = []byte{'S', 'S', 'H'}
-	tlsPrefix     = []byte{0x16}
+	proxyPrefix      = []byte{'P', 'R', 'O', 'X', 'Y'}
+	ProxyV2Prefix    = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
+	sshPrefix        = []byte{'S', 'S', 'H'}
+	tlsPrefix        = []byte{0x16}
+	proxyHelloPrefix = []byte(constants.ProxyHelloSignature)
 )
 
 // This section defines Postgres wire protocol messages detected by Teleport:
@@ -619,6 +621,16 @@ func detectProto(r *bufio.Reader) (Protocol, error) {
 		}
 		if bytes.HasPrefix(in, ProxyV2Prefix) {
 			return ProtoProxyV2, nil
+		}
+	case bytes.HasPrefix(in, proxyHelloPrefix[:8]):
+		// Support for SSH connections opened with the ProxyHelloSignature for
+		// Teleport to Teleport connections.
+		in, err = r.Peek(len(proxyHelloPrefix))
+		if err != nil {
+			return ProtoUnknown, trace.Wrap(err, failedToPeekConnectionError)
+		}
+		if bytes.HasPrefix(in, proxyHelloPrefix) {
+			return ProtoSSH, nil
 		}
 	case bytes.HasPrefix(in, sshPrefix):
 		return ProtoSSH, nil

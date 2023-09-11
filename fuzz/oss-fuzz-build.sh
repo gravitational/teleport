@@ -35,29 +35,11 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/services \
     FuzzParseRefs fuzz_parse_refs
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/cassandra/protocol \
-    FuzzReadPacket fuzz_cassandra_read_packet
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/elasticsearch \
-    FuzzGetQueryFromRequestBody fuzz_elasticsearch_query_from_request_body
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/elasticsearch \
-    FuzzPathToMatcher fuzz_elasticsearch_path_to_matcher
-
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/redis \
     FuzzParseRedisAddress fuzz_parse_redis_address
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/sshutils/sftp \
-    FuzzParseDestination fuzz_sshutil_parse_destination
-
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/sshutils/x11 \
     FuzzParseDisplay fuzz_parse_display
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/sshutils/x11 \
-    FuzzReadAndRewriteXAuthPacket fuzz_read_xauth_packet
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/utils/aws \
-    FuzzParseSigV4 fuzz_parse_sig_v4
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/utils/parse \
     FuzzNewExpression fuzz_new_expression
@@ -77,18 +59,6 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
     FuzzParseProxyHost fuzz_parse_proxy_host
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
-    FuzzParseLabelSpec fuzz_parse_label_spec
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
-    FuzzParseSearchKeywords fuzz_parse_search_keywords
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
-    FuzzParsePortForwardSpec fuzz_parse_port_forward_spec
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
-    FuzzParseDynamicPortForwardSpec fuzz_parse_dynamic_port_forward_spec
-
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/regular \
     FuzzParseProxySubsys fuzz_parse_proxy_subsys
 
@@ -104,14 +74,15 @@ build_teleport_fuzzers() {
 # compile_native_go_fuzzer $TELEPORT_PREFIX/lib/auth \
 #   FuzzParseAndVerifyIID fuzz_parse_and_verify_iid
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
+    FuzzParseLabelSpec fuzz_parse_label_spec
+
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/sqlserver/protocol \
     FuzzMSSQLLogin fuzz_mssql_login
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/sqlserver/protocol \
-    FuzzMSSQLRPCClientPartialLength fuzz_mssql_rpc_client_partial_length
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/opensearch \
-    FuzzPathToMatcher fuzz_opensearch_path_to_matcher
+# Disabled until we can update the mongoDB driver
+#  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/mongodb/protocol \
+#   FuzzMongoRead fuzz_mongo_read
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/auth/webauthn \
     FuzzParseCredentialCreationResponseBody fuzz_parse_credential_creation_response_body
@@ -119,17 +90,11 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/auth/webauthn \
     FuzzParseCredentialRequestResponseBody fuzz_parse_credential_request_response_body
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/auth/webauthncli \
-    FuzzParseU2FRegistrationResponse fuzz_parse_u2f_registration_response
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/web \
+    FuzzTdpMFACodecDecodeChallenge fuzz_tdp_mfa_codec_decode_challenge
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/web \
-    FuzzTdpMFACodecDecode fuzz_tdp_mfa_codec_decode
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/multiplexer \
-    FuzzReadProxyLineV1 fuzz_read_proxy_linec_v1
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/multiplexer \
-    FuzzReadProxyLineV2 fuzz_read_proxy_linec_v2
+    FuzzTdpMFACodecDecodeResponse fuzz_tdp_mfa_codec_decode_response
 
 }
 
@@ -151,18 +116,6 @@ build_teleport_api_fuzzers() {
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/aws \
     FuzzParseDynamoDBEndpoint fuzz_parse_dynamodb_endpoint
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/azure \
-    FuzzParseDatabaseEndpoint fuzz_azure_parse_database_endpoint
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/azure \
-    FuzzParseCacheForRedisEndpoint fuzz_azure_parse_cache_for_redis_endpoint
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/azure \
-    FuzzNormalizeLocation fuzz_azure_normalize_location
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/azure \
-    FuzzParseMSSQLEndpoint fuzz_azure_parse_mssql_endpoint
 
   cd -
 

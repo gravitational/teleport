@@ -27,10 +27,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/digitorus/pkcs7"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"go.mozilla.org/pkcs7"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 

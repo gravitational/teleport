@@ -18,7 +18,7 @@ import React, { useState } from 'react';
 
 import Text from 'design/Text';
 import Box from 'design/Box';
-import { ButtonPrimary, ButtonSecondary, Flex } from 'design';
+import { ButtonPrimary, ButtonSecondary } from 'design';
 import * as Icons from 'design/Icon';
 
 import FieldInput from 'shared/components/FieldInput';
@@ -110,7 +110,7 @@ export function SecondStageInstructions(
               <FieldInput
                 mb={1}
                 autoFocus
-                label="thumbprint"
+                label="Thumbprint"
                 onChange={e => setThumbprint(e.target.value)}
                 value={thumbprint}
                 placeholder="Paste the thumbprint here"
@@ -119,10 +119,10 @@ export function SecondStageInstructions(
               />
             </Box>
             {attempt.status === 'failed' && (
-              <Flex>
-                <Icons.Warning mr={2} color="error.main" size="small" />
-                <Text color="error.main">Error: {attempt.statusText}</Text>
-              </Flex>
+              <Text color="error.main">
+                <Icons.Warning mr={2} color="error.main" />
+                Error: {attempt.statusText}
+              </Text>
             )}
             <Box mt={4}>
               <ButtonPrimary

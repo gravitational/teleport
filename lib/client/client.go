@@ -211,11 +211,10 @@ func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]types.RemoteCl
 // ReissueParams encodes optional parameters for
 // user certificate reissue.
 type ReissueParams struct {
-	RouteToCluster    string
-	NodeName          string
-	KubernetesCluster string
-	AccessRequests    []string
-	// See [proto.UserCertsRequest.DropAccessRequests].
+	RouteToCluster        string
+	NodeName              string
+	KubernetesCluster     string
+	AccessRequests        []string
 	DropAccessRequests    []string
 	RouteToDatabase       proto.RouteToDatabase
 	RouteToApp            proto.RouteToApp
@@ -1435,6 +1434,14 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 	proxyErr, err := proxySession.StderrPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// pass the true client IP (if specified) to the proxy so it could pass it into the
+	// SSH session for proper audit
+	if len(proxy.clientAddr) > 0 {
+		if err = proxySession.Setenv(ctx, sshutils.TrueClientAddrVar, proxy.clientAddr); err != nil {
+			log.Error(err)
+		}
 	}
 
 	// the client only tries to forward an agent when the proxy is in recording

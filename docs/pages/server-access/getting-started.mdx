@@ -4,19 +4,27 @@ description: Getting started with Teleport server access.
 videoBanner: 8aiVin0LvmE
 ---
 
-Server access involves managing your resources, configuring new clusters, and
-issuing commands through a CLI or programmatically to an API.
+You can protect a server with Teleport by running the Teleport SSH Service on
+the server and enrolling it in your Teleport cluster. Once the server has joined
+your cluster, the Teleport RBAC system enforces secure access to the server, and
+administrators can identify security threats using the Teleport audit log.
 
-This guide introduces some of these common scenarios and how to interact with
-Teleport to accomplish them:
+The Teleport SSH Service opens a reverse SSH tunnel to the Teleport Proxy
+Service, and SSH client traffic uses this tunnel to connect to a server. This
+setup is similar to the [bastion
+pattern](https://goteleport.com/blog/ssh-bastion-host/).
 
-- SSH into a cluster using Teleport.
-- Introspect the cluster using Teleport features.
+This guides shows you how to:
 
-<Admonition type="tip" title="Tip">
-This guide also demonstrates how to configure Teleport Nodes using the **bastion
-pattern** so that only a single Node can be accessed publicly.
-</Admonition>
+- Enroll a server in your Teleport cluster.
+- SSH into a server using Teleport.
+- Inspect server resources in the cluster using Teleport commands.
+
+You can use Teleport to enable secure access to a Kubernetes node. To do so,
+modify your node's machine image to install and run the Teleport SSH Service as
+per the instructions in this guide. Do not run the SSH Service as a Kubernetes
+pod, as there is no guarantee that the SSH Service pod is running on a server
+that a user intends to access.
 
 <Figure
   align="center"
@@ -287,8 +295,8 @@ into a server using a third-party tool. Compare the two equivalent commands:
   </TabItem>
   <TabItem label="ssh">
 
-  To use the `ssh` client generate a SSH configuration file and postfix
-  the cluster name after the node name.
+    To use the `ssh` client generate a SSH configuration file and postfix
+    the cluster name after the node name.
 
     ```code
     $ tsh config > ssh_config_teleport
@@ -353,20 +361,20 @@ the `ls` command on each server and display the results in your terminal:
 $ tsh ssh root@env=example ls
 ```
 
-## Optional: Harden your bastion host
+## Optional: Harden your server
 
 We previously configured our Linux instance to leave port `22` open to easily
 configure and install Teleport. Feel free to compare Teleport SSH to your usual
 `ssh` commands.
 
-If you'd like to further experiment with using Teleport according to the bastion
-pattern:
+To harden your Teleport server:
 
 - Close port `22` on your private Linux instance now that your Teleport server is
   configured and running.
-- For self-hosted deployments, optionally close port `22` on your bastion host.
+- For self-hosted deployments, optionally close port `22` on your Proxy Service
+  host.
 - You'll be able to fully connect to the private instance and, for self-hosted
-  deployments, the bastion host, using `tsh ssh`.
+  deployments, the Proxy Service host, using `tsh ssh`.
 
 ## Conclusion
 

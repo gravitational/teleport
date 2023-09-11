@@ -8,7 +8,7 @@ authToken: ""
 
 # Address of the teleport proxy with port (usually :3080).
 proxyAddr: ""
-# Comma-separated list of roles to enable (any of: kube,db,app,discovery)
+# Comma-separated list of roles to enable (any of: kube,db,app)
 roles: "kube"
 
 ################################################################
@@ -100,20 +100,6 @@ databases: []
 databaseResources: []
 
 ################################################################
-# Values that must be provided for Kubernetes Discovery
-################################################################
-
-# kubernetesDiscovery controls configuration for discovery service if it's enabled.
-# discovery service is enabled when the agent `roles` contains "discovery".
-# Default value will try to discovery all apps, use needs to override it to limit
-# scope of the discovered apps.
-kubernetesDiscovery:
-  - types: ["app"]
-    namespaces: ["*"]
-    labels:
-      "*": "*"
-
-################################################################
 # Values that you may need to change.
 ################################################################
 
@@ -197,6 +183,21 @@ highAvailability:
   podDisruptionBudget:
     enabled: false
     minAvailable: 1
+
+# podMonitor controls the PodMonitor CR (from monitoring.coreos.com/v1)
+# This CRD is managed by the prometheus-operator and allows workload to
+# get monitored. To use this value, you need to run a `prometheus-operator`
+# in the cluster for this value to take effect.
+# See https://prometheus-operator.dev/docs/prologue/introduction/
+podMonitor:
+  # Whether the chart should deploy a PodMonitor.
+  # Disabled by default as it requires the PodMonitor CRD to be installed.
+  enabled: false
+  # additionalLabels to put on the PodMonitor.
+  # This is used to be selected by a specific prometheus instance.
+  additionalLabels: {}
+  # interval is the interval between two metrics scrapes. Defaults to 30s
+  interval: 30s
 
 ################################################################
 # Values that must be provided if using persistent storage for Teleport.
@@ -368,6 +369,8 @@ annotations:
   deployment: {}
   # Annotations for each Pod in the Deployment
   pod: {}
+  # Annotations for the Secret (has no effect when `joinTokenSecret.create` is false)
+  secret: {}
   # Annotations for the ServiceAccount object
   serviceAccount: {}
 

@@ -127,8 +127,12 @@ If you are running a self-hosted Teleport Enterprise cluster, you  will need to
 create a secret that contains your Teleport license information before you can
 install Teleport.
 
-1. (!docs/pages/includes//enterprise/obtainlicense.mdx!)
-1. Create a secret from your license file. Teleport will automatically discover
+Before you can install Teleport in your Kubernetes cluster, you will need to
+create a secret that contains your Teleport license information.
+
+(!docs/pages/includes/enterprise/obtainlicense.mdx!)
+
+Create a secret from your license file. Teleport will automatically discover
 this secret as long as your file is named `license.pem`.
 
   ```code

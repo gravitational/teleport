@@ -210,13 +210,13 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_Integration{
 			Integration: r,
 		}
-	case *types.HeadlessAuthentication:
-		out.Resource = &proto.Event_HeadlessAuthentication{
-			HeadlessAuthentication: r,
-		}
 	case *accesslist.AccessList:
 		out.Resource = &proto.Event_AccessList{
 			AccessList: accesslistv1conv.ToProto(r),
+		}
+	case *types.HeadlessAuthentication:
+		out.Resource = &proto.Event_HeadlessAuthentication{
+			HeadlessAuthentication: r,
 		}
 	case *userloginstate.UserLoginState:
 		out.Resource = &proto.Event_UserLoginState{
@@ -378,14 +378,14 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetIntegration(); r != nil {
 		out.Resource = r
 		return &out, nil
-	} else if r := in.GetHeadlessAuthentication(); r != nil {
-		out.Resource = r
-		return &out, nil
 	} else if r := in.GetAccessList(); r != nil {
 		out.Resource, err = accesslistv1conv.FromProto(r)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		return &out, nil
+	} else if r := in.GetHeadlessAuthentication(); r != nil {
+		out.Resource = r
 		return &out, nil
 	} else if r := in.GetUserLoginState(); r != nil {
 		out.Resource, err = userloginstatev1conv.FromProto(r)

@@ -93,7 +93,7 @@ func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context) (watcher typ
 // UpdateHeadlessAuthenticationState updates the headless authentication matching the given id to the given state.
 // MFA will be prompted when updating to the approve state.
 func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, headlessID string, state types.HeadlessAuthenticationState) error {
-	err := AddMetadataToRetryableError(ctx, func() error {
+	err := addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)

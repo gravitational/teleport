@@ -652,61 +652,6 @@ export default function createClient(
       });
     },
 
-    createConnectMyComputerRole(rootClusterUri: uri.RootClusterUri) {
-      const req =
-        new api.CreateConnectMyComputerRoleRequest().setRootClusterUri(
-          rootClusterUri
-        );
-
-      return new Promise<types.CreateConnectMyComputerRoleResponse>(
-        (resolve, reject) => {
-          tshd.createConnectMyComputerRole(req, (err, response) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(response.toObject());
-            }
-          });
-        }
-      );
-    },
-
-    createConnectMyComputerNodeToken(uri: uri.RootClusterUri) {
-      return new Promise<types.CreateConnectMyComputerNodeTokenResponse>(
-        (resolve, reject) => {
-          tshd.createConnectMyComputerNodeToken(
-            new api.CreateConnectMyComputerNodeTokenRequest().setRootClusterUri(
-              uri
-            ),
-            (err, response) => {
-              if (err) {
-                reject(err);
-              } else {
-                resolve(response.toObject());
-              }
-            }
-          );
-        }
-      );
-    },
-
-    deleteConnectMyComputerToken(uri: uri.RootClusterUri, token: string) {
-      return new Promise<void>((resolve, reject) => {
-        tshd.deleteConnectMyComputerToken(
-          new api.DeleteConnectMyComputerTokenRequest()
-            .setRootClusterUri(uri)
-            .setToken(token),
-          err => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve();
-            }
-          }
-        );
-      });
-    },
-
     async updateHeadlessAuthenticationState(
       params: UpdateHeadlessAuthenticationStateParams,
       abortSignal?: types.TshAbortSignal
@@ -729,7 +674,6 @@ export default function createClient(
       });
     },
   };
-
   return client;
 }
 

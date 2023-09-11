@@ -15,10 +15,12 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import styled, { css } from 'styled-components';
+import styled, { css, useTheme } from 'styled-components';
 
-import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
+import { Moon, Sun } from 'design/Icon';
+import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
 import { Text } from 'design';
+import { LogoutIcon } from 'design/SVGIcon';
 import { NavLink } from 'react-router-dom';
 
 import session from 'teleport/services/websession';
@@ -52,7 +54,7 @@ const UserInfo = styled.div`
 `;
 
 const Username = styled(Text)`
-  color: ${props => props.theme.colors.text.main};
+  color: ${props => props.theme.colors.text.main}
   font-size: 14px;
   font-weight: 400;
   padding-right: 40px;
@@ -144,11 +146,6 @@ const commonDropdownItemStyles = css`
   &:hover {
     opacity: 1;
   }
-
-  svg {
-    height: 18px;
-    width: 18px;
-  }
 `;
 
 const DropdownItemButton = styled.div`
@@ -172,6 +169,7 @@ const DropdownDivider = styled.div`
 
 export function UserMenuNav({ username }: UserMenuNavProps) {
   const [open, setOpen] = useState(false);
+  const theme = useTheme();
 
   const { preferences, updatePreferences } = useUser();
 
@@ -248,7 +246,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
         <Username>{username}</Username>
 
         <Arrow open={open}>
-          <ChevronDown size="medium" />
+          <ChevronDownIcon />
         </Arrow>
       </UserInfo>
 
@@ -257,21 +255,29 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
 
         <DropdownDivider />
 
-        <DropdownItem
-          open={open}
-          style={{
-            transitionDelay: `${transitionDelay}ms`,
-          }}
-        >
-          <DropdownItemButton onClick={onThemeChange}>
-            <DropdownItemIcon>
-              {preferences.theme === ThemePreference.Light ? <Sun /> : <Moon />}
-            </DropdownItemIcon>
-            Switch to{' '}
-            {preferences.theme === ThemePreference.Dark ? 'Light' : 'Dark'}{' '}
-            Theme
-          </DropdownItemButton>
-        </DropdownItem>
+        {/* Hide ability to switch themes if the theme is a custom theme */}
+        {!theme.isCustomTheme && (
+          <DropdownItem
+            open={open}
+            style={{
+              transitionDelay: `${transitionDelay}ms`,
+            }}
+          >
+            <DropdownItemButton onClick={onThemeChange}>
+              <DropdownItemIcon>
+                {preferences.theme === ThemePreference.Dark ? (
+                  <Sun />
+                ) : (
+                  <Moon />
+                )}
+              </DropdownItemIcon>
+              Switch to{' '}
+              {preferences.theme === ThemePreference.Dark ? 'Light' : 'Dark'}{' '}
+              Theme
+            </DropdownItemButton>
+          </DropdownItem>
+        )}
+
         <DropdownItem
           open={open}
           style={{
@@ -280,7 +286,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
         >
           <DropdownItemButton onClick={() => session.logout()}>
             <DropdownItemIcon>
-              <LogoutIcon />
+              <LogoutIcon size={16} />
             </DropdownItemIcon>
             Logout
           </DropdownItemButton>

@@ -264,9 +264,6 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 }
 
 func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
-	if len(dbs) == 0 {
-		return
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {

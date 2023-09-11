@@ -104,7 +104,7 @@ $ tctl create -f cap.yaml
 
 ## Step 2/3. Initiate Headless WebAuthn
 
-First open a terminal on the remote machine and confirm the `tsh` binary 
+First open a terminal on the remote machine and confirm the `tsh` binary
 is v12.2+ with `tsh version`.
 
 ```code
@@ -155,7 +155,7 @@ $ tsh ls --headless --proxy=proxy.example.com --user=alice
 
 ### Example: Initiating an SSH session
 ```code
-$ tsh ssh --headless --proxy=proxy.example.com --user=alice alice@server01
+$ tsh ssh --headless --proxy=proxy.example.com --user=alice server01
 # Complete headless authentication in your local web browser:
 # 
 # https://proxy.example.com:3080/web/headless/864cccd9-2425-46d9-a9f2-636387e66ebf
@@ -168,7 +168,7 @@ alice@server01 $
 ```
 
 <Notice type="note">
-  The Teleport user, `--user` parameter, is the Teleport user requesting Headless WebAuthn activity. 
+ The Teleport user, `--user` parameter, is the Teleport user requesting Headless WebAuthn activity. 
   If no `--user` parameter or environment variables set the OS user in the machine terminal is used.
 
   The login username, `--login` parameter or login@hostname, for `tsh ssh` commands is the user

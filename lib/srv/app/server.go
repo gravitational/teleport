@@ -1050,9 +1050,7 @@ func (s *Server) newHTTPServer(clusterName string) *http.Server {
 
 	return &http.Server{
 		Handler:           httplib.MakeTracingHandler(s.authMiddleware, teleport.ComponentApp),
-		ReadTimeout:       apidefaults.DefaultIOTimeout,
-		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
-		WriteTimeout:      apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
@@ -1063,24 +1061,14 @@ func (s *Server) newHTTPServer(clusterName string) *http.Server {
 
 // newTCPServer creates a server that proxies TCP applications.
 func (s *Server) newTCPServer() (*tcpServer, error) {
+	audit, err := common.NewAudit(common.AuditConfig{
+		Emitter: s.c.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &tcpServer{
-		newAudit: func(sessionID string) (common.Audit, error) {
-			// Audit stream is using server context, not session context,
-			// to make sure that session is uploaded even after it is closed.
-			rec, err := s.newSessionRecorder(s.closeContext, sessionID)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			audit, err := common.NewAudit(common.AuditConfig{
-				Emitter:  s.c.Emitter,
-				Recorder: rec,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return audit, nil
-		},
+		audit:  audit,
 		hostID: s.c.HostID,
 		log:    s.log,
 	}, nil

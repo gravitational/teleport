@@ -89,7 +89,7 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
           )}
           <FieldInput
             rule={requiredField('Device name is required')}
-            label="Device name"
+            label="Device Name"
             placeholder="Name"
             width="100%"
             ref={deviceNameInputRef}

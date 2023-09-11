@@ -82,8 +82,7 @@ func (*HostUsersProvisioningBackend) CreateUser(name string, groups []string, ui
 	return trace.Wrap(err)
 }
 
-// DeleteUser deletes a user on a host.
-// The user must not be logged in.
+// CreateUser creates a user on a host
 func (*HostUsersProvisioningBackend) DeleteUser(name string) error {
 	code, err := host.UserDel(name)
 	if code == host.UserLoggedInExit {

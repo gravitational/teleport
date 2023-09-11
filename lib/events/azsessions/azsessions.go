@@ -320,7 +320,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	// cleaned up before a new attempt
 
 	parts = slices.Clone(parts)
-	slices.SortFunc(parts, func(a, b events.StreamPart) int { return int(a.Number - b.Number) })
+	slices.SortFunc(parts, func(a, b events.StreamPart) bool { return a.Number < b.Number })
 
 	partURLs := make([]string, 0, len(parts))
 	for _, part := range parts {
@@ -492,7 +492,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 		}
 	}
 
-	slices.SortFunc(parts, func(a, b events.StreamPart) int { return int(a.Number - b.Number) })
+	slices.SortFunc(parts, func(a, b events.StreamPart) bool { return a.Number < b.Number })
 
 	return parts, nil
 }
@@ -544,7 +544,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		}
 	}
 
-	slices.SortFunc(uploads, func(a, b events.StreamUpload) int { return a.Initiated.Compare(b.Initiated) })
+	slices.SortFunc(uploads, func(a, b events.StreamUpload) bool { return a.Initiated.Before(b.Initiated) })
 
 	return uploads, nil
 }

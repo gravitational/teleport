@@ -21,11 +21,10 @@ import { Unlock } from 'design/Icon';
 import Flex from 'design/Flex';
 
 import { getSalesURL } from 'teleport/services/sales';
+import cfg from 'teleport/config';
 
 import { CtaEvent, userEventService } from 'teleport/services/userEvent';
 import useTeleport from 'teleport/useTeleport';
-
-import cfg from 'teleport/config';
 
 export type Props = {
   children: React.ReactNode;
@@ -43,11 +42,12 @@ export function ButtonLockedFeature({
   const ctx = useTeleport();
   const version = ctx.storeUser.state.cluster.authVersion;
   const isEnterprise = ctx.isEnterprise;
-
   const isUsageBased = cfg.isUsageBasedBilling;
 
   function handleClick() {
-    userEventService.captureCtaEvent(event);
+    if (isEnterprise) {
+      userEventService.captureCtaEvent(event);
+    }
   }
 
   return (
@@ -59,11 +59,10 @@ export function ButtonLockedFeature({
       py="12px"
       width="100%"
       style={{ textTransform: 'none' }}
-      rel="noreferrer"
       {...rest}
     >
       <Flex alignItems="center">
-        {!noIcon && <UnlockIcon size="medium" data-testid="locked-icon" />}
+        {!noIcon && <UnlockIcon data-testid="locked-icon" />}
         {children}
       </Flex>
     </ButtonPrimary>

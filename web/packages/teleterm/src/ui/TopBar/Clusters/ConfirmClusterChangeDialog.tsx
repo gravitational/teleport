@@ -22,7 +22,7 @@ import DialogConfirmation, {
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { Cross } from 'design/Icon';
+import { Close } from 'design/Icon';
 
 const changeSelectedClusterWarning =
   'Resources from different clusters cannot be combined in an access request. Current items selected will be cleared. Are you sure you want to continue?';
@@ -46,7 +46,7 @@ export default function ConfirmClusterChangeDialog({
           Change clusters?
         </Text>
         <ButtonIcon onClick={onClose} color="text.slightlyMuted">
-          <Cross size="medium" />
+          <Close fontSize={5} />
         </ButtonIcon>
       </DialogHeader>
       <DialogContent mb={4}>

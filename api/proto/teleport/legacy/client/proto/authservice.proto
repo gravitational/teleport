@@ -46,9 +46,6 @@ message Watch {
 // HostCertsRequest specifies certificate-generation parameters
 // for a server.
 message HostCertsRequest {
-  reserved 12; // system_role_assertion_id
-  reserved "UnstableSystemRoleAssertionID";
-
   // HostID is a unique ID of the host.
   string HostID = 1 [(gogoproto.jsontag) = "host_id"];
   // NodeName is a user-friendly host name.
@@ -86,6 +83,11 @@ message HostCertsRequest {
     (gogoproto.jsontag) = "system_roles,omitempty",
     (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
   ];
+  // UnstableSystemRoleAssertionID is not a stable part of the public API. Used by
+  // older instances to requisition a multi-role cert by individually proving which
+  // system roles are held.
+  // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+  string UnstableSystemRoleAssertionID = 12 [(gogoproto.jsontag) = "system_role_assertion_id,omitempty"];
 }
 
 // OpenSSHCertRequest specifies certificate-generation parameters
@@ -203,16 +205,6 @@ message UserCertsRequest {
 
   // DropAccessRequests is an optional list of request IDs indicating requests
   // whose escalated privileges should be removed from the certificate.
-  // IDs pointing at non-existent requests are ignored.
-  //
-  // If present, the roles and traits in the generated cert will be based on
-  // the state of the user resource on the backend, active requests (not being
-  // dropped) and new access requests specified through AccessRequests (if any).
-  //
-  // This means that technically sending UserCertsRequest with bogus IDs in
-  // DropAccessRequests can be used to refresh the role list based on backend
-  // state. A better long-term solution would be to add a dedicated field for
-  // this to avoid sending bogus IDs.
   repeated string DropAccessRequests = 15 [(gogoproto.jsontag) = "drop_access_requests,omitempty"];
 
   // ConnectionDiagnosticID is the ID of the ConnectionDiagnostic resource we should use to add
@@ -501,6 +493,8 @@ message Features {
   bool FeatureHiding = 20 [(gogoproto.jsontag) = "feature_hiding,omitempty"];
   // AccessRequests holds its namesake feature settings.
   AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
+  // CustomTheme holds the name of WebUI custom theme.
+  string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -642,6 +636,13 @@ message GetAppSessionRequest {
 message GetAppSessionResponse {
   // Session is the application web session.
   types.WebSessionV2 Session = 1 [(gogoproto.jsontag) = "session"];
+}
+
+// GetAppSessionsResponse contains all the requested application web sessions.
+// DELETE IN 13.0. Deprecated, use ListAppSessions instead
+message GetAppSessionsResponse {
+  // Sessions is a list of application web sessions.
+  repeated types.WebSessionV2 Sessions = 1 [(gogoproto.jsontag) = "sessions"];
 }
 
 // ListAppSessionRequest are the parameters used to request an application web session.
@@ -896,9 +897,8 @@ message DatabaseCSRRequest {
   bytes CSR = 1 [(gogoproto.jsontag) = "csr"];
   // ClusterName is the name of the cluster the request is for.
   string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
-
+  // SignWithDatabaseCA deprecated.
   reserved 3;
-  reserved "SignWithDatabaseCA";
 }
 
 // DatabaseCSRResponse contains the signed database certificate.
@@ -1718,6 +1718,7 @@ message CreateRegisterChallengeRequest {
 
 // PaginatedResource represents one of the supported resources.
 message PaginatedResource {
+  reserved 4;
   // Resource is the resource itself.
   oneof resource {
     // DatabaseServer represents a DatabaseServer resource.
@@ -1741,54 +1742,6 @@ message PaginatedResource {
     // AppServerOrSAMLIdPServiceProvider represents either an AppServer or a SAML IdP Service Provider resource.
     types.AppServerOrSAMLIdPServiceProviderV1 AppServerOrSAMLIdPServiceProvider = 11;
   }
-
-  reserved 4;
-  reserved "KubeService";
-}
-
-// ListUnifiedResourcesRequest is a request to receive a paginated list of unified resources
-message ListUnifiedResourcesRequest {
-  // Kinds is a list of kinds to match against a resource's kind. This can be used in a
-  // unified resource request that can include multiple types.
-  repeated string Kinds = 1 [(gogoproto.jsontag) = "kinds,omitempty"];
-  // Limit is the maximum amount of resources to retrieve.
-  int32 Limit = 2 [(gogoproto.jsontag) = "limit,omitempty"];
-  // StartKey is used to start listing resources from a specific spot. It
-  // should be set to the previous NextKey value if using pagination, or
-  // left empty.
-  string StartKey = 3 [(gogoproto.jsontag) = "start_key,omitempty"];
-  // Labels is a label-based matcher if non-empty.
-  map<string, string> Labels = 4 [(gogoproto.jsontag) = "labels,omitempty"];
-  // PredicateExpression defines boolean conditions that will be matched against the resource.
-  string PredicateExpression = 5 [(gogoproto.jsontag) = "predicate_expression,omitempty"];
-  // SearchKeywords is a list of search keywords to match against resource field values.
-  repeated string SearchKeywords = 6 [(gogoproto.jsontag) = "search_keywords,omitempty"];
-  // SortBy describes which resource field and which direction to sort by.
-  types.SortBy SortBy = 7 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "sort_by,omitempty"
-  ];
-  // WindowsDesktopFilter specifies windows desktop specific filters.
-  types.WindowsDesktopFilter WindowsDesktopFilter = 8 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "windows_desktop_filter,omitempty"
-  ];
-  // UseSearchAsRoles indicates that the response should include all resources
-  // the caller is able to request access to using search_as_roles
-  bool UseSearchAsRoles = 9 [(gogoproto.jsontag) = "use_search_as_roles,omitempty"];
-  // UsePreviewAsRoles indicates that the response should include all resources
-  // the caller would be able to access with their preview_as_roles
-  bool UsePreviewAsRoles = 10 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
-}
-
-// ListUnifiedResourceResponse response of ListUnifiedResources.
-message ListUnifiedResourcesResponse {
-  // Resources is a list of resource.
-  repeated PaginatedResource Resources = 1 [(gogoproto.jsontag) = "resources,omitempty"];
-  // NextKey is the next Key to use as StartKey in a ListResourcesRequest to
-  // continue retrieving pages of resource. If NextKey is empty, there are no
-  // more pages.
-  string NextKey = 2 [(gogoproto.jsontag) = "next_key,omitempty"];
 }
 
 // ListResourcesRequest defines a request to retrieve resources paginated. Only
@@ -1838,21 +1791,6 @@ message ListResourcesRequest {
   // UsePreviewAsRoles indicates that the response should include all resources
   // the caller would be able to access with their preview_as_roles
   bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
-}
-
-// GetSSHTargetsRequest gets all servers that might match an equivalent ssh dial request.
-message GetSSHTargetsRequest {
-  // Host is the target host as would be sent to the proxy during a dial request.
-  string Host = 1;
-  // Port is the ssh port. This value is optional, and both empty string and "0" are typically
-  // treated as meaning that any port should match.
-  string Port = 2;
-}
-
-// GetSSHTargetsResponse holds ssh servers that match an ssh targets request.
-message GetSSHTargetsResponse {
-  // Servers is a list of servers matching the supplied request.
-  repeated types.ServerV2 Servers = 1;
 }
 
 // ListResourceResponse response of ListResources.
@@ -1962,6 +1900,31 @@ message ListReleasesResponse {
   repeated types.Release releases = 1 [(gogoproto.jsontag) = "releases"];
 }
 
+// GenerateTokenRequest is a request to generate auth token.
+message GenerateTokenRequest {
+  // Token sets the token value. If not set, it will be auto generated.
+  string Token = 1 [(gogoproto.jsontag) = "token"];
+  // Roles is a list of roles this token authenticates as.
+  repeated string Roles = 2 [
+    (gogoproto.jsontag) = "roles",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+  ];
+  // TTL specifies how long the generated token will be valid for.
+  // Defaults to 30 minutes if not set.
+  int64 TTL = 3 [
+    (gogoproto.jsontag) = "ttl",
+    (gogoproto.casttype) = "Duration"
+  ];
+  // Labels is a label-based matcher if non-empty.
+  map<string, string> Labels = 4 [(gogoproto.jsontag) = "labels"];
+}
+
+// GenerateTokenResponse contains a generated auth token.
+message GenerateTokenResponse {
+  // Token is the generated auth token.
+  string Token = 1 [(gogoproto.jsontag) = "token"];
+}
+
 // GetOIDCAuthRequestRequest is a request for GetOIDCAuthRequest.
 message GetOIDCAuthRequestRequest {
   // StateToken is an oidc auth request state token.
@@ -1986,6 +1949,30 @@ message GetSSODiagnosticInfoRequest {
   string AuthRequestKind = 1 [(gogoproto.jsontag) = "auth_request_kind"];
   // AuthRequestID is the SSO Auth Request id or state token.
   string AuthRequestID = 2 [(gogoproto.jsontag) = "auth_request_id"];
+}
+
+// UnstableSystemRoleAssertion is not a stable part of the public API. Used by older instances
+// to prove that they hold a given system role.
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+message UnstableSystemRoleAssertion {
+  string ServerID = 1 [(gogoproto.jsontag) = "server_id,omitempty"];
+  string AssertionID = 2 [(gogoproto.jsontag) = "assertion_id,omitempty"];
+  string SystemRole = 3 [
+    (gogoproto.jsontag) = "system_role,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+  ];
+}
+
+// UnstableSystemRoleAssertionSet is not a stable part of the public API. Records the sum of system
+// role assertions provided by a given instance.
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+message UnstableSystemRoleAssertionSet {
+  string ServerID = 1 [(gogoproto.jsontag) = "server_id,omitempty"];
+  string AssertionID = 2 [(gogoproto.jsontag) = "assertion_id,omitempty"];
+  repeated string SystemRoles = 3 [
+    (gogoproto.jsontag) = "system_roles,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+  ];
 }
 
 // UpstreamInventoryOneOf is the upstream message for the inventory control stream,
@@ -2463,6 +2450,9 @@ service AuthService {
 
   // GetAppSession gets an application web session.
   rpc GetAppSession(GetAppSessionRequest) returns (GetAppSessionResponse);
+  // GetAppSessions gets all application web sessions.
+  // DELETE IN 13.0. Deprecated, use ListAppSessions instead
+  rpc GetAppSessions(google.protobuf.Empty) returns (GetAppSessionsResponse);
   // ListAppSessions gets all application web sessions.
   rpc ListAppSessions(ListAppSessionsRequest) returns (ListAppSessionsResponse);
   // CreateAppSession creates an application web session. Application web
@@ -2661,10 +2651,20 @@ service AuthService {
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
   // GetToken retrieves all tokens.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
+  // UpsertToken upserts a token in a backend.
+  // Deprecated: switch to UpsertTokenV2. DELETE IN 14.0.0.
+  rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+  // CreateToken creates a token in a backend.
+  // Deprecated: switch to CreateTokenV2. DELETE IN 14.0.0.
+  rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
   // CreateTokenV2 creates a token in a backend.
   rpc CreateTokenV2(CreateTokenV2Request) returns (google.protobuf.Empty);
   // UpsertTokenV2 upserts a token in a backend.
   rpc UpsertTokenV2(UpsertTokenV2Request) returns (google.protobuf.Empty);
+  // GenerateToken generates a new auth token.
+  // Deprecated: switch to CreateTokenV2.
+  // DELETE IN 14.0.0, replaced by CreateTokenV2 (strideynet).
+  rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
   // DeleteToken deletes an existing token in a backend described by the given request.
   rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
 
@@ -2886,21 +2886,17 @@ service AuthService {
   // ListResources retrieves a paginated list of resources.
   rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
 
-  // ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
-  rpc ListUnifiedResources(ListUnifiedResourcesRequest) returns (ListUnifiedResourcesResponse);
-
-  // GetSSHTargets gets all servers that would match an equivalent ssh dial request. Note that this method
-  // returns all resources directly accessible to the user *and* all resources available via 'SearchAsRoles',
-  // which is what we want when handling things like ambiguous host errors and resource-based access requests,
-  // but may result in confusing behavior if it is used outside of those contexts.
-  rpc GetSSHTargets(GetSSHTargetsRequest) returns (GetSSHTargetsResponse);
-
   // GetDomainName returns local auth domain of the current auth server
   rpc GetDomainName(google.protobuf.Empty) returns (GetDomainNameResponse);
   // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster
   // without signing keys. If the cluster has multiple TLS certs, they will
   // all be appended.
   rpc GetClusterCACert(google.protobuf.Empty) returns (GetClusterCACertResponse);
+
+  // UnstableAssertSystemRole is not a stable part of the public API. Used by older
+  // instances to prove that they hold a given system role.
+  // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+  rpc UnstableAssertSystemRole(UnstableSystemRoleAssertion) returns (google.protobuf.Empty);
 
   // SubmitUsageEvent submits an external usage event.
   rpc SubmitUsageEvent(SubmitUsageEventRequest) returns (google.protobuf.Empty);

@@ -502,6 +502,10 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 					types.NewRule(types.KindClusterAuthPreference, services.RO()),
 					types.NewRule(types.KindKubeServer, services.RO()),
+					// types.KindKubeService is a special resource type that is used to keep compatibility
+					// with Teleport 12 clients.
+					// TODO(tigrato): DELETE in 14.0.0
+					types.NewRule(types.KindKubeService, services.RO()),
 					types.NewRule(types.KindInstaller, services.RO()),
 					types.NewRule(types.KindUIConfig, services.RO()),
 					types.NewRule(types.KindDatabaseService, services.RO()),
@@ -590,6 +594,10 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindWebSession, services.RW()),
 				types.NewRule(types.KindWebToken, services.RW()),
 				types.NewRule(types.KindKubeServer, services.RW()),
+				// types.KindKubeService is a special resource type that is used to keep compatibility
+				// with Teleport 12 clients.
+				// TODO(tigrato): DELETE in 14.0.0
+				types.NewRule(types.KindKubeService, services.RO()),
 				types.NewRule(types.KindDatabaseServer, services.RO()),
 				types.NewRule(types.KindLock, services.RO()),
 				types.NewRule(types.KindToken, []string{types.VerbRead, types.VerbDelete}),
@@ -601,7 +609,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindDatabaseService, services.RO()),
 				types.NewRule(types.KindSAMLIdPServiceProvider, services.RO()),
 				types.NewRule(types.KindUserGroup, services.RO()),
-				types.NewRule(types.KindIntegration, services.RO()),
+				types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -626,6 +634,18 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 								services.ResourceNameExpr,
 								builder.String(clusterName),
 							),
+						),
+					).String(),
+				},
+				// this rule allows the local proxy to read the local SAML IdP CA.
+				{
+					Resources: []string{types.KindCertAuthority},
+					Verbs:     []string{types.VerbRead},
+					Where: builder.And(
+						builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(types.SAMLIDPCA))),
+						builder.Equals(
+							services.ResourceNameExpr,
+							builder.String(clusterName),
 						),
 					).String(),
 				},
@@ -818,6 +838,10 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindKubeServer, services.RW()),
+						// kubeService is a special resource type that is used to keep compatibility
+						// with Teleport 12 clients.
+						// TODO(tigrato): DELETE in 14.0.0
+						types.NewRule(types.KindKubeService, services.RO()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
@@ -873,12 +897,10 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindServerInfo, services.RW()),
-						types.NewRule(types.KindApp, services.RW()),
 					},
-					// Discovery service should only access kubes/apps/dbs that originated from discovery.
+					// Discovery service should only access kubes/dbs with "cloud" origin.
 					KubernetesLabels: types.Labels{types.OriginLabel: []string{types.OriginCloud}},
 					DatabaseLabels:   types.Labels{types.OriginLabel: []string{types.OriginCloud}},
-					AppLabels:        types.Labels{types.OriginLabel: []string{types.OriginDiscoveryKubernetes}},
 				},
 			})
 	case types.RoleOkta:
@@ -1147,7 +1169,7 @@ func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, aut
 		Resource: resource,
 	}
 
-	return authorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, resource.GetKind(), verbs...)
+	return AuthorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, resource.GetKind(), verbs...)
 }
 
 // AuthorizeWithVerbs will ensure that the user has access to the given verbs for the given kind.
@@ -1161,11 +1183,11 @@ func AuthorizeWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer 
 		User: authCtx.User,
 	}
 
-	return authorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, kind, verbs...)
+	return AuthorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, kind, verbs...)
 }
 
-// authorizeContextWithVerbs will ensure that the user has access to the given verbs for the given services.context.
-func authorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, authCtx *Context, quiet bool, ruleCtx *services.Context, kind string, verbs ...string) (*Context, error) {
+// AuthorizeContextWithVerbs will ensure that the user has access to the given verbs for the given services.context.
+func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, authCtx *Context, quiet bool, ruleCtx *services.Context, kind string, verbs ...string) (*Context, error) {
 	errs := make([]error, len(verbs))
 	for i, verb := range verbs {
 		errs[i] = authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet)

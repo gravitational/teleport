@@ -2,8 +2,6 @@ const config = require('@gravitational/build/jest/config');
 
 process.env.TZ = 'UTC';
 
-const esModules = ['strip-ansi-stream', 'ansi-regex'].join('|');
-
 /** @type {import('@jest/types').Config.InitialOptions} */
 module.exports = {
   ...config,
@@ -15,11 +13,6 @@ module.exports = {
     // '**/packages/design/src/**/*.jsx',
     '**/packages/shared/components/**/*.jsx',
   ],
-  transformIgnorePatterns: [`/node_modules/(?!${esModules})`],
   coverageReporters: ['text-summary', 'lcov'],
-  testPathIgnorePatterns: ['e2e'],
-  setupFilesAfterEnv: [
-    '<rootDir>/web/packages/shared/setupTests.tsx',
-    '<rootDir>/web/packages/build/jest/customMatchers.ts',
-  ],
+  setupFilesAfterEnv: ['<rootDir>/web/packages/shared/setupTests.tsx'],
 };

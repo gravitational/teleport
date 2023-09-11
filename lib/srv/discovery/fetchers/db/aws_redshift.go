@@ -18,35 +18,73 @@ package db
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// newRedshiftFetcher returns a new AWS fetcher for Redshift databases.
-func newRedshiftFetcher(cfg awsFetcherConfig) (common.Fetcher, error) {
-	return newAWSFetcher(cfg, &redshiftPlugin{})
+// redshiftFetcherConfig is the Redshift databases fetcher configuration.
+type redshiftFetcherConfig struct {
+	// Labels is a selector to match cloud databases.
+	Labels types.Labels
+	// Redshift is the Redshift API client.
+	Redshift redshiftiface.RedshiftAPI
+	// Region is the AWS region to query databases in.
+	Region string
+	// AssumeRole is the AWS IAM role to assume before discovering databases.
+	AssumeRole types.AssumeRole
 }
 
-// redshiftPlugin retrieves Redshift databases.
-type redshiftPlugin struct{}
+// CheckAndSetDefaults validates the config and sets defaults.
+func (c *redshiftFetcherConfig) CheckAndSetDefaults() error {
+	if len(c.Labels) == 0 {
+		return trace.BadParameter("missing parameter Labels")
+	}
+	if c.Redshift == nil {
+		return trace.BadParameter("missing parameter Redshift")
+	}
+	if c.Region == "" {
+		return trace.BadParameter("missing parameter Region")
+	}
+	return nil
+}
 
-// GetDatabases returns Redshift databases matching the watcher's selectors.
-func (f *redshiftPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
-	redshiftClient, err := cfg.AWSClients.GetAWSRedshiftClient(ctx, cfg.Region,
-		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID))
-	if err != nil {
+// redshiftFetcher retrieves Redshift databases.
+type redshiftFetcher struct {
+	awsFetcher
+
+	cfg redshiftFetcherConfig
+	log logrus.FieldLogger
+}
+
+// newRedshiftFetcher returns a new Redshift databases fetcher instance.
+func newRedshiftFetcher(config redshiftFetcherConfig) (common.Fetcher, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusters, err := getRedshiftClusters(ctx, redshiftClient)
+	return &redshiftFetcher{
+		cfg: config,
+		log: logrus.WithFields(logrus.Fields{
+			trace.Component: "watch:redshift",
+			"labels":        config.Labels,
+			"region":        config.Region,
+			"role":          config.AssumeRole,
+		}),
+	}, nil
+}
+
+// Get returns Redshift and Aurora databases matching the watcher's selectors.
+func (f *redshiftFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
+	clusters, err := getRedshiftClusters(ctx, f.cfg.Redshift)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -54,7 +92,7 @@ func (f *redshiftPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 	var databases types.Databases
 	for _, cluster := range clusters {
 		if !services.IsRedshiftClusterAvailable(cluster) {
-			cfg.Log.Debugf("The current status of Redshift cluster %q is %q. Skipping.",
+			f.log.Debugf("The current status of Redshift cluster %q is %q. Skipping.",
 				aws.StringValue(cluster.ClusterIdentifier),
 				aws.StringValue(cluster.ClusterStatus))
 			continue
@@ -62,18 +100,21 @@ func (f *redshiftPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 
 		database, err := services.NewDatabaseFromRedshiftCluster(cluster)
 		if err != nil {
-			cfg.Log.Infof("Could not convert Redshift cluster %q to database resource: %v.",
+			f.log.Infof("Could not convert Redshift cluster %q to database resource: %v.",
 				aws.StringValue(cluster.ClusterIdentifier), err)
 			continue
 		}
 
 		databases = append(databases, database)
 	}
-	return databases, nil
+	applyAssumeRoleToDatabases(databases, f.cfg.AssumeRole)
+	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log).AsResources(), nil
 }
 
-func (f *redshiftPlugin) ComponentShortName() string {
-	return "redshift"
+// String returns the fetcher's string description.
+func (f *redshiftFetcher) String() string {
+	return fmt.Sprintf("redshiftFetcher(Region=%v, Labels=%v)",
+		f.cfg.Region, f.cfg.Labels)
 }
 
 // getRedshiftClusters fetches all Reshift clusters using the provided client,

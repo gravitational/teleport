@@ -131,8 +131,8 @@ func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, clu
 			continue
 		}
 
-		for contextName, ctx := range defaultConfig.Contexts {
-			if ctx.Cluster != teleportClusterName {
+		for contextName, context := range defaultConfig.Contexts {
+			if context.Cluster != teleportClusterName {
 				continue
 			}
 			auth, found := defaultConfig.AuthInfos[contextName]
@@ -142,8 +142,8 @@ func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, clu
 
 			clusters = append(clusters, LocalProxyCluster{
 				TeleportCluster:   teleportClusterName,
-				KubeCluster:       KubeClusterFromContext(contextName, ctx, teleportClusterName),
-				Namespace:         ctx.Namespace,
+				KubeCluster:       KubeClusterFromContext(contextName, teleportClusterName),
+				Namespace:         context.Namespace,
 				Impersonate:       auth.Impersonate,
 				ImpersonateGroups: auth.ImpersonateGroups,
 			})
@@ -178,7 +178,7 @@ func FindTeleportClusterForLocalProxy(defaultConfig *clientcmdapi.Config, cluste
 
 	return LocalProxyCluster{
 		TeleportCluster:   context.Cluster,
-		KubeCluster:       KubeClusterFromContext(contextName, context, context.Cluster),
+		KubeCluster:       KubeClusterFromContext(contextName, context.Cluster),
 		Namespace:         context.Namespace,
 		Impersonate:       auth.Impersonate,
 		ImpersonateGroups: auth.ImpersonateGroups,

@@ -18,7 +18,7 @@ import React from 'react';
 import { Box, Label as Pill, Text } from 'design';
 import * as Icons from 'design/Icon';
 
-import { ResourceLabel } from 'teleport/services/agents';
+import { AgentLabel } from 'teleport/services/agents';
 import { LabelsCreater, Mark, TextIcon } from 'teleport/Discover/Shared';
 import { Regions } from 'teleport/services/integrations';
 
@@ -37,10 +37,10 @@ export const Labels = ({
   autoFocus = true,
   region,
 }: {
-  labels: ResourceLabel[];
-  setLabels(l: ResourceLabel[]): void;
+  labels: AgentLabel[];
+  setLabels(l: AgentLabel[]): void;
   disableBtns?: boolean;
-  dbLabels: ResourceLabel[];
+  dbLabels: AgentLabel[];
   showLabelMatchErr?: boolean;
   autoFocus?: boolean;
   region?: Regions;
@@ -103,7 +103,7 @@ export const Labels = ({
       <Box mt={1} mb={3}>
         {showLabelMatchErr && (
           <TextIcon>
-            <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
+            <Icons.Warning ml={1} color="error.main" />
             The matcher labels must be able to match with the labels defined for
             the registered database. Use wildcards to match with any labels.
           </TextIcon>
@@ -114,7 +114,7 @@ export const Labels = ({
 };
 
 export function matchLabels(
-  newDbLabels: ResourceLabel[],
+  newDbLabels: AgentLabel[],
   matcherLabels: Record<string, string[]>
 ) {
   // Sorting to match by asteriks sooner.
@@ -192,8 +192,8 @@ export function matchLabels(
 //  - `*: apple` match by value `apple` with any key
 //  - `*: *` match by any key and any value
 export function hasMatchingLabels(
-  dbLabels: ResourceLabel[],
-  agentLabels: ResourceLabel[]
+  dbLabels: AgentLabel[],
+  agentLabels: AgentLabel[]
 ) {
   // Convert agentLabels into a map of key of value arrays.
   const matcherLabels: Record<string, string[]> = {};

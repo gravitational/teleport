@@ -58,14 +58,14 @@ function getSSOIcon(type: SSOType) {
     case 'microsoft':
       return { color: '#2672ec', Icon: Icons.Windows, type };
     case 'github':
-      return { color: '#444444', Icon: Icons.GitHub, type };
+      return { color: '#444444', Icon: Icons.Github, type };
     case 'bitbucket':
-      return { color: '#205081', Icon: Icons.Key, /*temporary icon */ type };
+      return { color: '#205081', Icon: Icons.BitBucket, type };
     case 'google':
       return { color: '#dd4b39', Icon: Icons.Google, type };
     default:
       // provide default icon for unknown social providers
-      return { color: '#f7931e', Icon: Icons.Key /*temporary icon */ };
+      return { color: '#f7931e', Icon: Icons.OpenID };
   }
 }
 
@@ -114,7 +114,8 @@ const StyledButton = styled(Button)`
   position: relative;
   box-sizing: border-box;
 
-  svg {
+  ${Icons.default} {
+    font-size: 20px;
     opacity: 0.87;
   }
 `;

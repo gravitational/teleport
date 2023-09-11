@@ -27,8 +27,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"

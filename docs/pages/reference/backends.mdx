@@ -282,6 +282,10 @@ teleport:
     # number of connections in the connection pool used for the cluster state
     # database (the change feed uses an additional connection), defaulting to
     # a value that depends on the number of available CPUs.
+    #
+    # If your certificates are not stored at the default ~/.postgresql
+    # location, you will need to specify them with the sslcert, sslkey, and
+    # sslrootcert parameters.
     conn_string: postgresql://user_name@database-address/teleport_backend?sslmode=verify-full&pool_max_conns=20
 
     # An audit_events_uri with a scheme of postgresql:// will use the
@@ -289,6 +293,10 @@ teleport:
     # connection string just like the cluster state conn_string, but cannot be
     # specified as key=value pairs. It's possible to specify completely
     # different PostgreSQL clusters for cluster state and audit log.
+    #
+    # If your certificates are not stored at the default ~/.postgresql
+    # location, you will need to specify them with the sslcert, sslkey, and
+    # sslrootcert parameters.
     audit_events_uri:
       - postgresql://user_name@database-address/teleport_audit?sslmode=verify-full
 ```
@@ -312,10 +320,22 @@ certificates](https://www.postgresql.org/docs/current/ssl-tcp.html#SSL-CLIENT-CE
 to authenticate Teleport to PostgreSQL, as well as enforcing the use of TLS and
 [verifying the server
 certificate](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBQ-SSL-CERTIFICATES)
-on the client side. If the use of passwords is unavoidable, we recommend
-configuring them in [the `~/.pgpass`
-file](https://www.postgresql.org/docs/current/libpq-pgpass.html) rather than
-storing them in Teleport's configuration file.
+on the client side.
+
+You will need to update your `pg_hba.conf` file to include the following lines
+to ensure connections to Teleport use client certificates. See The
+[pg_hba.conf](https://www.postgresql.org/docs/current/auth-pg-hba-conf.html)
+file in the PostgreSQL documentation for more details.
+
+```
+# TYPE  DATABASE        USER            CIDR-ADDRESS            METHOD
+hostssl teleport        all             ::/0                    cert
+hostssl teleport        all             0.0.0.0/0               cert
+```
+
+If the use of passwords is unavoidable, we recommend configuring them in [the
+`~/.pgpass` file](https://www.postgresql.org/docs/current/libpq-pgpass.html)
+rather than storing them in Teleport's configuration file.
 
 ### Azure AD authentication
 
@@ -349,6 +369,134 @@ Identity](https://learn.microsoft.com/azure/aks/workload-identity-overview)
 credentials, or [managed
 identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
 credentials.
+
+### Development
+
+If you are not ready to connect Teleport to a production instance of
+PostgreSQL, you can use the following instructions to set up a throwaway
+instance of PostgreSQL using Docker.
+
+First copy the following script to disk and run it to generate the CA, client
+certificate, and server certificate used by Teleport and PostgreSQL to
+establish a secure mutually authenticated connection:
+
+```
+#!/bin/bash
+
+# Create the certs directory.
+mkdir -p ./certs
+cd certs/
+
+# Create CA key and self-signed certificate.
+openssl genpkey -algorithm RSA -out ca.key
+openssl req -x509 -new -key ca.key -out ca.crt -subj "/CN=root"
+
+# Function to create certificates.
+create_certificate() {
+    local name="$1"
+    local dns_name="$2"
+
+    openssl genpkey \
+        -algorithm RSA \
+        -out "${name}.key"
+    openssl req -new \
+        -key "${name}.key" \
+        -out "${name}.csr" \
+        -subj "/CN=${dns_name}"
+    openssl x509 -req \
+        -in "${name}.csr" \
+        -CA ca.crt \
+        -CAkey ca.key \
+        -out "${name}.crt" \
+        -extfile <(printf "subjectAltName=DNS:${dns_name}") \
+        -CAcreateserial
+
+    chmod 0600 "${name}.key"
+}
+
+# Create client certificate with SAN.
+create_certificate "client" "teleport"
+
+# Create server certificate with SAN.
+create_certificate "server" "localhost"
+
+echo "Certificates and keys generated successfully."
+```
+
+Next, create a `Dockerfile` using the [official PostgreSQL Docker
+image](https://hub.docker.com/_/postgres) and add `wal2json` to it:
+
+```
+FROM postgres:15.0
+RUN apt-get update
+RUN apt-get install -y postgresql-15-wal2json
+```
+
+Create an `init.sql` file that will ensure the Teleport user is created upon
+startup of the container:
+
+```
+CREATE USER teleport WITH REPLICATION CREATEDB;
+```
+
+Create a `pg_hba.conf` file to enforce certificate-based authentication for
+connections to PostgreSQL:
+
+```
+# TYPE  DATABASE        USER            CIDR-ADDRESS            METHOD
+local   all             all                                     trust
+hostssl all             all             ::/0                    cert
+hostssl all             all             0.0.0.0/0               cert
+```
+
+Create a `postgresql.conf` file that configures the WAL level and certificates
+used for authentication:
+
+```
+listen_addresses = '*'
+port = 5432
+max_connections = 20
+shared_buffers = 128MB
+temp_buffers = 8MB
+work_mem = 4MB
+
+wal_level=logical
+max_replication_slots=10
+
+ssl=on
+ssl_ca_file='/certs/ca.crt'
+ssl_cert_file='/certs/server.crt'
+ssl_key_file='/certs/server.key'
+```
+
+Start the PostgreSQL container with the following command:
+
+```
+docker run --rm --name postgres \
+    -e POSTGRES_DB=db \
+    -e POSTGRES_USER=user \
+    -e POSTGRES_PASSWORD=password \
+    -v $(pwd)/data:/var/lib/postgresql/data \
+    -v $(pwd)/certs:/certs \
+    -v $(pwd)/postgresql.conf:/etc/postgresql/postgresql.conf \
+    -v $(pwd)/pg_hba.conf:/etc/postgresql/pg_hba.conf \
+    -v $(pwd)/init.sql:/docker-entrypoint-initdb.d/init.sql \
+    -p 5432:5432 \
+    $(docker build -q .) \
+    postgres \
+    -c hba_file=/etc/postgresql/pg_hba.conf \
+    -c config_file=/etc/postgresql/postgresql.conf
+```
+
+Lastly, update the storage section in `teleport.yaml` to use PostgreSQL and
+start Teleport:
+
+```yaml
+teleport:
+  storage:
+    type: postgresql
+    conn_string: "postgresql://teleport@localhost:5432/teleport_backend?sslcert=/path/to/certs/client.crt&sslkey=/path/to/certs/client.key&sslrootcert=/path/to/certs/ca.crt&sslmode=verify-full&pool_max_conns=20"
+```
 
 ## S3
 
@@ -797,294 +945,6 @@ Config option priority is applied in the following order:
   Setting this environment variable to true will enable FIPS endpoints for all AWS resource types. Some FIPS endpoints
   are not supported in certain regions or environments or are only supported in GovCloud.
 </Admonition>
-
-## Athena
-
-If you are running Teleport on AWS, you can use an
-[Athena](https://aws.amazon.com/athena/)-based audit log system that manages
-[Parquet files](https://parquet.apache.org/) stored on
-[S3](https://aws.amazon.com/s3/) as a storage back-end to achieve high
-availability. The Athena back-end supports only one type of Teleport data, audit
-events.
-
-The Athena audit back-end is better at scale and search than DynamoDB.
-
-The Athena audit logs are eventually consistent. It may take up to one minute
-(depending on the `batchMaxInterval` setting and event load) until you can view
-events in the Teleport Web UI.
-
-### Infrastructure setup
-
-The Auth Service uses an SQS queue subscribed to an SNS topic for event
-publishing. A single Auth Service instance reads events in batches from SQS,
-converts them into Parquet format, and sends the resulting data to S3. During
-queries, the Athena engine searches for events on S3, reading metadata from a
-Glue table.
-
-You can set up the required infrastructure to support the Athena backend with
-the following Terraform script:
-
-<Details title="Terraform script" opened={false}>
-```
-(!examples/athena/variables.tf!)
-(!examples/athena/athena.tf!)
-```
-</Details>
-
-### Configuring the Athena audit log backend
-
-To configure Teleport to use Athena:
-
-- Make sure you are using **Teleport version 14.0.0** or newer.
-- Prepare infrastructure
-- Specify an Athena URL inside the `audit_events_uri` array in your Teleport
-  configuration file:
-
-```yaml
-teleport:
-  storage:
-    # This setting configures Teleport to keep a copy of the audit log in Athena
-    # and a copy on a local filesystem, and also to output the events to stdout.
-    audit_events_uri:
-      # More details about the full Athena URL are shown below.
-      - 'athena://database.table?params'
-      - 'file:///var/lib/teleport/audit/events'
-      - 'stdout://'
-```
-
-Here is an example of an Amazon Athena URL within the `audit_events_uri` configuration field:
-
-```
-athena://db.table?topicArn=arn:aws:sns:region:account_id:topic_name&largeEventsS3=s3://transient/large_payloads&locationS3=s3://long-term/events&workgroup=workgroup&queueURL=https://sqs.region.amazonaws.com/account_id/queue_name&queryResultsS3=s3://transient/query_results
-```
-
-The URL hostname consist of `database.table`, which points to the Glue database
-and a table which will be used by the Athena audit logger.
-
-Other parameters are specified as query parameters within the Athena URL.
-
-The following parameters are required:
-
-| Parameter name   | Example value                                            | Description                                            |
-|------------------|----------------------------------------------------------|--------------------------------------------------------|
-| `topicArn`       | `arn:aws:sns:region:account_id:topic_name`               | ARN of SNS topic where events are published            |
-| `locationS3`     | `s3://long-term/events`                                  | S3 bucket used for long-term storage                   |
-| `largeEventsS3`  | `s3://transient/large_payloads`                          | S3 bucket used for transient storage for large events  |
-| `queueURL`       | `https://sqs.region.amazonaws.com/account_id/queue_name` | SQS URL used for a subscription to an SNS topic        |
-| `workgroup`      | `workgroup_name`                                         | Athena workgroup used for queries                      |
-| `queryResultsS3` | `s3://transient/results`                                 | S3 bucket used for transient storage for query results |
-
-
-The following parameters are optional:
-
-| Parameter name     | Example value | Description                                                                                           |
-|--------------------|---------------|-------------------------------------------------------------------------------------------------------|
-| `region`           | `us-east-1`   | AWS region. If empty, defaults to one from the AuditConfig or ambient AWS credentials                 |
-| `batchMaxItems`    | `20000`       | defines the maximum number of events allowed for a single Parquet file (default 20000)                |
-| `batchMaxInterval` | `1m`          | defines the maximum interval used to buffer incoming data before creating a Parquet file (default 1m) |
-
-### Authenticating to AWS
-
-The Teleport Auth Service must be able to read AWS credentials in order to
-authenticate to Athena.
-
-(!docs/pages/includes/aws-credentials.mdx service="the Teleport Auth Service"!)
-
-The IAM role that the Teleport Auth Service authenticates as must have the
-policies specified in the next section.
-
-### IAM policies
-
-Make sure that the IAM role assigned to Teleport is configured with sufficient
-access to Athena. Below you can find the IAM permissions that the Auth Service
-requires to use Athena Audit logs as an audit event backend.
-
-You'll need to replace these values in the policy example below:
-
-| Placeholder value | Replace with                                             |
-|-------------------|----------------------------------------------------------|
-| `eu-central-1`    | AWS region                                               |
-| `1234567890`      | AWS account ID                                           |
-| `audit-long-term` | S3 bucket used for long-term storage                     |
-| `audit-transient` | S3 bucket used for transient storage                     |
-| `audit-sqs`       | SNS topic name                                           |
-| `audit-sns`       | SQS name                                                 |
-| `kms_id`          | KMS key ID used for server-side encryption of SNS/SQS/S3 |
-| `audit_db`        | Glue database used for audit logs                        |
-| `audit_table`     | Glue table used for audit logs                           |
-| `audit_workgroup` | Athena workgroup used for audit logs                     |
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Action": [
-                "s3:ListBucketMultipartUploads",
-                "s3:GetBucketLocation",
-                "s3:ListBucketVersions",
-                "s3:ListBucket"
-            ],
-            "Effect": "Allow",
-            "Resource": [
-                "arn:aws:s3:::audit-transient",
-                "arn:aws:s3:::audit-long-term"
-            ],
-            "Sid": "AllowListingMultipartUploads"
-        },
-        {
-            "Action": [
-                "s3:PutObject",
-                "s3:ListMultipartUploadParts",
-                "s3:GetObjectVersion",
-                "s3:GetObject",
-                "s3:DeleteObjectVersion",
-                "s3:DeleteObject",
-                "s3:AbortMultipartUpload"
-            ],
-            "Effect": "Allow",
-            "Resource": [
-                "arn:aws:s3:::audit-transient/results/*",
-                "arn:aws:s3:::audit-transient/large_payloads/*",
-                "arn:aws:s3:::audit-long-term/events/*"
-            ],
-            "Sid": "AllowMultipartAndObjectAccess"
-        },
-        {
-            "Action": "sns:Publish",
-            "Effect": "Allow",
-            "Resource": "arn:aws:sns:eu-central-1:1234567890:audit-sqs",
-            "Sid": "AllowPublishSNS"
-        },
-        {
-            "Action": [
-                "sqs:ReceiveMessage",
-                "sqs:DeleteMessage"
-            ],
-            "Effect": "Allow",
-            "Resource": "arn:aws:sqs:eu-central-1:1234567890:audit-sns",
-            "Sid": "AllowReceiveSQS"
-        },
-        {
-            "Action": [
-                "glue:GetTable",
-                "athena:StartQueryExecution",
-                "athena:GetQueryResults",
-                "athena:GetQueryExecution"
-            ],
-            "Effect": "Allow",
-            "Resource": [
-                "arn:aws:glue:eu-central-1:1234567890:table/audit_db/audit_table",
-                "arn:aws:glue:eu-central-1:1234567890:database/audit_db",
-                "arn:aws:glue:eu-central-1:1234567890:catalog",
-                "arn:aws:athena:eu-central-1:1234567890:workgroup/audit_workgroup"
-            ],
-            "Sid": "AllowAthenaQuery"
-        },
-        {
-            "Action": [
-                "kms:GenerateDataKey",
-                "kms:Decrypt"
-            ],
-            "Effect": "Allow",
-            "Resource": "arn:aws:kms:eu-central-1:1234567890:key/kms_id",
-            "Sid": "AllowAthenaKMSUsage"
-        }
-    ]
-}
-```
-
-### Migration from Dynamo to the Athena audit logs backend
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  Migration is only needed if you used Amazon DynamoDB for audit logs and you
-  want to keep old data.
-</Admonition>
-
-Migration consist of following steps:
-
-1. Set up Athena infrastructure
-1. Dual write to both DynamoDB and Athena, and query from DynamoDB
-1. Migrate old data from DynamoDB to Athena
-1. Dual write to both DynamoDB and Athena, and query from Athena
-1. Disable writing to DynamoDB
-
-In the Teleport storage configuration, `audit_events_uri` accepts multiple
-URLs. Those URLs are used to configure connections to the different audit
-loggers. If more than 1 is used, then events are written to each audit system,
-and queries are executed from first one.
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  If anything goes wrong during migration steps 1-4, roll back to the Amazon
-  DynamoDB solution by making sure its URL is the first value in the
-  `audit_events_uri` field and removing the Athena URL.
-</Admonition>
-
-Each of these steps is explained in more detail below.
-
-#### Dual write to both DynamoDB and Athena, and query from DynamoDB
-
-The second step of migration requires setting the following configuration:
-
-```yaml
-teleport:
-  storage:
-    audit_events_uri:
-    - 'dynamodb://events_table_name'
-    - 'athena://db.table?otherQueryParams'
-```
-
-When an Auth Service instance is restarted, you should verify that Parquet files
-are stored in the S3 bucket specified using the `locationS3` parameter.
-
-#### Migrate old data from DynamoDB to Athena
-
-This step requires using the client machine to export data from Amazon DynamoDB
-and publish it to the Athena logger. We recommend using, for example, an EC2
-instance with a disk size at least 2x bigger than the table size in Amazon
-DynamoDB.
-
-Instructions for how to use the migration tool can be found
-[on GitHub](https://github.com/gravitational/teleport/blob/master/examples/dynamoathenamigration/README.md).
-
-You should set `exportTime` to the time when dual writing began.
-
-We recommend running your first migration with the `-dry-run` flag because it
-validates the exported data. If no errors are reported, proceed to a real
-migration without the `-dry-run` flag.
-
-#### Dual write to both DynamoDB and Athena, and query from Athena
-
-Change the order of the `audit_events_uri` values in your Teleport
-configuration file:
-
-```yaml
-teleport:
-  storage:
-    audit_events_uri:
-    - 'athena://db.table?otherQueryParams'
-    - 'dynamodb://events_table_name'
-```
-
-When the Auth Service is restarted, you should verify that events are visible
-on the Audit Logs page.
-
-#### Disable writing to DynamoDB
-
-Disabling writing to DynamoDB means that you won't be able to roll back to
-DynamoDB without losing data. Dual writing to both Athena and DynamoDB does not
-have a significant performance impact, and it's recommended to keep dual
-writing for some time, even if your system already executes queries from
-Athena.
-
-To disable writing to DynamoDB, remove the DynamoDB URL from the
-`audit_events_uri` array.
 
 ## GCS
 

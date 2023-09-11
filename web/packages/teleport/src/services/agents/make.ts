@@ -17,7 +17,7 @@
 import type {
   ConnectionDiagnostic,
   ConnectionDiagnosticTrace,
-  ResourceLabel,
+  AgentLabel,
 } from './types';
 
 export function makeConnectionDiagnostic(json: any): ConnectionDiagnostic {
@@ -45,10 +45,10 @@ function makeTraces(traces: any): ConnectionDiagnosticTrace[] {
   }));
 }
 
-// makeLabelMapOfStrArrs converts an array of type ResourceLabel into
+// makeLabelMapOfStrArrs converts an array of type AgentLabel into
 // a map of string arrays eg: {"os": ["mac", "linux"]} which is the
 // data model expected in the backend for labels.
-export function makeLabelMapOfStrArrs(labels: ResourceLabel[] = []) {
+export function makeLabelMapOfStrArrs(labels: AgentLabel[] = []) {
   const m: Record<string, string[]> = {};
 
   labels.forEach(label => {

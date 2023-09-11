@@ -214,7 +214,7 @@ export function LockCheckout({
         ) : (
           <Flex mb={3} alignItems="center">
             <ArrowBack
-              size="large"
+              fontSize={25}
               mr={3}
               onClick={onClose}
               style={{ cursor: 'pointer' }}
@@ -253,7 +253,6 @@ export function LockCheckout({
                   render: lock => (
                     <Cell align="right">
                       <TrashButton
-                        size="small"
                         onClick={() => deleteLock(lock)}
                         disabled={attempt.status === 'processing'}
                       />

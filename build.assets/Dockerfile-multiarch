@@ -50,9 +50,9 @@ FROM gcc AS libfido2
 
 # Install libudev-zero.
 # libudev-zero replaces systemd's libudev.
-RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 && \
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
     cd libudev-zero && \
-    [ "$(git rev-parse HEAD)" = 'ee32ac5f6494047b9ece26e7a5920650cdf46655' ] && \
+    [ "$(git rev-parse HEAD)" = '4154cf252c17297f98a8ca33693ead003b4509da' ] && \
     make install-static LIBDIR='$(PREFIX)/lib64'
 
 # Install libcbor.
@@ -130,8 +130,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     cargo --version && \
     rustc --version && \
     rustup target add ${RUST_ARCH}
-# Install wasm-pack for targeting WebAssembly from Rust.
-RUN cargo install wasm-pack
 
 USER root
 

@@ -47,7 +47,7 @@ export function ShareFeedback() {
         onClick={openShareFeedback}
       >
         {!hasBeenShareFeedbackOpened && <NotOpenedYetIndicator />}
-        <ChatBubble size="small" mb={1} />
+        <ChatBubble fontSize="14px" />
       </ButtonIcon>
       <Popover
         open={isShareFeedbackOpened}

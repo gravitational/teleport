@@ -92,6 +92,14 @@ enum ResourceKind {
   //
   // PostHog property value: "node.openssh"
   RESOURCE_KIND_NODE_OPENSSH = 6;
+
+  // ServerV3 ("node") heartbeat with a subkind of "openssh-ec2-ice".
+  // Nodes that map EC2 instances and are accessed using EC2 Instance Connect Endpoint.
+  // Not used in keepalives.
+  // This is the SubKind SubKindOpenSSHEICENode in teleport repo.
+  //
+  // PostHog property value: "node.openssh_ec2_ice"
+  RESOURCE_KIND_NODE_OPENSSH_EICE = 7;
 }
 
 // a heartbeat for a resource served by a Teleport instance outside of the
@@ -663,6 +671,36 @@ message AssistNewConversationEvent {
   string category = 2;
 }
 
+// AssistAccessRequest is an event that is emitted when a user requests access
+// to a resource via Assist.
+message AssistAccessRequestEvent {
+  // UserName is anonymized user name
+  string user_name = 1;
+  // ResourceType describes the type of resource the user is requesting access to, e.g. "node", "db", "k8s" or "role".
+  string resource_type = 2;
+  // TotalTokens is the total amount of token used to generate the command summary
+  int64 total_tokens = 4;
+  // PromptTokens is the amount of estimated tokens used by the prompt to generate the command summary
+  int64 prompt_tokens = 5;
+  // CompletionTokens is the amount of tokens that the summary completion response consists of
+  int64 completion_tokens = 6;
+}
+
+// AssistAction is an event that is emitted when a user triggers an action (SSH command generation, output explain, etc.)
+// via Assist.
+message AssistActionEvent {
+  // UserName is anonymized user name
+  string user_name = 1;
+  // Action is the action that was triggered, e.g. "ssh-explain", "ssh-command-generate", etc.
+  string action = 2;
+  // TotalTokens is the total amount of token used to generate the command summary
+  int64 total_tokens = 4;
+  // PromptTokens is the amount of estimated tokens used by the prompt to generate the command summary
+  int64 prompt_tokens = 5;
+  // CompletionTokens is the amount of tokens that the summary completion response consists of
+  int64 completion_tokens = 6;
+}
+
 // IntegrationEnrollKind represents the types of integration that
 // can be enrolled.
 enum IntegrationEnrollKind {
@@ -868,6 +906,9 @@ message SubmitEventRequest {
     DeviceAuthenticateEvent device_authenticate_event = 52;
 
     FeatureRecommendationEvent feature_recommendation_event = 53;
+
+    AssistAccessRequestEvent assist_access_request = 54;
+    AssistActionEvent assist_action = 55;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

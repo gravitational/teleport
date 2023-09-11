@@ -42,7 +42,7 @@ describe('components/BannerList/Banner', () => {
         onClose={() => {}}
       />
     );
-    expect(screen.getByRole('icon')).toHaveClass('icon-info');
+    expect(screen.getByRole('icon')).toHaveClass('icon-info_outline');
     expect(container.firstChild).toHaveStyleRule('background-color', '#039be5');
   });
 
@@ -55,7 +55,7 @@ describe('components/BannerList/Banner', () => {
         onClose={() => {}}
       />
     );
-    expect(screen.getByRole('icon')).toHaveClass('icon-info');
+    expect(screen.getByRole('icon')).toHaveClass('icon-info_outline');
     expect(container.firstChild).toHaveStyleRule('background-color', '#FFAB00');
   });
 

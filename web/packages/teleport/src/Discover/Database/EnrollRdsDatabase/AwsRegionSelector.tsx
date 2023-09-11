@@ -73,7 +73,7 @@ export function AwsRegionSelector({
           `}
           disabled={disableSelector || !selectedRegion}
         >
-          <RefreshIcon size="medium" />
+          <RefreshIcon fontSize={3} />
         </ButtonSecondary>
       </Flex>
     </Box>

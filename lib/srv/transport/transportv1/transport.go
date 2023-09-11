@@ -40,7 +40,7 @@ import (
 // Dialer is the interface that groups basic dialing methods.
 type Dialer interface {
 	DialSite(ctx context.Context, cluster string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error)
-	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (net.Conn, error)
+	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, teleportVersion string, err error)
 }
 
 // ConnectionMonitor monitors authorized connections and terminates them when
@@ -279,7 +279,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	}
 
 	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
-	hostConn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
+	hostConn, _, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
 	if err != nil {
 		return trace.Wrap(err, "failed to dial target host")
 	}

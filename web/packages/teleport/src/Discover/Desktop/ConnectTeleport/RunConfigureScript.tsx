@@ -43,7 +43,7 @@ interface RunConfigureScriptProps {
 export function RunConfigureScript(
   props: React.PropsWithChildren<RunConfigureScriptProps>
 ) {
-  const { joinToken } = useJoinTokenSuspender([ResourceKind.Desktop]);
+  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
 
   const command = generateCommand(cfg.getConfigureADUrl(joinToken.id));
 
@@ -51,7 +51,7 @@ export function RunConfigureScript(
     <StepContent>
       <StepTitle>
         <StepTitleIcon>
-          <Icons.Terminal size="extraLarge" />
+          <Icons.Terminal />
         </StepTitleIcon>
         1. Run the configure Active Directory script
       </StepTitle>
@@ -70,7 +70,7 @@ export function RunConfigureScriptLoading() {
     <StepContent>
       <StepTitle>
         <StepTitleIcon>
-          <Icons.Terminal size="extraLarge" />
+          <Icons.Terminal />
         </StepTitleIcon>
         1. Run the configure Active Directory script
       </StepTitle>

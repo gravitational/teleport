@@ -115,7 +115,7 @@ function useMenuItems(): MenuItem[] {
     {
       title: 'Review access requests',
       isVisible: areAccessRequestsSupported,
-      Icon: icons.ListAddCheck,
+      Icon: icons.OpenBox,
       onNavigate: () => {
         const doc = documentsService.createAccessRequestDocument({
           clusterUri: activeRootCluster.uri,
@@ -160,7 +160,7 @@ export function AdditionalActions() {
         title="Additional Actions"
         onClick={() => setIsPopoverOpened(true)}
       >
-        <icons.MoreVert size="medium" />
+        <icons.MoreVert fontSize={6} />
       </TopBarButton>
       <Popover
         open={isPopoverOpened}
@@ -216,7 +216,7 @@ export function MenuItem({
       >
         <item.Icon
           color={item.isDisabled ? 'text.disabled' : null}
-          size="medium"
+          fontSize={2}
         />
         <Flex
           gap={2}

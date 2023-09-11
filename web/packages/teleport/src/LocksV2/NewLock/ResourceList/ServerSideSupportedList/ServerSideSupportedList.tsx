@@ -35,12 +35,12 @@ import { CommonListProps, LockResourceKind } from '../../common';
 import { Nodes } from './Nodes';
 import { Desktops } from './Desktops';
 
-import type { ResourceLabel, ResourceFilter } from 'teleport/services/agents';
+import type { AgentLabel, AgentFilter } from 'teleport/services/agents';
 
 export function ServerSideSupportedList(props: CommonListProps) {
   const ctx = useTeleport();
 
-  const [resourceFilter, setResourceFilter] = useState<ResourceFilter>({});
+  const [resourceFilter, setResourceFilter] = useState<AgentFilter>({});
 
   const {
     fetchStatus,
@@ -89,7 +89,7 @@ export function ServerSideSupportedList(props: CommonListProps) {
     setResourceFilter({ ...resourceFilter, search: '', query });
   }
 
-  function onResourceLabelClick(label: ResourceLabel) {
+  function onResourceLabelClick(label: AgentLabel) {
     const query = addResourceLabelToQuery(resourceFilter, label);
     setResourceFilter({ ...resourceFilter, search: '', query });
   }
@@ -153,7 +153,7 @@ export function ServerSideSupportedList(props: CommonListProps) {
               disabled={!fetchPrev || fetchStatus === 'loading'}
               mx={0}
             >
-              <CircleArrowLeft />
+              <CircleArrowLeft fontSize="3" />
             </StyledArrowBtn>
             <StyledArrowBtn
               ml={0}
@@ -161,7 +161,7 @@ export function ServerSideSupportedList(props: CommonListProps) {
               title="Next page"
               disabled={!fetchNext || fetchStatus === 'loading'}
             >
-              <CircleArrowRight />
+              <CircleArrowRight fontSize="3" />
             </StyledArrowBtn>
           </Flex>
         </Flex>
@@ -190,7 +190,7 @@ function getFetchFuncForServerSidePaginating(
   }
 }
 
-function addResourceLabelToQuery(filter: ResourceFilter, label: ResourceLabel) {
+function addResourceLabelToQuery(filter: AgentFilter, label: AgentLabel) {
   const queryParts = [];
 
   // Add existing query

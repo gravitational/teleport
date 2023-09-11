@@ -1,9 +1,6 @@
-You can sign in to your Teleport cluster using `tsh` and can use `tctl`
-remotely:
+Make sure you can connect to your Teleport cluster by authenticating with `tsh`
+so you can execute commands with the `tctl` admin tool:
 
-{/* Ignoring scope linting since we use this partial throughout the docs and
-cannot guarantee that it will line up with a page's configured scopes*/}
-{/*lint ignore scopes*/} 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
@@ -16,13 +13,11 @@ $ tctl status
 ```
 
 You can run subsequent `tctl` commands in this guide on your local machine.
-For full privileges, you can also run `tctl` commands on your Teleport Auth Service host.
+
+For full privileges, you can also run `tctl` commands on your Teleport Auth
+Service host.
 
 </TabItem>
-</Tabs>
-
-{/*lint ignore scopes*/}
-<Tabs>
 <TabItem scope={["cloud","team"]} label="Teleport Cloud">
 
 ```code
@@ -36,6 +31,5 @@ $ tctl status
 You must run subsequent `tctl` commands in this guide on your local machine.
 
 </TabItem>
-
 </Tabs>
 
