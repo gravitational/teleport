@@ -132,7 +132,7 @@ func TestRunWhileLockedConfigCheckAndSetDefaults(t *testing.T) {
 					TTL:           ttl,
 					RetryInterval: 250 * time.Millisecond,
 				},
-				ReleaseCtxTimeout: 300 * time.Millisecond,
+				ReleaseCtxTimeout: time.Second,
 				// defaults to halft of TTL.
 				RefreshLockInterval: 30 * time.Second,
 			},
