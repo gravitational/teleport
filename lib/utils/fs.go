@@ -96,9 +96,20 @@ func NormalizePath(path string) (string, error) {
 	return abs, nil
 }
 
-// OpenFile opens a file and returns file handle. In general symlinks should not be allowed to reduce the risk of
+// OpenFileAllowingSymlinks will open a file, if it's a symlink the file referenced by the link will be associated to
+// the returned os.File.  This will return an error if the file is not found or is a directory.
+func OpenFileAllowingSymlinks(path string) (*os.File, error) {
+	return openFile(path, true)
+}
+
+// OpenFileNoSymlinks will open a file, ensuring it's an actual file and not a directory or symlink.
+func OpenFileNoSymlinks(path string) (*os.File, error) {
+	return openFile(path, false)
+}
+
+// openFile opens a file and returns file handle. In general symlinks should not be allowed to reduce the risk of
 // privilege escalation from Teleports elevated privileges to potentially less privileged users accidentally.
-func OpenFile(path string, allowSymlink bool) (*os.File, error) {
+func openFile(path string, allowSymlink bool) (*os.File, error) {
 	newPath, err := NormalizePath(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
