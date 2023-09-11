@@ -370,7 +370,7 @@ func (s *ServiceNowSuite) TestApproval() {
 	err = s.ruler().ApproveAccessRequest(s.Context(), req.GetName(), "okay")
 	require.NoError(t, err)
 
-	incident, err = s.fakeServiceNow.CheckIncidentUpdate(s.Context())
+	incident, err := s.fakeServiceNow.CheckIncidentUpdate(s.Context())
 	require.NoError(t, err)
 	require.Contains(t, incident.Description, "requested permissions")
 	assert.Contains(t, incident.CloseNotes, "Access request has been resolved")
