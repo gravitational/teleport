@@ -300,10 +300,8 @@ These sub-values must be configured for the agent to connect to a cluster.
 `joinParams.method` defines which join method will be used to join the Teleport cluster.
 Possible values are `token`, `iam` and `ec2`.
 
-- For `iam`, see [Joining Nodes Via AWS IAM
-  Role](../../agents/join-services-to-your-cluster/aws-iam.mdx).
-- For `ec2`, see [Joining Nodes Via AWS IAM
-  Role](../../agents/join-services-to-your-cluster/aws-ec2.mdx).
+- For `iam`, see [Joining Nodes Via AWS IAM Role](../../agents/join-services-to-your-cluster/aws-iam.mdx).
+- For `ec2`, see [Joining Nodes Via AWS EC2 Identity Document](../../agents/join-services-to-your-cluster/aws-ec2.mdx).
 - For `token` (default value), the token must be provided through `joinParams.tokenName` or
   [through an existing Kubernetes Secret](#joinTokenSecret).
 
@@ -804,7 +802,7 @@ When `existingDataVolume` is set to the name of an existing volume, the `/var/li
 |--------|--------------------------------------|
 | `bool` | `true` for < 1.23 `false` for >= 1.23 |
 
-By default, Teleport charts used to install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/branch/v13/examples/chart/teleport-cluster/templates/psp.yaml).
+By default, Teleport charts used to install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/branch/(=teleport.major_version=)/examples/chart/teleport-cluster/templates/psp.yaml).
 
 PodSecurityPolicy resources (PSP) have been removed in Kubernetes 1.25
 and replaced since 1.23 by PodSecurityAdmission (PSA). If you are running on
