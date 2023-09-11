@@ -29,9 +29,7 @@ import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import { ImmutableStore } from '../immutableStore';
 
-import {
-  TrackedConnectionOperationsFactory
-} from './trackedConnectionOperationsFactory';
+import { TrackedConnectionOperationsFactory } from './trackedConnectionOperationsFactory';
 import {
   createGatewayConnection,
   createKubeConnection,
