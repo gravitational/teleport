@@ -32,7 +32,7 @@ import { ConnectMyComputerContextProvider } from '../connectMyComputerContext';
 import { DocumentConnectMyComputerStatus } from './DocumentConnectMyComputerStatus';
 
 export default {
-  title: 'Teleterm/ConnectMyComputer/DocumentConnectMyComputerStatus',
+  title: 'Teleterm/ConnectMyComputer/Status',
 };
 
 export function NotStarted() {
@@ -165,7 +165,7 @@ function ShowState(props: {
     <MockAppContextProvider appContext={appContext}>
       <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
         <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-          <DocumentConnectMyComputerStatus visible={true} doc={doc} />
+          <DocumentConnectMyComputerStatus />
         </ConnectMyComputerContextProvider>
       </MockWorkspaceContextProvider>
     </MockAppContextProvider>

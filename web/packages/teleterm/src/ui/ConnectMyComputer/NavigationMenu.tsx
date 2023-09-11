@@ -64,25 +64,18 @@ export function NavigationMenu(props: NavigationMenuProps) {
     setIsMenuOpened(wasOpened => !wasOpened);
   }
 
-  function openSetupDocument(): void {
-    documentsService.openConnectMyComputerSetupDocument({
-      rootClusterUri,
-    });
-    setIsMenuOpened(false);
-  }
-
-  function openStatusDocument(): void {
-    documentsService.openConnectMyComputerStatusDocument({
+  function openDocument(): void {
+    documentsService.openConnectMyComputerDocument({
       rootClusterUri,
     });
     setIsMenuOpened(false);
   }
 
   const setupMenuItem = (
-    <MenuItem onClick={openSetupDocument}>Connect My Computer</MenuItem>
+    <MenuItem onClick={openDocument}>Connect My Computer</MenuItem>
   );
   const statusMenuItem = (
-    <MenuItem onClick={openStatusDocument}>
+    <MenuItem onClick={openDocument}>
       {indicatorStatus === 'error' && (
         <Warning size="small" color="error.main" mr={1} />
       )}
