@@ -237,7 +237,7 @@ export const ConnectMyComputerContextProvider: FC<{
           ctx.notificationsService.notifyInfo({
             title: 'The node may be visible for a few more minutes.',
             description:
-              'You do not have permissions to remove nodes, but it will be removed automatically.',
+              'You do not have permissions to remove nodes, but it will be removed automatically after a few minutes.',
           });
         } else {
           throw e;

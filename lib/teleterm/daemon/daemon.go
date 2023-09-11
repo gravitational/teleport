@@ -813,7 +813,7 @@ func (s *Service) DeleteConnectMyComputerNode(ctx context.Context, req *api.Dele
 	return &api.DeleteConnectMyComputerNodeResponse{}, trace.Wrap(err)
 }
 
-// GetConnectMyComputerNodeName reads the Connect My Computer node name from a disk.
+// GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
 func (s *Service) GetConnectMyComputerNodeName(req *api.GetConnectMyComputerNodeNameRequest) (*api.GetConnectMyComputerNodeNameResponse, error) {
 	cluster, _, err := s.ResolveCluster(req.GetRootClusterUri())
 	if err != nil {
