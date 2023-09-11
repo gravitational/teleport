@@ -141,7 +141,7 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
-	return client.MakeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal), nil
 }
 
 // createAuthenticateChallengeWithTokenHandle creates and returns MFA authenticate challenges for the user defined in token.
@@ -153,7 +153,7 @@ func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWrit
 		return nil, trace.Wrap(err)
 	}
 
-	return client.MakeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal), nil
 }
 
 type createRegisterChallengeRequest struct {
@@ -196,7 +196,17 @@ func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, 
 		return nil, trace.Wrap(err)
 	}
 
-	return client.MakeRegisterChallenge(chal), nil
+	resp := &client.MFARegisterChallenge{}
+	switch chal.GetRequest().(type) {
+	case *proto.MFARegisterChallenge_TOTP:
+		resp.TOTP = &client.TOTPRegisterChallenge{
+			QRCode: chal.GetTOTP().GetQRCode(),
+		}
+	case *proto.MFARegisterChallenge_Webauthn:
+		resp.Webauthn = wantypes.CredentialCreationFromProto(chal.GetWebauthn())
+	}
+
+	return resp, nil
 }
 
 func getDeviceUsage(reqUsage string) (proto.DeviceUsage, error) {
@@ -369,4 +379,15 @@ func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	return isMfaRequiredResponse{Required: res.GetRequired()}, nil
+}
+
+// makeAuthenticateChallenge converts proto to JSON format.
+func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *client.MFAAuthenticateChallenge {
+	chal := &client.MFAAuthenticateChallenge{
+		TOTPChallenge: protoChal.GetTOTP() != nil,
+	}
+	if protoChal.GetWebauthnChallenge() != nil {
+		chal.WebauthnChallenge = wantypes.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
+	}
+	return chal
 }

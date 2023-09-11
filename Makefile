@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=13.3.2
+VERSION=13.3.8
 
 DOCKER_IMAGE ?= teleport
 
@@ -399,7 +399,10 @@ endif
 # make clean - Removes all build artifacts.
 #
 .PHONY: clean
-clean: clean-ui
+clean: clean-ui clean-build
+
+.PHONY: clean-build
+clean-build:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
 # Check if the variable is set to prevent calling remove on the root directory.
@@ -481,8 +484,14 @@ build-archive: | $(RELEASE_DIR)
 # make release-unix - Produces binary release tarballs for both OSS and
 # Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
-.PHONY:
+.PHONY: release-unix
 release-unix: clean full build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+# release-unix-preserving-webassets cleans just the build and not the UI
+# allowing webassets to be built in a prior step before building the release.
+.PHONY: release-unix-preserving-webassets
+release-unix-preserving-webassets: clean-build full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 include darwin-signing.mk
@@ -844,7 +853,9 @@ test-sh:
 
 .PHONY: run-etcd
 run-etcd:
-	examples/etcd/start-etcd.sh
+	docker build -f .github/services/Dockerfile.etcd -t etcdbox --build-arg=ETCD_VERSION=3.3.9 .
+	docker run -it --rm -p'2379:2379' etcdbox
+
 #
 # Integration tests. Need a TTY to work.
 # Any tests which need to run as root must be skipped during regular integration testing.
@@ -1063,7 +1074,7 @@ $(VERSRC): Makefile
 update-tag: TAG_REMOTE ?= origin
 update-tag:
 	@test $(VERSION)
-	cd build.assets/tooling && go run ./cmd/check -check valid -tag $(GITTAG)
+	cd build.assets/tooling && CGO_ENABLED=0 go run ./cmd/check -check valid -tag $(GITTAG)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))

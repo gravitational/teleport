@@ -91,7 +91,10 @@ build_teleport_fuzzers() {
     FuzzParseCredentialRequestResponseBody fuzz_parse_credential_request_response_body
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/web \
-    FuzzTdpMFACodecDecode fuzz_tdp_mfa_codec_decode
+    FuzzTdpMFACodecDecodeChallenge fuzz_tdp_mfa_codec_decode_challenge
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/web \
+    FuzzTdpMFACodecDecodeResponse fuzz_tdp_mfa_codec_decode_response
 
 }
 

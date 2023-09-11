@@ -17,7 +17,11 @@ limitations under the License.
 import React from 'react';
 import { rest, setupWorker } from 'msw';
 import { addDecorator, addParameters } from '@storybook/react';
-import { darkTheme, lightTheme } from './../packages/design/src/theme';
+import {
+  darkTheme,
+  lightTheme,
+  bblpTheme,
+} from './../packages/design/src/theme';
 import DefaultThemeProvider from '../packages/design/src/ThemeProvider';
 import Box from './../packages/design/src/Box';
 import '../packages/teleport/src/lib/polyfillRandomUuid';
@@ -51,7 +55,17 @@ const ThemeDecorator = (storyFn, meta) => {
         : teletermLightTheme;
   } else {
     ThemeProvider = DefaultThemeProvider;
-    theme = meta.globals.theme === 'Dark Theme' ? darkTheme : lightTheme;
+    switch (meta.globals.theme) {
+      case 'Dark Theme':
+        theme = darkTheme;
+        break;
+      case 'Light Theme':
+        theme = lightTheme;
+        break;
+      case 'BBLP Theme':
+        theme = bblpTheme;
+        break;
+    }
   }
 
   return (
@@ -96,7 +110,7 @@ export const globalTypes = {
     defaultValue: 'Dark Theme',
     toolbar: {
       icon: 'contrast',
-      items: ['Light Theme', 'Dark Theme'],
+      items: ['Light Theme', 'Dark Theme', 'BBLP Theme'],
       dynamicTitle: true,
     },
   },

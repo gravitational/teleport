@@ -5,12 +5,15 @@ description: How to configure Teleport database access with self-hosted PostgreS
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="PostgreSQL" dbConfigure="PostgreSQL database with mutual TLS authentication" dbName="PostgreSQL" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access PostgreSQL Self-Hosted](../../../img/database-access/guides/postgresqlselfhosted_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access PostgreSQL Cloud](../../../img/database-access/guides/postgresqlselfhosted_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -109,7 +112,8 @@ Install and configure Teleport where you will run the Teleport Database Service:
 Once the Database Service has joined the cluster, log in to see the available
 databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -119,8 +123,8 @@ $ tsh db ls
 # example-postgres Example PostgreSQL env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -130,7 +134,9 @@ $ tsh db ls
 # example-postgres Example PostgreSQL env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Note that you will only be able to see databases your role has access to. See
 [RBAC](../rbac.mdx) section for more details.
@@ -160,3 +166,4 @@ $ tsh db logout
 ## Next steps
 
 - Set up [automatic database user provisioning](../rbac/configuring-auto-user-provisioning.mdx).
+

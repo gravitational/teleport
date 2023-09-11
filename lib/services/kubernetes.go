@@ -251,8 +251,10 @@ func getOrSetDefaultGCPDescription(cluster gcp.GKECluster) string {
 
 // labelsFromGCPKubeCluster creates kube cluster labels.
 func labelsFromGCPKubeCluster(cluster gcp.GKECluster) map[string]string {
-	labels := maps.Clone(cluster.Labels)
+	labels := make(map[string]string)
+	maps.Copy(labels, cluster.Labels)
 	labels[types.OriginLabel] = types.OriginCloud
+
 	labels[types.CloudLabel] = types.CloudGCP
 	labels[types.DiscoveryLabelGCPLocation] = cluster.Location
 

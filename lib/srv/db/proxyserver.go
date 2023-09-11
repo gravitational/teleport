@@ -24,11 +24,13 @@ import (
 	"math/rand"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -41,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
@@ -169,6 +172,8 @@ func (c *ProxyServerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+const proxyServerComponent = "db:proxy"
+
 // NewProxyServer creates a new instance of the database proxy server.
 func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
@@ -187,7 +192,7 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
 		closeCtx: ctx,
-		log:      logrus.WithField(trace.Component, "db:proxy"),
+		log:      logrus.WithField(trace.Component, proxyServerComponent),
 	}
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
@@ -435,15 +440,34 @@ func (s *ProxyServer) SQLServerProxy() *sqlserver.Proxy {
 //
 // Implements common.Service.
 func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
+	var labels prometheus.Labels
+	if len(proxyCtx.Servers) > 0 {
+		labels = getLabelsFromDB(proxyCtx.Servers[0].GetDatabase())
+	} else {
+		labels = getLabelsFromDB(nil)
+	}
+
+	labels["available_db_servers"] = strconv.Itoa(len(proxyCtx.Servers))
+
+	defer observeLatency(connectionSetupTime.With(labels))()
+
+	var attemptedServers int
+	defer func() {
+		dialAttemptedServers.With(labels).Observe(float64(attemptedServers))
+	}()
+
 	// There may be multiple database servers proxying the same database. If
 	// we get a connection problem error trying to dial one of them, likely
 	// the database server is down so try the next one.
 	for _, server := range getShuffleFunc()(proxyCtx.Servers) {
+		attemptedServers++
 		s.log.Debugf("Dialing to %v.", server)
 		tlsConfig, err := s.getConfigForServer(ctx, proxyCtx.Identity, server)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		dialAttempts.With(labels).Inc()
 
 		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnel.DialParams{
 			From:                  clientSrcAddr,
@@ -454,6 +478,7 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 			ProxyIDs:              server.GetProxyIDs(),
 		})
 		if err != nil {
+			dialFailures.With(labels).Inc()
 			// If an agent is down, we'll retry on the next one (if available).
 			if isReverseTunnelDownError(err) {
 				s.log.WithError(err).Warnf("Failed to dial database %v.", server)
@@ -482,6 +507,9 @@ func isReverseTunnelDownError(err error) bool {
 //
 // Implements common.Service.
 func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, clientConn, serviceConn net.Conn) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	// Wrap a client connection with a monitor that auto-terminates
 	// idle connection and connection with expired cert.
 	var err error
@@ -491,6 +519,16 @@ func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, 
 		serviceConn.Close()
 		return trace.Wrap(err)
 	}
+
+	var labels prometheus.Labels
+	if len(proxyCtx.Servers) > 0 {
+		labels = getLabelsFromDB(proxyCtx.Servers[0].GetDatabase())
+	} else {
+		labels = getLabelsFromDB(nil)
+	}
+
+	activeConnections.With(labels).Inc()
+	defer activeConnections.With(labels).Dec()
 
 	return trace.Wrap(utils.ProxyConn(ctx, clientConn, serviceConn))
 }
@@ -563,6 +601,8 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 // getConfigForServer returns TLS config used for establishing connection
 // to a remote database server over reverse tunnel.
 func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Identity, server types.DatabaseServer) (*tls.Config, error) {
+	defer observeLatency(tlsConfigTime.With(getLabelsFromDB(server.GetDatabase())))()
+
 	privateKey, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -595,6 +635,7 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 			return nil, trace.BadParameter("failed to append CA certificate")
 		}
 	}
+
 	return &tls.Config{
 		ServerName:   server.GetHostname(),
 		Certificates: []tls.Certificate{cert},
@@ -622,3 +663,103 @@ func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log l
 		return tlsCopy, nil
 	}
 }
+
+func init() {
+	_ = metrics.RegisterPrometheusCollectors(prometheusCollectors...)
+}
+
+func observeLatency(o prometheus.Observer) func() {
+	start := time.Now()
+	return func() {
+		o.Observe(time.Since(start).Seconds())
+	}
+}
+
+var commonLabels = []string{teleport.ComponentLabel, "db_protocol", "db_type"}
+
+func getLabelsFromDB(db types.Database) prometheus.Labels {
+	if db != nil {
+		return map[string]string{
+			teleport.ComponentLabel: proxyServerComponent,
+			"db_protocol":           db.GetProtocol(),
+			"db_type":               db.GetType(),
+		}
+	}
+
+	return map[string]string{
+		teleport.ComponentLabel: proxyServerComponent,
+		"db_protocol":           "unknown",
+		"db_type":               "unknown",
+	}
+}
+
+var (
+	connectionSetupTime = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "connection_setup_time_seconds",
+			Subsystem: "proxy_db",
+			Help:      "Time to establish connection to DB service from Proxy service.",
+			// 1ms ... 14.5h
+			Buckets: prometheus.ExponentialBuckets(0.1, 2, 20),
+		},
+		append([]string{"available_db_servers"}, commonLabels...),
+	)
+
+	dialAttempts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "connection_dial_attempts_total",
+			Subsystem: "proxy_db",
+			Help:      "Number of dial attempts from Proxy to DB service made",
+		},
+		append([]string{"available_db_servers"}, commonLabels...),
+	)
+
+	dialFailures = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "connection_dial_failures_total",
+			Subsystem: "proxy_db",
+			Help:      "Number of failed dial attempts from Proxy to DB service made",
+		},
+		append([]string{"available_db_servers"}, commonLabels...),
+	)
+
+	dialAttemptedServers = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "attempted_servers_total",
+			Subsystem: "proxy_db",
+			Help:      "Number of servers processed during connection attempt to the DB service from Proxy service.",
+			Buckets:   prometheus.LinearBuckets(1, 1, 16),
+		},
+		append([]string{"available_db_servers"}, commonLabels...),
+	)
+
+	tlsConfigTime = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "connection_tls_config_time_seconds",
+			Subsystem: "proxy_db",
+			Help:      "Time to fetch TLS configuration for the connection to DB service from Proxy service.",
+			// 1ms ... 14.5h
+			Buckets: prometheus.ExponentialBuckets(0.1, 2, 20),
+		},
+		commonLabels,
+	)
+
+	activeConnections = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "proxy_db",
+			Name:      "active_connections_total",
+			Help:      "Number of currently active connections to DB service from Proxy service.",
+		},
+		commonLabels,
+	)
+
+	prometheusCollectors = []prometheus.Collector{
+		connectionSetupTime, tlsConfigTime, dialAttempts, dialFailures, dialAttemptedServers, activeConnections,
+	}
+)

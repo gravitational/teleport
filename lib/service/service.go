@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -1663,7 +1664,7 @@ func (process *TeleportProcess) initAuthService() error {
 		traceClt = clt
 	}
 
-	var embedderClient ai.Embedder
+	var embedderClient embedding.Embedder
 	if cfg.Auth.AssistAPIKey != "" {
 		// cfg.OpenAIConfig is set in tests to change the OpenAI API endpoint
 		// Like for proxy, if a custom OpenAIConfig is passed, the token from
@@ -2007,6 +2008,10 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
+
+	process.RegisterFunc("auth.server_info", func() error {
+		return trace.Wrap(authServer.ReconcileServerInfos(process.GracefulExitContext()))
+	})
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -2141,6 +2146,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		UserGroups:              cfg.services,
 		Okta:                    cfg.services.OktaClient(),
 		AccessLists:             cfg.services.AccessListClient(),
+		UserLoginStates:         cfg.services.UserLoginStateClient(),
 		Integrations:            cfg.services,
 		WebSession:              cfg.services.WebSessions(),
 		WebToken:                cfg.services.WebTokens(),
@@ -3219,16 +3225,23 @@ type proxyListeners struct {
 	kube          net.Listener
 	db            dbListeners
 	alpn          net.Listener
-	proxyPeer     net.Listener
+	// reverseTunnelALPN handles ALPN traffic on the reverse tunnel port when TLS routing
+	// is not enabled. It's used to redirect traffic on that port to the gRPC
+	// listener.
+	reverseTunnelALPN net.Listener
+	proxyPeer         net.Listener
 	// grpcPublic receives gRPC traffic that has the TLS ALPN protocol common.ProtocolProxyGRPCInsecure. This
-	// listener is only enabled when TLS routing is enabled and does not enforce mTLS authentication since
-	// it's used to handle cluster join requests.
+	// listener does not enforce mTLS authentication since it's used to handle cluster join requests.
 	grpcPublic net.Listener
 	// grpcMTLS receives gRPC traffic that has the TLS ALPN protocol common.ProtocolProxyGRPCSecure. This
 	// listener is only enabled when TLS routing is enabled and the gRPC server will enforce mTLS authentication.
 	grpcMTLS         net.Listener
 	reverseTunnelMux *multiplexer.Mux
-	minimalTLS       *multiplexer.WebListener
+	// minimalWeb handles traffic on the reverse tunnel port when TLS routing
+	// is not enabled. It serves only the subset of web traffic required for
+	// agents to join the cluster.
+	minimalWeb net.Listener
+	minimalTLS *multiplexer.WebListener
 }
 
 // Close closes all proxy listeners.
@@ -3261,6 +3274,9 @@ func (l *proxyListeners) Close() {
 	if l.alpn != nil {
 		l.alpn.Close()
 	}
+	if l.reverseTunnelALPN != nil {
+		l.reverseTunnelALPN.Close()
+	}
 	if l.proxyPeer != nil {
 		l.proxyPeer.Close()
 	}
@@ -3272,6 +3288,9 @@ func (l *proxyListeners) Close() {
 	}
 	if l.reverseTunnelMux != nil {
 		l.reverseTunnelMux.Close()
+	}
+	if l.minimalWeb != nil {
+		l.minimalWeb.Close()
 	}
 	if l.minimalTLS != nil {
 		l.minimalTLS.Close()
@@ -3564,6 +3583,7 @@ func (process *TeleportProcess) initMinimalReverseTunnelListener(cfg *servicecfg
 			process.log.WithError(err).Debug("Minimal reverse tunnel mux exited with error")
 		}
 	}()
+	listeners.minimalWeb = listeners.reverseTunnelMux.TLS()
 	return nil
 }
 
@@ -3695,7 +3715,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	alpnRouter := setupALPNRouter(listeners, serverTLSConfig, cfg)
+	alpnRouter, reverseTunnelALPNRouter := setupALPNRouter(listeners, serverTLSConfig, cfg)
 
 	alpnAddr := ""
 	if listeners.alpn != nil {
@@ -3892,6 +3912,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			SessionControl:   sessionController,
 			PROXYSigner:      proxySigner,
 			OpenAIConfig:     cfg.OpenAIConfig,
+			NodeWatcher:      nodeWatcher,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
@@ -4417,6 +4438,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	var alpnServer *alpnproxy.Proxy
+	var reverseTunnelALPNServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
 		authDialerService := alpnproxyauth.NewAuthProxyDialerService(
 			tsrv,
@@ -4457,6 +4479,28 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 			return nil
 		})
+
+		if reverseTunnelALPNRouter != nil {
+			reverseTunnelALPNServer, err = alpnproxy.New(alpnproxy.ProxyConfig{
+				WebTLSConfig:      tlsConfigWeb.Clone(),
+				IdentityTLSConfig: identityTLSConf,
+				Router:            reverseTunnelALPNRouter,
+				Listener:          listeners.reverseTunnelALPN,
+				ClusterName:       clusterName,
+				AccessPoint:       accessPoint,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy.reverseTunnel", func() error {
+				log.Infof("Starting TLS ALPN SNI reverse tunnel proxy server on %v.", listeners.reverseTunnelALPN.Addr())
+				if err := reverseTunnelALPNServer.Serve(process.ExitContext()); err != nil {
+					log.WithError(err).Warn("TLS ALPN SNI proxy proxy on reverse tunnel server exited with error.")
+				}
+				return nil
+			})
+		}
 	}
 
 	// execute this when process is asked to exit:
@@ -4497,6 +4541,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if alpnServer != nil {
 				warnOnErr(alpnServer.Close(), log)
 			}
+			if reverseTunnelALPNServer != nil {
+				warnOnErr(reverseTunnelALPNServer.Close(), log)
+			}
 		} else {
 			log.Infof("Shutting down gracefully.")
 			ctx := payloadContext(payload, log)
@@ -4531,6 +4578,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 			if alpnServer != nil {
 				warnOnErr(alpnServer.Close(), log)
+			}
+			if reverseTunnelALPNServer != nil {
+				warnOnErr(reverseTunnelALPNServer.Close(), log)
 			}
 
 			// Explicitly deleting proxy heartbeats helps the behavior of
@@ -4573,7 +4623,7 @@ func (process *TeleportProcess) getPROXYSigner(ident *auth.Identity) (multiplexe
 }
 
 func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListeners, tlsConfigWeb *tls.Config, cfg *servicecfg.Config, webConfig web.Config, log *logrus.Entry) (*web.Server, error) {
-	internalListener := listeners.reverseTunnelMux.TLS()
+	internalListener := listeners.minimalWeb
 	if !cfg.Proxy.DisableTLS {
 		internalListener = tls.NewListener(internalListener, tlsConfigWeb)
 	}
@@ -4745,15 +4795,20 @@ func (process *TeleportProcess) setupALPNTLSConfigForWeb(serverTLSConfig *tls.Co
 	return tlsConfig
 }
 
-func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg *servicecfg.Config) *alpnproxy.Router {
+func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg *servicecfg.Config) (router, rtRouter *alpnproxy.Router) {
 	if listeners.web == nil || cfg.Proxy.DisableTLS || cfg.Proxy.DisableALPNSNIListener {
-		return nil
+		return nil, nil
 	}
 	// ALPN proxy service will use web listener where listener.web will be overwritten by alpn wrapper
 	// that allows to dispatch the http/1.1 and h2 traffic to webService.
 	listeners.alpn = listeners.web
+	router = alpnproxy.NewRouter()
 
-	router := alpnproxy.NewRouter()
+	if listeners.minimalWeb != nil {
+		listeners.reverseTunnelALPN = listeners.minimalWeb
+		rtRouter = alpnproxy.NewRouter()
+	}
+
 	if cfg.Proxy.Kube.Enabled {
 		kubeListener := alpnproxy.NewMuxListenerWrapper(listeners.kube, listeners.web)
 		router.AddKubeHandler(kubeListener.HandleConnection)
@@ -4766,6 +4821,21 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 			Handler:   reverseTunnel.HandleConnection,
 		})
 		listeners.reverseTunnel = reverseTunnel
+
+		if rtRouter != nil {
+			minimalWeb := alpnproxy.NewMuxListenerWrapper(nil, listeners.reverseTunnelALPN)
+			rtRouter.Add(alpnproxy.HandlerDecs{
+				MatchFunc: alpnproxy.MatchByProtocol(
+					alpncommon.ProtocolHTTP,
+					alpncommon.ProtocolHTTP2,
+					alpncommon.ProtocolDefault,
+				),
+				Handler:    minimalWeb.HandleConnection,
+				ForwardTLS: true,
+			})
+			listeners.minimalWeb = minimalWeb
+		}
+
 	}
 
 	if !cfg.Proxy.DisableWebService {
@@ -4785,10 +4855,17 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 	// It must not be used for any services that require authentication and currently
 	// it is only used by the join service which nodes rely on to join the cluster.
 	grpcPublicListener := alpnproxy.NewMuxListenerWrapper(nil /* serviceListener */, listeners.web)
+	grpcPublicListener = alpnproxy.NewMuxListenerWrapper(grpcPublicListener, listeners.reverseTunnel)
 	router.Add(alpnproxy.HandlerDecs{
 		MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolProxyGRPCInsecure),
 		Handler:   grpcPublicListener.HandleConnection,
 	})
+	if rtRouter != nil {
+		rtRouter.Add(alpnproxy.HandlerDecs{
+			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolProxyGRPCInsecure),
+			Handler:   grpcPublicListener.HandleConnection,
+		})
+	}
 	listeners.grpcPublic = grpcPublicListener
 
 	// grpcSecureListener is a listener that is used by a gRPC server that enforces
@@ -4824,7 +4901,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 	router.AddDBTLSHandler(webTLSDB.HandleConnection)
 	listeners.db.tls = webTLSDB
 
-	return router
+	return router, rtRouter
 }
 
 // waitForAppDepend waits until all dependencies for an application service
@@ -5733,12 +5810,8 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	}
 
 	server := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			authMiddleware.UnaryInterceptor(),
-		),
-		grpc.ChainStreamInterceptor(
-			authMiddleware.StreamInterceptor(),
-		),
+		grpc.ChainUnaryInterceptor(authMiddleware.UnaryInterceptors()...),
+		grpc.ChainStreamInterceptor(authMiddleware.StreamInterceptors()...),
 		grpc.Creds(creds),
 	)
 

@@ -24,6 +24,8 @@ import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportConte
 import { userContext } from 'teleport/Main/fixtures';
 import { ResourceKind } from 'teleport/Discover/Shared';
 
+import { UserContextProvider } from 'teleport/User';
+
 import DownloadScript from './DownloadScript';
 
 const { worker, rest } = window.msw;
@@ -120,14 +122,16 @@ const Provider = props => {
         { pathname: cfg.routes.discover, state: { entity: 'database' } },
       ]}
     >
-      <ContextProvider ctx={ctx}>
-        <PingTeleportProvider
-          interval={props.interval || 100000}
-          resourceKind={ResourceKind.Server}
-        >
-          {props.children}
-        </PingTeleportProvider>
-      </ContextProvider>
+      <UserContextProvider>
+        <ContextProvider ctx={ctx}>
+          <PingTeleportProvider
+            interval={props.interval || 100000}
+            resourceKind={ResourceKind.Server}
+          >
+            {props.children}
+          </PingTeleportProvider>
+        </ContextProvider>
+      </UserContextProvider>
     </MemoryRouter>
   );
 };

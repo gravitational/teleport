@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { Indicator, Box } from 'design';
+import { Box, Indicator } from 'design';
 
 import useTeleport from 'teleport/useTeleport';
 import {
@@ -28,8 +28,10 @@ import ErrorMessage from 'teleport/components/AgentErrorMessage';
 
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
+import { SearchResource } from 'teleport/Discover/SelectResource';
+
 import AppList from './AppList';
-import { useApps, State } from './useApps';
+import { State, useApps } from './useApps';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -69,7 +71,7 @@ export function Apps(props: State) {
         <FeatureHeaderTitle>Applications</FeatureHeaderTitle>
         {attempt.status === 'success' && !hasNoApps && (
           <AgentButtonAdd
-            agent="application"
+            agent={SearchResource.APPLICATION}
             beginsWithVowel={true}
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}
@@ -116,7 +118,7 @@ const emptyStateInfo: EmptyStateInfo = {
   byline:
     'Teleport Application Access provides secure access to internal applications.',
   docsURL: 'https://goteleport.com/docs/application-access/getting-started/',
-  resourceType: 'application',
+  resourceType: SearchResource.APPLICATION,
   readOnly: {
     title: 'No Applications Found',
     resource: 'applications',

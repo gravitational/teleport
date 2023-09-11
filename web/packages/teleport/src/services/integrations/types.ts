@@ -158,7 +158,6 @@ export type Regions = keyof typeof awsRegionMap;
 // used when requesting lists of rds databases of the
 // specified engine.
 export type RdsEngine =
-  | 'aurora' // (for MySQL 5.6-compatible Aurora)
   | 'aurora-mysql' // (for MySQL 5.7-compatible and MySQL 8.0-compatible Aurora)
   | 'aurora-postgresql'
   | 'mariadb'

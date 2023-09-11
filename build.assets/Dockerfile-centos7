@@ -204,11 +204,6 @@ COPY --from=git2 /opt/git /usr/local
 
 ARG BUILDARCH
 
-# Install etcd.
-RUN (curl -fsSL https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
-     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
-     rm -rf etcd-v3.3.9-linux-${BUILDARCH})
-
 # Install Go.
 RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
@@ -218,20 +213,6 @@ RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="/opt/llvm/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
-
-# Install node.
-RUN yum install -y python3
-ARG NODE_VERSION
-ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
-ENV NODE_PATH="/usr/local/lib/nodejs-linux"
-ENV PATH="$PATH:${NODE_PATH}/bin"
-RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo "arm64"; fi) && \
-     export NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
-     mkdir -p ${NODE_PATH} && \
-     curl -o /tmp/nodejs.tar.xz -fsSL ${NODE_URL} && \
-     tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
-RUN node --version
-RUN corepack enable yarn
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/

@@ -135,7 +135,7 @@ func (h *Handler) executeCommand(
 	if params == "" {
 		return nil, trace.BadParameter("missing params")
 	}
-	var req *CommandRequest
+	var req CommandRequest
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
 		return nil, trace.BadParameter("failed to read JSON message: %v", err)
 	}

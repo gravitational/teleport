@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -258,23 +259,22 @@ type SSHLoginDirect struct {
 // SSHLoginMFA contains SSH login parameters for MFA login.
 type SSHLoginMFA struct {
 	SSHLogin
+	// PromptMFA is a customizable MFA prompt function.
+	// Defaults to [mfa.NewPrompt().Run]
+	PromptMFA PromptMFAFunc
 	// User is the login username.
 	User string
 	// Password is the login password.
 	Password string
-
-	// AllowStdinHijack allows stdin hijack during MFA prompts.
-	// Do not set this options unless you deeply understand what you are doing.
-	AllowStdinHijack bool
-	// AuthenticatorAttachment is the authenticator attachment for MFA prompts.
-	AuthenticatorAttachment wancli.AuthenticatorAttachment
-	// PreferOTP prefers OTP in favor of other MFA methods.
-	PreferOTP bool
 }
 
 // SSHLoginPasswordless contains SSH login parameters for passwordless login.
 type SSHLoginPasswordless struct {
 	SSHLogin
+
+	// WebauthnLogin is a customizable webauthn login function.
+	// Defaults to [wancli.Login]
+	WebauthnLogin WebauthnLoginFunc
 
 	// StderrOverride will override the default os.Stderr if provided.
 	StderrOverride io.Writer
@@ -298,6 +298,29 @@ type SSHLoginHeadless struct {
 
 	// HeadlessAuthenticationID is a headless authentication request ID.
 	HeadlessAuthenticationID string
+}
+
+// MFAAuthenticateChallenge is an MFA authentication challenge sent on user
+// login / authentication ceremonies.
+type MFAAuthenticateChallenge struct {
+	// WebauthnChallenge contains a WebAuthn credential assertion used for
+	// login/authentication ceremonies.
+	WebauthnChallenge *wantypes.CredentialAssertion `json:"webauthn_challenge"`
+	// TOTPChallenge specifies whether TOTP is supported for this user.
+	TOTPChallenge bool `json:"totp_challenge"`
+}
+
+// MFARegisterChallenge is an MFA register challenge sent on new MFA register.
+type MFARegisterChallenge struct {
+	// Webauthn contains webauthn challenge.
+	Webauthn *wantypes.CredentialCreation `json:"webauthn"`
+	// TOTP contains TOTP challenge.
+	TOTP *TOTPRegisterChallenge `json:"totp"`
+}
+
+// TOTPRegisterChallenge contains a TOTP challenge.
+type TOTPRegisterChallenge struct {
+	QRCode []byte `json:"qrCode"`
 }
 
 // initClient creates a new client to the HTTPS web proxy.
@@ -426,13 +449,13 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	var out *auth.SSHLoginResponse
+	var out auth.SSHLoginResponse
 	err = json.Unmarshal(re.Bytes(), &out)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return out, nil
+	return &out, nil
 }
 
 // SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
@@ -459,13 +482,13 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*auth.S
 		return nil, trace.Wrap(err)
 	}
 
-	var out *auth.SSHLoginResponse
+	var out auth.SSHLoginResponse
 	err = json.Unmarshal(re.Bytes(), &out)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return out, nil
+	return &out, nil
 }
 
 // SSHAgentPasswordlessLogin requests a passwordless MFA challenge via the proxy.
@@ -507,6 +530,11 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 	prompt := login.CustomPrompt
 	if prompt == nil {
 		prompt = wancli.NewDefaultPrompt(ctx, stderr)
+	}
+
+	promptWebauthn := login.WebauthnLogin
+	if promptWebauthn == nil {
+		promptWebauthn = wancli.Login
 	}
 
 	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
@@ -565,19 +593,20 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 	}
 
 	// Convert to auth gRPC proto challenge.
-	challengePB := &proto.MFAAuthenticateChallenge{}
+	chal := &proto.MFAAuthenticateChallenge{}
 	if challenge.TOTPChallenge {
-		challengePB.TOTP = &proto.TOTPChallenge{}
+		chal.TOTP = &proto.TOTPChallenge{}
 	}
 	if challenge.WebauthnChallenge != nil {
-		challengePB.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
+		chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
 	}
 
-	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
-		AllowStdinHijack:        login.AllowStdinHijack,
-		AuthenticatorAttachment: login.AuthenticatorAttachment,
-		PreferOTP:               login.PreferOTP,
-	})
+	promptMFA := login.PromptMFA
+	if promptMFA == nil {
+		promptMFA = mfa.NewPrompt(login.ProxyAddr).Run
+	}
+
+	respPB, err := promptMFA(ctx, chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

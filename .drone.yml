@@ -1341,7 +1341,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -1550,7 +1550,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -1758,7 +1758,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -1973,7 +1973,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -3273,7 +3273,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -4099,7 +4099,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -5428,7 +5428,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -6256,8 +6256,8 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - mkdir -pv "/go/vars"
-  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
-    "build") > "/go/vars/release-environment.txt"
+  - (CGO_ENABLED=0 go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo
+    "promote" || echo "build") > "/go/vars/release-environment.txt"
   depends_on:
   - Check out code
 - name: Publish Teleport to stable/${DRONE_TAG} apt repo
@@ -8616,8 +8616,8 @@ steps:
   - git checkout -qf "${DRONE_TAG}"
   - mkdir -pv $(dirname "/go/vars/release-is-prerelease")
   - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag $DRONE_TAG -check prerelease &> /dev/null || echo 'Version
-    is a prerelease' > "/go/vars/release-is-prerelease"
+  - CGO_ENABLED=0 go run ./cmd/check -tag $DRONE_TAG -check prerelease &> /dev/null
+    || echo 'Version is a prerelease' > "/go/vars/release-is-prerelease"
   - printf 'Version is '; [ ! -f "/go/vars/release-is-prerelease" ] && printf 'not
     '; echo 'a prerelease'
 - name: Wait for docker
@@ -17164,6 +17164,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 611f3ba20bcf05828cca8bf02cf9794299ef0d86b9fcc99558493853b2e5cd9a
+hmac: 8c09749901a75a2d57c2a6ac7c68a899b908407fcb8ac9eaf406d78f0399d8c4
 
 ...

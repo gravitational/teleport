@@ -110,7 +110,6 @@ ENV LANGUAGE="en_US.UTF-8" \
 ARG BUILDARCH
 
 # Install packages.
-# Java JRE is required by gcloud firestore emulator.
 # Latest git 2.18+ is required for GitHub actions
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
 RUN apt-get -y update && \
@@ -125,7 +124,6 @@ RUN apt-get -y update && \
         clang \
         clang-format \
         curl \
-        default-jre \
         `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
         git \
         gnupg \
@@ -133,6 +131,7 @@ RUN apt-get -y update && \
         libc6-dev \
         libelf-dev \
         libpam-dev \
+        libpcsclite-dev \
         libsqlite3-0 \
         libssl-dev \
         llvm \
@@ -142,20 +141,19 @@ RUN apt-get -y update && \
         net-tools \
         openssh-client \
         osslsigncode \
+        pkg-config \
         python3-pip \
         python3-setuptools \
         python3-wheel \
-        pkg-config \
         # Used during tag builds to build the RPM package of Connect.
         rpm \
         softhsm2 \
         sudo \
         tree \
         unzip \
+        xauth \
         zip \
         zlib1g-dev \
-        xauth \
-        libpcsclite-dev \
         && \
     install -m 0755 -d /etc/apt/keyrings && \
     gpg --dearmor -o /etc/apt/keyrings/docker.gpg docker.gpg && \
@@ -170,17 +168,6 @@ RUN apt-get -y update && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
-
-# Install gcloud SDK and Firestore emulator.
-ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
-RUN (curl -fsSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
-    gcloud components install cloud-firestore-emulator beta && \
-    rm -rf /opt/google-cloud-sdk/.install/.backup
-
-# Install etcd.
-RUN curl -fsSL https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
-    cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
-    rm -rf etcd-v3.3.9-linux-${BUILDARCH}
 
 # Add the CI user.
 ARG UID

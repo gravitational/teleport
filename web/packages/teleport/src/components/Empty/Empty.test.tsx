@@ -18,6 +18,8 @@ import React from 'react';
 import { render, screen } from 'design/utils/testing';
 import { MemoryRouter } from 'react-router';
 
+import { SearchResource } from 'teleport/Discover/SelectResource';
+
 import Empty, { Props } from './Empty';
 
 test('empty state for enterprise or oss, with create perms', async () => {
@@ -52,7 +54,7 @@ const props: Props = {
     byline:
       'Teleport Server Access consolidates SSH access across all environments.',
     docsURL: 'https://goteleport.com/docs/server-access/getting-started/',
-    resourceType: 'server',
+    resourceType: SearchResource.SERVER,
     readOnly: {
       title: 'No Servers Found',
       resource: 'servers',

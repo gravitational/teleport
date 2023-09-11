@@ -18,6 +18,7 @@ package srv
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -73,20 +74,32 @@ func NewSSHServerHeartbeat(cfg SSHServerHeartbeatConfig) (*HeartbeatV2, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	var metadataPtr atomic.Pointer[metadata.Metadata]
 	inner := &sshServerHeartbeatV2{
-		getServer: func(ctx context.Context) *types.ServerV2 {
-			server := cfg.GetServer()
-			metadata, err := metadata.Get(ctx)
-			if err == nil {
-				if metadata.CloudMetadata != nil {
-					server.SetCloudMetadata(metadata.CloudMetadata)
+		getMetadata: metadata.Get,
+		announcer:   cfg.Announcer,
+	}
+	inner.getServer = func(ctx context.Context) *types.ServerV2 {
+		server := cfg.GetServer()
+
+		if meta := metadataPtr.Load(); meta == nil {
+			go func() {
+				meta, err := inner.getMetadata(ctx)
+				if err != nil {
+					log.Warnf("Failed to get metadata: %v", err)
+				} else if meta != nil && meta.CloudMetadata != nil {
+					// Set the metadata immediately to give the heartbeat
+					// a chance to use it.
+					server.SetCloudMetadata(meta.CloudMetadata)
+					metadataPtr.CompareAndSwap(nil, meta)
 				}
-			} else {
-				log.Warnf("Failed to get metadata: %v", err)
-			}
-			return server
-		},
-		announcer: cfg.Announcer,
+			}()
+		} else if meta.CloudMetadata != nil {
+			// Server isn't cached between heartbeats, so set the metadata again.
+			server.SetCloudMetadata(meta.CloudMetadata)
+		}
+
+		return server
 	}
 
 	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
@@ -444,11 +457,14 @@ type heartbeatV2Driver interface {
 	SupportsFallback() bool
 }
 
+type metadataGetter func(ctx context.Context) (*metadata.Metadata, error)
+
 // sshServerHeartbeatV2 is the heartbeatV2 implementation for ssh servers.
 type sshServerHeartbeatV2 struct {
-	getServer func(ctx context.Context) *types.ServerV2
-	announcer auth.Announcer
-	prev      *types.ServerV2
+	getServer   func(ctx context.Context) *types.ServerV2
+	getMetadata metadataGetter
+	announcer   auth.Announcer
+	prev        *types.ServerV2
 }
 
 func (h *sshServerHeartbeatV2) Poll(ctx context.Context) (changed bool) {

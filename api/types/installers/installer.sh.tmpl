@@ -54,6 +54,16 @@ on_gcp() {
     sudo yum-config-manager --add-repo \
       "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
     sudo yum install -y ${PACKAGE_LIST}
+  elif [ "$ID" = "sles" ] || [ "$ID" = "opensuse-tumbleweed" ] || [ "$ID" = "opensuse-leap" ]; then
+    if [ "$ID" = "opensuse-tumbleweed" ]; then
+      VERSION_ID="15" # tumbleweed uses dated VERSION_IDs like 20230702
+    else
+      VERSION_ID=$(echo "$VERSION_ID" | sed 's/\..*//') # convert version numbers like '7.2' to only include the major version
+    fi
+    sudo rpm --import "https://zypper.releases.teleport.dev/gpg"
+    sudo zypper --non-interactive addrepo "$(rpm --eval "https://zypper.releases.teleport.dev/sles/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
+    sudo zypper --gpg-auto-import-keys refresh
+    sudo zypper --non-interactive install ${PACKAGE_LIST}
   else
     echo "Unsupported distro: $ID"
     exit 1

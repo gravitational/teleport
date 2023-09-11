@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
@@ -57,8 +58,10 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -448,12 +451,12 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithChainUnaryInterceptor(
-			otelgrpc.UnaryClientInterceptor(),
+			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
-			otelgrpc.StreamClientInterceptor(),
+			otelStreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 			breaker.StreamClientInterceptor(cb),
 		),
@@ -483,6 +486,36 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	return nil
 }
+
+// TODO(noah): Once we upgrade to go 1.21, change invocations of this to
+// sync.OnceValue
+func onceValue[T any](f func() T) func() T {
+	var (
+		value T
+		once  sync.Once
+	)
+	return func() T {
+		once.Do(func() {
+			value = f()
+		})
+		return value
+	}
+}
+
+// We wrap the creation of the otelgrpc interceptors in a sync.Once - this is
+// because each time this is called, they create a new underlying metric. If
+// something (e.g tbot) is repeatedly creating new clients and closing them,
+// then this leads to a memory leak since the underlying metric is not cleaned
+// up.
+// See https://github.com/gravitational/teleport/issues/30759
+// See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
+var otelStreamClientInterceptor = onceValue(func() grpc.StreamClientInterceptor {
+	return otelgrpc.StreamClientInterceptor()
+})
+
+var otelUnaryClientInterceptor = onceValue(func() grpc.UnaryClientInterceptor {
+	return otelgrpc.UnaryClientInterceptor()
+})
 
 // ConfigureALPN configures ALPN SNI cluster routing information in TLS settings allowing for
 // allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
@@ -3747,6 +3780,12 @@ func (c *Client) UpdateClusterMaintenanceConfig(ctx context.Context, cmc types.C
 	return trail.FromGRPC(err)
 }
 
+// DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
+func (c *Client) DeleteClusterMaintenanceConfig(ctx context.Context) error {
+	_, err := c.grpc.DeleteClusterMaintenanceConfig(ctx, &emptypb.Empty{})
+	return trail.FromGRPC(err)
+}
+
 // integrationsClient returns an unadorned Integration client, using the underlying
 // Auth gRPC connection.
 func (c *Client) integrationsClient() integrationpb.IntegrationServiceClient {
@@ -3897,6 +3936,14 @@ func (c *Client) OktaClient() *okta.Client {
 // (as per the default gRPC behavior).
 func (c *Client) AccessListClient() *accesslist.Client {
 	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(c.conn))
+}
+
+// UserLoginStateClient returns a user login state client.
+// Clients connecting to  older Teleport versions, still get a user login state client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) UserLoginStateClient() *userloginstate.Client {
+	return userloginstate.NewClient(userloginstatev1.NewUserLoginStateServiceClient(c.conn))
 }
 
 // GetCertAuthority retrieves a CA by type and domain.
@@ -4082,4 +4129,13 @@ func (c *Client) UpsertUserPreferences(ctx context.Context, in *userpreferencesp
 		return trail.FromGRPC(err)
 	}
 	return nil
+}
+
+// ResourceUsageClient returns an unadorned Resource Usage service client,
+// using the underlying Auth gRPC connection.
+// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+// still get a plugins client when calling this method, but all RPCs will return
+// "not implemented" errors (as per the default gRPC behavior).
+func (c *Client) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient {
+	return resourceusagepb.NewResourceUsageServiceClient(c.conn)
 }

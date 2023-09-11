@@ -81,7 +81,8 @@ Currently supported distributions (and `ID`) are:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-<ScopedBlock scope="oss">
+<Tabs>
+<TabItem scope="oss" label="Teleport Community Edition">
 
 <Details title="Using APT or YUM for versions prior to Teleport 10?" scopeOnly={false}>
 
@@ -97,13 +98,15 @@ We will also continue to maintain the legacy APT repo at
 Check the [Downloads](https://goteleport.com/download/) page for the most
 up-to-date information.
 
-</ScopedBlock>
-<ScopedBlock scope="cloud">
+</TabItem>
+<TabItem scope="cloud" label="Teleport Enterprise Cloud">
 
 Check the [Cloud Downloads](./choose-an-edition/teleport-cloud/downloads.mdx) page for the most up-to-date
 information on obtaining Teleport binaries compatible with Teleport Cloud.
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Docker
 
@@ -472,3 +475,4 @@ infrastructure. Get started with:
 - [Application Access](application-access/introduction.mdx)
 - [Desktop Access](desktop-access/introduction.mdx)
 - [Machine ID](machine-id/introduction.mdx)
+

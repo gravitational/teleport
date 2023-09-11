@@ -987,6 +987,7 @@ func (rc *ResourceCommand) createAccessList(ctx context.Context, client auth.Cli
 func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err error) {
 	singletonResources := []string{
 		types.KindClusterAuthPreference,
+		types.KindClusterMaintenanceConfig,
 		types.KindClusterNetworkingConfig,
 		types.KindSessionRecordingConfig,
 		types.KindInstaller,
@@ -1067,6 +1068,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("cluster auth preference has been reset to defaults\n")
+	case types.KindClusterMaintenanceConfig:
+		if err := client.DeleteClusterMaintenanceConfig(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("cluster maintenance configuration has been deleted\n")
 	case types.KindClusterNetworkingConfig:
 		if err = resetClusterNetworkingConfig(ctx, client); err != nil {
 			return trace.Wrap(err)

@@ -29,7 +29,9 @@ import useTeleport from 'teleport/useTeleport';
 
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
-import { useKubes, State } from './useKubes';
+import { SearchResource } from 'teleport/Discover/SelectResource';
+
+import { State, useKubes } from './useKubes';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -74,7 +76,7 @@ export function Kubes(props: State) {
         <FeatureHeaderTitle>Kubernetes</FeatureHeaderTitle>
         {attempt.status === 'success' && !hasNoKubes && (
           <AgentButtonAdd
-            agent="kubernetes"
+            agent={SearchResource.KUBERNETES}
             beginsWithVowel={false}
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}
@@ -125,7 +127,7 @@ const emptyStateInfo: EmptyStateInfo = {
   byline:
     'Teleport Kubernetes Access provides secure access to Kubernetes clusters.',
   docsURL: DOC_URL,
-  resourceType: 'kubernetes',
+  resourceType: SearchResource.KUBERNETES,
   readOnly: {
     title: 'No Kubernetes Clusters Found',
     resource: 'kubernetes clusters',

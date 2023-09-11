@@ -100,5 +100,5 @@ func (h *Handler) createAuthenticateChallengeWithPassword(w http.ResponseWriter,
 		return nil, trace.Wrap(err)
 	}
 
-	return client.MakeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal), nil
 }

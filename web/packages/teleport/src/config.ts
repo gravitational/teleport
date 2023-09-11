@@ -44,6 +44,8 @@ const cfg = {
   recoveryCodesEnabled: false,
   // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
   isUsageBasedBilling: false,
+  hideInaccessibleFeatures: false,
+  customTheme: '',
 
   configDir: '$HOME/.config',
 
@@ -80,6 +82,7 @@ const cfg = {
   routes: {
     root: '/web',
     discover: '/web/discover',
+    accessRequest: '/web/accessrequest',
     assistBase: '/web/assist/',
     assist: '/web/assist/:conversationId?',
     apps: '/web/cluster/:clusterId/apps',
@@ -722,6 +725,25 @@ const cfg = {
 
     searchParams.set('access_token', accessToken);
     searchParams.set('conversation_id', conversationId);
+
+    return (
+      generatePath(cfg.api.assistConversationWebSocketPath, {
+        hostname,
+        clusterId,
+      }) + `?${searchParams.toString()}`
+    );
+  },
+
+  getAssistActionWebSocketUrl(
+    hostname: string,
+    clusterId: string,
+    accessToken: string,
+    action: string
+  ) {
+    const searchParams = new URLSearchParams();
+
+    searchParams.set('access_token', accessToken);
+    searchParams.set('action', action);
 
     return (
       generatePath(cfg.api.assistConversationWebSocketPath, {

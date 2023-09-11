@@ -157,8 +157,8 @@ exports[`render correct dialog after creating a new account 1`] = `
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 28px;
+  font-weight: 400;
+  font-size: 18px;
   line-height: 32px;
   margin: 0px;
   margin-bottom: 16px;
@@ -575,8 +575,8 @@ exports[`render correct dialog after resetting account 1`] = `
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 28px;
+  font-weight: 400;
+  font-size: 18px;
   line-height: 32px;
   margin: 0px;
   margin-bottom: 16px;

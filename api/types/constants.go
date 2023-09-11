@@ -400,6 +400,9 @@ const (
 	// KindUserLoginState is a UserLoginState resource
 	KindUserLoginState = "user_login_state"
 
+	// KindAccessListMember is an AccessListMember resource
+	KindAccessListMember = "access_list_member"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
@@ -587,6 +590,15 @@ const (
 	CloudAzure = "Azure"
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
+
+	// DiscoveredResourceNode identifies a discovered SSH node.
+	DiscoveredResourceNode = "node"
+	// DiscoveredResourceDatabase identifies a discovered database.
+	DiscoveredResourceDatabase = "db"
+	// DiscoveredResourceKubernetes identifies a discovered kubernetes cluster.
+	DiscoveredResourceKubernetes = "k8s"
+	// DiscoveredResourceAgentlessNode identifies a discovered agentless SSH node.
+	DiscoveredResourceAgentlessNode = "node.openssh"
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace

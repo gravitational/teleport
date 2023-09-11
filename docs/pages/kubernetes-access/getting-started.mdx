@@ -84,8 +84,8 @@ commands, assigning `PROXY_ADDR` to the address of your Auth Service or Proxy
 Service.
 
 ```code
-$ PROXY_ADDR=teleport.example.com:443
-$ CLUSTER=cookie
+$ PROXY_ADDR=<Var name="teleport.example.com" />:443
+$ CLUSTER=<Var name="cookie" />
 # Create the values.yaml file
 $ cat > values.yaml << EOF
 authToken: "${TOKEN}"
@@ -112,8 +112,8 @@ commands, assigning `PROXY_ADDR` to the address of your Auth Service or Proxy
 Service.
 
 ```code
-$ PROXY_ADDR=teleport.example.com:443
-$ CLUSTER=cookie
+$ PROXY_ADDR=<Var name="teleport.example.com" />:443
+$ CLUSTER=<Var name="cookie" />
 # Create the values.yaml file
 $ cat > values.yaml << EOF
 authToken: "${TOKEN}"
@@ -140,10 +140,10 @@ Switch `kubectl` to the Kubernetes cluster `cookie` and run the following
 commands, assigning `PROXY_ADDR` to the address of your Teleport Cloud tenant.
 
 ```code
-$ PROXY_ADDR=mytenant.teleport.sh:443
+$ PROXY_ADDR=<Var name="mytenant.teleport.sh" />:443
 
 # Install Kubernetes agent. It dials back to the Teleport cluster at $PROXY_ADDR
-$ CLUSTER=cookie
+$ CLUSTER=<Var name="cookie" />
 # Create the values.yaml file
 $ cat > values.yaml << EOF
 authToken: "${TOKEN}"
@@ -165,6 +165,15 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
 
 </TabItem>
 </Tabs>
+
+Make sure that the Teleport agent pod is running. You should see one Teleport
+agent pod pod with a single ready container:
+
+```code
+$ kubectl -n teleport get pods
+NAME               READY   STATUS    RESTARTS   AGE
+teleport-agent-0   1/1     Running   0          32s
+```
 
 ## Step 3/3 Access your Kubernetes cluster
 

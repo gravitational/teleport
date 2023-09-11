@@ -29,6 +29,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -39,10 +41,10 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-	"golang.org/x/exp/slices"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
@@ -361,9 +363,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		defer wanwin.ResetPromptPlatformMessage()
 		wanwin.PromptPlatformMessage = registeredMsg
 
-		authResp, err := tc.PromptMFAChallenge(ctx, "" /* proxyAddr */, authChallenge, func(opts *client.PromptMFAChallengeOpts) {
-			opts.PromptDevicePrefix = "*registered* "
-		})
+		authResp, err := tc.NewMFAPrompt(mfa.WithPromptDevicePrefix("*registered*"))(ctx, authChallenge)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -610,7 +610,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		if authChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected DeleteMFADeviceResponse_MFAChallenge", resp.Response)
 		}
-		authResp, err := tc.PromptMFAChallenge(cf.Context, "" /* proxyAddr */, authChallenge, nil /* applyOpts */)
+		authResp, err := tc.PromptMFA(cf.Context, authChallenge)
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -5,12 +5,15 @@ description: How to access AWS OpenSearch with Teleport database access
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS OpenSearch" dbConfigure="AWS OpenSearch Service via REST API with IAM Authentication" dbName="AWS OpenSearch" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![OpenSearch Self-Hosted](../../../img/database-access/guides/aws-opensearch/opensearch_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![OpenSearch Cloud](../../../img/database-access/guides/aws-opensearch/opensearch_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -198,13 +201,15 @@ Service. The step below will overwrite an existing configuration file, so if
 you're running multiple services add `--output=stdout` to print the config in
 your terminal, and manually adjust `/etc/teleport.yaml`.
 
-Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
+Generate a configuration file at `/etc/teleport.yaml` for the Database Service.
+Set the `--proxy` command-line option to the address for your Teleport cluster
+and database parameters to your AWS environment.
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=<Var name="proxy-address" /> \
+   --proxy=<Var name="teleport.example.com" />:443 \
    --name=example-opensearch \
    --protocol=opensearch \
    --uri=your-opensearch-domain-url.eu-central-1.es.amazonaws.com:443 \
@@ -212,30 +217,7 @@ $ teleport db configure create \
    --labels=env=dev
 ```
 
-<Tabs>
-<TabItem label="Package Manager">
-
-On the host where you will run {{ service }}, start Teleport:
-
-```code
-$ sudo systemctl enable teleport
-$ sudo systemctl start teleport
-```
-
-</TabItem>
-<TabItem label="TAR Archive">
-
-On the host where you will run {{ service }}, create a systemd service
-configuration for Teleport, enable the Teleport service, and start Teleport:
-
-```code
-$ sudo teleport install systemd -o /etc/systemd/system/teleport.service
-$ sudo systemctl enable teleport
-$ sudo systemctl start teleport
-```
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 </TabItem>
 
@@ -349,3 +331,4 @@ opensearchsql> select * from movies;
 #+----------------+---------+---------------+--------+-------------+
 opensearchsql>
 ```
+

@@ -282,6 +282,10 @@ teleport:
     # number of connections in the connection pool used for the cluster state
     # database (the change feed uses an additional connection), defaulting to
     # a value that depends on the number of available CPUs.
+    #
+    # If your certificates are not stored at the default ~/.postgresql
+    # location, you will need to specify them with the sslcert, sslkey, and
+    # sslrootcert parameters.
     conn_string: postgresql://user_name@database-address/teleport_backend?sslmode=verify-full&pool_max_conns=20
 
     # An audit_events_uri with a scheme of postgresql:// will use the
@@ -289,6 +293,10 @@ teleport:
     # connection string just like the cluster state conn_string, but cannot be
     # specified as key=value pairs. It's possible to specify completely
     # different PostgreSQL clusters for cluster state and audit log.
+    #
+    # If your certificates are not stored at the default ~/.postgresql
+    # location, you will need to specify them with the sslcert, sslkey, and
+    # sslrootcert parameters.
     audit_events_uri:
       - postgresql://user_name@database-address/teleport_audit?sslmode=verify-full
 ```
@@ -312,10 +320,22 @@ certificates](https://www.postgresql.org/docs/current/ssl-tcp.html#SSL-CLIENT-CE
 to authenticate Teleport to PostgreSQL, as well as enforcing the use of TLS and
 [verifying the server
 certificate](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBQ-SSL-CERTIFICATES)
-on the client side. If the use of passwords is unavoidable, we recommend
-configuring them in [the `~/.pgpass`
-file](https://www.postgresql.org/docs/current/libpq-pgpass.html) rather than
-storing them in Teleport's configuration file.
+on the client side.
+
+You will need to update your `pg_hba.conf` file to include the following lines
+to ensure connections to Teleport use client certificates. See The
+[pg_hba.conf](https://www.postgresql.org/docs/current/auth-pg-hba-conf.html)
+file in the PostgreSQL documentation for more details.
+
+```
+# TYPE  DATABASE        USER            CIDR-ADDRESS            METHOD
+hostssl teleport        all             ::/0                    cert
+hostssl teleport        all             0.0.0.0/0               cert
+```
+
+If the use of passwords is unavoidable, we recommend configuring them in [the
+`~/.pgpass` file](https://www.postgresql.org/docs/current/libpq-pgpass.html)
+rather than storing them in Teleport's configuration file.
 
 ### Azure AD authentication
 
@@ -349,6 +369,134 @@ Identity](https://learn.microsoft.com/azure/aks/workload-identity-overview)
 credentials, or [managed
 identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
 credentials.
+
+### Development
+
+If you are not ready to connect Teleport to a production instance of
+PostgreSQL, you can use the following instructions to set up a throwaway
+instance of PostgreSQL using Docker.
+
+First copy the following script to disk and run it to generate the CA, client
+certificate, and server certificate used by Teleport and PostgreSQL to
+establish a secure mutually authenticated connection:
+
+```
+#!/bin/bash
+
+# Create the certs directory.
+mkdir -p ./certs
+cd certs/
+
+# Create CA key and self-signed certificate.
+openssl genpkey -algorithm RSA -out ca.key
+openssl req -x509 -new -key ca.key -out ca.crt -subj "/CN=root"
+
+# Function to create certificates.
+create_certificate() {
+    local name="$1"
+    local dns_name="$2"
+
+    openssl genpkey \
+        -algorithm RSA \
+        -out "${name}.key"
+    openssl req -new \
+        -key "${name}.key" \
+        -out "${name}.csr" \
+        -subj "/CN=${dns_name}"
+    openssl x509 -req \
+        -in "${name}.csr" \
+        -CA ca.crt \
+        -CAkey ca.key \
+        -out "${name}.crt" \
+        -extfile <(printf "subjectAltName=DNS:${dns_name}") \
+        -CAcreateserial
+
+    chmod 0600 "${name}.key"
+}
+
+# Create client certificate with SAN.
+create_certificate "client" "teleport"
+
+# Create server certificate with SAN.
+create_certificate "server" "localhost"
+
+echo "Certificates and keys generated successfully."
+```
+
+Next, create a `Dockerfile` using the [official PostgreSQL Docker
+image](https://hub.docker.com/_/postgres) and add `wal2json` to it:
+
+```
+FROM postgres:15.0
+RUN apt-get update
+RUN apt-get install -y postgresql-15-wal2json
+```
+
+Create an `init.sql` file that will ensure the Teleport user is created upon
+startup of the container:
+
+```
+CREATE USER teleport WITH REPLICATION CREATEDB;
+```
+
+Create a `pg_hba.conf` file to enforce certificate-based authentication for
+connections to PostgreSQL:
+
+```
+# TYPE  DATABASE        USER            CIDR-ADDRESS            METHOD
+local   all             all                                     trust
+hostssl all             all             ::/0                    cert
+hostssl all             all             0.0.0.0/0               cert
+```
+
+Create a `postgresql.conf` file that configures the WAL level and certificates
+used for authentication:
+
+```
+listen_addresses = '*'
+port = 5432
+max_connections = 20
+shared_buffers = 128MB
+temp_buffers = 8MB
+work_mem = 4MB
+
+wal_level=logical
+max_replication_slots=10
+
+ssl=on
+ssl_ca_file='/certs/ca.crt'
+ssl_cert_file='/certs/server.crt'
+ssl_key_file='/certs/server.key'
+```
+
+Start the PostgreSQL container with the following command:
+
+```
+docker run --rm --name postgres \
+    -e POSTGRES_DB=db \
+    -e POSTGRES_USER=user \
+    -e POSTGRES_PASSWORD=password \
+    -v $(pwd)/data:/var/lib/postgresql/data \
+    -v $(pwd)/certs:/certs \
+    -v $(pwd)/postgresql.conf:/etc/postgresql/postgresql.conf \
+    -v $(pwd)/pg_hba.conf:/etc/postgresql/pg_hba.conf \
+    -v $(pwd)/init.sql:/docker-entrypoint-initdb.d/init.sql \
+    -p 5432:5432 \
+    $(docker build -q .) \
+    postgres \
+    -c hba_file=/etc/postgresql/pg_hba.conf \
+    -c config_file=/etc/postgresql/postgresql.conf
+```
+
+Lastly, update the storage section in `teleport.yaml` to use PostgreSQL and
+start Teleport:
+
+```yaml
+teleport:
+  storage:
+    type: postgresql
+    conn_string: "postgresql://teleport@localhost:5432/teleport_backend?sslcert=/path/to/certs/client.crt&sslkey=/path/to/certs/client.key&sslrootcert=/path/to/certs/ca.crt&sslmode=verify-full&pool_max_conns=20"
+```
 
 ## S3
 

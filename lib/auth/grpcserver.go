@@ -51,6 +51,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -61,6 +62,7 @@ import (
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
+	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
@@ -71,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/joinserver"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -5278,6 +5281,20 @@ func (g *GRPCServer) UpdateClusterMaintenanceConfig(ctx context.Context, cmc *ty
 	return &emptypb.Empty{}, nil
 }
 
+// DeleteClusterMaintenanceConfig deletes the current maintenance config singleton.
+func (g *GRPCServer) DeleteClusterMaintenanceConfig(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteClusterMaintenanceConfig(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // GetBackend returns the backend from the underlying auth server.
 func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk
@@ -5291,12 +5308,10 @@ type GRPCServerConfig struct {
 	TLS *tls.Config
 	// Middleware is the request TLS client authenticator
 	Middleware *Middleware
-	// UnaryInterceptor intercepts individual GRPC requests
-	// for authentication and rate limiting
-	UnaryInterceptor grpc.UnaryServerInterceptor
-	// UnaryInterceptor intercepts GRPC streams
-	// for authentication and rate limiting
-	StreamInterceptor grpc.StreamServerInterceptor
+	// UnaryInterceptors is the gRPC unary interceptor chain.
+	UnaryInterceptors []grpc.UnaryServerInterceptor
+	// StreamInterceptors is the gRPC stream interceptor chain.
+	StreamInterceptors []grpc.StreamServerInterceptor
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -5304,11 +5319,11 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 	if cfg.TLS == nil {
 		return trace.BadParameter("missing parameter TLS")
 	}
-	if cfg.UnaryInterceptor == nil {
-		return trace.BadParameter("missing parameter UnaryInterceptor")
+	if cfg.UnaryInterceptors == nil {
+		return trace.BadParameter("missing parameter UnaryInterceptors")
 	}
-	if cfg.StreamInterceptor == nil {
-		return trace.BadParameter("missing parameter StreamInterceptor")
+	if cfg.StreamInterceptors == nil {
+		return trace.BadParameter("missing parameter StreamInterceptors")
 	}
 	if cfg.Middleware == nil {
 		return trace.BadParameter("missing parameter Middleware")
@@ -5341,8 +5356,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	server := grpc.NewServer(
 		grpc.Creds(creds),
-		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptor),
-		grpc.ChainStreamInterceptor(cfg.StreamInterceptor),
+		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptors...),
+		grpc.ChainStreamInterceptor(cfg.StreamInterceptors...),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
 				Time:    cfg.KeepAlivePeriod,
@@ -5433,6 +5448,21 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	userpreferencespb.RegisterUserPreferencesServiceServer(server, userPreferencesSrv)
+
+	// Initialize and register the user login state service.
+	userLoginState, err := local.NewUserLoginStateService(cfg.AuthServer.bk)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userLoginStateServer, err := userloginstate.NewService(userloginstate.ServiceConfig{
+		Authorizer:      cfg.Authorizer,
+		UserLoginStates: userLoginState,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userloginstatev1.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
 
 	return authServer, nil
 }

@@ -23,8 +23,12 @@ import (
 	"github.com/sashabaranov/go-openai"
 	"github.com/tiktoken-go/tokenizer/codec"
 
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/ai/model"
+)
+
+const (
+	maxOpenAIEmbeddingsPerRequest = 1000
 )
 
 // Client is a client for OpenAI API.
@@ -44,8 +48,20 @@ func NewClientFromConfig(config openai.ClientConfig) *Client {
 
 // NewChat creates a new chat. The username is set in the conversation context,
 // so that the AI can use it to personalize the conversation.
-// embeddingServiceClient is used to get the embeddings from the Auth Server.
-func (client *Client) NewChat(embeddingServiceClient assist.AssistEmbeddingServiceClient, username string) *Chat {
+// toolsConfig contains all required clients and configuration for agent tools
+// to interact with Teleport.
+func (client *Client) NewChat(username string, toolsConfig model.ToolsConfig) (*Chat, error) {
+	tools := []model.Tool{
+		model.NewExecutionTool(),
+	}
+	if !toolsConfig.DisableEmbeddingsTool {
+		tools = append(tools, model.NewRetrievalTool(toolsConfig.EmbeddingsClient, toolsConfig.NodeClient,
+			toolsConfig.AccessChecker, username))
+	}
+	agent, err := model.NewAgent(tools...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &Chat{
 		client: client,
 		messages: []openai.ChatCompletionMessage{
@@ -57,8 +73,28 @@ func (client *Client) NewChat(embeddingServiceClient assist.AssistEmbeddingServi
 		// Initialize a tokenizer for prompt token accounting.
 		// Cl100k is used by GPT-3 and GPT-4.
 		tokenizer: codec.NewCl100kBase(),
-		agent:     model.NewAgent(embeddingServiceClient, username),
+		agent:     agent,
+	}, nil
+}
+
+func (client *Client) NewCommand(username string) (*Chat, error) {
+	agent, err := model.NewAgent(model.NewGenerateTool())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return &Chat{
+		client: client,
+		messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: model.PromptCharacter(username),
+			},
+		},
+		// Initialize a tokenizer for prompt token accounting.
+		// Cl100k is used by GPT-3 and GPT-4.
+		tokenizer: codec.NewCl100kBase(),
+		agent:     agent,
+	}, nil
 }
 
 // Summary creates a short summary for the given input.
@@ -112,7 +148,7 @@ func (client *Client) CommandSummary(ctx context.Context, messages []openai.Chat
 	return completion, tc, trace.Wrap(err)
 }
 
-// ClassifyMessage takes a user message, a list of categories, and uses the AI mode as a zero shot classifier.
+// ClassifyMessage takes a user message, a list of categories, and uses the AI mode as a zero-shot classifier.
 func (client *Client) ClassifyMessage(ctx context.Context, message string, classes map[string]string) (string, error) {
 	resp, err := client.svc.CreateChatCompletion(
 		ctx,
@@ -130,4 +166,53 @@ func (client *Client) ClassifyMessage(ctx context.Context, message string, class
 	}
 
 	return resp.Choices[0].Message.Content, nil
+}
+
+// ComputeEmbeddings takes a map of nodes and calls openAI to generate
+// embeddings for those nodes. ComputeEmbeddings is responsible for
+// implementing a retry mechanism if the embedding computation is flaky.
+func (client *Client) ComputeEmbeddings(ctx context.Context, input []string) ([]embedding.Vector64, error) {
+	var results []embedding.Vector64
+	for i := 0; maxOpenAIEmbeddingsPerRequest*i < len(input); i++ {
+		result, err := client.computeEmbeddings(ctx, paginateInput(input, i, maxOpenAIEmbeddingsPerRequest))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, vector := range result {
+			results = append(results, embedding.Vector32to64(vector))
+		}
+	}
+	return results, nil
+}
+
+func paginateInput(input []string, page, pageSize int) []string {
+	begin := page * pageSize
+	var end int
+	if len(input) < (page+1)*pageSize {
+		end = len(input)
+	} else {
+		end = (page + 1) * pageSize
+	}
+	return input[begin:end]
+}
+
+// computeEmbeddings calls the openAI embedding model with the provided input.
+// This function should not be called directly, use ComputeEmbeddings instead
+// to ensure input is properly batched.
+func (client *Client) computeEmbeddings(ctx context.Context, input []string) ([]embedding.Vector32, error) {
+	req := openai.EmbeddingRequest{
+		Input: input,
+		Model: openai.AdaEmbeddingV2,
+	}
+
+	// Execute the query
+	resp, err := client.svc.CreateEmbeddings(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	result := make([]embedding.Vector32, len(input))
+	for i, item := range resp.Data {
+		result[i] = item.Embedding
+	}
+	return result, nil
 }

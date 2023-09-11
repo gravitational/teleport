@@ -376,28 +376,28 @@ func (l *Log) searchEvents(
 
 	var qb strings.Builder
 	qb.WriteString("DECLARE cur CURSOR FOR SELECT" +
-		" event_time, event_id, event_data" +
+		" events.event_time, events.event_id, events.event_data" +
 		" FROM events" +
-		" WHERE event_time BETWEEN @from_time AND @to_time")
+		" WHERE events.event_time BETWEEN @from_time AND @to_time")
 
 	if len(eventTypes) > 0 {
-		qb.WriteString(" AND event_type = ANY(@event_types)")
+		qb.WriteString(" AND events.event_type = ANY(@event_types)")
 	}
 	if sessionID != "" {
 		// hint to the query planner, it can use the partial index on session_id
 		// no matter what the argument is
-		qb.WriteString(" AND session_id != '00000000-0000-0000-0000-000000000000' AND session_id = @session_id")
+		qb.WriteString(" AND events.session_id != '00000000-0000-0000-0000-000000000000' AND events.session_id = @session_id")
 	}
 	if order != types.EventOrderDescending {
 		if startKey != "" {
-			qb.WriteString(" AND (event_time, event_id) > (@start_time, @start_id)")
+			qb.WriteString(" AND (events.event_time, events.event_id) > (@start_time, @start_id)")
 		}
-		qb.WriteString(" ORDER BY event_time, event_id")
+		qb.WriteString(" ORDER BY events.event_time, events.event_id")
 	} else {
 		if startKey != "" {
-			qb.WriteString(" AND (event_time, event_id) < (@start_time, @start_id)")
+			qb.WriteString(" AND (events.event_time, events.event_id) < (@start_time, @start_id)")
 		}
-		qb.WriteString(" ORDER BY event_time DESC, event_id DESC")
+		qb.WriteString(" ORDER BY events.event_time DESC, events.event_id DESC")
 	}
 
 	queryString := qb.String()

@@ -501,6 +501,8 @@ message RDS {
   bool IAMAuth = 4 [(gogoproto.jsontag) = "iam_auth"];
   // Subnets is a list of subnets for the RDS instance.
   repeated string Subnets = 5 [(gogoproto.jsontag) = "subnets,omitempty"];
+  // VPCID is the VPC where the RDS is running.
+  string VPCID = 6 [(gogoproto.jsontag) = "vpc_id,omitempty"];
 }
 
 // RDSProxy contains AWS RDS Proxy specific database metadata.
@@ -848,6 +850,8 @@ message AWSInfo {
   // When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection.
   // This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.
   string Integration = 5 [(gogoproto.jsontag) = "integration,omitempty"];
+  // SubnetID is the Subnet ID in use by the instance.
+  string SubnetID = 6 [(gogoproto.jsontag) = "subnet_id,omitempty"];
 }
 
 // CloudMetadata contains info about the cloud instance a server is running
@@ -1843,6 +1847,10 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "default_session_ttl,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // Okta is a set of options related to the Okta service in Teleport.
+  // Requires Teleport Enterprise.
+  OktaOptions Okta = 17 [(gogoproto.jsontag) = "okta,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -3947,6 +3955,22 @@ message OIDCConnectorSpecV3 {
   bool AllowUnverifiedEmail = 15 [(gogoproto.jsontag) = "allow_unverified_email,omitempty"];
   // UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.
   string UsernameClaim = 16 [(gogoproto.jsontag) = "username_claim,omitempty"];
+  // MaxAge is the amount of time that user logins are
+  // valid for. If a user logs in, but then does not login again
+  // within this time period, they will be forced to re-authenticate.
+  MaxAge MaxAge = 17 [
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+}
+
+// MaxAge allows the max_age parameter to be nullable to preserve backwards
+// compatibility. The duration is stored as nanoseconds.
+message MaxAge {
+  int64 Value = 1 [
+    (gogoproto.jsontag) = "max_age",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -6184,4 +6208,13 @@ message GCPMatcher {
   // Params sets the join method when installing on
   // discovered GCP nodes.
   InstallerParams Params = 6 [(gogoproto.jsontag) = "install_params,omitempty"];
+}
+
+// OktaOptions specify options related to the Okta service.
+message OktaOptions {
+  // SyncPeriod is the duration between synchronization calls in nanoseconds.
+  int64 SyncPeriod = 1 [
+    (gogoproto.jsontag) = "sync_period,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }

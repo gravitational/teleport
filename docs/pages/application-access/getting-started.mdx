@@ -183,6 +183,15 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
 - Change `apps[0].name` and `apps[0].uri` if you're configuring access to a different 
 web application.
 
+Make sure that the Teleport agent pod is running. You should see one
+`teleport-kube-agent` pod with a single ready container:
+
+```code
+$ kubectl -n teleport get pods
+NAME                    READY   STATUS    RESTARTS   AGE
+teleport-kube-agent-0   1/1     Running   0          32s
+```
+
 </TabItem>
 </Tabs>
 

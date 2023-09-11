@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -58,7 +59,7 @@ func TestTshDB(t *testing.T) {
 	t.Run("Login", testDatabaseLogin)
 	t.Run("List", testListDatabase)
 	t.Run("FilterActiveDatabases", testFilterActiveDatabases)
-	t.Run("GetDatabase", testGetDatabase)
+	t.Run("DatabaseInfo", testDatabaseInfo)
 }
 
 // testDatabaseLogin tests "tsh db login" command and verifies "tsh db
@@ -833,14 +834,37 @@ func testFilterActiveDatabases(t *testing.T) {
 		dbNamePrefix,
 		labels,
 		query string
-		wantAPICall bool
-		wantRoutes  []tlsca.RouteToDatabase
+		wantAPICall                 bool
+		overrideActiveRoutes        []tlsca.RouteToDatabase
+		overrideAPIDatabasesCheckFn func(t *testing.T, databases types.Databases)
+		wantRoutes                  []tlsca.RouteToDatabase
 	}{
 		{
 			name:         "by exact name that is a prefix of others",
 			dbNamePrefix: fooRoute1.ServiceName,
 			wantAPICall:  false,
 			wantRoutes:   []tlsca.RouteToDatabase{fooRoute1},
+		},
+		{
+			name:         "by exact name of inactive route that is a prefix of active routes",
+			dbNamePrefix: fooRoute1.ServiceName,
+			overrideActiveRoutes: []tlsca.RouteToDatabase{
+				fooRoute2, fooRoute3,
+				barRoute1, barRoute2,
+				bazRoute1, bazRoute2,
+			},
+			wantAPICall: true,
+			overrideAPIDatabasesCheckFn: func(t *testing.T, databases types.Databases) {
+				t.Helper()
+				require.NotNil(t, databases)
+				databasesByName := databases.ToMap()
+				require.Contains(t, databasesByName, fooRoute1.ServiceName)
+				require.Contains(t, databasesByName, fooRoute2.ServiceName)
+				require.Contains(t, databasesByName, fooRoute3.ServiceName)
+			},
+			// the inactive route got filtered out, but active routes shouldn't
+			// have been matched by prefix either.
+			wantRoutes: nil,
 		},
 		{
 			name:         "by exact name that is not a prefix of others",
@@ -858,7 +882,7 @@ func testFilterActiveDatabases(t *testing.T) {
 		{
 			name:         "by name prefix",
 			dbNamePrefix: "ba",
-			wantAPICall:  false,
+			wantAPICall:  true,
 			wantRoutes:   []tlsca.RouteToDatabase{barRoute1, barRoute2, bazRoute1, bazRoute2},
 		},
 		{
@@ -918,12 +942,24 @@ func testFilterActiveDatabases(t *testing.T) {
 			}
 			tc, err := makeClient(cf)
 			require.NoError(t, err)
-			routes, dbs, err := filterActiveDatabases(ctx, tc, routes)
+			activeRoutes := routes
+			if tt.overrideActiveRoutes != nil {
+				activeRoutes = tt.overrideActiveRoutes
+			}
+			gotRoutes, dbs, err := filterActiveDatabases(ctx, tc, activeRoutes)
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(tt.wantRoutes, routes))
+			require.Empty(t, cmp.Diff(tt.wantRoutes, gotRoutes))
 			if tt.wantAPICall {
-				require.Equal(t, len(routes), len(dbs),
-					"returned routes should have corresponding types.Databases")
+				if tt.overrideAPIDatabasesCheckFn != nil {
+					tt.overrideAPIDatabasesCheckFn(t, dbs)
+				} else {
+					require.Equal(t, len(tt.wantRoutes), len(dbs),
+						"returned routes should have corresponding types.Databases")
+					for i := range tt.wantRoutes {
+						require.Equal(t, gotRoutes[i].ServiceName, dbs[i].GetName(),
+							"route %v does not match corresponding types.Database", i)
+					}
+				}
 				return
 			}
 			require.Zero(t, len(dbs), "unexpected API call to ListDatabases")
@@ -931,18 +967,28 @@ func testFilterActiveDatabases(t *testing.T) {
 	}
 }
 
-func testGetDatabase(t *testing.T) {
+func testDatabaseInfo(t *testing.T) {
 	t.Parallel()
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
 	defaultDBUser := "admin"
 	defaultDBName := "default"
-	alice.SetDatabaseUsers([]string{defaultDBUser})
-	alice.SetDatabaseNames([]string{defaultDBName})
+	// add multiple allowed db names/users, to prevent default selection.
+	// these tests should use the db name/username from either cli flag or
+	// active cert only.
+	alice.SetDatabaseUsers([]string{defaultDBUser, "foo"})
+	alice.SetDatabaseNames([]string{defaultDBName, "bar"})
 	alice.SetRoles([]string{"access"})
 	databases := []servicecfg.Database{
 		{
 			Name:     "postgres",
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+			StaticLabels: map[string]string{
+				"env": "local",
+			},
+		}, {
+			Name:     "postgres-2",
 			Protocol: defaults.ProtocolPostgres,
 			URI:      "localhost:5432",
 			StaticLabels: map[string]string{
@@ -996,71 +1042,105 @@ func testGetDatabase(t *testing.T) {
 	tmpHomePath, _ := mustLogin(t, s)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	for _, db := range databases {
-		require.NotEmpty(t, db.Name)
-		require.NotEmpty(t, db.Protocol)
-		route := tlsca.RouteToDatabase{
-			ServiceName: db.Name,
-			Protocol:    db.Protocol,
-			Username:    defaultDBUser,
-			Database:    defaultDBName,
+	t.Run("newDatabaseInfo", func(t *testing.T) {
+		for _, db := range databases {
+			require.NotEmpty(t, db.Name)
+			require.NotEmpty(t, db.Protocol)
+			route := tlsca.RouteToDatabase{
+				ServiceName: db.Name,
+				Protocol:    db.Protocol,
+				Username:    defaultDBUser,
+				Database:    defaultDBName,
+			}
+			t.Run(route.ServiceName, func(t *testing.T) {
+				t.Run("with route", func(t *testing.T) {
+					cf := &CLIConf{
+						Context:         ctx,
+						TracingProvider: tracing.NoopProvider(),
+						HomePath:        tmpHomePath,
+						tracer:          tracing.NoopTracer(teleport.ComponentTSH),
+					}
+					tc, err := makeClient(cf)
+					require.NoError(t, err)
+					dbInfo, err := newDatabaseInfo(cf, tc, &route)
+					require.NoError(t, err)
+					require.Nil(t, dbInfo.database, "with an active cert the database should not have been fetched")
+					db, err := dbInfo.GetDatabase(cf, tc)
+					require.NoError(t, err)
+					if route.Protocol == defaults.ProtocolDynamoDB {
+						// v13 specific. We remove the dynamodb schema name from the route since it's not supported.
+						require.Equal(t, route.ServiceName, dbInfo.ServiceName)
+						require.Equal(t, route.Protocol, dbInfo.Protocol)
+						require.Equal(t, route.Username, dbInfo.Username)
+					} else {
+						require.Equal(t, route, dbInfo.RouteToDatabase)
+					}
+					require.Equal(t, route.ServiceName, db.GetName())
+					require.Equal(t, route.Protocol, db.GetProtocol())
+					require.Equal(t, dbInfo.database, db, "database should have been fetched and cached")
+				})
+				t.Run("without route", func(t *testing.T) {
+					err = Run(ctx, []string{"db", "login", route.ServiceName,
+						"--db-user", route.Username,
+						"--db-name", route.Database,
+					}, setHomePath(tmpHomePath))
+					require.NoError(t, err)
+					cf := &CLIConf{
+						Context:         ctx,
+						TracingProvider: tracing.NoopProvider(),
+						HomePath:        tmpHomePath,
+						tracer:          tracing.NoopTracer(teleport.ComponentTSH),
+						DatabaseService: route.ServiceName,
+					}
+					tc, err := makeClient(cf)
+					require.NoError(t, err)
+					dbInfo, err := newDatabaseInfo(cf, tc, nil)
+					require.NoError(t, err)
+					require.NotNil(t, dbInfo.database, "without an active cert the database should have been fetched")
+					db, err := dbInfo.GetDatabase(cf, tc)
+					require.NoError(t, err)
+					if route.Protocol == defaults.ProtocolDynamoDB {
+						// v13 specific. We remove the dynamodb schema name from the route since it's not supported.
+						require.Equal(t, route.ServiceName, dbInfo.ServiceName)
+						require.Equal(t, route.Protocol, dbInfo.Protocol)
+						require.Equal(t, route.Username, dbInfo.Username)
+					} else {
+						require.Equal(t, route, dbInfo.RouteToDatabase)
+					}
+					require.Equal(t, route.ServiceName, db.GetName())
+					require.Equal(t, route.Protocol, db.GetProtocol())
+					require.Equal(t, dbInfo.database, db, "cached database should be the same")
+				})
+			})
 		}
-		t.Run(route.ServiceName, func(t *testing.T) {
-			t.Run("with active db cert", func(t *testing.T) {
-				cf := &CLIConf{
-					Context:         ctx,
-					TracingProvider: tracing.NoopProvider(),
-					HomePath:        tmpHomePath,
-				}
-				tc, err := makeClient(cf)
-				require.NoError(t, err)
-				dbInfo, err := newDatabaseInfo(cf, tc, &route)
-				require.NoError(t, err)
-				require.Nil(t, dbInfo.database, "with an active cert the database should not have been fetched")
-				db, err := dbInfo.GetDatabase(cf, tc)
-				require.NoError(t, err)
-				if route.Protocol == defaults.ProtocolDynamoDB {
-					// v13 specific. We remove the dynamodb schema name from the route since it's not supported.
-					require.Equal(t, route.ServiceName, dbInfo.ServiceName)
-					require.Equal(t, route.Protocol, dbInfo.Protocol)
-					require.Equal(t, route.Username, dbInfo.Username)
-				} else {
-					require.Equal(t, route, dbInfo.RouteToDatabase)
-				}
-				require.Equal(t, route.ServiceName, db.GetName())
-				require.Equal(t, route.Protocol, db.GetProtocol())
-				require.Equal(t, dbInfo.database, db, "database should have been fetched and cached")
-			})
-			t.Run("without active db cert", func(t *testing.T) {
-				cf := &CLIConf{
-					Context:         ctx,
-					TracingProvider: tracing.NoopProvider(),
-					HomePath:        tmpHomePath,
-					DatabaseService: route.ServiceName,
-					DatabaseUser:    route.Username,
-					DatabaseName:    route.Database,
-				}
-				tc, err := makeClient(cf)
-				require.NoError(t, err)
-				dbInfo, err := newDatabaseInfo(cf, tc, nil)
-				require.NoError(t, err)
-				require.NotNil(t, dbInfo.database, "without an active cert the database should have been fetched")
-				db, err := dbInfo.GetDatabase(cf, tc)
-				require.NoError(t, err)
-				if route.Protocol == defaults.ProtocolDynamoDB {
-					// v13 specific. We remove the dynamodb schema name from the route since it's not supported.
-					require.Equal(t, route.ServiceName, dbInfo.ServiceName)
-					require.Equal(t, route.Protocol, dbInfo.Protocol)
-					require.Equal(t, route.Username, dbInfo.Username)
-				} else {
-					require.Equal(t, route, dbInfo.RouteToDatabase)
-				}
-				require.Equal(t, route.ServiceName, db.GetName())
-				require.Equal(t, route.Protocol, db.GetProtocol())
-				require.Equal(t, dbInfo.database, db, "cached database should be the same")
-			})
-		})
-	}
+	})
+	t.Run("getDatabaseInfo", func(t *testing.T) {
+		// login to "postgres-2" db.
+		err = Run(ctx, []string{"db", "login", "postgres-2"}, setHomePath(tmpHomePath))
+		require.NoError(t, err)
+		cf := &CLIConf{
+			Context:  ctx,
+			HomePath: tmpHomePath,
+			// select the other db, "postgres", which was not logged into.
+			DatabaseService: "postgres",
+			// v13 specific: set the db name/username because it won't be
+			// set by default until v14+.
+			DatabaseUser: defaultDBUser,
+			DatabaseName: defaultDBName,
+		}
+		tc, err := makeClient(cf)
+		require.NoError(t, err)
+		dbInfo, err := getDatabaseInfo(cf, tc)
+		require.NoError(t, err)
+		require.NotNil(t, dbInfo)
+		// verify that the active login route for "postgres-2" was not used
+		// instead of fetching info for the "postgres" db.
+		require.Equal(t, "postgres", dbInfo.ServiceName)
+		require.Equal(t, defaults.ProtocolPostgres, dbInfo.Protocol)
+		require.Equal(t, defaultDBUser, dbInfo.Username)
+		require.Equal(t, defaultDBName, dbInfo.Database)
+		require.NotNil(t, dbInfo.database)
+	})
 }
 
 func TestResourceSelectorsFormatting(t *testing.T) {

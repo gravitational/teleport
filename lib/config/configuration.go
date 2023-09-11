@@ -198,6 +198,10 @@ type CommandLineFlags struct {
 	// IntegrationConfDeployServiceIAMArguments contains the arguments of
 	// `teleport integration configure deployservice-iam` command
 	IntegrationConfDeployServiceIAMArguments IntegrationConfDeployServiceIAM
+
+	// IntegrationConfEICEIAMArguments contains the arguments of
+	// `teleport integration configure eice-iam` command
+	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -213,6 +217,15 @@ type IntegrationConfDeployServiceIAM struct {
 	Role string
 	// TaskRole is the AWS Role to be used by the deployed service.
 	TaskRole string
+}
+
+// IntegrationConfEICEIAM contains the arguments of
+// `teleport integration configure eice-iam` command
+type IntegrationConfEICEIAM struct {
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// Role is the AWS Role associated with the Integration
+	Role string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -1263,16 +1276,23 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 // getInstallerProxyAddr determines the address of the proxy for discovered
 // nodes to connect to.
 func getInstallerProxyAddr(installParams *InstallParams, fc *FileConfig) string {
+	// Explicit proxy address.
 	if installParams != nil && installParams.PublicProxyAddr != "" {
 		return installParams.PublicProxyAddr
 	}
+	// Proxy address from config.
 	if fc.ProxyServer != "" {
 		return fc.ProxyServer
 	}
 	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) > 0 {
 		return fc.Proxy.PublicAddr[0]
 	}
-	return ""
+	// Possible proxy address for v1/v2 config.
+	if len(fc.AuthServers) > 0 {
+		return fc.AuthServers[0]
+	}
+	// Probably not a proxy address, but we have nothing better.
+	return fc.AuthServer
 }
 
 func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
@@ -2480,6 +2500,7 @@ func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Okta.Enabled = fc.Okta.Enabled()
 	cfg.Okta.APIEndpoint = fc.Okta.APIEndpoint
 	cfg.Okta.APITokenPath = fc.Okta.APITokenPath
+	cfg.Okta.SyncPeriod = fc.Okta.SyncPeriod
 	return nil
 }
 
