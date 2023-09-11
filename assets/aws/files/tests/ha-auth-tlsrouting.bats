@@ -14,7 +14,7 @@ TELEPORT_LICENSE_PATH=/home/gus/downloads/teleport/license-gus.pem
 TELEPORT_LOCKS_TABLE_NAME=gus-tftestkube4-locks
 TELEPORT_S3_BUCKET=gus-tftestkube4.gravitational.io
 USE_ACM=false
-USE_TLS_ROUTING=false
+USE_TLS_ROUTING=true
 EOF
 }
 
@@ -73,6 +73,12 @@ load fixtures/common
     echo "${AUTH_BLOCK?}" | grep -E "^  authentication:" -A3 | grep -q "second_factor:"
 }
 
+@test "[${TEST_SUITE?}] auth_service.authentication.webauthn.rp_id is set" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${AUTH_BLOCK?}"
+    echo "${AUTH_BLOCK?}" | grep -E "^  authentication:" -A5 | grep -q "rp_id: ${TELEPORT_DOMAIN_NAME?}"
+}
+
 @test "[${TEST_SUITE?}] auth_service.license_file is set" {
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${AUTH_BLOCK?}"
@@ -85,8 +91,8 @@ load fixtures/common
     echo "${AUTH_BLOCK?}" | grep -E "^    type: github"
 }
 
-@test "[${TEST_SUITE?}] auth_service.authentication.webauthn.rp_id is set" {
+@test "[${TEST_SUITE?}] auth_service.proxy_listener_mode is set correctly" {
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${AUTH_BLOCK?}"
-    echo "${AUTH_BLOCK?}" | grep -E "^  authentication:" -A5 | grep -q "rp_id: ${TELEPORT_DOMAIN_NAME?}"
+    echo "${AUTH_BLOCK?}" | grep -E "^  proxy_listener_mode: multiplex"
 }
