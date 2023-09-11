@@ -248,6 +248,7 @@ export const ConnectMyComputerContextProvider: FC<{
       }
       setCurrentActionKind('remove');
 
+      let hasAccessDeniedError = false;
       try {
         await retryWithRelogin(ctx, rootClusterUri, () =>
           ctx.connectMyComputerService.removeConnectMyComputerNode(
@@ -256,14 +257,19 @@ export const ConnectMyComputerContextProvider: FC<{
         );
       } catch (e) {
         if (isAccessDeniedError(e)) {
-          ctx.notificationsService.notifyInfo({
-            title: 'The node may be visible for a few more minutes.',
-            description:
-              'You do not have permissions to remove nodes, but it will be removed automatically after a few minutes.',
-          });
+          hasAccessDeniedError = true;
         } else {
           throw e;
         }
+        ctx.notificationsService.notifyInfo(
+          hasAccessDeniedError
+            ? {
+                title: 'The agent has been removed.',
+                description:
+                  'The corresponding server may still be visible in the cluster for a few more minutes until it gets purged from the cache.',
+              }
+            : 'The agent has been removed.'
+        );
       }
 
       // We have to remove connections before removing the agent directory, because

@@ -81,15 +81,12 @@ export function DocumentConnectMyComputerStatus() {
     );
   }
 
-  async function removeAgentAndGoToSetup(): Promise<void> {
+  async function removeAgentAndClose(): Promise<void> {
     const [, error] = await removeAgent();
     if (error) {
       return;
     }
-    // Wait before navigating away from the document, so the user has time
-    // to notice that the agent has been removed.
-    await wait(500);
-    replaceWithSetup();
+    documentsService.close(props.doc.uri);
   }
 
   const isRunning =
@@ -167,7 +164,7 @@ export function DocumentConnectMyComputerStatus() {
             },
           }}
         >
-          <MenuItem onClick={removeAgentAndGoToSetup}>Remove agent</MenuItem>
+          <MenuItem onClick={removeAgentAndClose}>Remove agent</MenuItem>
           </MenuIcon>
         </Flex>
 
