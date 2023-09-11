@@ -772,6 +772,9 @@ type ReadOktaAccessPoint interface {
 	// GetUser returns a services.User for this cluster.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
+	// GetUsers returns a list of users with the  cluster
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
+
 	// ListUserGroups returns a paginated list of all user group resources.
 	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
 
@@ -804,6 +807,15 @@ type OktaAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// CreateUser creates a new user in the cluster
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
+
+	// UpdateUser updates the given user record
+	UpdateUser(ctx context.Context, user types.User) (types.User, error)
+
+	// DeleteUser deletes the given user from the cluster
+	DeleteUser(ctx context.Context, user string) error
 
 	// CreateUserGroup creates a new user group resource.
 	CreateUserGroup(context.Context, types.UserGroup) error
@@ -1278,6 +1290,21 @@ func NewOktaWrapper(base OktaAccessPoint, cache ReadOktaAccessPoint) OktaAccessP
 		accessPoint:         base,
 		ReadOktaAccessPoint: cache,
 	}
+}
+
+// CreateUser creates a new user in the cluster
+func (w *OktaWrapper) CreateUser(ctx context.Context, user types.User) (types.User, error) {
+	return w.NoCache.CreateUser(ctx, user)
+}
+
+// UpdateUser updates a user in the cluster
+func (w *OktaWrapper) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
+	return w.NoCache.UpdateUser(ctx, user)
+}
+
+// DeleteUser removes a user from the cluster
+func (w *OktaWrapper) DeleteUser(ctx context.Context, user string) error {
+	return w.NoCache.DeleteUser(ctx, user)
 }
 
 // CreateUserGroup creates a new user group resource.
