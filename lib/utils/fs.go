@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -84,16 +85,18 @@ func IsDir(path string) bool {
 
 // NormalizePath normalises path, evaluating symlinks and converting local
 // paths to absolute
-func NormalizePath(path string) (string, error) {
+func NormalizePath(path string, evaluateSymlinks bool) (string, error) {
 	s, err := filepath.Abs(path)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}
-	abs, err := filepath.EvalSymlinks(s)
-	if err != nil {
-		return "", trace.ConvertSystemError(err)
+	if evaluateSymlinks {
+		s, err = filepath.EvalSymlinks(s)
+		if err != nil {
+			return "", trace.ConvertSystemError(err)
+		}
 	}
-	return abs, nil
+	return s, nil
 }
 
 // OpenFileAllowingSymlinks will open a file, if it's a symlink the file referenced by the link will be associated to
@@ -110,16 +113,27 @@ func OpenFileNoSymlinks(path string) (*os.File, error) {
 // openFile opens a file and returns file handle. In general symlinks should not be allowed to reduce the risk of
 // privilege escalation from Teleports elevated privileges to potentially less privileged users accidentally.
 func openFile(path string, allowSymlink bool) (*os.File, error) {
-	newPath, err := NormalizePath(path)
+	newPath, err := NormalizePath(path, allowSymlink)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fi, err := os.Stat(newPath)
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	if !allowSymlink && fi.Mode().Type()&os.ModeSymlink != 0 {
-		return nil, trace.BadParameter("symlink not allowed")
+	var fi os.FileInfo
+	if !allowSymlink {
+		components := strings.Split(newPath, string(os.PathSeparator))
+		for i := 1; i <= len(components); i++ {
+			subPath := filepath.Join(components[:i]...)
+			fi, err = os.Lstat(subPath)
+			if err != nil {
+				return nil, trace.ConvertSystemError(err)
+			} else if fi.Mode().Type()&os.ModeSymlink != 0 {
+				return nil, trace.BadParameter("symlink not allowed in path: %v", subPath)
+			}
+		}
+	} else {
+		fi, err = os.Stat(newPath)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
 	}
 	if fi.IsDir() {
 		return nil, trace.BadParameter("%v is not a file", path)
@@ -133,7 +147,7 @@ func openFile(path string, allowSymlink bool) (*os.File, error) {
 
 // StatFile stats path, returns error if it exists but a directory.
 func StatFile(path string) (os.FileInfo, error) {
-	newPath, err := NormalizePath(path)
+	newPath, err := NormalizePath(path, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
