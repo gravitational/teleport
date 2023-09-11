@@ -44,10 +44,6 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 
 // Broadcast creates an alert for the provided rotas
 func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data common.SentMessages, err error) {
-	rotaIDs := make([]string, 0, len(recipients))
-	for _, rota := range recipients {
-		rotaIDs = append(rotaIDs, rota.ID)
-	}
 	serviceNowReqData := RequestData{
 		User:          reqData.User,
 		Roles:         reqData.Roles,
