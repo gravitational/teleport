@@ -754,7 +754,7 @@ export default function createClient(
     },
 
     getConnectMyComputerNodeName(uri: uri.RootClusterUri) {
-      return new Promise<uri.ServerUri>((resolve, reject) => {
+      return new Promise<string>((resolve, reject) => {
         tshd.getConnectMyComputerNodeName(
           new api.GetConnectMyComputerNodeNameRequest().setRootClusterUri(uri),
           (err, response) => {

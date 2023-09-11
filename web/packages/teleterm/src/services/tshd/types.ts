@@ -254,9 +254,7 @@ export type TshClient = {
   deleteConnectMyComputerNode: (
     clusterUri: uri.RootClusterUri
   ) => Promise<void>;
-  getConnectMyComputerNodeName: (
-    uri: uri.RootClusterUri
-  ) => Promise<uri.ServerUri>;
+  getConnectMyComputerNodeName: (uri: uri.RootClusterUri) => Promise<string>;
 
   updateHeadlessAuthenticationState: (
     params: UpdateHeadlessAuthenticationStateParams,

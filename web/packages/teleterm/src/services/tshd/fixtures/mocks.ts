@@ -97,5 +97,5 @@ export class MockTshClient implements types.TshClient {
     params: types.UpdateHeadlessAuthenticationStateParams
   ) => Promise<void>;
   deleteConnectMyComputerNode: () => Promise<void>;
-  getConnectMyComputerNodeName: () => Promise<ServerUri>;
+  getConnectMyComputerNodeName = () => Promise.resolve('');
 }
