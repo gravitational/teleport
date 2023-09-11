@@ -81,6 +81,31 @@ func getJSONTag(tags string) string {
 	return strings.TrimSuffix(kv[1], ",omitempty")
 }
 
+// getTypeName returns a name for field that is suitable for printing within the
+// resource reference.
+func getTypeName(field *ast.Field) (string, error) {
+	switch t := field.Type.(type) {
+	// TODO: Handle fields with manually overriden types per the
+	// "Predeclared scalar types" section of the RFD.
+	case *ast.Ident:
+		switch t.Name {
+		case "string":
+			return "string", nil
+		case "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64", "float32", "float64":
+			return "number", nil
+		case "bool":
+			return "Boolean", nil
+		default:
+			return "", fmt.Errorf("unsupported type: %+v", t.Name)
+		}
+		// TODO: Handle slices, maps, and structs
+	// TODO: For declared types, field.Type is an *ast.SelectorExpr.
+	// Figure out how to handle this case.
+	default:
+		return "", nil
+	}
+}
+
 // makeFields assembles a slice of human-readable information about fields
 // within a Go struct.
 func makeFields(fields *ast.FieldList) ([]Field, error) {
@@ -88,11 +113,11 @@ func makeFields(fields *ast.FieldList) ([]Field, error) {
 	for _, field := range fields.List {
 		desc := strings.Trim(strings.ReplaceAll(field.Doc.Text(), "\n", " "), " ")
 		if len(field.Names) > 1 {
-			return []Field{}, fmt.Errorf("field %+v contains more than one name", field)
+			return nil, fmt.Errorf("field %+v contains more than one name", field)
 		}
 
 		if len(field.Names) == 0 {
-			return []Field{}, fmt.Errorf("field %+v has no names", field)
+			return nil, fmt.Errorf("field %+v has no names", field)
 		}
 		name := field.Names[0].Name
 		jsonName := getJSONTag(field.Tag.Value)
@@ -106,9 +131,16 @@ func makeFields(fields *ast.FieldList) ([]Field, error) {
 		if jsonName == "" {
 			jsonName = name
 		}
+
+		tn, err := getTypeName(field)
+		if err != nil {
+			return nil, err
+		}
+
 		result = append(result, Field{
 			Description: descriptionWithoutName(desc, name),
 			Name:        jsonName,
+			Type:        tn,
 		})
 	}
 	return result, nil
