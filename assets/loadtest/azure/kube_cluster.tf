@@ -32,8 +32,8 @@ resource "azurerm_kubernetes_cluster" "kube_cluster" {
 # to use an ACR registry, add details here and point the teleport image at nameofacr.azurecr.io/foo
 
 data "azurerm_container_registry" "acr" {
-  name                = "nameofacr"
-  resource_group_name = "rgofacr"
+  name                = "name of the registry"
+  resource_group_name = "resource group of the registry"
 }
 
 resource "azurerm_role_assignment" "acr" {

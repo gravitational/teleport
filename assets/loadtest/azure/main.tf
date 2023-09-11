@@ -2,7 +2,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = ">= 3.67.0"
+      version = ">= 3.72.0"
     }
 
     random = {
@@ -12,12 +12,12 @@ terraform {
 
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = ">= 2.22.0"
+      version = ">= 2.23.0"
     }
 
     helm = {
       source  = "hashicorp/helm"
-      version = ">= 2.10.1"
+      version = ">= 2.11.0"
     }
 
     kubectl = {
@@ -52,11 +52,7 @@ provider "kubectl" {
 }
 
 provider "azurerm" {
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = false
-    }
-  }
+  features {}
 }
 
 data "azurerm_client_config" "current" {}
@@ -64,4 +60,16 @@ data "azurerm_client_config" "current" {}
 locals {
   name_prefix       = "loadtest"
   short_name_prefix = "lt"
+
+  certmanager_release   = "cert-manager"
+  certmanager_namespace = "cert-manager"
+  clusterissuer         = "letsencrypt-production"
+
+  monitoring_release   = "monitoring"
+  monitoring_namespace = "monitoring"
+
+  teleport_release   = "teleport"
+  teleport_namespace = "teleport"
+
+  agents_namespace = "agents"
 }

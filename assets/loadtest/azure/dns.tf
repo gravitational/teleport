@@ -29,12 +29,6 @@ resource "azurerm_federated_identity_credential" "dns_identity" {
   subject = "system:serviceaccount:${local.certmanager_namespace}:${local.certmanager_release}"
 }
 
-
-locals {
-  certmanager_release   = "cert-manager"
-  certmanager_namespace = "cert-manager"
-}
-
 resource "helm_release" "certmanager" {
   name = local.certmanager_release
 
@@ -53,18 +47,18 @@ resource "helm_release" "certmanager" {
   })]
 }
 
-resource "kubectl_manifest" "letsencrypt_production" {
+resource "kubectl_manifest" "issuer" {
   yaml_body = jsonencode({
     "apiVersion" = "cert-manager.io/v1"
     "kind"       = "ClusterIssuer"
     "metadata" = {
-      "name" = "letsencrypt-production"
+      "name" = local.clusterissuer
     }
     "spec" = {
       "acme" = {
         "server" = "https://acme-v02.api.letsencrypt.org/directory"
         "privateKeySecretRef" = {
-          "name" = "letsencrypt-production"
+          "name" = local.clusterissuer
         }
         "solvers" = [{
           "selector" = {
@@ -91,4 +85,22 @@ resource "kubectl_manifest" "letsencrypt_production" {
     # dns_identity can use DNS zone
     azurerm_role_assignment.dns_identity,
   ]
+}
+
+resource "azurerm_dns_a_record" "proxy" {
+  name                = var.cluster_prefix
+  zone_name           = data.azurerm_dns_zone.dns_zone.name
+  resource_group_name = data.azurerm_dns_zone.dns_zone.resource_group_name
+
+  ttl                = 300
+  target_resource_id = azurerm_public_ip.proxy.id
+}
+
+resource "azurerm_dns_a_record" "proxy_wild" {
+  name                = "*.${var.cluster_prefix}"
+  zone_name           = data.azurerm_dns_zone.dns_zone.name
+  resource_group_name = data.azurerm_dns_zone.dns_zone.resource_group_name
+
+  ttl                = 300
+  target_resource_id = azurerm_public_ip.proxy.id
 }

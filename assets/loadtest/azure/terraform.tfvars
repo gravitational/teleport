@@ -1,11 +1,17 @@
-location = "westeurope" # netherlands
-#location = "eastus" # virginia
-#location = "westus2" # washington
+# these locations should support HA zone-redundant Postgres and have ~200 DSv3
+# cpus in our quota, ymmv in other locations
+# https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/overview#azure-regions
+# https://portal.azure.com/#view/Microsoft_Azure_Capacity/QuotaMenuBlade/~/myQuotas
+location = "northeurope" # ireland
+## location = "eastus" # virginia
+## location = "westus" # california
 
+# this will result in a Teleport cluster name of loadtest.az.teleportdemo.net
 cluster_prefix = "loadtest"
-dns_zone       = "az.teleportdemo.net"
-dns_zone_rg    = "teleportdemo-dns"
 
-teleport_version = "13.3.0"
+# already exists
+dns_zone    = "az.teleportdemo.net"
+dns_zone_rg = "teleportdemo-dns"
 
-deploy_teleport = true
+teleport_version = "14.0.0-beta.1"
+deploy_teleport  = true

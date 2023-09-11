@@ -1,8 +1,3 @@
-locals {
-  monitoring_release   = "monitoring"
-  monitoring_namespace = "monitoring"
-}
-
 resource "helm_release" "monitoring" {
   name = local.monitoring_release
 
@@ -25,6 +20,7 @@ resource "helm_release" "monitoring" {
     }
     "prometheus" = {
       "prometheusSpec" = {
+        "enableAdminAPI" = true
         "scrapeInterval" = "15s"
         "retention"      = "30d"
         "resources" = {

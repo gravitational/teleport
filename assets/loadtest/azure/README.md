@@ -21,7 +21,7 @@ This Terraform module sets up:
 
 To initialize the Terraform providers, run `terraform init`. To deploy, if `az account show` returns an error, run `az login`, then edit `terraform.tfvars`, then `terraform apply`.
 
-After deployment, `make create-joe` will create a `joe` Teleport account (outputting the invite link on the terminal), `make grafana` will port forward the grafana instance at [http://127.0.0.1:8080/](http://127.0.0.1:8080/), `make psql` will open a `psql` client connected to the backend database.
+After deployment, `make create-user` will create a `joe` Teleport account (outputting the invite link on the terminal), `make grafana` will port forward the grafana instance at [http://127.0.0.1:8080/](http://127.0.0.1:8080/), `make psql` will open a `psql` client connected to the backend database.
 
 As a result of some of these commands, or manually with `make aks`, the local kube config should be pointed at the newly created AKS cluster.
 
