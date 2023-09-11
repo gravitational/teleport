@@ -284,6 +284,11 @@ func (m *mockServer) GetHostUsers() HostUsers {
 	return nil
 }
 
+// GetHostSudoers
+func (m *mockServer) GetHostSudoers() HostSudoers {
+	return nil
+}
+
 // Implementation of ssh.Conn interface.
 type mockSSHConn struct {
 	remoteAddr net.Addr
