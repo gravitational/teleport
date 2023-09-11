@@ -34,6 +34,9 @@ RUN apt-get -y update && \
         # ARM dependencies
         gcc-arm-linux-gnueabihf \
         libc6-dev-armhf-cross \
+        # ARM64 dependencies
+        gcc-aarch64-linux-gnu \
+        libc6-dev-arm64-cross \
         && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \

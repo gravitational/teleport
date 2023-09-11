@@ -38,8 +38,5 @@ jobs:
           go-version-file: api/go.mod
           cache-dependency-path: api/go.sum
 
-      - name: Init workspace
-        run: go work init . ./api/
-        
       - name: Build
-        run: go build ./api/...
+        run: cd api; go build ./...

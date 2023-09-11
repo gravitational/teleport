@@ -14,33 +14,45 @@
  * limitations under the License.
  */
 
-import React, { useState, useLayoutEffect, useRef } from 'react';
+import React, { useCallback, useState, useLayoutEffect, useRef } from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonLink, Flex, Label, Text } from 'design';
+import {
+  Box,
+  ButtonIcon,
+  ButtonLink,
+  Flex,
+  Label,
+  Popover,
+  Text,
+} from 'design';
+import copyToClipboard from 'design/utils/copyToClipboard';
 
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import {
-  ApplicationsIcon,
-  DatabasesIcon,
-  DesktopsIcon,
-  KubernetesIcon,
-  ServersIcon,
-} from 'design/SVGIcon';
+  Copy,
+  Check,
+  Application as ApplicationsIcon,
+  Database as DatabasesIcon,
+  Kubernetes as KubernetesIcon,
+  Server as ServersIcon,
+  Desktop as DesktopsIcon,
+} from 'design/Icon';
 
 import {
   ResourceLabel,
   UnifiedResource,
   UnifiedResourceKind,
 } from 'teleport/services/agents';
+import { Database } from 'teleport/services/databases';
 
 import { ResourceActionButton } from './ResourceActionButton';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
-const labelRowHeight = 26; // px
+const labelRowHeight = 20; // px
 const labelVerticalMargin = 1; // px
-const labelHeight = labelRowHeight - 2 * labelVerticalMargin;
+const labelHeight = labelRowHeight * labelVerticalMargin;
 
 /**
  * This box serves twofold purpose: first, it prevents the underlying icon from
@@ -69,6 +81,8 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   const [showAllLabels, setShowAllLabels] = useState(false);
   const [numMoreLabels, setNumMoreLabels] = useState(0);
 
+  const nameTextRef = useRef<HTMLDivElement | null>(null);
+  const [isNameOverflowed, setIsNameOverflowed] = useState(false);
   // This effect installs a resize observer whose purpose is to detect the size
   // of the component that contains all the labels. If this component is taller
   // than the height of a single label row, we show a "+x more" button.
@@ -76,6 +90,16 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
     if (!labelsInnerContainer.current) return;
 
     const observer = new ResizeObserver(entries => {
+      // This check will let us know if the name text has overflowed. We do this
+      // to conditionally render a tooltip for only overflowed names
+      if (
+        nameTextRef.current?.scrollWidth >
+        nameTextRef.current?.parentElement.offsetWidth
+      ) {
+        setIsNameOverflowed(true);
+      } else {
+        setIsNameOverflowed(false);
+      }
       const container = entries[0];
 
       // We're taking labelRowHeight * 1.5 just in case some glitch adds or
@@ -120,22 +144,24 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
         showAllLabels={showAllLabels}
         onMouseLeave={() => setShowAllLabels(false)}
       >
-        <ResourceIcon
-          name={resIcon}
-          width="45px"
-          height="45px"
-          ml={2}
-          // We would love to just vertical-center-align this one, but then it
-          // would move down along with expanding the labels. So we apply a
-          // carefully measured top margin instead.
-          mt="16px"
-        />
+        <ResourceIcon name={resIcon} width="45px" height="45px" ml={2} />
         {/* MinWidth is important to prevent descriptions from overflowing. */}
         <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
-          <Flex flexDirection="row" alignItems="start">
-            <SingleLineBox flex="1" title={name}>
-              <Text typography="h5">{name}</Text>
+          <Flex flexDirection="row" alignItems="center">
+            <SingleLineBox flex="1">
+              {isNameOverflowed ? (
+                <HoverTooltip tipContent={<>{name}</>}>
+                  <Text ref={nameTextRef} typography="h5" fontWeight={300}>
+                    {name}
+                  </Text>
+                </HoverTooltip>
+              ) : (
+                <Text ref={nameTextRef} typography="h5" fontWeight={300}>
+                  {name}
+                </Text>
+              )}
             </SingleLineBox>
+            <CopyButton name={name} />
             <ResourceActionButton resource={resource} />
           </Flex>
           <Flex flexDirection="row" alignItems="center">
@@ -193,6 +219,34 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   );
 }
 
+function CopyButton({ name }: { name: string }) {
+  const copySuccess = 'Copied!';
+  const copyDefault = 'Click to copy';
+  const copyAnchorEl = useRef(null);
+  const [copiedText, setCopiedText] = useState(copyDefault);
+
+  const handleCopy = useCallback(() => {
+    setCopiedText(copySuccess);
+    copyToClipboard(name);
+    // Change to default text after 1 second
+    setTimeout(() => {
+      setCopiedText(copyDefault);
+    }, 1000);
+  }, [name]);
+
+  return (
+    <HoverTooltip tipContent={<>{copiedText}</>}>
+      <ButtonIcon setRef={copyAnchorEl} size={0} mr={2} onClick={handleCopy}>
+        {copiedText === copySuccess ? (
+          <Check size="small" />
+        ) : (
+          <Copy size="small" />
+        )}
+      </ButtonIcon>
+    </HoverTooltip>
+  );
+}
+
 function resourceName(resource: UnifiedResource) {
   return resource.kind === 'node' ? resource.hostname : resource.name;
 }
@@ -211,7 +265,7 @@ function resourceDescription(resource: UnifiedResource) {
     case 'node':
       return {
         primary: resource.subKind || 'SSH Server',
-        secondary: resource.tunnel ? '← tunnel' : resource.addr,
+        secondary: resource.tunnel ? '' : resource.addr,
       };
     case 'windows_desktop':
       return { primary: 'Windows', secondary: resource.addr };
@@ -221,12 +275,31 @@ function resourceDescription(resource: UnifiedResource) {
   }
 }
 
+function databaseIconName(resource: Database): ResourceIconName {
+  switch (resource.protocol) {
+    case 'postgres':
+      return 'Postgres';
+    case 'mysql':
+      return 'MysqlLarge';
+    case 'mongodb':
+      return 'Mongo';
+    case 'cockroachdb':
+      return 'Cockroach';
+    case 'snowflake':
+      return 'Snowflake';
+    case 'dynamodb':
+      return 'Dynamo';
+    default:
+      return 'Database';
+  }
+}
+
 function resourceIconName(resource: UnifiedResource): ResourceIconName {
   switch (resource.kind) {
     case 'app':
-      return 'Application';
+      return resource.guessedAppIconName;
     case 'db':
-      return 'Database';
+      return databaseIconName(resource);
     case 'kube_cluster':
       return 'Kube';
     case 'node':
@@ -283,7 +356,7 @@ const CardContainer = styled(Box)`
  */
 const CardInnerContainer = styled(Flex)`
   border-top: 2px solid ${props => props.theme.colors.spotBackground[0]};
-  background-color: ${props => props.theme.colors.levels.sunken};
+  background-color: transparent;
 
   ${props =>
     props.showAllLabels
@@ -308,6 +381,63 @@ const CardInnerContainer = styled(Flex)`
 const SingleLineBox = styled(Box)`
   overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
+`;
+
+export const HoverTooltip: React.FC<{
+  tipContent: React.ReactElement;
+  fontSize?: number;
+}> = ({ tipContent, fontSize = 10, children }) => {
+  const [anchorEl, setAnchorEl] = useState();
+  const open = Boolean(anchorEl);
+
+  function handlePopoverOpen(event) {
+    setAnchorEl(event.currentTarget);
+  }
+
+  function handlePopoverClose() {
+    setAnchorEl(null);
+  }
+
+  return (
+    <>
+      <span
+        aria-owns={open ? 'mouse-over-popover' : undefined}
+        onMouseEnter={handlePopoverOpen}
+        onMouseLeave={handlePopoverClose}
+      >
+        {children}
+      </span>
+      <Popover
+        modalCss={modalCss}
+        onClose={handlePopoverClose}
+        open={open}
+        anchorEl={anchorEl}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'center',
+        }}
+        transformOrigin={{
+          vertical: 'bottom',
+          horizontal: 'center',
+        }}
+      >
+        <StyledOnHover px={2} py={1} fontSize={`${fontSize}px`}>
+          {tipContent}
+        </StyledOnHover>
+      </Popover>
+    </>
+  );
+};
+
+const modalCss = () => `
+  pointer-events: none;
+`;
+
+const StyledOnHover = styled(Text)`
+  color: ${props => props.theme.colors.text.main};
+  background-color: ${props => props.theme.colors.tooltip.background};
+  max-width: 350px;
 `;
 
 /**

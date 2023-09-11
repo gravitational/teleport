@@ -92,6 +92,30 @@ func (client *Client) NewCommand(username string) *Chat {
 	}
 }
 
+func (client *Client) RunTool(ctx context.Context, toolContext *modeltools.ToolContext, toolName, toolInput string) (any, *tokens.TokenCount, error) {
+	tools := []modeltools.Tool{
+		&modeltools.CommandExecutionTool{},
+		&modeltools.EmbeddingRetrievalTool{},
+		&modeltools.AuditQueryGenerationTool{LLM: client.svc},
+	}
+	// The following tools are only available in the enterprise build. They will fail
+	// if included in OSS due to the lack of the required backend APIs.
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		tools = append(tools, &modeltools.AccessRequestCreateTool{},
+			&modeltools.AccessRequestsListTool{},
+			&modeltools.AccessRequestListRequestableRolesTool{},
+			&modeltools.AccessRequestListRequestableResourcesTool{})
+	}
+	agent := model.NewAgent(toolContext, tools...)
+	action := &model.AgentAction{
+		Action:    toolName,
+		Input:     toolInput,
+		Reasoning: "Tool invoked directly",
+	}
+
+	return agent.DoAction(ctx, client.svc, action)
+}
+
 func (client *Client) NewAuditQuery(username string) *Chat {
 	toolContext := &modeltools.ToolContext{User: username}
 	return &Chat{

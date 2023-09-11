@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
@@ -37,13 +38,13 @@ func TestAccessListCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := memory.New(memory.Config{
+	mem, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clock,
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend, clock)
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
 	require.NoError(t, err)
 
 	// Create a couple access lists.
@@ -125,17 +126,93 @@ func TestAccessListCRUD(t *testing.T) {
 	require.Empty(t, out)
 }
 
-func TestAccessListMembersCRUD(t *testing.T) {
+func TestAccessListUpsertWithMembers(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := memory.New(memory.Config{
+	mem, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clock,
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend, clock)
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	// Create a couple access lists.
+	accessList1 := newAccessList(t, "accessList1")
+
+	cmpOpts := []cmp.Option{
+		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
+	}
+
+	t.Run("create access list", func(t *testing.T) {
+		// Create both access lists.
+		accessList, _, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{})
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
+	})
+
+	accessList1Member1 := newAccessListMember(t, accessList1.GetName(), "alice")
+
+	t.Run("add member to the access list", func(t *testing.T) {
+		// Add access list members.
+		updatedAccessList, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessList1Member1})
+		require.NoError(t, err)
+		// Assert that access list is returned.
+		require.Empty(t, cmp.Diff(updatedAccessList, updatedAccessList, cmpOpts...))
+		// Assert that the member is returned.
+		require.Len(t, updatedMembers, 1)
+		require.Empty(t, cmp.Diff(updatedMembers[0], accessList1Member1, cmpOpts...))
+
+		listMembers, err := service.GetAccessListMember(ctx, accessList1.GetName(), accessList1Member1.GetName())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(listMembers, accessList1Member1, cmpOpts...))
+	})
+
+	accessList1Member2 := newAccessListMember(t, accessList1.GetName(), "bob")
+
+	t.Run("add another member to the access list", func(t *testing.T) {
+		// Add access list members.
+		updatedAccessList, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessList1Member1, accessList1Member2})
+		require.NoError(t, err)
+		// Assert that access list is returned.
+		require.Empty(t, cmp.Diff(updatedAccessList, updatedAccessList, cmpOpts...))
+		// Assert that the member is returned.
+		require.Len(t, updatedMembers, 2)
+		require.Empty(t, cmp.Diff(updatedMembers, []*accesslist.AccessListMember{accessList1Member1, accessList1Member2}, cmpOpts...))
+
+		listMembers, err := service.GetAccessListMember(ctx, accessList1.GetName(), accessList1Member1.GetName())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(listMembers, accessList1Member1, cmpOpts...))
+
+		listMembers, err = service.GetAccessListMember(ctx, accessList1.GetName(), accessList1Member2.GetName())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(listMembers, accessList1Member2, cmpOpts...))
+	})
+
+	t.Run("empty members removes all members", func(t *testing.T) {
+		_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{})
+		require.NoError(t, err)
+
+		members, _, err := service.ListAccessListMembers(ctx, accessList1.GetName(), 0 /* default size*/, "")
+		require.NoError(t, err)
+		require.Empty(t, members)
+	})
+
+}
+
+func TestAccessListMembersCRUD(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
 	require.NoError(t, err)
 
 	// Create a couple access lists.
@@ -332,22 +409,6 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
-				},
-			},
-			Members: []accesslist.Member{
-				{
-					Name:    "member1",
-					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because",
-					AddedBy: "test-user1",
-				},
-				{
-					Name:    "member2",
-					Joined:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because again",
-					AddedBy: "test-user2",
 				},
 			},
 		},

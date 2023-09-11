@@ -342,7 +342,7 @@ exports[`failed state 1`] = `
   cursor: auto;
 }
 
-.c32 {
+.c34 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -371,22 +371,22 @@ exports[`failed state 1`] = `
   text-transform: none;
 }
 
-.c32:hover,
-.c32:focus {
+.c34:hover,
+.c34:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c32:active {
+.c34:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c32:disabled {
+.c34:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c37 {
+.c38 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -408,25 +408,25 @@ exports[`failed state 1`] = `
   margin-right: 0px;
 }
 
-.c37:disabled {
+.c38:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c37:disabled {
+.c38:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c37:hover:enabled,
-.c37:focus:enabled {
+.c38:hover:enabled,
+.c38:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c37:active:enabled {
+.c38:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c39 {
+.c40 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -447,21 +447,21 @@ exports[`failed state 1`] = `
   margin-left: 0px;
 }
 
-.c39:disabled {
+.c40:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c39:disabled {
+.c40:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c39:hover:enabled,
-.c39:focus:enabled {
+.c40:hover:enabled,
+.c40:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c39:active:enabled {
+.c40:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -501,7 +501,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c33 {
+.c35 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -549,7 +549,7 @@ exports[`failed state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #f57c00;
+  background-color: #1976d2;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -560,6 +560,28 @@ exports[`failed state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
+  background-color: #e64a19;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c32 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #f57c00;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c33 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
   background-color: #00796b;
   border-radius: 100%;
   display: flex;
@@ -567,18 +589,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c34 {
-  box-sizing: border-box;
-  height: 32px;
-  width: 32px;
-  background-color: #1976d2;
-  border-radius: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c36 {
+.c37 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -709,7 +720,7 @@ exports[`failed state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c35 {
+.c36 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -746,11 +757,11 @@ exports[`failed state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c38 svg {
+.c39 svg {
   font-size: 20px;
 }
 
-.c38 svg:before {
+.c39 svg:before {
   padding-left: 1px;
 }
 
@@ -1009,12 +1020,12 @@ exports[`failed state 1`] = `
               </strong>
                - 
               <strong>
-                6
+                9
               </strong>
                of
                
               <strong>
-                6
+                9
               </strong>
             </div>
           </div>
@@ -1167,6 +1178,180 @@ exports[`failed state 1`] = `
                   color="light"
                   font-size="3"
                 >
+                  T
+                </div>
+              </div>
+            </td>
+            <td>
+              TheOtherOne
+            </td>
+            <td>
+              This is a Jenkins app
+            </td>
+            <td>
+              https://jenkins.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  icon: jenkins
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/jenkins.two/one/jenkins.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c31"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  G
+                </div>
+              </div>
+            </td>
+            <td>
+              Grafana
+            </td>
+            <td>
+              This is a Grafana app
+            </td>
+            <td>
+              https://grafana.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  env: prod
+                </div>
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/g.one/one/grafana.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c30"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  C
+                </div>
+              </div>
+            </td>
+            <td>
+              Company Chat
+            </td>
+            <td>
+              This is the employee slack channel
+            </td>
+            <td>
+              https://slack.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  env: prod
+                </div>
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  icon: slack
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/s.one/one/slack.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c32"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
                   s
                 </div>
               </div>
@@ -1203,7 +1388,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c31"
+                class="c33"
                 height="32px"
                 width="32px"
               >
@@ -1263,7 +1448,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c31"
+                class="c33"
                 height="32px"
                 width="32px"
               >
@@ -1322,7 +1507,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c30"
+                class="c32"
                 height="32px"
                 width="32px"
               >
@@ -1379,13 +1564,13 @@ exports[`failed state 1`] = `
               align="right"
             >
               <button
-                class="c32"
+                class="c34"
                 kind="border"
                 width="90px"
               >
                 Launch
                 <span
-                  class="c33 icon icon-chevrondown"
+                  class="c35 icon icon-chevrondown"
                   color="text.slightlyMuted"
                 >
                   <svg
@@ -1409,7 +1594,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c34"
+                class="c30"
                 height="32px"
                 width="32px"
               >
@@ -1466,17 +1651,17 @@ exports[`failed state 1`] = `
         </tbody>
       </table>
       <nav
-        class="c35"
+        class="c36"
       >
         <div
-          class="c36"
+          class="c37"
           width="100%"
         >
           <div
             class="c21"
           >
             <button
-              class="c37 c38"
+              class="c38 c39"
               title="Previous page"
             >
               <span
@@ -1500,7 +1685,7 @@ exports[`failed state 1`] = `
               </span>
             </button>
             <button
-              class="c39 c38"
+              class="c40 c39"
               title="Next page"
             >
               <span
@@ -1621,7 +1806,7 @@ exports[`loaded state 1`] = `
   cursor: auto;
 }
 
-.c32 {
+.c34 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1650,22 +1835,22 @@ exports[`loaded state 1`] = `
   text-transform: none;
 }
 
-.c32:hover,
-.c32:focus {
+.c34:hover,
+.c34:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c32:active {
+.c34:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c32:disabled {
+.c34:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c37 {
+.c38 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1687,25 +1872,25 @@ exports[`loaded state 1`] = `
   margin-right: 0px;
 }
 
-.c37:disabled {
+.c38:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c37:disabled {
+.c38:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c37:hover:enabled,
-.c37:focus:enabled {
+.c38:hover:enabled,
+.c38:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c37:active:enabled {
+.c38:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c39 {
+.c40 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1726,21 +1911,21 @@ exports[`loaded state 1`] = `
   margin-left: 0px;
 }
 
-.c39:disabled {
+.c40:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c39:disabled {
+.c40:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c39:hover:enabled,
-.c39:focus:enabled {
+.c40:hover:enabled,
+.c40:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c39:active:enabled {
+.c40:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -1780,7 +1965,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c33 {
+.c35 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1828,7 +2013,7 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #f57c00;
+  background-color: #1976d2;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -1839,6 +2024,28 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
+  background-color: #e64a19;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c32 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #f57c00;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c33 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
   background-color: #00796b;
   border-radius: 100%;
   display: flex;
@@ -1846,18 +2053,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c34 {
-  box-sizing: border-box;
-  height: 32px;
-  width: 32px;
-  background-color: #1976d2;
-  border-radius: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c36 {
+.c37 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -1988,7 +2184,7 @@ exports[`loaded state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c35 {
+.c36 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -2025,11 +2221,11 @@ exports[`loaded state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c38 svg {
+.c39 svg {
   font-size: 20px;
 }
 
-.c38 svg:before {
+.c39 svg:before {
   padding-left: 1px;
 }
 
@@ -2293,12 +2489,12 @@ exports[`loaded state 1`] = `
               </strong>
                - 
               <strong>
-                6
+                9
               </strong>
                of
                
               <strong>
-                6
+                9
               </strong>
             </div>
           </div>
@@ -2451,6 +2647,180 @@ exports[`loaded state 1`] = `
                   color="light"
                   font-size="3"
                 >
+                  T
+                </div>
+              </div>
+            </td>
+            <td>
+              TheOtherOne
+            </td>
+            <td>
+              This is a Jenkins app
+            </td>
+            <td>
+              https://jenkins.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  icon: jenkins
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/jenkins.two/one/jenkins.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c31"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  G
+                </div>
+              </div>
+            </td>
+            <td>
+              Grafana
+            </td>
+            <td>
+              This is a Grafana app
+            </td>
+            <td>
+              https://grafana.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  env: prod
+                </div>
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/g.one/one/grafana.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c30"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  C
+                </div>
+              </div>
+            </td>
+            <td>
+              Company Chat
+            </td>
+            <td>
+              This is the employee slack channel
+            </td>
+            <td>
+              https://slack.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  env: prod
+                </div>
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  icon: slack
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/s.one/one/slack.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c32"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
                   s
                 </div>
               </div>
@@ -2487,7 +2857,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c31"
+                class="c33"
                 height="32px"
                 width="32px"
               >
@@ -2547,7 +2917,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c31"
+                class="c33"
                 height="32px"
                 width="32px"
               >
@@ -2606,7 +2976,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c30"
+                class="c32"
                 height="32px"
                 width="32px"
               >
@@ -2663,13 +3033,13 @@ exports[`loaded state 1`] = `
               align="right"
             >
               <button
-                class="c32"
+                class="c34"
                 kind="border"
                 width="90px"
               >
                 Launch
                 <span
-                  class="c33 icon icon-chevrondown"
+                  class="c35 icon icon-chevrondown"
                   color="text.slightlyMuted"
                 >
                   <svg
@@ -2693,7 +3063,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c34"
+                class="c30"
                 height="32px"
                 width="32px"
               >
@@ -2750,17 +3120,17 @@ exports[`loaded state 1`] = `
         </tbody>
       </table>
       <nav
-        class="c35"
+        class="c36"
       >
         <div
-          class="c36"
+          class="c37"
           width="100%"
         >
           <div
             class="c21"
           >
             <button
-              class="c37 c38"
+              class="c38 c39"
               title="Previous page"
             >
               <span
@@ -2784,7 +3154,7 @@ exports[`loaded state 1`] = `
               </span>
             </button>
             <button
-              class="c39 c38"
+              class="c40 c39"
               title="Next page"
             >
               <span

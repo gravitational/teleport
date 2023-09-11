@@ -9,6 +9,13 @@ should add an operator side-car when operator is enabled:
       initialDelaySeconds: 15
       periodSeconds: 20
     name: operator
+    ports:
+    - containerPort: 8080
+      name: op-metrics
+      protocol: TCP
+    - containerPort: 8081
+      name: op-health
+      protocol: TCP
     readinessProbe:
       httpGet:
         path: /readyz
