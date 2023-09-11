@@ -3849,6 +3849,7 @@ func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.Privat
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		return priv, nil
 	}
 
 	switch tc.PrivateKeyPolicy {

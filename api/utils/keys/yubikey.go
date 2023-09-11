@@ -70,6 +70,10 @@ func getOrGenerateYubiKeyPrivateKey(ctx context.Context, privateKeyPolicy Privat
 	}
 
 	priv, err := y.getPrivateKey(pivSlot)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	keyPEM, err := priv.keyPEM()
 	if err != nil {
 		return nil, trace.Wrap(err)
