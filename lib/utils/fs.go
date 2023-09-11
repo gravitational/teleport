@@ -96,8 +96,9 @@ func NormalizePath(path string) (string, error) {
 	return abs, nil
 }
 
-// OpenFile opens  file and returns file handle
-func OpenFile(path string) (*os.File, error) {
+// OpenFile opens a file and returns file handle. In general symlinks should not be allowed to reduce the risk of
+// privilege escalation from Teleports elevated privileges to potentially less privileged users accidentally.
+func OpenFile(path string, allowSymlink bool) (*os.File, error) {
 	newPath, err := NormalizePath(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -105,6 +106,9 @@ func OpenFile(path string) (*os.File, error) {
 	fi, err := os.Stat(newPath)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
+	}
+	if !allowSymlink && fi.Mode().Type()&os.ModeSymlink != 0 {
+		return nil, trace.BadParameter("symlink not allowed")
 	}
 	if fi.IsDir() {
 		return nil, trace.BadParameter("%v is not a file", path)

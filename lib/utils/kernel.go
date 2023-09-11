@@ -36,7 +36,7 @@ func KernelVersion() (*semver.Version, error) {
 		return nil, trace.BadParameter("requested kernel version on non-Linux host")
 	}
 
-	file, err := os.Open("/proc/sys/kernel/osrelease")
+	file, err := OpenFile("/proc/sys/kernel/osrelease", false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -89,7 +89,7 @@ func HasBTF() error {
 		return trace.BadParameter("requested kernel version on non-Linux host")
 	}
 
-	file, err := os.Open(btfFile)
+	file, err := OpenFile(btfFile, false)
 	if err == nil {
 		file.Close()
 		return nil
