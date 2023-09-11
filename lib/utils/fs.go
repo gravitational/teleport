@@ -118,21 +118,25 @@ func openFile(path string, allowSymlink bool) (*os.File, error) {
 		return nil, trace.Wrap(err)
 	}
 	var fi os.FileInfo
-	if !allowSymlink {
+	if allowSymlink {
+		fi, err = os.Stat(newPath)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+	} else {
+		isAbs := filepath.IsAbs(newPath)
 		components := strings.Split(newPath, string(os.PathSeparator))
 		for i := 1; i <= len(components); i++ {
 			subPath := filepath.Join(components[:i]...)
+			if isAbs {
+				subPath = string(os.PathSeparator) + subPath
+			}
 			fi, err = os.Lstat(subPath)
 			if err != nil {
 				return nil, trace.ConvertSystemError(err)
 			} else if fi.Mode().Type()&os.ModeSymlink != 0 {
 				return nil, trace.BadParameter("symlink not allowed in path: %v", subPath)
 			}
-		}
-	} else {
-		fi, err = os.Stat(newPath)
-		if err != nil {
-			return nil, trace.ConvertSystemError(err)
 		}
 	}
 	if fi.IsDir() {
