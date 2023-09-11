@@ -30,7 +30,7 @@ import {
   makeEmptyAttempt,
 } from 'shared/hooks/useAsync';
 
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { Server, TshAbortSignal } from 'teleterm/services/tshd/types';
 import createAbortController from 'teleterm/services/tshd/createAbortController';
@@ -218,6 +218,18 @@ export const ConnectMyComputerContextProvider: FC<{
     setAgentConfiguredAttempt(makeSuccessAttempt(false));
   }, [setAgentConfiguredAttempt, setDownloadAgentAttempt]);
 
+  const removeConnections = useCallback(async () => {
+    const { rootClusterId } = routing.parseClusterUri(rootClusterUri).params;
+    const nodeName =
+      await connectMyComputerService.getConnectMyComputerNodeName(
+        rootClusterUri
+      );
+    const nodeUri = routing.getServerUri({ rootClusterId, serverId: nodeName });
+    await ctx.connectionTracker.disconnectAndRemoveItemsBelongingToResource(
+      nodeUri
+    );
+  }, [connectMyComputerService, ctx.connectionTracker, rootClusterUri]);
+
   const [removeAgentAttempt, removeAgent] = useAsync(
     useCallback(async () => {
       const [, error] = await killAgent();
@@ -244,12 +256,18 @@ export const ConnectMyComputerContextProvider: FC<{
         }
       }
 
-      await ctx.connectMyComputerService.removeConnections(rootClusterUri);
+      await removeConnections();
       ctx.workspacesService.removeConnectMyComputerState(rootClusterUri);
       await ctx.connectMyComputerService.removeAgentDirectory(rootClusterUri);
 
       markAgentAsNotConfigured();
-    }, [ctx, killAgent, markAgentAsNotConfigured, rootClusterUri])
+    }, [
+      ctx,
+      killAgent,
+      markAgentAsNotConfigured,
+      removeConnections,
+      rootClusterUri,
+    ])
   );
 
   useEffect(() => {
