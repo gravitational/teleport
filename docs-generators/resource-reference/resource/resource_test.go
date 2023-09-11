@@ -24,6 +24,7 @@ func TestGenerate(t *testing.T) {
 		source   string
 		expected Resource
 	}{
+		// TODO: Add other scalar fields: number, boolean
 		{
 			description: "Only string fields, one level deep",
 			source: `
@@ -32,7 +33,7 @@ package mypkg
 // Metadata describes information about a dynamic resource. Every dynamic
 // resource in Teleport has a metadata object.
 type Metadata struct {
-    // Name is the name of the resource
+    // Name is the name of the resource.
     Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
     // Namespace is the resource's namespace
     Namespace string BACKTICKprotobuf:"bytes,2,opt,name=Namespace,proto3" json:"-"BACKTICK
@@ -50,7 +51,7 @@ description: "string"`,
 				Fields: []Field{
 					Field{
 						Name:        "name",
-						Description: "The name of the resource",
+						Description: "The name of the resource.",
 						Type:        "string",
 					},
 					Field{
@@ -60,7 +61,7 @@ description: "string"`,
 					},
 					Field{
 						Name:        "description",
-						Description: "The resource's description",
+						Description: "The resource's description.",
 						Type:        "string",
 					},
 				},
@@ -120,6 +121,65 @@ func TestGetJSONTag(t *testing.T) {
 		t.Run(c.description, func(t *testing.T) {
 			g := getJSONTag(c.input)
 			assert.Equal(t, c.expected, g)
+		})
+	}
+}
+
+func TestDescriptionWithoutName(t *testing.T) {
+	cases := []struct {
+		description string
+		input       string
+		name        string
+		expected    string
+	}{
+		{
+			description: "short description",
+			input:       "A",
+			name:        "MyDecl",
+			expected:    "A",
+		},
+		{
+			description: "no description",
+			input:       "",
+			name:        "MyDecl",
+			expected:    "",
+		},
+		{
+			description: "GoDoc consists only of declaration name",
+			input:       "MyDecl",
+			name:        "MyDecl",
+			expected:    "",
+		},
+		{
+			description: "description containing name",
+			input:       "MyDecl is a declaration that we will describe in the docs.",
+			name:        "MyDecl",
+			expected:    "A declaration that we will describe in the docs.",
+		},
+		{
+			description: "description containing name and \"are\"",
+			input:       "MyDecls are things that we will describe in the docs.",
+			name:        "MyDecls",
+			expected:    "Things that we will describe in the docs.",
+		},
+
+		{
+			description: "description with no name",
+			input:       "Declaration that we will describe in the docs.",
+			name:        "MyDecl",
+			expected:    "Declaration that we will describe in the docs.",
+		},
+		{
+			description: "description beginning with name and non-is verb",
+			input:       "MyDecl performs an action.",
+			name:        "MyDecl",
+			expected:    "Performs an action.",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			assert.Equal(t, c.expected, descriptionWithoutName(c.input, c.name))
 		})
 	}
 }
