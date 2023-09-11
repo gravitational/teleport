@@ -26,7 +26,7 @@ func TestGenerate(t *testing.T) {
 	}{
 		// TODO: Add other scalar fields: number, boolean
 		{
-			description: "Only string fields, one level deep",
+			description: "Only string fields, one level deep, ignored field",
 			source: `
 package mypkg
 
@@ -43,7 +43,7 @@ type Metadata struct {
 `,
 			expected: Resource{
 				SectionName: "Metadata",
-				Description: "Metadata describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
+				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
 				SourcePath:  "myfile.go",
 				YAMLExample: `name: "string"
 namespace: "string"
@@ -52,11 +52,6 @@ description: "string"`,
 					Field{
 						Name:        "name",
 						Description: "The name of the resource.",
-						Type:        "string",
-					},
-					Field{
-						Name:        "namespace",
-						Description: "The resource's namespace.",
 						Type:        "string",
 					},
 					Field{
@@ -109,6 +104,26 @@ func TestGetJSONTag(t *testing.T) {
 			description: "multiple well-formed struct tags",
 			input:       `json:"json_tag" yaml:"yaml_tag" other:"other-tag"`,
 			expected:    "json_tag",
+		},
+		{
+			description: "omitempty option in tag value",
+			input:       `json:"json_tag,omitempty" yaml:"yaml_tag" other:"other-tag"`,
+			expected:    "json_tag",
+		},
+		{
+			description: "No JSON tag",
+			input:       `other:"other-tag"`,
+			expected:    "",
+		},
+		{
+			description: "Empty JSON tag with the omitempty option",
+			input:       `json:",omitempty" other:"other-tag"`,
+			expected:    "",
+		},
+		{
+			description: "Ignored JSON field",
+			input:       `json:"-" other:"other-tag"`,
+			expected:    "-",
 		},
 		{
 			description: "empty JSON tag",
