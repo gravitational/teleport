@@ -22,6 +22,26 @@ type Field struct {
 	Type        string
 }
 
+type yamlKind int
+
+const (
+	unknownKind yamlKind = iota
+	sequenceKind
+	mappingKind
+	stringKind
+	numberKind
+	boolKind
+)
+
+// yamlTypeNode represents a node in a potentially recursive YAML type, such as an
+// integer, a map of integers to strings, a sequence of maps of strings to
+// strings, etc. Used for printing example YAML documents. This is not intended
+// to be a comprehensive YAML AST.
+type yamlTypeNode struct {
+	kind     yamlKind
+	children []yamlTypeNode
+}
+
 // getTypeSpec returns the type spec to use for further processing. Returns an
 // error if there is either no type spec or more than one.
 func getTypeSpec(decl *ast.GenDecl) (*ast.TypeSpec, error) {
@@ -58,8 +78,18 @@ func getSectionName(spec *ast.TypeSpec) string {
 
 // makeYAMLExample creates an example YAML document illustrating the fields
 // within the declaration.
-func makeYAMLExample(fields *ast.FieldList) (string, error) {
-	// TODO: make the YAML example
+func makeYAMLExample(node yamlTypeNode) (string, error) {
+	// TODO Add a recursive function here that takes a yamlTypeNode and a
+	// partial buffer, writing example values to the buffer based on the node.
+	// Call this function for all children of each node.
+
+	// TODO: In the recursive function:
+	// TODO: handle custom fields per the "Custom fields" section of the RFD
+	// TODO: handle predeclared scalar types per the "Custom fields" section of
+	// the RFD.
+	// TODO: handle predeclared composite types per the relevant section of the
+	// RFD.
+	// TODO: handle named types per the relevant section of the RFD
 	return "", nil
 }
 
@@ -81,29 +111,56 @@ func getJSONTag(tags string) string {
 	return strings.TrimSuffix(kv[1], ",omitempty")
 }
 
-// getTypeName returns a name for field that is suitable for printing within the
+// getYAMLType returns a name for field that is suitable for printing within the
 // resource reference.
-func getTypeName(field *ast.Field) (string, error) {
+func getYAMLType(field *ast.Field) (yamlTypeNode, error) {
 	switch t := field.Type.(type) {
 	// TODO: Handle fields with manually overriden types per the
 	// "Predeclared scalar types" section of the RFD.
 	case *ast.Ident:
 		switch t.Name {
 		case "string":
-			return "string", nil
+			return yamlTypeNode{
+				kind: stringKind,
+			}, nil
 		case "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64", "float32", "float64":
-			return "number", nil
+			return yamlTypeNode{
+				kind: numberKind,
+			}, nil
 		case "bool":
-			return "Boolean", nil
+			return yamlTypeNode{
+					kind: boolKind,
+				},
+				nil
 		default:
-			return "", fmt.Errorf("unsupported type: %+v", t.Name)
+			return yamlTypeNode{}, fmt.Errorf("unsupported type: %+v", t.Name)
 		}
 		// TODO: Handle slices, maps, and structs
 	// TODO: For declared types, field.Type is an *ast.SelectorExpr.
 	// Figure out how to handle this case.
 	default:
-		return "", nil
+		return yamlTypeNode{}, nil
 	}
+}
+
+// tableValueFor returns a summary of a YAML type suitable for printing in a
+// table of fields within the resource reference. For composite types,
+// recursively traverses the children of node.
+func tableValueFor(node yamlTypeNode) (string, error) {
+	traverseNode := func(node yamlTypeNode, partialReturn string) (string, error) {
+		switch node.kind {
+		case stringKind:
+			return "string", nil
+		case numberKind:
+			return "number", nil
+		case boolKind:
+			return "Boolean", nil
+		default:
+			return "", fmt.Errorf("we cannot find a value to print to the field table for type %v", node.kind)
+
+		}
+	}
+	return traverseNode(node, "")
 }
 
 // makeFields assembles a slice of human-readable information about fields
@@ -132,15 +189,18 @@ func makeFields(fields *ast.FieldList) ([]Field, error) {
 			jsonName = name
 		}
 
-		tn, err := getTypeName(field)
+		tn, err := getYAMLType(field)
 		if err != nil {
 			return nil, err
 		}
-
+		tv, err := tableValueFor(tn)
+		if err != nil {
+			return nil, err
+		}
 		result = append(result, Field{
 			Description: descriptionWithoutName(desc, name),
 			Name:        jsonName,
-			Type:        tn,
+			Type:        tv,
 		})
 	}
 	return result, nil
