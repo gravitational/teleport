@@ -1529,18 +1529,6 @@ export const formatters: Formatters = {
     format: ({ access_list_name, updated_by }) =>
       `Failure when user [${updated_by}] attempted to delete all members from access list [${access_list_name}]`,
   },
-  [eventCodes.ACCESS_LIST_CREATE_WITH_MEMBERS]: {
-    type: 'access_list.create_with_members',
-    desc: 'Access list created with members',
-    format: ({ access_list_name, updated_by }) =>
-      `Access list [${access_list_name}] has been created with members by user [${updated_by}]`,
-  },
-  [eventCodes.ACCESS_LIST_CREATE_WITH_MEMBERS_FAILURE]: {
-    type: 'access_list.create_with_members',
-    desc: 'Access list create with members failed',
-    format: ({ access_list_name, updated_by }) =>
-      `User [${updated_by}] failed to create access list [${access_list_name}] with members.`,
-  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',

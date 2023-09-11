@@ -520,12 +520,6 @@ const (
 	// AccessListMemberDeleteAllForAccessListFailureCode is the access list member delete failure code.
 	AccessListMemberDeleteAllForAccessListFailureCode = "TAL008E"
 
-	// AccessListCreateWithMembersSuccessCode is the access list create with members success code.
-	AccessListCreateWithMembersSuccessCode = "TAL009I"
-
-	// AccessListCreateWithMembersFailureCode is the access list create with members failure code.
-	AccessListCreateWithMembersFailureCode = "TAL009E"
-
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

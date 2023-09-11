@@ -437,12 +437,12 @@ exports[`list of all events 1`] = `
             </strong>
              - 
             <strong>
-              214
+              212
             </strong>
              of
              
             <strong>
-              214
+              212
             </strong>
           </div>
           <button
@@ -569,108 +569,6 @@ exports[`list of all events 1`] = `
         </tr>
       </thead>
       <tbody>
-        <tr>
-          <td
-            style="vertical-align: inherit;"
-          >
-            <div
-              class="c17"
-            >
-              <span
-                class="c18 icon icon-warning"
-              >
-                <svg
-                  fill="currentColor"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  width="20"
-                >
-                  <path
-                    d="M12 9C12.4142 9 12.75 9.33579 12.75 9.75V13.5C12.75 13.9142 12.4142 14.25 12 14.25C11.5858 14.25 11.25 13.9142 11.25 13.5V9.75C11.25 9.33579 11.5858 9 12 9Z"
-                  />
-                  <path
-                    d="M12 17.8125C12.5178 17.8125 12.9375 17.3928 12.9375 16.875C12.9375 16.3572 12.5178 15.9375 12 15.9375C11.4822 15.9375 11.0625 16.3572 11.0625 16.875C11.0625 17.3928 11.4822 17.8125 12 17.8125Z"
-                  />
-                  <path
-                    clip-rule="evenodd"
-                    d="M10.09 3.34287L1.88101 17.7086C1.04292 19.1753 2.10193 21.0001 3.79114 21.0001H20.2092C21.8984 21.0001 22.9574 19.1753 22.1193 17.7086L13.9103 3.34287C13.0657 1.86488 10.9346 1.86488 10.09 3.34287ZM3.18337 18.4528L11.3924 4.08708C11.6611 3.61681 12.3392 3.61681 12.6079 4.08708L20.8169 18.4528C21.0836 18.9195 20.7466 19.5001 20.2092 19.5001H3.79114C3.25367 19.5001 2.91671 18.9195 3.18337 18.4528Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-              Access list create with members failed
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [mike] failed to create access list [access-list] with members.
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2023-05-08T19:21:36.144Z
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c19"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="vertical-align: inherit;"
-          >
-            <div
-              class="c17"
-            >
-              <span
-                class="c18 icon icon-user"
-              >
-                <svg
-                  fill="currentColor"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  width="20"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M12 2.25C8.27208 2.25 5.25 5.27208 5.25 9C5.25 11.4639 6.57018 13.6195 8.54176 14.798C5.90407 15.664 3.72635 17.4974 2.35075 19.8743C2.14327 20.2328 2.2657 20.6917 2.62421 20.8991C2.98272 21.1066 3.44154 20.9842 3.64901 20.6257C5.34045 17.703 8.40021 15.75 11.9999 15.75C15.5996 15.75 18.6593 17.703 20.3507 20.6257C20.5582 20.9842 21.017 21.1066 21.3755 20.8991C21.7341 20.6917 21.8565 20.2328 21.649 19.8743C20.2734 17.4974 18.0958 15.664 15.4582 14.7981C17.4298 13.6196 18.75 11.464 18.75 9C18.75 5.27208 15.7279 2.25 12 2.25ZM6.75 9C6.75 6.1005 9.1005 3.75 12 3.75C14.8995 3.75 17.25 6.1005 17.25 9C17.25 11.8995 14.8995 14.25 12 14.25C9.1005 14.25 6.75 11.8995 6.75 9Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-              Access list created with members
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            Access list [access-list] has been created with members by user [mike]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2023-05-08T19:21:36.144Z
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c19"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
         <tr>
           <td
             style="vertical-align: inherit;"

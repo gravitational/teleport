@@ -240,15 +240,6 @@ message AccessListMemberMetadata {
   string MemberName = 5 [(gogoproto.jsontag) = "member_name,omitempty"];
 }
 
-// UpsertAccessListWithMembersMetadata contains metadata for upserting an access list with members.
-message UpsertAccessListWithMembersMetadata {
-  // AccessListName is the name of the access list.
-  string AccessListName = 1 [(gogoproto.jsontag) = "access_list_name,omitempty"];
-
-  // UpdatedMembers are the names of the updated members.
-  repeated string UpdatedMembers = 2 [(gogoproto.jsontag) = "updated_members,omitempty"];
-}
-
 // AccessListReviewMetadata contains metadata for access list review events.
 message AccessListReviewMetadata {
   // Message is the message that was supplied during the review.
@@ -3460,7 +3451,6 @@ message OneOf {
     events.AccessListMemberUpdate AccessListMemberUpdate = 131;
     events.AccessListMemberDelete AccessListMemberDelete = 132;
     events.AccessListMemberDeleteAllForAccessList AccessListMemberDeleteAllForAccessList = 133;
-    events.AccessListCreateWithMembers AccessListCreateWithMembers = 134;
   }
 }
 
@@ -5019,37 +5009,6 @@ message AccessListDelete {
   ];
 }
 
-// AccessListReview is emitted when an access list is reviewed.
-message AccessListReview {
-  // metadata is common event metadata
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // resource is common resource event metadata
-  ResourceMetadata resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // review is metadata for the access list review.
-  AccessListReviewMetadata review = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // status indicates whether the review operation was successful.
-  Status status = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-}
-
 // AccessListMemberCreate is emitted when an access list member is created.
 message AccessListMemberCreate {
   // metadata is common event metadata
@@ -5174,8 +5133,8 @@ message AccessListMemberDeleteAllForAccessList {
   ];
 }
 
-// AccessListCreateWithMembers is emitted when an access list is created along with members.
-message AccessListCreateWithMembers {
+// AccessListReview is emitted when an access list is reviewed.
+message AccessListReview {
   // metadata is common event metadata
   Metadata metadata = 1 [
     (gogoproto.nullable) = false,
@@ -5190,14 +5149,14 @@ message AccessListCreateWithMembers {
     (gogoproto.jsontag) = ""
   ];
 
-  // upsert_access_list_with_members is metadata for the operation.
-  UpsertAccessListWithMembersMetadata upsert_access_list_with_members = 3 [
+  // review is metadata for the access list review.
+  AccessListReviewMetadata review = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
-  // status indicates whether the resource operation was successful.
+  // status indicates whether the review operation was successful.
   Status status = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
