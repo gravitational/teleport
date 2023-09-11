@@ -60,7 +60,7 @@ jobs:
 
       - name: Generate GitHub Token
         id: generate_token
-        uses: tibdex/github-app-token@v1
+        uses: tibdex/github-app-token@b62528385c34dbc9f38e5f4225ac829252d1ea92 # v1.8.0
         with:
           app_id: ${{ secrets.REVIEWERS_APP_ID }}
           private_key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
@@ -79,7 +79,7 @@ jobs:
       - name: Run base difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "integrations/operator/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*" -e "integrations/kube-agent-updater/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "integrations/operator/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*" -e "integrations/kube-agent-updater/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go" -e "e2e/**/*"
           target: test-go-unit
 
       - name: Run libfido2 difftest

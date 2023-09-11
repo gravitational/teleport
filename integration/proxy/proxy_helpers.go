@@ -20,12 +20,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -41,7 +39,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -54,19 +51,21 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -452,9 +451,10 @@ func mustClosePostgresClient(t *testing.T, client *pgconn.PgConn) {
 }
 
 const (
-	kubeClusterName             = "gke_project_europecentral2a_cluster1"
-	kubeClusterDefaultNamespace = "default"
-	kubePodName                 = "firstcontainer-66b6c48dd-bqmwk"
+	// kubeClusterName is the name of the cluster in Teleport.
+	// It it's not a real cluster name, but a cluster that uses
+	// kube mock server.
+	kubeClusterName = "gke_project_europecentral2a_cluster1"
 )
 
 func k8ClientConfig(serverAddr, sni string) clientcmdapi.Config {
@@ -476,38 +476,11 @@ func k8ClientConfig(serverAddr, sni string) clientcmdapi.Config {
 	}
 }
 
-func mkPodList() *v1.PodList {
-	return &v1.PodList{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "PodList",
-			APIVersion: "v1",
-		},
-		Items: []v1.Pod{
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      kubePodName,
-					Namespace: kubeClusterDefaultNamespace,
-				},
-			},
-		},
-	}
-}
-
-func startKubeAPIMock(t *testing.T) *httptest.Server {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", func(rw http.ResponseWriter, request *http.Request) {
-	})
-	mux.HandleFunc("/api/v1/namespaces/default/pods", func(rw http.ResponseWriter, request *http.Request) {
-		rw.Header().Add("Content-Type", "application/json")
-		err := json.NewEncoder(rw).Encode(mkPodList())
-		require.NoError(t, err)
-	})
-
-	svr := httptest.NewTLSServer(mux)
-	t.Cleanup(func() {
-		svr.Close()
-	})
-	return svr
+func startKubeAPIMock(t *testing.T) *testingkubemock.KubeMockServer {
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+	return kubeMock
 }
 
 func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
@@ -700,6 +673,7 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 		JoinMethod:   types.JoinMethodIAM,
 		PublicTLSKey: pubTLS,
 		PublicSSHKey: []byte(fixtures.SSHCAPublicKey),
+		Insecure:     lib.IsInsecureDevMode(),
 	})
 	require.NoError(t, err, trace.DebugReport(err))
 }
@@ -713,16 +687,15 @@ func mustFindKubePod(t *testing.T, tc *client.TeleportClient) {
 	response, err := serviceClient.ListKubernetesResources(context.Background(), &kubeproto.ListKubernetesResourcesRequest{
 		ResourceType:        types.KindKubePod,
 		KubernetesCluster:   kubeClusterName,
-		KubernetesNamespace: kubeClusterDefaultNamespace,
+		KubernetesNamespace: metav1.NamespaceDefault,
 		TeleportCluster:     tc.SiteName,
 	})
 	require.NoError(t, err)
-	require.Len(t, response.Resources, 1)
+	require.Len(t, response.Resources, 3)
 	require.Equal(t, types.KindKubePod, response.Resources[0].Kind)
-	require.Equal(t, kubePodName, response.Resources[0].GetName())
 }
 
-func mustConnectDatabaseGateway(t *testing.T, gw gateway.Gateway) {
+func mustConnectDatabaseGateway(t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
 	t.Helper()
 
 	dbGateway, err := gateway.AsDatabase(gw)
@@ -758,7 +731,7 @@ func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kube
 		CAData:     config.Clusters[contextName].CertificateAuthorityData,
 		CertData:   config.AuthInfos[contextName].ClientCertificateData,
 		KeyData:    config.AuthInfos[contextName].ClientKeyData,
-		ServerName: common.KubeLocalProxySNI(teleportCluster, kubeCluster),
+		ServerName: alpncommon.KubeLocalProxySNI(teleportCluster, kubeCluster),
 	}
 	client, err := kubernetes.NewForConfig(&rest.Config{
 		Host:            "https://" + teleportCluster,
@@ -769,13 +742,12 @@ func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kube
 	return client
 }
 
-func mustGetKubePod(t *testing.T, client *kubernetes.Clientset, wantPodName string) {
+func mustGetKubePod(t *testing.T, client *kubernetes.Clientset) {
 	t.Helper()
 
-	resp, err := client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
+	resp, err := client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
-	require.Equal(t, len(resp.Items), 1)
-	require.Equal(t, wantPodName, resp.Items[0].GetName())
+	require.Equal(t, len(resp.Items), 3)
 }
 
 func mustGetProfileName(t *testing.T, webProxyAddr string) string {

@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
@@ -97,7 +98,7 @@ func testDBGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAdd
 	)
 }
 
-type testGatewayConnectionFunc func(*testing.T, gateway.Gateway)
+type testGatewayConnectionFunc func(*testing.T, *daemon.Service, gateway.Gateway)
 
 func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, albAddr string, params daemon.CreateGatewayParams, testConnection testGatewayConnectionFunc) {
 	t.Helper()
@@ -124,10 +125,12 @@ func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, 
 	require.NoError(t, err)
 
 	daemonService, err := daemon.New(daemon.Config{
+		Clock:   fakeClock,
 		Storage: storage,
 		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
 			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 		},
+		KubeconfigsDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -144,7 +147,7 @@ func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, 
 	gateway, err := daemonService.CreateGateway(context.Background(), params)
 	require.NoError(t, err, trace.DebugReport(err))
 
-	testConnection(t, gateway)
+	testConnection(t, daemonService, gateway)
 
 	// Advance the fake clock to simulate the db cert expiry inside the middleware.
 	fakeClock.Advance(time.Hour * 48)
@@ -164,7 +167,7 @@ func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, 
 	// and then it will attempt to reissue the user cert using an expired user cert.
 	// The mocked tshdEventsClient will issue a valid user cert, save it to disk, and the middleware
 	// will let the connection through.
-	testConnection(t, gateway)
+	testConnection(t, daemonService, gateway)
 
 	require.Equal(t, 1, tshdEventsService.callCounts["Relogin"],
 		"Unexpected number of calls to TSHDEventsClient.Relogin")
@@ -196,12 +199,23 @@ func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, 
 
 	grpcServer := grpc.NewServer()
 	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
-	t.Cleanup(grpcServer.GracefulStop)
 
+	serveErr := make(chan error)
 	go func() {
-		err := grpcServer.Serve(ls)
-		assert.NoError(t, err)
+		serveErr <- grpcServer.Serve(ls)
 	}()
+
+	t.Cleanup(func() {
+		grpcServer.GracefulStop()
+
+		// For test cases that did not send any grpc calls, test may finish
+		// before grpcServer.Serve is called and grpcServer.Serve will return
+		// grpc.ErrServerStopped.
+		err := <-serveErr
+		if err != grpc.ErrServerStopped {
+			assert.NoError(t, err)
+		}
+	})
 
 	return tshdEventsService, ls.Addr().String()
 }
@@ -241,7 +255,7 @@ func TestTeletermKubeGateway(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	const (
-		localK8SNI = "kube.teleport.cluster.local"
+		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 		k8User     = "alice@example.com"
 		k8RoleName = "kubemaster"
 	)
@@ -325,7 +339,7 @@ func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kube
 		teleportCluster = kubeURI.GetLeafClusterName()
 	}
 
-	testKubeConnection := func(t *testing.T, gw gateway.Gateway) {
+	testKubeConnection := func(t *testing.T, daemonService *daemon.Service, gw gateway.Gateway) {
 		t.Helper()
 
 		clientOnce.Do(func() {
@@ -333,12 +347,12 @@ func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kube
 			require.NoError(t, err)
 
 			kubeconfigPath := kubeGateway.KubeconfigPath()
-			checkKubeconfigPathInCommandEnv(t, gw, kubeconfigPath)
+			checkKubeconfigPathInCommandEnv(t, daemonService, gw, kubeconfigPath)
 
 			client = kubeClientForLocalProxy(t, kubeconfigPath, teleportCluster, kubeCluster)
 		})
 
-		mustGetKubePod(t, client, kubePodName)
+		mustGetKubePod(t, client)
 	}
 
 	testGatewayCertRenewal(
@@ -351,13 +365,12 @@ func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kube
 		},
 		testKubeConnection,
 	)
-
 }
 
-func checkKubeconfigPathInCommandEnv(t *testing.T, gw gateway.Gateway, wantKubeconfigPath string) {
+func checkKubeconfigPathInCommandEnv(t *testing.T, daemonService *daemon.Service, gw gateway.Gateway, wantKubeconfigPath string) {
 	t.Helper()
 
-	cmd, err := gw.CLICommand()
+	cmd, err := daemonService.GetGatewayCLICommand(gw)
 	require.NoError(t, err)
 	require.Equal(t, cmd.Env, []string{"KUBECONFIG=" + wantKubeconfigPath})
 }

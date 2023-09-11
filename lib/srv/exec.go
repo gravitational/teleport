@@ -102,7 +102,7 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 	// If this is a registered OpenSSH node or proxy recoding mode is
 	// enabled, execute the command on a remote host. This is used by
 	// in-memory forwarding nodes.
-	if ctx.ServerSubKind == types.SubKindOpenSSHNode || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,

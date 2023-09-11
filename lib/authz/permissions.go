@@ -601,7 +601,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindDatabaseService, services.RO()),
 				types.NewRule(types.KindSAMLIdPServiceProvider, services.RO()),
 				types.NewRule(types.KindUserGroup, services.RO()),
-				types.NewRule(types.KindIntegration, services.RO()),
+				types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -873,10 +873,12 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindServerInfo, services.RW()),
+						types.NewRule(types.KindApp, services.RW()),
 					},
-					// wildcard any cluster available.
-					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+					// Discovery service should only access kubes/apps/dbs that originated from discovery.
+					KubernetesLabels: types.Labels{types.OriginLabel: []string{types.OriginCloud}},
+					DatabaseLabels:   types.Labels{types.OriginLabel: []string{types.OriginCloud}},
+					AppLabels:        types.Labels{types.OriginLabel: []string{types.OriginDiscoveryKubernetes}},
 				},
 			})
 	case types.RoleOkta:
@@ -1145,7 +1147,7 @@ func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, aut
 		Resource: resource,
 	}
 
-	return authorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, resource.GetKind(), verbs...)
+	return AuthorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, resource.GetKind(), verbs...)
 }
 
 // AuthorizeWithVerbs will ensure that the user has access to the given verbs for the given kind.
@@ -1159,11 +1161,11 @@ func AuthorizeWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer 
 		User: authCtx.User,
 	}
 
-	return authorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, kind, verbs...)
+	return AuthorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, kind, verbs...)
 }
 
-// authorizeContextWithVerbs will ensure that the user has access to the given verbs for the given services.context.
-func authorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, authCtx *Context, quiet bool, ruleCtx *services.Context, kind string, verbs ...string) (*Context, error) {
+// AuthorizeContextWithVerbs will ensure that the user has access to the given verbs for the given services.context.
+func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, authCtx *Context, quiet bool, ruleCtx *services.Context, kind string, verbs ...string) (*Context, error) {
 	errs := make([]error, len(verbs))
 	for i, verb := range verbs {
 		errs[i] = authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet)
@@ -1354,4 +1356,28 @@ func UserFromContext(ctx context.Context) (IdentityGetter, error) {
 		return nil, trace.BadParameter("expected type IdentityGetter, got %T", user)
 	}
 	return user, nil
+}
+
+// HasBuiltinRole checks if the identity is a builtin role with the matching
+// name.
+func HasBuiltinRole(authContext Context, name string) bool {
+	if _, ok := authContext.Identity.(BuiltinRole); !ok {
+		return false
+	}
+	if !authContext.Checker.HasRole(name) {
+		return false
+	}
+
+	return true
+}
+
+// IsLocalUser checks if the identity is a local user.
+func IsLocalUser(authContext Context) bool {
+	_, ok := authContext.Identity.(LocalUser)
+	return ok
+}
+
+// IsCurrentUser checks if the identity is a local user matching the given username
+func IsCurrentUser(authContext Context, username string) bool {
+	return IsLocalUser(authContext) && authContext.User.GetName() == username
 }

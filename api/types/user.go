@@ -107,6 +107,10 @@ type User interface {
 	SetAzureIdentities(azureIdentities []string)
 	// SetGCPServiceAccounts sets a list of GCP service accounts for the user
 	SetGCPServiceAccounts(accounts []string)
+	// SetHostUserUID sets the UID for host users
+	SetHostUserUID(uid string)
+	// SetHostUserGID sets the GID for host users
+	SetHostUserGID(gid string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
@@ -121,6 +125,10 @@ type User interface {
 	GetTrustedDeviceIDs() []string
 	// SetTrustedDeviceIDs assigns the IDs of the user's trusted devices.
 	SetTrustedDeviceIDs(ids []string)
+	// IsBot returns true if the user is a bot.
+	IsBot() bool
+	// BotGenerationLabel returns the bot generation label.
+	BotGenerationLabel() string
 }
 
 // NewUser creates new empty user
@@ -170,6 +178,16 @@ func (u *UserV2) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (u *UserV2) SetResourceID(id int64) {
 	u.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (u *UserV2) GetRevision() string {
+	return u.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (u *UserV2) SetRevision(rev string) {
+	u.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns object metadata
@@ -340,6 +358,16 @@ func (u *UserV2) SetGCPServiceAccounts(accounts []string) {
 	u.setTrait(constants.TraitGCPServiceAccounts, accounts)
 }
 
+// SetHostUserUID sets the host user UID
+func (u *UserV2) SetHostUserUID(uid string) {
+	u.setTrait(constants.TraitHostUserUID, []string{uid})
+}
+
+// SetHostUserGID sets the host user GID
+func (u *UserV2) SetHostUserGID(uid string) {
+	u.setTrait(constants.TraitHostUserGID, []string{uid})
+}
+
 // GetStatus returns login status of the user
 func (u *UserV2) GetStatus() LoginStatus {
 	return u.Spec.Status
@@ -444,6 +472,17 @@ func (u UserV2) GetUserType() UserType {
 	}
 
 	return UserTypeSSO
+}
+
+// IsBot returns true if the user is a bot.
+func (u UserV2) IsBot() bool {
+	_, ok := u.GetMetadata().Labels[BotGenerationLabel]
+	return ok
+}
+
+// BotGenerationLabel returns the bot generation label.
+func (u UserV2) BotGenerationLabel() string {
+	return u.GetMetadata().Labels[BotGenerationLabel]
 }
 
 func (u *UserV2) String() string {

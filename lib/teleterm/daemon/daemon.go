@@ -16,6 +16,7 @@ package daemon
 
 import (
 	"context"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -29,16 +30,26 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
-// tshdEventsTimeout is the maximum amount of time the gRPC client managed by the tshd daemon will
-// wait for a response from the tshd events server managed by the Electron app. This timeout
-// should be used for quick one-off calls where the client doesn't need the server or the user to
-// perform any additional work, such as the SendNotification RPC.
-const tshdEventsTimeout = time.Second
+const (
+	// tshdEventsTimeout is the maximum amount of time the gRPC client managed by the tshd daemon will
+	// wait for a response from the tshd events server managed by the Electron app. This timeout
+	// should be used for quick one-off calls where the client doesn't need the server or the user to
+	// perform any additional work, such as the SendNotification RPC.
+	tshdEventsTimeout = time.Second
+
+	// imporantModalWaitDuraiton is the amount of time to wait between sending tshd events that
+	// display important modals in the Electron App. This ensures a clear transition between modals.
+	imporantModalWaitDuraiton = time.Second / 2
+
+	// The Electron App can only display one important modal at a time.
+	maxConcurrentImportantModals = 1
+)
 
 // New creates an instance of Daemon service
 func New(cfg Config) (*Service, error) {
@@ -68,12 +79,17 @@ func New(cfg Config) (*Service, error) {
 
 // relogin makes the Electron app display a login modal to trigger re-login.
 func (s *Service) relogin(ctx context.Context, req *api.ReloginRequest) error {
-	// The Electron app cannot display two login modals at the same time, so we have to cut short any
-	// concurrent relogin requests.
+	// Relogin may be triggered by multiple gateways simultaneously. To prevent
+	// redundant relogin requests, cut short additional relogin requests.
 	if !s.reloginMu.TryLock() {
 		return trace.AlreadyExists("another relogin request is in progress")
 	}
 	defer s.reloginMu.Unlock()
+
+	if err := s.importantModalSemaphore.Acquire(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	defer s.importantModalSemaphore.Release()
 
 	const reloginUserTimeout = time.Minute
 	timeoutCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, reloginUserTimeout)
@@ -223,7 +239,7 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := s.StopHeadlessWatcher(uri); err != nil {
+	if err := s.StopHeadlessWatcher(uri); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
@@ -258,18 +274,13 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
-	cliCommandProvider, err := s.getGatewayCLICommandProvider(targetURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             targetURI,
 		TargetUser:            params.TargetUser,
 		TargetSubresourceName: params.TargetSubresourceName,
 		LocalPort:             params.LocalPort,
-		CLICommandProvider:    cliCommandProvider,
 		OnExpiredCert:         s.reissueGatewayCerts,
+		KubeconfigsDir:        s.cfg.KubeconfigsDir,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -286,17 +297,6 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	s.gateways[gateway.URI().String()] = gateway
 
 	return gateway, nil
-}
-
-func (s *Service) getGatewayCLICommandProvider(targetURI uri.ResourceURI) (gateway.CLICommandProvider, error) {
-	switch {
-	case targetURI.IsDB():
-		return s.cfg.DBCLICommandProvider, nil
-	case targetURI.IsKube():
-		return s.cfg.KubeCLICommandProvider, nil
-	default:
-		return nil, trace.NotImplemented("gateway not supported for %v", targetURI)
-	}
 }
 
 // reissueGatewayCerts tries to reissue gateway certs.
@@ -401,6 +401,28 @@ func (s *Service) ListGateways() []gateway.Gateway {
 	}
 
 	return gws
+}
+
+// GetGatewayCLICommand creates the CLI command used for the provided gateway.
+func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (*exec.Cmd, error) {
+	targetURI := gateway.TargetURI()
+	switch {
+	case targetURI.IsDB():
+		cluster, _, err := s.cfg.Storage.GetByResourceURI(targetURI)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cmd, err := cmd.NewDBCLICommand(cluster, gateway)
+		return cmd, trace.Wrap(err)
+
+	case targetURI.IsKube():
+		cmd, err := cmd.NewKubeCLICommand(gateway)
+		return cmd, trace.Wrap(err)
+
+	default:
+		return nil, trace.NotImplemented("gateway not supported for %v", targetURI)
+	}
 }
 
 // SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
@@ -671,6 +693,7 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	client := api.NewTshdEventsServiceClient(conn)
 
 	s.tshdEventsClient = client
+	s.importantModalSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
 
 	// Resume headless watchers for any active login sessions.
 	if err := s.StartHeadlessWatchers(); err != nil {
@@ -818,6 +841,15 @@ type Service struct {
 	gateways map[string]gateway.Gateway
 	// tshdEventsClient is a client to send events to the Electron App.
 	tshdEventsClient api.TshdEventsServiceClient
+	// The Electron App can only display one important Modal at a time. tshd events
+	// that trigger an important modal (relogin, headless login) should use this
+	// lock to ensure it doesn't overwrite existing tshd-initiated important modals.
+	//
+	// We use a semaphore instead of a mutex in order to cancel important modals that
+	// are no longer relevant before acquisition.
+	//
+	// We use a waitSemaphore in order to make sure there is a clear transition between modals.
+	importantModalSemaphore *waitSemaphore
 	// usageReporter batches the events and sends them to prehog
 	usageReporter *usagereporter.UsageReporter
 	// reloginMu is used when a goroutine needs to request a relogin from the Electron app. Since the
@@ -833,4 +865,34 @@ type CreateGatewayParams struct {
 	TargetUser            string
 	TargetSubresourceName string
 	LocalPort             string
+}
+
+// waitSemaphore is a semaphore that waits for a specified duration between acquisitions.
+type waitSemaphore struct {
+	semC         chan struct{}
+	lastRelease  time.Time
+	waitDuration time.Duration
+}
+
+func newWaitSemaphore(maxConcurrency int, waitDuration time.Duration) *waitSemaphore {
+	return &waitSemaphore{
+		semC:         make(chan struct{}, maxConcurrency),
+		waitDuration: waitDuration,
+	}
+}
+
+func (s *waitSemaphore) Acquire(ctx context.Context) error {
+	select {
+	case s.semC <- struct{}{}:
+		// wait up to the specified wait duration before returning.
+		time.Sleep(s.waitDuration - time.Since(s.lastRelease))
+		return nil
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
+}
+
+func (s *waitSemaphore) Release() {
+	s.lastRelease = time.Now()
+	<-s.semC
 }

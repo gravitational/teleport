@@ -21,8 +21,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
-	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -46,6 +46,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -59,9 +60,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -75,8 +79,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -90,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -187,7 +192,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("AuthLocalNodeControlStream", suite.bind(testAuthLocalNodeControlStream))
 	t.Run("AgentlessConnection", suite.bind(testAgentlessConnection))
 	t.Run("LeafAgentlessConnection", suite.bind(testTrustedClusterAgentless))
-	t.Run("ReconcileLabels", suite.bind(testReconcileLabels))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
@@ -222,9 +226,9 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 	site := teleInstance.GetSiteAPI(helpers.Site)
 	require.NotNil(t, site)
 
-	accessDenied := func(t require.TestingT, err error, i ...interface{}) {
+	connectionProblem := func(t require.TestingT, err error, i ...interface{}) {
 		require.Error(t, err, i...)
-		require.True(t, trace.IsAccessDenied(err), "expected an access denied error, got: %v", err)
+		require.True(t, trace.IsConnectionProblem(err), "expected a connection problem error, got: %v", err)
 	}
 
 	testCases := []struct {
@@ -240,12 +244,12 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 		{
 			desc:         "Wrong connecting IPv4",
 			ip:           "1.2.3.4",
-			errAssertion: accessDenied,
+			errAssertion: connectionProblem,
 		},
 		{
 			desc:         "Wrong connecting IPv6",
 			ip:           "1843:4545::12",
-			errAssertion: accessDenied,
+			errAssertion: connectionProblem,
 		},
 	}
 
@@ -255,6 +259,7 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 				Login:    suite.Me.Username,
 				Cluster:  helpers.Site,
 				Host:     Host,
+				Port:     helpers.Port(t, teleInstance.SSH),
 				SourceIP: test.ip,
 			})
 			require.NoError(t, err)
@@ -2130,7 +2135,7 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 				if badErrorErr := tc.verifyError(err); badErrorErr != nil {
 					asyncErrors <- badErrorErr
 				}
-			} else if err != nil && !trace.IsEOF(err) && !isSSHError(err) {
+			} else if err != nil && !errors.Is(err, io.EOF) && !isSSHError(err) {
 				asyncErrors <- fmt.Errorf("expected EOF, ExitError, or nil, got %v instead", err)
 				return
 			}
@@ -3774,14 +3779,23 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	tc, err := main.NewClientWithCreds(helpers.ClientConfig{
+	// create client for leaf cluster through root cluster
+	leafTC, err := main.NewClientWithCreds(helpers.ClientConfig{
 		Login:   username,
 		Cluster: clusterAux,
 		Host:    aux.InstanceListeners.ReverseTunnel,
 	}, *creds)
 	require.NoError(t, err)
 
-	testAgentlessConn(t, tc, node)
+	// create client for root cluster
+	tc, err := main.NewClient(helpers.ClientConfig{
+		Login:   suite.Me.Username,
+		Cluster: clusterMain,
+		Host:    main.InstanceListeners.ReverseTunnel,
+	})
+	require.NoError(t, err)
+
+	testAgentlessConn(t, leafTC, tc, node)
 
 	// Stop clusters and remaining nodes.
 	require.NoError(t, main.StopAll())
@@ -4032,8 +4046,21 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, "cluster-remote", 1)
 	helpers.WaitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
 
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// once the tunnel is established we need to wait until we have a
+		// connection to the remote auth
+		site := main.GetSiteAPI("cluster-remote")
+		if !assert.NotNil(t, site) {
+			return
+		}
+		// we need to wait until we know about the node because direct dial to
+		// unregistered servers is no longer supported
+		_, err := site.GetNode(ctx, apidefaults.Namespace, main.Config.HostUUID)
+		assert.NoError(t, err)
+	}, time.Minute, 250*time.Millisecond)
+
 	// Requests going via main proxy should succeed.
-	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 40)
+	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
 
@@ -4460,15 +4487,12 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 			if tt.outError {
 				require.Error(t, err)
 			} else {
-				if err != nil {
-					// If an *exec.ExitError is returned, parse it and return stderr. If this
-					// is not done then c.Assert will just print a byte array for the error.
-					er, ok := err.(*exec.ExitError)
-					if ok {
-						t.Fatalf("Unexpected error: %v", string(er.Stderr))
-					}
+				// ensure stderr is printed as a string rather than bytes
+				var stderr string
+				if e, ok := err.(*exec.ExitError); ok {
+					stderr = string(e.Stderr)
 				}
-				require.NoError(t, err)
+				require.NoError(t, err, "stderr=%q", stderr)
 				require.Equal(t, tt.outExecOutput, strings.TrimSpace(string(output)))
 			}
 		})
@@ -4560,15 +4584,13 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 
 				// Execute SSH command and check the output is what we expect.
 				output, err := execCmd.Output()
-				if err != nil {
-					// If an *exec.ExitError is returned, parse it and return stderr. If this
-					// is not done then c.Assert will just print a byte array for the error.
-					er, ok := err.(*exec.ExitError)
-					if ok {
-						t.Fatalf("Unexpected error: %v", string(er.Stderr))
-					}
+
+				// ensure stderr is printed as a string rather than bytes
+				var stderr string
+				if e, ok := err.(*exec.ExitError); ok {
+					stderr = string(e.Stderr)
 				}
-				require.NoError(t, err)
+				require.NoError(t, err, "stderr=%q", stderr)
 				require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "hello"))
 			}
 		})
@@ -4651,6 +4673,18 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 				Port:         nodePort,
 				ForwardAgent: true,
 			}
+
+			// Create the node
+			clt := instance.Process.GetAuthServer()
+			server, err := types.NewServer("name", types.KindNode, types.ServerSpecV2{
+				Addr:     net.JoinHostPort(Host, strconv.Itoa(nodePort)),
+				Hostname: "localhost",
+			})
+			require.NoError(t, err)
+			server.SetSubKind(types.SubKindOpenSSHNode)
+			_, err = clt.UpsertNode(context.Background(), server)
+			require.NoError(t, err)
+
 			_, err = runCommand(t, instance, []string{"echo hello"}, clientConfig, 1)
 
 			// check if we were able to exec the command or not
@@ -7180,24 +7214,26 @@ func TestTraitsPropagation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run command in root.
-	outputRoot, err := runCommand(t, rc, []string{"echo", "hello root"}, helpers.ClientConfig{
-		Login:   me.Username,
-		Cluster: "root.example.com",
-		Host:    Loopback,
-		Port:    helpers.Port(t, rc.SSH),
-	}, 1)
-	require.NoError(t, err)
-	require.Equal(t, "hello root", strings.TrimSpace(outputRoot))
+	require.Eventually(t, func() bool {
+		outputRoot, err := runCommand(t, rc, []string{"echo", "hello root"}, helpers.ClientConfig{
+			Login:   me.Username,
+			Cluster: "root.example.com",
+			Host:    Loopback,
+			Port:    helpers.Port(t, rc.SSH),
+		}, 1)
+		return err == nil && strings.TrimSpace(outputRoot) == "hello root"
+	}, time.Second*30, time.Millisecond*100)
 
 	// Run command in leaf.
-	outputLeaf, err := runCommand(t, rc, []string{"echo", "hello leaf"}, helpers.ClientConfig{
-		Login:   me.Username,
-		Cluster: "leaf.example.com",
-		Host:    Loopback,
-		Port:    helpers.Port(t, lc.SSH),
-	}, 1)
-	require.NoError(t, err)
-	require.Equal(t, "hello leaf", strings.TrimSpace(outputLeaf))
+	require.Eventually(t, func() bool {
+		outputLeaf, err := runCommand(t, rc, []string{"echo", "hello leaf"}, helpers.ClientConfig{
+			Login:   me.Username,
+			Cluster: "leaf.example.com",
+			Host:    Loopback,
+			Port:    helpers.Port(t, lc.SSH),
+		}, 1)
+		return err == nil && strings.TrimSpace(outputLeaf) == "hello leaf"
+	}, time.Second*30, time.Millisecond*100)
 }
 
 // testSessionStreaming tests streaming events from session recordings.
@@ -7581,7 +7617,7 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 	for _, proxyProtocolEnabled := range []bool{false, true} {
 		t.Run(fmt.Sprintf("proxy protocol: %v", proxyProtocolEnabled), func(t *testing.T) {
 			lib.SetInsecureDevMode(true)
-			defer lib.SetInsecureDevMode(false)
+			t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
 			// Create a Teleport instance with Auth/Proxy.
 			mainConfig := suite.defaultServiceConfig()
@@ -7610,6 +7646,53 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err, "Node failed to join over reverse tunnel")
 		})
 	}
+
+	// Assert that gRPC-based join methods work over reverse tunnel.
+	t.Run("gRPC join service", func(t *testing.T) {
+		lib.SetInsecureDevMode(true)
+		defer lib.SetInsecureDevMode(false)
+
+		// Create a Teleport instance with Auth/Proxy.
+		mainConfig := suite.defaultServiceConfig()
+		mainConfig.Auth.Enabled = true
+
+		mainConfig.Proxy.Enabled = true
+		mainConfig.Proxy.DisableWebService = false
+		mainConfig.Proxy.DisableWebInterface = true
+
+		mainConfig.SSH.Enabled = false
+
+		main := suite.NewTeleportWithConfig(t, nil, nil, mainConfig)
+		t.Cleanup(func() { require.NoError(t, main.StopAll()) })
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		dialer := apiclient.NewDialer(
+			ctx,
+			apidefaults.DefaultIdleTimeout,
+			apidefaults.DefaultIOTimeout,
+		)
+		tlsConfig := utils.TLSConfig(nil)
+		tlsConfig.InsecureSkipVerify = true
+		tlsConfig.NextProtos = []string{string(common.ProtocolProxyGRPCInsecure)}
+		conn, err := grpc.Dial(
+			main.ReverseTunnel,
+			grpc.WithContextDialer(apiclient.GRPCContextDialer(dialer)),
+			grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
+			grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
+			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		)
+		require.NoError(t, err)
+		joinServiceClient := apiclient.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
+		_, err = joinServiceClient.RegisterUsingAzureMethod(ctx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
+			return &proto.RegisterUsingAzureMethodRequest{
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{},
+			}, nil
+		})
+		// We don't care about the join succeeding, we just want to confirm
+		// that gRPC works.
+		require.True(t, trace.IsBadParameter(trail.FromGRPC(err)), err)
+	})
 }
 
 func getRemoteAddrString(sshClientString string) string {
@@ -7792,8 +7875,8 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	})
 
 	// get OpenSSH CA public key and create host certs
-	authClient := teleInst.Process.GetAuthServer()
-	node := createAgentlessNode(t, authClient, helpers.Site, "agentless-node")
+	authSrv := teleInst.Process.GetAuthServer()
+	node := createAgentlessNode(t, authSrv, helpers.Site, "agentless-node")
 
 	// create client
 	tc, err := teleInst.NewClient(helpers.ClientConfig{
@@ -7803,85 +7886,12 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	testAgentlessConn(t, tc, node)
-}
-
-// testReconcileLabels verifies that an SSH server's labels can be updated by
-// upserting a corresponding ServerInfo to the auth server.
-func testReconcileLabels(t *testing.T, suite *integrationTestSuite) {
-	// Create Teleport cluster.
-	cfg := suite.defaultServiceConfig()
-	cfg.CachePolicy.Enabled = false
-	cfg.Proxy.DisableWebService = true
-	cfg.Proxy.DisableWebInterface = true
-	cfg.SSH.Labels = map[string]string{"foo": "bar"}
-	teleInst := suite.NewTeleportWithConfig(t, nil, nil, cfg)
-
-	t.Cleanup(func() { require.NoError(t, teleInst.StopAll()) })
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	require.NoError(t, helpers.WaitForNodeCount(ctx, teleInst, helpers.Site, 1))
-
-	authServer := teleInst.Process.GetAuthServer()
-	servers, err := authServer.GetNodes(ctx, defaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, servers, 1)
-
-	server := servers[0]
-	serverName := server.GetName()
-	require.Equal(t, map[string]string{"foo": "bar"}, server.GetStaticLabels())
-	server.SetCloudMetadata(&types.CloudMetadata{
-		AWS: &types.AWSInfo{
-			AccountID:  "my-account",
-			InstanceID: "my-instance",
-		},
-	})
-	_, err = authServer.UpsertNode(ctx, server)
-	require.NoError(t, err)
-
-	// Update the server's labels.
-	labels := map[string]string{"a": "1", "b": "2"}
-	serverInfo, err := types.NewServerInfo(types.Metadata{
-		Name:   "aws-my-account-my-instance",
-		Labels: labels,
-	}, types.ServerInfoSpecV1{})
-	require.NoError(t, err)
-	serverInfo.SetSubKind(types.SubKindCloudInfo)
-	require.NoError(t, authServer.UpsertServerInfo(ctx, serverInfo))
-
-	watcher, err := authServer.NewWatcher(ctx, types.Watch{
-		Kinds: []types.WatchKind{
-			{
-				Kind: types.KindNode,
-			},
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, watcher.Close()) })
-
-	timeout := time.After(5 * time.Second)
-	// Wait for server to receive updated labels.
-	for {
-		select {
-		case <-timeout:
-			require.Fail(t, "Timed out waiting for server update")
-		case event := <-watcher.Events():
-			if event.Type != types.OpPut || event.Resource.GetName() != serverName {
-				continue
-			}
-			if utils.StringMapsEqual(
-				map[string]string{"foo": "bar", "a": "1", "b": "2"},
-				event.Resource.GetMetadata().Labels,
-			) {
-				return
-			}
-		}
-	}
+	testAgentlessConn(t, tc, tc, node)
 }
 
 func createAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nodeHostname string) *types.ServerV2 {
+	t.Helper()
+
 	ctx := context.Background()
 	openSSHCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.OpenSSHCA,
@@ -7966,6 +7976,8 @@ func createAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 // OpenSSH (agentless) server. The SSH server started only handles a small
 // subset of SSH requests necessary for testing.
 func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer) string {
+	t.Helper()
+
 	sshCfg := ssh.ServerConfig{
 		PublicKeyCallback: func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 			cert, ok := key.(*ssh.Certificate)
@@ -7994,20 +8006,24 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		nConn, err := lis.Accept()
 		assert.NoError(t, err)
 		t.Cleanup(func() {
-			// the error is ignored here to avoid failing on net.ErrClosed
-			_ = nConn.Close()
+			if nConn != nil {
+				// the error is ignored here to avoid failing on net.ErrClosed
+				_ = nConn.Close()
+			}
 		})
 
 		conn, channels, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
 		assert.NoError(t, err)
 		t.Cleanup(func() {
-			// the error is ignored here to avoid failing on net.ErrClosed
-			_ = conn.Close()
+			if conn != nil {
+				// the error is ignored here to avoid failing on net.ErrClosed
+				_ = conn.Close()
+			}
 		})
 		go ssh.DiscardRequests(reqs)
 
 		var agentForwarded bool
-		var cmdRequested bool
+		var shellRequested bool
 		for channelReq := range channels {
 			assert.Equal(t, "session", channelReq.ChannelType())
 			channel, reqs, err := channelReq.Accept()
@@ -8023,25 +8039,24 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 				}
 				if req.Type == sshutils.AgentForwardRequest {
 					agentForwarded = true
-				} else if req.Type == sshutils.ExecRequest {
-					_, err = channel.SendRequest("exit-status", false, binary.BigEndian.AppendUint32(nil, 0))
-					assert.NoError(t, err)
-					err = channel.Close()
-					assert.NoError(t, err)
+				} else if req.Type == sshutils.ShellRequest {
+					assert.NoError(t, channel.Close())
 
-					cmdRequested = true
+					shellRequested = true
 					break
 				}
 			}
 		}
 		assert.True(t, agentForwarded)
-		assert.True(t, cmdRequested)
+		assert.True(t, shellRequested)
 	}()
 
 	return lis.Addr().String()
 }
 
-func testAgentlessConn(t *testing.T, tc *client.TeleportClient, node *types.ServerV2) {
+func testAgentlessConn(t *testing.T, tc, joinTC *client.TeleportClient, node *types.ServerV2) {
+	t.Helper()
+
 	// connect to cluster
 	ctx := context.Background()
 	clt, err := tc.ConnectToCluster(ctx)
@@ -8049,6 +8064,16 @@ func testAgentlessConn(t *testing.T, tc *client.TeleportClient, node *types.Serv
 	t.Cleanup(func() {
 		require.NoError(t, clt.Close())
 	})
+
+	// connect to other cluster if needed
+	joinClt := clt
+	if tc != joinTC {
+		joinClt, err = joinTC.ConnectToCluster(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, joinClt.Close())
+		})
+	}
 
 	// connect to node
 	_, port, err := net.SplitHostPort(node.Spec.Addr)
@@ -8103,9 +8128,26 @@ func testAgentlessConn(t *testing.T, tc *client.TeleportClient, node *types.Serv
 
 	require.NoError(t, agent.RequestAgentForwarding(session))
 
-	// run a command
-	err = session.Run("cmd")
-	require.NoError(t, err)
+	// request a shell so Teleport starts tracking this session
+	session.Stderr = io.Discard
+	session.Stdout = io.Discard
+	require.NoError(t, session.Shell())
+
+	var sessTracker types.SessionTracker
+	require.Eventually(t, func() bool {
+		trackers, err := joinClt.AuthClient.GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+		if len(trackers) == 1 {
+			sessTracker = trackers[0]
+			return true
+		}
+		return false
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// test that attempting to join the session returns an error
+	err = joinTC.Join(ctx, types.SessionPeerMode, tc.Namespace, rsession.ID(sessTracker.GetSessionID()), nil)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorContains(t, err, "session joining is only supported for Teleport nodes, not OpenSSH nodes")
 
 	// test that SSH agent channel is closed properly
 	select {
@@ -8593,25 +8635,23 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 			panic("this should not be called")
 		})
 
-	oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
+	oldStdin := prompt.Stdin()
+	prompt.SetStdin(inputReader)
 	t.Cleanup(func() {
 		prompt.SetStdin(oldStdin)
-		*client.PromptWebauthn = oldWebauthn
 	})
 
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
 	device.SetPasswordless()
-
-	prompt.SetStdin(inputReader)
-	*client.PromptWebauthn = func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+	customWebauthnLogin := func(ctx context.Context, realOrigin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 		car, err := device.SignAssertion("https://127.0.0.1", assertion) // use the fake origin to prevent a mismatch
 		if err != nil {
 			return nil, "", err
 		}
 		return &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wanlib.CredentialAssertionResponseToProto(car),
+				Webauthn: wantypes.CredentialAssertionResponseToProto(car),
 			},
 		}, "", nil
 	}
@@ -8682,7 +8722,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 			DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 		})
 		require.NoError(t, err)
-		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+		cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
 		ccr, err := device.SignCredentialCreation("https://127.0.0.1", cc)
 		require.NoError(t, err)
@@ -8691,7 +8731,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 			NewPassword: []byte(password),
 			NewMFARegisterResponse: &proto.MFARegisterResponse{
 				Response: &proto.MFARegisterResponse_Webauthn{
-					Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+					Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 				},
 			},
 		})
@@ -8721,6 +8761,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 			return
 		}
 
+		cl.WebauthnLogin = customWebauthnLogin
 		cl.Stdout = peerTerminal
 		cl.Stdin = peerTerminal
 		if err := cl.SSH(ctx, []string{}, false); err != nil {
@@ -8751,6 +8792,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 			return
 		}
 
+		cl.WebauthnLogin = customWebauthnLogin
 		cl.Stdout = moderatorTerminal
 		cl.Stdin = moderatorTerminal
 		if err := cl.Join(ctx, types.SessionModeratorMode, defaults.Namespace, session.ID(sessionID), moderatorTerminal); err != nil {

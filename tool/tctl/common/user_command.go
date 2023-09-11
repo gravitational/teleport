@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,6 +56,10 @@ type UserCommand struct {
 	allowedAzureIdentities    []string
 	allowedGCPServiceAccounts []string
 	allowedRoles              []string
+	hostUserUID               string
+	hostUserUIDProvided       bool
+	hostUserGID               string
+	hostUserGIDProvided       bool
 
 	ttl time.Duration
 
@@ -88,6 +93,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	u.userAdd.Flag("aws-role-arns", "List of allowed AWS role ARNs for the new user").StringsVar(&u.allowedAWSRoleARNs)
 	u.userAdd.Flag("azure-identities", "List of allowed Azure identities for the new user").StringsVar(&u.allowedAzureIdentities)
 	u.userAdd.Flag("gcp-service-accounts", "List of allowed GCP service accounts for the new user").StringsVar(&u.allowedGCPServiceAccounts)
+	u.userAdd.Flag("host-user-uid", "UID for auto provisioned host users to use").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
+	u.userAdd.Flag("host-user-gid", "GID for auto provisioned host users to use").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
 
 	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.allowedRoles)
 
@@ -121,6 +128,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 		StringsVar(&u.allowedAzureIdentities)
 	u.userUpdate.Flag("set-gcp-service-accounts", "List of allowed GCP service accounts for the user, replaces current service accounts").
 		StringsVar(&u.allowedGCPServiceAccounts)
+	u.userUpdate.Flag("set-host-user-uid", "UID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
+	u.userUpdate.Flag("set-host-user-gid", "GID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
@@ -250,6 +259,17 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 		}
 	}
 
+	if u.hostUserUIDProvided && u.hostUserUID != "" {
+		if _, err := strconv.Atoi(u.hostUserUID); err != nil {
+			return trace.BadParameter("host user UID must be a numeric ID")
+		}
+	}
+	if u.hostUserGIDProvided && u.hostUserGID != "" {
+		if _, err := strconv.Atoi(u.hostUserGID); err != nil {
+			return trace.BadParameter("host user GID must be a numeric ID")
+		}
+	}
+
 	traits := map[string][]string{
 		constants.TraitLogins:             u.allowedLogins,
 		constants.TraitWindowsLogins:      u.allowedWindowsLogins,
@@ -261,6 +281,8 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 		constants.TraitAWSRoleARNs:        flattenSlice(u.allowedAWSRoleARNs),
 		constants.TraitAzureIdentities:    azureIdentities,
 		constants.TraitGCPServiceAccounts: gcpServiceAccounts,
+		constants.TraitHostUserUID:        {u.hostUserUID},
+		constants.TraitHostUserGID:        {u.hostUserGID},
 	}
 
 	user, err := types.NewUser(u.login)
@@ -414,6 +436,22 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 		}
 		user.SetGCPServiceAccounts(accounts)
 		updateMessages["GCP service accounts"] = accounts
+	}
+
+	if u.hostUserUIDProvided && u.hostUserUID != "" {
+		if _, err := strconv.Atoi(u.hostUserUID); err != nil {
+			return trace.BadParameter("host user UID must be a numeric ID")
+		}
+
+		user.SetHostUserUID(u.hostUserUID)
+		updateMessages["Host user UID"] = []string{u.hostUserUID}
+	}
+	if u.hostUserGIDProvided && u.hostUserGID != "" {
+		if _, err := strconv.Atoi(u.hostUserGID); err != nil {
+			return trace.BadParameter("host user GID must be a numeric ID")
+		}
+		user.SetHostUserGID(u.hostUserGID)
+		updateMessages["Host user GID"] = []string{u.hostUserGID}
 	}
 
 	if len(updateMessages) == 0 {

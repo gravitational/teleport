@@ -86,7 +86,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 
 	mfaClt := c
 	if target.Cluster != rootClusterName {
-		aclt, err := auth.NewClient(c.ProxyClient.ClientConfig(ctx, rootClusterName))
+		authClient, err := auth.NewClient(c.ProxyClient.ClientConfig(ctx, rootClusterName))
 		if err != nil {
 			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
@@ -94,12 +94,12 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 		mfaClt = &ClusterClient{
 			tc:          c.tc,
 			ProxyClient: c.ProxyClient,
-			AuthClient:  aclt,
+			AuthClient:  authClient,
 			Tracer:      c.Tracer,
 			cluster:     rootClusterName,
 		}
 		// only close the new auth client and not the copied cluster client.
-		defer aclt.Close()
+		defer authClient.Close()
 	}
 
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
@@ -313,7 +313,7 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, clt *ClusterClie
 		// Proceed with the prompt for MFA below.
 	}
 
-	mfaResp, err := clt.tc.PromptMFAChallenge(ctx, clt.tc.WebProxyAddr, mfaChal, nil /* applyOpts */)
+	mfaResp, err := clt.tc.PromptMFA(ctx, mfaChal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

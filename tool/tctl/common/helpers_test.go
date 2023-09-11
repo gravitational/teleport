@@ -36,7 +36,6 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -264,6 +263,9 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 }
 
 func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
+	if len(dbs) == 0 {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
@@ -290,28 +292,4 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service
 			t.Fatal("databases not registered after 10s")
 		}
 	}
-}
-
-func newDynamicServiceAddr(t *testing.T) *dynamicServiceAddr {
-	var fds []servicecfg.FileDescriptor
-	webAddr := helpers.NewListener(t, service.ListenerProxyWeb, &fds)
-	tunnelAddr := helpers.NewListener(t, service.ListenerProxyTunnel, &fds)
-	authAddr := helpers.NewListener(t, service.ListenerAuth, &fds)
-
-	return &dynamicServiceAddr{
-		descriptors: fds,
-		webAddr:     webAddr,
-		tunnelAddr:  tunnelAddr,
-		authAddr:    authAddr,
-	}
-}
-
-// dynamicServiceAddr collects listeners addresses and sockets descriptors allowing to create and network listeners
-// and pass the file descriptors to teleport service.
-// This is usefully when Teleport service is created from config file where a port is allocated by OS.
-type dynamicServiceAddr struct {
-	webAddr     string
-	tunnelAddr  string
-	authAddr    string
-	descriptors []servicecfg.FileDescriptor
 }

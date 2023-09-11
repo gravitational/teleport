@@ -471,11 +471,13 @@ func (b Bot) tryLookupChannel(ctx context.Context, team, name string) string {
 // FetchRecipient returns the recipient for the given raw recipient.
 func (b Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
 	var channel string
+	kind := "Channel"
 
 	// Recipients from config file could contain either email or team and
 	// channel names separated by '/' symbol. It's up to user what format to use.
 	if lib.IsEmail(recipient) {
 		channel = b.tryLookupDirectChannel(ctx, recipient)
+		kind = "Email"
 	} else {
 		parts := strings.Split(recipient, "/")
 		if len(parts) == 2 {
@@ -488,7 +490,7 @@ func (b Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Reci
 	return &common.Recipient{
 		Name: recipient,
 		ID:   channel,
-		Kind: "Channel",
+		Kind: kind,
 		Data: nil,
 	}, nil
 }

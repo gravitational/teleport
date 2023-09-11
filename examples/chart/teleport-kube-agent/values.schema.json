@@ -23,6 +23,7 @@
         "clusterRoleBindingName",
         "roleName",
         "roleBindingName",
+        "podMonitor",
         "serviceAccountName",
         "secretName",
         "log",
@@ -368,6 +369,29 @@
                 }
             }
         },
+        "podMonitor": {
+            "$id": "#/properties/podMonitor",
+            "type": "object",
+            "required": ["enabled"],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/podMonitor/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "additionalLabels": {
+                    "$id": "#/properties/podMonitor/additionalLabels",
+                    "type": "object",
+                    "default": {"prometheus": "default"},
+                    "additionalProperties": {"type": "string"}
+                },
+                "interval": {
+                    "$id": "#/properties/podMonitor/interval",
+                    "type": "string",
+                    "default": "30s"
+                }
+            }
+        },
         "priorityClassName": {
             "$id": "#/properties/priorityClassName",
             "type": "string",
@@ -504,6 +528,7 @@
                 "config",
                 "deployment",
                 "pod",
+                "secret",
                 "serviceAccount"
             ],
             "properties": {
@@ -519,6 +544,11 @@
                 },
                 "pod": {
                     "$id": "#/properties/annotations/properties/pod",
+                    "type": "object",
+                    "default": {}
+                },
+                "secret": {
+                    "$id": "#/properties/annotations/properties/secret",
                     "type": "object",
                     "default": {}
                 },
@@ -612,6 +642,34 @@
             "$id": "#/properties/probeTimeoutSeconds",
             "type": "integer",
             "default": 1
+        },
+        "kubernetesDiscovery": {
+            "$id": "#/properties/kubernetesDiscovery",
+            "type": "array",
+            "default": [],
+            "properties": {
+                "types": {
+                    "$id": "#/properties/kubernetesDiscovery/types",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                },
+                "namespaces": {
+                    "$id": "#/properties/kubernetesDiscovery/namespaces",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                },
+                "labels": {
+                    "$id": "#/properties/kubernetesDiscovery/labels",
+                    "type": "object"
+                },
+                "additionalProperties": false
+            }
         }
     }
 }

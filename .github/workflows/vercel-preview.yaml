@@ -1,0 +1,53 @@
+name: Deploy Vercel Preview
+permissions:
+  # Required in order to comment on PRs with a deployment link
+  pull-requests: write
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+on:
+  pull_request: 
+    paths: [ 'docs/**' ]
+    types: [ opened, reopened, edited, synchronize ]
+  workflow_dispatch:
+
+jobs:
+  deploy-vercel-preview:
+    name: Deploy Vercel preview
+    runs-on: ubuntu-latest
+    environment: vercel
+
+    steps:
+      - name: Extract branch name
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        id: extract_branch
+      - uses: actions/checkout@v3
+        with:
+          repository: 'gravitational/docs'
+      - name: Configure Submodules
+        run: |
+
+          sed -i "s|branch = master|branch = ${{ steps.extract_branch.outputs.branch }}|" '.gitmodules'
+          git submodule update --init --remote --progress
+      - name: Install Vercel CLI
+        run: yarn global add vercel@latest
+      - name: Pull Vercel Environment Information
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Build Project Artifacts
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Deploy Project Artifacts to Vercel
+        id: deploy
+        run: |
+          vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > deployment-url.txt
+          preview_url="$(cat deployment-url.txt)"
+          echo "PREVIEW_URL=$preview_url" >> $GITHUB_OUTPUT
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🤖 Vercel preview here: ${{ steps.deploy.outputs.PREVIEW_URL }}/docs/ver/14.x'
+            })

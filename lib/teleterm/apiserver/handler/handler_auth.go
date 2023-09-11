@@ -46,7 +46,8 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 		return nil, trace.BadParameter("unsupported login parameters")
 	}
 
-	if err := s.DaemonService.StartHeadlessWatcher(req.ClusterUri); err != nil {
+	// Don't wait for the headless watcher to initialize as this could slow down logins.
+	if err := s.DaemonService.StartHeadlessWatcher(req.ClusterUri, false /* waitInit */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -76,7 +77,8 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 		return trace.Wrap(err)
 	}
 
-	if err := s.DaemonService.StartHeadlessWatcher(initReq.GetClusterUri()); err != nil {
+	// Don't wait for the headless watcher to initialize as this could slow down logins.
+	if err := s.DaemonService.StartHeadlessWatcher(initReq.GetClusterUri(), false /* waitInit */); err != nil {
 		return trace.Wrap(err)
 	}
 

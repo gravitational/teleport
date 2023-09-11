@@ -73,8 +73,6 @@ type Config struct {
 	WebProxyAddr string
 	// Log is a component logger
 	Log *logrus.Entry
-	// CLICommandProvider returns a CLI command for the gateway
-	CLICommandProvider CLICommandProvider
 	// TCPPortAllocator creates listeners on the given ports. This interface lets us avoid occupying
 	// hardcoded ports in tests.
 	TCPPortAllocator TCPPortAllocator
@@ -91,8 +89,8 @@ type Config struct {
 	// RootClusterCACertPoolFunc is callback function to fetch Root cluster CAs
 	// when ALPN connection upgrade is required.
 	RootClusterCACertPoolFunc alpnproxy.GetClusterCACertPoolFunc
-	// ProfileDir specifies the tsh home dir of the user profile.
-	ProfileDir string
+	// KubeconfigsDir is the directory containing kubeconfigs for kube gateways.
+	KubeconfigsDir string
 }
 
 // OnExpiredCertFunc is the type of a function that is called when a new downstream connection is
@@ -129,10 +127,6 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.TargetURI.String() == "" {
 		return trace.BadParameter("missing target URI")
-	}
-
-	if c.CLICommandProvider == nil {
-		return trace.BadParameter("missing CLICommandProvider")
 	}
 
 	if c.TCPPortAllocator == nil {

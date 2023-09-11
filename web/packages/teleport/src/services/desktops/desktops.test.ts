@@ -26,6 +26,7 @@ test('correct formatting of desktops fetch response', async () => {
   expect(response).toEqual({
     agents: [
       {
+        kind: 'windows_desktop',
         os: 'windows',
         name: 'DC1-teleport-demo',
         addr: '10.0.0.10',

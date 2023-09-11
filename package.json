@@ -21,6 +21,7 @@
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --noEmit",
     "prettier-check": "yarn prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx}'",
     "prettier-write": "yarn prettier --write --loglevel silent '+(e|web)/**/*.{ts,tsx,js,jsx}'",
+    "process-icons": "node web/packages/design/src/Icon/script/script.js & yarn prettier --loglevel silent --write 'web/packages/design/src/Icon/Icons/*.tsx'",
     "nop": "exit 0"
   },
   "private": true,

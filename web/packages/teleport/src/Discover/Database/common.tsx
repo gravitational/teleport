@@ -18,14 +18,15 @@ import React from 'react';
 import { Box, Label as Pill, Text } from 'design';
 import * as Icons from 'design/Icon';
 
-import { AgentLabel } from 'teleport/services/agents';
+import { ResourceLabel } from 'teleport/services/agents';
 import { LabelsCreater, Mark, TextIcon } from 'teleport/Discover/Shared';
 import { Regions } from 'teleport/services/integrations';
 
 // serviceDeployedMethod is a flag to determine if user opted to
-// deploy database service automagically (teleport deploys for user)
-// or manually (user has their own server).
-export type ServiceDeployMethod = 'auto' | 'manual';
+// deploy database service automagically (teleport deploys for user),
+// manually (user has their own server), or deploying service was
+// skipped due to an existing one.
+export type ServiceDeployMethod = 'auto' | 'manual' | 'skipped';
 
 export const Labels = ({
   labels,
@@ -36,10 +37,10 @@ export const Labels = ({
   autoFocus = true,
   region,
 }: {
-  labels: AgentLabel[];
-  setLabels(l: AgentLabel[]): void;
+  labels: ResourceLabel[];
+  setLabels(l: ResourceLabel[]): void;
   disableBtns?: boolean;
-  dbLabels: AgentLabel[];
+  dbLabels: ResourceLabel[];
   showLabelMatchErr?: boolean;
   autoFocus?: boolean;
   region?: Regions;
@@ -102,7 +103,7 @@ export const Labels = ({
       <Box mt={1} mb={3}>
         {showLabelMatchErr && (
           <TextIcon>
-            <Icons.Warning ml={1} color="error.main" />
+            <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
             The matcher labels must be able to match with the labels defined for
             the registered database. Use wildcards to match with any labels.
           </TextIcon>
@@ -113,7 +114,7 @@ export const Labels = ({
 };
 
 export function matchLabels(
-  newDbLabels: AgentLabel[],
+  newDbLabels: ResourceLabel[],
   matcherLabels: Record<string, string[]>
 ) {
   // Sorting to match by asteriks sooner.
@@ -191,8 +192,8 @@ export function matchLabels(
 //  - `*: apple` match by value `apple` with any key
 //  - `*: *` match by any key and any value
 export function hasMatchingLabels(
-  dbLabels: AgentLabel[],
-  agentLabels: AgentLabel[]
+  dbLabels: ResourceLabel[],
+  agentLabels: ResourceLabel[]
 ) {
   // Convert agentLabels into a map of key of value arrays.
   const matcherLabels: Record<string, string[]> = {};

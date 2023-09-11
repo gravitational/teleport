@@ -22,6 +22,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path"
@@ -57,7 +58,7 @@ func BlockUntilGatewayAcceptsConnections(t *testing.T, address string) {
 	// httptest.NewTLSServer) doesn't support.
 	//
 	// So we just expect EOF here. In case of a timeout, this check will fail.
-	require.True(t, trace.IsEOF(err), "expected EOF, got %v", err)
+	require.ErrorIs(t, err, io.EOF, "expected EOF, got %v", err)
 
 	err = conn.Close()
 	require.NoError(t, err)

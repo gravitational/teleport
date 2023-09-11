@@ -52,8 +52,12 @@ for i in "${!SRC_DIRECTORIES[@]}"; do
 done
 
 function calculate_sha() {
-  #shellcheck disable=SC2005,SC2086
-  echo "$(find "${SRC_DIRECTORIES[@]}" "$ROOT_PATH/package.json" "$ROOT_PATH/yarn.lock" -not \( -type d -name node_modules -prune \) -type f -print0 | LC_ALL=C sort -z | xargs -0 $SHASUM | awk '{print $1}' | $SHASUM | tr -d ' -')"  
+  #shellcheck disable=SC2086
+  #We want to split $SHASUM on spaces so we dont want it quoted.
+  find "${SRC_DIRECTORIES[@]}" "$ROOT_PATH/package.json" "$ROOT_PATH/yarn.lock" \
+	  -not \( -type d \( -name node_modules -o -name .swc \) -prune \) \
+	  -type f -print0 | \
+	  LC_ALL=C sort -z | xargs -0 $SHASUM | awk '{print $1}' | $SHASUM | tr -d ' -'
 }
 
 # Calculate the current hash-of-hashes of the given source directories. Adds in package.json as well.
@@ -79,7 +83,7 @@ if [ "$BUILD" = "true" ]; then \
   # updated by the build process.
   mkdir -p "$(dirname "$LAST_SHA_FILE")"
   # Save SHA with yarn.lock before yarn install
-  echo $CURRENT_SHA > "$LAST_SHA_FILE"
+  echo "$CURRENT_SHA" > "$LAST_SHA_FILE"
   echo "$TYPE webassets successfully updated."
 else
   echo "$TYPE webassets up to date."

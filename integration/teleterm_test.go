@@ -109,7 +109,8 @@ func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 	require.NoError(t, err)
 
 	daemonService, err := daemon.New(daemon.Config{
-		Storage: storage,
+		Storage:        storage,
+		KubeconfigsDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -139,7 +140,8 @@ func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.Datab
 	require.NoError(t, err)
 
 	daemonService, err := daemon.New(daemon.Config{
-		Storage: storage,
+		Storage:        storage,
+		KubeconfigsDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -219,7 +221,8 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	require.NoError(t, err)
 
 	daemonService, err := daemon.New(daemon.Config{
-		Storage: storage,
+		Storage:        storage,
+		KubeconfigsDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -266,59 +269,47 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
 			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 		},
+		KubeconfigsDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		daemonService.Stop()
 	})
 
-	// Start the tshd event service and connect the daemon to it. This should also
-	// start a headless watcher for the connected cluster.
-
-	tshdEventsService, addr := newMockTSHDEventsServiceServer(t)
-	err = daemonService.UpdateAndDialTshdEventsServerAddress(addr)
-	require.NoError(t, err)
-
-	// Ensure the watcher catches events and sends them to the Electron App.
-
 	expires := pack.Root.Cluster.Config.Clock.Now().Add(time.Minute)
 	ha, err := types.NewHeadlessAuthentication(pack.Root.User.GetName(), "uuid", expires)
 	require.NoError(t, err)
 	ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
 
-	eventuallyCatchAndSendHeadlessAuthn := func(t require.TestingT) {
-		tshdEventsService.sendPendingHeadlessAuthenticationCount.Store(0)
+	// Start the tshd event service and connect the daemon to it.
 
-		err = pack.Root.Cluster.Process.GetAuthServer().UpsertHeadlessAuthentication(ctx, ha)
-		require.NoError(t, err)
-
-		assert.Eventually(t, func() bool {
-			return tshdEventsService.sendPendingHeadlessAuthenticationCount.Load() == 1
-		}, 100*time.Millisecond, 20*time.Millisecond, "Expected tshdEventService to receive a SendPendingHeadlessAuthentication message")
-	}
-
-	// The watcher takes some amount of time to set up, so if we immediately upsert a headless
-	// authentication, it may not be caught by the watcher.
-	// require.Eventually(t, upsertAndWaitForEvent, time.Second, 100*time.Millisecond, "Expected tshdEventService to receive a SendPendingHeadlessAuthentication message")
-
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		eventuallyCatchAndSendHeadlessAuthn(collect)
-	}, time.Second, 100*time.Millisecond)
+	tshdEventsService, addr := newMockTSHDEventsServiceServer(t)
+	err = daemonService.UpdateAndDialTshdEventsServerAddress(addr)
+	require.NoError(t, err)
 
 	// Stop and restart the watcher twice to simulate logout + login + relogin. Ensure the watcher catches events.
 
 	err = daemonService.StopHeadlessWatcher(cluster.URI.String())
 	require.NoError(t, err)
-	err = daemonService.StartHeadlessWatcher(cluster.URI.String())
+	err = daemonService.StartHeadlessWatcher(cluster.URI.String(), false /* waitInit */)
 	require.NoError(t, err)
-	err = daemonService.StartHeadlessWatcher(cluster.URI.String())
+	err = daemonService.StartHeadlessWatcher(cluster.URI.String(), true /* waitInit */)
 	require.NoError(t, err)
 
 	// Ensure the watcher catches events and sends them to the Electron App.
 
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		eventuallyCatchAndSendHeadlessAuthn(collect)
-	}, time.Second, 100*time.Millisecond)
+	err = pack.Root.Cluster.Process.GetAuthServer().UpsertHeadlessAuthentication(ctx, ha)
+	assert.NoError(t, err)
+
+	assert.Eventually(t,
+		func() bool {
+			return tshdEventsService.sendPendingHeadlessAuthenticationCount.Load() == 1
+		},
+		10*time.Second,
+		500*time.Millisecond,
+		"Expected tshdEventService to receive 1 SendPendingHeadlessAuthentication message but got %v",
+		tshdEventsService.sendPendingHeadlessAuthenticationCount.Load(),
+	)
 }
 
 func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack) {
@@ -494,23 +485,19 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			_, err = auth.CreateUser(authServer, userName, userRoles...)
 			require.NoError(t, err)
 
-			// Log in as the new user.
-			creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-				Process:  pack.Root.Cluster.Process,
-				Username: userName,
-			})
-			require.NoError(t, err)
-			tc := mustLogin(t, userName, pack, creds)
+			userPassword := uuid
+			require.NoError(t, authServer.UpsertPassword(userName, []byte(userPassword)))
 
 			// Prepare daemon.Service.
 			storage, err := clusters.NewStorage(clusters.Config{
-				Dir:                tc.KeysDir,
-				InsecureSkipVerify: tc.InsecureSkipVerify,
+				Dir:                t.TempDir(),
+				InsecureSkipVerify: true,
 			})
 			require.NoError(t, err)
 
 			daemonService, err := daemon.New(daemon.Config{
-				Storage: storage,
+				Storage:        storage,
+				KubeconfigsDir: t.TempDir(),
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() {
@@ -523,10 +510,26 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			)
 			require.NoError(t, err)
 
-			// Call CreateConnectMyComputerRole.
 			rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 			require.NoError(t, err)
 			rootClusterURI := uri.NewClusterURI(rootClusterName).String()
+
+			// Log in as the new user.
+			// It's important to use the actual login handler rather than mustLogin. mustLogin completely
+			// skips the actual login flow and saves valid certs to disk. We already had a regression that
+			// was not caught by this test because the test did not trigger certain code paths because it
+			// was using mustLogin as a shortcut.
+			_, err = handler.AddCluster(ctx, &api.AddClusterRequest{Name: pack.Root.Cluster.Web})
+			require.NoError(t, err)
+			_, err = handler.Login(ctx, &api.LoginRequest{
+				ClusterUri: rootClusterURI,
+				Params: &api.LoginRequest_Local{
+					Local: &api.LoginRequest_LocalParams{User: userName, Password: userPassword},
+				},
+			})
+			require.NoError(t, err)
+
+			// Call CreateConnectMyComputerRole.
 			response, err := handler.CreateConnectMyComputerRole(ctx, &api.CreateConnectMyComputerRoleRequest{
 				RootClusterUri: rootClusterURI,
 			})
@@ -607,7 +610,9 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 	require.NoError(t, err)
 
 	daemonService, err := daemon.New(daemon.Config{
-		Storage: storage,
+		Clock:          fakeClock,
+		Storage:        storage,
+		KubeconfigsDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -679,6 +684,13 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 	require.True(t, trace.IsNotFound(err))
 }
 
+// mustLogin logs in as the given user by completely skipping the actual login flow and saving valid
+// certs to disk. clusters.Storage can then be pointed to tc.KeysDir and daemon.Service can act as
+// if the user was successfully logged in.
+//
+// This is faster than going through the actual process, but keep in mind that it might skip some
+// vital steps. It should be used only for tests which don't depend on complex user setup and do not
+// reissue certs or modify them in some other way.
 func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) *client.TeleportClient {
 	tc, err := pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   userName,
@@ -699,17 +711,28 @@ type mockTSHDEventsService struct {
 func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsService, addr string) {
 	tshdEventsService := &mockTSHDEventsService{}
 
-	ls, err := net.Listen("tcp", ":0")
+	ls, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer()
 	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
-	t.Cleanup(grpcServer.GracefulStop)
 
+	serveErr := make(chan error)
 	go func() {
-		err := grpcServer.Serve(ls)
-		assert.NoError(t, err)
+		serveErr <- grpcServer.Serve(ls)
 	}()
+
+	t.Cleanup(func() {
+		grpcServer.GracefulStop()
+
+		// For test cases that did not send any grpc calls, test may finish
+		// before grpcServer.Serve is called and grpcServer.Serve will return
+		// grpc.ErrServerStopped.
+		err := <-serveErr
+		if err != grpc.ErrServerStopped {
+			assert.NoError(t, err)
+		}
+	})
 
 	return tshdEventsService, ls.Addr().String()
 }

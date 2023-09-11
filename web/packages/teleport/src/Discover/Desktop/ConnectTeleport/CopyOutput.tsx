@@ -36,7 +36,7 @@ export function CopyOutput(props: React.PropsWithChildren<CopyOutputProps>) {
     <StepContent>
       <StepTitle>
         <StepTitleIcon>
-          <Icons.Clipboard />
+          <Icons.Clipboard size="extraLarge" />
         </StepTitleIcon>
         2. Copy the outputted Teleport config
       </StepTitle>

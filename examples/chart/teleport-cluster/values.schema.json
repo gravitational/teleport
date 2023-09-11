@@ -353,6 +353,11 @@
                     "type": "string",
                     "default": ""
                 },
+                "storageClassName": {
+                    "$id": "#/properties/persistence/properties/storageClassName",
+                    "type": "string",
+                    "default": ""
+                },
                 "volumeSize": {
                     "$id": "#/properties/persistence/properties/volumeSize",
                     "type": "string",
@@ -579,6 +584,11 @@
                     "properties": {
                         "addCommonName": {
                             "$id": "#/properties/highAvailability/properties/certManager/properties/addCommonName",
+                            "type": "boolean",
+                            "default": "false"
+                        },
+                        "addPublicAddrs": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/addPublicAddrs",
                             "type": "boolean",
                             "default": "false"
                         },

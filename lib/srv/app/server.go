@@ -269,7 +269,9 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		}
 	}()
 
-	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{})
+	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
+		Clock: c.Clock,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -700,7 +702,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 func (s *Server) handleConnection(conn net.Conn) (func(), error) {
-	ctx, cancel := context.WithCancel(s.closeContext)
+	ctx, cancel := context.WithCancelCause(s.closeContext)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   s.c.Clock,
@@ -1050,7 +1052,9 @@ func (s *Server) newHTTPServer(clusterName string) *http.Server {
 
 	return &http.Server{
 		Handler:           httplib.MakeTracingHandler(s.authMiddleware, teleport.ComponentApp),
-		ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {

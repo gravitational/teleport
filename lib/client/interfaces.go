@@ -419,11 +419,7 @@ func (k *Key) KubeTLSCert(kubeClusterName string) (tls.Certificate, error) {
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
 	}
-	keyPem, err := k.PrivateKey.RSAPrivateKeyPEM()
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	tlsCert, err := keys.X509KeyPair(certPem, keyPem)
+	tlsCert, err := k.PrivateKey.TLSCertificate(certPem)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

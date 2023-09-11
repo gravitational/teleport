@@ -43,7 +43,6 @@ export type UseTokenState = {
 
 // Note: QuestionnaireProps is duplicated in Enterprise (e-teleport/Welcome/Questionnaire/Questionnaire)
 export type QuestionnaireProps = {
-  full: boolean;
   onboard: boolean;
   username?: string;
   onSubmit?: () => void;
@@ -57,7 +56,6 @@ export type NewCredentialsProps = UseTokenState & {
   displayOnboardingQuestionnaire?: boolean;
   setDisplayOnboardingQuestionnaire?: (bool: boolean) => void;
   Questionnaire?: ({
-    full,
     onboard,
     username,
     onSubmit,

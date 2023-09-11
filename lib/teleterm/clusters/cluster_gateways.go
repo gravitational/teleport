@@ -35,10 +35,10 @@ type CreateGatewayParams struct {
 	// name on a database server.
 	TargetSubresourceName string
 	// LocalPort is the gateway local port
-	LocalPort          string
-	CLICommandProvider gateway.CLICommandProvider
-	TCPPortAllocator   gateway.TCPPortAllocator
-	OnExpiredCert      gateway.OnExpiredCertFunc
+	LocalPort        string
+	TCPPortAllocator gateway.TCPPortAllocator
+	OnExpiredCert    gateway.OnExpiredCertFunc
+	KubeconfigsDir   string
 }
 
 // CreateGateway creates a gateway
@@ -85,7 +85,6 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
 		Log:                           c.Log,
-		CLICommandProvider:            params.CLICommandProvider,
 		TCPPortAllocator:              params.TCPPortAllocator,
 		OnExpiredCert:                 params.OnExpiredCert,
 		Clock:                         c.clock,
@@ -102,6 +101,11 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	kube := params.TargetURI.GetKubeName()
 
+	// Check if this kube exists and the user has access to it.
+	if _, err := c.getKube(ctx, kube); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := c.reissueKubeCert(ctx, kube); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -116,7 +120,6 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
 		Log:                           c.Log,
-		CLICommandProvider:            params.CLICommandProvider,
 		TCPPortAllocator:              params.TCPPortAllocator,
 		OnExpiredCert:                 params.OnExpiredCert,
 		Clock:                         c.clock,
@@ -124,7 +127,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 		RootClusterCACertPoolFunc:     c.clusterClient.RootClusterCACertPool,
 		ClusterName:                   c.Name,
 		Username:                      c.status.Username,
-		ProfileDir:                    c.status.Dir,
+		KubeconfigsDir:                params.KubeconfigsDir,
 	})
 	return gw, trace.Wrap(err)
 }

@@ -65,6 +65,9 @@ type OneOffScriptParams struct {
 	// Defaults to v<currentTeleportVersion>
 	// Eg, v13.1.0
 	TeleportVersion string
+
+	// SuccessMessage is a message shown to the user after the one off is completed.
+	SuccessMessage string
 }
 
 // CheckAndSetDefaults checks if the required params ara present.
@@ -87,6 +90,10 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 
 	if p.TeleportVersion == "" {
 		p.TeleportVersion = "v" + teleport.Version
+	}
+
+	if p.SuccessMessage == "" {
+		p.SuccessMessage = "Completed successfully."
 	}
 
 	return nil

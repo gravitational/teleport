@@ -33,6 +33,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/credentials"
@@ -45,7 +47,7 @@ const (
 	minServerVersion = "6.1.0"
 	// pluginName is used to tag PluginData and as a Delegator in Audit log.
 	pluginName = "jira"
-	// grpcBackoffMaxDelay is a maximum time GRPC client waits before reconnection attempt.
+	// grpcBackoffMaxDelay is a maximum time gRPC client waits before reconnection attempt.
 	grpcBackoffMaxDelay = time.Second * 2
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
@@ -64,16 +66,21 @@ var resolveReasonSeparatorRegex = regexp.MustCompile(`(?im)^ *(resolution|reason
 type App struct {
 	conf Config
 
-	apiClient  *client.Client
-	jira       Jira
+	teleport   teleport.Client
+	jira       *Jira
 	webhookSrv *WebhookServer
 	mainJob    lib.ServiceJob
+	statusSink common.StatusSink
 
 	*lib.Process
 }
 
 func NewApp(conf Config) (*App, error) {
-	app := &App{conf: conf}
+	app := &App{
+		conf:       conf,
+		teleport:   conf.Client,
+		statusSink: conf.StatusSink,
+	}
 	app.mainJob = lib.NewServiceJob(app.run)
 	return app, nil
 }
@@ -115,28 +122,37 @@ func (a *App) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	httpJob := a.webhookSrv.ServiceJob()
-	a.SpawnCriticalJob(httpJob)
-	httpOk, err := httpJob.WaitReady(ctx)
-	if err != nil {
-		return trace.Wrap(err)
+	var httpOk bool
+	var httpJob lib.ServiceJob
+	var httpErr error
+
+	if a.webhookSrv != nil {
+		httpJob = a.webhookSrv.ServiceJob()
+		a.SpawnCriticalJob(httpJob)
+		httpOk, err = httpJob.WaitReady(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	watcherJob := watcherjob.NewJob(
-		a.apiClient,
+	watcherJob, err := watcherjob.NewJob(
+		a.teleport,
 		watcherjob.Config{
 			Watch:            types.Watch{Kinds: []types.WatchKind{types.WatchKind{Kind: types.KindAccessRequest}}},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
 	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	a.SpawnCriticalJob(watcherJob)
 	watcherOk, err := watcherJob.WaitReady(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	ok := httpOk && watcherOk
+	ok := (a.webhookSrv == nil || httpOk) && watcherOk
 	a.mainJob.SetReady(ok)
 	if ok {
 		log.Info("Plugin is ready")
@@ -144,15 +160,16 @@ func (a *App) run(ctx context.Context) error {
 		log.Error("Plugin is not ready")
 	}
 
-	<-httpJob.Done()
+	if httpJob != nil {
+		<-httpJob.Done()
+		httpErr = httpJob.Err()
+	}
 	<-watcherJob.Done()
 
-	return trace.NewAggregate(httpJob.Err(), watcherJob.Err())
+	return trace.NewAggregate(httpErr, watcherJob.Err())
 }
 
-func (a *App) init(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, initTimeout)
-	defer cancel()
+func (a *App) createTeleportClient(ctx context.Context) error {
 	log := logger.Get(ctx)
 
 	if validCred, err := credentials.CheckIfExpired(a.conf.Teleport.Credentials()); err != nil {
@@ -165,14 +182,10 @@ func (a *App) init(ctx context.Context) error {
 		log.Info("At least one non-expired credential has been found, continuing startup")
 	}
 
-	var (
-		err  error
-		pong proto.PingResponse
-	)
-
+	var err error
 	bk := grpcbackoff.DefaultConfig
 	bk.MaxDelay = grpcBackoffMaxDelay
-	if a.apiClient, err = client.New(ctx, client.Config{
+	if a.teleport, err = client.New(ctx, client.Config{
 		Addrs:       a.conf.Teleport.GetAddrs(),
 		Credentials: a.conf.Teleport.Credentials(),
 		DialOpts: []grpc.DialOption{
@@ -183,15 +196,31 @@ func (a *App) init(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if pong, err = a.checkTeleportVersion(ctx); err != nil {
+	return nil
+}
+
+func (a *App) init(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, initTimeout)
+	defer cancel()
+	log := logger.Get(ctx)
+
+	if a.teleport == nil {
+		if err := a.createTeleportClient(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	pong, err := a.checkTeleportVersion(ctx)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	var webProxyAddr string
+	var teleportProxyAddr string
 	if pong.ServerFeatures.AdvancedAccessWorkflows {
-		webProxyAddr = pong.ProxyPublicAddr
+		teleportProxyAddr = pong.ProxyPublicAddr
 	}
-	a.jira, err = NewJiraClient(a.conf.Jira, pong.ClusterName, webProxyAddr)
+
+	a.jira, err = NewJiraClient(a.conf.Jira, pong.ClusterName, teleportProxyAddr, a.statusSink)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -202,15 +231,16 @@ func (a *App) init(ctx context.Context) error {
 	}
 	log.Debug("Jira API health check finished ok")
 
-	webhookSrv, err := NewWebhookServer(a.conf.HTTP, a.onJiraWebhook)
-	if err != nil {
-		return trace.Wrap(err)
+	if !a.conf.DisableWebhook {
+		webhookSrv, err := NewWebhookServer(a.conf.HTTP, a.onJiraWebhook)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err = webhookSrv.EnsureCert(); err != nil {
+			return trace.Wrap(err)
+		}
+		a.webhookSrv = webhookSrv
 	}
-	if err = webhookSrv.EnsureCert(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	a.webhookSrv = webhookSrv
 
 	return nil
 }
@@ -218,7 +248,7 @@ func (a *App) init(ctx context.Context) error {
 func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, error) {
 	log := logger.Get(ctx)
 	log.Debug("Checking Teleport server version")
-	pong, err := a.apiClient.Ping(ctx)
+	pong, err := a.teleport.Ping(ctx)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			return pong, trace.Wrap(err, "server version must be at least %s", minServerVersion)
@@ -329,7 +359,7 @@ func (a *App) onJiraWebhook(ctx context.Context, webhook Webhook) error {
 
 	ctx, log = logger.WithField(ctx, "request_id", reqID)
 
-	reqs, err := a.apiClient.GetAccessRequests(ctx, types.AccessRequestFilter{ID: reqID})
+	reqs, err := a.teleport.GetAccessRequests(ctx, types.AccessRequestFilter{ID: reqID})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -579,7 +609,7 @@ func (a *App) resolveRequest(ctx context.Context, reqID string, userEmail string
 
 	delegator := fmt.Sprintf("%s:%s", pluginName, userEmail)
 
-	if err := a.apiClient.SetAccessRequestState(apiutils.WithDelegator(ctx, delegator), params); err != nil {
+	if err := a.teleport.SetAccessRequestState(apiutils.WithDelegator(ctx, delegator), params); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -675,7 +705,7 @@ func (a *App) modifyPluginData(ctx context.Context, reqID string, fn func(data *
 
 // getPluginData loads a plugin data for a given access request. It returns nil if it's not found.
 func (a *App) getPluginData(ctx context.Context, reqID string) (*PluginData, error) {
-	dataMaps, err := a.apiClient.GetPluginData(ctx, types.PluginDataFilter{
+	dataMaps, err := a.teleport.GetPluginData(ctx, types.PluginDataFilter{
 		Kind:     types.KindAccessRequest,
 		Resource: reqID,
 		Plugin:   pluginName,
@@ -696,7 +726,7 @@ func (a *App) getPluginData(ctx context.Context, reqID string) (*PluginData, err
 
 // updatePluginData updates an existing plugin data or sets a new one if it didn't exist.
 func (a *App) updatePluginData(ctx context.Context, reqID string, data PluginData, expectData PluginData) error {
-	return a.apiClient.UpdatePluginData(ctx, types.PluginDataUpdateParams{
+	return a.teleport.UpdatePluginData(ctx, types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,
 		Resource: reqID,
 		Plugin:   pluginName,

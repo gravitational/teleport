@@ -147,7 +147,8 @@ required for accessing a shell on the Node.
 
 On your local machine, log in to your leaf cluster using your Teleport username:
 
-<ScopedBlock scope="cloud">
+<Tabs>
+<TabItem scope="cloud" label="Teleport Enterprise Cloud">
 
 ```code
 # Log out of all clusters to begin this guide from a clean state
@@ -155,8 +156,8 @@ $ tsh logout
 $ tsh login --proxy=leafcluster.teleport.sh --user=myuser
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["oss", "enterprise"]}>
+</TabItem>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Log out of all clusters to begin this guide from a clean state
@@ -164,7 +165,9 @@ $ tsh logout
 $ tsh login --proxy=leafcluster.example.com --user=myuser
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Create a file called `visitor.yaml` with the
 following content:
@@ -202,22 +205,25 @@ you can satisfy the conditions of the role and access the Node.
 
 Make sure that you are logged in to your root cluster.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh logout
 $ tsh login --proxy=rootcluster.example.com --user=myuser
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh logout
 $ tsh login --proxy=rootcluster.teleport.sh --user=myuser
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Create a file called `user.yaml` with your current user configuration. Replace
 `myuser` with your Teleport username:
@@ -263,7 +269,8 @@ You can create a join token using the `tctl` tool.
 
 First, log out of all clusters and log in to the root cluster.
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 ```code
 $ tsh logout
@@ -278,8 +285,8 @@ $ tsh login --user=myuser --proxy=rootcluster.example.com
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["enterprise"]}>
+</TabItem>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
 ```code
 $ tsh logout
@@ -294,8 +301,8 @@ $ tsh login --user=myuser --proxy=rootcluster.example.com
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --user=myuser --proxy=myrootclustertenant.teleport.sh
@@ -309,7 +316,9 @@ $ tsh login --user=myuser --proxy=myrootclustertenant.teleport.sh
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Execute the following command on your development machine:
 
@@ -386,8 +395,7 @@ Change the fields of `trusted_cluster.yaml` as follows:
 
 #### `metadata.name`
 
-Use the name of your root cluster, e.g., <ScopedBlock
-scope={["oss", "enterprise"]}>`teleport.example.com`</ScopedBlock><ScopedBlock scope="cloud">`mytenant.teleport.sh`</ScopedBlock>.
+Use the name of your root cluster, e.g., `example.teleport.sh`.
 
 #### `spec.token`
 
@@ -398,7 +406,8 @@ This is join token you created earlier.
 This is the reverse tunnel address of the Proxy Service in the root cluster. Run
 the following command to retrieve the value you should use:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ PROXY=rootcluster.example.com
@@ -406,8 +415,8 @@ $ curl https://${PROXY?}/webapi/ping | jq 'if .proxy.tls_routing_enabled == true
 "rootcluster.example.com:443"
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ PROXY=rootcluster.teleport.sh
@@ -415,29 +424,34 @@ $ curl https://${PROXY?}/webapi/ping | jq 'if .proxy.tls_routing_enabled == true
 "rootcluster.teleport.sh:443"
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 #### `web_proxy_addr`
 
 This is the address of the Proxy Service on the root cluster. Obtain this with the
 following command:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ curl https://${PROXY?}/webapi/ping | jq .proxy.ssh.public_addr
 "teleport.example.com:443"
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ curl https://${PROXY?}/webapi/ping | jq .proxy.ssh.public_addr
 "mytenant.teleport.sh:443"
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 #### `spec.role_map`
 
@@ -566,20 +580,23 @@ $ tsh logout
 
 Log in to the leaf cluster:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --user=myuser --proxy=leafcluster.example.com
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --user=myuser --proxy=leafcluster.teleport.sh
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Create the Trusted Cluster:
 
@@ -614,7 +631,8 @@ Log out of the leaf cluster and log back in to the root cluster. When you run
 `tsh clusters`, you should see listings for both the root cluster and the leaf
 cluster:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh clusters
@@ -624,8 +642,8 @@ Cluster Name                                          Status Cluster Type Select
 rootcluster.example.com                               online root         *
 leafcluster.example.com                               online leaf
 ```
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh clusters
@@ -634,7 +652,9 @@ Cluster Name                                          Status Cluster Type Select
 rootcluster.teleport.sh                               online root         *
 leafcluster.teleport.sh                               online leaf
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Step 3/5. Manage access to your Trusted Cluster
 
@@ -670,7 +690,8 @@ version: v3
 Still logged in to the root cluster, use `tctl` to update the labels on the leaf
 cluster:
 
-<ScopedBlock scope="cloud">
+<Tabs>
+<TabItem scope="cloud" label="Teleport Enterprise Cloud">
 
 ```code
 $ tctl update rc/leafcluster.teleport.sh --set-labels=env=demo
@@ -678,8 +699,8 @@ $ tctl update rc/leafcluster.teleport.sh --set-labels=env=demo
 # Cluster leafcluster.teleport.sh has been updated
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["oss", "enterprise"]}>
+</TabItem>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tctl update rc/leafcluster.example.com --set-labels=env=demo
@@ -687,7 +708,9 @@ $ tctl update rc/leafcluster.example.com --set-labels=env=demo
 # Cluster leafcluster.example.com has been updated
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ### Change cluster access privileges
 
@@ -748,22 +771,25 @@ Node in your leaf cluster as a user of your root cluster.
 
 First, make sure that you are logged in to root cluster:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh logout
 $ tsh --proxy=rootcluster.example.com --user=myuser login
 ```
 
-</ScopedBlock>
-<ScopedBlock scope="cloud">
+</TabItem>
+<TabItem scope="cloud" label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh logout
 $ tsh --proxy=rootcluster.teleport.sh --user=myuser login
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To log in to your Node, confirm that your Node is joined to your leaf cluster:
 
@@ -848,20 +874,23 @@ cluster and editing the `trusted_cluster` resource you created earlier.
 
 Retrieve the Trusted Cluster resource you created earlier:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tctl get trusted_cluster/rootcluster.example.com > trusted_cluster.yaml
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tctl get trusted_cluster/rootcluster.teleport.sh > trusted_cluster.yaml
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Make the following change to the resource:
 
@@ -895,39 +924,45 @@ On the leaf cluster, run the following command. This performs the same tasks as
 setting `enabled` to `false` in a `trusted_cluster` resource, but also removes
 the Trusted Cluster resource from the Auth Service backend:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tctl rm trusted_cluster/rootcluster.example.com
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tctl rm trusted_cluster/rootcluster.teleport.sh
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Next, run the following command on the root cluster. This command deletes the
 certificate authorities associated with the remote cluster and removes the
 `remote_cluster` resource from the root cluster's Auth Service backend.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tctl rm rc/leafcluster.example.com
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tctl rm rc/leafcluster.teleport.sh
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 <Admonition type="Removing the relationship from the root side only">
 
@@ -1018,4 +1053,5 @@ should check to see the following:
 
 - Read more about how Trusted Clusters fit into Teleport's overall architecture:
   [Architecture Introduction](../../architecture/trustedclusters.mdx).
+
 

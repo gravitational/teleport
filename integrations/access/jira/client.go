@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
@@ -42,17 +43,19 @@ const (
 	// Teleport has a 4096 character limit for the reason field so we
 	// truncate all reasons to a generous but conservative limit
 	jiraReasonLimit = 3000
+
+	jiraStatusUpdateTimeout time.Duration = 10 * time.Second
 )
 
 var jiraRequiredPermissions = []string{"BROWSE_PROJECTS", "CREATE_ISSUES", "TRANSITION_ISSUES", "ADD_COMMENTS"}
 
 // Jira is a wrapper around resty.Client.
 type Jira struct {
-	client      *resty.Client
-	project     string
-	issueType   string
-	clusterName string
-	webProxyURL *url.URL
+	client           *resty.Client
+	project          string
+	issueType        string
+	clusterName      string
+	teleportProxyURL *url.URL
 }
 
 var descriptionTemplate = template.Must(template.New("description").Parse(
@@ -77,14 +80,14 @@ var resolutionCommentTemplate = template.Must(template.New("resolution comment")
 ))
 
 // NewJiraClient builds a new Jira client.
-func NewJiraClient(conf JiraConfig, clusterName, webProxyAddr string) (Jira, error) {
+func NewJiraClient(conf JiraConfig, clusterName, teleportProxyAddr string, statusSink common.StatusSink) (*Jira, error) {
 	var (
-		webProxyURL *url.URL
-		err         error
+		teleportProxyURL *url.URL
+		err              error
 	)
-	if webProxyAddr != "" {
-		if webProxyURL, err = lib.AddrToURL(webProxyAddr); err != nil {
-			return Jira{}, trace.Wrap(err)
+	if teleportProxyAddr != "" {
+		if teleportProxyURL, err = lib.AddrToURL(teleportProxyAddr); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -93,39 +96,72 @@ func NewJiraClient(conf JiraConfig, clusterName, webProxyAddr string) (Jira, err
 		Transport: &http.Transport{
 			MaxConnsPerHost:     jiraMaxConns,
 			MaxIdleConnsPerHost: jiraMaxConns,
-		},
-	})
-	client.SetBaseURL(conf.URL)
-	client.SetBasicAuth(conf.Username, conf.APIToken)
-	client.SetHeader("Content-Type", "application/json")
-	client.OnBeforeRequest(func(_ *resty.Client, req *resty.Request) error {
-		req.SetError(&ErrorResult{})
-		return nil
-	})
-	client.OnAfterResponse(func(_ *resty.Client, resp *resty.Response) error {
-		if resp.IsError() {
-			switch result := resp.Error().(type) {
-			case *ErrorResult:
-				return trace.Errorf("http error code=%v, errors=[%v]", resp.StatusCode(), strings.Join(result.ErrorMessages, ", "))
-			case nil:
+		}}).
+		SetBaseURL(conf.URL).
+		SetBasicAuth(conf.Username, conf.APIToken).
+		SetHeader("Content-Type", "application/json").
+		OnBeforeRequest(
+			func(_ *resty.Client, req *resty.Request) error {
+				req.SetError(&ErrorResult{})
 				return nil
-			default:
-				return trace.Errorf("unknown error result %#v", result)
-			}
-		}
-		return nil
-	})
-	return Jira{
-		client:      client,
-		project:     conf.Project,
-		issueType:   conf.IssueType,
-		clusterName: clusterName,
-		webProxyURL: webProxyURL,
+			}).
+		OnAfterResponse(
+			func(_ *resty.Client, resp *resty.Response) error {
+				log := logger.Get(resp.Request.Context())
+
+				if statusSink != nil {
+					status := statusFromStatusCode(resp.StatusCode())
+
+					// No usable context in scope. We can't use the context from the Resty response,
+					// as that could already be canceled, which would block us from emitting a status
+					// update showing that the plugin is currently broken.
+					//
+					// Using the background context with a reasonable timeout seems the least-bad option.
+					ctx, cancel := context.WithTimeout(context.Background(), jiraStatusUpdateTimeout)
+					defer cancel()
+
+					if err := statusSink.Emit(ctx, status); err != nil {
+						log.WithError(err).Errorf("Error while emitting Jira plugin status: %v", err)
+					}
+				}
+
+				if resp.IsError() {
+					switch result := resp.Error().(type) {
+					case *ErrorResult:
+						return trace.Errorf("http error code=%v, errors=[%v]", resp.StatusCode(), strings.Join(result.ErrorMessages, ", "))
+					case nil:
+						return nil
+					default:
+						return trace.Errorf("unknown error result %#v", result)
+					}
+				}
+				return nil
+			})
+
+	return &Jira{
+		client:           client,
+		project:          conf.Project,
+		issueType:        conf.IssueType,
+		clusterName:      clusterName,
+		teleportProxyURL: teleportProxyURL,
 	}, nil
 }
 
+func statusFromStatusCode(httpCode int) types.PluginStatus {
+	var code types.PluginStatusCode
+	switch {
+	case httpCode == http.StatusUnauthorized:
+		code = types.PluginStatusCode_UNAUTHORIZED
+	case httpCode >= 200 && httpCode < 400:
+		code = types.PluginStatusCode_RUNNING
+	default:
+		code = types.PluginStatusCode_OTHER_ERROR
+	}
+	return &types.PluginStatusV1{Code: code}
+}
+
 // HealthCheck checks Jira endpoint for validity and also checks the project permissions.
-func (j Jira) HealthCheck(ctx context.Context) error {
+func (j *Jira) HealthCheck(ctx context.Context) error {
 	log := logger.Get(ctx)
 	var emptyError *ErrorResult
 	resp, err := j.client.NewRequest().
@@ -188,7 +224,7 @@ func (j Jira) HealthCheck(ctx context.Context) error {
 }
 
 // CreateIssue creates an issue with "Pending" status
-func (j Jira) CreateIssue(ctx context.Context, reqID string, reqData RequestData) (JiraData, error) {
+func (j *Jira) CreateIssue(ctx context.Context, reqID string, reqData RequestData) (JiraData, error) {
 	reqData = truncateReasonFields(reqData)
 	description, err := j.buildIssueDescription(reqID, reqData)
 	if err != nil {
@@ -225,11 +261,11 @@ func (j Jira) CreateIssue(ctx context.Context, reqID string, reqData RequestData
 	}, nil
 }
 
-func (j Jira) buildIssueDescription(reqID string, reqData RequestData) (string, error) {
+func (j *Jira) buildIssueDescription(reqID string, reqData RequestData) (string, error) {
 	reqData = truncateReasonFields(reqData)
 	var requestLink string
-	if j.webProxyURL != nil {
-		reqURL := *j.webProxyURL
+	if j.teleportProxyURL != nil {
+		reqURL := *j.teleportProxyURL
 		reqURL.Path = lib.BuildURLPath("web", "requests", reqID)
 		requestLink = reqURL.String()
 	}
@@ -253,7 +289,7 @@ func (j Jira) buildIssueDescription(reqID string, reqData RequestData) (string, 
 }
 
 // GetIssue loads the issue with all necessary nested data.
-func (j Jira) GetIssue(ctx context.Context, id string) (Issue, error) {
+func (j *Jira) GetIssue(ctx context.Context, id string) (Issue, error) {
 	queryOptions, err := query.Values(GetIssueQueryOptions{
 		Fields:     []string{"status", "comment"},
 		Expand:     []string{"changelog", "transitions"},
@@ -277,7 +313,7 @@ func (j Jira) GetIssue(ctx context.Context, id string) (Issue, error) {
 }
 
 // AddIssueReviewComment posts an issue comment about access review added to a request.
-func (j Jira) AddIssueReviewComment(ctx context.Context, id string, review types.AccessReview) error {
+func (j *Jira) AddIssueReviewComment(ctx context.Context, id string, review types.AccessReview) error {
 	var builder strings.Builder
 	err := reviewCommentTemplate.Execute(&builder, struct {
 		types.AccessReview
@@ -300,7 +336,7 @@ func (j Jira) AddIssueReviewComment(ctx context.Context, id string, review types
 }
 
 // RangeIssueCommentsDescending iterates over pages of comments of an issue.
-func (j Jira) RangeIssueCommentsDescending(ctx context.Context, id string, fn func(PageOfComments) bool) error {
+func (j *Jira) RangeIssueCommentsDescending(ctx context.Context, id string, fn func(PageOfComments) bool) error {
 	startAt := 0
 	for {
 		queryOptions, err := query.Values(GetIssueCommentQueryOptions{
@@ -343,7 +379,7 @@ func (j Jira) RangeIssueCommentsDescending(ctx context.Context, id string, fn fu
 }
 
 // TransitionIssue moves an issue by transition ID.
-func (j Jira) TransitionIssue(ctx context.Context, issueID, transitionID string) error {
+func (j *Jira) TransitionIssue(ctx context.Context, issueID, transitionID string) error {
 	payload := IssueTransitionInput{
 		Transition: IssueTransition{
 			ID: transitionID,
@@ -358,7 +394,7 @@ func (j Jira) TransitionIssue(ctx context.Context, issueID, transitionID string)
 }
 
 // ResolveIssue sets a final status e.g. "approved", "denied" or "expired" to the issue and posts the comment.
-func (j Jira) ResolveIssue(ctx context.Context, issueID string, resolution Resolution) error {
+func (j *Jira) ResolveIssue(ctx context.Context, issueID string, resolution Resolution) error {
 	if resolution.Tag == Unresolved {
 		return trace.BadParameter("resolution is empty")
 	}
@@ -388,7 +424,7 @@ func (j Jira) ResolveIssue(ctx context.Context, issueID string, resolution Resol
 }
 
 // AddResolutionComment posts an issue comment about request resolution.
-func (j Jira) AddResolutionComment(ctx context.Context, id string, resolution Resolution) error {
+func (j *Jira) AddResolutionComment(ctx context.Context, id string, resolution Resolution) error {
 	var builder strings.Builder
 	err := resolutionCommentTemplate.Execute(&builder, struct {
 		Resolution    string

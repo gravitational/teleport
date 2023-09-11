@@ -138,7 +138,7 @@ const (
 	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
 	SubKindOpenSSHNode = "openssh"
 
-	// SubKindOpenSSHEC2InstanceConnectEndpointNode is a registered OpenSSH (agentless) node that doesn't require trust in Teleport CA.
+	// SubKindOpenSSHEICENode is a registered OpenSSH (agentless) node that doesn't require trust in Teleport CA.
 	// For each session an SSH Key is created and uploaded to the target host using a side-channel.
 	//
 	// For Amazon EC2 Instances, it uploads the key using:
@@ -146,7 +146,11 @@ const (
 	// This Key is valid for 60 seconds.
 	//
 	// It uses the private key created above to SSH into the host.
-	SubKindOpenSSHEC2InstanceConnectEndpointNode = "openssh-ec2-ice"
+	SubKindOpenSSHEICENode = "openssh-ec2-ice"
+
+	// KindUnifiedResource is a meta Kind that is used for the unified resource search present on
+	// the webUI and Connect. It allows us to query and return multiple kinds at the same time
+	KindUnifiedResource = "unified_resource"
 
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
@@ -217,7 +221,7 @@ const (
 	KindKubeClusterRole = "clusterrole"
 
 	// KindKubeRole is a Kubernetes Role resource type.
-	KindKubeRole = "role"
+	KindKubeRole = "kube_role"
 
 	// KindKubeClusterRoleBinding is a Kubernetes Cluster Role Binding resource type.
 	KindKubeClusterRoleBinding = "clusterrolebinding"
@@ -453,6 +457,9 @@ const (
 	// KindUserLoginState is a UserLoginState resource
 	KindUserLoginState = "user_login_state"
 
+	// KindAccessListMember is an AccessListMember resource
+	KindAccessListMember = "access_list_member"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
@@ -564,6 +571,10 @@ const (
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = common.OriginIntegrationAWSOIDC
 
+	// OriginDiscoveryKubernetes indicates that the resource was imported
+	// from kubernetes cluster by discovery service.
+	OriginDiscoveryKubernetes = common.OriginDiscoveryKubernetes
+
 	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
 	IntegrationLabel = TeleportNamespace + "/integration"
 
@@ -648,6 +659,8 @@ const (
 
 	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationSchedulesLabel = "/schedules"
+	// ReqAnnotationNotifyServicesLabel is the request annotation key at which notify services are stored for access plugins.
+	ReqAnnotationNotifyServicesLabel = "/notify-services"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
@@ -655,6 +668,15 @@ const (
 	CloudAzure = "Azure"
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
+
+	// DiscoveredResourceNode identifies a discovered SSH node.
+	DiscoveredResourceNode = "node"
+	// DiscoveredResourceDatabase identifies a discovered database.
+	DiscoveredResourceDatabase = "db"
+	// DiscoveredResourceKubernetes identifies a discovered kubernetes cluster.
+	DiscoveredResourceKubernetes = "k8s"
+	// DiscoveredResourceAgentlessNode identifies a discovered agentless SSH node.
+	DiscoveredResourceAgentlessNode = "node.openssh"
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
@@ -737,18 +759,18 @@ const (
 
 	// DiscoveryLabelWindowsDNSHostName is the DNS hostname of an LDAP object.
 	DiscoveryLabelWindowsDNSHostName = TeleportNamespace + "/dns_host_name"
-	//DiscoveryLabelWindowsComputerName is the name of an LDAP object.
+	// DiscoveryLabelWindowsComputerName is the name of an LDAP object.
 	DiscoveryLabelWindowsComputerName = TeleportNamespace + "/computer_name"
-	//DiscoveryLabelWindowsOS is the operating system of an LDAP object.
+	// DiscoveryLabelWindowsOS is the operating system of an LDAP object.
 	DiscoveryLabelWindowsOS = TeleportNamespace + "/os"
-	//DiscoveryLabelWindowsOSVersion operating system version of an LDAP object.
+	// DiscoveryLabelWindowsOSVersion operating system version of an LDAP object.
 	DiscoveryLabelWindowsOSVersion = TeleportNamespace + "/os_version"
-	//DiscoveryLabelWindowsOU is an LDAP objects's OU.
+	// DiscoveryLabelWindowsOU is an LDAP objects's OU.
 	DiscoveryLabelWindowsOU = TeleportNamespace + "/ou"
-	//DiscoveryLabelWindowsIsDomainController is whether an LDAP object is a
+	// DiscoveryLabelWindowsIsDomainController is whether an LDAP object is a
 	// domain controller.
 	DiscoveryLabelWindowsIsDomainController = TeleportNamespace + "/is_domain_controller"
-	//DiscoveryLabelWindowsDomain is an Active Directory domain name.
+	// DiscoveryLabelWindowsDomain is an Active Directory domain name.
 	DiscoveryLabelWindowsDomain = TeleportNamespace + "/windows_domain"
 	// DiscoveryLabelLDAPPrefix is the prefix used when applying any custom
 	// labels per the discovery LDAP attribute labels configuration.
@@ -855,6 +877,12 @@ const (
 	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
 )
 
+const (
+	// InstallMethodAWSOIDCDeployServiceEnvVar is the env var used to detect if the agent was installed
+	// using the DeployService action of the AWS OIDC integration.
+	InstallMethodAWSOIDCDeployServiceEnvVar = "TELEPORT_INSTALL_METHOD_AWSOIDC_DEPLOYSERVICE"
+)
+
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
 const CloudHostnameTag = "TeleportHostname"
 
@@ -948,6 +976,9 @@ const (
 
 	// ResourceSpecType refers to a resource field named "type".
 	ResourceSpecType = "type"
+
+	// ResourceKind refers to a resource field named "kind".
+	ResourceKind = "kind"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.
@@ -1054,4 +1085,13 @@ const (
 	// teleport automated user provisioning system get added to so
 	// already existing users are not deleted
 	TeleportServiceGroup = "teleport-system"
+)
+
+const (
+	// JWTClaimsRewriteRolesAndTraits includes both roles and traits in the JWT token.
+	JWTClaimsRewriteRolesAndTraits = "roles-and-traits"
+	// JWTClaimsRewriteRoles includes only the roles in the JWT token.
+	JWTClaimsRewriteRoles = "roles"
+	// JWTClaimsRewriteNone include neither traits nor roles in the JWT token.
+	JWTClaimsRewriteNone = "none"
 )

@@ -32,14 +32,17 @@ import (
 // resources with their corresponding Teleport SSH servers.
 func (s *Server) ReconcileServerInfos(ctx context.Context) error {
 	const batchSize = 100
+	const timeBetweenBatches = 10 * time.Second
+	const timeBetweenReconciliationLoops = 10 * time.Minute
+	clock := s.GetClock()
 
 	for {
 		var failedUpdates int
 		// Iterate over nodes in batches.
-		nodeStream := s.StreamNodes(ctx, defaults.Namespace)
+		nodeStream := s.GetNodeStream(ctx, defaults.Namespace)
 		var nodes []types.Server
-		moreNodes := true
-		for moreNodes {
+
+		for moreNodes := true; moreNodes; {
 			nodes, moreNodes = stream.Take(nodeStream, batchSize)
 			updates, err := s.setCloudLabelsOnNodes(ctx, nodes)
 			if err != nil {
@@ -48,7 +51,7 @@ func (s *Server) ReconcileServerInfos(ctx context.Context) error {
 			failedUpdates += updates
 
 			select {
-			case <-s.GetClock().After(time.Second):
+			case <-clock.After(timeBetweenBatches):
 			case <-ctx.Done():
 				return trace.Wrap(ctx.Err())
 			}
@@ -57,6 +60,12 @@ func (s *Server) ReconcileServerInfos(ctx context.Context) error {
 		// Log number of nodes that we couldn't find a control stream for.
 		if failedUpdates > 0 {
 			log.Debugf("unable to update labels on %v node(s) due to missing control stream", failedUpdates)
+		}
+
+		select {
+		case <-clock.After(timeBetweenReconciliationLoops):
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
 		}
 	}
 }

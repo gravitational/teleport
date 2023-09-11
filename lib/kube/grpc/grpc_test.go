@@ -77,6 +77,13 @@ func TestListKubernetesResources(t *testing.T) {
 			Name:       usernameWithFullAccess,
 			KubeUsers:  kubeUsers,
 			KubeGroups: kubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				// override the role to allow access to all kube resources.
+				r.SetKubeResources(
+					types.Allow,
+					[]types.KubernetesResource{{Kind: types.Wildcard, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}},
+				)
+			},
 		},
 	)
 
@@ -515,12 +522,8 @@ func initGRPCServer(t *testing.T, testCtx *kubeproxy.TestContext, listener net.L
 	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			authMiddleware.UnaryInterceptor(),
-		),
-		grpc.ChainStreamInterceptor(
-			authMiddleware.StreamInterceptor(),
-		),
+		grpc.ChainUnaryInterceptor(authMiddleware.UnaryInterceptors()...),
+		grpc.ChainStreamInterceptor(authMiddleware.StreamInterceptors()...),
 		grpc.Creds(creds),
 	)
 	t.Cleanup(grpcServer.GracefulStop)

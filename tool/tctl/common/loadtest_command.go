@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // LoadtestCommand implements the `tctl loadtest` family of commands.
@@ -44,6 +45,7 @@ type LoadtestCommand struct {
 
 	count       int
 	churn       int
+	labels      int
 	interval    time.Duration
 	ttl         time.Duration
 	concurrency int
@@ -57,6 +59,7 @@ func (c *LoadtestCommand) Initialize(app *kingpin.Application, config *servicecf
 	c.nodeHeartbeats = loadtest.Command("node-heartbeats", "Generate artificial node heartbeats").Hidden()
 	c.nodeHeartbeats.Flag("count", "Number of unique nodes to heartbeat").Default("10000").IntVar(&c.count)
 	c.nodeHeartbeats.Flag("churn", "Number of nodes to churn each round").Default("0").IntVar(&c.churn)
+	c.nodeHeartbeats.Flag("labels", "Number of labels to generate per node.").Default("1").IntVar(&c.labels)
 	c.nodeHeartbeats.Flag("interval", "Node heartbeat interval").Default("1m").DurationVar(&c.interval)
 	c.nodeHeartbeats.Flag("ttl", "TTL of heartbeated nodes").Default("10m").DurationVar(&c.ttl)
 	c.nodeHeartbeats.Flag("concurrency", "Max concurrent requests").Default(
@@ -83,9 +86,10 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client auth.Client
 		fmt.Fprintf(os.Stderr, "[!] "+format+"\n", args...)
 	}
 
-	infof("Setting up node hb load generation. count=%d, churn=%d, interval=%s, ttl=%s, concurrency=%d",
+	infof("Setting up node hb load generation. count=%d, churn=%d, labels=%d, interval=%s, ttl=%s, concurrency=%d",
 		c.count,
 		c.churn,
+		c.labels,
 		c.interval,
 		c.ttl,
 		c.concurrency,
@@ -100,6 +104,11 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client auth.Client
 		node_ids = append(node_ids, uuid.New().String())
 	}
 
+	labels := make(map[string]string, c.labels)
+	for i := 0; i < c.labels; i++ {
+		labels[uuid.New().String()] = uuid.New().String()
+	}
+
 	// allocate twice the expected count so that we have sufficient room to support up
 	// to one full round worth of backlog.
 	workch := make(chan string, c.count*2)
@@ -108,16 +117,34 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client auth.Client
 	var errct atomic.Uint64
 	errch := make(chan error, 1)
 
+	mknode := func(id string) types.Server {
+		node, err := types.NewServer(id, types.KindNode, types.ServerSpecV2{Hostname: uuid.New().String()})
+		if err != nil {
+			panic(err)
+		}
+		node.SetExpiry(time.Now().Add(c.ttl))
+		node.SetStaticLabels(labels)
+
+		return node
+	}
+
+	sampleNode := mknode(uuid.New().String())
+
+	if err := sampleNode.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	sn, err := utils.FastMarshal(sampleNode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	infof("Estimated serialized node size: %d (bytes)", len(sn))
+
 	for i := 0; i < c.concurrency; i++ {
 		go func() {
 			for id := range workch {
-				node, err := types.NewServer(id, types.KindNode, types.ServerSpecV2{})
-				if err != nil {
-					panic(err)
-				}
-				node.SetExpiry(time.Now().Add(c.ttl))
-
-				_, err = client.UpsertNode(ctx, node)
+				_, err = client.UpsertNode(ctx, mknode(id))
 				if ctx.Err() != nil {
 					return
 				}

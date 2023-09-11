@@ -26,7 +26,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"testing"
 	"time"
@@ -66,25 +65,21 @@ func TestKubeGateway(t *testing.T) {
 	}
 	clock := clockwork.NewFakeClock()
 	proxy := mustStartMockProxyWithKubeAPI(t, identity)
-	profileDir := t.TempDir()
 	gateway, err := New(
 		Config{
-			Clock:              clock,
-			TargetName:         kubeClusterName,
-			TargetURI:          uri.NewClusterURI(teleportClusterName).AppendKube(kubeClusterName),
-			CertPath:           proxy.clientCertPath(),
-			KeyPath:            proxy.clientKeyPath(),
-			WebProxyAddr:       proxy.webProxyAddr,
-			ClusterName:        teleportClusterName,
-			CLICommandProvider: mockCLICommandProvider{},
-			Username:           identity.Username,
-			ProfileDir:         profileDir,
+			Clock:          clock,
+			TargetName:     kubeClusterName,
+			TargetURI:      uri.NewClusterURI(teleportClusterName).AppendKube(kubeClusterName),
+			CertPath:       proxy.clientCertPath(),
+			KeyPath:        proxy.clientKeyPath(),
+			WebProxyAddr:   proxy.webProxyAddr,
+			ClusterName:    teleportClusterName,
+			Username:       identity.Username,
+			KubeconfigsDir: t.TempDir(),
 			RootClusterCACertPoolFunc: func(_ context.Context) (*x509.CertPool, error) {
 				return proxy.certPool(), nil
 			},
 			OnExpiredCert: func(_ context.Context, gateway Gateway) error {
-				// Remove the profile dir to see if kubeconfig gets rewritten.
-				os.RemoveAll(profileDir)
 				return trace.Wrap(gateway.ReloadCert())
 			},
 		},

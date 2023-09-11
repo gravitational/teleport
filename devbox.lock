@@ -1,62 +1,93 @@
 {
   "lockfile_version": "1",
   "packages": {
-    "addlicense@1.0.0": {
-      "last_modified": "2022-06-30T00:42:12Z",
-      "resolved": "github:NixOS/nixpkgs/d3248619647234b5dc74a6921bcdf6dd8323eb22#addlicense",
-      "version": "1.0.0"
+    "addlicense@latest": {
+      "last_modified": "2022-11-10T13:14:32Z",
+      "resolved": "github:NixOS/nixpkgs/72d8853228c9758820c39b8659415b6d89279493#addlicense",
+      "source": "devbox-search",
+      "version": "2021-04-22"
     },
     "bash@latest": {
-      "resolved": "github:NixOS/nixpkgs/f91ee3065de91a3531329a674a45ddcb3467a650#bash"
+      "last_modified": "2023-05-14T19:13:12Z",
+      "resolved": "github:NixOS/nixpkgs/3007746b3f5bfcb49e102b517bca891822a41b31#bash",
+      "source": "devbox-search",
+      "version": "5.2-p15"
     },
-    "bats@1.3.0": {
-      "last_modified": "2021-09-01T12:51:06Z",
-      "resolved": "github:NixOS/nixpkgs/6cc260cfd60f094500b79e279069b499806bf6d8#bats",
-      "version": "1.3.0"
+    "bats@latest": {
+      "last_modified": "2023-07-23T03:35:12Z",
+      "resolved": "github:NixOS/nixpkgs/af8cd5ded7735ca1df1a1174864daab75feeb64a#bats",
+      "source": "devbox-search",
+      "version": "1.10.0"
     },
-    "clang@11.1.0": {
-      "last_modified": "2023-05-01T16:53:22Z",
-      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#clang",
-      "version": "11.1.0"
+    "buf@1.26.1": {
+      "last_modified": "2023-08-30T00:25:28Z",
+      "resolved": "github:NixOS/nixpkgs/a63a64b593dcf2fe05f7c5d666eb395950f36bc9#buf",
+      "source": "devbox-search",
+      "version": "1.26.1"
     },
-    "gci@0.9.1": {
-      "last_modified": "2023-02-28T22:11:13Z",
-      "resolved": "github:NixOS/nixpkgs/995edc972ad3a1e291ac22d74b9610821357175f#gci",
-      "version": "0.9.1"
+    "gci@latest": {
+      "last_modified": "2023-08-30T00:25:28Z",
+      "resolved": "github:NixOS/nixpkgs/a63a64b593dcf2fe05f7c5d666eb395950f36bc9#gci",
+      "source": "devbox-search",
+      "version": "0.11.0"
     },
     "git@latest": {
-      "resolved": "github:NixOS/nixpkgs/f91ee3065de91a3531329a674a45ddcb3467a650#git"
-    },
-    "go@1.20.5": {
-      "last_modified": "2023-06-29T16:20:38Z",
-      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#go",
+      "last_modified": "2023-07-23T03:35:12Z",
+      "resolved": "github:NixOS/nixpkgs/af8cd5ded7735ca1df1a1174864daab75feeb64a#git",
       "source": "devbox-search",
-      "version": "1.20.5"
+      "version": "2.41.0"
     },
-    "golangci-lint@1.53.3": {
-      "last_modified": "2023-06-29T16:20:38Z",
-      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#golangci-lint",
+    "go@1.21.0": {
+      "last_modified": "2023-08-22T06:04:29Z",
+      "resolved": "github:NixOS/nixpkgs/9d757ec498666cc1dcc6f2be26db4fd3e1e9ab37#go_1_21",
       "source": "devbox-search",
-      "version": "1.53.3"
+      "version": "1.21.0"
+    },
+    "golangci-lint@1.54.2": {
+      "last_modified": "2023-08-30T00:25:28Z",
+      "resolved": "github:NixOS/nixpkgs/a63a64b593dcf2fe05f7c5d666eb395950f36bc9#golangci-lint",
+      "source": "devbox-search",
+      "version": "1.54.2"
+    },
+    "gotestsum@latest": {
+      "last_modified": "2023-07-23T03:35:12Z",
+      "resolved": "github:NixOS/nixpkgs/af8cd5ded7735ca1df1a1174864daab75feeb64a#gotestsum",
+      "source": "devbox-search",
+      "version": "1.10.1"
     },
     "libfido2@1.13.0": {
       "last_modified": "2023-05-01T16:53:22Z",
       "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#libfido2",
       "version": "1.13.0"
     },
-    "libiconvReal@1.16": {
-      "last_modified": "2023-05-01T16:53:22Z",
-      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#libiconvReal",
+    "libiconvReal@latest": {
+      "last_modified": "2023-05-14T19:13:12Z",
+      "resolved": "github:NixOS/nixpkgs/3007746b3f5bfcb49e102b517bca891822a41b31#libiconvReal",
+      "source": "devbox-search",
       "version": "1.16"
     },
-    "nodejs@16.18.1": {
-      "last_modified": "2023-01-02T04:31:48Z",
-      "resolved": "github:NixOS/nixpkgs/a4379d2b0deefedc8dba360897557707ea9ee9a7#nodejs-16_x",
-      "version": "16.18.1"
+    "llvmPackages_14.clangUseLLVM@14.0.6": {
+      "last_modified": "2023-07-23T03:35:12Z",
+      "resolved": "github:NixOS/nixpkgs/af8cd5ded7735ca1df1a1174864daab75feeb64a#llvmPackages_14.clangUseLLVM",
+      "source": "devbox-search",
+      "version": "14.0.6"
     },
-    "patchelf@0.15.0": {
-      "last_modified": "2023-05-01T16:53:22Z",
-      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#patchelf",
+    "nodejs@18.16.1": {
+      "last_modified": "2023-06-30T04:44:22Z",
+      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#nodejs_18",
+      "source": "devbox-search",
+      "version": "18.16.1"
+    },
+    "openssl@latest": {
+      "last_modified": "2023-08-30T00:25:28Z",
+      "resolved": "github:NixOS/nixpkgs/a63a64b593dcf2fe05f7c5d666eb395950f36bc9#openssl",
+      "source": "devbox-search",
+      "version": "3.0.10"
+    },
+    "patchelf@latest": {
+      "last_modified": "2023-05-14T19:13:12Z",
+      "resolved": "github:NixOS/nixpkgs/3007746b3f5bfcb49e102b517bca891822a41b31#patchelf",
+      "source": "devbox-search",
       "version": "0.15.0"
     },
     "protobuf3_20@3.20.3": {
@@ -64,25 +95,42 @@
       "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#protobuf3_20",
       "version": "3.20.3"
     },
-    "python@3.11.2": {
-      "last_modified": "2023-03-31T22:52:29Z",
+    "python@latest": {
+      "last_modified": "2023-06-30T04:44:22Z",
       "plugin_version": "0.0.1",
-      "resolved": "github:NixOS/nixpkgs/242246ee1e58f54d2322227fc5eef53b4a616a31#python311",
-      "version": "3.11.2"
+      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#python311",
+      "source": "devbox-search",
+      "version": "3.11.4"
     },
-    "shellcheck@0.9.0": {
-      "last_modified": "2023-05-01T16:53:22Z",
-      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#shellcheck",
+    "rustc@1.70.0": {
+      "last_modified": "2023-06-30T04:44:22Z",
+      "plugin_version": "0.0.1",
+      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#rustc",
+      "source": "devbox-search",
+      "version": "1.70.0"
+    },
+    "shellcheck@latest": {
+      "last_modified": "2023-07-23T03:35:12Z",
+      "resolved": "github:NixOS/nixpkgs/af8cd5ded7735ca1df1a1174864daab75feeb64a#shellcheck",
+      "source": "devbox-search",
       "version": "0.9.0"
     },
-    "yamllint@1.28.0": {
-      "last_modified": "2023-02-28T22:11:13Z",
-      "resolved": "github:NixOS/nixpkgs/995edc972ad3a1e291ac22d74b9610821357175f#yamllint",
-      "version": "1.28.0"
+    "yamllint@latest": {
+      "last_modified": "2023-06-30T04:44:22Z",
+      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#yamllint",
+      "source": "devbox-search",
+      "version": "1.32.0"
     },
-    "zlib@1.2.13": {
-      "last_modified": "2023-05-01T16:53:22Z",
-      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#zlib",
+    "yarn@1.22.19": {
+      "last_modified": "2023-05-21T19:52:09Z",
+      "resolved": "github:NixOS/nixpkgs/9356eead97d8d16956b0226d78f76bd66e06cb60#yarn",
+      "source": "devbox-search",
+      "version": "1.22.19"
+    },
+    "zlib@latest": {
+      "last_modified": "2023-05-14T19:13:12Z",
+      "resolved": "github:NixOS/nixpkgs/3007746b3f5bfcb49e102b517bca891822a41b31#zlib",
+      "source": "devbox-search",
       "version": "1.2.13"
     }
   }

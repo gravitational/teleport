@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -163,6 +164,23 @@ func TestWatcherDynamicResource(t *testing.T) {
 		OnReconcile: func(d types.Databases) {
 			reconcileCh <- d
 		},
+		DiscoveryResourceChecker: &fakeDiscoveryResourceChecker{
+			byName: map[string]func(context.Context, types.Database) error{
+				"db-fail-check": func(context.Context, types.Database) error {
+					return trace.BadParameter("bad db")
+				},
+				"db5": func(_ context.Context, db types.Database) error {
+					// Validate AssumeRoleARN and ExternalID matches above
+					// services.ResourceMatcherAWS,
+					meta := db.GetAWS()
+					if meta.AssumeRoleARN != "arn:aws:iam::123456789012:role/DBAccess" ||
+						meta.ExternalID != "external-id" {
+						return trace.CompareFailed("AssumeRoleARN/ExternalID does not match")
+					}
+					return nil
+				},
+			},
+		},
 	})
 	assertReconciledResource(t, reconcileCh, types.Databases{db0})
 
@@ -227,7 +245,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		// ResourceMatchers and has AssumeRoleARN set by the discovery service.
 		discoveredDB5, err := makeDiscoveryDatabase("db5", map[string]string{"group": "b"}, withRDSURL, withDiscoveryAssumeRoleARN)
 		require.NoError(t, err)
-		require.True(t, db4.IsRDS())
+		require.True(t, discoveredDB5.IsRDS())
 
 		err = testCtx.authServer.CreateDatabase(ctx, discoveredDB5)
 		require.NoError(t, err)
@@ -235,9 +253,19 @@ func TestWatcherDynamicResource(t *testing.T) {
 		// Validate that AssumeRoleARN is overwritten by the one configured in
 		// the resource matcher.
 		db5 = discoveredDB5.Copy()
-		db5.SetAWSAssumeRole("arn:aws:iam::123456789012:role/DBAccess")
-		db5.SetAWSExternalID("external-id")
+		setStatusAWSAssumeRole(db5, "arn:aws:iam::123456789012:role/DBAccess", "external-id")
 
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5})
+	})
+
+	t.Run("discovery resource - fail check", func(t *testing.T) {
+		// Created a discovery service created database resource that fails the
+		// fakeDiscoveryResourceChecker.
+		dbFailCheck, err := makeDiscoveryDatabase("db-fail-check", map[string]string{"group": "a"}, withRDSURL)
+		require.NoError(t, err)
+		require.NoError(t, testCtx.authServer.CreateDatabase(ctx, dbFailCheck))
+
+		// dbFailCheck should not be proxied.
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5})
 	})
 }

@@ -47,6 +47,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	if err := c.Teleport.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := c.ClientConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if c.AccessTokenProvider == nil {
 		if c.Opsgenie.Token == "" {

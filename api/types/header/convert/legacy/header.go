@@ -27,6 +27,7 @@ func FromHeaderMetadata(metadata header.Metadata) types.Metadata {
 	return types.Metadata{
 		ID:          metadata.ID,
 		Name:        metadata.Name,
+		Expires:     &metadata.Expires,
 		Description: metadata.Description,
 		Labels:      metadata.Labels,
 	}

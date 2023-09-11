@@ -58,6 +58,11 @@ func NewUserLoginStateService(backend backend.Backend) (*UserLoginStateService, 
 	}, nil
 }
 
+// GetUserLoginStates returns the all user login state resources.
+func (u *UserLoginStateService) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
+	return u.svc.GetResources(ctx)
+}
+
 // GetUserLoginState returns the specified user login state resource.
 func (u *UserLoginStateService) GetUserLoginState(ctx context.Context, name string) (*userloginstate.UserLoginState, error) {
 	userLoginState, err := u.svc.GetResource(ctx, name)
@@ -75,4 +80,9 @@ func (u *UserLoginStateService) UpsertUserLoginState(ctx context.Context, userLo
 // DeleteUserLoginState removes the specified user login state resource.
 func (u *UserLoginStateService) DeleteUserLoginState(ctx context.Context, name string) error {
 	return trace.Wrap(u.svc.DeleteResource(ctx, name))
+}
+
+// DeleteAllUserLoginStates removes all user login state resources.
+func (u *UserLoginStateService) DeleteAllUserLoginStates(ctx context.Context) error {
+	return trace.Wrap(u.svc.DeleteAllResources(ctx))
 }

@@ -18,9 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/asn1"
-	"io"
 	"net"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -40,22 +38,8 @@ import (
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
-
-// SSHDialer provides a mechanism to create a ssh client.
-type SSHDialer interface {
-	// Dial establishes a client connection to an SSH server.
-	Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error)
-}
-
-// SSHDialerFunc implements SSHDialer
-type SSHDialerFunc func(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error)
-
-// Dial calls f(ctx, network, addr, config).
-func (f SSHDialerFunc) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
-	return f(ctx, network, addr, config)
-}
 
 // ClientConfig contains configuration needed for a Client
 // to be able to connect to the cluster.
@@ -72,8 +56,6 @@ type ClientConfig struct {
 	// StreamInterceptors are optional [grpc.StreamClientInterceptor] to apply
 	// to the gRPC client.
 	StreamInterceptors []grpc.StreamClientInterceptor
-	// SSHDialer allows callers to control how a [tracessh.Client] is created.
-	SSHDialer SSHDialer
 	// SSHConfig is the [ssh.ClientConfig] used to connect to the Proxy SSH server.
 	SSHConfig *ssh.ClientConfig
 	// DialTimeout defines how long to attempt dialing before timing out.
@@ -85,6 +67,9 @@ type ClientConfig struct {
 	ALPNConnUpgradeRequired bool
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
+	// ViaJumpHost indicates if the connection to the cluster is direct
+	// or via another cluster.
+	ViaJumpHost bool
 
 	// The below items are intended to be used by tests to connect without mTLS.
 	// The gRPC transport credentials to use when establishing the connection to proxy.
@@ -98,9 +83,6 @@ type ClientConfig struct {
 func (c *ClientConfig) CheckAndSetDefaults() error {
 	if c.ProxyAddress == "" {
 		return trace.BadParameter("missing required parameter ProxyAddress")
-	}
-	if c.SSHDialer == nil {
-		return trace.BadParameter("missing required parameter SSHDialer")
 	}
 	if c.SSHConfig == nil {
 		return trace.BadParameter("missing required parameter SSHConfig")
@@ -172,8 +154,6 @@ type Client struct {
 	grpcConn *grpc.ClientConn
 	// transport is the transportv1.Client
 	transport *transportv1.Client
-	// sshClient is the established SSH connection to the Proxy.
-	sshClient *tracessh.Client
 	// clusterName as determined by inspecting the certificate presented by
 	// the Proxy during the connection handshake.
 	clusterName *clusterName
@@ -196,28 +176,20 @@ func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, grpcErr := newGRPCClient(ctx, &cfg)
-	if grpcErr == nil {
-		// Attempt an RPC to ensure the proxy is serving gRPC on the
-		// SSH Port. This is needed for backward compatibility with
-		// Proxies that aren't serving gRPC since dialing happens in
-		// the background.
-		//
-		// DELETE IN 14.0.0
-		_, err := clt.transport.ClusterDetails(ctx)
-		if err == nil {
-			return clt, nil
+	clt, err := newGRPCClient(ctx, &cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If connecting via a jump host make a call to perform the
+	// TLS handshake to ensure that we get the name of the cluster
+	// being connected to from its certificate.
+	if cfg.ViaJumpHost {
+		if _, err := clt.ClusterDetails(ctx); err != nil {
+			return nil, trace.NewAggregate(err, clt.Close())
 		}
 	}
-
-	clt, sshErr := newSSHClient(ctx, &cfg)
-	// Only aggregate errors if there was an issue dialing the grpc server so
-	// that helpers like trace.IsAccessDenied will still work.
-	if grpcErr == nil {
-		return clt, trace.Wrap(sshErr)
-	}
-
-	return nil, trace.NewAggregate(grpcErr, sshErr)
+	return clt, trace.Wrap(err)
 }
 
 // clusterName stores the name of the cluster
@@ -303,12 +275,14 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 				append(cfg.UnaryInterceptors,
 					otelgrpc.UnaryClientInterceptor(),
 					metadata.UnaryClientInterceptor,
+					interceptors.GRPCClientUnaryErrorInterceptor,
 				)...,
 			),
 			grpc.WithChainStreamInterceptor(
 				append(cfg.StreamInterceptors,
 					otelgrpc.StreamClientInterceptor(),
 					metadata.StreamClientInterceptor,
+					interceptors.GRPCClientStreamErrorInterceptor,
 				)...,
 			),
 		}, cfg.DialOpts...)...,
@@ -344,58 +318,6 @@ func newDialerForGRPCClient(ctx context.Context, cfg *ClientConfig) func(context
 	))
 }
 
-// teleportAuthority is the extension set by the server
-// which contains the name of the cluster it is in.
-const teleportAuthority = "x-teleport-authority"
-
-// clusterCallback is a [ssh.HostKeyCallback] that obtains the name
-// of the cluster being connected to from the certificate presented by the server.
-// This allows the client to determine the cluster name when using jump hosts.
-func clusterCallback(c *clusterName, wrapped ssh.HostKeyCallback) ssh.HostKeyCallback {
-	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-		if err := wrapped(hostname, remote, key); err != nil {
-			return trace.Wrap(err)
-		}
-
-		cert, ok := key.(*ssh.Certificate)
-		if !ok {
-			return nil
-		}
-
-		clusterName, ok := cert.Permissions.Extensions[teleportAuthority]
-		if ok {
-			c.set(clusterName)
-		}
-
-		return nil
-	}
-}
-
-// newSSHClient creates a Client that is connected via SSH.
-func newSSHClient(ctx context.Context, cfg *ClientConfig) (*Client, error) {
-	c := &clusterName{}
-	clientCfg := &ssh.ClientConfig{
-		User:              cfg.SSHConfig.User,
-		Auth:              cfg.SSHConfig.Auth,
-		HostKeyCallback:   clusterCallback(c, cfg.SSHConfig.HostKeyCallback),
-		BannerCallback:    cfg.SSHConfig.BannerCallback,
-		ClientVersion:     cfg.SSHConfig.ClientVersion,
-		HostKeyAlgorithms: cfg.SSHConfig.HostKeyAlgorithms,
-		Timeout:           cfg.SSHConfig.Timeout,
-	}
-
-	clt, err := cfg.SSHDialer.Dial(ctx, "tcp", cfg.ProxyAddress, clientCfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &Client{
-		cfg:         cfg,
-		sshClient:   clt,
-		clusterName: c,
-	}, nil
-}
-
 // ClusterName returns the name of the cluster that the
 // connected Proxy is a member of.
 func (c *Client) ClusterName() string {
@@ -404,17 +326,7 @@ func (c *Client) ClusterName() string {
 
 // Close attempts to close both the gRPC and SSH connections.
 func (c *Client) Close() error {
-	var errs []error
-
-	if c.sshClient != nil {
-		errs = append(errs, c.sshClient.Close())
-	}
-
-	if c.grpcConn != nil {
-		errs = append(errs, c.grpcConn.Close())
-	}
-
-	return trace.NewAggregate(errs...)
+	return trace.Wrap(c.grpcConn.Close())
 }
 
 // SSHConfig returns the [ssh.ClientConfig] for the provided user which
@@ -445,8 +357,7 @@ type ClusterDetails struct {
 // returned will have the correct credentials and dialer set based on the ClientConfig
 // that was provided to create this Client.
 func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config {
-	switch {
-	case c.cfg.TLSRoutingEnabled:
+	if c.cfg.TLSRoutingEnabled {
 		return client.Config{
 			Context:                    ctx,
 			Addrs:                      []string{c.cfg.ProxyAddress},
@@ -455,57 +366,35 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config
 			CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 			ALPNConnUpgradeRequired:    c.cfg.ALPNConnUpgradeRequired,
 		}
-	case c.sshClient != nil:
-		return client.Config{
-			Context:              ctx,
-			Credentials:          []client.Credentials{c.cfg.clientCreds()},
-			CircuitBreakerConfig: breaker.NoopBreakerConfig(),
-			DialInBackground:     true,
-			Dialer: client.ContextDialerFunc(func(dialCtx context.Context, _ string, _ string) (net.Conn, error) {
-				// Don't dial if the context has timed out.
-				select {
-				case <-dialCtx.Done():
-					return nil, dialCtx.Err()
-				default:
-				}
-
-				conn, err := dialSSH(dialCtx, c.sshClient, c.cfg.ProxyAddress, "@"+cluster, nil)
-				return conn, trace.Wrap(err)
-			}),
-		}
-	default:
-		return client.Config{
-			Context:              ctx,
-			Credentials:          []client.Credentials{c.cfg.clientCreds()},
-			CircuitBreakerConfig: breaker.NoopBreakerConfig(),
-			DialInBackground:     true,
-			Dialer: client.ContextDialerFunc(func(dialCtx context.Context, _ string, _ string) (net.Conn, error) {
-				// Don't dial if the context has timed out.
-				select {
-				case <-dialCtx.Done():
-					return nil, dialCtx.Err()
-				default:
-				}
-
-				// Intentionally not using the dial context because it is only valid
-				// for the lifetime of the dial. Using it causes the stream to be terminated
-				// immediately after the dial completes.
-				connContext := tracing.WithPropagationContext(context.Background(), tracing.PropagationContextFromContext(dialCtx))
-				conn, err := c.transport.DialCluster(connContext, cluster, nil)
-				return conn, trace.Wrap(err)
-			}),
-		}
 	}
+
+	return client.Config{
+		Context:              ctx,
+		Credentials:          []client.Credentials{c.cfg.clientCreds()},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+		DialInBackground:     true,
+		Dialer: client.ContextDialerFunc(func(dialCtx context.Context, _ string, _ string) (net.Conn, error) {
+			// Don't dial if the context has timed out.
+			select {
+			case <-dialCtx.Done():
+				return nil, dialCtx.Err()
+			default:
+			}
+
+			// Intentionally not using the dial context because it is only valid
+			// for the lifetime of the dial. Using it causes the stream to be terminated
+			// immediately after the dial completes.
+			connContext := tracing.WithPropagationContext(context.Background(), tracing.PropagationContextFromContext(dialCtx))
+			conn, err := c.transport.DialCluster(connContext, cluster, nil)
+			return conn, trace.Wrap(err)
+		}),
+	}
+
 }
 
 // DialHost establishes a connection to the `target` in cluster named `cluster`. If a keyring
 // is provided it will only be forwarded if proxy recording mode is enabled in the cluster.
 func (c *Client) DialHost(ctx context.Context, target, cluster string, keyring agent.ExtendedAgent) (net.Conn, ClusterDetails, error) {
-	if c.sshClient != nil {
-		conn, details, err := c.dialHostSSH(ctx, target, cluster, keyring)
-		return conn, details, trace.Wrap(err)
-	}
-
 	conn, details, err := c.transport.DialHost(ctx, target, cluster, nil, keyring)
 	if err != nil {
 		return nil, ClusterDetails{}, trace.ConnectionProblem(err, "failed connecting to host %s: %v", target, err)
@@ -514,119 +403,12 @@ func (c *Client) DialHost(ctx context.Context, target, cluster string, keyring a
 	return conn, ClusterDetails{FIPS: details.FipsEnabled}, nil
 }
 
-// dialHostSSH connects to the target via SSH. To match backwards compatibility the
-// cluster details are retrieved from the Proxy SSH server via a clusterDetailsRequest
-// request to determine if the keyring should be forwarded.
-func (c *Client) dialHostSSH(ctx context.Context, target, cluster string, keyring agent.ExtendedAgent) (net.Conn, ClusterDetails, error) {
-	details, err := c.clusterDetailsSSH(ctx)
-	if err != nil {
-		return nil, ClusterDetails{FIPS: details.FIPSEnabled}, trace.Wrap(err)
-	}
-
-	// Prevent forwarding the keychain if the proxy is
-	// not doing the recording.
-	if !details.RecordingProxy {
-		keyring = nil
-	}
-
-	conn, err := dialSSH(ctx, c.sshClient, c.cfg.ProxyAddress, target+"@"+cluster, keyring)
-	return conn, ClusterDetails{FIPS: details.FIPSEnabled}, trace.Wrap(err)
-}
-
 // ClusterDetails retrieves cluster information as seen by the Proxy.
 func (c *Client) ClusterDetails(ctx context.Context) (ClusterDetails, error) {
-	if c.sshClient != nil {
-		details, err := c.clusterDetailsSSH(ctx)
-		return ClusterDetails{FIPS: details.FIPSEnabled}, trace.Wrap(err)
-	}
-
 	details, err := c.transport.ClusterDetails(ctx)
 	if err != nil {
 		return ClusterDetails{}, trace.Wrap(err)
 	}
 
 	return ClusterDetails{FIPS: details.FipsEnabled}, nil
-}
-
-// sshDetails is the response from a clusterDetailsRequest.
-type sshDetails struct {
-	RecordingProxy bool
-	FIPSEnabled    bool
-}
-
-const clusterDetailsRequest = "cluster-details@goteleport.com"
-
-// clusterDetailsSSH retrieves the cluster details via a clusterDetailsRequest.
-func (c *Client) clusterDetailsSSH(ctx context.Context) (sshDetails, error) {
-	ok, resp, err := c.sshClient.SendRequest(ctx, clusterDetailsRequest, true, nil)
-	if err != nil {
-		return sshDetails{}, trace.Wrap(err)
-	}
-
-	if !ok {
-		return sshDetails{}, trace.ConnectionProblem(nil, "failed to get cluster details")
-	}
-
-	var details sshDetails
-	if err := ssh.Unmarshal(resp, &details); err != nil {
-		return sshDetails{}, trace.Wrap(err)
-	}
-
-	return details, trace.Wrap(err)
-}
-
-// dialSSH creates a SSH session to the target address and proxies a [net.Conn]
-// over the standard input and output of the session.
-func dialSSH(ctx context.Context, clt *tracessh.Client, proxyAddress, targetAddress string, keyring agent.ExtendedAgent) (_ net.Conn, err error) {
-	session, err := clt.NewSession(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	defer func() {
-		if err != nil {
-			_ = session.Close()
-		}
-	}()
-
-	conn, err := newSessionConn(session, proxyAddress, targetAddress)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	defer func() {
-		if err != nil {
-			_ = conn.Close()
-		}
-	}()
-
-	sessionError, err := session.StderrPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// If a keyring was provided then set up agent forwarding.
-	if keyring != nil {
-		// Add a handler to receive requests on the auth-agent@openssh.com channel. If there is
-		// already a handler it's safe to ignore the error because we only need one active handler
-		// to process requests.
-		err = agent.ForwardToAgent(clt.Client, keyring)
-		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
-			return nil, trace.Wrap(err)
-		}
-
-		err = agent.RequestAgentForwarding(session.Session)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	if err := session.RequestSubsystem(ctx, "proxy:"+targetAddress); err != nil {
-		// read the stderr output from the failed SSH session and append
-		// it to the end of our own message:
-		serverErrorMsg, _ := io.ReadAll(sessionError)
-		return nil, trace.ConnectionProblem(err, "failed connecting to host %s: %s. %v", targetAddress, serverErrorMsg, err)
-	}
-
-	return conn, nil
 }

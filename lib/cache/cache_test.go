@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
@@ -39,6 +40,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -90,6 +93,8 @@ type testPack struct {
 	okta                    services.Okta
 	integrations            services.Integrations
 	accessLists             services.AccessLists
+	userLoginStates         services.UserLoginStates
+	accessListMembers       services.AccessListMembers
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -246,6 +251,13 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 	p.accessLists = alSvc
+	p.accessListMembers = alSvc
+
+	ulsSvc, err := local.NewUserLoginStateService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.userLoginStates = ulsSvc
 
 	return p, nil
 }
@@ -285,6 +297,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
+		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -679,6 +692,7 @@ func TestCompletenessInit(t *testing.T) {
 			Okta:                    p.okta,
 			Integrations:            p.integrations,
 			AccessLists:             p.accessLists,
+			UserLoginStates:         p.userLoginStates,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -748,6 +762,7 @@ func TestCompletenessReset(t *testing.T) {
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
+		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -929,6 +944,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
+		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -953,7 +969,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Field:  types.ResourceMetadataName,
 		IsDesc: true,
 	}
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
 			Namespace:    apidefaults.Namespace,
 			ResourceType: types.KindNode,
@@ -961,10 +977,11 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 			Limit:        int32(pageSize),
 			SortBy:       sortBy,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
+
 		resources = append(resources, resp.Resources...)
 		listResourcesStartKey = resp.NextKey
-		return len(resources) == nodeCount
+		assert.Len(t, resources, nodeCount)
 	}, 5*time.Second, 100*time.Millisecond)
 
 	servers, err := types.ResourcesWithLabels(resources).AsServers()
@@ -1008,6 +1025,7 @@ func initStrategy(t *testing.T) {
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
+		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1716,6 +1734,20 @@ func TestApps(t *testing.T) {
 	})
 }
 
+func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+		},
+	)
+	require.NoError(t, err)
+	return database
+}
+
 // TestDatabaseServers tests that CRUD operations on database servers are
 // replicated from the backend to the cache.
 func TestDatabaseServers(t *testing.T) {
@@ -1729,8 +1761,7 @@ func TestDatabaseServers(t *testing.T) {
 			return types.NewDatabaseServerV3(types.Metadata{
 				Name: name,
 			}, types.DatabaseServerSpecV3{
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost:5432",
+				Database: mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432"),
 				Hostname: "localhost",
 				HostID:   uuid.New().String(),
 			})
@@ -2090,6 +2121,74 @@ func TestAccessLists(t *testing.T) {
 	})
 }
 
+// TestUserLoginStates tests that CRUD operations on user login state resources are
+// replicated from the backend to the cache.
+func TestUserLoginStates(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*userloginstate.UserLoginState]{
+		newResource: func(name string) (*userloginstate.UserLoginState, error) {
+			return newUserLoginState(t, name), nil
+		},
+		create: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
+			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
+			return trace.Wrap(err)
+		},
+		list:      p.userLoginStates.GetUserLoginStates,
+		cacheGet:  p.cache.GetUserLoginState,
+		cacheList: p.cache.GetUserLoginStates,
+		update: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
+			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.userLoginStates.DeleteAllUserLoginStates,
+	})
+}
+
+// TestAccessListMembers tests that CRUD operations on access list members resources are
+// replicated from the backend to the cache.
+func TestAccessListMembers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	const accessListName = "test-access-list"
+
+	p.accessLists.UpsertAccessList(context.Background(), newAccessList(t, accessListName))
+
+	testResources(t, p, testFuncs[*accesslist.AccessListMember]{
+		newResource: func(name string) (*accesslist.AccessListMember, error) {
+			return newAccessListMember(t, accessListName, name), nil
+		},
+		create: func(ctx context.Context, member *accesslist.AccessListMember) error {
+			_, err := p.accessListMembers.UpsertAccessListMember(ctx, member)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
+			members, _, err := p.accessListMembers.ListAccessListMembers(ctx, accessListName, 0, "")
+			return members, trace.Wrap(err)
+		},
+		cacheGet: func(ctx context.Context, memberName string) (*accesslist.AccessListMember, error) {
+			return p.cache.GetAccessListMember(ctx, accessListName, memberName)
+		},
+		cacheList: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
+			members, _, err := p.cache.ListAccessListMembers(ctx, accessListName, 0, "")
+			return members, trace.Wrap(err)
+		},
+		update: func(ctx context.Context, member *accesslist.AccessListMember) error {
+			_, err := p.accessListMembers.UpsertAccessListMember(ctx, member)
+			return trace.Wrap(err)
+		},
+		deleteAll: func(ctx context.Context) error {
+			return trace.Wrap(p.accessListMembers.DeleteAllAccessListMembersForAccessList(ctx, accessListName))
+		},
+	})
+}
+
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
@@ -2106,23 +2205,19 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
 	}
+
 	// Check that the resource is now in the backend.
 	out, err := funcs.list(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Wait until the information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single resource in it.
-	out, err = funcs.cacheList(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+	require.Eventually(t, func() bool {
+		// Make sure the cache has a single resource in it.
+		out, err = funcs.cacheList(ctx)
+		assert.NoError(t, err)
+		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+	}, time.Second*2, time.Millisecond*250)
 
 	// cacheGet is optional as not every resource implements it
 	if funcs.cacheGet != nil {
@@ -2144,34 +2239,24 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single resource in it.
-	out, err = funcs.cacheList(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+	require.Eventually(t, func() bool {
+		// Make sure the cache has a single resource in it.
+		out, err = funcs.cacheList(ctx)
+		assert.NoError(t, err)
+		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+	}, time.Second*2, time.Millisecond*250)
 
 	// Remove all service providers from the backend.
 	err = funcs.deleteAll(ctx)
 	require.NoError(t, err)
 
 	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Check that the cache is now empty.
-	out, err = funcs.cacheList(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Eventually(t, func() bool {
+		// Check that the cache is now empty.
+		out, err = funcs.cacheList(ctx)
+		assert.NoError(t, err)
+		return len(out) == 0
+	}, time.Second*2, time.Millisecond*250)
 }
 
 func TestRelativeExpiry(t *testing.T) {
@@ -2556,6 +2641,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindIntegration:             &types.IntegrationV1{},
 		types.KindHeadlessAuthentication:  &types.HeadlessAuthentication{},
 		types.KindAccessList:              newAccessList(t, "access-list"),
+		types.KindUserLoginState:          newUserLoginState(t, "user-login-state"),
+		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
 	}
 
 	for name, cfg := range cases {
@@ -2720,12 +2807,10 @@ func TestInvalidDatabases(t *testing.T) {
 				require.NoError(t, err)
 
 				// Wait until the database appear on cache.
-				require.Eventually(t, func() bool {
-					if dbs, err := c.GetDatabases(ctx); err == nil {
-						return len(dbs) == 1
-					}
-
-					return false
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					dbs, err := c.GetDatabases(ctx)
+					assert.NoError(t, err)
+					assert.Len(t, dbs, 1)
 				}, time.Second, 100*time.Millisecond, "expected database to be on cache, but nothing found")
 
 				cacheDB, err := c.GetDatabase(ctx, dbName)
@@ -2766,6 +2851,7 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 			Name: name,
 		},
 		accesslist.Spec{
+			Title:       "title",
 			Description: "test access list",
 			Owners: []accesslist.Owner{
 				{
@@ -2801,26 +2887,49 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 					"gtrait2": {"gvalue3", "gvalue4"},
 				},
 			},
-			Members: []accesslist.Member{
-				{
-					Name:    "member1",
-					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because",
-					AddedBy: "test-user1",
-				},
-				{
-					Name:    "member2",
-					Joined:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because again",
-					AddedBy: "test-user2",
-				},
-			},
 		},
 	)
 	require.NoError(t, err)
 	return accessList
+}
+
+func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState {
+	t.Helper()
+
+	uls, err := userloginstate.New(
+		header.Metadata{
+			Name: name,
+		},
+		userloginstate.Spec{
+			Roles: []string{"role1", "role2"},
+			Traits: trait.Traits{
+				"key1": []string{"value1"},
+				"key2": []string{"value2"},
+			},
+		},
+	)
+	require.NoError(t, err)
+	return uls
+}
+
+func newAccessListMember(t *testing.T, accessListName, memberName string) *accesslist.AccessListMember {
+	t.Helper()
+
+	member, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: memberName,
+		},
+		accesslist.AccessListMemberSpec{
+			AccessList: accessListName,
+			Name:       memberName,
+			Joined:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			Expires:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			Reason:     "because",
+			AddedBy:    "test-user1",
+		},
+	)
+	require.NoError(t, err)
+	return member
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {

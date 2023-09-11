@@ -762,9 +762,20 @@ func (b *Backend) purgeExpiredDocuments() error {
 			return b.clientContext.Err()
 		case <-t.C:
 			expiryTime := b.clock.Now().UTC().Unix()
-			docs, err := b.svc.Collection(b.CollectionName).Where(expiresDocProperty, "<=", expiryTime).Documents(b.clientContext).GetAll()
+			// Find all documents that have expired, but EXCLUDE
+			// any documents that do not have an expiry as indicated
+			// by a value of 0.
+			docs, err := b.svc.Collection(b.CollectionName).
+				Where(expiresDocProperty, "<=", expiryTime).
+				Where(expiresDocProperty, ">", 0).
+				Documents(b.clientContext).
+				GetAll()
 			if err != nil {
 				b.Logger.WithError(trail.FromGRPC(err)).Warn("Failed to get expired documents")
+				continue
+			}
+
+			if len(docs) == 0 {
 				continue
 			}
 
@@ -809,7 +820,7 @@ func (b *Backend) deleteDocuments(docs []*firestore.DocumentSnapshot) error {
 	return trace.NewAggregate(errs...)
 }
 
-// ConvertGRPCError converts GRPC errors
+// ConvertGRPCError converts gRPC errors
 func ConvertGRPCError(err error, args ...interface{}) error {
 	if err == nil {
 		return nil

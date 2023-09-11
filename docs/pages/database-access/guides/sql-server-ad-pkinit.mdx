@@ -3,13 +3,10 @@ title: Microsoft SQL Server access with PKINIT authentication
 description: How to configure Microsoft SQL Server access with Active Directory PKINIT authentication.
 ---
 
-In this guide, you will:
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Microsoft SQL Server" dbConfigure="Microsoft SQL Server database with PKINIT authentication" dbName="Microsoft SQL Server" !)
 
-- Install and configure Teleport.
-- Set up access to SQL Server using Active Directory PKINIT authentication.
-- Connect to SQL Server through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ```mermaid
 %%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
 graph LR
@@ -33,8 +30,8 @@ style local fill:#C0C0C0,stroke: #000000
   e-->d
 end
 ```
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ```mermaid
 %%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
 graph LR
@@ -58,7 +55,9 @@ style local fill:#C0C0C0,stroke: #000000
   e-->d
 end
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 This guide will focus on SQL Servers using self-hosted Active Directory
 authentication.
@@ -299,11 +298,9 @@ db_service:
 
 ## Step 5/7. Start the Database Service
 
-Start the Database Service:
+Start the Teleport Database Service in your environment:
 
-```code
-$ teleport start --config=/etc/teleport.yaml
-```
+(!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
 
 ## Step 6/7. Create SQL Server AD users
 
@@ -324,7 +321,8 @@ master> CREATE LOGIN [EXAMPLE\alice] FROM WINDOWS WITH DEFAULT_DATABASE = [maste
 Log in to your Teleport cluster. Your SQL Server database should appear in the
 list of available databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -334,8 +332,8 @@ $ tsh db ls
 # sqlserver                     env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -345,7 +343,9 @@ $ tsh db ls
 # sqlserver                     env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To retrieve credentials for a database and connect to it:
 
@@ -420,3 +420,4 @@ skipping TLS verification in production environments.
 ## Further reading
 
 - [Kerberos PKINIT authentication](https://web.mit.edu/kerberos/krb5-1.13/doc/admin/pkinit.html).
+

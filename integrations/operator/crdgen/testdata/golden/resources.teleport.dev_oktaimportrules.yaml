@@ -61,9 +61,23 @@ spec:
                               type: string
                             nullable: true
                             type: array
+                          app_name_regexes:
+                            description: AppNameRegexes is a list of regexes to match
+                              against app names.
+                            items:
+                              type: string
+                            nullable: true
+                            type: array
                           group_ids:
                             description: GroupIDs is a list of group IDs to match
                               against.
+                            items:
+                              type: string
+                            nullable: true
+                            type: array
+                          group_name_regexes:
+                            description: GroupNameRegexes is a list of regexes to
+                              match against group names.
                             items:
                               type: string
                             nullable: true

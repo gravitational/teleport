@@ -12,7 +12,7 @@ exports[`render multi bash texts 1`] = `
   margin-right: 4px;
 }
 
-.c12 {
+.c11 {
   box-sizing: border-box;
   padding-bottom: 0px;
   padding-top: 8px;
@@ -60,15 +60,9 @@ exports[`render multi bash texts 1`] = `
 }
 
 .c10 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  color: #FFFFFF;
-}
-
-.c11 {
-  display: inline-block;
-  transition: color 0.3s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #FFFFFF;
 }
 
@@ -77,16 +71,20 @@ exports[`render multi bash texts 1`] = `
   display: flex;
 }
 
+.c9 {
+  display: flex;
+}
+
 .c9 .icon-check {
   display: none;
 }
 
 .c9 .icon-copy {
-  display: block;
+  display: inline-flex;
 }
 
 .c9.copied .icon-check {
-  display: block;
+  display: inline-flex;
 }
 
 .c9.copied .icon-copy {
@@ -182,17 +180,46 @@ exports[`render multi bash texts 1`] = `
             >
               <div
                 class="c9 icon-container"
-                color="dark"
               >
                 <span
-                  class="c10 icon icon-copy "
+                  class="c10 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
+                    />
+                    <path
+                      clip-rule="evenodd"
+                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
                 <span
-                  class="c11 icon icon-check "
+                  class="c10 icon icon-check"
+                  color="light"
                   data-testid="btn-check"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      clip-rule="evenodd"
+                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
               </div>
             </button>
           </div>
@@ -231,24 +258,53 @@ exports[`render multi bash texts 1`] = `
             >
               <div
                 class="c9 icon-container"
-                color="dark"
               >
                 <span
-                  class="c10 icon icon-copy "
+                  class="c10 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
+                    />
+                    <path
+                      clip-rule="evenodd"
+                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
                 <span
-                  class="c11 icon icon-check "
+                  class="c10 icon icon-check"
+                  color="light"
                   data-testid="btn-check"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      clip-rule="evenodd"
+                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
               </div>
             </button>
           </div>
         </div>
       </div>
       <div
-        class="c12"
+        class="c11"
       >
         <div
           class="c3"
@@ -280,17 +336,46 @@ exports[`render multi bash texts 1`] = `
             >
               <div
                 class="c9 icon-container"
-                color="dark"
               >
                 <span
-                  class="c10 icon icon-copy "
+                  class="c10 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
+                    />
+                    <path
+                      clip-rule="evenodd"
+                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
                 <span
-                  class="c11 icon icon-check "
+                  class="c10 icon icon-check"
+                  color="light"
                   data-testid="btn-check"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      clip-rule="evenodd"
+                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
               </div>
             </button>
           </div>
@@ -313,7 +398,7 @@ exports[`render multi bash texts with comment 1`] = `
   margin-right: 4px;
 }
 
-.c13 {
+.c12 {
   box-sizing: border-box;
   padding-bottom: 0px;
   padding-top: 8px;
@@ -361,15 +446,9 @@ exports[`render multi bash texts with comment 1`] = `
 }
 
 .c11 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  color: #FFFFFF;
-}
-
-.c12 {
-  display: inline-block;
-  transition: color 0.3s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #FFFFFF;
 }
 
@@ -378,16 +457,20 @@ exports[`render multi bash texts with comment 1`] = `
   display: flex;
 }
 
+.c10 {
+  display: flex;
+}
+
 .c10 .icon-check {
   display: none;
 }
 
 .c10 .icon-copy {
-  display: block;
+  display: inline-flex;
 }
 
 .c10.copied .icon-check {
-  display: block;
+  display: inline-flex;
 }
 
 .c10.copied .icon-copy {
@@ -493,17 +576,46 @@ exports[`render multi bash texts with comment 1`] = `
             >
               <div
                 class="c10 icon-container"
-                color="dark"
               >
                 <span
-                  class="c11 icon icon-copy "
+                  class="c11 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
+                    />
+                    <path
+                      clip-rule="evenodd"
+                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
                 <span
-                  class="c12 icon icon-check "
+                  class="c11 icon icon-check"
+                  color="light"
                   data-testid="btn-check"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      clip-rule="evenodd"
+                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
               </div>
             </button>
           </div>
@@ -542,24 +654,53 @@ exports[`render multi bash texts with comment 1`] = `
             >
               <div
                 class="c10 icon-container"
-                color="dark"
               >
                 <span
-                  class="c11 icon icon-copy "
+                  class="c11 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
+                    />
+                    <path
+                      clip-rule="evenodd"
+                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
                 <span
-                  class="c12 icon icon-check "
+                  class="c11 icon icon-check"
+                  color="light"
                   data-testid="btn-check"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      clip-rule="evenodd"
+                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
               </div>
             </button>
           </div>
         </div>
       </div>
       <div
-        class="c13"
+        class="c12"
       >
         <div
           class="c3"
@@ -602,17 +743,46 @@ https://apt.releases.teleport.dev/stable/v10" \\
             >
               <div
                 class="c10 icon-container"
-                color="dark"
               >
                 <span
-                  class="c11 icon icon-copy "
+                  class="c11 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
+                    />
+                    <path
+                      clip-rule="evenodd"
+                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
                 <span
-                  class="c12 icon icon-check "
+                  class="c11 icon icon-check"
+                  color="light"
                   data-testid="btn-check"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      clip-rule="evenodd"
+                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
               </div>
             </button>
           </div>
@@ -672,15 +842,9 @@ exports[`render non bash single text 1`] = `
 }
 
 .c9 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  color: #FFFFFF;
-}
-
-.c10 {
-  display: inline-block;
-  transition: color 0.3s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #FFFFFF;
 }
 
@@ -689,16 +853,20 @@ exports[`render non bash single text 1`] = `
   display: flex;
 }
 
+.c8 {
+  display: flex;
+}
+
 .c8 .icon-check {
   display: none;
 }
 
 .c8 .icon-copy {
-  display: block;
+  display: inline-flex;
 }
 
 .c8.copied .icon-check {
-  display: block;
+  display: inline-flex;
 }
 
 .c8.copied .icon-copy {
@@ -789,17 +957,46 @@ exports[`render non bash single text 1`] = `
             >
               <div
                 class="c8 icon-container"
-                color="dark"
               >
                 <span
-                  class="c9 icon icon-copy "
+                  class="c9 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
+                    />
+                    <path
+                      clip-rule="evenodd"
+                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
                 <span
-                  class="c10 icon icon-check "
+                  class="c9 icon icon-check"
+                  color="light"
                   data-testid="btn-check"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      clip-rule="evenodd"
+                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
               </div>
             </button>
           </div>
@@ -864,15 +1061,9 @@ exports[`render single bash text 1`] = `
 }
 
 .c10 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  color: #FFFFFF;
-}
-
-.c11 {
-  display: inline-block;
-  transition: color 0.3s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #FFFFFF;
 }
 
@@ -881,16 +1072,20 @@ exports[`render single bash text 1`] = `
   display: flex;
 }
 
+.c9 {
+  display: flex;
+}
+
 .c9 .icon-check {
   display: none;
 }
 
 .c9 .icon-copy {
-  display: block;
+  display: inline-flex;
 }
 
 .c9.copied .icon-check {
-  display: block;
+  display: inline-flex;
 }
 
 .c9.copied .icon-copy {
@@ -986,17 +1181,46 @@ exports[`render single bash text 1`] = `
             >
               <div
                 class="c9 icon-container"
-                color="dark"
               >
                 <span
-                  class="c10 icon icon-copy "
+                  class="c10 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
+                    />
+                    <path
+                      clip-rule="evenodd"
+                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
                 <span
-                  class="c11 icon icon-check "
+                  class="c10 icon icon-check"
+                  color="light"
                   data-testid="btn-check"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      clip-rule="evenodd"
+                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
               </div>
             </button>
           </div>
@@ -1061,15 +1285,9 @@ exports[`render single bash text with comment 1`] = `
 }
 
 .c11 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  color: #FFFFFF;
-}
-
-.c12 {
-  display: inline-block;
-  transition: color 0.3s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #FFFFFF;
 }
 
@@ -1078,16 +1296,20 @@ exports[`render single bash text with comment 1`] = `
   display: flex;
 }
 
+.c10 {
+  display: flex;
+}
+
 .c10 .icon-check {
   display: none;
 }
 
 .c10 .icon-copy {
-  display: block;
+  display: inline-flex;
 }
 
 .c10.copied .icon-check {
-  display: block;
+  display: inline-flex;
 }
 
 .c10.copied .icon-copy {
@@ -1192,17 +1414,46 @@ exports[`render single bash text with comment 1`] = `
             >
               <div
                 class="c10 icon-container"
-                color="dark"
               >
                 <span
-                  class="c11 icon icon-copy "
+                  class="c11 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
+                    />
+                    <path
+                      clip-rule="evenodd"
+                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
                 <span
-                  class="c12 icon icon-check "
+                  class="c11 icon icon-check"
+                  color="light"
                   data-testid="btn-check"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      clip-rule="evenodd"
+                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
               </div>
             </button>
           </div>

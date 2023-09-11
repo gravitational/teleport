@@ -19,6 +19,7 @@ package srv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -1002,7 +1003,7 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
 			// The party's connection may already be closed, in which case we expect an EOF
-			if !trace.IsEOF(err) {
+			if !errors.Is(err, io.EOF) {
 				s.log.Warnf("Unable to send %v to %v: %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr(), err)
 			}
 			continue
@@ -1072,8 +1073,7 @@ func (s *session) sessionRecordingMode() string {
 	subKind := s.serverMeta.ServerSubKind
 
 	// agentless connections always record the session at the proxy
-	if !services.IsRecordAtProxy(sessionRecMode) && (subKind == types.SubKindOpenSSHNode ||
-		subKind == types.SubKindOpenSSHEC2InstanceConnectEndpointNode) {
+	if !services.IsRecordAtProxy(sessionRecMode) && types.IsOpenSSHNodeSubKind(subKind) {
 		if services.IsRecordSync(sessionRecMode) {
 			sessionRecMode = types.RecordAtProxySync
 		} else {
@@ -1981,7 +1981,8 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 				LastActive: s.registry.clock.Now().UTC(),
 			},
 		},
-		HostID: s.registry.Srv.ID(),
+		HostID:        s.registry.Srv.ID(),
+		TargetSubKind: s.serverMeta.ServerSubKind,
 	}
 
 	if s.scx.env[teleport.EnvSSHSessionInvited] != "" {

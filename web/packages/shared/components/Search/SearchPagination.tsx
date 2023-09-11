@@ -36,7 +36,7 @@ export function SearchPagination({ prevPage, nextPage }: Props) {
             disabled={!prevPage}
             mx={0}
           >
-            <CircleArrowLeft fontSize="3" />
+            <CircleArrowLeft />
           </StyledArrowBtn>
           <StyledArrowBtn
             ml={0}
@@ -44,7 +44,7 @@ export function SearchPagination({ prevPage, nextPage }: Props) {
             title="Next page"
             disabled={!nextPage}
           >
-            <CircleArrowRight fontSize="3" />
+            <CircleArrowRight />
           </StyledArrowBtn>
         </Flex>
       </Flex>

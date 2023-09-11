@@ -32,8 +32,9 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
+	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -84,6 +85,7 @@ var _ ClientI = &Client{}
 // functionality that hasn't been ported to the new client yet.
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
 	cfg.DialInBackground = true
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -247,11 +249,6 @@ func (c *Client) UpdateAndSwapUser(ctx context.Context, user string, withSecrets
 // CompareAndSwapUser not implemented: can only be called locally
 func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.User) error {
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-// GetNodeStream not implemented: can only be called locally
-func (c *Client) GetNodeStream(_ context.Context, _ string) stream.Stream[types.Server] {
-	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
@@ -428,10 +425,6 @@ func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) err
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
-	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
-}
-
 func (c *Client) GetLicense(ctx context.Context) (string, error) {
 	return c.APIClient.GetLicense(ctx)
 }
@@ -446,6 +439,10 @@ func (c *Client) OktaClient() services.Okta {
 
 func (c *Client) AccessListClient() services.AccessLists {
 	return c.APIClient.AccessListClient()
+}
+
+func (c *Client) UserLoginStateClient() services.UserLoginStates {
+	return c.APIClient.UserLoginStateClient()
 }
 
 // WebService implements features used by Web UI clients
@@ -691,7 +688,6 @@ type ClientI interface {
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.Assistant
-	services.UserPreferences
 	WebService
 	services.Status
 	services.ClusterConfiguration
@@ -843,9 +839,36 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
 
+	// UserLoginStateClient returns a user login state client.
+	// Clients connecting to  older Teleport versions, still get a user login state client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	UserLoginStateClient() services.UserLoginStates
+
+	// ResourceUsageClient returns a resource usage service client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient
+
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
 
 	// GetResources returns a paginated list of resources.
 	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+
+	// GetUserPreferences returns the user preferences for a given user.
+	GetUserPreferences(ctx context.Context, req *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.GetUserPreferencesResponse, error)
+
+	// UpsertUserPreferences creates or updates user preferences for a given username.
+	UpsertUserPreferences(ctx context.Context, req *userpreferencesv1.UpsertUserPreferencesRequest) error
+
+	// ListUnifiedResources returns a paginated list of unified resources.
+	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
+
+	// GetSSHTargets gets all servers that would match an equivalent ssh dial request. Note that this method
+	// returns all resources directly accessible to the user *and* all resources available via 'SearchAsRoles',
+	// which is what we want when handling things like ambiguous host errors and resource-based access requests,
+	// but may result in confusing behavior if it is used outside of those contexts.
+	GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error)
 }

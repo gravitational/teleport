@@ -92,7 +92,7 @@ export default function RecoveryCodesDialog({
           className="print"
         >
           <Box mb={5}>
-            <Text typography="h2" mb={3} color="text.main">
+            <Text typography="h4" mb={3} color="text.main">
               {title}
             </Text>
             <Text mb={1}>

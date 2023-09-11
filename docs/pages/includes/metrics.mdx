@@ -61,6 +61,7 @@
 | `teleport_audit_parquetlog_errors_from_collect_count`    | counter   | Teleport Audit Log  | Number of collect failures in Parquet-format audit log.                                            |
 | `teleport_connected_resources`                           | gauge     | Teleport Auth       | Number and type of resources connected via keepalives.                                             |
 | `teleport_registered_servers`                            | gauge     | Teleport Auth       | The number of Teleport services that are connected to an Auth Service instance grouped by version. |
+| `teleport_registered_servers_by_install_methods`         | gauge     | Teleport Auth       | The number of Teleport services that are connected to an Auth Service instance grouped by install methods. |
 | `user_login_total`                                       | counter   | Teleport Auth       | Number of user logins.                                                                             |
 | `teleport_migrations`                                    | gauge     | Teleport Auth       | Tracks for each migration if it is active (1) or not (0).                                          |
 | `watcher_event_sizes`                                    | histogram | cache               | Overall size of events emitted.                                                                    |
@@ -76,34 +77,54 @@
 
 ## Proxy Service
 
-| Name                                      | Type      | Component      | Description                                                                                                                              |
-| ----------------------------------------- | --------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `failed_connect_to_node_attempts_total`   | counter   | Teleport Proxy | Number of failed SSH connection attempts to the SSH Service. Use with `teleport_connect_to_node_attempts_total` to get the failure rate. |
-| `failed_login_attempts_total`             | counter   | Teleport Proxy | Number of failed `tsh login` or `tsh ssh` logins.                                                                                        |
-| `grpc_client_started_total`               | counter   | Teleport Proxy | Total number of RPCs started on the client.                                                                                              |
-| `grpc_client_handled_total`               | counter   | Teleport Proxy | Total number of RPCs completed on the client, regardless of success or failure.                                                          |
-| `grpc_client_msg_received_total`          | counter   | Teleport Proxy | Total number of RPC stream messages received on the client.                                                                              |
-| `grpc_client_msg_sent_total`              | counter   | Teleport Proxy | Total number of gRPC stream messages sent by the client.                                                                                 |
-| `proxy_connection_limit_exceeded_total`   | counter   | Teleport Proxy | Number of connections that exceeded the Proxy Service connection limit.                                                                  |
-| `proxy_peer_client_dial_error_total`      | counter   | Teleport Proxy | Total number of errors encountered dialing peer Proxy Service instances.                                                                                 |
-| `proxy_peer_server_connections`           | gauge     | Teleport Proxy | Number of currently opened connection to proxy Proxy Service instances.                                                                             |
-| `proxy_peer_client_rpc`                   | gauge     | Teleport Proxy | Number of current client RPC requests.                                                                                                   |
-| `proxy_peer_client_rpc_total`             | counter   | Teleport Proxy | Total number of client RPC requests.                                                                                                     |
-| `proxy_peer_client_rpc_duration_seconds`  | histogram | Teleport Proxy | Duration in seconds of RPCs sent by the client.                                                                                          |
-| `proxy_peer_client_message_sent_size`     | histogram | Teleport Proxy | Size of messages sent by the client.                                                                                                     |
-| `proxy_peer_client_message_received_size` | histogram | Teleport Proxy | Size of messages received by the client.                                                                                                 |
-| `proxy_peer_server_connections`           | gauge     | Teleport Proxy | Number of currently opened connection to peer Proxy Service clients.                                                                             |
-| `proxy_peer_server_rpc`                   | gauge     | Teleport Proxy | Number of current server RPC requests.                                                                                                   |
-| `proxy_peer_server_rpc_total`             | counter   | Teleport Proxy | Total number of server RPC requests.                                                                                                     |
-| `proxy_peer_server_rpc_duration_seconds`  | histogram | Teleport Proxy | Duration in seconds of RPCs sent by the server.                                                                                          |
-| `proxy_peer_server_message_sent_size`     | histogram | Teleport Proxy | Size of messages sent by the server.                                                                                                     |
-| `proxy_peer_server_message_received_size` | histogram | Teleport Proxy | Size of messages received by the server.                                                                                                 |
-| `proxy_ssh_sessions_total`                | gauge     | Teleport Proxy | Number of active sessions through this Proxy Service instance.                                                                           |
-| `proxy_missing_ssh_tunnels`               | gauge     | Teleport Proxy | Number of missing SSH tunnels. Used to debug if Teleport instances have discovered all Proxy Service instances.                          |
-| `remote_clusters`                         | gauge     | Teleport Proxy | Number of inbound connections from leaf clusters.                                                                                        |
-| `teleport_connect_to_node_attempts_total` | counter   | Teleport Proxy | Number of SSH connection attempts to a SSH Service. Use with `failed_connect_to_node_attempts_total` to get the failure rate.            |
-| `teleport_reverse_tunnels_connected`      | gauge     | Teleport Proxy | Number of reverse SSH tunnels connected to the Teleport Proxy Service by Teleport instances.                                             |
-| `trusted_clusters`                        | gauge     | Teleport Proxy | Number of outbound connections to leaf clusters.                                                                                         |
+| Name                                                   | Type      | Component      | Description                                                                                                                              |
+| ------------------------------------------------------ | --------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `failed_connect_to_node_attempts_total`                | counter   | Teleport Proxy | Number of failed SSH connection attempts to the SSH Service. Use with `teleport_connect_to_node_attempts_total` to get the failure rate. |
+| `failed_login_attempts_total`                          | counter   | Teleport Proxy | Number of failed `tsh login` or `tsh ssh` logins.                                                                                        |
+| `grpc_client_started_total`                            | counter   | Teleport Proxy | Total number of RPCs started on the client.                                                                                              |
+| `grpc_client_handled_total`                            | counter   | Teleport Proxy | Total number of RPCs completed on the client, regardless of success or failure.                                                          |
+| `grpc_client_msg_received_total`                       | counter   | Teleport Proxy | Total number of RPC stream messages received on the client.                                                                              |
+| `grpc_client_msg_sent_total`                           | counter   | Teleport Proxy | Total number of gRPC stream messages sent by the client.                                                                                 |
+| `proxy_connection_limit_exceeded_total`                | counter   | Teleport Proxy | Number of connections that exceeded the Proxy Service connection limit.                                                                  |
+| `proxy_peer_client_dial_error_total`                   | counter   | Teleport Proxy | Total number of errors encountered dialing peer Proxy Service instances.                                                                 |
+| `proxy_peer_server_connections`                        | gauge     | Teleport Proxy | Number of currently opened connection to proxy Proxy Service instances.                                                                  |
+| `proxy_peer_client_rpc`                                | gauge     | Teleport Proxy | Number of current client RPC requests.                                                                                                   |
+| `proxy_peer_client_rpc_total`                          | counter   | Teleport Proxy | Total number of client RPC requests.                                                                                                     |
+| `proxy_peer_client_rpc_duration_seconds`               | histogram | Teleport Proxy | Duration in seconds of RPCs sent by the client.                                                                                          |
+| `proxy_peer_client_message_sent_size`                  | histogram | Teleport Proxy | Size of messages sent by the client.                                                                                                     |
+| `proxy_peer_client_message_received_size`              | histogram | Teleport Proxy | Size of messages received by the client.                                                                                                 |
+| `proxy_peer_server_connections`                        | gauge     | Teleport Proxy | Number of currently opened connection to peer Proxy Service clients.                                                                     |
+| `proxy_peer_server_rpc`                                | gauge     | Teleport Proxy | Number of current server RPC requests.                                                                                                   |
+| `proxy_peer_server_rpc_total`                          | counter   | Teleport Proxy | Total number of server RPC requests.                                                                                                     |
+| `proxy_peer_server_rpc_duration_seconds`               | histogram | Teleport Proxy | Duration in seconds of RPCs sent by the server.                                                                                          |
+| `proxy_peer_server_message_sent_size`                  | histogram | Teleport Proxy | Size of messages sent by the server.                                                                                                     |
+| `proxy_peer_server_message_received_size`              | histogram | Teleport Proxy | Size of messages received by the server.                                                                                                 |
+| `proxy_ssh_sessions_total`                             | gauge     | Teleport Proxy | Number of active sessions through this Proxy Service instance.                                                                           |
+| `proxy_missing_ssh_tunnels`                            | gauge     | Teleport Proxy | Number of missing SSH tunnels. Used to debug if Teleport instances have discovered all Proxy Service instances.                          |
+| `remote_clusters`                                      | gauge     | Teleport Proxy | Number of inbound connections from leaf clusters.                                                                                        |
+| `teleport_connect_to_node_attempts_total`              | counter   | Teleport Proxy | Number of SSH connection attempts to a SSH Service. Use with `failed_connect_to_node_attempts_total` to get the failure rate.            |
+| `teleport_reverse_tunnels_connected`                   | gauge     | Teleport Proxy | Number of reverse SSH tunnels connected to the Teleport Proxy Service by Teleport instances.                                             |
+| `trusted_clusters`                                     | gauge     | Teleport Proxy | Number of outbound connections to leaf clusters.                                                                                         |
+| `teleport_proxy_db_connection_setup_time_seconds`      | histogram | Teleport Proxy | Time to establish connection to DB service from Proxy service.                                                                           |
+| `teleport_proxy_db_connection_dial_attempts_total`     | counter   | Teleport Proxy | Number of dial attempts from Proxy to DB service made.                                                                                   |
+| `teleport_proxy_db_connection_dial_failures_total`     | counter   | Teleport Proxy | Number of failed dial attempts from Proxy to DB service made.                                                                            |
+| `teleport_proxy_db_attempted_servers_total`            | histogram | Teleport Proxy | Number of servers processed during connection attempt to the DB service from Proxy service.                                              |
+| `teleport_proxy_db_connection_tls_config_time_seconds` | histogram | Teleport Proxy | Time to fetch TLS configuration for the connection to DB service from Proxy service.                                                     |
+| `teleport_proxy_db_active_connections_total`           | gauge     | Teleport Proxy | Number of currently active connections to DB service from Proxy service.                                                                 |
+
+## Database Service
+
+| Name                                        | Type      | Component                 | Description                                                            |
+| ------------------------------------------- | --------- | ------------------------- | ---------------------------------------------------------------------- |
+| `teleport_db_messages_from_client_total`    | counter   | Teleport Database Service | Number of messages (packets) received from the DB client.              |
+| `teleport_db_messages_from_server_total`    | counter   | Teleport Database Service | Number of messages (packets) received from the DB server.              |
+| `teleport_db_method_call_count_total`       | counter   | Teleport Database Service | Number of times a DB method was called.                                |
+| `teleport_db_method_call_latency_seconds`   | histogram | Teleport Database Service | Call latency for a DB method calls.                                    |
+| `teleport_db_initialized_connections_total` | counter   | Teleport Database Service | Number of initialized DB connections.                                  |
+| `teleport_db_active_connections_total`      | gauge     | Teleport Database Service | Number of active DB connections.                                       |
+| `teleport_db_connection_durations_seconds`  | histogram | Teleport Database Service | Duration of DB connection.                                             |
+| `teleport_db_connection_setup_time_seconds` | histogram | Teleport Database Service | Initial time to setup DB connection, before any requests are handled.  |
+| `teleport_db_errors_total`                  | counter   | Teleport Database Service | Number of synthetic DB errors sent to the client.                      |
 
 ### Kubernetes Access
 

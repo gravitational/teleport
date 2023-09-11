@@ -34,7 +34,7 @@ import {
 import { AmazonAws } from 'design/Icon';
 
 import { App } from 'teleport/services/apps';
-import { AgentLabel, AgentFilter } from 'teleport/services/agents';
+import { ResourceLabel, ResourceFilter } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 
 import AwsLaunchButton from './AwsLaunchButton';
@@ -131,7 +131,7 @@ function renderAppIcon({ name, awsConsole }: App) {
         alignItems="center"
       >
         {awsConsole ? (
-          <AmazonAws fontSize={6} />
+          <AmazonAws size="large" />
         ) : (
           <Text fontSize={3} color="light" bold caps>
             {name[0]}
@@ -233,12 +233,12 @@ type Props = {
   fetchNext: () => void;
   fetchPrev: () => void;
   fetchStatus: FetchStatus;
-  params: AgentFilter;
-  setParams: (params: AgentFilter) => void;
+  params: ResourceFilter;
+  setParams: (params: ResourceFilter) => void;
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
-  onLabelClick: (label: AgentLabel) => void;
+  onLabelClick: (label: ResourceLabel) => void;
   pageIndicators: PageIndicators;
 };
 

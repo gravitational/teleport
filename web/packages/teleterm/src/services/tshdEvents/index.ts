@@ -42,6 +42,11 @@ export interface CannotProxyGatewayConnection
   targetUri: uri.DatabaseUri;
 }
 
+export interface SendPendingHeadlessAuthenticationRequest
+  extends api.SendPendingHeadlessAuthenticationRequest.AsObject {
+  rootClusterUri: uri.RootClusterUri;
+}
+
 /**
  * Starts tshd events server.
  * @return {Promise} Object containing the address the server is listening on and subscribeToEvent
@@ -180,10 +185,25 @@ function createService(logger: Logger): {
         }
       );
     },
-    sendPendingHeadlessAuthentication: () => {
-      // TODO (joerger): Handle pending headless authentications with an
-      // approve/deny modal, followed by an MFA prompt for approval.
-      logger.info('Received pending headless authentication');
+    sendPendingHeadlessAuthentication: (call, callback) => {
+      const request = call.request.toObject();
+
+      logger.info('Emitting sendPendingHeadlessAuthentication', request);
+
+      const onCancelled = (callback: () => void) => {
+        call.on('cancelled', callback);
+      };
+
+      emitter
+        .emit('sendPendingHeadlessAuthentication', { request, onCancelled })
+        .then(
+          () => {
+            callback(null, new api.SendPendingHeadlessAuthenticationResponse());
+          },
+          error => {
+            callback(error);
+          }
+        );
     },
   };
 

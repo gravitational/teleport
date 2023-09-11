@@ -28,6 +28,8 @@ type DiscoveryConfig struct {
 	AzureMatchers []types.AzureMatcher
 	// GCPMatchers are used to match GCP resources for auto discovery.
 	GCPMatchers []types.GCPMatcher
+	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
+	KubernetesMatchers []types.KubernetesMatcher
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -43,6 +45,6 @@ type DiscoveryConfig struct {
 
 // IsEmpty validates if the Discovery Service config has no cloud matchers.
 func (d DiscoveryConfig) IsEmpty() bool {
-	return len(d.AWSMatchers) == 0 &&
-		len(d.AzureMatchers) == 0 && len(d.GCPMatchers) == 0
+	return len(d.AWSMatchers) == 0 && len(d.AzureMatchers) == 0 &&
+		len(d.GCPMatchers) == 0 && len(d.KubernetesMatchers) == 0
 }

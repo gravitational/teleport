@@ -52,6 +52,44 @@ func (c *Cluster) WatchPendingHeadlessAuthentications(ctx context.Context) (watc
 	return watcher, close, trace.Wrap(err)
 }
 
+// WatchHeadlessAuthentications watches the backend for headless authentication events for the user.
+func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context) (watcher types.Watcher, close func(), err error) {
+	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		proxyClient.Close()
+		return nil, nil, trace.Wrap(err)
+	}
+
+	watch := types.Watch{
+		Kinds: []types.WatchKind{{
+			Kind: types.KindHeadlessAuthentication,
+			Filter: (&types.HeadlessAuthenticationFilter{
+				Username: c.clusterClient.Username,
+			}).IntoMap(),
+		}},
+	}
+
+	watcher, err = rootClient.NewWatcher(ctx, watch)
+	if err != nil {
+		proxyClient.Close()
+		rootClient.Close()
+		return nil, nil, trace.Wrap(err)
+	}
+
+	close = func() {
+		watcher.Close()
+		proxyClient.Close()
+		rootClient.Close()
+	}
+
+	return watcher, close, trace.Wrap(err)
+}
+
 // UpdateHeadlessAuthenticationState updates the headless authentication matching the given id to the given state.
 // MFA will be prompted when updating to the approve state.
 func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, headlessID string, state types.HeadlessAuthenticationState) error {
@@ -80,7 +118,7 @@ func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, headles
 				return trace.Wrap(err)
 			}
 
-			mfaResponse, err = c.clusterClient.PromptMFAChallenge(ctx, c.clusterClient.WebProxyAddr, chall, nil)
+			mfaResponse, err = c.clusterClient.PromptMFA(ctx, chall)
 			if err != nil {
 				return trace.Wrap(err)
 			}

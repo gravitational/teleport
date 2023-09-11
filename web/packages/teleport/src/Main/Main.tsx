@@ -47,7 +47,10 @@ import { useAlerts } from 'teleport/components/BannerList/useAlerts';
 
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
 
-import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
+import {
+  getFirstRouteForCategory,
+  NavigationProps,
+} from 'teleport/Navigation/Navigation';
 
 import { NavigationCategory } from 'teleport/Navigation/categories';
 
@@ -65,6 +68,7 @@ export interface MainProps {
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
   Questionnaire?: (props: QuestionnaireProps) => React.ReactElement;
+  navigationProps?: NavigationProps;
 }
 
 export function Main(props: MainProps) {
@@ -167,7 +171,7 @@ export function Main(props: MainProps) {
         onBannerDismiss={dismissAlert}
       >
         <MainContainer>
-          <Navigation />
+          <Navigation {...props.navigationProps} />
           <HorizontalSplit>
             <ContentMinWidth>
               <Suspense fallback={null}>
@@ -184,7 +188,6 @@ export function Main(props: MainProps) {
       {showOnboardSurvey && (
         <Dialog open={showOnboardSurvey}>
           <props.Questionnaire
-            full={true}
             onSubmit={() => setShowOnboardSurvey(false)}
             onboard={false}
           />

@@ -17,11 +17,36 @@ limitations under the License.
 package services
 
 import (
+	"context"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// UserLoginStateGetter is the interface for reading user login states.
+type UserLoginStatesGetter interface {
+	// GetUserLoginStates returns the all user login state resources.
+	GetUserLoginStates(context.Context) ([]*userloginstate.UserLoginState, error)
+
+	// GetUserLoginState returns the specified user login state resource.
+	GetUserLoginState(context.Context, string) (*userloginstate.UserLoginState, error)
+}
+
+// UserLoginState is the interface for managing with user login states.
+type UserLoginStates interface {
+	UserLoginStatesGetter
+
+	// UpsertUserLoginState creates or updates a user login state resource.
+	UpsertUserLoginState(context.Context, *userloginstate.UserLoginState) (*userloginstate.UserLoginState, error)
+
+	// DeleteUserLoginState removes the specified user login state resource.
+	DeleteUserLoginState(context.Context, string) error
+
+	// DeleteAllUserLoginStates removes all user login state resources.
+	DeleteAllUserLoginStates(context.Context) error
+}
 
 // MarshalUserLoginState marshals the user login state resource to JSON.
 func MarshalUserLoginState(userLoginState *userloginstate.UserLoginState, opts ...MarshalOption) ([]byte, error) {
@@ -56,8 +81,12 @@ func UnmarshalUserLoginState(data []byte, opts ...MarshalOption) (*userloginstat
 		return nil, trace.Wrap(err)
 	}
 
-	uls.SetResourceID(cfg.ID)
-	uls.SetExpiry(cfg.Expires)
+	if cfg.ID != 0 {
+		uls.SetResourceID(cfg.ID)
+	}
+	if !cfg.Expires.IsZero() {
+		uls.SetExpiry(cfg.Expires)
+	}
 
 	return uls, nil
 }

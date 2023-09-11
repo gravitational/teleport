@@ -18,10 +18,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math/rand"
+	"os"
 	"path"
 	"sort"
 	"strings"
@@ -592,4 +594,195 @@ func TestMigrationDryRunValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSortingExportFile(t *testing.T) {
+	t.Run("sorting 1MB of data by loading max 200KB into memory", func(t *testing.T) {
+		// Create 1MB of Data.
+		exportSize := 1024 * 1024
+		generatedExport, noOfEvents := generateExportFileOfSize(t, exportSize, "2022-03-01", "2023-03-01")
+		defer generatedExport.Close()
+		// Allow loading max of 200KB data.
+		maxSingleBatchSize := 200 * 1024
+		sortedFile, err := createSortedExport(generatedExport, t.TempDir(), noOfEvents, maxSingleBatchSize)
+		require.NoError(t, err)
+		defer sortedFile.Close()
+
+		// Aeert that file is sorted and it contains all events.
+		dec := json.NewDecoder(sortedFile)
+		// let's take first firstEvent and use it later for comparisons.
+		var firstEvent dynamoEventPart
+		err = dec.Decode(&firstEvent)
+		require.NoError(t, err)
+		// start with 1 because we already read first item
+		gotEvents := 1
+		minDate := firstEvent.Item.CreatedAtDate.Value
+		require.NotEmpty(t, minDate)
+		for dec.More() {
+			var event dynamoEventPart
+			err = dec.Decode(&event)
+			require.NoError(t, err)
+			require.LessOrEqual(t, minDate, event.Item.CreatedAtDate.Value, "events are not sorted")
+			gotEvents++
+		}
+		require.Equal(t, noOfEvents, gotEvents)
+	})
+	t.Run("equality check, less data then maxSize, make sure it is stil sorted", func(t *testing.T) {
+		line1 := eventLineFromTimeWithUID("2023-05-06", "id1")
+		line2 := eventLineFromTimeWithUID("2023-05-06", "id2")
+		line3 := eventLineFromTimeWithUID("2023-05-03", "id3")
+		line4 := eventLineFromTimeWithUID("2023-05-08", "id4")
+		line5 := eventLineFromTimeWithUID("2023-05-04", "id5")
+		line6 := eventLineFromTimeWithUID("2023-05-01", "id6")
+		unsortedLines := []string{line1, line2, line3, line4, line5, line6}
+		sortedLines := []string{line6, line3, line5, line1, line2, line4}
+		generatedExport, size := generateExportFilesFromLines(t, unsortedLines)
+		defer generatedExport.Close()
+
+		// Make sure that size is bigger, we want to be sure that we will sort also
+		// if file will fit in one batch.
+		maxSingleBatchSize := 10 * size
+		sortedFile, err := createSortedExport(generatedExport, t.TempDir(), len(unsortedLines), maxSingleBatchSize)
+		require.NoError(t, err)
+		defer sortedFile.Close()
+
+		bb, err := io.ReadAll(sortedFile)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(
+			strings.Join(sortedLines, "\n")+"\n", /* add new line at the end, join does not add it */
+			string(bb)))
+	})
+	t.Run("equality check, more data then maxSize", func(t *testing.T) {
+		line1 := eventLineFromTimeWithUID("2023-05-06", "id1")
+		line2 := eventLineFromTimeWithUID("2023-05-06", "id2")
+		line3 := eventLineFromTimeWithUID("2023-05-03", "id3")
+		line4 := eventLineFromTimeWithUID("2023-05-08", "id4")
+		line5 := eventLineFromTimeWithUID("2023-05-04", "id5")
+		line6 := eventLineFromTimeWithUID("2023-05-01", "id6")
+		unsortedLines := []string{line1, line2, line3, line4, line5, line6}
+		sortedLines := []string{line6, line3, line5, line1, line2, line4}
+		generatedExport, size := generateExportFilesFromLines(t, unsortedLines)
+		defer generatedExport.Close()
+
+		// create at least 3 temporary files for external sorting.
+		maxSingleBatchSize := size / 3
+		sortedFile, err := createSortedExport(generatedExport, t.TempDir(), len(unsortedLines), maxSingleBatchSize)
+		require.NoError(t, err)
+		defer sortedFile.Close()
+
+		bb, err := io.ReadAll(sortedFile)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(
+			strings.Join(sortedLines, "\n")+"\n", /* add new line at the end, join does not add it */
+			string(bb)))
+	})
+}
+
+func generateExportFilesFromLines(t *testing.T, lines []string) (file *os.File, size int) {
+	f, err := os.CreateTemp(t.TempDir(), "*")
+	require.NoError(t, err)
+	zw := gzip.NewWriter(f)
+	for _, line := range lines {
+		size += len(line)
+		_, err = zw.Write([]byte(line + "\n"))
+		require.NoError(t, err)
+	}
+	err = zw.Close()
+	require.NoError(t, err)
+	_, err = f.Seek(0, io.SeekStart)
+	require.NoError(t, err)
+	return f, size
+}
+
+func generateExportFileOfSize(t *testing.T, wantSize int, minDate, maxDate string) (*os.File, int) {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	f, err := os.CreateTemp(t.TempDir(), "*")
+	require.NoError(t, err)
+	require.NoError(t, err)
+	zw := gzip.NewWriter(f)
+
+	var noOfEvents, size int
+	for size < wantSize {
+		noOfEvents++
+		line := eventLineFromTime(randomTime(t, minDate, maxDate, rnd).Format(time.DateOnly))
+		size += len(line)
+		_, err = zw.Write([]byte(line + "\n"))
+		require.NoError(t, err)
+	}
+	err = zw.Close()
+	require.NoError(t, err)
+	_, err = f.Seek(0, io.SeekStart)
+	require.NoError(t, err)
+	return f, noOfEvents
+}
+
+func randomTime(t *testing.T, minStr, maxStr string, rnd *rand.Rand) time.Time {
+	min, err := time.Parse(time.DateOnly, minStr)
+	require.NoError(t, err)
+	max, err := time.Parse(time.DateOnly, maxStr)
+	require.NoError(t, err)
+	minUnix := min.Unix()
+	maxUnix := max.Unix()
+	delta := maxUnix - minUnix
+	sec := rnd.Int63n(delta) + minUnix
+	return time.Unix(sec, 0)
+}
+
+func eventLineFromTime(eventTime string) string {
+	return eventLineFromTimeWithUID(eventTime, uuid.NewString())
+}
+
+func eventLineFromTimeWithUID(eventTime, uid string) string {
+	// Generate event close to 1KB.
+	event := fmt.Sprintf(
+		`{
+			"Item":{
+				"EventIndex":{
+					"N":"2147483647"
+				},
+				"SessionID":{
+					"S":"4298bd54-a747-4d53-b850-83ba17caae5a"
+				},
+				"CreatedAtDate":{
+					"S":"%s"
+				},
+				"FieldsMap":{
+					"M":{
+						"cluster_name":{
+							"S":"%s"
+						},
+						"uid":{
+							"S":"%s"
+						},
+						"code":{
+							"S":"T2005I"
+						},
+						"ei":{
+							"N":"2147483647"
+						},
+						"time":{
+							"S":"2023-05-22T12:12:21.966Z"
+						},
+						"event":{
+							"S":"session.upload"
+						},
+						"sid":{
+							"S":"4298bd54-a747-4d53-b850-83ba17caae5a"
+						}
+					}
+				},
+				"EventType":{
+					"S":"session.upload"
+				},
+				"EventNamespace":{
+					"S":"default"
+				},
+				"CreatedAt":{
+					"N":"1684757541"
+				}
+			}
+		}`,
+		eventTime, strings.Repeat("a", 1024), uid)
+	return strings.ReplaceAll(strings.ReplaceAll(event, "\t", ""), "\n", "")
 }

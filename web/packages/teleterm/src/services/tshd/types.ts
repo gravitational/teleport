@@ -29,6 +29,7 @@ import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
 import apiLabel from 'gen-proto-js/teleport/lib/teleterm/v1/label_pb';
 import apiService, {
   FileTransferDirection,
+  HeadlessAuthenticationState,
 } from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
 import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
 import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
@@ -246,6 +247,11 @@ export type TshClient = {
     clusterUri: uri.RootClusterUri,
     token: string
   ) => Promise<void>;
+
+  updateHeadlessAuthenticationState: (
+    params: UpdateHeadlessAuthenticationStateParams,
+    abortSignal?: TshAbortSignal
+  ) => Promise<void>;
 };
 
 export type TshAbortController = {
@@ -341,3 +347,11 @@ export type CreateConnectMyComputerNodeTokenResponse =
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;
+
+export type UpdateHeadlessAuthenticationStateParams = {
+  rootClusterUri: uri.RootClusterUri;
+  headlessAuthenticationId: string;
+  state: apiService.HeadlessAuthenticationState;
+};
+
+export { HeadlessAuthenticationState };

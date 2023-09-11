@@ -1,6 +1,6 @@
 ---
 authors: Gavin Frazar (gavin.frazar@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0129 - Avoid Discovery Resource Name Collisions
@@ -55,6 +55,8 @@ appended to it that includes:
 - Name of the AWS matcher type
   - `eks`, `rds`, `rdsproxy`, `redshift`, `redshift-serverless`, `elasticache`,
     `memorydb` (as of writing this RFD)
+  - additionally, the RDS subtype `rds-aurora` is used to distinguish RDS
+    instances vs RDS Aurora clusters.
 - AWS region
 - AWS account ID
 
@@ -128,11 +130,12 @@ We could use this ID as the database name, but it is unnecessarily verbose.
 It will also fail to match our database name validation regex:
 `[a-z]([-a-z0-9]*[a-z0-9])?`.
 
-Additionally, all of the Azure databases that Teleport currently supports
-require globally unique names (within the same type of database), because Azure
-assigns a DNS name:
+Additionally, all of the Azure databases, that Teleport currently supports
+*except Redis* require globally unique names (within the same type of database),
+because Azure assigns a DNS name:
 
 - Redis: `<name>.redis.cache.windows.net`.
+- Redis Enterprise: `<name>.redisenterprise.cache.azure.net`.
 - SQL Server: `<name>.database.windows.net`.
 - Postgres: `<name.postgres.database.azure.com`.
 - MySQL: `<name>.mysql.database.azure.com`.
@@ -158,6 +161,8 @@ naming convention will be to append a suffix that includes:
 
 - Name of the Azure matcher type
   - `aks`, `mysql`, `postgres`, `redis`, `sqlserver` (as of writing this RFD)
+  - additionally, `redis-enterprise` will be used to subtype Redis enterprise
+    databases to distinguish them from non-enterprise Redis databases.
 - Azure region
 - Azure resource group name
   - resource group names may contain characters that we do not allow in database

@@ -29,6 +29,7 @@ test('correct processed fetch response formatting', async () => {
   expect(response).toEqual({
     agents: [
       {
+        kind: 'kube_cluster',
         name: 'tele.logicoma.dev-prod',
         labels: [
           { name: 'kernal', value: '4.15.0-51-generic' },
@@ -69,7 +70,7 @@ test('handling of null labels', async () => {
   });
 
   expect(response.agents).toEqual([
-    { name: 'test', labels: [], users: [], groups: [] },
+    { kind: 'kube_cluster', name: 'test', labels: [], users: [], groups: [] },
   ]);
 });
 

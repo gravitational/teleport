@@ -54,7 +54,7 @@ type Output interface {
 	// initializing in-memory maps.
 	//
 	// This must be called before Render.
-	Init() error
+	Init(ctx context.Context) error
 	// MarshalYAML enables the yaml package to correctly marshal the Output as
 	// YAML.
 	MarshalYAML() (interface{}, error)

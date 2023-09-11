@@ -414,11 +414,13 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI auth.Clien
 		return trace.Wrap(err)
 	}
 
-	sc := &serverCollection{servers, false}
+	sc := &serverCollection{servers}
 
 	switch a.format {
 	case teleport.Text:
-		return sc.writeText(os.Stdout)
+		// auth servers don't have labels.
+		verbose := false
+		return sc.writeText(os.Stdout, verbose)
 	case teleport.YAML:
 		return writeYAML(sc, os.Stdout)
 	case teleport.JSON:

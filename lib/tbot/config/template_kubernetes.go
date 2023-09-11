@@ -224,5 +224,5 @@ func (t *templateKubernetes) render(
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(destination.Write(defaultKubeconfigPath, yamlCfg))
+	return trace.Wrap(destination.Write(ctx, defaultKubeconfigPath, yamlCfg))
 }

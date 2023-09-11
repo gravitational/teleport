@@ -33,16 +33,18 @@ type ghaWorkflow struct {
 	slackOnError      bool
 	shouldTagWorkflow bool
 	seriesRun         bool
+	seriesRunFilter   string
 	inputs            map[string]string
 }
 
 type ghaBuildType struct {
 	buildType
 	trigger
-	pipelineName string
-	checkoutPath string
-	dependsOn    []string
-	workflows    []ghaWorkflow
+	pipelineName               string
+	checkoutPath               string
+	dependsOn                  []string
+	workflows                  []ghaWorkflow
+	enableParallelWorkflowRuns bool
 }
 
 func ghaBuildPipeline(ghaBuild ghaBuildType) pipeline {
@@ -73,17 +75,65 @@ func ghaMultiBuildPipeline(setupSteps []step, ghaBuild ghaBuildType) pipeline {
 		},
 	}
 
+	setupStepNames := getStepNames(p.Steps)
+	if ghaBuild.enableParallelWorkflowRuns && len(setupSteps) >= 1 {
+		for index := range setupSteps {
+			setupSteps[index].DependsOn = append(setupSteps[index].DependsOn, setupStepNames...)
+		}
+		setupStepNames = getStepNames(setupSteps)
+	}
+
 	p.Steps = append(p.Steps, setupSteps...)
 
-	for _, workflow := range ghaBuild.workflows {
-		p.Steps = append(p.Steps, buildGHAWorkflowCallStep(workflow, checkoutPath))
-
-		if workflow.slackOnError {
-			p.Steps = append(p.Steps, sendErrorToSlackStep())
-		}
+	for counter, workflow := range ghaBuild.workflows {
+		// This wait time is to avoid a GHA pending/queuing issue where multiple workflows fired off at the same time
+		// (or somewhat close to the same time) will cause only one workflow to be queued, with the others being canceled.
+		// For details, see
+		// https://docs.github.com/en/actions/using-jobs/using-concurrency#example-only-cancel-in-progress-jobs-or-runs-for-the-current-workflow:~:text=When%20a%20concurrent,progress%3A%20true.
+		sleepTime := time.Duration(counter*10) * time.Second // 10 seconds for each workflow
+		p.Steps = append(p.Steps, buildWorkflowSteps(workflow, checkoutPath, ghaBuild.enableParallelWorkflowRuns, sleepTime, setupStepNames)...)
 	}
 
 	return p
+}
+
+func buildWorkflowSteps(workflow ghaWorkflow, checkoutPath string, enableParallelWorkflowRuns bool, sleepTime time.Duration, setupStepNames []string) []step {
+	var steps []step
+	workflowStep := buildGHAWorkflowCallStep(workflow, checkoutPath)
+
+	if enableParallelWorkflowRuns {
+		if sleepTime > 0 {
+			sleepStep := sleepStep(sleepTime, setupStepNames, workflow.stepName)
+			steps = append(steps, sleepStep)
+			workflowStep.DependsOn = append(workflowStep.DependsOn, sleepStep.Name)
+		} else {
+			workflowStep.DependsOn = append(workflowStep.DependsOn, setupStepNames...)
+		}
+	}
+
+	steps = append(steps, workflowStep)
+
+	if workflow.slackOnError {
+		slackStep := sendErrorToSlackStep()
+		if enableParallelWorkflowRuns {
+			slackStep.DependsOn = append(slackStep.DependsOn, workflowStep.Name)
+		}
+
+		steps = append(steps, slackStep)
+	}
+
+	return steps
+}
+
+func sleepStep(sleepTime time.Duration, setupStepNames []string, stepNameSuffix string) step {
+	return step{
+		Name:  fmt.Sprintf("Wait - %s", stepNameSuffix),
+		Image: "alpine:latest",
+		Commands: []string{
+			fmt.Sprintf("sleep %v", sleepTime.Round(time.Second).Seconds()),
+		},
+		DependsOn: setupStepNames,
+	}
 }
 
 func buildGHAWorkflowCallStep(workflow ghaWorkflow, checkoutPath string) step {
@@ -98,6 +148,10 @@ func buildGHAWorkflowCallStep(workflow ghaWorkflow, checkoutPath string) step {
 
 	if workflow.seriesRun {
 		cmd.WriteString(`-series-run `)
+
+		if workflow.seriesRunFilter != "" {
+			fmt.Fprintf(&cmd, `-series-run-filter %s `, workflow.seriesRunFilter)
+		}
 	}
 
 	fmt.Fprintf(&cmd, `-timeout %s `, workflow.timeout.String())

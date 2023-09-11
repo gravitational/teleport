@@ -22,21 +22,6 @@ their on-disk Teleport certificates.
   to improve security.
 </Notice>
 
-<Details
-  title="Version warning"
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="6.1"
->
-  Per-session MFA checks were introduced in Teleport v6.1. To enforce the
-  checks, you must update **all** `teleport` binaries in your deployment. If
-  only Auth and Proxy services are updated, these checks will *not* be properly
-  enforced. Additionally, only v6.1 or newer `tsh` binaries implement
-  per-session MFA checks.
-
-  Per-session MFA for desktop access was introduced in Teleport 9.
-</Details>
-
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -70,7 +55,8 @@ Per-session MFA can be enforced cluster-wide or only for some specific roles.
 
 ### Cluster-wide
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 To enforce MFA checks for all roles, edit your cluster authentication
 configuration:
@@ -118,8 +104,8 @@ $ tctl create -f cap.yaml
 </TabItem>
 </Tabs>
 
-</ScopedBlock>
-<ScopedBlock scope="cloud">
+</TabItem>
+<TabItem scope="cloud" label="Teleport Enterprise Cloud">
 
 Obtain your existing `cluster_auth_preference` resource:
 
@@ -146,7 +132,9 @@ Create the resource:
 $ tctl create -f cap.yaml
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ### Per role
 

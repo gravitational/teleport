@@ -75,6 +75,7 @@ func (t *templateTLS) render(
 	cfg := identityfile.WriteConfig{
 		OutputPath: defaultTLSPrefix,
 		Writer: &BotConfigWriter{
+			ctx:  ctx,
 			dest: destination,
 		},
 		Key:    key,

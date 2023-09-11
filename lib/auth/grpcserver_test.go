@@ -43,8 +43,6 @@ import (
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -62,7 +60,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -178,12 +176,12 @@ func TestMFADeviceManagement(t *testing.T) {
 				authHandler:  devs.webAuthHandler,
 				checkAuthErr: require.NoError,
 				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-					ccr, err := webKey2.SignCredentialCreation(webOrigin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					ccr, err := webKey2.SignCredentialCreation(webOrigin, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
 
 					return &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 						},
 					}
 				},
@@ -205,17 +203,17 @@ func TestMFADeviceManagement(t *testing.T) {
 					require.NoError(t, err)
 					key.PreferRPID = true
 					key.IgnoreAllowedCredentials = true
-					resp, err := key.SignAssertion(webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+					resp, err := key.SignAssertion(webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
 					require.NoError(t, err)
 					return &proto.MFAAuthenticateResponse{
 						Response: &proto.MFAAuthenticateResponse_Webauthn{
-							Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+							Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 						},
 					}
 				},
 				checkAuthErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.Error(t, err)
-					require.Equal(t, codes.PermissionDenied, status.Code(err))
+					require.True(t, trace.IsAccessDenied(err))
 				},
 			},
 		},
@@ -236,17 +234,17 @@ func TestMFADeviceManagement(t *testing.T) {
 					key.PreferRPID = true
 
 					ccr, err := key.SignCredentialCreation(
-						"http://badorigin.com" /* origin */, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+						"http://badorigin.com" /* origin */, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
 					return &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 						},
 					}
 				},
 				checkRegisterErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.Error(t, err)
-					require.Equal(t, codes.InvalidArgument, status.Code(err))
+					require.True(t, trace.IsBadParameter(err))
 				},
 			},
 		},
@@ -268,12 +266,12 @@ func TestMFADeviceManagement(t *testing.T) {
 					key.PreferRPID = true
 					key.SetPasswordless()
 
-					ccr, err := key.SignCredentialCreation(webOrigin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					ccr, err := key.SignCredentialCreation(webOrigin, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
 
 					return &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 						},
 					}
 				},
@@ -356,11 +354,11 @@ func TestMFADeviceManagement(t *testing.T) {
 					require.NoError(t, err)
 					key.PreferRPID = true
 					key.IgnoreAllowedCredentials = true
-					resp, err := key.SignAssertion(webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+					resp, err := key.SignAssertion(webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
 					require.NoError(t, err)
 					return &proto.MFAAuthenticateResponse{
 						Response: &proto.MFAAuthenticateResponse_Webauthn{
-							Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+							Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 						},
 					}
 				},
@@ -405,11 +403,11 @@ func TestMFADeviceManagement(t *testing.T) {
 				},
 				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					resp, err := webKey2.SignAssertion(
-						webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+						webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
 					require.NoError(t, err)
 					return &proto.MFAAuthenticateResponse{
 						Response: &proto.MFAAuthenticateResponse_Webauthn{
-							Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+							Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 						},
 					}
 				},
@@ -459,11 +457,11 @@ func (d *mfaDevices) webAuthHandler(t *testing.T, challenge *proto.MFAAuthentica
 	require.NotNil(t, challenge.WebauthnChallenge)
 
 	resp, err := d.WebKey.SignAssertion(
-		d.webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+		d.webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
 	require.NoError(t, err)
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+			Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 		},
 	}
 }
@@ -471,7 +469,7 @@ func (d *mfaDevices) webAuthHandler(t *testing.T, challenge *proto.MFAAuthentica
 func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, origin string) mfaDevices {
 	const totpName = "totp-dev"
 	const webName = "webauthn-dev"
-	devs := mfaDevices{
+	mfaDevs := mfaDevices{
 		clock:     clock,
 		webOrigin: origin,
 		TOTPName:  totpName,
@@ -479,13 +477,13 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 	}
 
 	var err error
-	devs.WebKey, err = mocku2f.Create()
+	mfaDevs.WebKey, err = mocku2f.Create()
 	require.NoError(t, err)
-	devs.WebKey.PreferRPID = true
+	mfaDevs.WebKey.PreferRPID = true
 
-	// Add MFA devices of all kinds.
 	ctx := context.Background()
-	for _, test := range []struct {
+
+	devs := []struct {
 		name string
 		opts mfaAddTestOpts
 	}{
@@ -505,8 +503,8 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 					require.NotEmpty(t, challenge.GetTOTP())
 					require.Equal(t, challenge.GetTOTP().Algorithm, otp.AlgorithmSHA1.String())
 
-					devs.TOTPSecret = challenge.GetTOTP().Secret
-					code, err := totp.GenerateCodeCustom(devs.TOTPSecret, clock.Now(), totp.ValidateOpts{
+					mfaDevs.TOTPSecret = challenge.GetTOTP().Secret
+					code, err := totp.GenerateCodeCustom(mfaDevs.TOTPSecret, clock.Now(), totp.ValidateOpts{
 						Period:    uint(challenge.GetTOTP().PeriodSeconds),
 						Digits:    otp.Digits(challenge.GetTOTP().Digits),
 						Algorithm: otp.AlgorithmSHA1,
@@ -523,7 +521,7 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 				},
 				checkRegisterErr: require.NoError,
 				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
-					want, err := services.NewTOTPDevice(totpName, devs.TOTPSecret, clock.Now())
+					want, err := services.NewTOTPDevice(totpName, mfaDevs.TOTPSecret, clock.Now())
 					want.Id = got.Id
 					require.NoError(t, err)
 					require.Empty(t, cmp.Diff(want, got))
@@ -537,16 +535,16 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 					DeviceName: webName,
 					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
-				authHandler:  devs.totpAuthHandler,
+				authHandler:  mfaDevs.totpAuthHandler,
 				checkAuthErr: require.NoError,
 				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
 					require.NotNil(t, challenge.GetWebauthn())
 
-					ccr, err := devs.WebKey.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					ccr, err := mfaDevs.WebKey.SignCredentialCreation(origin, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
 					return &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 						},
 					}
 				},
@@ -554,16 +552,17 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
 					// MFADevice device asserted in its entirety by lib/auth/webauthn
 					// tests, a simple check suffices here.
-					require.Equal(t, devs.WebKey.KeyHandle, got.GetWebauthn().CredentialId)
+					require.Equal(t, mfaDevs.WebKey.KeyHandle, got.GetWebauthn().CredentialId)
 				},
 			},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			testAddMFADevice(ctx, t, cl, test.opts)
-		})
 	}
-	return devs
+
+	for _, dev := range devs {
+		testAddMFADevice(ctx, t, cl, dev.opts)
+	}
+
+	return mfaDevs
 }
 
 type mfaAddTestOpts struct {
@@ -1167,6 +1166,20 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	}
 }
 
+func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+		},
+	)
+	require.NoError(t, err)
+	return database
+}
+
 func TestGenerateUserSingleUseCert(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise, // required for IP pinning.
@@ -1215,11 +1228,11 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 	// Register a database.
+
 	db, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: "db-a",
 	}, types.DatabaseServerSpecV3{
-		Protocol: "postgres",
-		URI:      "localhost",
+		Database: mustCreateDatabase(t, "db-a", "postgres", "localhost"),
 		Hostname: "localhost",
 		HostID:   "localhost",
 	})
@@ -2339,6 +2352,59 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	require.NoError(t, <-pingErr)
 }
 
+func TestGetSSHTargets(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	upper, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "Foo",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+
+	lower, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "foo",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+
+	other, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "bar",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+
+	for _, node := range []types.Server{upper, lower, other} {
+		_, err = clt.UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	rsp, err := clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
+		Host: "foo",
+		Port: "0",
+	})
+	require.NoError(t, err)
+	require.Len(t, rsp.Servers, 1)
+	require.Equal(t, rsp.Servers[0].GetHostname(), "foo")
+
+	cnc := types.DefaultClusterNetworkingConfig()
+	cnc.SetCaseInsensitiveRouting(true)
+	err = clt.SetClusterNetworkingConfig(ctx, cnc)
+	require.NoError(t, err)
+
+	rsp, err = clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
+		Host: "foo",
+		Port: "0",
+	})
+	require.NoError(t, err)
+	require.Len(t, rsp.Servers, 2)
+	require.ElementsMatch(t, []string{rsp.Servers[0].GetHostname(), rsp.Servers[1].GetHostname()}, []string{"foo", "Foo"})
+}
+
 func TestNodesCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -2664,7 +2730,6 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fetch all apps.
-	app2.SetOrigin(types.OriginDynamic)
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
@@ -3233,8 +3298,7 @@ func TestListResources(t *testing.T) {
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name: name,
 				}, types.DatabaseServerSpecV3{
-					Protocol: defaults.ProtocolPostgres,
-					URI:      "localhost:5432",
+					Database: mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432"),
 					Hostname: "localhost",
 					HostID:   uuid.New().String(),
 				})
@@ -3767,180 +3831,6 @@ func TestExport(t *testing.T) {
 			tt.uploadedAssertion(t, tt.mockTraceClient.spans)
 		})
 	}
-}
-
-// TestGRPCServer_CreateToken tests the handler of the deprecated CreateToken
-// RPC.
-func TestGRPCServer_CreateToken(t *testing.T) {
-	ctx := context.Background()
-	server := newTestTLSServer(t)
-
-	// Allow us to directly invoke the deprecated gRPC methods with
-	// authentication.
-	user := TestAdmin()
-	ctx = authz.ContextWithUser(ctx, user.I)
-
-	// Test default expiry is applied.
-	t.Run("undefined-expiry", func(t *testing.T) {
-		tokenName := "undefined-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			time.Time{},
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.CreateToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		ttl := token.Expiry().Sub(server.Clock().Now())
-		defaultTTL := defaults.ProvisioningTokenTTL
-		require.LessOrEqual(t, ttl, defaultTTL)
-		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
-	})
-
-	// Test set expiry is applied.
-	t.Run("set-expiry", func(t *testing.T) {
-		tokenName := "set-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		ttl := time.Hour * 24
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			server.Clock().Now().Add(ttl),
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.CreateToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		actualTTL := token.Expiry().Sub(server.Clock().Now())
-		require.LessOrEqual(t, actualTTL, ttl)
-		require.GreaterOrEqual(t, actualTTL, ttl-(time.Second*10))
-	})
-
-	// Test expiry in past is changed to default
-	t.Run("past-expiry", func(t *testing.T) {
-		tokenName := "past-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			server.Clock().Now().Add(-1*time.Hour),
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.CreateToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		ttl := token.Expiry().Sub(server.Clock().Now())
-		defaultTTL := defaults.ProvisioningTokenTTL
-		require.LessOrEqual(t, ttl, defaultTTL)
-		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
-	})
-}
-
-// TestGRPCServer_UpsertToken tests the handler of the deprecated CreateToken
-// RPC.
-func TestGRPCServer_UpsertToken(t *testing.T) {
-	ctx := context.Background()
-	server := newTestTLSServer(t)
-
-	// Allow us to directly invoke the deprecated gRPC methods with
-	// authentication.
-	user := TestAdmin()
-	ctx = authz.ContextWithUser(ctx, user.I)
-
-	// Test default expiry is applied.
-	t.Run("undefined-expiry", func(t *testing.T) {
-		tokenName := "undefined-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			time.Time{},
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.UpsertToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		ttl := token.Expiry().Sub(server.Clock().Now())
-		defaultTTL := defaults.ProvisioningTokenTTL
-		require.LessOrEqual(t, ttl, defaultTTL)
-		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
-	})
-
-	// Test set expiry is applied.
-	t.Run("set-expiry", func(t *testing.T) {
-		tokenName := "set-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		ttl := time.Hour * 24
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			server.Clock().Now().Add(ttl),
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.UpsertToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		actualTTL := token.Expiry().Sub(server.Clock().Now())
-		require.LessOrEqual(t, actualTTL, ttl)
-		require.GreaterOrEqual(t, actualTTL, ttl-(time.Second*10))
-	})
-
-	// Test expiry in past is changed to default
-	t.Run("past-expiry", func(t *testing.T) {
-		tokenName := "past-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			server.Clock().Now().Add(-1*time.Hour),
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.UpsertToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		ttl := token.Expiry().Sub(server.Clock().Now())
-		defaultTTL := defaults.ProvisioningTokenTTL
-		require.LessOrEqual(t, ttl, defaultTTL)
-		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
-	})
 }
 
 // TestSAMLValidation tests that SAML validation does not perform an HTTP

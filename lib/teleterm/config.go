@@ -35,6 +35,9 @@ type Config struct {
 	// ListeningC propagates the address on which the gRPC server listens. Mostly useful in tests, as
 	// the Electron app gets the server port from stdout.
 	ListeningC chan<- utils.NetAddr
+	// KubeconfigsDir is the directory containing kubeconfigs for Kubernetes
+	// Acesss.
+	KubeconfigsDir string
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -58,6 +61,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if !(addr.Network() == "unix" || addr.Network() == "tcp") {
 		return trace.BadParameter("network address should start with unix:// or tcp:// or be empty (tcp:// is used in that case)")
+	}
+
+	if c.KubeconfigsDir == "" {
+		return trace.BadParameter("missing kubeconfigs directory")
 	}
 
 	return nil

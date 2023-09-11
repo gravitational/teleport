@@ -18,6 +18,7 @@ package ai
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -25,7 +26,27 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 )
+
+// Function to calculate L2 norm
+func L2norm(v []float64) float64 {
+	sum := 0.0
+	for _, value := range v {
+		sum += value * value
+	}
+	return math.Sqrt(sum)
+}
+
+// Function to normalize vector using L2 norm
+func normalize(v embedding.Vector64) embedding.Vector64 {
+	norm := L2norm(v)
+	result := make(embedding.Vector64, len(v))
+	for i, value := range v {
+		result[i] = value / norm
+	}
+	return result
+}
 
 func TestSimpleRetriever_GetRelevant(t *testing.T) {
 	t.Parallel()
@@ -33,11 +54,11 @@ func TestSimpleRetriever_GetRelevant(t *testing.T) {
 	// Generate random vector. The seed is fixed, so the results are deterministic.
 	randGen := rand.New(rand.NewSource(42))
 
-	generateVector := func() Vector64 {
+	generateVector := func() embedding.Vector64 {
 		const testVectorDimension = 100
 		// generate random vector
 		// reduce the dimensionality to 100
-		vec := make(Vector64, testVectorDimension)
+		vec := make(embedding.Vector64, testVectorDimension)
 		for i := 0; i < testVectorDimension; i++ {
 			vec[i] = randGen.Float64()
 		}
@@ -47,13 +68,13 @@ func TestSimpleRetriever_GetRelevant(t *testing.T) {
 	}
 
 	const testEmbeddingsSize = 100
-	points := make([]*Embedding, testEmbeddingsSize)
+	points := make([]*embedding.Embedding, testEmbeddingsSize)
 	for i := 0; i < testEmbeddingsSize; i++ {
-		points[i] = NewEmbedding(types.KindNode, strconv.Itoa(i), generateVector(), [32]byte{})
+		points[i] = embedding.NewEmbedding(types.KindNode, strconv.Itoa(i), generateVector(), [32]byte{})
 	}
 
 	// Create a query.
-	query := NewEmbedding(types.KindNode, "1", generateVector(), [32]byte{})
+	query := embedding.NewEmbedding(types.KindNode, "1", generateVector(), [32]byte{})
 
 	retriever := NewSimpleRetriever()
 
@@ -62,7 +83,7 @@ func TestSimpleRetriever_GetRelevant(t *testing.T) {
 	}
 
 	// Get the top 10 most similar documents.
-	docs := retriever.GetRelevant(query, 10, func(id string, embedding *Embedding) bool {
+	docs := retriever.GetRelevant(query, 10, func(id string, embedding *embedding.Embedding) bool {
 		return true
 	})
 	require.Len(t, docs, 10)

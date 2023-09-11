@@ -226,6 +226,10 @@ const (
 	// MetricRegisteredServers tracks the number of Teleport servers that have successfully registered with the Teleport cluster and have not reached the end of their ttl
 	MetricRegisteredServers = "registered_servers"
 
+	// MetricRegisteredServersByInstallMethods tracks the number of Teleport servers, and their installation method,
+	// that have successfully registered with the Teleport cluster and have not reached the end of their ttl
+	MetricRegisteredServersByInstallMethods = "registered_servers_by_install_methods"
+
 	// MetricReverseSSHTunnels defines the number of connected SSH reverse tunnels to the proxy
 	MetricReverseSSHTunnels = "reverse_tunnels_connected"
 
@@ -268,6 +272,11 @@ const (
 
 	// TagClient is a prometheus label to indicate what client the metric is tied to
 	TagClient = "client"
+
+	// TagInstallMethods is a prometheus label to indicate what installation methods
+	// were used for the agent.
+	// This value comes from UpstreamInventoryAgentMetadata (sourced in lib/inventory/metadata.fetchInstallMethods).
+	TagInstallMethods = "install_methods"
 )
 
 const (

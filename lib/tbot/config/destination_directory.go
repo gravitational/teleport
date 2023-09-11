@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -145,7 +146,7 @@ func mkdir(p string) error {
 	return nil
 }
 
-func (dd *DestinationDirectory) Init(subdirs []string) error {
+func (dd *DestinationDirectory) Init(_ context.Context, subdirs []string) error {
 	// Create the directory if needed.
 	if err := mkdir(dd.Path); err != nil {
 		return trace.Wrap(err)
@@ -214,11 +215,11 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	return nil
 }
 
-func (dd *DestinationDirectory) Write(name string, data []byte) error {
+func (dd *DestinationDirectory) Write(_ context.Context, name string, data []byte) error {
 	return trace.Wrap(botfs.Write(filepath.Join(dd.Path, name), data, dd.Symlinks))
 }
 
-func (dd *DestinationDirectory) Read(name string) ([]byte, error) {
+func (dd *DestinationDirectory) Read(_ context.Context, name string) ([]byte, error) {
 	data, err := botfs.Read(filepath.Join(dd.Path, name), dd.Symlinks)
 	if err != nil {
 		return nil, trace.Wrap(err)

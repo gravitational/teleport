@@ -131,7 +131,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h.router.POST("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(h.handleAuth)))
 	h.router.OPTIONS("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(nil)))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
-	h.router.NotFound = h.withAuth(h.handleForward)
+	h.router.NotFound = h.withAuth(h.handleHttp)
 
 	return h, nil
 }
@@ -232,8 +232,26 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 	return nil
 }
 
-// handleForward forwards the request to the application service.
-func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request, session *session) error {
+// handleHttp forwards the request to the application service or redirects
+// to the application directly.
+func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *session) error {
+	var redirectURI string
+
+	session.tr.mu.Lock()
+	for _, appServer := range session.tr.c.servers {
+		// If encounter an app server that is to be redirected to, stop iterating.
+		if redirectInsteadOfForward(appServer) {
+			redirectURI = appServer.GetApp().GetURI()
+			break
+		}
+	}
+	session.tr.mu.Unlock()
+
+	if redirectURI != "" {
+		http.Redirect(w, r, redirectURI, http.StatusFound)
+		return nil
+	}
+
 	if r.Body != nil {
 		// We replace the request body with a NopCloser so that the request body can
 		// be closed multiple times. This is needed because Go's HTTP RoundTripper
@@ -599,4 +617,10 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string) strin
 	}
 
 	return u.String()
+}
+
+// redirectInsteadOfForward returns true if an application shouldn't be forwarded, but
+// should be redirected directly to the public address instead.
+func redirectInsteadOfForward(appServer types.AppServer) bool {
+	return appServer.GetApp().Origin() == types.OriginOkta
 }

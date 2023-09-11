@@ -27,10 +27,12 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 const (
@@ -39,6 +41,8 @@ const (
 	// https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-instances.html
 	// Used for filtering instances for automatic EC2 discovery
 	AWSInstanceStateName = "instance-state-name"
+
+	awsEventPrefix = "aws/"
 )
 
 // EC2Instances contains information required to send SSM commands to EC2 instances
@@ -122,6 +126,23 @@ func WithPollInterval(interval time.Duration) Option {
 	return func(w *Watcher) {
 		w.pollInterval = interval
 	}
+}
+
+// MakeEvents generates ResourceCreateEvents for these instances.
+func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
+	resourceType := types.DiscoveredResourceNode
+	if instances.DocumentName == defaults.AWSAgentlessInstallerDocument {
+		resourceType = types.DiscoveredResourceAgentlessNode
+	}
+	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
+	for _, inst := range instances.Instances {
+		events[awsEventPrefix+inst.InstanceID] = &usageeventsv1.ResourceCreateEvent{
+			ResourceType:   resourceType,
+			ResourceOrigin: types.OriginCloud,
+			CloudProvider:  types.CloudAWS,
+		}
+	}
+	return events
 }
 
 // NewEC2Watcher creates a new EC2 watcher instance.
@@ -366,7 +387,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 			return true
 		})
 	if err != nil {
-		return nil, common.ConvertError(err)
+		return nil, awslib.ConvertRequestFailureError(err)
 	}
 
 	if len(instances) == 0 {

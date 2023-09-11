@@ -19,7 +19,7 @@ import styled from 'styled-components';
 
 import PropTypes from 'prop-types';
 
-import { Spinner as SpinnerIcon } from './../Icon';
+import { Spinner as SpinnerIcon } from '../Icon';
 
 const DelayValueMap = {
   none: 0,
@@ -68,17 +68,16 @@ Indicator.defaultProps = {
 };
 
 const StyledSpinner = styled(SpinnerIcon)`
-  ${({ fontSize = '32px' }) => `
-    font-size: ${fontSize};
-    height: ${fontSize};
-    width: ${fontSize};
-  `}
-
-  animation: anim-rotate 2s infinite linear;
-  color: ${props => props.theme.colors.spotBackground[0]}
+  color: ${props => props.color || props.theme.colors.spotBackground[2]};
   display: inline-block;
-  margin: 16px;
-  opacity: 0.24;
+
+  svg {
+    animation: anim-rotate 1.5s infinite linear;
+    ${({ size = '48px' }) => `
+    height: ${size};
+    width: ${size};
+  `}
+  }
 
   @keyframes anim-rotate {
     0% {

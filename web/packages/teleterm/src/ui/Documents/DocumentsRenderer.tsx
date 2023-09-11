@@ -32,7 +32,11 @@ import {
 import DocumentCluster from 'teleterm/ui/DocumentCluster';
 import DocumentGateway from 'teleterm/ui/DocumentGateway';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
-import { DocumentConnectMyComputerSetup } from 'teleterm/ui/ConnectMyComputer';
+import {
+  ConnectMyComputerContextProvider,
+  DocumentConnectMyComputerSetup,
+  DocumentConnectMyComputerStatus,
+} from 'teleterm/ui/ConnectMyComputer';
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 
 import Document from 'teleterm/ui/Document';
@@ -76,11 +80,15 @@ export function DocumentsRenderer() {
           key={workspace.rootClusterUri}
         >
           <WorkspaceContextProvider value={workspace}>
-            {workspace.documentsService.getDocuments().length ? (
-              renderDocuments(workspace.documentsService)
-            ) : (
-              <KeyboardShortcutsPanel />
-            )}
+            <ConnectMyComputerContextProvider
+              rootClusterUri={workspace.rootClusterUri}
+            >
+              {workspace.documentsService.getDocuments().length ? (
+                renderDocuments(workspace.documentsService)
+              ) : (
+                <KeyboardShortcutsPanel />
+              )}
+            </ConnectMyComputerContextProvider>
           </WorkspaceContextProvider>
         </DocumentsContainer>
       ))}
@@ -114,6 +122,8 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentAccessRequests doc={doc} visible={visible} />;
       case 'doc.connect_my_computer_setup':
         return <DocumentConnectMyComputerSetup doc={doc} visible={visible} />;
+      case 'doc.connect_my_computer_status':
+        return <DocumentConnectMyComputerStatus doc={doc} visible={visible} />;
       default:
         return (
           <Document visible={visible}>

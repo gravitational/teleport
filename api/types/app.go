@@ -42,8 +42,6 @@ type Application interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the app dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// String returns string representation of the app.
 	String() string
 	// GetDescription returns the app description.
@@ -120,6 +118,16 @@ func (a *AppV3) GetResourceID() int64 {
 // SetResourceID sets the app resource ID.
 func (a *AppV3) SetResourceID(id int64) {
 	a.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (a *AppV3) GetRevision() string {
+	return a.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (a *AppV3) SetRevision(rev string) {
+	a.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns the app resource metadata.
@@ -199,11 +207,6 @@ func (a *AppV3) GetLabel(key string) (value string, ok bool) {
 // GetAllLabels returns the app combined static and dynamic labels.
 func (a *AppV3) GetAllLabels() map[string]string {
 	return CombineLabels(a.Metadata.Labels, a.Spec.DynamicLabels)
-}
-
-// LabelsString returns all app labels as a string.
-func (a *AppV3) LabelsString() string {
-	return LabelsAsString(a.Metadata.Labels, a.Spec.DynamicLabels)
 }
 
 // GetDescription returns the app description.
@@ -363,15 +366,18 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		host = url.Host
 	}
 
-	// DEPRECATED DELETE IN 14.0 use KubeTeleportProxyALPNPrefix check only.
-	if strings.HasPrefix(host, constants.KubeSNIPrefix) {
-		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
-			constants.KubeSNIPrefix, a.Spec.PublicAddr)
-	}
-
 	if strings.HasPrefix(host, constants.KubeTeleportProxyALPNPrefix) {
 		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
 			constants.KubeTeleportProxyALPNPrefix, a.Spec.PublicAddr)
+	}
+
+	if a.Spec.Rewrite != nil {
+		switch a.Spec.Rewrite.JWTClaims {
+		case "", JWTClaimsRewriteRolesAndTraits, JWTClaimsRewriteRoles, JWTClaimsRewriteNone:
+		default:
+			return trace.BadParameter("app %q has unexpected JWT rewrite value %q", a.GetName(), a.Spec.Rewrite.JWTClaims)
+
+		}
 	}
 
 	return nil

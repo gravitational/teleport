@@ -30,6 +30,8 @@ type PluginType string
 const (
 	// PluginTypeUnknown is returned when no plugin type matches.
 	PluginTypeUnknown PluginType = ""
+	// PluginTypeServiceNow is the Servicenow access request plugin
+	PluginTypeServiceNow = "servicenow"
 	// PluginTypeSlack is the Slack access request plugin
 	PluginTypeSlack = "slack"
 	// PluginTypeOpenAI is the OpenAI plugin
@@ -38,12 +40,16 @@ const (
 	PluginTypeOkta = "okta"
 	// PluginTypeJamf is the Jamf MDM plugin
 	PluginTypeJamf = "jamf"
+	// PluginTypeJira is the Jira access plugin
+	PluginTypeJira = "jira"
 	// PluginTypeOpsgenie is the Opsgenie access request plugin
 	PluginTypeOpsgenie = "opsgenie"
 	// PluginTypePagerDuty is the PagerDuty access plugin
 	PluginTypePagerDuty = "pagerduty"
 	// PluginTypeMattermost is the PagerDuty access plugin
 	PluginTypeMattermost = "mattermost"
+	// PluginTypeDiscord indicates the Discord access plugin
+	PluginTypeDiscord = "discord"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -183,6 +189,29 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
+
+	case *PluginSpecV1_Jira:
+		if settings.Jira == nil {
+			return trace.BadParameter("missing Jira settings")
+		}
+
+		if err := settings.Jira.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("jira plugin must be used with the static credentials ref type")
+		}
+
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
+
 	case *PluginSpecV1_Okta:
 		// Check settings.
 		if settings.Okta == nil {
@@ -209,6 +238,32 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.PagerDuty.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+
+	case *PluginSpecV1_Discord:
+		if settings.Discord == nil {
+			return trace.BadParameter("missing Discord settings")
+		}
+		if err := settings.Discord.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Discord plugin must be used with the static credentials ref type")
+		}
+	case *PluginSpecV1_ServiceNow:
+		if settings.ServiceNow == nil {
+			return trace.BadParameter("missing ServiceNow settings")
+		}
+		if err := settings.ServiceNow.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("ServiceNow plugin must be used with the static credentials ref type")
+		}
+
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
 	}
@@ -265,6 +320,16 @@ func (p *PluginV1) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (p *PluginV1) SetResourceID(id int64) {
 	p.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (p *PluginV1) GetRevision() string {
+	return p.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (p *PluginV1) SetRevision(rev string) {
+	p.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns object metadata
@@ -345,12 +410,18 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeOkta
 	case *PluginSpecV1_Jamf:
 		return PluginTypeJamf
+	case *PluginSpecV1_Jira:
+		return PluginTypeJira
 	case *PluginSpecV1_Opsgenie:
 		return PluginTypeOpsgenie
 	case *PluginSpecV1_PagerDuty:
 		return PluginTypePagerDuty
 	case *PluginSpecV1_Mattermost:
 		return PluginTypeMattermost
+	case *PluginSpecV1_Discord:
+		return PluginTypeDiscord
+	case *PluginSpecV1_ServiceNow:
+		return PluginTypeServiceNow
 	default:
 		return PluginTypeUnknown
 	}
@@ -391,16 +462,36 @@ func (s *PluginJamfSettings) CheckAndSetDefaults() error {
 	return nil
 }
 
+func (s *PluginJiraSettings) CheckAndSetDefaults() error {
+	if s.ServerUrl == "" {
+		return trace.BadParameter("Jira server URL must be set")
+	}
+
+	if s.ProjectKey == "" {
+		return trace.BadParameter("Jira project key must be set")
+	}
+
+	if s.IssueType == "" {
+		return trace.BadParameter("Jira issue type must be set")
+	}
+
+	return nil
+}
+
 // CheckAndSetDefaults validates and set the default values
 func (s *PluginMattermostSettings) CheckAndSetDefaults() error {
 	if s.ServerUrl == "" {
 		return trace.BadParameter("server url is required")
 	}
-	if s.Team == "" {
-		return trace.BadParameter("team is required")
-	}
-	if s.Channel == "" {
-		return trace.BadParameter("channel is required")
+
+	// If one field is defined, both should be required.
+	if len(s.Channel) > 0 || len(s.Team) > 0 {
+		if len(s.Team) == 0 {
+			return trace.BadParameter("team is required")
+		}
+		if len(s.Channel) == 0 {
+			return trace.BadParameter("channel is required")
+		}
 	}
 	return nil
 }
@@ -426,6 +517,27 @@ func (c *PluginPagerDutySettings) CheckAndSetDefaults() error {
 	if c.UserEmail == "" {
 		return trace.BadParameter("user_email must be set")
 	}
+	return nil
+}
+
+func (c *PluginDiscordSettings) CheckAndSetDefaults() error {
+	if len(c.RoleToRecipients) == 0 {
+		return trace.BadParameter("role_to_recipients must be set")
+	}
+
+	if _, present := c.RoleToRecipients[Wildcard]; !present {
+		return trace.BadParameter("role_to_recipients must contain default entry `*`")
+	}
+
+	return nil
+}
+
+// CheckAndSetDefaults checks that the required fields for the servicenow plugin are set.
+func (c *PluginServiceNowSettings) CheckAndSetDefaults() error {
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("API endpoint must be set")
+	}
+
 	return nil
 }
 

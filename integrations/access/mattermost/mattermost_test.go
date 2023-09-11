@@ -778,3 +778,54 @@ func parsePostField(post Post, field string) (string, error) {
 	}
 	return "", trace.Errorf("cannot find field %s in %v", field, fields)
 }
+
+func (s *MattermostSuite) TestRecipientsConfig() {
+	t := s.T()
+
+	reviewer1 := s.fakeMattermost.StoreUser(User{
+		Email: s.userNames.reviewer1,
+	})
+	directChannel1 := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), reviewer1)
+
+	team := s.fakeMattermost.StoreTeam(Team{Name: "team-llama"})
+	channel2 := s.fakeMattermost.StoreChannel(Channel{Name: "channel-llama", TeamID: team.ID})
+
+	// Test an email and a team/channel
+	s.appConfig.Recipients = common.RawRecipientsMap{
+		types.Wildcard: []string{"team-llama/channel-llama", reviewer1.Email},
+	}
+
+	s.startApp()
+
+	request := s.createAccessRequest(nil)
+	pluginData := s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+		return len(data.SentMessages) > 0
+	})
+	assert.Len(t, pluginData.SentMessages, 2)
+
+	var (
+		msg      Post
+		messages []Post
+	)
+
+	messageSet := make(MattermostDataPostSet)
+
+	msg, err := s.fakeMattermost.CheckNewPost(s.Context())
+	require.NoError(t, err)
+	messageSet.Add(common.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
+	messages = append(messages, msg)
+
+	msg, err = s.fakeMattermost.CheckNewPost(s.Context())
+	require.NoError(t, err)
+	messageSet.Add(common.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
+	messages = append(messages, msg)
+
+	assert.Len(t, messageSet, 2)
+	assert.Contains(t, messageSet, pluginData.SentMessages[0])
+	assert.Contains(t, messageSet, pluginData.SentMessages[1])
+
+	sort.Sort(MattermostPostSlice(messages))
+
+	assert.Equal(t, directChannel1.ID, messages[0].ChannelID)
+	assert.Equal(t, channel2.ID, messages[1].ChannelID)
+}

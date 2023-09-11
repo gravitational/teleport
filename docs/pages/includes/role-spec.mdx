@@ -274,6 +274,12 @@ spec:
         - approve: 2
           deny: 1
 
+      # max_duration specifies the maximum duration for which a user can request
+      # access to a role. The duration can be specified in seconds (s), minutes
+      # (m), hours (h), or days (d), e.g. 4d, 10h, 30m, 60s.
+      # The maximum duration is 7 days.
+      max_duration: 7d
+
       # the `claims_to_roles` mapping works the same as it does in
       # the OIDC connector, with the added benefit that the roles being mapped to
       # can also be matchers.

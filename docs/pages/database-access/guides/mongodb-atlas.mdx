@@ -4,18 +4,17 @@ description: How to configure Teleport database access with MongoDB Atlas.
 videoBanner: mu_ZKTjnFJ8
 ---
 
-In this guide, you will:
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="MongoDB Atlas cluster" dbConfigure="MongoDB Atlas with mutual TLS authentication or AWS IAM" dbName="MongoDB Atlas" !)
 
-- Configure Teleport for accessing your MongoDB Atlas cluster.
-- Configure MongoDB Atlas authentication.
-- Connect to your Atlas cluster through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access MongoDB Self-Hosted](../../../img/database-access/guides/mongodbatlas_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access MongoDB Cloud](../../../img/database-access/guides/mongodbatlas_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -36,7 +35,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 Next, start the Database Service.
 
-<ScopedBlock scope={["enterprise","oss"]}>
+<Tabs>
+<TabItem scope={["enterprise","oss"]} label="Self-Hosted">
 
 <Tabs>
 <TabItem label="Teleport CLI">
@@ -45,7 +45,7 @@ On the node where you will run the Database Service, start Teleport, pointing
 the `--auth-server` flag at the address of your Teleport Proxy Service:
 
 ```code
-$ teleport db start \
+$ sudo teleport db start \
   --token=/tmp/token \
   --auth-server=teleport.example.com:443 \
   --name=mongodb-atlas \
@@ -97,9 +97,9 @@ See the full [YAML reference](../reference/configuration.mdx) for details.
 
 </TabItem>
 </Tabs>
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope={["cloud"]}>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 <Tabs>
 <TabItem label="Teleport CLI">
 
@@ -108,7 +108,7 @@ On the node where you will run the Database Service, start Teleport, pointing th
 `mytenant.teleport.sh`.
 
 ```code
-$ teleport db start \
+$ sudo teleport db start \
   --token=/tmp/token \
   --auth-server=mytenant.teleport.sh:443 \
   --name=mongodb-atlas \
@@ -145,7 +145,9 @@ See the full [YAML reference](../reference/configuration.mdx) for details.
 
 </TabItem>
 </Tabs>
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 See below for details on how to configure the Teleport Database Service.
 
@@ -342,12 +344,8 @@ $ tsh db connect --db-user=arn:aws:iam::111111111111:role/teleport-access mongod
 </TabItem>
 </Tabs>
 
-<Admonition type="note" title="Preparing your client environment">
-  Either the `mongosh` or `mongo` command-line clients should be available in `PATH` in order to be
-  able to connect. The Database Service attempts to run `mongosh` first and, if `mongosh` is not in `PATH`, runs `mongo`.
-
-  Teleport 9.0 added support for `mongosh` and made it the default Mongo DB client.
-</Admonition>
+Either the `mongosh` or `mongo` command-line clients should be available in `PATH` in order to be
+able to connect. The Database Service attempts to run `mongosh` first and, if `mongosh` is not in `PATH`, runs `mongo`.
 
 To log out of the database and remove credentials:
 
@@ -366,3 +364,4 @@ $ tsh db logout
 - [Which certificate authority signs MongoDB Atlas cluster TLS certificates?](https://docs.atlas.mongodb.com/reference/faq/security/#which-certificate-authority-signs-mongodb-atlas-cluster-tls-certificates-)
 - [Self-managed X.509 authentication](https://docs.atlas.mongodb.com/security-self-managed-x509/)
 - [AWS IAM authentication](https://www.mongodb.com/docs/atlas/security/passwordless-authentication/)
+

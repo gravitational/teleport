@@ -98,6 +98,8 @@ type template interface {
 // BotConfigWriter is a trivial adapter to use the identityfile package with
 // bot destinations.
 type BotConfigWriter struct {
+	ctx context.Context
+
 	// dest is the Destination that will handle writing of files.
 	dest bot.Destination
 
@@ -114,7 +116,7 @@ func (b *BotConfigWriter) WriteFile(name string, data []byte, _ os.FileMode) err
 		p = path.Join(b.subpath, p)
 	}
 
-	return trace.Wrap(b.dest.Write(p, data))
+	return trace.Wrap(b.dest.Write(b.ctx, p, data))
 }
 
 // Remove removes files. This is a dummy implementation that always returns not found.

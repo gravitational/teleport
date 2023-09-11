@@ -28,10 +28,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/api/utils/gcp"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -91,7 +93,14 @@ func NewForwardProxy(cfg ForwardProxyConfig) (*ForwardProxy, error) {
 
 // Start starts serving on the listener.
 func (p *ForwardProxy) Start() error {
-	err := http.Serve(p.cfg.Listener, p)
+	server := &http.Server{
+		Handler:           p,
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+	}
+	err := server.Serve(p.cfg.Listener)
 	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)
 	}

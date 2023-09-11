@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
@@ -46,8 +47,10 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -236,7 +239,7 @@ func (a *ServerWithRoles) isLocalOrRemoteServerAction() bool {
 // whether any of the given roles match the role set.
 func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 	for _, role := range roles {
-		if HasBuiltinRole(a.context, string(role)) {
+		if authz.HasBuiltinRole(a.context, string(role)) {
 			return true
 		}
 	}
@@ -245,15 +248,11 @@ func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 
 // HasBuiltinRole checks if the identity is a builtin role with the matching
 // name.
+// Deprecated: use authz.HasBuiltinRole instead.
 func HasBuiltinRole(authContext authz.Context, name string) bool {
-	if _, ok := authContext.Identity.(authz.BuiltinRole); !ok {
-		return false
-	}
-	if !authContext.Checker.HasRole(name) {
-		return false
-	}
-
-	return true
+	// TODO(jakule): This function can be removed once teleport.e is updated
+	// to use authz.HasBuiltinRole.
+	return authz.HasBuiltinRole(authContext, name)
 }
 
 // HasRemoteBuiltinRole checks if the identity is a remote builtin role with the
@@ -345,6 +344,23 @@ func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 func (a *ServerWithRoles) AccessListClient() services.AccessLists {
 	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(
 		utils.NewGRPCDummyClientConnection("AccessListClient() should not be called on ServerWithRoles")))
+}
+
+// ResourceUsageClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient {
+	return resourceusagepb.NewResourceUsageServiceClient(
+		utils.NewGRPCDummyClientConnection("ResourceUsageClient() should not be called on ServerWithRoles"),
+	)
+}
+
+// UserLoginStateClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) UserLoginStateClient() services.UserLoginStates {
+	return userloginstate.NewClient(userloginstatev1.NewUserLoginStateServiceClient(
+		utils.NewGRPCDummyClientConnection("UserLoginStateClient() should not be called on ServerWithRoles")))
 }
 
 // integrationsService returns an Integrations Service.
@@ -1484,6 +1500,242 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	return node, nil
 }
 
+func (s *ServerWithRoles) MakePaginatedResources(requestType string, resources []types.ResourceWithLabels) ([]*proto.PaginatedResource, error) {
+	paginatedResources := make([]*proto.PaginatedResource, 0, len(resources))
+	for _, resource := range resources {
+		var protoResource *proto.PaginatedResource
+		resourceKind := requestType
+		if requestType == types.KindUnifiedResource {
+			resourceKind = resource.GetKind()
+		}
+		switch resourceKind {
+		case types.KindDatabaseServer:
+			database, ok := resource.(*types.DatabaseServerV3)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}}
+		case types.KindDatabaseService:
+			databaseService, ok := resource.(*types.DatabaseServiceV1)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: databaseService}}
+		case types.KindAppServer:
+			app, ok := resource.(*types.AppServerV3)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}}
+		case types.KindNode:
+			srv, ok := resource.(*types.ServerV2)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}}
+		case types.KindKubeServer:
+			srv, ok := resource.(*types.KubernetesServerV3)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}}
+		case types.KindWindowsDesktop:
+			desktop, ok := resource.(*types.WindowsDesktopV3)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
+		case types.KindWindowsDesktopService:
+			desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktopService{WindowsDesktopService: desktopService}}
+		case types.KindKubernetesCluster:
+			cluster, ok := resource.(*types.KubernetesClusterV3)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}}
+		case types.KindUserGroup:
+			userGroup, ok := resource.(*types.UserGroupV1)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}}
+		case types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
+			switch appOrSP := resource.(type) {
+			case *types.AppServerV3:
+				protoResource = &proto.PaginatedResource{
+					Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+						AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+							Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+								AppServer: appOrSP,
+							},
+						},
+					}}
+			case *types.SAMLIdPServiceProviderV1:
+				protoResource = &proto.PaginatedResource{
+					Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+						AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+							Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+								SAMLIdPServiceProvider: appOrSP,
+							},
+						},
+					}}
+			default:
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+		default:
+			return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
+		}
+
+		paginatedResources = append(paginatedResources, protoResource)
+	}
+	return paginatedResources, nil
+}
+
+// ListUnifiedResources returns a paginated list of unified resources filtered by user access.
+func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	// Fetch full list of resources in the backend.
+	var (
+		elapsedFetch      time.Duration
+		elapsedFilter     time.Duration
+		unifiedResources  types.ResourcesWithLabels
+		filteredResources types.ResourcesWithLabels
+	)
+
+	defer func() {
+		log.WithFields(logrus.Fields{
+			"user":           a.context.User.GetName(),
+			"elapsed_fetch":  elapsedFetch,
+			"elapsed_filter": elapsedFilter,
+		}).Debugf(
+			"ListUnifiedResources(%v->%v) in %v.",
+			len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
+	}()
+
+	startFetch := time.Now()
+	unifiedResources, err := a.authServer.UnifiedResourceCache.GetUnifiedResources(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	elapsedFetch = time.Since(startFetch)
+
+	startFilter := time.Now()
+	for _, resource := range unifiedResources {
+		switch r := resource.(type) {
+		case types.Server:
+			{
+				if err := a.checkAccessToNode(r); err != nil {
+					if trace.IsAccessDenied(err) {
+						continue
+					}
+
+					return nil, trace.Wrap(err)
+				}
+
+				filteredResources = append(filteredResources, resource)
+			}
+		case types.DatabaseServer:
+			{
+				if err := a.checkAccessToDatabase(r.GetDatabase()); err != nil {
+					if trace.IsAccessDenied(err) {
+						continue
+					}
+
+					return nil, trace.Wrap(err)
+				}
+
+				filteredResources = append(filteredResources, resource)
+			}
+
+		case types.AppServer:
+			{
+				if err := a.checkAccessToApp(r.GetApp()); err != nil {
+					if trace.IsAccessDenied(err) {
+						continue
+					}
+
+					return nil, trace.Wrap(err)
+				}
+
+				filteredResources = append(filteredResources, resource)
+			}
+		case types.SAMLIdPServiceProvider:
+			{
+				if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
+					filteredResources = append(filteredResources, resource)
+				}
+			}
+		case types.KubeServer:
+			kube := r.GetCluster()
+			if err := a.checkAccessToKubeCluster(kube); err != nil {
+				if trace.IsAccessDenied(err) {
+					continue
+				}
+
+				return nil, trace.Wrap(err)
+			}
+
+			filteredResources = append(filteredResources, kube)
+		case types.WindowsDesktop:
+			{
+				if err := a.checkAccessToWindowsDesktop(r); err != nil {
+					if trace.IsAccessDenied(err) {
+						continue
+					}
+
+					return nil, trace.Wrap(err)
+				}
+
+				filteredResources = append(filteredResources, resource)
+			}
+		}
+	}
+	elapsedFilter = time.Since(startFilter)
+
+	if req.SortBy.Field != "" {
+		if err := filteredResources.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err, "sorting unified resources")
+		}
+	}
+
+	// Apply request filters and get pagination info.
+	resp, err := local.FakePaginate(filteredResources, local.FakePaginateParams{
+		Limit:               req.Limit,
+		Labels:              req.Labels,
+		SearchKeywords:      req.SearchKeywords,
+		PredicateExpression: req.PredicateExpression,
+		StartKey:            req.StartKey,
+		Kinds:               req.Kinds,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	paginatedResources, err := a.MakePaginatedResources(types.KindUnifiedResource, resp.Resources)
+	if err != nil {
+		return nil, trace.Wrap(err, "making paginated unified resources")
+	}
+
+	return &proto.ListUnifiedResourcesResponse{
+		NextKey:   resp.NextKey,
+		Resources: paginatedResources,
+	}, nil
+}
+
 func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	if err := a.action(namespace, types.KindNode, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
@@ -1523,19 +1775,6 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 
 	return filteredNodes, nil
 }
-
-func (a *ServerWithRoles) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
-	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
-}
-
-const (
-	// kubeService is a special resource type that is used to keep compatibility
-	// with Teleport 12 clients.
-	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
-	// clients still expect it to be present in the server.
-	// TODO(tigrato): DELETE in 14.0.0
-	kubeService = "kube_service"
-)
 
 // authContextForSearch returns an extended authz.Context which should be used
 // when searching for resources that a user may be able to request access to,
@@ -1587,17 +1826,61 @@ func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.L
 	return extendedContext, nil
 }
 
-// ListResources returns a paginated list of resources filtered by user access.
-func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	// kubeService is a special resource type that is used to keep compatibility
-	// with Teleport 12 clients.
-	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
-	// clients still expect it to be present in the server.
-	// TODO(tigrato): DELETE in 14.0.0
-	if req.ResourceType == kubeService {
-		return &types.ListResourcesResponse{}, nil
+// GetSSHTargets gets all servers that would match an equivalent ssh dial request. Note that this method
+// returns all resources directly accessible to the user *and* all resources available via 'SearchAsRoles',
+// which is what we want when handling things like ambiguous host errors and resource-based access requests,
+// but may result in confusing behavior if it is used outside of those contexts.
+func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error) {
+	// try to detect case-insensitive routing setting, but default to false if we can't load
+	// networking config (equivalent to proxy routing behavior).
+	var caseInsensitiveRouting bool
+	if cfg, err := a.authServer.GetClusterNetworkingConfig(ctx); err == nil {
+		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
+	matcher := apiutils.NewSSHRouteMatcher(req.Host, req.Port, caseInsensitiveRouting)
+
+	lreq := proto.ListResourcesRequest{
+		ResourceType:     types.KindNode,
+		UseSearchAsRoles: true,
+	}
+	var servers []*types.ServerV2
+	for {
+		// note that we're calling ServerWithRoles.ListResources here rather than some internal method. This method
+		// delegates all RBAC filtering to ListResources, and then performs additional filtering on top of that.
+		lrsp, err := a.ListResources(ctx, lreq)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, rsc := range lrsp.Resources {
+			srv, ok := rsc.(*types.ServerV2)
+			if !ok {
+				log.Warnf("Unexpected resource type %T, expected *types.ServerV2 (skipping)", rsc)
+				continue
+			}
+
+			if !matcher.RouteToServer(srv) {
+				continue
+			}
+
+			servers = append(servers, srv)
+		}
+
+		if lrsp.NextKey == "" || len(lrsp.Resources) == 0 {
+			break
+		}
+
+		lreq.StartKey = lrsp.NextKey
+	}
+
+	return &proto.GetSSHTargetsResponse{
+		Servers: servers,
+	}, nil
+}
+
+// ListResources returns a paginated list of resources filtered by user access.
+func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	// Check if auth server has a license for this resource type but only return an
 	// error if the requester is not a builtin or remote server.
 	// Builtin and remote server roles are allowed to list resources to avoid crashes
@@ -1905,7 +2188,14 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 	}
 
 	// Apply request filters and get pagination info.
-	resp, err := local.FakePaginate(resources, req)
+	resp, err := local.FakePaginate(resources, local.FakePaginateParams{
+		ResourceType:        req.ResourceType,
+		Limit:               req.Limit,
+		Labels:              req.Labels,
+		SearchKeywords:      req.SearchKeywords,
+		PredicateExpression: req.PredicateExpression,
+		StartKey:            req.StartKey,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3059,7 +3349,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// If the cert is renewable, process any certificate generation counter.
 	if certReq.renewable {
 		currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
-		if err := a.authServer.validateGenerationLabel(ctx, user, &certReq, currentIdentityGeneration); err != nil {
+		if err := a.authServer.validateGenerationLabel(ctx, user.GetName(), &certReq, currentIdentityGeneration); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -4771,19 +5061,6 @@ func (a *ServerWithRoles) GetSAMLIdPSession(ctx context.Context, req types.GetSA
 	return session, nil
 }
 
-// GetAppSessions gets all application web sessions.
-func (a *ServerWithRoles) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
-	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sessions, err := a.authServer.GetAppSessions(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sessions, nil
-}
-
 // ListAppSessions gets a paginated list of application web sessions.
 func (a *ServerWithRoles) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
@@ -4827,7 +5104,12 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req types.Create
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := a.authServer.CreateAppSession(ctx, req, a.context.User, a.context.Identity.GetIdentity(), a.context.Checker)
+	uls, err := a.authServer.GetUserOrLoginState(ctx, a.context.User.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := a.authServer.CreateAppSession(ctx, req, uls, a.context.Identity.GetIdentity(), a.context.Checker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5409,6 +5691,10 @@ func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster t
 	if err := a.checkAccessToKubeCluster(cluster); err != nil {
 		return trace.Wrap(err)
 	}
+	// Don't allow discovery service to create clusters with dynamic labels.
+	if a.hasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
+		return trace.AccessDenied("discovered kubernetes cluster must not have dynamic labels")
+	}
 	return trace.Wrap(a.authServer.CreateKubernetesCluster(ctx, cluster))
 }
 
@@ -5428,6 +5714,10 @@ func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster t
 	}
 	if err := a.checkAccessToKubeCluster(cluster); err != nil {
 		return trace.Wrap(err)
+	}
+	// Don't allow discovery service to create clusters with dynamic labels.
+	if a.hasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
+		return trace.AccessDenied("discovered kubernetes cluster must not have dynamic labels")
 	}
 	return trace.Wrap(a.authServer.UpdateKubernetesCluster(ctx, cluster))
 }
@@ -5508,8 +5798,8 @@ func (a *ServerWithRoles) checkAccessToNode(node types.Server) error {
 	// In addition, allow proxy (and remote proxy) to access all nodes for its
 	// smart resolution address resolution. Once the smart resolution logic is
 	// moved to the auth server, this logic can be removed.
-	builtinRole := HasBuiltinRole(a.context, string(types.RoleAdmin)) ||
-		HasBuiltinRole(a.context, string(types.RoleProxy)) ||
+	builtinRole := authz.HasBuiltinRole(a.context, string(types.RoleAdmin)) ||
+		authz.HasBuiltinRole(a.context, string(types.RoleProxy)) ||
 		HasRemoteBuiltinRole(a.context, string(types.RoleRemoteProxy))
 
 	if builtinRole {
@@ -5539,6 +5829,10 @@ func (a *ServerWithRoles) CreateDatabase(ctx context.Context, database types.Dat
 	if err := a.checkAccessToDatabase(database); err != nil {
 		return trace.Wrap(err)
 	}
+	// Don't allow discovery service to create databases with dynamic labels.
+	if a.hasBuiltinRole(types.RoleDiscovery) && len(database.GetDynamicLabels()) > 0 {
+		return trace.AccessDenied("discovered database must not have dynamic labels")
+	}
 	return trace.Wrap(a.authServer.CreateDatabase(ctx, database))
 }
 
@@ -5558,6 +5852,10 @@ func (a *ServerWithRoles) UpdateDatabase(ctx context.Context, database types.Dat
 	}
 	if err := a.checkAccessToDatabase(database); err != nil {
 		return trace.Wrap(err)
+	}
+	// Don't allow discovery service to create databases with dynamic labels.
+	if a.hasBuiltinRole(types.RoleDiscovery) && len(database.GetDynamicLabels()) > 0 {
+		return trace.AccessDenied("discovered database must not have dynamic labels")
 	}
 	return trace.Wrap(a.authServer.UpdateDatabase(ctx, database))
 }
@@ -6438,88 +6736,47 @@ func (a *ServerWithRoles) WatchPendingHeadlessAuthentications(ctx context.Contex
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.CreateAssistantConversation(ctx, req)
+	return nil, trace.NotImplemented("CreateAssistantConversation must not be called on auth.ServerWithRoles")
 }
 
 // GetAssistantConversations returns all conversations started by a user.
 func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.GetAssistantConversations(ctx, request)
+	return nil, trace.NotImplemented("GetAssistantConversations must not be called on auth.ServerWithRoles")
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.
 func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.GetAssistantMessages(ctx, req)
+	return nil, trace.NotImplemented("GetAssistantMessages must not be called on auth.ServerWithRoles")
 }
 
 // DeleteAssistantConversation deletes a conversation by ID.
 func (a *ServerWithRoles) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) error {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(a.authServer.DeleteAssistantConversation(ctx, req))
+	return trace.NotImplemented("DeleteAssistantConversation must not be called on auth.ServerWithRoles")
 }
 
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 func (a *ServerWithRoles) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.IsAssistEnabled(ctx)
+	return nil, trace.NotImplemented("IsAssistEnabled must not be called on auth.ServerWithRoles")
 }
 
 // CreateAssistantMessage adds the message to the backend.
 func (a *ServerWithRoles) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.CreateAssistantMessage(ctx, msg)
+	return trace.NotImplemented("CreateAssistantMessage must not be called on auth.ServerWithRoles")
 }
 
 // UpdateAssistantConversationInfo updates the conversation info.
 func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.UpdateAssistantConversationInfo(ctx, msg)
+	return trace.NotImplemented("UpdateAssistantConversationInfo must not be called on auth.ServerWithRoles")
 }
 
 // GetUserPreferences returns the user preferences for a given user.
 func (a *ServerWithRoles) GetUserPreferences(ctx context.Context, req *userpreferencespb.GetUserPreferencesRequest) (*userpreferencespb.GetUserPreferencesResponse, error) {
-	if err := a.currentUserAction(req.Username); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	preferences, err := a.authServer.GetUserPreferences(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return preferences, nil
+	return nil, trace.NotImplemented("GetUserPreferences must not be called on auth.ServerWithRoles")
 }
 
 // UpsertUserPreferences creates or updates user preferences for a given username.
 func (a *ServerWithRoles) UpsertUserPreferences(ctx context.Context, req *userpreferencespb.UpsertUserPreferencesRequest) error {
-	if err := a.currentUserAction(req.Username); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(a.authServer.UpsertUserPreferences(ctx, req))
+	return trace.NotImplemented("UpsertUserPreferences must not be called on auth.ServerWithRoles")
 }
 
 // CloneHTTPClient creates a new HTTP client with the same configuration.
@@ -6561,6 +6818,19 @@ func (a *ServerWithRoles) UpdateClusterMaintenanceConfig(ctx context.Context, cm
 	}
 
 	return a.authServer.UpdateClusterMaintenanceConfig(ctx, cmc)
+}
+
+func (a *ServerWithRoles) DeleteClusterMaintenanceConfig(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindClusterMaintenanceConfig, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	if modules.GetModules().Features().Cloud {
+		// maintenance configuration in cloud is derived from values stored in
+		// an external cloud-specific database.
+		return trace.NotImplemented("cloud clusters do not support custom cluster maintenance resources")
+	}
+
+	return a.authServer.DeleteClusterMaintenanceConfig(ctx)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

@@ -16,15 +16,16 @@
 
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import { rm } from 'node:fs/promises';
+import { access, rm } from 'node:fs/promises';
 import path from 'node:path';
 
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 
 export interface AgentConfigFileClusterProperties {
-  profileName: string;
+  rootClusterUri: RootClusterUri;
   proxy: string;
   token: string;
   labels: tsh.Label[];
@@ -35,13 +36,10 @@ export async function createAgentConfigFile(
   clusterProperties: AgentConfigFileClusterProperties
 ): Promise<void> {
   const asyncExecFile = promisify(execFile);
-  const agentDirectory = getAgentDirectoryOrThrow(
-    runtimeSettings.userDataDir,
-    clusterProperties.profileName
+  const { configFile, dataDirectory } = generateAgentConfigPaths(
+    runtimeSettings,
+    clusterProperties.rootClusterUri
   );
-
-  const configFile = path.resolve(agentDirectory, 'config.yaml');
-  const dataDirectory = path.resolve(agentDirectory, 'data');
 
   // remove the config file if exists
   try {
@@ -69,6 +67,56 @@ export async function createAgentConfigFile(
   );
 }
 
+export async function isAgentConfigFileCreated(
+  runtimeSettings: RuntimeSettings,
+  rootClusterUri: RootClusterUri
+): Promise<boolean> {
+  const { configFile } = generateAgentConfigPaths(
+    runtimeSettings,
+    rootClusterUri
+  );
+  try {
+    await access(configFile);
+    return true;
+  } catch (e) {
+    if (e.code === 'ENOENT') {
+      return false;
+    }
+    throw e;
+  }
+}
+
+/**
+ * Returns agent config paths.
+ * @param runtimeSettings must not come from the renderer process.
+ * Otherwise, the generated paths may point outside the user's data directory.
+ * @param rootClusterUri may be passed from the renderer process.
+ */
+export function generateAgentConfigPaths(
+  runtimeSettings: RuntimeSettings,
+  rootClusterUri: RootClusterUri
+): {
+  configFile: string;
+  dataDirectory: string;
+} {
+  const parsed = routing.parseClusterUri(rootClusterUri);
+  if (!parsed?.params?.rootClusterId) {
+    throw new Error(`Incorrect root cluster URI: ${rootClusterUri}`);
+  }
+
+  const agentDirectory = getAgentDirectoryOrThrow(
+    runtimeSettings.userDataDir,
+    parsed.params.rootClusterId
+  );
+  const configFile = path.resolve(agentDirectory, 'config.yaml');
+  const dataDirectory = path.resolve(agentDirectory, 'data');
+
+  return {
+    configFile,
+    dataDirectory,
+  };
+}
+
 function getAgentDirectoryOrThrow(
   userDataDir: string,
   profileName: string
@@ -81,7 +129,7 @@ function getAgentDirectoryOrThrow(
     path.dirname(resolved) === agentsDirectory &&
     path.basename(resolved) === profileName;
   if (!isValidPath) {
-    throw new Error(`The agent config file path is incorrect: ${resolved}`);
+    throw new Error(`The agent config path is incorrect: ${resolved}`);
   }
   return resolved;
 }

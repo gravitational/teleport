@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -49,6 +50,9 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// DialTimeout determines how long to wait for dialing to succeed before aborting.
 	DialTimeout time.Duration
+	// PromptAdminRequestMFA is used to prompt the user for MFA on admin requests when needed.
+	// If nil, the client will not prompt for MFA.
+	PromptAdminRequestMFA func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 }
 
 // Connect creates a valid client connection to the auth service.  It may
@@ -56,7 +60,7 @@ type Config struct {
 func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 	cfg.Log.Debugf("Connecting to: %v.", cfg.AuthServers)
 
-	directClient, err := connectViaAuthDirect(cfg)
+	directClient, err := connectViaAuthDirect(ctx, cfg)
 	if err == nil {
 		return directClient, nil
 	}
@@ -79,9 +83,9 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 	)
 }
 
-func connectViaAuthDirect(cfg *Config) (auth.ClientI, error) {
+func connectViaAuthDirect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 	// Try connecting to the auth server directly over TLS.
-	directDialClient, err := auth.NewClient(apiclient.Config{
+	directClient, err := auth.NewClient(apiclient.Config{
 		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
@@ -89,18 +93,20 @@ func connectViaAuthDirect(cfg *Config) (auth.ClientI, error) {
 		CircuitBreakerConfig:     cfg.CircuitBreakerConfig,
 		InsecureAddressDiscovery: cfg.TLS.InsecureSkipVerify,
 		DialTimeout:              cfg.DialTimeout,
+		PromptAdminRequestMFA:    cfg.PromptAdminRequestMFA,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Check connectivity by calling something on the client.
-	if _, err := directDialClient.GetClusterName(); err != nil {
+	// Check connectivity with a ping.
+	if _, err := directClient.Ping(ctx); err != nil {
 		// This client didn't work for us, so we close it.
-		_ = directDialClient.Close()
+		_ = directClient.Close()
 		return nil, trace.Wrap(err)
 	}
-	return directDialClient, nil
+
+	return directClient, nil
 }
 
 func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, error) {
@@ -139,15 +145,18 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, erro
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
 		},
+		PromptAdminRequestMFA: cfg.PromptAdminRequestMFA,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Check connectivity by calling something on the client.
-	if _, err := tunnelClient.GetClusterName(); err != nil {
+
+	// Check connectivity with a ping.
+	if _, err = tunnelClient.Ping(ctx); err != nil {
 		// This client didn't work for us, so we close it.
 		_ = tunnelClient.Close()
 		return nil, trace.Wrap(err)
 	}
+
 	return tunnelClient, nil
 }

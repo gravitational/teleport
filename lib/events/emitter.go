@@ -169,7 +169,7 @@ func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event apievents.Au
 	}
 	if err := r.Inner.EmitAuditEvent(ctx, event); err != nil {
 		AuditFailedEmit.Inc()
-		log.WithError(err).Errorf("Failed to emit audit event.")
+		log.WithError(err).Errorf("Failed to emit audit event of type: %s.", event.GetType())
 		return trace.Wrap(err)
 	}
 	return nil

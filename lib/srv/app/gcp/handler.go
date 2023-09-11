@@ -184,8 +184,10 @@ func (s *handler) formatForwardResponseError(rw http.ResponseWriter, r *http.Req
 
 // prepareForwardRequest prepares a request for forwarding, updating headers and target host. Several checks are made along the way.
 func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.SessionContext) (*http.Request, error) {
-	forwardedHost := r.Header.Get("X-Forwarded-Host")
-	if !gcp.IsGCPEndpoint(forwardedHost) {
+	forwardedHost, err := utils.GetSingleHeader(r.Header, "X-Forwarded-Host")
+	if err != nil {
+		return nil, trace.AccessDenied(err.Error())
+	} else if !gcp.IsGCPEndpoint(forwardedHost) {
 		return nil, trace.AccessDenied("%q is not a GCP endpoint", forwardedHost)
 	}
 

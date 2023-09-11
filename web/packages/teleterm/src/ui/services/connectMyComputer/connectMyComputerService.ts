@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
+import { wait } from 'shared/utils/wait';
+
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import {
   Cluster,
   CreateConnectMyComputerRoleResponse,
+  Server,
   TshClient,
 } from 'teleterm/services/tshd/types';
-
-import { routing } from 'teleterm/ui/uri';
 
 import type * as uri from 'teleterm/ui/uri';
 
@@ -41,17 +42,67 @@ export class ConnectMyComputerService {
     return this.tshClient.createConnectMyComputerRole(rootClusterUri);
   }
 
-  async createAgentConfigFile(cluster: Cluster): Promise<void> {
-    const { rootClusterId } = routing.parseClusterUri(cluster.uri).params;
-
+  async createAgentConfigFile(cluster: Cluster): Promise<{
+    token: string;
+  }> {
     const { token, labelsList } =
       await this.tshClient.createConnectMyComputerNodeToken(cluster.uri);
 
     await this.mainProcessClient.createAgentConfigFile({
-      profileName: rootClusterId,
+      rootClusterUri: cluster.uri,
       proxy: cluster.proxyHost,
       token: token,
       labels: labelsList,
     });
+
+    return { token };
+  }
+
+  runAgent(rootClusterUri: uri.RootClusterUri): Promise<void> {
+    return this.mainProcessClient.runAgent({
+      rootClusterUri,
+    });
+  }
+
+  killAgent(rootClusterUri: uri.RootClusterUri): Promise<void> {
+    return this.mainProcessClient.killAgent({ rootClusterUri });
+  }
+
+  isAgentConfigFileCreated(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<boolean> {
+    return this.mainProcessClient.isAgentConfigFileCreated({ rootClusterUri });
+  }
+
+  deleteToken(
+    rootClusterUri: uri.RootClusterUri,
+    token: string
+  ): Promise<void> {
+    return this.tshClient.deleteConnectMyComputerToken(rootClusterUri, token);
+  }
+
+  async waitForNodeToJoin(
+    rootClusterUri: uri.RootClusterUri,
+    abortSignal: AbortSignal
+  ): Promise<Server> {
+    // TODO(gzdunek): Replace with waiting for the node to join.
+    await wait(1_000, abortSignal);
+    return {
+      uri: `${rootClusterUri}/servers/178ef081-259b-4aa5-a018-449b5ea7e694`,
+      tunnel: false,
+      name: '178ef081-259b-4aa5-a018-449b5ea7e694',
+      hostname: 'foo',
+      addr: '127.0.0.1:3022',
+      labelsList: [
+        {
+          name: 'hostname',
+          value: 'mbp.home',
+        },
+        {
+          name: 'teleport.dev/connect-my-computer',
+          value: 'abcd@goteleport.com',
+        },
+      ],
+    };
   }
 }

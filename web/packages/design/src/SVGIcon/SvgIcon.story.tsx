@@ -28,7 +28,7 @@ export default {
   title: 'Design/Icon',
 };
 
-export const PreferSvgIcons = () => {
+export const CustomIcons = () => {
   const icons = Object.keys(SvgIcons);
   return (
     <Flex flexWrap="wrap">

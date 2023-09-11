@@ -85,6 +85,14 @@ func ValidateJoinMethod(method JoinMethod) error {
 	return nil
 }
 
+type KubernetesJoinType string
+
+var (
+	KubernetesJoinTypeUnspecified KubernetesJoinType = ""
+	KubernetesJoinTypeInCluster   KubernetesJoinType = "in_cluster"
+	KubernetesJoinTypeStaticJWKS  KubernetesJoinType = "static_jwks"
+)
+
 // ProvisionToken is a provisioning token
 type ProvisionToken interface {
 	ResourceWithOrigin
@@ -265,7 +273,7 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			)
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "spec.kubernetes:")
 		}
 	case JoinMethodAzure:
 		providerCfg := p.Spec.Azure
@@ -372,6 +380,16 @@ func (p *ProvisionTokenV2) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (p *ProvisionTokenV2) SetResourceID(id int64) {
 	p.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (p *ProvisionTokenV2) GetRevision() string {
+	return p.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (p *ProvisionTokenV2) SetRevision(rev string) {
+	p.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns metadata
@@ -575,26 +593,49 @@ func (a *ProvisionTokenSpecV2CircleCI) checkAndSetDefaults() error {
 
 func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
-		return trace.BadParameter(
-			"the %q join method requires defined kubernetes allow rules",
-			JoinMethodKubernetes,
-		)
+		return trace.BadParameter("allow: at least one rule must be set")
 	}
-	for _, allowRule := range a.Allow {
+	for i, allowRule := range a.Allow {
 		if allowRule.ServiceAccount == "" {
 			return trace.BadParameter(
-				"the %q join method requires kubernetes allow rules with non-empty service account name",
-				JoinMethodKubernetes,
+				"allow[%d].service_account: name of service account must be set",
+				i,
 			)
 		}
 		if len(strings.Split(allowRule.ServiceAccount, ":")) != 2 {
 			return trace.BadParameter(
-				`the %q join method service account rule format is "namespace:service_account", got %q instead`,
-				JoinMethodKubernetes,
+				`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
+				i,
 				allowRule.ServiceAccount,
 			)
 		}
 	}
+
+	if a.Type == KubernetesJoinTypeUnspecified {
+		// For compatibility with older resources which did not have a Type
+		// field we default to "in_cluster".
+		a.Type = KubernetesJoinTypeInCluster
+	}
+	switch a.Type {
+	case KubernetesJoinTypeInCluster:
+		if a.StaticJWKS != nil {
+			return trace.BadParameter("static_jwks: must not be set when type is %q", KubernetesJoinTypeInCluster)
+		}
+	case KubernetesJoinTypeStaticJWKS:
+		if a.StaticJWKS == nil {
+			return trace.BadParameter("static_jwks: must be set when type is %q", KubernetesJoinTypeStaticJWKS)
+		}
+		if a.StaticJWKS.JWKS == "" {
+			return trace.BadParameter("static_jwks.jwks: must be set when type is %q", KubernetesJoinTypeStaticJWKS)
+		}
+	default:
+		return trace.BadParameter(
+			"type: must be one of (%s), got %q",
+			apiutils.JoinStrings(JoinMethods, ", "),
+			a.Type,
+		)
+	}
+
 	return nil
 }
 

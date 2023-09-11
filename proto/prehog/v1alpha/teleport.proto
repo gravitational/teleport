@@ -48,12 +48,24 @@ message SSOCreateEvent {
   string connector_type = 1;
 }
 
+// ResourceCreateEvent is emitted when a resource is created.
 message ResourceCreateEvent {
-  // TODO(espadolini): is a resource the teleport process or the
-  // databases/desktops/kube clusters accessed through it?
+  // resource_type is the type of resource ("node", "node.openssh", "db", "k8s").
   string resource_type = 1;
+  // resource_origin is the origin of the resource ("cloud").
+  string resource_origin = 2;
+  // cloud_provider is the cloud provider the resource came from ("AWS", "Azure", "GCP").
+  string cloud_provider = 3;
+  // database contains additional database information if resource_type == "db".
+  DiscoveredDatabaseMetadata database = 4;
+}
 
-  // TODO(espadolini): flags for Discover, autodiscovery, join scripts?
+// DiscoveredDatabaseMetadata contains additional database information.
+message DiscoveredDatabaseMetadata {
+  // database type.
+  string db_type = 1;
+  // database protocol.
+  string db_protocol = 2;
 }
 
 // the kind of a "resource" as intended by ResourceHeartbeatEvent
@@ -80,6 +92,14 @@ enum ResourceKind {
   //
   // PostHog property value: "node.openssh"
   RESOURCE_KIND_NODE_OPENSSH = 6;
+
+  // ServerV3 ("node") heartbeat with a subkind of "openssh-ec2-ice".
+  // Nodes that map EC2 instances and are accessed using EC2 Instance Connect Endpoint.
+  // Not used in keepalives.
+  // This is the SubKind SubKindOpenSSHEICENode in teleport repo.
+  //
+  // PostHog property value: "node.openssh_ec2_ice"
+  RESOURCE_KIND_NODE_OPENSSH_EICE = 7;
 }
 
 // a heartbeat for a resource served by a Teleport instance outside of the
@@ -651,6 +671,36 @@ message AssistNewConversationEvent {
   string category = 2;
 }
 
+// AssistAccessRequest is an event that is emitted when a user requests access
+// to a resource via Assist.
+message AssistAccessRequestEvent {
+  // UserName is anonymized user name
+  string user_name = 1;
+  // ResourceType describes the type of resource the user is requesting access to, e.g. "node", "db", "k8s" or "role".
+  string resource_type = 2;
+  // TotalTokens is the total amount of token used to generate the command summary
+  int64 total_tokens = 4;
+  // PromptTokens is the amount of estimated tokens used by the prompt to generate the command summary
+  int64 prompt_tokens = 5;
+  // CompletionTokens is the amount of tokens that the summary completion response consists of
+  int64 completion_tokens = 6;
+}
+
+// AssistAction is an event that is emitted when a user triggers an action (SSH command generation, output explain, etc.)
+// via Assist.
+message AssistActionEvent {
+  // UserName is anonymized user name
+  string user_name = 1;
+  // Action is the action that was triggered, e.g. "ssh-explain", "ssh-command-generate", etc.
+  string action = 2;
+  // TotalTokens is the total amount of token used to generate the command summary
+  int64 total_tokens = 4;
+  // PromptTokens is the amount of estimated tokens used by the prompt to generate the command summary
+  int64 prompt_tokens = 5;
+  // CompletionTokens is the amount of tokens that the summary completion response consists of
+  int64 completion_tokens = 6;
+}
+
 // IntegrationEnrollKind represents the types of integration that
 // can be enrolled.
 enum IntegrationEnrollKind {
@@ -713,6 +763,59 @@ enum EditorChangeStatus {
   EDITOR_CHANGE_STATUS_ROLE_GRANTED = 1;
   // Status when the editor role is removed
   EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2;
+}
+
+// Device authentication event
+message DeviceAuthenticateEvent {
+  // anonymized device ID, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.device_id
+  string device_id = 1;
+
+  // anonymized username, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.user_name
+  string user_name = 2;
+
+  // device OS type
+  //
+  // PostHog property: tp.device_os_type
+  string device_os_type = 3;
+}
+
+// FeatureRecommendationEvent captures event emitted when a feature is recommended to user or
+// when user completes the desired CTA for the feature.
+//
+// PostHost event: tp.ui.feature.recommendation
+message FeatureRecommendationEvent {
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
+  //
+  // PostHog property: tp.user_name
+  string user_name = 1;
+  // feature is name of the Teleport feature.
+  //
+  // PostHost property: tp.feature
+  Feature feature = 2;
+  // feature_recommendation_status records recommendation state, which can be 'NOTIFIED' (feature is recommended)
+  // OR 'DONE' (user completes desired CTA)
+  //
+  // PostHost property: tp.feature_recommendation_status
+  FeatureRecommendationStatus feature_recommendation_status = 3;
+}
+
+// Feature is name of Teleport feature
+enum Feature {
+  FEATURE_UNSPECIFIED = 0;
+  FEATURE_TRUSTED_DEVICES = 1;
+}
+
+// FeatureRecommendationStatus is feature recommendation status.
+enum FeatureRecommendationStatus {
+  FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0;
+  // FEATURE_RECOMMENDATION_STATUS_NOTIFIED is emitted when a feature is recommended (notified in UI) to user.
+  FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1;
+  // FEATURE_RECOMMENDATION_STATUS_DONE is emitted when user completes the desired CTA.
+  FEATURE_RECOMMENDATION_STATUS_DONE = 2;
 }
 
 message SubmitEventRequest {
@@ -799,6 +902,13 @@ message SubmitEventRequest {
 
     AssistExecutionEvent assist_execution = 50;
     AssistNewConversationEvent assist_new_conversation = 51;
+
+    DeviceAuthenticateEvent device_authenticate_event = 52;
+
+    FeatureRecommendationEvent feature_recommendation_event = 53;
+
+    AssistAccessRequestEvent assist_access_request = 54;
+    AssistActionEvent assist_action = 55;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

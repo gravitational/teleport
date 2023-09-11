@@ -34,13 +34,13 @@ import (
 	elastic "github.com/elastic/go-elasticsearch/v8"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	mysqllib "github.com/go-mysql-org/go-mysql/mysql"
-	goredis "github.com/go-redis/redis/v9"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	mssql "github.com/microsoft/go-mssqldb"
 	opensearchclt "github.com/opensearch-project/opensearch-go/v2"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -71,6 +71,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
@@ -1976,7 +1977,7 @@ func withDeniedDBLabels(labels types.Labels) roleOptFn {
 
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
-func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string, roleOpts ...roleOptFn) (types.User, types.Role) {
+func (c *testContext) createUserAndRole(ctx context.Context, t testing.TB, userName, roleName string, dbUsers, dbNames []string, roleOpts ...roleOptFn) (types.User, types.Role) {
 	user, role, err := auth.CreateUserAndRole(c.tlsServer.Auth(), userName, []string{roleName}, nil)
 	require.NoError(t, err)
 	role.SetDatabaseUsers(types.Allow, dbUsers)
@@ -1990,7 +1991,7 @@ func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userN
 }
 
 // makeTLSConfig returns tls configuration for the test's tls listener.
-func (c *testContext) makeTLSConfig(t *testing.T) *tls.Config {
+func (c *testContext) makeTLSConfig(t testing.TB) *tls.Config {
 	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil)
 	require.NoError(t, err)
 	cert, err := tls.X509KeyPair(creds.Cert, creds.PrivateKey)
@@ -2027,7 +2028,7 @@ func init() {
 	SetShuffleFunc(ShuffleSort)
 }
 
-func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDatabaseOption) *testContext {
+func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDatabaseOption) *testContext {
 	testCtx := &testContext{
 		clusterName:   "root.example.com",
 		hostID:        uuid.New().String(),
@@ -2203,6 +2204,9 @@ type agentParams struct {
 	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
 	AzureMatchers []types.AzureMatcher
+	// discoveryResourceChecker performs some pre-checks when creating databases
+	// discovered by the discovery service.
+	DiscoveryResourceChecker cloud.DiscoveryResourceChecker
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -2242,9 +2246,13 @@ func (p *agentParams) setDefaults(c *testContext) {
 			GCPSQL:             p.GCPSQL,
 		}
 	}
+
+	if p.DiscoveryResourceChecker == nil {
+		p.DiscoveryResourceChecker = &fakeDiscoveryResourceChecker{}
+	}
 }
 
-func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p agentParams) *Server {
+func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p agentParams) *Server {
 	p.setDefaults(c)
 
 	// Database service credentials.
@@ -2310,12 +2318,13 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		GetRotation: func(types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
-		NewAudit: func(common.AuditConfig) (common.Audit, error) {
+		NewAudit: func(cfg common.AuditConfig) (common.Audit, error) {
 			// Use the same audit logger implementation but substitute the
 			// underlying emitter so events can be tracked in tests.
 			return common.NewAudit(common.AuditConfig{
 				Emitter:  c.emitter,
 				Recorder: libevents.WithNoOpPreparer(libevents.NewDiscardRecorder()),
+				Database: cfg.Database,
 			})
 		},
 		CADownloader:             p.CADownloader,
@@ -2325,7 +2334,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		AWSMatchers:              p.AWSMatchers,
 		AzureMatchers:            p.AzureMatchers,
 		ShutdownPollPeriod:       100 * time.Millisecond,
-		discoveryResourceChecker: &fakeDiscoveryResourceChecker{},
+		discoveryResourceChecker: p.DiscoveryResourceChecker,
 	})
 	require.NoError(t, err)
 
@@ -2423,12 +2432,12 @@ func TestAccessClickHouse(t *testing.T) {
 	}
 }
 
-type withDatabaseOption func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database
+type withDatabaseOption func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database
 
 type databaseOption func(*types.DatabaseV3)
 
 func withSelfHostedPostgres(name string, dbOpts ...databaseOption) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2457,7 +2466,7 @@ func withSelfHostedPostgres(name string, dbOpts ...databaseOption) withDatabaseO
 }
 
 func withRDSPostgres(name, authToken string) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2490,7 +2499,7 @@ func withRDSPostgres(name, authToken string) withDatabaseOption {
 }
 
 func withRedshiftPostgres(name, authToken string) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2524,7 +2533,7 @@ func withRedshiftPostgres(name, authToken string) withDatabaseOption {
 }
 
 func withCloudSQLPostgres(name, authToken string) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2561,7 +2570,7 @@ func withCloudSQLPostgres(name, authToken string) withDatabaseOption {
 }
 
 func withAzurePostgres(name, authToken string) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2594,7 +2603,7 @@ func withAzurePostgres(name, authToken string) withDatabaseOption {
 }
 
 func withSelfHostedMySQL(name string, opts ...mysql.TestServerOption) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2622,7 +2631,7 @@ func withSelfHostedMySQL(name string, opts ...mysql.TestServerOption) withDataba
 }
 
 func withRDSMySQL(name, authUser, authToken string) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2654,7 +2663,7 @@ func withRDSMySQL(name, authUser, authToken string) withDatabaseOption {
 }
 
 func withCloudSQLMySQL(name, authUser, authToken string) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2692,7 +2701,7 @@ func withCloudSQLMySQL(name, authUser, authToken string) withDatabaseOption {
 // withCloudSQLMySQLTLS creates a test MySQL server that simulates GCP Cloud SQL
 // and requires client authentication using an ephemeral client certificate.
 func withCloudSQLMySQLTLS(name, authUser, authToken string) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2730,7 +2739,7 @@ func withCloudSQLMySQLTLS(name, authUser, authToken string) withDatabaseOption {
 }
 
 func withAzureMySQL(name, authUser, authToken string) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2762,7 +2771,7 @@ func withAzureMySQL(name, authUser, authToken string) withDatabaseOption {
 }
 
 func withAtlasMongo(name, authUser, authSession string) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2796,7 +2805,7 @@ func withAtlasMongo(name, authUser, authSession string) withDatabaseOption {
 }
 
 func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2822,7 +2831,7 @@ func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withData
 }
 
 func withSelfHostedRedis(name string, opts ...redis.TestServerOption) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2847,7 +2856,7 @@ func withSelfHostedRedis(name string, opts ...redis.TestServerOption) withDataba
 }
 
 func withSQLServer(name string) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		sqlServer, err := sqlserver.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2871,7 +2880,7 @@ func withSQLServer(name string) withDatabaseOption {
 }
 
 func withClickhouseNative(name string) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		server, err := clickhouse.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2897,7 +2906,7 @@ func withClickhouseNative(name string) withDatabaseOption {
 }
 
 func withClickhouseHTTP(name string) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		server, err := clickhouse.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2921,7 +2930,7 @@ func withClickhouseHTTP(name string) withDatabaseOption {
 }
 
 func withElastiCacheRedis(name string, token, engineVersion string) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2958,7 +2967,7 @@ func withElastiCacheRedis(name string, token, engineVersion string) withDatabase
 }
 
 func withAzureRedis(name string, token string) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
@@ -2989,9 +2998,17 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 	}
 }
 
-type fakeDiscoveryResourceChecker struct{}
+type fakeDiscoveryResourceChecker struct {
+	byName map[string]func(context.Context, types.Database) error
+}
 
-func (f fakeDiscoveryResourceChecker) check(_ context.Context, _ types.Database) {
+func (f *fakeDiscoveryResourceChecker) Check(ctx context.Context, database types.Database) error {
+	if len(f.byName) > 0 {
+		if check := f.byName[database.GetName()]; check != nil {
+			return trace.Wrap(check(ctx, database))
+		}
+	}
+	return nil
 }
 
 var dynamicLabels = types.LabelsToV2(map[string]types.CommandLabel{

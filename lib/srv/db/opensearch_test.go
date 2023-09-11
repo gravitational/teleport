@@ -20,9 +20,7 @@ import (
 	"io"
 	"net"
 	"testing"
-	"time"
 
-	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/stretchr/testify/require"
 
@@ -32,6 +30,7 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func registerTestOpenSearchEngine() {
@@ -39,14 +38,12 @@ func registerTestOpenSearchEngine() {
 }
 
 func newTestOpenSearchEngine(ec common.EngineConfig) common.Engine {
-	staticAWSCredentials := func(client.ConfigProvider, time.Time, string, string, string) *credentials.Credentials {
-		return credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION")
-	}
-
 	return &opensearch.Engine{
 		EngineConfig: ec,
 		// inject mock AWS credentials.
-		GetSigningCredsFn: staticAWSCredentials,
+		CredentialsGetter: awsutils.NewStaticCredentialsGetter(
+			credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION"),
+		),
 	}
 }
 
@@ -200,7 +197,7 @@ func TestAuditOpenSearch(t *testing.T) {
 }
 
 func withOpenSearch(name string, opts ...opensearch.TestServerOption) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		OpenSearchServer, err := opensearch.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,

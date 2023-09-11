@@ -14,15 +14,22 @@
  * limitations under the License.
  */
 
-import { AgentLabel } from 'teleport/services/agents';
+import { ResourceLabel } from 'teleport/services/agents';
 
+export type GuessedAppType =
+  | 'Grafana'
+  | 'Slack'
+  | 'Jenkins'
+  | 'Application'
+  | 'Aws';
 export interface App {
+  kind: 'app';
   id: string;
   name: string;
   description: string;
   uri: string;
   publicAddr: string;
-  labels: AgentLabel[];
+  labels: ResourceLabel[];
   clusterId: string;
   launchUrl: string;
   fqdn: string;
@@ -38,6 +45,8 @@ export interface App {
   samlApp: boolean;
   // samlAppSsoUrl is the URL that triggers IdP-initiated SSO for SAML Application;
   samlAppSsoUrl?: string;
+  // guessedAppIconName is our best guess at what type of app this is based on factors like name and labels
+  guessedAppIconName?: GuessedAppType;
 }
 
 export type AwsRole = {

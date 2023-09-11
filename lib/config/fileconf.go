@@ -480,6 +480,16 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	if err := checkAndSetDefaultsForGCPMatchers(conf.Discovery.GCPMatchers); err != nil {
 		return trace.Wrap(err)
 	}
+	if len(conf.Discovery.KubernetesMatchers) > 0 {
+		if conf.Discovery.DiscoveryGroup == "" {
+			// TODO(anton): add link to documentation when it's available
+			return trace.BadParameter(`parameter 'discovery_group' should be defined for discovery service if
+kubernetes matchers are present`)
+		}
+		if err := checkAndSetDefaultsForKubeMatchers(conf.Discovery.KubernetesMatchers); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	return nil
 }
@@ -741,6 +751,35 @@ func checkAndSetDefaultsForGCPInstaller(matcher *GCPMatcher) error {
 	if installer := matcher.InstallParams.ScriptName; installer == "" {
 		matcher.InstallParams.ScriptName = installers.InstallerScriptName
 	}
+	return nil
+}
+
+// checkAndSetDefaultsForKubeMatchers sets the default values for Kubernetes matchers
+// and validates the provided types.
+func checkAndSetDefaultsForKubeMatchers(matchers []KubernetesMatcher) error {
+	for i := range matchers {
+		matcher := &matchers[i]
+
+		for _, t := range matcher.Types {
+			if !slices.Contains(services.SupportedKubernetesMatchers, t) {
+				return trace.BadParameter("Kubernetes discovery does not support %q resource type; supported resource types are: %v",
+					t, services.SupportedKubernetesMatchers)
+			}
+		}
+
+		if len(matcher.Types) == 0 {
+			matcher.Types = []string{services.KubernetesMatchersApp}
+		}
+
+		if len(matcher.Namespaces) == 0 {
+			matcher.Namespaces = []string{types.Wildcard}
+		}
+
+		if len(matcher.Labels) == 0 {
+			matcher.Labels = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
+		}
+	}
+
 	return nil
 }
 
@@ -1042,6 +1081,9 @@ type Auth struct {
 	// should be sent. This is applicable only when using ping-wrapped
 	// connections, regular TLS routing connections are not affected.
 	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
+
+	// CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
+	CaseInsensitiveRouting bool `yaml:"case_insensitive_routing,omitempty"`
 
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
@@ -1618,6 +1660,9 @@ type Discovery struct {
 	// GCPMatchers are used to match GCP resources.
 	GCPMatchers []GCPMatcher `yaml:"gcp,omitempty"`
 
+	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
+	KubernetesMatchers []KubernetesMatcher `yaml:"kubernetes,omitempty"`
+
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -1871,6 +1916,16 @@ type AzureMatcher struct {
 	InstallParams *InstallParams `yaml:"install,omitempty"`
 }
 
+// KubernetesMatcher matches Kubernetes resources.
+type KubernetesMatcher struct {
+	// Types are Kubernetes services types to match. Currently only 'app' is supported.
+	Types []string `yaml:"types,omitempty"`
+	// Namespaces are Kubernetes namespaces in which to discover services
+	Namespaces []string `yaml:"namespaces,omitempty"`
+	// Labels are Kubernetes services labels to match.
+	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+}
+
 // Database represents a single database proxied by the service.
 type Database struct {
 	// Name is the name for the database proxy service.
@@ -1902,6 +1957,8 @@ type Database struct {
 	Azure DatabaseAzure `yaml:"azure"`
 	// AdminUser describes database privileged user for auto-provisioning.
 	AdminUser DatabaseAdminUser `yaml:"admin_user"`
+	// Oracle is Database Oracle settings
+	Oracle DatabaseOracle `yaml:"oracle,omitempty"`
 }
 
 // DatabaseAdminUser describes database privileged user for auto-provisioning.
@@ -1942,6 +1999,12 @@ type DatabaseTLS struct {
 type DatabaseMySQL struct {
 	// ServerVersion is the MySQL version reported by DB proxy instead of default Teleport string.
 	ServerVersion string `yaml:"server_version,omitempty"`
+}
+
+// DatabaseOracle are an additional Oracle database options.
+type DatabaseOracle struct {
+	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+	AuditUser string `yaml:"audit_user,omitempty"`
 }
 
 // SecretStore contains settings for managing secrets.
@@ -2086,6 +2149,8 @@ type Rewrite struct {
 	Redirect []string `yaml:"redirect"`
 	// Headers is a list of extra headers to inject in the request.
 	Headers []string `yaml:"headers,omitempty"`
+	// JWTClaims configures whether roles/traits are included in the JWT token
+	JWTClaims string `yaml:"jwt_claims,omitempty"`
 }
 
 // AppAWS contains additional options for AWS applications.
@@ -2354,10 +2419,10 @@ type Metrics struct {
 	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
 	CACerts []string `yaml:"ca_certs,omitempty"`
 
-	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	// GRPCServerLatency enables histogram metrics for each gRPC endpoint on the auth server
 	GRPCServerLatency bool `yaml:"grpc_server_latency,omitempty"`
 
-	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	// GRPCServerLatency enables histogram metrics for each gRPC endpoint on the auth server
 	GRPCClientLatency bool `yaml:"grpc_client_latency,omitempty"`
 }
 
@@ -2494,6 +2559,9 @@ type Okta struct {
 
 	// APITokenPath is the path to the Okta API token.
 	APITokenPath string `yaml:"api_token_path,omitempty"`
+
+	// SyncPeriod is the duration between synchronization calls.
+	SyncPeriod time.Duration `yaml:"sync_period,omitempty"`
 }
 
 // JamfService is the yaml representation of jamf_service.

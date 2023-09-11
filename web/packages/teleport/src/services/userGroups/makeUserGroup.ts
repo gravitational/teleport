@@ -23,6 +23,7 @@ export function makeUserGroup(json): UserGroup {
   const applications = json.applications || [];
 
   return {
+    kind: 'user_group',
     name,
     description,
     labels,

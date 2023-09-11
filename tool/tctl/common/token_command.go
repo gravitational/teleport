@@ -113,7 +113,7 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, config *servicecfg.
 
 	// tctl tokens add ..."
 	c.tokenAdd = tokens.Command("add", "Create a invitation token.")
-	c.tokenAdd.Flag("type", "Type(s) of token to add, e.g. --type=node,app,db").Required().StringVar(&c.tokenType)
+	c.tokenAdd.Flag("type", "Type(s) of token to add, e.g. --type=node,app,db,proxy,etc").Required().StringVar(&c.tokenType)
 	c.tokenAdd.Flag("value", "Override the default random generated token with a specified value").StringVar(&c.value)
 	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
 	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v minutes",
@@ -161,6 +161,12 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 	roles, err := types.ParseTeleportRoles(c.tokenType)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// If it's Kube, then enable App and Discovery roles automatically so users
+	// don't have problems with running Kubernetes App Discovery by default.
+	if len(roles) == 1 && roles[0] == types.RoleKube {
+		roles = append(roles, types.RoleApp, types.RoleDiscovery)
 	}
 
 	token := c.value
@@ -257,11 +263,13 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 		if len(proxies) == 0 {
 			return trace.NotFound("cluster has no proxies")
 		}
+		setRoles := strings.ToLower(strings.Join(roles.StringSlice(), "\\,"))
 		return kubeMessageTemplate.Execute(c.stdout,
 			map[string]interface{}{
 				"auth_server": proxies[0].GetPublicAddr(),
 				"token":       token,
 				"minutes":     c.ttl.Minutes(),
+				"set_roles":   setRoles,
 			})
 	case roles.Include(types.RoleApp):
 		proxies, err := client.GetProxies()

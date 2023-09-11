@@ -37,6 +37,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -116,6 +117,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIntegration},
 		{Kind: types.KindHeadlessAuthentication},
 		{Kind: types.KindAccessList},
+		{Kind: types.KindUserLoginState},
+		{Kind: types.KindAccessListMember},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -364,6 +367,7 @@ func ForDiscovery(cfg Config) Config {
 		{Kind: types.KindNode},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindDatabase},
+		{Kind: types.KindApp},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
@@ -472,6 +476,7 @@ type Cache struct {
 	integrationsCache            services.Integrations
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	accessListsCache             services.AccessLists
+	userLoginStateCache          services.UserLoginStates
 	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -627,6 +632,8 @@ type Config struct {
 	Integrations services.Integrations
 	// AccessLists is the access list service.
 	AccessLists services.AccessLists
+	// UserLoginStates is the user login state service.
+	UserLoginStates services.UserLoginStates
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -802,6 +809,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	userLoginStatesCache, err := local.NewUserLoginStateService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -832,6 +845,7 @@ func New(config Config) (*Cache, error) {
 		integrationsCache:            integrationsCache,
 		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
 		accessListsCache:             accessListsCache,
+		userLoginStateCache:          userLoginStatesCache,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -2465,6 +2479,19 @@ func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integrat
 	return rg.reader.GetIntegration(ctx, name)
 }
 
+// ListAccessLists returns a paginated list of all access lists resources.
+func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, nextKey string) ([]*accesslist.AccessList, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessLists")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessLists)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAccessLists(ctx, pageSize, nextKey)
+}
+
 // GetAccessLists returns a list of all access lists resources.
 func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessLists")
@@ -2489,6 +2516,69 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 	}
 	defer rg.Release()
 	return rg.reader.GetAccessList(ctx, name)
+}
+
+// GetUserLoginStates returns the all user login state resources.
+func (c *Cache) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetUserLoginStates")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.userLoginStates)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetUserLoginStates(ctx)
+}
+
+// ListAccessListMembers returns a paginated list of all access list members.
+func (c *Cache) ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListMembers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAccessListMembers(ctx, accessList, pageSize, pageToken)
+}
+
+// GetAccessListMember returns the specified access list member resource.
+func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListMember")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetAccessListMember(ctx, accessList, memberName)
+}
+
+// GetUserLoginState returns the specified user login state resource.
+func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userloginstate.UserLoginState, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetUserLoginState")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.userLoginStates)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uls, err := rg.reader.GetUserLoginState(ctx, name)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if uls, err := c.Config.UserLoginStates.GetUserLoginState(ctx, name); err == nil {
+			return uls, nil
+		}
+	}
+	defer rg.Release()
+	return uls, trace.Wrap(err)
 }
 
 // ListResources is a part of auth.Cache implementation
@@ -2519,7 +2609,14 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 				return nil, trace.Wrap(err)
 			}
 
-			return local.FakePaginate(servers.AsResources(), req)
+			return local.FakePaginate(servers.AsResources(), local.FakePaginateParams{
+				ResourceType:        req.ResourceType,
+				Limit:               req.Limit,
+				Labels:              req.Labels,
+				SearchKeywords:      req.SearchKeywords,
+				PredicateExpression: req.PredicateExpression,
+				StartKey:            req.StartKey,
+			})
 		}
 	}
 

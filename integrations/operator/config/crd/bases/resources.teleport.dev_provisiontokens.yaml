@@ -78,27 +78,12 @@ spec:
                       must match one allow rule to use this token.
                     items:
                       properties:
-                        actions:
-                          description: Actions specifies optional actions taken when
-                            this rule matches
+                        resource_groups:
                           items:
                             type: string
                           nullable: true
                           type: array
-                        resources:
-                          description: Resources is a list of resources
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        verbs:
-                          description: Verbs is a list of verbs
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        where:
-                          description: Where specifies optional advanced matcher
+                        subscription:
                           type: string
                       type: object
                     nullable: true
@@ -118,27 +103,9 @@ spec:
                       must match one allow rule to use this token.
                     items:
                       properties:
-                        actions:
-                          description: Actions specifies optional actions taken when
-                            this rule matches
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        resources:
-                          description: Resources is a list of resources
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        verbs:
-                          description: Verbs is a list of verbs
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        where:
-                          description: Where specifies optional advanced matcher
+                        context_id:
+                          type: string
+                        project_id:
                           type: string
                       type: object
                     nullable: true
@@ -156,28 +123,21 @@ spec:
                       must match one allow rule to use this token.
                     items:
                       properties:
-                        actions:
-                          description: Actions specifies optional actions taken when
-                            this rule matches
+                        locations:
                           items:
                             type: string
                           nullable: true
                           type: array
-                        resources:
-                          description: Resources is a list of resources
+                        project_ids:
                           items:
                             type: string
                           nullable: true
                           type: array
-                        verbs:
-                          description: Verbs is a list of verbs
+                        service_accounts:
                           items:
                             type: string
                           nullable: true
                           type: array
-                        where:
-                          description: Where specifies optional advanced matcher
-                          type: string
                       type: object
                     nullable: true
                     type: array
@@ -192,27 +152,21 @@ spec:
                       must match one allow rule to use this token.
                     items:
                       properties:
-                        actions:
-                          description: Actions specifies optional actions taken when
-                            this rule matches
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        resources:
-                          description: Resources is a list of resources
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        verbs:
-                          description: Verbs is a list of verbs
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        where:
-                          description: Where specifies optional advanced matcher
+                        actor:
+                          type: string
+                        environment:
+                          type: string
+                        ref:
+                          type: string
+                        ref_type:
+                          type: string
+                        repository:
+                          type: string
+                        repository_owner:
+                          type: string
+                        sub:
+                          type: string
+                        workflow:
                           type: string
                       type: object
                     nullable: true
@@ -238,27 +192,19 @@ spec:
                       must match one allow rule to use this token.
                     items:
                       properties:
-                        actions:
-                          description: Actions specifies optional actions taken when
-                            this rule matches
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        resources:
-                          description: Resources is a list of resources
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        verbs:
-                          description: Verbs is a list of verbs
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        where:
-                          description: Where specifies optional advanced matcher
+                        environment:
+                          type: string
+                        namespace_path:
+                          type: string
+                        pipeline_source:
+                          type: string
+                        project_path:
+                          type: string
+                        ref:
+                          type: string
+                        ref_type:
+                          type: string
+                        sub:
                           type: string
                       type: object
                     nullable: true
@@ -284,31 +230,24 @@ spec:
                       must match one allow rule to use this token.
                     items:
                       properties:
-                        actions:
-                          description: Actions specifies optional actions taken when
-                            this rule matches
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        resources:
-                          description: Resources is a list of resources
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        verbs:
-                          description: Verbs is a list of verbs
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        where:
-                          description: Where specifies optional advanced matcher
+                        service_account:
                           type: string
                       type: object
                     nullable: true
                     type: array
+                  static_jwks:
+                    description: StaticJWKS is the configuration specific to the `static_jwks`
+                      type.
+                    nullable: true
+                    properties:
+                      jwks:
+                        type: string
+                    type: object
+                  type:
+                    description: 'Type controls which behavior should be used for
+                      validating the Kubernetes Service Account token. Support values:
+                      - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.'
+                    type: string
                 type: object
               roles:
                 description: Roles is a list of roles associated with the token, that

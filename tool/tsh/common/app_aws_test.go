@@ -142,6 +142,23 @@ func TestAWS(t *testing.T) {
 		setCmdRunner(validateCmd),
 	)
 	require.NoError(t, err)
+
+	t.Run("aws ssm start-session", func(t *testing.T) {
+		// Validate --endpoint-url 127.0.0.1:<port> is added to the command.
+		validateCmd := func(cmd *exec.Cmd) error {
+			require.Len(t, cmd.Args, 9)
+			require.Equal(t, []string{"aws", "ssm", "--region", "us-west-1", "start-session", "--target", "target-id", "--endpoint-url"}, cmd.Args[:8])
+			require.Contains(t, cmd.Args[8], "127.0.0.1:")
+			return nil
+		}
+		err = Run(
+			context.Background(),
+			[]string{"aws", "ssm", "--region", "us-west-1", "start-session", "--target", "target-id"},
+			setHomePath(tmpHomePath),
+			setCmdRunner(validateCmd),
+		)
+		require.NoError(t, err)
+	})
 }
 
 func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
