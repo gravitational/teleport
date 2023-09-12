@@ -119,7 +119,7 @@ func getRawNamedStruct(decl *ast.GenDecl) (rawNamedStruct, error) {
 
 // makeYAMLExample creates an example YAML document illustrating the fields
 // within the declaration.
-func makeYAMLExample(fields *ast.FieldList) (string, error) {
+func makeYAMLExample(fields []rawField) (string, error) {
 	// Write part of a potentially complex type to the YAML example.
 	// Assumes that the part will be on the same line as its predecessor.
 	addNodeToExample := func(example bytes.Buffer, node yamlKindNode) error {
@@ -142,14 +142,9 @@ func makeYAMLExample(fields *ast.FieldList) (string, error) {
 
 	var buf bytes.Buffer
 
-	for _, field := range fields.List {
-		tn, err := getYAMLType(field)
-		if err != nil {
-			return "", err
-		}
-
-		buf.WriteString("- " + getJSONTag(field.Tag.Value) + ":")
-		if err := addNodeToExample(buf, tn); err != nil {
+	for _, field := range fields {
+		buf.WriteString("- " + getJSONTag(field.tags) + ":")
+		if err := addNodeToExample(buf, field.kind); err != nil {
 			return "", err
 		}
 	}
@@ -252,21 +247,14 @@ func makeRawField(field *ast.Field) (rawField, error) {
 	}, nil
 }
 
-// makeFields assembles a slice of human-readable information about fields
+// makeFieldTableInfo assembles a slice of human-readable information about fields
 // within a Go struct.
-func makeFields(fields *ast.FieldList) ([]Field, error) {
+func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 	var result []Field
-	for _, field := range fields.List {
-		desc := strings.Trim(strings.ReplaceAll(field.Doc.Text(), "\n", " "), " ")
-		if len(field.Names) > 1 {
-			return nil, fmt.Errorf("field %+v contains more than one name", field)
-		}
+	for _, field := range fields {
+		desc := strings.Trim(strings.ReplaceAll(field.doc, "\n", " "), " ")
+		jsonName := getJSONTag(field.tags)
 
-		if len(field.Names) == 0 {
-			return nil, fmt.Errorf("field %+v has no names", field)
-		}
-		name := field.Names[0].Name
-		jsonName := getJSONTag(field.Tag.Value)
 		// This field is ignored, so skip it.
 		// See: https://pkg.go.dev/encoding/json#Marshal
 		if jsonName == "-" {
@@ -275,19 +263,15 @@ func makeFields(fields *ast.FieldList) ([]Field, error) {
 		// Using the exported field declaration name as the field name
 		// per JSON marshaling rules.
 		if jsonName == "" {
-			jsonName = name
+			jsonName = field.name
 		}
 
-		tn, err := getYAMLType(field)
-		if err != nil {
-			return nil, err
-		}
-		tv, err := tableValueFor(tn)
+		tv, err := tableValueFor(field.kind)
 		if err != nil {
 			return nil, err
 		}
 		result = append(result, Field{
-			Description: descriptionWithoutName(desc, name),
+			Description: descriptionWithoutName(desc, field.name),
 			Name:        jsonName,
 			Type:        tv,
 		})
@@ -335,21 +319,20 @@ func NewFromDecl(decl *ast.GenDecl, filepath string) (Resource, error) {
 		return Resource{}, err
 	}
 
-	yml, err := makeYAMLExample(str.Fields)
+	yml, err := makeYAMLExample(rs.fields)
 	if err != nil {
 		return Resource{}, err
 	}
 
-	fld, err := makeFields(str.Fields)
+	fld, err := makeFieldTableInfo(rs.fields)
 	if err != nil {
 		return Resource{}, err
 	}
 
-	section := getSectionName(ts)
-	desc := strings.Trim(strings.ReplaceAll(decl.Doc.Text(), "\n", " "), " ")
+	desc := strings.Trim(strings.ReplaceAll(rs.doc, "\n", " "), " ")
 	return Resource{
-		SectionName: section,
-		Description: descriptionWithoutName(desc, section),
+		SectionName: rs.name,
+		Description: descriptionWithoutName(desc, rs.name),
 		SourcePath:  filepath,
 		Fields:      fld,
 		YAMLExample: yml,
