@@ -1,0 +1,100 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.externalaudit.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/externalaudit/v1/externalaudit.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalaudit/v1;externalauditv1";
+
+// ExternalAuditService provides methods to manage external audit.
+// It's used only in Teleport Cloud for feature called 'bring your own audit bucket'.
+//
+// There could be multiple external audit resources in cluster, but only single
+// resource can be set as ClusterExternalAudit.
+// The one which is set as ClusterExternalAudit is used by auth.
+//
+// Supporting multiple ExternalAudit as resources allow us to to add resource,
+// and test connection before actually enabling it in cluster.
+service ExternalAuditService {
+  // GetExternalAudit returns the external audit configuration resource.
+  rpc GetExternalAudit(GetExternalAuditRequest) returns (GetExternalAuditResponse);
+
+  // CreateExternalAudit creates a new External Audit resource.
+  rpc CreateExternalAudit(CreateExternalAuditRequest) returns (CreateExternalAuditResponse);
+
+  // DeleteExternalAudit removes External Audit resource.
+  // You cannot remove external audit that is set as 'ClusterExternalAudit'.
+  // First you need to DeleteClusterExternalAudit or use other resource as
+  // ClusterExternalAudit.
+  rpc DeleteExternalAudit(DeleteExternalAuditRequest) returns (google.protobuf.Empty);
+
+  // SetClusterExternalAudit sets external audit to be used in cluster based on
+  // name of external audit.
+  // This method cause Teleport Auth service reload.
+  // Only single resource can be set to active state.
+  rpc SetClusterExternalAudit(SetClusterExternalAuditRequest) returns (SetClusterExternalAuditResponse);
+
+  // DeleteClusterExternalAudit deletes cluster configuration for external audit.
+  // This method cause Teleport Auth service reload.
+  // Deleting ClusterExternalAudit means disabling whole feature.
+  rpc DeleteClusterExternalAudit(DeleteClusterExternalAuditRequest) returns (DeleteClusterExternalAuditResponse);
+}
+
+// GetExternalAuditRequest is a request to get an external audit.
+message GetExternalAuditRequest {
+  // name of resource to get.
+  string name = 1;
+}
+
+// GetExternalAuditResponse is a response to get an external audit.
+message GetExternalAuditResponse {
+  // ExternalAudit is the ExternalAudit to be created.
+  ExternalAudit external_audit = 1;
+}
+
+// CreateExternalAuditRequest is the request to create the provided external audit.
+message CreateExternalAuditRequest {
+  // ExternalAudit is the ExternalAudit to be created.
+  ExternalAudit external_audit = 1;
+}
+
+// CreateExternalAuditRequest is the request to create the provided external audit.
+message CreateExternalAuditResponse {
+  // ExternalAudit is the ExternalAudit that was created.
+  ExternalAudit external_audit = 1;
+}
+
+// DeleteExternalAuditRequest is a request for deleting an external audit.
+message DeleteExternalAuditRequest {
+  string name = 1;
+}
+
+// SetClusterExternalAuditRequest is a request for setting an cluster external audit status.
+message SetClusterExternalAuditRequest {
+  // name of external audit to set as cluster external audit.
+  string name = 1;
+}
+
+// SetClusterExternalAuditResponse is a response for setting an cluster external audit status.
+message SetClusterExternalAuditResponse {}
+
+// DeleteClusterExternalAuditRequest is a request for deleting cluster external audit status.
+message DeleteClusterExternalAuditRequest {}
+
+// DeleteClusterExternalAuditResponse is a response for deleting cluster external audit status.
+message DeleteClusterExternalAuditResponse {}
