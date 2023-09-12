@@ -83,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/tsh/common/asciinema"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -878,8 +879,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App, DB).")
 	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	play.Flag("format", defaults.FormatFlagDescription(
-		teleport.PTY, teleport.JSON, teleport.YAML,
-	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
+		teleport.PTY, teleport.JSON, teleport.YAML, "ascii", "asciinema",
+	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML, "ascii", "asciinema")
 	play.Arg("session-id", "ID or path to session file to play").Required().StringVar(&cf.SessionID)
 
 	// scp
@@ -1678,6 +1679,15 @@ func exportSession(cf *CLIConf) error {
 		}
 	case teleport.YAML:
 		if err := utils.WriteYAML(os.Stdout, events); err != nil {
+			return trace.Wrap(err)
+		}
+	case "ascii", "asciinema":
+		stream, err := asciinema.GetSessionStream(cf.Context, tc, cf.SessionID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := asciinema.WriteAsciinema(os.Stdout, events, stream); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
