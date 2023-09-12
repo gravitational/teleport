@@ -58,7 +58,7 @@ var (
 // - 'on': one PROXY header is accepted and required per incoming connection.
 // - 'off': no PROXY headers are allows, otherwise connection is rejected.
 // If unspecified - one PROXY header is allowed, but not required. Connection is marked with source port set to 0
-// and IP pinning will not be allowed. It is supposed only as default mode for test setups.
+// and IP pinning will not be allowed. It is supposed to be used only as default mode for test setups.
 // In production you should always explicitly set the mode based on your network setup - if you have L4 load balancer
 // with enabled PROXY protocol in front of Teleport you should set it to 'on', if you don't have it, set it to 'off'
 type PROXYProtocolMode string
