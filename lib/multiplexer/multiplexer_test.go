@@ -298,6 +298,50 @@ func TestMux(t *testing.T) {
 		require.NotNil(t, err)
 	})
 
+	// makes sure the connection get port set to 0
+	// when PROXY protocol is unspecified
+	t.Run("required PROXY line", func(t *testing.T) {
+		t.Parallel()
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+
+		mux, err := New(Config{
+			Listener:              listener,
+			PROXYProtocolMode:     PROXYProtocolUnspecified,
+			IgnoreSelfConnections: true,
+		})
+		require.NoError(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		backend1 := &httptest.Server{
+			Listener: mux.TLS(),
+			Config: &http.Server{
+				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					fmt.Fprintf(w, r.RemoteAddr)
+				}),
+			},
+		}
+		backend1.StartTLS()
+		defer backend1.Close()
+
+		parsedURL, err := url.Parse(backend1.URL)
+		require.NoError(t, err)
+
+		conn, err := net.Dial("tcp", parsedURL.Host)
+		require.NoError(t, err)
+		defer conn.Close()
+
+		// upgrade connection to TLS
+		tlsConn := tls.Client(conn, clientConfig(backend1))
+		defer tlsConn.Close()
+
+		// make sure the TLS call failed
+		res, err := utils.RoundtripWithConn(tlsConn)
+		require.Nil(t, err)
+		require.Equal(t, conn.LocalAddr().String(), res)
+	})
+
 	// Timeout test makes sure that multiplexer respects read deadlines.
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
