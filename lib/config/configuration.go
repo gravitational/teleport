@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -670,10 +671,17 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			"been moved to proxy_service section. This setting is ignored."
 		log.Warning(warningMessage)
 	}
-	cfg.Auth.EnableProxyProtocol, err = utils.ParseOnOff("proxy_protocol", fc.Auth.ProxyProtocol, true)
-	if err != nil {
-		return trace.Wrap(err)
+
+	cfg.Auth.PROXYProtocolMode = multiplexer.PROXYProtocolUnspecified
+	if fc.Auth.ProxyProtocol != "" {
+		val := multiplexer.PROXYProtocolMode(fc.Auth.ProxyProtocol)
+		if err := validatePROXYProtocolValue(val); err != nil {
+			return trace.Wrap(err)
+		}
+
+		cfg.Auth.PROXYProtocolMode = val
 	}
+
 	if fc.Auth.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Auth.ListenAddress, int(defaults.AuthListenPort))
 		if err != nil {
@@ -897,14 +905,29 @@ func applyGoogleCloudKMSConfig(kmsConfig *GoogleCloudKMS, cfg *servicecfg.Config
 	return nil
 }
 
+func validatePROXYProtocolValue(p multiplexer.PROXYProtocolMode) error {
+	allowedOptions := []multiplexer.PROXYProtocolMode{multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff}
+
+	if !slices.Contains(allowedOptions, p) {
+		return trace.BadParameter("invalid 'proxy_protocol' value %q. Available options are: %v", p, allowedOptions)
+	}
+	return nil
+}
+
 // applyProxyConfig applies file configuration for the "proxy_service" section.
 func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	var err error
 
-	cfg.Proxy.EnableProxyProtocol, err = utils.ParseOnOff("proxy_protocol", fc.Proxy.ProxyProtocol, true)
-	if err != nil {
-		return trace.Wrap(err)
+	cfg.Proxy.PROXYProtocolMode = multiplexer.PROXYProtocolUnspecified
+	if fc.Proxy.ProxyProtocol != "" {
+		val := multiplexer.PROXYProtocolMode(fc.Proxy.ProxyProtocol)
+		if err := validatePROXYProtocolValue(val); err != nil {
+			return trace.Wrap(err)
+		}
+
+		cfg.Proxy.PROXYProtocolMode = val
 	}
+
 	if fc.Proxy.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, defaults.SSHProxyListenPort)
 		if err != nil {
