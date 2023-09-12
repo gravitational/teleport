@@ -77,6 +77,58 @@ type Metadata struct {
 				},
 			},
 		},
+		{
+			description: "sequences of scalars",
+			source: `
+package mypkg
+
+// Metadata describes information about a dynamic resource. Every dynamic
+// resource in Teleport has a metadata object.
+type Metadata struct {
+    // Names is a list of names.
+    Names []string BACKTICKjson:"names"BACKTICK
+    // Numbers is a list of numbers.
+    Numbers []int BACKTICKjson:"numbers"BACKTICK
+    // Booleans is a list of Booleans
+    Booleans []bool BACKTICKjson:"booleans"BACKTICK
+}
+`,
+			expected: Resource{
+				SectionName: "Metadata",
+				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
+				SourcePath:  "myfile.go",
+				YAMLExample: `  names:
+  - "string"
+  - "string"
+  - "string"
+  numbers:
+  - 1
+  - 1
+  - 1
+  booleans:
+  - true
+  - true
+  - true
+`,
+				Fields: []Field{
+					Field{
+						Name:        "names",
+						Description: "A list of names.",
+						Type:        "[]string",
+					},
+					Field{
+						Name:        "numbers",
+						Description: "A list of numbers.",
+						Type:        "[]string",
+					},
+					Field{
+						Name:        "booleans",
+						Description: "A list of Booleans.",
+						Type:        "[]Boolean",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
