@@ -676,6 +676,22 @@ func (d *DeviceAuthenticateEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submit
 	}
 }
 
+// DeviceEnrollEvent event is emitted after a successful device enrollment.
+type DeviceEnrollEvent prehogv1a.DeviceEnrollEvent
+
+func (d *DeviceEnrollEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DeviceEnrollEvent{
+			DeviceEnrollEvent: &prehogv1a.DeviceEnrollEvent{
+				DeviceId:     a.AnonymizeString(d.DeviceId),
+				UserName:     a.AnonymizeString(d.UserName),
+				DeviceOsType: d.DeviceOsType,
+				DeviceOrigin: d.DeviceOrigin,
+			},
+		},
+	}
+}
+
 // FeatureRecommendationEvent emitted when a feature is recommended to user or
 // when user completes the desired CTA for the feature.
 type FeatureRecommendationEvent prehogv1a.FeatureRecommendationEvent
@@ -687,6 +703,20 @@ func (e *FeatureRecommendationEvent) Anonymize(a utils.Anonymizer) prehogv1a.Sub
 				UserName:                    a.AnonymizeString(e.UserName),
 				Feature:                     e.Feature,
 				FeatureRecommendationStatus: e.FeatureRecommendationStatus,
+			},
+		},
+	}
+}
+
+// LicenseLimitEvent emitted when a feature is gated behind
+// enterprise license.
+type LicenseLimitEvent prehogv1a.LicenseLimitEvent
+
+func (e *LicenseLimitEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_LicenseLimitEvent{
+			LicenseLimitEvent: &prehogv1a.LicenseLimitEvent{
+				LicenseLimit: e.LicenseLimit,
 			},
 		},
 	}
