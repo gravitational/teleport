@@ -338,7 +338,7 @@ var ErrIPPinningMismatch = trace.AccessDenied("pinned IP doesn't match observed 
 
 // ErrIPPinningNotAllowed is returned when user's pinned IP doesn't match observed IP.
 var ErrIPPinningNotAllowed = trace.AccessDenied("IP pinning is not allowed for connections behind L4 load balancers with " +
-	"PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the config.")
+	"PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the proxy_service or auth_service config.")
 
 // CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
 // Check is considered successful if no error is returned.
