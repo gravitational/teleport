@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export * from './DocumentConnectMyComputerSetup/DocumentConnectMyComputerSetup';
-export * from './DocumentConnectMyComputerStatus/DocumentConnectMyComputerStatus';
+export * from './DocumentConnectMyComputer';
 export * from './connectMyComputerContext';
 export { NavigationMenu as ConnectMyComputerNavigationMenu } from './NavigationMenu';
