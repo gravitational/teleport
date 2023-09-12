@@ -537,7 +537,8 @@ func (b *Bot) renewIdentityViaAuth(
 		types.JoinMethodGCP,
 		types.JoinMethodGitHub,
 		types.JoinMethodGitLab,
-		types.JoinMethodIAM:
+		types.JoinMethodIAM,
+		types.JoinMethodKubernetes:
 		ident, err := b.getIdentityFromToken()
 		return ident, trace.Wrap(err)
 	default:
