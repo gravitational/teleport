@@ -300,3 +300,19 @@ func RunSSH(ctx context.Context, addr, command string, cfg *ssh.ClientConfig, op
 	err = session.Run(command)
 	return b.Bytes(), trace.Wrap(err)
 }
+
+type channelReadWriter interface {
+	io.ReadWriter
+	Stderr() io.ReadWriter
+}
+
+// DiscardChannelData discards all data received from an ssh channel in the
+// background.
+func DiscardChannelData(ch channelReadWriter) {
+	if ch != nil {
+		go io.Copy(io.Discard, ch)
+		if stderr := ch.Stderr(); stderr != nil {
+			go io.Copy(io.Discard, stderr)
+		}
+	}
+}

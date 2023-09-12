@@ -933,7 +933,7 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 			}
 			return
 		}
-		ch, _, err := nch.Accept()
+		ch, discard, err := nch.Accept()
 		if err != nil {
 			s.log.Warnf("Unable to accept channel: %v", err)
 			if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
@@ -941,6 +941,7 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 			}
 			return
 		}
+		go ssh.DiscardRequests(discard)
 		go s.handleDirectTCPIPRequest(ctx, ch, req)
 	default:
 		if err := nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType)); err != nil {

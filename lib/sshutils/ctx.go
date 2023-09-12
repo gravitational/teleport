@@ -135,10 +135,11 @@ func (c *ConnectionContext) StartAgentChannel() (teleagent.Agent, error) {
 		return nil, trace.AccessDenied("agent forwarding has not been requested")
 	}
 	// open a agent channel to client
-	ch, _, err := c.ServerConn.OpenChannel(AuthAgentRequest, nil)
+	ch, discard, err := c.ServerConn.OpenChannel(AuthAgentRequest, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	go ssh.DiscardRequests(discard)
 	return &agentChannel{
 		ExtendedAgent: agent.NewClient(ch),
 		ch:            ch,
