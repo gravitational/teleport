@@ -452,6 +452,10 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				return nil, trace.BadParameter(externalProxyProtocolDisabledError)
 			}
 
+			if unsignedPROXYLineReceived {
+				// We allow only one unsigned PROXY line
+				return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
+			}
 			unsignedPROXYLineReceived = true
 
 			if m.PROXYProtocolMode == PROXYProtocolUnspecified {
@@ -464,14 +468,9 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				newPROXYLine.Source.Port = 0 // Mark connection, so if later IP pinning check is used on it we can reject it.
 			}
 
-			if proxyLine != nil {
-				if proxyLine.IsVerified {
-					// Unsigned PROXY line after signed should not happen
-					return nil, trace.BadParameter(unsignedPROXYLineAfterSignedError)
-				} else {
-					// We allow only one unsigned PROXY line
-					return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
-				}
+			if proxyLine != nil && proxyLine.IsVerified {
+				// Unsigned PROXY line after signed one should not happen
+				return nil, trace.BadParameter(unsignedPROXYLineAfterSignedError)
 			}
 
 			proxyLine = newPROXYLine
@@ -483,6 +482,10 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				return nil, trace.Wrap(err, invalidProxyV2LineError)
 			}
 			if newPROXYLine == nil {
+				if unsignedPROXYLineReceived {
+					// We allow only one unsigned PROXY line
+					return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
+				}
 				unsignedPROXYLineReceived = true
 				continue // Skipping LOCAL command of PROXY protocol
 			}
@@ -527,6 +530,10 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				return nil, trace.BadParameter(externalProxyProtocolDisabledError)
 			}
 
+			if unsignedPROXYLineReceived {
+				// We allow only one unsigned PROXY line
+				return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
+			}
 			unsignedPROXYLineReceived = true
 
 			if m.PROXYProtocolMode == PROXYProtocolUnspecified {
@@ -542,11 +549,6 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			// Unsigned PROXY line after signed should not happen
 			if proxyLine != nil && proxyLine.IsVerified {
 				return nil, trace.BadParameter(unsignedPROXYLineAfterSignedError)
-			}
-
-			// We allow only one unsigned proxy line
-			if proxyLine != nil {
-				return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
 			}
 
 			proxyLine = newPROXYLine
