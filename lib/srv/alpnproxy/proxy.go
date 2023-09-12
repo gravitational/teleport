@@ -440,8 +440,7 @@ func (p *Proxy) checkCertIPPinning(tlsConn *tls.Conn) error {
 			p.log.WithFields(logrus.Fields{
 				"client_ip": clientIP,
 				"pinned_ip": identity.PinnedIP,
-			}).Warn("IP pinning is not allowed for connections behind L4 load balancers with " +
-				"PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the proxy_service config.")
+			}).Debug(authz.ErrIPPinningMismatch.Error())
 		}
 		return trace.Wrap(authz.ErrIPPinningMismatch)
 	}

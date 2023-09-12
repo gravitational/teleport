@@ -336,6 +336,10 @@ var ErrIPPinningMissing = trace.AccessDenied("pinned IP is required for the user
 // ErrIPPinningMismatch is returned when user's pinned IP doesn't match observed IP.
 var ErrIPPinningMismatch = trace.AccessDenied("pinned IP doesn't match observed client IP")
 
+// ErrIPPinningNotAllowed is returned when user's pinned IP doesn't match observed IP.
+var ErrIPPinningNotAllowed = trace.AccessDenied("IP pinning is not allowed for connections behind L4 load balancers with " +
+	"PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the config.")
+
 // CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
 // Check is considered successful if no error is returned.
 func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool, log logrus.FieldLogger) error {
@@ -372,8 +376,7 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 			log.WithFields(logrus.Fields{
 				"client_ip": clientIP,
 				"pinned_ip": identity.PinnedIP,
-			}).Warn("IP pinning is not allowed for connections behind L4 load balancers with " +
-				"PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the config.")
+			}).Debug(ErrIPPinningNotAllowed.Error())
 		}
 		return ErrIPPinningMismatch
 	}
@@ -1131,7 +1134,7 @@ func ConvertAuthorizerError(ctx context.Context, log logrus.FieldLogger, err err
 	case trace.IsNotFound(err):
 		// user not found, wrap error with access denied
 		return trace.Wrap(err, "access denied")
-	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch):
+	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
 		log.Warn(err)
 		return trace.Wrap(err)
 	case trace.IsAccessDenied(err):
