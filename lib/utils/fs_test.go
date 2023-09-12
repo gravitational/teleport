@@ -26,6 +26,80 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestOpenFileSymlinks(t *testing.T) {
+	// symlink structure setup, this will produce the following structure under the temp directory created below:
+	// dir
+	// dir-s -> dir
+	// dir-s-s -> dir-s
+	// dir/file
+	// dir/file-s -> dir/file
+	// circular-s -> circular-s
+	// broken-s -> nonexistent
+	rootDir, err := os.MkdirTemp("", "symlink-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(rootDir)
+
+	dirPath := filepath.Join(rootDir, "dir")
+	err = os.Mkdir(dirPath, 0755)
+	require.NoError(t, err)
+
+	filePath := filepath.Join(dirPath, "file")
+	_, err = os.Create(filePath)
+	require.NoError(t, err)
+
+	symlinkToFile := filepath.Join(dirPath, "file-s")
+	err = os.Symlink(filePath, symlinkToFile)
+	require.NoError(t, err)
+
+	symlinkDir := filepath.Join(rootDir, "dir-s")
+	err = os.Symlink(dirPath, symlinkDir)
+	require.NoError(t, err)
+
+	symlinkToSymlinkDir := filepath.Join(rootDir, "dir-s-s")
+	err = os.Symlink(symlinkDir, symlinkToSymlinkDir)
+	require.NoError(t, err)
+
+	circularSymlink := filepath.Join(rootDir, "circular-s")
+	err = os.Symlink(circularSymlink, circularSymlink)
+	require.NoError(t, err)
+
+	brokenSymlink := filepath.Join(rootDir, "broken-s")
+	err = os.Symlink(filepath.Join(rootDir, "nonexistent"), brokenSymlink)
+	require.NoError(t, err)
+
+	// Tests below can not be done with t.Parallel due to the need for directory cleanup in defer
+	t.Run("directFileOpenAllowed", func(t *testing.T) {
+		f, err := openFile(filePath, false)
+		require.NoError(t, err)
+		defer f.Close()
+	})
+	t.Run("symlinkFileOpenAllowed", func(t *testing.T) {
+		f, err := openFile(symlinkToFile, true)
+		require.NoError(t, err)
+		defer f.Close()
+	})
+	t.Run("symlinkFileOpenDenied", func(t *testing.T) {
+		_, err := openFile(symlinkToFile, false)
+		require.Error(t, err)
+	})
+	t.Run("symlinkDirFileOpenDenied", func(t *testing.T) {
+		_, err := openFile(filepath.Join(symlinkDir, "file"), false)
+		require.Error(t, err)
+	})
+	t.Run("symlinkRecursiveDirFileOpenDenied", func(t *testing.T) {
+		_, err := openFile(filepath.Join(symlinkToSymlinkDir, "file"), false)
+		require.Error(t, err)
+	})
+	t.Run("circularSymlink", func(t *testing.T) {
+		_, err := openFile(circularSymlink, false)
+		require.Error(t, err)
+	})
+	t.Run("brokenSymlink", func(t *testing.T) {
+		_, err := openFile(brokenSymlink, false)
+		require.Error(t, err)
+	})
+}
+
 func TestLocks(t *testing.T) {
 	t.Parallel()
 
