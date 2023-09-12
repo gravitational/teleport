@@ -2654,6 +2654,7 @@ func (process *TeleportProcess) initSSH() error {
 			// Use multiplexer to leverage support for signed PROXY protocol headers.
 			mux, err := multiplexer.New(multiplexer.Config{
 				Context:             process.ExitContext(),
+				PROXYProtocolMode:   multiplexer.PROXYProtocolOff,
 				Listener:            listener,
 				ID:                  teleport.Component(teleport.ComponentNode, process.id),
 				CertAuthorityGetter: authClient.GetCertAuthority,
