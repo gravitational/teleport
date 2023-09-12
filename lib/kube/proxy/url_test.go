@@ -110,7 +110,9 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/api/v1/namespaces/default/pods", want: nil},
 		{path: "/api/v1/namespaces/default/pods/foo", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
 		{path: "/api/v1/watch/namespaces/default/pods/foo", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
-		{path: "/api/v1/namespaces/kube-system/pods/foo/exec", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"get"}}},
+		{path: "/api/v1/namespaces/kube-system/pods/foo/exec", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"exec"}}},
+		{path: "/api/v1/namespaces/kube-system/pods/foo/attach", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"exec"}}},
+		{path: "/api/v1/namespaces/kube-system/pods/foo/portforward", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"portforward"}}},
 		{path: "/api/v1/namespaces/default/pods", body: bodyFunc("Pod", "v1"), want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
 
 		// Secrets
