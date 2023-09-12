@@ -1245,22 +1245,24 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 
 	var kubeStatus *kubernetesStatus
 	err = retryWithAccessRequest(cf, tc, func() error {
-		// Check that this kube cluster exists.
-		var err error
-		kubeStatus, err = fetchKubeStatus(cf.Context, tc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = c.checkClusterSelection(cf, tc, kubeStatus.kubeClusters)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				// rewrap not found error as access denied, so we can retry
-				// fetching clusters with an access request.
-				return trace.AccessDenied(err.Error())
+		return client.RetryWithRelogin(cf.Context, tc, func() error {
+			// Check that this kube cluster exists.
+			var err error
+			kubeStatus, err = fetchKubeStatus(cf.Context, tc)
+			if err != nil {
+				return trace.Wrap(err)
 			}
-			return trace.Wrap(err)
-		}
-		return nil
+			err = c.checkClusterSelection(cf, tc, kubeStatus.kubeClusters)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					// rewrap not found error as access denied, so we can retry
+					// fetching clusters with an access request.
+					return trace.AccessDenied(err.Error())
+				}
+				return trace.Wrap(err)
+			}
+			return nil
+		})
 	}, c.accessRequestForKubeCluster, c.selectorsOrWildcard())
 	if err != nil {
 		return trace.Wrap(err)
