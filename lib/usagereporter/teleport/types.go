@@ -1035,11 +1035,6 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			CompletionTokens: e.AssistAction.CompletionTokens,
 		}
 		return ret, nil
-	case *usageeventsv1.UsageEventOneOf_LicenseLimitEvent:
-		ret := &LicenseLimitEvent{
-			LicenseLimit: prehogv1a.LicenseLimit(e.LicenseLimitEvent.GetLicenseLimit()),
-		}
-		return ret, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}
