@@ -67,10 +67,6 @@ type Spec struct {
 
 	// Grants describes the access granted by membership to this access list.
 	Grants Grants `json:"grants" yaml:"grants"`
-
-	// Members describes the current members of the access list.
-	// TODO(mdwn): Remove this.
-	Members []Member `json:"members" yaml:"members"`
 }
 
 // Owner is an owner of an access list.
@@ -175,20 +171,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("grants must specify at least one role or trait")
 	}
 
-	for _, member := range a.Spec.Members {
-		if member.Name == "" {
-			return trace.BadParameter("member name is missing")
-		}
-
-		if member.Joined.IsZero() {
-			return trace.BadParameter("member %s joined is missing", member.Name)
-		}
-
-		if member.AddedBy == "" {
-			return trace.BadParameter("member %s added by is missing", member.Name)
-		}
-	}
-
 	return nil
 }
 
@@ -215,11 +197,6 @@ func (a *AccessList) GetOwnershipRequires() Requires {
 // GetGrants returns the grants from the access list.
 func (a *AccessList) GetGrants() Grants {
 	return a.Spec.Grants
-}
-
-// GetMembers returns the members from the access list.
-func (a *AccessList) GetMembers() []Member {
-	return a.Spec.Members
 }
 
 // GetMetadata returns metadata. This is specifically for conforming to the Resource interface,

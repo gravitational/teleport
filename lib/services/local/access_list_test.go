@@ -334,22 +334,6 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 					"gtrait2": {"gvalue3", "gvalue4"},
 				},
 			},
-			Members: []accesslist.Member{
-				{
-					Name:    "member1",
-					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because",
-					AddedBy: "test-user1",
-				},
-				{
-					Name:    "member2",
-					Joined:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because again",
-					AddedBy: "test-user2",
-				},
-			},
 		},
 	)
 	require.NoError(t, err)
