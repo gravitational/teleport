@@ -675,7 +675,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Auth.PROXYProtocolMode = multiplexer.PROXYProtocolUnspecified
 	if fc.Auth.ProxyProtocol != "" {
 		val := multiplexer.PROXYProtocolMode(fc.Auth.ProxyProtocol)
-		if err := isAllowedPROXYProtocolValue(val); err != nil {
+		if err := validatePROXYProtocolValue(val); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -905,12 +905,13 @@ func applyGoogleCloudKMSConfig(kmsConfig *GoogleCloudKMS, cfg *servicecfg.Config
 	return nil
 }
 
-func isAllowedPROXYProtocolValue(p multiplexer.PROXYProtocolMode) error {
-	if p == multiplexer.PROXYProtocolOn || p == multiplexer.PROXYProtocolOff {
-		return nil
+func validatePROXYProtocolValue(p multiplexer.PROXYProtocolMode) error {
+	allowedOptions := []multiplexer.PROXYProtocolMode{multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff}
+
+	if !slices.Contains(allowedOptions, p) {
+		return trace.BadParameter("invalid 'proxy_protocol' value %q. Available options are: %v", p, allowedOptions)
 	}
-	return trace.BadParameter("provided incorrect 'proxy_protocol' value %q. Correct options are: %v", p,
-		[]multiplexer.PROXYProtocolMode{multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff})
+	return nil
 }
 
 // applyProxyConfig applies file configuration for the "proxy_service" section.
@@ -920,7 +921,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Proxy.PROXYProtocolMode = multiplexer.PROXYProtocolUnspecified
 	if fc.Proxy.ProxyProtocol != "" {
 		val := multiplexer.PROXYProtocolMode(fc.Proxy.ProxyProtocol)
-		if err := isAllowedPROXYProtocolValue(val); err != nil {
+		if err := validatePROXYProtocolValue(val); err != nil {
 			return trace.Wrap(err)
 		}
 
