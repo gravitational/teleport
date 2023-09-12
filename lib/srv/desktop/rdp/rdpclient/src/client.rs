@@ -12,7 +12,6 @@ use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduParsing;
-use ironrdp_session::utils::swap_hashmap_kv;
 use ironrdp_session::x224::Processor;
 use ironrdp_session::{ActiveStageOutput, SessionError, SessionResult};
 use ironrdp_tokio::{Framed, TokioStream};
@@ -74,7 +73,7 @@ async fn inner_connect(
     let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
         .with_server_addr(server_socket_addr)
         .with_server_name(server_addr)
-        .with_credssp_client_factory(Box::new(RequestClientFactory));
+        .with_credssp_network_client(RequestClientFactory);
 
     let should_upgrade = ironrdp_tokio::connect_begin(&mut framed, &mut connector).await?;
 
@@ -94,7 +93,7 @@ async fn inner_connect(
     info!("connection_result: {:?}", connection_result);
 
     let mut x224_processor = Processor::new(
-        swap_hashmap_kv(connection_result.static_channels),
+        connection_result.static_channels,
         connection_result.user_channel_id,
         connection_result.io_channel_id,
         None,
@@ -161,7 +160,7 @@ fn create_config(params: ConnectParams) -> Config {
         }),
         dig_product_id: "".to_string(),
         client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
-        platform: MajorPlatformType::Unspecified,
+        platform: MajorPlatformType::UNSPECIFIED,
         no_server_pointer: false,
     }
 }
