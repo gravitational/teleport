@@ -135,7 +135,7 @@ func openFile(path string, allowSymlink bool) (*os.File, error) {
 			if err != nil {
 				return nil, trace.ConvertSystemError(err)
 			} else if fi.Mode().Type()&os.ModeSymlink != 0 {
-				return nil, trace.BadParameter("symlink not allowed in path: %v", subPath)
+				return nil, trace.BadParameter("failed to open file %v, symlink not allowed in path: %v", path, subPath)
 			}
 		}
 	}
