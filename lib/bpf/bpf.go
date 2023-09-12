@@ -82,6 +82,12 @@ type Service struct {
 	// conn is a BPF programs that hooks connect.
 	// conn is set only when restricted sessions are enabled.
 	conn *conn
+
+	// udpSilencedSockets holds all UDP sockets that are currently silenced.
+	udpSilencedSockets *utils.FnCache
+
+	// udpSilencePeriod is the expiration time for udpSilencedSockets keys.
+	udpSilencePeriod time.Duration
 }
 
 // New creates a BPF service.
@@ -123,6 +129,13 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 
 	s.argsCache, err = utils.NewFnCache(utils.FnCacheConfig{
 		TTL: 24 * time.Hour,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.udpSilencedSockets, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL: time.Hour, //s.udpSilencePeriod,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -500,6 +513,11 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		return
 	}
 
+	if event.SkType == unix.SOCK_DGRAM && s.filterUDPSocket(event.SkInode) {
+		logger.WarnContext(s.closeContext, "SKIPPING UDP EVENT", "udp_inode", event.SkInode)
+		return
+	}
+
 	srcAddr := ipv4HostToIP(event.Saddr)
 	dstAddr := ipv4HostToIP(event.Daddr)
 	sessionNetworkEvent := &apievents.SessionNetwork{
@@ -529,10 +547,15 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 			Program:        ConvertString(event.Command[:]),
 			PID:            uint64(event.Pid),
 		},
-		DstPort:    int32(event.Dport),
-		DstAddr:    dstAddr.String(),
-		SrcAddr:    srcAddr.String(),
-		TCPVersion: 4,
+		DstPort: int32(event.Dport),
+		DstAddr: dstAddr.String(),
+		SrcAddr: srcAddr.String(),
+	}
+	if event.SkType == unix.SOCK_STREAM {
+		sessionNetworkEvent.TCPVersion = 4
+	} else { // UDP
+		sessionNetworkEvent.Operation = apievents.SessionNetwork_SEND
+		sessionNetworkEvent.UDPVersion = 4
 	}
 	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
 		logger.WarnContext(ctx.Context, "Failed to emit network event", "error", err)
@@ -559,6 +582,10 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	// If the network event is not being monitored, don't process it.
 	_, ok = ctx.Events[constants.EnhancedRecordingNetwork]
 	if !ok {
+		return
+	}
+
+	if event.SkType == unix.SOCK_DGRAM && s.filterUDPSocket(event.SkInode) {
 		return
 	}
 
@@ -591,10 +618,15 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 			Program:        ConvertString(event.Command[:]),
 			PID:            uint64(event.Pid),
 		},
-		DstPort:    int32(event.Dport),
-		DstAddr:    dstAddr.String(),
-		SrcAddr:    srcAddr.String(),
-		TCPVersion: 6,
+		DstPort: int32(event.Dport),
+		DstAddr: dstAddr.String(),
+		SrcAddr: srcAddr.String(),
+	}
+	if event.SkType == unix.SOCK_STREAM { // TCP
+		sessionNetworkEvent.TCPVersion = 6
+	} else { // UDP
+		sessionNetworkEvent.Operation = apievents.SessionNetwork_SEND
+		sessionNetworkEvent.UDPVersion = 6
 	}
 	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
 		logger.WarnContext(ctx.Context, "Failed to emit network event", "error", err)
@@ -605,6 +637,25 @@ func ipv4HostToIP(addr uint32) net.IP {
 	val := make([]byte, 4)
 	binary.LittleEndian.PutUint32(val, addr)
 	return val
+}
+
+func (s *Service) filterUDPSocket(id uint64) bool {
+	// Log everything if period is zeroed.
+	if s.udpSilencePeriod <= 0 {
+		return false
+	}
+
+	_, err := utils.FnCacheGet(s.closeContext, s.udpSilencedSockets, id, func(ctx context.Context) (struct{}, error) {
+		return struct{}{}, trace.NotFound("Silcenced socket not found")
+	})
+	if err == nil {
+		return true
+	}
+
+	// Start a new silence period.
+	s.udpSilencedSockets.SetWithTTL(id, struct{}{}, s.udpSilencePeriod)
+
+	return false
 }
 
 // unmarshalEvent will unmarshal the perf event.

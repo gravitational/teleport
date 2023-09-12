@@ -6,7 +6,7 @@
 #include "../helpers.h"
 
 // Uncomment to enable debug messages via bpf_printk
-//#define PRINT_DEBUG_MSGS
+#define PRINT_DEBUG_MSGS
 
 // Maximum monitored sessions.
 #define MAX_MONITORED_SESSIONS 1024
@@ -20,7 +20,9 @@
 // Define our own struct definition if our vmlinux.h is outdated; this empty
 // definition will not conflict because of the ___x but anything after the
 // triple underscore will get ignored by BPF CO-RE.
-struct trace_event_raw_bpf_trace_printk___x {};
+struct trace_event_raw_bpf_trace_printk___x
+{
+};
 
 #undef bpf_printk
 
@@ -39,7 +41,8 @@ struct trace_event_raw_bpf_trace_printk___x {};
         }                                                                      \
     })
 
-static void print_event(struct task_struct *task) {
+static void print_event(struct task_struct *task)
+{
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 session_id = BPF_CORE_READ(task, sessionid);
@@ -49,22 +52,45 @@ static void print_event(struct task_struct *task) {
     bpf_printk("  session ID: %lu", session_id);
 }
 
-static void print_command_event(struct task_struct *task, const char *filename, const char *const *argv) {
+static void print_command_event(struct task_struct *task, const char *filename, const char *const *argv)
+{
     const char *arg = NULL;
-    
+
     bpf_printk("command:");
     print_event(task);
     bpf_printk("  filename:   %s", filename);
-    for (int i = 1; i < MAXARGS; i++) {
-        bpf_probe_read_user_str(&arg, MAXARGS, (void*)&argv[i]);
-        if (arg == NULL){
+    for (int i = 1; i < MAXARGS; i++)
+    {
+        bpf_probe_read_user_str(&arg, MAXARGS, (void *)&argv[i]);
+        if (arg == NULL)
+        {
             break;
         }
         bpf_printk("  argv[%d]:    %s", i, arg);
     }
 }
 
-static void print_disk_event(struct task_struct *task, const char *path) {
+static void print_network_event(struct task_struct *task, u16 type, u32 saddr, u32 daddr, u16 dport)
+{
+    bpf_printk("network:");
+    print_event(task);
+
+    bpf_printk("  src addr:");
+    if (type == 2) {
+        bpf_printk("  type: udp");
+    } else {
+        bpf_printk("  type: tcp");
+    }
+    bpf_printk("  %d.%d", (saddr >> 0) & 0xFF, (saddr >> 8) & 0xFF);
+    bpf_printk("  %d.%d", (saddr >> 16) & 0xFF, (saddr >> 24) & 0xFF);
+    bpf_printk("  dst addr:");
+    bpf_printk("  %d.%d", (daddr >> 0) & 0xFF, (daddr >> 8) & 0xFF);
+    bpf_printk("  %d.%d", (daddr >> 16) & 0xFF, (daddr >> 24) & 0xFF);
+    bpf_printk("  dport       %d", dport);
+}
+
+static void print_disk_event(struct task_struct *task, const char *path)
+{
     bpf_printk("disk:");
     print_event(task);
     bpf_printk("  path:       %s", path);

@@ -20,6 +20,7 @@ package bpf
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,10 @@ func TestBPFConfig_CheckAndSetDefaults(t *testing.T) {
 	perfBufferPageCount := defaults.PerfBufferPageCount
 	openPerfBufferPageCount := defaults.OpenPerfBufferPageCount
 	zeroPageCount := 0
+	udpSilencePeriod := defaults.UDPSilencePeriod
+	udpSilenceBufferSize := defaults.UDPSilenceBufferSize
+	customUDPSilencePeriod := 1 * time.Minute
+	customUDPSilenceBufferSize := 42
 
 	tests := []struct {
 		name string
@@ -45,25 +50,31 @@ func TestBPFConfig_CheckAndSetDefaults(t *testing.T) {
 			name: "all defaults",
 			got:  &servicecfg.BPFConfig{},
 			want: &servicecfg.BPFConfig{
-				CommandBufferSize: &perfBufferPageCount,
-				DiskBufferSize:    &openPerfBufferPageCount,
-				NetworkBufferSize: &perfBufferPageCount,
-				CgroupPath:        defaults.CgroupPath,
+				CommandBufferSize:    &perfBufferPageCount,
+				DiskBufferSize:       &openPerfBufferPageCount,
+				NetworkBufferSize:    &perfBufferPageCount,
+				CgroupPath:           defaults.CgroupPath,
+				UDPSilencePeriod:     &udpSilencePeriod,
+				UDPSilenceBufferSize: &udpSilenceBufferSize,
 			},
 		},
 		{
 			name: "values set",
 			got: &servicecfg.BPFConfig{
-				CommandBufferSize: &zeroPageCount,
-				DiskBufferSize:    &zeroPageCount,
-				NetworkBufferSize: &perfBufferPageCount,
-				CgroupPath:        "/my/cgroup/",
+				CommandBufferSize:    &zeroPageCount,
+				DiskBufferSize:       &zeroPageCount,
+				NetworkBufferSize:    &perfBufferPageCount,
+				CgroupPath:           "/my/cgroup/",
+				UDPSilencePeriod:     &customUDPSilencePeriod,
+				UDPSilenceBufferSize: &customUDPSilenceBufferSize,
 			},
 			want: &servicecfg.BPFConfig{
-				CommandBufferSize: &perfBufferPageCount,
-				DiskBufferSize:    &openPerfBufferPageCount,
-				NetworkBufferSize: &perfBufferPageCount,
-				CgroupPath:        "/my/cgroup/",
+				CommandBufferSize:    &zeroPageCount,
+				DiskBufferSize:       &zeroPageCount,
+				NetworkBufferSize:    &perfBufferPageCount,
+				CgroupPath:           "/my/cgroup/",
+				UDPSilencePeriod:     &customUDPSilencePeriod,
+				UDPSilenceBufferSize: &customUDPSilenceBufferSize,
 			},
 		},
 	}

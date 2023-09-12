@@ -24,7 +24,8 @@ type networkIpv4DataT struct {
 	Daddr          uint32
 	Dport          uint16
 	Command        [16]uint8
-	_              [2]byte
+	SkType         uint16
+	SkInode        uint64
 }
 
 type networkIpv6DataT struct {
@@ -50,7 +51,8 @@ type networkIpv6DataT struct {
 	}
 	Dport   uint16
 	Command [16]uint8
-	_       [2]byte
+	SkType  uint16
+	SkInode uint64
 }
 
 // loadNetwork returns the embedded CollectionSpec for network.
@@ -97,8 +99,12 @@ type networkSpecs struct {
 type networkProgramSpecs struct {
 	KprobeTcpV4Connect    *ebpf.ProgramSpec `ebpf:"kprobe__tcp_v4_connect"`
 	KprobeTcpV6Connect    *ebpf.ProgramSpec `ebpf:"kprobe__tcp_v6_connect"`
+	KprobeUdpSendmsg      *ebpf.ProgramSpec `ebpf:"kprobe__udp_sendmsg"`
+	KprobeUdpv6Sendmsg    *ebpf.ProgramSpec `ebpf:"kprobe__udpv6_sendmsg"`
 	KretprobeTcpV4Connect *ebpf.ProgramSpec `ebpf:"kretprobe__tcp_v4_connect"`
 	KretprobeTcpV6Connect *ebpf.ProgramSpec `ebpf:"kretprobe__tcp_v6_connect"`
+	KretprobeUdpSendmsg   *ebpf.ProgramSpec `ebpf:"kretprobe__udp_sendmsg"`
+	KretprobeUdpv6Sendmsg *ebpf.ProgramSpec `ebpf:"kretprobe__udpv6_sendmsg"`
 }
 
 // networkMapSpecs contains maps before they are loaded into the kernel.
@@ -174,16 +180,24 @@ type networkVariables struct {
 type networkPrograms struct {
 	KprobeTcpV4Connect    *ebpf.Program `ebpf:"kprobe__tcp_v4_connect"`
 	KprobeTcpV6Connect    *ebpf.Program `ebpf:"kprobe__tcp_v6_connect"`
+	KprobeUdpSendmsg      *ebpf.Program `ebpf:"kprobe__udp_sendmsg"`
+	KprobeUdpv6Sendmsg    *ebpf.Program `ebpf:"kprobe__udpv6_sendmsg"`
 	KretprobeTcpV4Connect *ebpf.Program `ebpf:"kretprobe__tcp_v4_connect"`
 	KretprobeTcpV6Connect *ebpf.Program `ebpf:"kretprobe__tcp_v6_connect"`
+	KretprobeUdpSendmsg   *ebpf.Program `ebpf:"kretprobe__udp_sendmsg"`
+	KretprobeUdpv6Sendmsg *ebpf.Program `ebpf:"kretprobe__udpv6_sendmsg"`
 }
 
 func (p *networkPrograms) Close() error {
 	return _NetworkClose(
 		p.KprobeTcpV4Connect,
 		p.KprobeTcpV6Connect,
+		p.KprobeUdpSendmsg,
+		p.KprobeUdpv6Sendmsg,
 		p.KretprobeTcpV4Connect,
 		p.KretprobeTcpV6Connect,
+		p.KretprobeUdpSendmsg,
+		p.KretprobeUdpv6Sendmsg,
 	)
 }
 

@@ -89,6 +89,14 @@ func startConn(bufferSize int) (*conn, error) {
 			symbol: "tcp_v6_connect",
 			prog:   objs.KprobeTcpV6Connect,
 		},
+		{
+			symbol: "udp_sendmsg",
+			prog:   objs.KprobeUdpSendmsg,
+		},
+		{
+			symbol: "udpv6_sendmsg",
+			prog:   objs.KprobeUdpv6Sendmsg,
+		},
 	}
 
 	kretProbes := []struct {
@@ -102,6 +110,14 @@ func startConn(bufferSize int) (*conn, error) {
 		{
 			symbol: "tcp_v6_connect",
 			prog:   objs.KretprobeTcpV6Connect,
+		},
+		{
+			symbol: "udp_sendmsg",
+			prog:   objs.KretprobeUdpSendmsg,
+		},
+		{
+			symbol: "udpv6_sendmsg",
+			prog:   objs.KretprobeUdpv6Sendmsg,
 		},
 	}
 
