@@ -168,40 +168,44 @@ export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
 const indicatorStatusToStyledStatus = (
   indicatorStatus: IndicatorStatus
 ): JSX.Element => {
-  switch (indicatorStatus) {
-    case '': {
-      return null;
-    }
-    case 'processing': {
-      return (
-        <StyledStatus
-          bg="success"
-          css={`
-            @keyframes blink {
-              0% {
-                opacity: 0;
-              }
-              50% {
-                opacity: 100%;
-              }
-              100% {
-                opacity: 0;
-              }
-            }
+  return (
+    <StyledStatus
+      status={indicatorStatus}
+      css={`
+        @keyframes blink {
+          0% {
+            opacity: 0;
+          }
+          50% {
+            opacity: 100%;
+          }
+          100% {
+            opacity: 0;
+          }
+        }
 
-            animation: blink 1.4s ease-in-out infinite;
-          `}
-        />
-      );
-    }
-    case 'error': {
-      return <StyledStatus bg="error.main" />;
-    }
-    case 'success': {
-      return <StyledStatus bg="success" />;
-    }
-  }
+        animation: blink 1.4s ease-in-out;
+        animation-iteration-count: ${props => {
+          const hasFinished =
+            props.status === 'success' || props.status === 'error';
+          return hasFinished ? '0' : 'infinite';
+        }};
+        visibility: ${props => (props.status === '' ? 'hidden' : 'visible')};
+        background: ${props => getIndicatorColor(props.status, props.theme)};
+      `}
+    />
+  );
 };
+
+function getIndicatorColor(status: IndicatorStatus, theme: any): string {
+  switch (status) {
+    case 'processing':
+    case 'success':
+      return theme.colors.success;
+    case 'error':
+      return theme.colors.error.main;
+  }
+}
 
 const StyledButton = styled(Button)`
   position: relative;
