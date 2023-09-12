@@ -498,6 +498,7 @@ const (
 	// from which this certificate is accepted for authentication.
 	// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
 	CertCriticalOptionSourceAddress = "source-address"
+	CertExtensionTAG                = "teleport-tag-verified"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag

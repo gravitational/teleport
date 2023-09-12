@@ -7180,6 +7180,11 @@ func (mock authProviderMock) GenerateOpenSSHCert(ctx context.Context, req *authp
 	return nil, nil
 }
 
+func (mock authProviderMock) GenerateTAGValidatedCerts(ctx context.Context, req *authproto.TAGValidatedCertRequest) (*authproto.Certs, error) {
+	return nil, nil
+}
+
+
 func (mock authProviderMock) MaintainSessionPresence(ctx context.Context) (authproto.AuthService_MaintainSessionPresenceClient, error) {
 	return nil, nil
 }

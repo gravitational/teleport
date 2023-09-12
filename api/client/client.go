@@ -948,6 +948,17 @@ func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	return cert, nil
 }
 
+// GenerateTAGValidatedCerts signs a SSH and TLS certificate that can be used
+// to connect to nodes without access to TAG. Certificates include a property
+// that agents will trust and skip the RBAC check.
+func (c *Client) GenerateTAGValidatedCerts(ctx context.Context, req *proto.TAGValidatedCertRequest) (*proto.Certs, error) {
+	cert, err := c.grpc.GenerateTAGValidatedCerts(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cert, nil
+}
+
 // EmitAuditEvent sends an auditable event to the auth server.
 func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	grpcEvent, err := events.ToOneOf(event)

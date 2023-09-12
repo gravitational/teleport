@@ -93,7 +93,14 @@ type AuthHandlerConfig struct {
 	// Defaults to real clock if unspecified
 	Clock clockwork.Clock
 
+	AccessGraph AccessGraphConfig
+
 	Opts []services.AccessCheckerOption
+}
+
+type AccessGraphConfig struct {
+	Enabled  bool
+	Endpoint string
 }
 
 func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
@@ -435,12 +442,14 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		// exists and it is an agentless node, preform an RBAC check.
 		// Otherwise if the target node does not exist the node is
 		// probably an unregistered SSH node; do not preform an RBAC check
-		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
+		if h.c.TargetServer != nil && (h.c.TargetServer.IsOpenSSHNode() || h.c.AccessGraph.Enabled) {
 			err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.TargetServer, teleportUser, conn.User())
 		}
-	} else {
+	} else if permissions.Extensions[teleport.CertExtensionTAG] != "true" {
 		// the SSH server is a Teleport node, preform an RBAC check now
 		err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), teleportUser, conn.User())
+	} else {
+		log.Infof("TAG node login already verified: %v", permissions.Extensions[teleport.CertExtensionTAG])
 	}
 	if err != nil {
 		log.Errorf("Permission denied: %v", err)

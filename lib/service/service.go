@@ -3929,6 +3929,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			RemoteClusterGetter: accessPoint,
 			SiteGetter:          tsrv,
 			TracerProvider:      process.TracingProvider,
+			TAGEnabled:          process.Config.AccessGraph.Enabled,
 		})
 		if err != nil {
 			return trace.Wrap(err)

@@ -475,6 +475,20 @@ func (g *GRPCServer) GenerateOpenSSHCert(ctx context.Context, req *authpb.OpenSS
 	return cert, nil
 }
 
+func (g *GRPCServer) GenerateTAGValidatedCerts(ctx context.Context, req *authpb.TAGValidatedCertRequest) (*authpb.Certs, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := auth.ServerWithRoles.GenerateTAGValidatedCerts(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return certs, nil
+}
+
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream
 // purposes. When new services switch to using control-stream based heartbeats, they should be added here.
 var icsServiceToMetricName = map[types.SystemRole]string{
@@ -4338,7 +4352,6 @@ func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListU
 	}
 
 	return auth.ListUnifiedResources(ctx, req)
-
 }
 
 // ListResources retrieves a paginated list of resources.

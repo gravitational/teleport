@@ -1691,6 +1691,7 @@ type certRequest struct {
 	skipAttestation bool
 	// deviceExtensions holds device-aware user certificate extensions.
 	deviceExtensions DeviceExtensions
+	tag              bool
 }
 
 // check verifies the cert request is valid.
@@ -1804,6 +1805,65 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	return &proto.OpenSSHCert{
 		Cert: certs.SSH,
 	}, nil
+}
+
+// GenerateTAGValidatedCerts signs a SSH and TLS certificate that can be used
+// to connect to nodes without access to TAG. Certificates include a property
+// that agents will trust and skip the RBAC check.
+func (a *Server) GenerateTAGValidatedCerts(ctx context.Context, req *proto.TAGValidatedCertRequest) (*proto.Certs, error) {
+	if req.User == nil {
+		return nil, trace.BadParameter("user is empty")
+	}
+	if len(req.PublicKey) == 0 {
+		return nil, trace.BadParameter("public key is empty")
+	}
+	if req.TTL == 0 {
+		cap, err := a.GetAuthPreference(ctx)
+		if err != nil {
+			return nil, trace.BadParameter("cert request does not specify a TTL and the cluster_auth_preference is not available: %v", err)
+		}
+		req.TTL = proto.Duration(cap.GetDefaultSessionTTL())
+	}
+	if req.TTL < 0 {
+		return nil, trace.BadParameter("TTL must be positive")
+	}
+	if req.Cluster == "" {
+		return nil, trace.BadParameter("cluster is empty")
+	}
+
+	// add implicit roles to the set and build a checker
+	accessInfo := services.AccessInfoFromUserState(req.User)
+	roles := make([]types.Role, len(req.Roles))
+	for i := range req.Roles {
+		var err error
+		roles[i], err = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	roleSet := services.NewRoleSet(roles...)
+
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
+	certs, err := a.generateUserCert(certRequest{
+		user:            req.User,
+		publicKey:       req.PublicKey,
+		compatibility:   constants.CertificateFormatStandard,
+		checker:         checker,
+		ttl:             time.Duration(req.TTL),
+		traits:          req.User.GetTraits(),
+		routeToCluster:  req.Cluster,
+		disallowReissue: true,
+		tag:             true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return certs, nil
 }
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
@@ -2449,6 +2509,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		DeviceID:                req.deviceExtensions.DeviceID,
 		DeviceAssetTag:          req.deviceExtensions.AssetTag,
 		DeviceCredentialID:      req.deviceExtensions.CredentialID,
+		TAG:                     req.tag,
 	}
 	signedSSHCert, err := a.GenerateUserCert(params)
 	if err != nil {

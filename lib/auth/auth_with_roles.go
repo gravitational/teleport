@@ -781,6 +781,17 @@ func (a *ServerWithRoles) GenerateOpenSSHCert(ctx context.Context, req *proto.Op
 	return a.authServer.GenerateOpenSSHCert(ctx, req)
 }
 
+// GenerateTAGValidatedCerts signs a SSH and TLS certificate that can be used
+// to connect to nodes without access to TAG. Certificates include a property
+// that agents will trust and skip the RBAC check.
+func (a *ServerWithRoles) GenerateTAGValidatedCerts(ctx context.Context, req *proto.TAGValidatedCertRequest) (*proto.Certs, error) {
+	// this limits the requests types to proxies to make it harder to break
+	if !a.hasBuiltinRole(types.RoleProxy) && !a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+	return a.authServer.GenerateTAGValidatedCerts(ctx, req)
+}
+
 // CreateCertAuthority not implemented: can only be called locally.
 func (a *ServerWithRoles) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	return trace.NotImplemented(notImplementedMessage)

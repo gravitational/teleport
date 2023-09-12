@@ -744,6 +744,10 @@ type ClientI interface {
 	// GenerateOpenSSHCert signs a SSH certificate with OpenSSH CA that
 	// can be used to connect to Agentless nodes.
 	GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error)
+	// GenerateTAGValidatedCerts signs a SSH and TLS certificate that can be used
+	// to connect to nodes without access to TAG. Certificates include a property
+	// that agents will trust and skip the RBAC check.
+	GenerateTAGValidatedCerts(ctx context.Context, req *proto.TAGValidatedCertRequest) (*proto.Certs, error)
 	// AuthenticateWebUser authenticates web user, creates and  returns web session
 	// in case if authentication is successful
 	AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error)

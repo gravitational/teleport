@@ -241,7 +241,7 @@ func (s *localSite) DialAuthServer(params reversetunnelclient.DialParams) (net.C
 
 // shouldDialAndForward returns whether a connection should be proxied
 // and forwarded or not.
-func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types.SessionRecordingConfig) bool {
+func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types.SessionRecordingConfig, tagEnabled bool) bool {
 	// connection is already being tunneled, do not forward
 	if params.FromPeerProxy {
 		return false
@@ -255,7 +255,7 @@ func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types
 	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
 		return true
 	}
-	return false
+	return tagEnabled
 }
 
 func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
@@ -267,7 +267,7 @@ func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error
 	// If the proxy is in recording mode and a SSH connection is being
 	// requested or the target server is a registered OpenSSH node, build
 	// an in-memory forwarding server.
-	if shouldDialAndForward(params, recConfig) {
+	if shouldDialAndForward(params, recConfig, s.srv.AccessGraph.Enabled) {
 		return s.dialAndForward(params)
 	}
 
@@ -356,7 +356,7 @@ func (s *localSite) adviseReconnect(ctx context.Context) {
 }
 
 func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
-	if params.GetUserAgent == nil && !params.IsAgentlessNode {
+	if params.GetUserAgent == nil && !params.IsAgentlessNode && !s.srv.AccessGraph.Enabled {
 		return nil, trace.BadParameter("agentless node require an agent getter")
 	}
 	s.log.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)

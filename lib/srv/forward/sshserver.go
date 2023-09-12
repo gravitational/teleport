@@ -273,7 +273,7 @@ func (s *ServerConfig) CheckDefaults() error {
 		}
 	}
 
-	if s.UserAgent == nil && !s.IsAgentlessNode {
+	if s.UserAgent == nil && !s.IsAgentlessNode && !s.AccessGraph.Enabled {
 		return trace.BadParameter("user agent required for teleport nodes (agentless)")
 	}
 	if s.TargetConn == nil {
@@ -377,6 +377,10 @@ func New(c ServerConfig) (*Server, error) {
 		TargetServer: c.TargetServer,
 		FIPS:         c.FIPS,
 		Clock:        c.Clock,
+		AccessGraph: srv.AccessGraphConfig{
+			Enabled:  c.AccessGraph.Enabled,
+			Endpoint: c.AccessGraph.Endpoint,
+		},
 	}
 	if c.AccessGraph.Enabled {
 		authHandlerConfig.Opts = append(authHandlerConfig.Opts, services.WithTAG(c.AccessGraph.Endpoint))

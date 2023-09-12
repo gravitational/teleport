@@ -125,6 +125,7 @@ type RouterConfig struct {
 	SiteGetter SiteGetter
 	// TracerProvider allows tracers to be created
 	TracerProvider oteltrace.TracerProvider
+	TAGEnabled     bool
 
 	// serverResolver is used to resolve hosts, used by tests
 	serverResolver serverResolverFn
@@ -171,6 +172,7 @@ type Router struct {
 	serverResolver serverResolverFn
 	// DELETE IN 15.0.0: necessary for smoothing over v13 to v14 transition only.
 	permitUnlistedDialing bool
+	tagEnabled            bool
 }
 
 // NewRouter creates and returns a Router that is populated
@@ -194,6 +196,7 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 		tracer:                cfg.TracerProvider.Tracer("Router"),
 		serverResolver:        cfg.serverResolver,
 		permitUnlistedDialing: os.Getenv("TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING") == "yes",
+		tagEnabled:            cfg.TAGEnabled,
 	}, nil
 }
 
@@ -266,17 +269,18 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		}
 		// If the node is a registered openssh node don't set agentGetter
 		// so a SSH user agent will not be created when connecting to the remote node.
-		if target.IsOpenSSHNode() {
+		if target.IsOpenSSHNode() || r.tagEnabled {
 			agentGetter = nil
-			isAgentlessNode = true
+			isAgentlessNode = target.IsOpenSSHNode()
 
-			if target.GetSubKind() == types.SubKindOpenSSHNode {
+			if target.GetSubKind() == types.SubKindOpenSSHNode || r.tagEnabled {
 				// If the node is of SubKindOpenSSHNode, create the signer.
 				client, err := r.GetSiteClient(ctx, clusterName)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				sshSigner, err = signer(ctx, client)
+				// use the OPENSSH CA to sign certs for openssh nodes
+				sshSigner, err = signer(ctx, client, target.GetSubKind() == types.SubKindOpenSSHNode)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
