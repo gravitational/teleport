@@ -15,6 +15,7 @@
  */
 
 import React, { useMemo } from 'react';
+import { createPortal } from 'react-dom';
 
 import styled from 'styled-components';
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
@@ -35,6 +36,7 @@ import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
 import {
   ConnectMyComputerContextProvider,
   DocumentConnectMyComputer,
+  ConnectMyComputerNavigationMenu,
 } from 'teleterm/ui/ConnectMyComputer';
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 
@@ -44,7 +46,9 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 import { WorkspaceContextProvider } from './workspaceContext';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 
-export function DocumentsRenderer() {
+export function DocumentsRenderer(props: {
+  topBarContainerRef: React.MutableRefObject<HTMLDivElement>;
+}) {
   const { workspacesService } = useAppContext();
 
   function renderDocuments(documentsService: DocumentsService) {
@@ -87,6 +91,12 @@ export function DocumentsRenderer() {
               ) : (
                 <KeyboardShortcutsPanel />
               )}
+              {workspace.rootClusterUri ===
+                workspacesService.getRootClusterUri() &&
+                createPortal(
+                  <ConnectMyComputerNavigationMenu />,
+                  props.topBarContainerRef?.current
+                )}
             </ConnectMyComputerContextProvider>
           </WorkspaceContextProvider>
         </DocumentsContainer>

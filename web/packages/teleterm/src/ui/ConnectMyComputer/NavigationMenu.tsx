@@ -21,8 +21,6 @@ import { Laptop, Warning } from 'design/Icon';
 
 import { Attempt, AttemptStatus } from 'shared/hooks/useAsync';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { ClusterUri } from 'teleterm/ui/uri';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
@@ -31,32 +29,24 @@ import {
   useConnectMyComputerContext,
 } from './connectMyComputerContext';
 
-interface NavigationMenuProps {
-  clusterUri: ClusterUri;
-}
-
 /**
  * IndicatorStatus combines a couple of different states into a single enum which dictates the
  * decorative look of NavigationMenu.
  */
 type IndicatorStatus = AttemptStatus;
 
-export function NavigationMenu(props: NavigationMenuProps) {
+export function NavigationMenu() {
   const iconRef = useRef();
   const [isMenuOpened, setIsMenuOpened] = useState(false);
-  const appCtx = useAppContext();
   const { documentsService, rootClusterUri } = useWorkspaceContext();
   const { isAgentConfiguredAttempt, currentAction, canUse } =
     useConnectMyComputerContext();
-  // DocumentCluster renders this component only if the cluster exists.
-  const cluster = appCtx.clustersService.findCluster(props.clusterUri);
   const indicatorStatus = getIndicatorStatus(
     currentAction,
     isAgentConfiguredAttempt
   );
 
-  // Don't show the navigation icon for leaf clusters.
-  if (cluster.leaf || !canUse) {
+  if (!canUse) {
     return null;
   }
 
@@ -94,12 +84,11 @@ export function NavigationMenu(props: NavigationMenuProps) {
         getContentAnchorEl={null}
         open={isMenuOpened}
         anchorEl={iconRef.current}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         onClose={() => setIsMenuOpened(false)}
         menuListCss={() =>
           css`
-            width: 150px;
             display: flex;
             flex-direction: column;
           `
