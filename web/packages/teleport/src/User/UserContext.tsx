@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import React, {
   createContext,
   PropsWithChildren,
@@ -38,14 +39,11 @@ import {
 
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
-import type {
-  UserPreferences,
-  UserPreferencesSubset,
-} from 'teleport/services/userPreferences/types';
+import type { UserPreferences } from 'teleport/services/userPreferences/types';
 
 export interface UserContextValue {
   preferences: UserPreferences;
-  updatePreferences: (preferences: UserPreferencesSubset) => Promise<void>;
+  updatePreferences: (preferences: UserPreferences) => Promise<void>;
 }
 
 export const UserContext = createContext<UserContextValue>(null);
@@ -78,7 +76,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
 
           if (preferences.theme !== ThemePreference.Light) {
             // the light theme is the default, so only update the backend if it is not light
-            updatePreferences({ theme: preferences.theme });
+            updatePreferences(preferences);
           }
 
           storage.clearDeprecatedThemePreference();
@@ -103,7 +101,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     }
   }
 
-  function updatePreferences(newPreferences: UserPreferencesSubset) {
+  function updatePreferences(newPreferences: UserPreferences) {
     const nextPreferences = {
       ...preferences,
       ...newPreferences,
