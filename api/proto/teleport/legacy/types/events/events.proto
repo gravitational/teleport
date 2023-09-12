@@ -3218,7 +3218,8 @@ enum OSType {
   OS_TYPE_WINDOWS = 3;
 }
 
-// Origin of a device.
+// DeviceOrigin is the same as teleport.devicetrust.v1.DeviceOrigin.
+// Duplicated because gogo doesn't play well with protoc-gen-go.
 enum DeviceOrigin {
   // Unspecified or absent origin.
   DEVICE_ORIGIN_UNSPECIFIED = 0;

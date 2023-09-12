@@ -852,7 +852,7 @@ message LicenseLimitEvent {
   LicenseLimit license_limit = 1;
 }
 
-// License limit
+// LicenseLimit indicates event type that triggered LicenseLimitEvent.
 enum LicenseLimit {
   LICENSE_LIMIT_UNSPECIFIED = 0;
   // LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF is emitted if license does not
