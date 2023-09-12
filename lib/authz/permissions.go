@@ -372,7 +372,8 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 			log.WithFields(logrus.Fields{
 				"client_ip": clientIP,
 				"pinned_ip": identity.PinnedIP,
-			}).Warn("IP pining is not allowed for connections affected by PROXY protocol without explicitly setting 'proxy_protocol: on' in the config.")
+			}).Warn("IP pining is not allowed for connections behind L4 load balancers with " +
+				"PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the config.")
 		}
 		return ErrIPPinningMismatch
 	}
