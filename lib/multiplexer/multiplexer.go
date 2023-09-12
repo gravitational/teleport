@@ -554,6 +554,8 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			proxyLine = newPROXYLine
 			// repeat the cycle to detect the protocol
 		case ProtoTLS, ProtoSSH, ProtoHTTP, ProtoPostgres:
+			// Proxy and other services might call itself directly, avoiding
+			// load balancer, so we shouldn't fail connections without PROXY headers for such cases.
 			selfConnection, err := m.isSelfConnection(conn)
 			if err != nil {
 				return nil, trace.Wrap(err)
