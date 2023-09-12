@@ -25,8 +25,10 @@ import (
 	"path"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -34,9 +36,11 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -94,7 +98,8 @@ func TestProxyKubeComplexSelectors(t *testing.T) {
 	testenv.WithResyncInterval(t, 0)
 	kubeFoo := "foo"
 	kubeFooBar := "foo-bar"
-	kubeBaz := "baz"
+	kubeBaz := "baz-qux"
+	kubeBazEKS := "baz-eks-us-west-1-123456789012"
 	kubeFooLeaf := "foo"
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -106,6 +111,9 @@ func TestProxyKubeComplexSelectors(t *testing.T) {
 			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, kubeFoo, kubeFooBar, kubeBaz)
 			cfg.Kube.StaticLabels = map[string]string{"env": "root"}
+			cfg.Kube.ResourceMatchers = []services.ResourceMatcher{{
+				Labels: map[string]apiutils.Strings{"*": {"*"}},
+			}}
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(
@@ -126,6 +134,34 @@ func TestProxyKubeComplexSelectors(t *testing.T) {
 			return len(rootClusters) == 3 && len(leafClusters) == 1
 		}),
 	)
+	// setup a fake "discovered" kube cluster by adding a discovered name label
+	// to a dynamic kube cluster.
+	kc, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: kubeBazEKS,
+			Labels: map[string]string{
+				types.DiscoveredNameLabel: "baz",
+				types.OriginLabel:         types.OriginDynamic,
+			},
+		},
+		types.KubernetesClusterSpecV3{
+			Kubeconfig: newKubeConfig(t, kubeBazEKS),
+		},
+	)
+	require.NoError(t, err)
+	err = s.root.GetAuthServer().CreateKubernetesCluster(ctx, kc)
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		servers, err := s.root.GetAuthServer().GetKubernetesServers(ctx)
+		assert.NoError(c, err)
+		for _, ks := range servers {
+			if ks.GetName() == kubeBazEKS {
+				return
+			}
+		}
+		assert.Fail(c, "kube server not found")
+	}, time.Second*10, time.Millisecond*500, "failed to find dynamically created kube cluster %v", kubeBazEKS)
+
 	rootClusterName := s.root.Config.Auth.ClusterName.GetClusterName()
 	leafClusterName := s.leaf.Config.Auth.ClusterName.GetClusterName()
 
@@ -145,6 +181,17 @@ func TestProxyKubeComplexSelectors(t *testing.T) {
 				}
 			},
 			args: []string{kubeFoo, "--insecure"},
+		},
+		{
+			desc: "with discovered name",
+			makeValidateCmdFn: func(t *testing.T) func(*exec.Cmd) error {
+				return func(cmd *exec.Cmd) error {
+					config := kubeConfigFromCmdEnv(t, cmd)
+					checkKubeLocalProxyConfig(t, s, config, rootClusterName, kubeBazEKS)
+					return nil
+				}
+			},
+			args: []string{"baz", "--insecure"},
 		},
 		{
 			desc: "with prefix name",
