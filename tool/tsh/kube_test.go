@@ -461,6 +461,25 @@ func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
 	return kubeConfigLocation
 }
 
+func newKubeConfig(t *testing.T, name string) []byte {
+	kubeConf := clientcmdapi.NewConfig()
+
+	kubeConf.Clusters[name] = &clientcmdapi.Cluster{
+		Server:                newKubeSelfSubjectServer(t),
+		InsecureSkipTLSVerify: true,
+	}
+	kubeConf.AuthInfos[name] = &clientcmdapi.AuthInfo{}
+
+	kubeConf.Contexts[name] = &clientcmdapi.Context{
+		Cluster:  name,
+		AuthInfo: name,
+	}
+
+	buf, err := clientcmd.Write(*kubeConf)
+	require.NoError(t, err)
+	return buf
+}
+
 func newKubeSelfSubjectServer(t *testing.T) string {
 	srv, err := kubeserver.NewKubeAPIMock()
 	require.NoError(t, err)
