@@ -61,12 +61,11 @@ export function Resources() {
   const canCreate = teleCtx.storeUser.getTokenAccess().create;
   const { clusterId } = useStickyClusterId();
 
-  const filtering = useUrlFiltering({
-    fieldName: 'name',
-    dir: 'ASC',
-  });
   const { params, setParams, replaceHistory, pathname, setSort, onLabelClick } =
-    filtering;
+    useUrlFiltering({
+      fieldName: 'name',
+      dir: 'ASC',
+    });
 
   const {
     setTrigger: setScrollDetector,

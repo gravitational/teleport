@@ -58,8 +58,6 @@ export type ResourceFilter = {
   kinds?: string[];
 };
 
-export const resourceFiltersEqual = (a, b) => a === b;
-
 export type SortType = {
   fieldName: string;
   dir: SortDir;

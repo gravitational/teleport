@@ -24,8 +24,6 @@ import {
 } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
 
-export const resourceFiltersEqual = (a, b) => a === b;
-
 /**
  * Supports fetching more data from the server when more data is available. Pass
  * a `fetchFunc` that retrieves a single batch of data. After the initial
@@ -56,14 +54,19 @@ export function useKeyBasedPagination<T extends UnifiedResource>({
   const pendingPromise = useRef<Promise<ResourcesResponse<T>> | null>(null);
 
   // This state is used to recognize when the `clusterId` or `filter` props
-  // changed. Note that it might be easier to wrap it all with `useEffect`, but
-  // combined with how this hook is used (via an IntersectionObserver), it
-  // creates a tiny window for a race condition where the resulting fetch
-  // function is cached (and subsequently executed) even before `useEffect` can
-  // be triggered.  Unfortunately, the race condition is not reproducible with
-  // our testing framework, so beware.  Here, we are using a pattern described
-  // in this article:
-  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  // have changed, and reset the overall state of this hook. It's tempting to use a
+  // `useEffect` here, but doing so can cause unwanted behavior where the previous,
+  // now stale `fetch` is executed once more before the new one (with the new
+  // `clusterId` or `filter`) is executed. This is because the `useEffect` is
+  // executed after the render, and `fetch` is called by an IntersectionObserver
+  // in `useInfiniteScroll`. If the render includes `useInfiniteScroll`'s `trigger`
+  // element, the old, stale `fetch` will be called before `useEffect` has a chance
+  // to run and update the state, and thereby the `fetch` function.
+  //
+  // By using the pattern described in this article:
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes,
+  // we can ensure that the state is reset before anything renders, and thereby
+  // ensure that the new `fetch` function is used.
   const [prevClusterId, setPrevClusterId] = useState(clusterId);
   const [prevFilter, setPrevFilter] = useState(filter);
 

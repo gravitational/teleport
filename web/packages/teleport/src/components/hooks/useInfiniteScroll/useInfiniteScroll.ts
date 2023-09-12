@@ -29,8 +29,12 @@ export type Props<T extends UnifiedResource> = PaginationProps<T>;
 
 /**
  * Fetches a part of resource list whenever the `trigger` element intersects the
- * viewport until the list is exhausted or an error happens. Use
- * [State.forceFetch] to continue after an error.
+ * viewport until the list is exhausted or an error happens.
+ *
+ * Callers must set the `trigger` element by passing the [`State.setTrigger`] function
+ * as the `ref` prop of the element they want to use as the trigger.
+ *
+ * Use the [`State.forceFetch`] to continue after an error.
  */
 export function useInfiniteScroll<T extends UnifiedResource>(
   props: Props<T>
@@ -38,7 +42,7 @@ export function useInfiniteScroll<T extends UnifiedResource>(
   const observer = useRef<IntersectionObserver | null>(null);
   const trigger = useRef<Element | null>(null);
 
-  const { fetch, forceFetch, attempt, resources, finished } =
+  const { fetch, forceFetch, attempt, resources } =
     useKeyBasedPagination(props);
 
   const recreateObserver = () => {
@@ -58,6 +62,12 @@ export function useInfiniteScroll<T extends UnifiedResource>(
     recreateObserver();
   };
 
+  // Using layout effect instead of a regular one helps prevent sneaky race
+  // conditions. If we used a regular effect, the observer may be recreated
+  // after the current one (which, by now, may be tied to a stale state)
+  // triggers a fetch. Thus, the fetch would use stale state and may ultimately
+  // cause us to display incorrect data. This can be reproduced by rapidly
+  // changing filtering data on the resources list page.
   useLayoutEffect(() => {
     recreateObserver();
     return () => {
@@ -65,7 +75,7 @@ export function useInfiniteScroll<T extends UnifiedResource>(
     };
   }, [fetch]);
 
-  return { setTrigger, forceFetch, attempt, resources, finished };
+  return { setTrigger, forceFetch, attempt, resources };
 }
 
 export type State<T> = {
@@ -75,9 +85,13 @@ export type State<T> = {
    */
   forceFetch: () => Promise<void>;
 
+  /**
+   * Sets an element that will be observed and will trigger a fetch once it
+   * becomes visible. The element doesn't need to become fully visible; a single
+   * pixel will be enough to trigger.
+   */
   setTrigger: (el: Element | null) => void;
 
   attempt: Attempt;
   resources: T[];
-  finished: boolean;
 };
