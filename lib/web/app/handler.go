@@ -236,21 +236,16 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 // to the application directly.
 func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *session) error {
 	var redirectURI string
-	session.tr.servers.Range(func(serverID, appServerInterface any) bool {
-		appServer, ok := appServerInterface.(types.AppServer)
-		if !ok {
-			h.log.Warnf("Failed to load AppServer, invalid type %T", appServerInterface)
-			return true
-		}
 
+	session.tr.mu.Lock()
+	for _, appServer := range session.tr.c.servers {
 		// If encounter an app server that is to be redirected to, stop iterating.
 		if redirectInsteadOfForward(appServer) {
 			redirectURI = appServer.GetApp().GetURI()
-			return false
+			break
 		}
-
-		return true
-	})
+	}
+	session.tr.mu.Unlock()
 
 	if redirectURI != "" {
 		http.Redirect(w, r, redirectURI, http.StatusFound)

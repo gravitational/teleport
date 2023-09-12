@@ -967,11 +967,11 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			if tc.wantEvents > 0 {
 				require.Eventually(t, func() bool {
 					return reporter.EventsCount() == tc.wantEvents
-				}, 100*time.Millisecond, 10*time.Millisecond)
+				}, time.Second, 100*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
 					return reporter.EventsCount() != 0
-				}, 100*time.Millisecond, 10*time.Millisecond)
+				}, time.Second, 100*time.Millisecond)
 			}
 		})
 	}

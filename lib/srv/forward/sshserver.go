@@ -591,7 +591,7 @@ func (s *Server) Serve() {
 
 	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
 		// OpenSSH nodes don't support moderated sessions, send an error to
-		// the user and gracefully fail the user is attempting to create one.
+		// the user and gracefully fail if the user is attempting to create one.
 		policySets := s.identityContext.AccessChecker.SessionPolicySets()
 		evaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, s.identityContext.TeleportUser)
 		if evaluator.IsModerated() {
