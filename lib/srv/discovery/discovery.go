@@ -811,10 +811,8 @@ func (s *Server) Start() error {
 	if s.gcpWatcher != nil {
 		go s.handleGCPDiscovery()
 	}
-	if len(s.kubeFetchers) > 0 {
-		if err := s.startKubeWatchers(); err != nil {
-			return trace.Wrap(err)
-		}
+	if err := s.startKubeWatchers(); err != nil {
+		return trace.Wrap(err)
 	}
 	if err := s.startDatabaseWatchers(); err != nil {
 		return trace.Wrap(err)
