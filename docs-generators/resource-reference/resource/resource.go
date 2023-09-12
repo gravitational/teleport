@@ -122,7 +122,7 @@ func getRawNamedStruct(decl *ast.GenDecl) (rawNamedStruct, error) {
 func makeYAMLExample(fields []rawField) (string, error) {
 	// Write part of a potentially complex type to the YAML example.
 	// Assumes that the part will be on the same line as its predecessor.
-	addNodeToExample := func(example bytes.Buffer, node yamlKindNode) error {
+	addNodeToExample := func(example *bytes.Buffer, node yamlKindNode) error {
 		// TODO: In the recursive function:
 		// TODO: handle custom fields per the "Custom fields" section of the RFD
 		// TODO: handle predeclared composite types per the relevant section of the
@@ -131,7 +131,7 @@ func makeYAMLExample(fields []rawField) (string, error) {
 
 		switch node.kind {
 		case stringKind:
-			example.WriteString("string")
+			example.WriteString(`"string"`)
 		case numberKind:
 			example.WriteString("1")
 		case boolKind:
@@ -143,10 +143,11 @@ func makeYAMLExample(fields []rawField) (string, error) {
 	var buf bytes.Buffer
 
 	for _, field := range fields {
-		buf.WriteString("- " + getJSONTag(field.tags) + ":")
-		if err := addNodeToExample(buf, field.kind); err != nil {
+		buf.WriteString("  " + getJSONTag(field.tags) + ": ")
+		if err := addNodeToExample(&buf, field.kind); err != nil {
 			return "", err
 		}
+		buf.WriteString("\n")
 	}
 
 	return buf.String(), nil

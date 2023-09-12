@@ -45,9 +45,9 @@ type Metadata struct {
 				SectionName: "Metadata",
 				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
 				SourcePath:  "myfile.go",
-				YAMLExample: `name: "string"
-namespace: "string"
-description: "string"`,
+				YAMLExample: `  name: "string"
+  namespace: "string"
+  description: "string"`,
 				Fields: []Field{
 					Field{
 						Name:        "name",
@@ -195,6 +195,55 @@ func TestDescriptionWithoutName(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
 			assert.Equal(t, c.expected, descriptionWithoutName(c.input, c.name))
+		})
+	}
+}
+
+func TestMakeYAMLExample(t *testing.T) {
+	cases := []struct {
+		description string
+		input       []rawField
+		expected    string
+	}{
+		{
+			description: "all scalars",
+			input: []rawField{
+				rawField{
+					doc: "myInt is an int",
+					kind: yamlKindNode{
+						kind: numberKind,
+					},
+					name: "myInt",
+					tags: `json:"my_int"`,
+				},
+				rawField{
+					doc: "myBool is a Boolean",
+					kind: yamlKindNode{
+						kind: boolKind,
+					},
+					name: "myBool",
+					tags: `json:"my_bool"`,
+				},
+				rawField{
+					doc: "myString is a string",
+					kind: yamlKindNode{
+						kind: stringKind,
+					},
+					tags: `json:"my_string"`,
+				},
+			},
+			expected: `  my_int: 1
+  my_bool: true
+  my_string: "string"
+`,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			e, err := makeYAMLExample(c.input)
+			assert.NoError(t, err)
+			assert.Equal(t, c.expected, e)
 		})
 	}
 }
