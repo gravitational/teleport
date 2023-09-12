@@ -38,7 +38,7 @@ func TestOpenFileSymlinks(t *testing.T) {
 	rootDir := t.TempDir()
 
 	dirPath := filepath.Join(rootDir, "dir")
-	err = os.Mkdir(dirPath, 0755)
+	err := os.Mkdir(dirPath, 0755)
 	require.NoError(t, err)
 
 	filePath := filepath.Join(dirPath, "file")
