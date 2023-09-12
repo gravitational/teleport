@@ -418,8 +418,8 @@ const (
 PROXY header wasn't received. 
 Make sure you have correct configuration, only enable "proxy_protocol: on" if Teleport is running behind PROXY-enabled load balancer.`
 	unknownProtocolError = "unknown protocol"
-	unexpectedPROXYLine  = `unexpected PROXY line. Connection will be allowed, but this is usually a result of misconfiguration - 
-if Teleport is running behind PROXY-enabled load balancer you should explicitly set config field "proxy_protocol" to "on".
+	unexpectedPROXYLine  = `received unexpected PROXY protocol line. Connection will be allowed, but this is usually a result of misconfiguration - 
+if Teleport is running behind L4 load balancer with enabled PROXY protocol you should explicitly set config field "proxy_protocol" to "on".
 See documentation for more details`
 )
 
