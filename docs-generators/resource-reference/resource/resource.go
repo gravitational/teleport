@@ -34,20 +34,40 @@ const (
 	boolKind
 )
 
-// yamlTypeNode represents a node in a potentially recursive YAML type, such as an
-// integer, a map of integers to strings, a sequence of maps of strings to
-// strings, etc. Used for printing example YAML documents. This is not intended
-// to be a comprehensive YAML AST.
-type yamlTypeNode struct {
-	kind     yamlKind
-	children []yamlTypeNode
+// rawField contains information about a struct field required for downstream
+// processing. The intention is to limit raw AST handling to as small a part of
+// the source as possible.
+type rawField struct {
+	doc  string
+	kind yamlKindNode
+	name string
+	// struct tag expression for the field
+	tags string
 }
 
-// getTypeSpec returns the type spec to use for further processing. Returns an
+// rawNamedStruct contains information about a struct field required for
+// downstream processing. The intention is to limit raw AST handling to as small
+// a part of the source as possible.
+type rawNamedStruct struct {
+	doc    string
+	name   string
+	fields []rawField
+}
+
+// yamlKindNode represents a node in a potentially recursive YAML type, such as
+// an integer, a map of integers to strings, a sequence of maps of strings to
+// strings, etc. Used for printing example YAML documents and tables of fields.
+// This is not intended to be a comprehensive YAML AST.
+type yamlKindNode struct {
+	kind     yamlKind
+	children []yamlKindNode
+}
+
+// getRawNamedStruct returns the type spec to use for further processing. Returns an
 // error if there is either no type spec or more than one.
-func getTypeSpec(decl *ast.GenDecl) (*ast.TypeSpec, error) {
+func getRawNamedStruct(decl *ast.GenDecl) (rawNamedStruct, error) {
 	if len(decl.Specs) == 0 {
-		return nil, errors.New("declaration has no specs")
+		return rawNamedStruct{}, errors.New("declaration has no specs")
 	}
 
 	// Name the section after the first type declaration found. We expect
@@ -59,22 +79,42 @@ func getTypeSpec(decl *ast.GenDecl) (*ast.TypeSpec, error) {
 			continue
 		}
 		if t != nil {
-			return nil, errors.New("declaration contains more than one type spec")
+			return rawNamedStruct{}, errors.New("declaration contains more than one type spec")
 		}
 		t = ts
 	}
 
 	if t == nil {
-		return nil, errors.New("no type spec found")
+		return rawNamedStruct{}, errors.New("no type spec found")
 	}
 
-	return t, nil
-}
+	str, ok := t.Type.(*ast.StructType)
+	if !ok {
+		return rawNamedStruct{}, errors.New("the declaration is not a struct")
+	}
 
-// getSectionName determines how to name a section of the resource reference
-// after the provided declaration.
-func getSectionName(spec *ast.TypeSpec) string {
-	return spec.Name.Name
+	var rawFields []rawField
+
+	for _, field := range str.Fields.List {
+		f, err := makeRawField(field)
+		// We shouldn't skip fields at this point since we are only
+		// representing essential information about each field.
+		// Downstream consumers decide whether to skip a field.
+		if err != nil {
+			return rawNamedStruct{}, err
+		}
+
+		rawFields = append(rawFields, f)
+	}
+
+	result := rawNamedStruct{
+		name: t.Name.Name,
+		// Preserving newlines for downstream processing
+		doc:    decl.Doc.Text(),
+		fields: rawFields,
+	}
+
+	return result, nil
 }
 
 // makeYAMLExample creates an example YAML document illustrating the fields
@@ -82,7 +122,7 @@ func getSectionName(spec *ast.TypeSpec) string {
 func makeYAMLExample(fields *ast.FieldList) (string, error) {
 	// Write part of a potentially complex type to the YAML example.
 	// Assumes that the part will be on the same line as its predecessor.
-	addNodeToExample := func(example bytes.Buffer, node yamlTypeNode) error {
+	addNodeToExample := func(example bytes.Buffer, node yamlKindNode) error {
 		// TODO: In the recursive function:
 		// TODO: handle custom fields per the "Custom fields" section of the RFD
 		// TODO: handle predeclared composite types per the relevant section of the
@@ -137,41 +177,41 @@ func getJSONTag(tags string) string {
 
 // getYAMLType returns a name for field that is suitable for printing within the
 // resource reference.
-func getYAMLType(field *ast.Field) (yamlTypeNode, error) {
+func getYAMLType(field *ast.Field) (yamlKindNode, error) {
 	switch t := field.Type.(type) {
 	// TODO: Handle fields with manually overriden types per the
 	// "Predeclared scalar types" section of the RFD.
 	case *ast.Ident:
 		switch t.Name {
 		case "string":
-			return yamlTypeNode{
+			return yamlKindNode{
 				kind: stringKind,
 			}, nil
 		case "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64", "float32", "float64":
-			return yamlTypeNode{
+			return yamlKindNode{
 				kind: numberKind,
 			}, nil
 		case "bool":
-			return yamlTypeNode{
+			return yamlKindNode{
 					kind: boolKind,
 				},
 				nil
 		default:
-			return yamlTypeNode{}, fmt.Errorf("unsupported type: %+v", t.Name)
+			return yamlKindNode{}, fmt.Errorf("unsupported type: %+v", t.Name)
 		}
 		// TODO: Handle slices, maps, and structs
 	// TODO: For declared types, field.Type is an *ast.SelectorExpr.
 	// Figure out how to handle this case.
 	default:
-		return yamlTypeNode{}, nil
+		return yamlKindNode{}, nil
 	}
 }
 
 // tableValueFor returns a summary of a YAML type suitable for printing in a
 // table of fields within the resource reference. For composite types,
 // recursively traverses the children of node.
-func tableValueFor(node yamlTypeNode) (string, error) {
-	traverseNode := func(node yamlTypeNode, partialReturn string) (string, error) {
+func tableValueFor(node yamlKindNode) (string, error) {
+	traverseNode := func(node yamlKindNode, partialReturn string) (string, error) {
 		switch node.kind {
 		case stringKind:
 			return "string", nil
@@ -185,6 +225,31 @@ func tableValueFor(node yamlTypeNode) (string, error) {
 		}
 	}
 	return traverseNode(node, "")
+}
+
+// makeRawField translates an *ast.Field into a rawField for downstream
+// processing.
+func makeRawField(field *ast.Field) (rawField, error) {
+	doc := field.Doc.Text()
+	if len(field.Names) > 1 {
+		return rawField{}, fmt.Errorf("field %+v contains more than one name", field)
+	}
+
+	if len(field.Names) == 0 {
+		return rawField{}, fmt.Errorf("field %+v has no names", field)
+	}
+
+	tn, err := getYAMLType(field)
+	if err != nil {
+		return rawField{}, err
+	}
+
+	return rawField{
+		doc:  doc,
+		kind: tn,
+		name: field.Names[0].Name,
+		tags: field.Tag.Value,
+	}, nil
 }
 
 // makeFields assembles a slice of human-readable information about fields
@@ -265,14 +330,9 @@ func descriptionWithoutName(description, name string) string {
 // the Go source file where the declaration was made, and is used only for
 // printing.
 func NewFromDecl(decl *ast.GenDecl, filepath string) (Resource, error) {
-	ts, err := getTypeSpec(decl)
+	rs, err := getRawNamedStruct(decl)
 	if err != nil {
 		return Resource{}, err
-	}
-
-	str, ok := ts.Type.(*ast.StructType)
-	if !ok {
-		return Resource{}, errors.New("the declaration is not a struct")
 	}
 
 	yml, err := makeYAMLExample(str.Fields)
