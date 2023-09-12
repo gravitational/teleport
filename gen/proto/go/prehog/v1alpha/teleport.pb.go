@@ -646,7 +646,7 @@ func (FeatureRecommendationStatus) EnumDescriptor() ([]byte, []int) {
 	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{7}
 }
 
-// License limit
+// LicenseLimit indicates event type that triggered LicenseLimitEvent.
 type LicenseLimit int32
 
 const (

@@ -176,7 +176,8 @@ func (OSType) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_007ba1c3d6266d56, []int{2}
 }
 
-// Origin of a device.
+// DeviceOrigin is the same as teleport.devicetrust.v1.DeviceOrigin.
+// Duplicated because gogo doesn't play well with protoc-gen-go.
 type DeviceOrigin int32
 
 const (
