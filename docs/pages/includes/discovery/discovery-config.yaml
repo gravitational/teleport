@@ -75,7 +75,7 @@ discovery_service:
         # GCP resource tag filters used to match resources.
         tags:
           "*": "*"
-    # Matchers for discovering services inside Kubernetes cluster and exposing them as Teleport apps
+    # Matchers for discovering services inside Kubernetes clusters and exposing them as Teleport apps
     # When `kubernetes` value is set `discovery_group` parameter is mandatory, it should be set to 
     # the name of Kubernetes cluster discovery service is running in.
     kubernetes:
