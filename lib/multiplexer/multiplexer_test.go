@@ -300,7 +300,7 @@ func TestMux(t *testing.T) {
 
 	// makes sure the connection get port set to 0
 	// when PROXY protocol is unspecified
-	t.Run("required PROXY line", func(t *testing.T) {
+	t.Run("source port set to 0 in unspecified PROXY mode", func(t *testing.T) {
 		t.Parallel()
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
@@ -332,14 +332,19 @@ func TestMux(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
+		// Write PROXY line into connection to simulate PROXY protocol
+		_, err = conn.Write([]byte(sampleProxyV1Line))
+		require.NoError(t, err)
+
 		// upgrade connection to TLS
 		tlsConn := tls.Client(conn, clientConfig(backend1))
 		defer tlsConn.Close()
 
-		// make sure the TLS call failed
 		res, err := utils.RoundtripWithConn(tlsConn)
 		require.Nil(t, err)
-		require.Equal(t, conn.LocalAddr().String(), res)
+
+		// Make sure that server saw our connection with source port set to 0
+		require.Equal(t, "127.0.0.1:0", res)
 	})
 
 	// Timeout test makes sure that multiplexer respects read deadlines.
