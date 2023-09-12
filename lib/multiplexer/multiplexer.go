@@ -459,12 +459,12 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			unsignedPROXYLineReceived = true
 
 			if m.PROXYProtocolMode == PROXYProtocolUnspecified {
-				m.Logger.WithFields(log.Fields{
+				m.logLimiter.Log(m.WithFields(log.Fields{
 					"direct_src_addr": conn.RemoteAddr(),
 					"direct_dst_addr": conn.LocalAddr(),
 					"proxy_src_addr:": newPROXYLine.Source.String(),
 					"proxy_dst_addr:": newPROXYLine.Destination.String(),
-				}).Error(unexpectedPROXYLineError)
+				}), log.ErrorLevel, unexpectedPROXYLineError)
 				newPROXYLine.Source.Port = 0 // Mark connection, so if later IP pinning check is used on it we can reject it.
 			}
 
@@ -537,12 +537,12 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			unsignedPROXYLineReceived = true
 
 			if m.PROXYProtocolMode == PROXYProtocolUnspecified {
-				m.Logger.WithFields(log.Fields{
+				m.logLimiter.Log(m.WithFields(log.Fields{
 					"direct_src_addr": conn.RemoteAddr(),
 					"direct_dst_addr": conn.LocalAddr(),
 					"proxy_src_addr:": newPROXYLine.Source.String(),
 					"proxy_dst_addr:": newPROXYLine.Destination.String(),
-				}).Error(unexpectedPROXYLineError)
+				}), log.ErrorLevel, unexpectedPROXYLineError)
 				newPROXYLine.Source.Port = 0 // Mark connection, so if later IP pinning check is used on it we can reject it.
 			}
 
