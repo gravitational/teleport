@@ -460,7 +460,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 					"proxy_src_addr:": newPROXYLine.Source.String(),
 					"proxy_dst_addr:": newPROXYLine.Destination.String(),
 				}).Error(unexpectedPROXYLine)
-				newPROXYLine.Source.Port = 0
+				newPROXYLine.Source.Port = 0 // Mark connection, so if later IP pinning check is used on it we can reject it.
 			}
 
 			if proxyLine != nil {
@@ -535,7 +535,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 					"proxy_src_addr:": newPROXYLine.Source.String(),
 					"proxy_dst_addr:": newPROXYLine.Destination.String(),
 				}).Error(unexpectedPROXYLine)
-				newPROXYLine.Source.Port = 0
+				newPROXYLine.Source.Port = 0 // Mark connection, so if later IP pinning check is used on it we can reject it.
 			}
 
 			// If current proxy line was signed and verified, it takes precedence over new not signed proxy line
