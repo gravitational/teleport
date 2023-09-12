@@ -17,6 +17,8 @@
 import React from 'react';
 import styled, { keyframes } from 'styled-components';
 
+import { Box } from 'design';
+
 const loading = keyframes`
   0% {
     transform: translateX(-100%);
@@ -26,7 +28,7 @@ const loading = keyframes`
   }
 `;
 
-const SkeletonWrapper = styled.div`
+const ShimmerWrapper = styled.div`
   width: 100%;
   height: 100%;
   background-color: ${props => props.theme.colors.levels.surface};
@@ -48,10 +50,12 @@ const Shimmer = styled.div`
   animation: ${loading} 1.5s infinite;
 `;
 
-export const SkeletonLoader = props => {
+export const ShimmerBox = props => {
   return (
-    <SkeletonWrapper {...props}>
-      <Shimmer />
-    </SkeletonWrapper>
+    <Box {...props}>
+      <ShimmerWrapper>
+        <Shimmer />
+      </ShimmerWrapper>
+    </Box>
   );
 };
