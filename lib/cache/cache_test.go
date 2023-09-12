@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
@@ -968,7 +969,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Field:  types.ResourceMetadataName,
 		IsDesc: true,
 	}
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
 			Namespace:    apidefaults.Namespace,
 			ResourceType: types.KindNode,
@@ -976,10 +977,11 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 			Limit:        int32(pageSize),
 			SortBy:       sortBy,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
+
 		resources = append(resources, resp.Resources...)
 		listResourcesStartKey = resp.NextKey
-		return len(resources) == nodeCount
+		assert.Len(t, resources, nodeCount)
 	}, 5*time.Second, 100*time.Millisecond)
 
 	servers, err := types.ResourcesWithLabels(resources).AsServers()
@@ -2213,7 +2215,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.Eventually(t, func() bool {
 		// Make sure the cache has a single resource in it.
 		out, err = funcs.cacheList(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
 	}, time.Second*2, time.Millisecond*250)
 
@@ -2240,7 +2242,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.Eventually(t, func() bool {
 		// Make sure the cache has a single resource in it.
 		out, err = funcs.cacheList(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
 	}, time.Second*2, time.Millisecond*250)
 
@@ -2252,7 +2254,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.Eventually(t, func() bool {
 		// Check that the cache is now empty.
 		out, err = funcs.cacheList(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		return len(out) == 0
 	}, time.Second*2, time.Millisecond*250)
 }
@@ -2805,12 +2807,10 @@ func TestInvalidDatabases(t *testing.T) {
 				require.NoError(t, err)
 
 				// Wait until the database appear on cache.
-				require.Eventually(t, func() bool {
-					if dbs, err := c.GetDatabases(ctx); err == nil {
-						return len(dbs) == 1
-					}
-
-					return false
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					dbs, err := c.GetDatabases(ctx)
+					assert.NoError(t, err)
+					assert.Len(t, dbs, 1)
 				}, time.Second, 100*time.Millisecond, "expected database to be on cache, but nothing found")
 
 				cacheDB, err := c.GetDatabase(ctx, dbName)
@@ -2885,22 +2885,6 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
-				},
-			},
-			Members: []accesslist.Member{
-				{
-					Name:    "member1",
-					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because",
-					AddedBy: "test-user1",
-				},
-				{
-					Name:    "member2",
-					Joined:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because again",
-					AddedBy: "test-user2",
 				},
 			},
 		},

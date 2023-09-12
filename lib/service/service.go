@@ -4036,6 +4036,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			OpenAIConfig:    cfg.OpenAIConfig,
 			NodeWatcher:     nodeWatcher,
 			AccessGraphAddr: accessGraphAddr,
+			TracerProvider: process.TracingProvider,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {

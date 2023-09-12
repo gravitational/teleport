@@ -309,11 +309,14 @@ RUN go install github.com/daixiang0/gci@v0.11.0
 RUN go install gotest.tools/gotestsum@v1.10.1
 
 # Install golangci-lint.
-RUN curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh" | \
-    sh -s -- -b "$(go env GOPATH)/bin"
+RUN VERSION='v1.54.2'; \
+    curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$VERSION/install.sh" | \
+    sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
 
 # Install Buf.
-RUN go install github.com/bufbuild/buf/cmd/buf@latest
+ARG BUF_VERSION # eg, "v1.26.1"
+RUN VERSION="$BUF_VERSION"; \
+    go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
 
 # Copy BPF libraries.
 ARG LIBBPF_VERSION

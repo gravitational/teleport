@@ -703,7 +703,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 func (s *Server) handleConnection(conn net.Conn) (func(), error) {
-	ctx, cancel := context.WithCancel(s.closeContext)
+	ctx, cancel := context.WithCancelCause(s.closeContext)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   s.c.Clock,
