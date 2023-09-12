@@ -111,7 +111,8 @@ func createAccessRequest(ctx context.Context, clt accessRequestAPIGetter, reques
 	}
 
 	// DELETE IN 15.0.0 - use CreateAccessRequestV2 instead
-	if err := clt.CreateAccessRequest(ctx, req); err != nil {
+	req, err = clt.CreateAccessRequestV2(ctx, req)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -360,10 +361,6 @@ func (p *Plugin) deleteAccessRequestHandle(w http.ResponseWriter, r *http.Reques
 }
 
 type accessRequestAPIGetter interface {
-	// CreateAccessRequest stores a new access request.
-	// DELETE IN 15.0.0
-	// Deprecated: use CreateAccessRequestV2 instead
-	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
 	// CreateAccessRequestV2 stores a new access request and returns the created request.
 	CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error)
 	// GetAccessRequests gets all currently active access requests.

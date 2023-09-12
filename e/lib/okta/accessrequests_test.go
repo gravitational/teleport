@@ -67,7 +67,9 @@ func TestAccessRequestReconciler(t *testing.T) {
 	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), user, roles,
 		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindRole, Name: "role-request"}})
 	require.NoError(t, err)
-	require.NoError(t, ap.CreateAccessRequest(ctx, accessRequest))
+
+	accessRequest, err = ap.CreateAccessRequestV2(ctx, accessRequest)
+	require.NoError(t, err)
 
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
@@ -89,7 +91,9 @@ func TestAccessRequestReconciler(t *testing.T) {
 		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
 	require.NoError(t, err)
 	accessRequest.SetState(types.RequestState_DENIED)
-	require.NoError(t, ap.CreateAccessRequest(ctx, accessRequest))
+
+	accessRequest, err = ap.CreateAccessRequestV2(ctx, accessRequest)
+	require.NoError(t, err)
 
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
@@ -104,7 +108,9 @@ func TestAccessRequestReconciler(t *testing.T) {
 		[]types.ResourceID{{ClusterName: "other-cluster-name", Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
 	require.NoError(t, err)
 	accessRequest.SetState(types.RequestState_APPROVED)
-	require.NoError(t, ap.CreateAccessRequest(ctx, accessRequest))
+
+	accessRequest, err = ap.CreateAccessRequestV2(ctx, accessRequest)
+	require.NoError(t, err)
 
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
@@ -127,7 +133,9 @@ func TestAccessRequestReconciler(t *testing.T) {
 		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
 	require.NoError(t, err)
 	accessRequest.SetState(types.RequestState_APPROVED)
-	require.NoError(t, ap.CreateAccessRequest(ctx, accessRequest))
+
+	accessRequest, err = ap.CreateAccessRequestV2(ctx, accessRequest)
+	require.NoError(t, err)
 
 	// No reconcile will be triggered because the reconciler will be stopped.
 	require.Empty(t, reconciler.getAccessRequests())
@@ -181,7 +189,9 @@ func TestAccessRequestReconciler(t *testing.T) {
 	accessRequest.SetState(types.RequestState_APPROVED)
 	require.NoError(t, err)
 
-	require.NoError(t, ap.CreateAccessRequest(ctx, accessRequest))
+	accessRequest, err = ap.CreateAccessRequestV2(ctx, accessRequest)
+	require.NoError(t, err)
+
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
