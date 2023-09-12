@@ -1936,7 +1936,9 @@ func (process *TeleportProcess) initAuthService() error {
 	if cfg.Auth.PROXYProtocolMode == multiplexer.PROXYProtocolUnspecified {
 		log.Warn("'proxy_protocol' unspecified." +
 			"Starting Auth service with external PROXY protocol support, " +
-			" but IP pinned connection affected by PROXY headers will not be allowed.")
+			"but IP pinned connection affected by PROXY headers will not be allowed." +
+			"Set 'proxy_protocol: on' in 'auth_service' config if Auth service runs behind L4 load balancer with enabled " +
+			"PROXY protocol, or set 'proxy_protocol: off' otherwise")
 	}
 
 	muxCAGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
