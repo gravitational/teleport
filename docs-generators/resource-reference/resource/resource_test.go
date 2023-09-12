@@ -46,8 +46,8 @@ type Metadata struct {
 				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
 				SourcePath:  "myfile.go",
 				YAMLExample: `  name: "string"
-  namespace: "string"
-  description: "string"`,
+  description: "string"
+`,
 				Fields: []Field{
 					Field{
 						Name:        "name",

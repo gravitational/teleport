@@ -40,7 +40,11 @@ const (
 type rawField struct {
 	doc  string
 	kind yamlKindNode
+	// Original name of the field
 	name string
+	// Name as it appears in YAML, based on the json tag and json
+	// encoding/marshaling rules.
+	jsonName string
 	// struct tag expression for the field
 	tags string
 }
@@ -97,11 +101,22 @@ func getRawNamedStruct(decl *ast.GenDecl) (rawNamedStruct, error) {
 
 	for _, field := range str.Fields.List {
 		f, err := makeRawField(field)
-		// We shouldn't skip fields at this point since we are only
-		// representing essential information about each field.
-		// Downstream consumers decide whether to skip a field.
+
 		if err != nil {
 			return rawNamedStruct{}, err
+		}
+
+		jsonName := getJSONTag(f.tags)
+
+		// This field is ignored, so skip it.
+		// See: https://pkg.go.dev/encoding/json#Marshal
+		if jsonName == "-" {
+			continue
+		}
+		// Using the exported field declaration name as the field name
+		// per JSON marshaling rules.
+		if jsonName == "" {
+			f.jsonName = f.name
 		}
 
 		rawFields = append(rawFields, f)
@@ -241,10 +256,11 @@ func makeRawField(field *ast.Field) (rawField, error) {
 	}
 
 	return rawField{
-		doc:  doc,
-		kind: tn,
-		name: field.Names[0].Name,
-		tags: field.Tag.Value,
+		doc:      doc,
+		kind:     tn,
+		name:     field.Names[0].Name,
+		jsonName: getJSONTag(field.Tag.Value),
+		tags:     field.Tag.Value,
 	}, nil
 }
 
@@ -254,18 +270,6 @@ func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 	var result []Field
 	for _, field := range fields {
 		desc := strings.Trim(strings.ReplaceAll(field.doc, "\n", " "), " ")
-		jsonName := getJSONTag(field.tags)
-
-		// This field is ignored, so skip it.
-		// See: https://pkg.go.dev/encoding/json#Marshal
-		if jsonName == "-" {
-			continue
-		}
-		// Using the exported field declaration name as the field name
-		// per JSON marshaling rules.
-		if jsonName == "" {
-			jsonName = field.name
-		}
 
 		tv, err := tableValueFor(field.kind)
 		if err != nil {
@@ -273,7 +277,7 @@ func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 		}
 		result = append(result, Field{
 			Description: descriptionWithoutName(desc, field.name),
-			Name:        jsonName,
+			Name:        field.jsonName,
 			Type:        tv,
 		})
 	}
