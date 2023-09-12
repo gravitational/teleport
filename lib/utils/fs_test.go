@@ -35,9 +35,7 @@ func TestOpenFileSymlinks(t *testing.T) {
 	// dir/file-s -> dir/file
 	// circular-s -> circular-s
 	// broken-s -> nonexistent
-	rootDir, err := os.MkdirTemp("", "symlink-test")
-	require.NoError(t, err)
-	defer os.RemoveAll(rootDir)
+	rootDir := t.TempDir()
 
 	dirPath := filepath.Join(rootDir, "dir")
 	err = os.Mkdir(dirPath, 0755)
@@ -69,6 +67,8 @@ func TestOpenFileSymlinks(t *testing.T) {
 
 	// Tests below can not be done with t.Parallel due to the need for directory cleanup in defer
 	t.Run("directFileOpenAllowed", func(t *testing.T) {
+		filePath, err = filepath.EvalSymlinks(filePath)
+		require.NoError(t, err)
 		f, err := openFile(filePath, false)
 		require.NoError(t, err)
 		defer f.Close()
