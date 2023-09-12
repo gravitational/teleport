@@ -993,9 +993,10 @@ type Auth struct {
 	// Possible values:
 	// - 'on': one PROXY header is accepted and required per incoming connection.
 	// - 'off': no PROXY headers are allows, otherwise connection is rejected.
-	// If unspecified - one PROXY header is allowed, but not required. Connection is marked with source port set to 0.
-	// Verify whether the service is in front of a trusted load balancer before setting it to 'on'.
-	// If there is no PROXY-enabled trusted load balancer in front, set it to 'off'.
+	// If unspecified - one PROXY header is allowed, but not required. Connection is marked with source port set to 0
+	// and IP pinning will not be allowed. It is supposed only as default mode for test setups.
+	// In production you should always explicitly set the mode based on your network setup - if you have L4 load balancer
+	// with enabled PROXY protocol in front of Teleport you should set it to 'on', if you don't have it, set it to 'off'
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
 
 	// ClusterName is the name of the CA who manages this cluster
