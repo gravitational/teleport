@@ -388,15 +388,16 @@ func signPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterName str
 var errorSubstrings = []string{
 	failedToPeekConnectionError,
 	failedToDetectConnectionProtocolError,
-	proxyProtocolDisabledError,
 	externalProxyProtocolDisabledError,
-	duplicateProxyLineError,
 	duplicateSignedProxyLineError,
 	duplicateUnsignedProxyLineError,
 	invalidProxyLineError,
 	invalidProxyV2LineError,
 	invalidProxySignatureError,
 	unknownProtocolError,
+	missingProxyLineError,
+	unexpectedPROXYLineError,
+	unsignedPROXYLineAfterSignedError,
 }
 
 const (
@@ -406,21 +407,21 @@ const (
 
 	failedToPeekConnectionError           = "failed to peek connection"
 	failedToDetectConnectionProtocolError = "failed to detect connection protocol"
-	proxyProtocolDisabledError            = "PROXY protocol support is disabled"
 	externalProxyProtocolDisabledError    = "external PROXY protocol support is disabled"
-	duplicateProxyLineError               = "duplicate PROXY line"
 	duplicateSignedProxyLineError         = "duplicate signed PROXY line"
 	duplicateUnsignedProxyLineError       = "duplicate unsigned PROXY line"
 	invalidProxyLineError                 = "invalid PROXY line"
 	invalidProxyV2LineError               = "invalid PROXY v2 line"
 	invalidProxySignatureError            = "could not verify PROXY signature for connection"
-	missingProxyLine                      = `connection (%s -> %s) rejected because PROXY protocol is enabled but required
-PROXY header wasn't received. 
-Make sure you have correct configuration, only enable "proxy_protocol: on" if Teleport is running behind PROXY-enabled load balancer.`
-	unknownProtocolError = "unknown protocol"
-	unexpectedPROXYLine  = `received unexpected PROXY protocol line. Connection will be allowed, but this is usually a result of misconfiguration - 
+	missingProxyLineError                 = `connection (%s -> %s) rejected because PROXY protocol is enabled but required
+PROXY protocol line wasn't received. 
+Make sure you have correct configuration, only enable "proxy_protocol: on" in config if Teleport is running behind L4 
+load balancer with enabled PROXY protocol.`
+	unknownProtocolError     = "unknown protocol"
+	unexpectedPROXYLineError = `received unexpected PROXY protocol line. Connection will be allowed, but this is usually a result of misconfiguration - 
 if Teleport is running behind L4 load balancer with enabled PROXY protocol you should explicitly set config field "proxy_protocol" to "on".
 See documentation for more details`
+	unsignedPROXYLineAfterSignedError = "received unsigned PROXY line after already receiving signed PROXY line"
 )
 
 // detect finds out a type of the connection and returns wrapper that support PROXY protocol
@@ -448,7 +449,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			}
 
 			if m.PROXYProtocolMode == PROXYProtocolOff {
-				return nil, trace.BadParameter(proxyProtocolDisabledError)
+				return nil, trace.BadParameter(externalProxyProtocolDisabledError)
 			}
 
 			unsignedPROXYLineReceived = true
@@ -459,17 +460,17 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 					"direct_dst_addr": conn.LocalAddr(),
 					"proxy_src_addr:": newPROXYLine.Source.String(),
 					"proxy_dst_addr:": newPROXYLine.Destination.String(),
-				}).Error(unexpectedPROXYLine)
+				}).Error(unexpectedPROXYLineError)
 				newPROXYLine.Source.Port = 0 // Mark connection, so if later IP pinning check is used on it we can reject it.
 			}
 
 			if proxyLine != nil {
 				if proxyLine.IsVerified {
-					// signed PROXY line takes precedence
-					continue
+					// Unsigned PROXY line after signed should not happen
+					return nil, trace.BadParameter(unsignedPROXYLineAfterSignedError)
 				} else {
 					// We allow only one unsigned PROXY line
-					return nil, trace.BadParameter(duplicateProxyLineError)
+					return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
 				}
 			}
 
@@ -534,13 +535,13 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 					"direct_dst_addr": conn.LocalAddr(),
 					"proxy_src_addr:": newPROXYLine.Source.String(),
 					"proxy_dst_addr:": newPROXYLine.Destination.String(),
-				}).Error(unexpectedPROXYLine)
+				}).Error(unexpectedPROXYLineError)
 				newPROXYLine.Source.Port = 0 // Mark connection, so if later IP pinning check is used on it we can reject it.
 			}
 
-			// If current proxy line was signed and verified, it takes precedence over new not signed proxy line
+			// Unsigned PROXY line after signed should not happen
 			if proxyLine != nil && proxyLine.IsVerified {
-				continue
+				return nil, trace.BadParameter(unsignedPROXYLineAfterSignedError)
 			}
 
 			// We allow only one unsigned proxy line
@@ -556,7 +557,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				return nil, trace.Wrap(err)
 			}
 			if !selfConnection && m.PROXYProtocolMode == PROXYProtocolOn && !unsignedPROXYLineReceived {
-				return nil, trace.BadParameter(missingProxyLine, conn.RemoteAddr().String(), conn.LocalAddr().String())
+				return nil, trace.BadParameter(missingProxyLineError, conn.RemoteAddr().String(), conn.LocalAddr().String())
 			}
 
 			return &Conn{
