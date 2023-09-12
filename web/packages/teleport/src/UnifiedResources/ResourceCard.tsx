@@ -28,6 +28,7 @@ import {
 } from 'design';
 import copyToClipboard from 'design/utils/copyToClipboard';
 
+import { ShimmerBox } from 'design/ShimmerBox';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import {
   Copy,
@@ -216,6 +217,41 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
         </Flex>
       </CardInnerContainer>
     </CardContainer>
+  );
+}
+
+export function LoadingCard() {
+  function randomNum(min: number, max: number) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  return (
+    <LoadingCardWrapper p={3}>
+      <Flex gap={2} alignItems="start">
+        {/* Image */}
+        <ShimmerBox height="45px" width="45px" />
+        {/* Name and action button */}
+        <Box flex={1}>
+          <Flex gap={2} mb={2} justifyContent="space-between">
+            <ShimmerBox
+              height="24px"
+              css={`
+                flex-basis: ${randomNum(100, 30)}%;
+              `}
+            />
+            <ShimmerBox height="24px" width="90px" />
+          </Flex>
+          <ShimmerBox height="16px" width={`${randomNum(90, 40)}%`} mb={2} />
+          <Box>
+            <Flex gap={2}>
+              {new Array(randomNum(4, 0)).fill(null).map((_, i) => (
+                <ShimmerBox key={i} height="16px" width="60px" />
+              ))}
+            </Flex>
+          </Box>
+        </Box>
+      </Flex>
+    </LoadingCardWrapper>
   );
 }
 
@@ -494,4 +530,11 @@ const MoreLabelsButton = styled(ButtonLink)`
   ${CardContainer}:hover & {
     background-color: ${props => props.theme.colors.levels.elevated};
   }
+`;
+
+const LoadingCardWrapper = styled(Box)`
+  height: 100px;
+  border: ${props => props.theme.borders[2]}
+    ${props => props.theme.colors.spotBackground[0]};
+  border-radius: ${props => props.theme.radii[3]}px;
 `;

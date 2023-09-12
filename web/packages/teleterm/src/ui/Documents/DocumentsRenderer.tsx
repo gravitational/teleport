@@ -34,8 +34,7 @@ import DocumentGateway from 'teleterm/ui/DocumentGateway';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
 import {
   ConnectMyComputerContextProvider,
-  DocumentConnectMyComputerSetup,
-  DocumentConnectMyComputerStatus,
+  DocumentConnectMyComputer,
 } from 'teleterm/ui/ConnectMyComputer';
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 
@@ -120,10 +119,8 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentTerminal doc={doc} visible={visible} />;
       case 'doc.access_requests':
         return <DocumentAccessRequests doc={doc} visible={visible} />;
-      case 'doc.connect_my_computer_setup':
-        return <DocumentConnectMyComputerSetup doc={doc} visible={visible} />;
-      case 'doc.connect_my_computer_status':
-        return <DocumentConnectMyComputerStatus doc={doc} visible={visible} />;
+      case 'doc.connect_my_computer':
+        return <DocumentConnectMyComputer doc={doc} visible={visible} />;
       default:
         return (
           <Document visible={visible}>
