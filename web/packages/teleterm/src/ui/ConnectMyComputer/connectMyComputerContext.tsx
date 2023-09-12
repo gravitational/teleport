@@ -26,7 +26,12 @@ import React, {
 
 import { wait } from 'shared/utils/wait';
 
-import { Attempt, makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
+import {
+  Attempt,
+  makeSuccessAttempt,
+  useAsync,
+  makeEmptyAttempt,
+} from 'shared/hooks/useAsync';
 
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -74,6 +79,7 @@ export interface ConnectMyComputerContext {
   killAgent(): Promise<[void, Error]>;
   isAgentConfiguredAttempt: Attempt<boolean>;
   markAgentAsConfigured(): void;
+  markAgentAsNotConfigured(): void;
 }
 
 const ConnectMyComputerContext = createContext<ConnectMyComputerContext>(null);
@@ -87,6 +93,7 @@ export const ConnectMyComputerContextProvider: FC<{
     clustersService,
     configService,
     workspacesService,
+    usageService,
   } = useAppContext();
   clustersService.useState();
 
@@ -112,10 +119,6 @@ export const ConnectMyComputerContextProvider: FC<{
       ),
     [configService, mainProcessClient, rootCluster]
   );
-
-  const markAgentAsConfigured = useCallback(() => {
-    setAgentConfiguredAttempt(makeSuccessAttempt(true));
-  }, [setAgentConfiguredAttempt]);
 
   const [currentActionKind, setCurrentActionKind] =
     useState<CurrentAction['kind']>('observe-process');
@@ -165,6 +168,7 @@ export const ConnectMyComputerContextProvider: FC<{
           props.rootClusterUri,
           true
         );
+        usageService.captureConnectMyComputerAgentStart(props.rootClusterUri);
         return server;
       } catch (error) {
         // in case of any error kill the agent
@@ -177,6 +181,7 @@ export const ConnectMyComputerContextProvider: FC<{
       connectMyComputerService,
       mainProcessClient,
       props.rootClusterUri,
+      usageService,
       workspacesService,
     ])
   );
@@ -200,6 +205,14 @@ export const ConnectMyComputerContextProvider: FC<{
       );
     }, [connectMyComputerService, props.rootClusterUri, workspacesService])
   );
+
+  const markAgentAsConfigured = useCallback(() => {
+    setAgentConfiguredAttempt(makeSuccessAttempt(true));
+  }, [setAgentConfiguredAttempt]);
+  const markAgentAsNotConfigured = useCallback(() => {
+    setDownloadAgentAttempt(makeEmptyAttempt());
+    setAgentConfiguredAttempt(makeSuccessAttempt(false));
+  }, [setAgentConfiguredAttempt, setDownloadAgentAttempt]);
 
   useEffect(() => {
     const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
@@ -240,8 +253,8 @@ export const ConnectMyComputerContextProvider: FC<{
     // we need to fetch some data from the auth server which takes time.
     // This doesn't work for us, because the information if the agent is configured is needed immediately -
     // based on this we replace the setup document with the status document.
-    // If we had waited for `canUse` to become true, the user might have seen a setup document
-    // which would have been replaced by the other document after 1-2 seconds.
+    // If we had waited for `canUse` to become true, the user might have seen a setup page
+    // which would have been replaced by status page after 1-2 seconds.
     if (isAgentConfiguredAttempt.status === '') {
       checkIfAgentIsConfigured();
     }
@@ -286,6 +299,7 @@ export const ConnectMyComputerContextProvider: FC<{
         setDownloadAgentAttempt,
         downloadAndStartAgent,
         markAgentAsConfigured,
+        markAgentAsNotConfigured,
         isAgentConfiguredAttempt,
       }}
       children={props.children}

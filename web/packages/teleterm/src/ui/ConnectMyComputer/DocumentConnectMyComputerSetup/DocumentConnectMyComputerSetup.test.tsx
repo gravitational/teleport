@@ -40,7 +40,7 @@ beforeEach(() => {
   jest.restoreAllMocks();
 });
 
-describe('documentConnectMyComputerSetup', () => {
+describe('connectMyComputerSetup', () => {
   const tests: Array<{
     name: string;
     expectedStatus: AttemptStatus;
@@ -83,20 +83,14 @@ describe('documentConnectMyComputerSetup', () => {
         },
       }),
     });
-    const doc = {
-      kind: 'doc.connect_my_computer_setup' as const,
-      rootClusterUri: cluster.uri,
-      title: '',
-      uri: '/docs/123' as const,
-    };
     const appContext = new MockAppContext({});
     appContext.clustersService.state.clusters.set(cluster.uri, cluster);
     appContext.workspacesService.setState(draftState => {
       draftState.rootClusterUri = cluster.uri;
       draftState.workspaces[cluster.uri] = {
         localClusterUri: cluster.uri,
-        documents: [doc],
-        location: doc.uri,
+        documents: [],
+        location: undefined,
         accessRequests: undefined,
       };
     });
@@ -125,7 +119,7 @@ describe('documentConnectMyComputerSetup', () => {
           <connectMyComputerContext.ConnectMyComputerContextProvider
             rootClusterUri={cluster.uri}
           >
-            <DocumentConnectMyComputerSetup visible={true} doc={doc} />
+            <DocumentConnectMyComputerSetup />
           </connectMyComputerContext.ConnectMyComputerContextProvider>
         </MockWorkspaceContextProvider>
       </MockAppContextProvider>

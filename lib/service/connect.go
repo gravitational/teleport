@@ -491,6 +491,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			JoinMethod:           process.Config.JoinMethod,
 			CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 			FIPS:                 process.Config.FIPS,
+			Insecure:             lib.IsInsecureDevMode(),
 		}
 		if registerParams.JoinMethod == types.JoinMethodAzure {
 			registerParams.AzureParams = auth.AzureParams{
@@ -761,10 +762,6 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 			}
 			if ca.GetType() != types.HostCA || ca.GetClusterName() != conn.ClientIdentity.ClusterName {
 				process.log.Debugf("Skipping event for %v %v", ca.GetType(), ca.GetClusterName())
-				continue
-			}
-			if status.ca.GetResourceID() > ca.GetResourceID() {
-				process.log.Debugf("Skipping stale event %v, latest object version is %v.", ca.GetResourceID(), status.ca.GetResourceID())
 				continue
 			}
 			status, err := process.syncRotationStateAndBroadcast(conn)

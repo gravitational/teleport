@@ -45,7 +45,7 @@ On the node where you will run the Database Service, start Teleport, pointing
 the `--auth-server` flag at the address of your Teleport Proxy Service:
 
 ```code
-$ teleport db start \
+$ sudo teleport db start \
   --token=/tmp/token \
   --auth-server=teleport.example.com:443 \
   --name=mongodb-atlas \
@@ -108,7 +108,7 @@ On the node where you will run the Database Service, start Teleport, pointing th
 `mytenant.teleport.sh`.
 
 ```code
-$ teleport db start \
+$ sudo teleport db start \
   --token=/tmp/token \
   --auth-server=mytenant.teleport.sh:443 \
   --name=mongodb-atlas \
@@ -344,12 +344,8 @@ $ tsh db connect --db-user=arn:aws:iam::111111111111:role/teleport-access mongod
 </TabItem>
 </Tabs>
 
-<Admonition type="note" title="Preparing your client environment">
-  Either the `mongosh` or `mongo` command-line clients should be available in `PATH` in order to be
-  able to connect. The Database Service attempts to run `mongosh` first and, if `mongosh` is not in `PATH`, runs `mongo`.
-
-  Teleport 9.0 added support for `mongosh` and made it the default Mongo DB client.
-</Admonition>
+Either the `mongosh` or `mongo` command-line clients should be available in `PATH` in order to be
+able to connect. The Database Service attempts to run `mongosh` first and, if `mongosh` is not in `PATH`, runs `mongo`.
 
 To log out of the database and remove credentials:
 

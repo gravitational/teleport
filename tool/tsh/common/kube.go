@@ -1245,22 +1245,24 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 
 	var kubeStatus *kubernetesStatus
 	err = retryWithAccessRequest(cf, tc, func() error {
-		// Check that this kube cluster exists.
-		var err error
-		kubeStatus, err = fetchKubeStatus(cf.Context, tc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = c.checkClusterSelection(cf, tc, kubeStatus.kubeClusters)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				// rewrap not found error as access denied, so we can retry
-				// fetching clusters with an access request.
-				return trace.AccessDenied(err.Error())
+		return client.RetryWithRelogin(cf.Context, tc, func() error {
+			// Check that this kube cluster exists.
+			var err error
+			kubeStatus, err = fetchKubeStatus(cf.Context, tc)
+			if err != nil {
+				return trace.Wrap(err)
 			}
-			return trace.Wrap(err)
-		}
-		return nil
+			err = c.checkClusterSelection(cf, tc, kubeStatus.kubeClusters)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					// rewrap not found error as access denied, so we can retry
+					// fetching clusters with an access request.
+					return trace.AccessDenied(err.Error())
+				}
+				return trace.Wrap(err)
+			}
+			return nil
+		})
 	}, c.accessRequestForKubeCluster, c.selectorsOrWildcard())
 	if err != nil {
 		return trace.Wrap(err)
@@ -1334,10 +1336,7 @@ func checkClusterSelection(cf *CLIConf, clusters types.KubeClusters, name string
 		query:  cf.PredicateExpression,
 	}
 	if len(clusters) == 0 {
-		if selectors.IsEmpty() {
-			return trace.NotFound("no kubernetes clusters found, check 'tsh kube ls' for a list of known clusters")
-		}
-		return trace.NotFound("%v not found, check 'tsh kube ls' for a list of known clusters", selectors.String())
+		return trace.NotFound(formatKubeNotFound(cf.SiteName, selectors))
 	}
 	errMsg := formatAmbiguousKubeCluster(cf, selectors, clusters)
 	return trace.BadParameter(errMsg)
@@ -1356,16 +1355,38 @@ func matchClustersByName(nameOrPrefix string, clusters types.KubeClusters) types
 	if nameOrPrefix == "" {
 		return clusters
 	}
-	var prefixMatches types.KubeClusters
+
+	// look for an exact full name match.
 	for _, kc := range clusters {
 		if kc.GetName() == nameOrPrefix {
 			return types.KubeClusters{kc}
 		}
+	}
+
+	// or look for exact "discovered name" matches.
+	if clusters, ok := findKubeClustersByDiscoveredName(clusters, nameOrPrefix); ok {
+		return clusters
+	}
+
+	// or just filter by prefix.
+	var prefixMatches types.KubeClusters
+	for _, kc := range clusters {
 		if strings.HasPrefix(kc.GetName(), nameOrPrefix) {
 			prefixMatches = append(prefixMatches, kc)
 		}
 	}
 	return prefixMatches
+}
+
+func findKubeClustersByDiscoveredName(clusters types.KubeClusters, name string) (types.KubeClusters, bool) {
+	var out types.KubeClusters
+	for _, kc := range clusters {
+		discoveredName, ok := kc.GetLabel(types.DiscoveredNameLabel)
+		if ok && discoveredName == name {
+			out = append(out, kc)
+		}
+	}
+	return out, len(out) > 0
 }
 
 func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClient, names []string) {
@@ -1686,6 +1707,16 @@ func formatAmbiguousKubeCluster(cf *CLIConf, selectors resourceSelectors, kubeCl
 	listCommand := formatKubeListCommand(cf.SiteName)
 	fullNameExample := kubeClusters[0].GetName()
 	return formatAmbiguityErrTemplate(cf, selectors, listCommand, table, fullNameExample)
+}
+
+func formatKubeNotFound(clusterFlag string, selectors resourceSelectors) string {
+	listCmd := formatKubeListCommand(clusterFlag)
+	if selectors.IsEmpty() {
+		return fmt.Sprintf("no kubernetes clusters found, check '%v' for a list of known clusters",
+			listCmd)
+	}
+	return fmt.Sprintf("%v not found, check '%v' for a list of known clusters",
+		selectors, listCmd)
 }
 
 func formatKubeListCommand(clusterFlag string) string {

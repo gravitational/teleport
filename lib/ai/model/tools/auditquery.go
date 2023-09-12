@@ -30,12 +30,14 @@ import (
 	"github.com/gravitational/teleport/lib/ai/tokens"
 )
 
+const AuditQueryGenerationToolName = "Audit Query Generation"
+
 type AuditQueryGenerationTool struct {
 	LLM *openai.Client
 }
 
 func (t *AuditQueryGenerationTool) Name() string {
-	return "Audit Query Generation"
+	return AuditQueryGenerationToolName
 }
 
 func (t *AuditQueryGenerationTool) Description() string {
