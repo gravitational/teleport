@@ -24,9 +24,8 @@ func TestGenerate(t *testing.T) {
 		source   string
 		expected Resource
 	}{
-		// TODO: Add other scalar fields: number, boolean
 		{
-			description: "Only string fields, one level deep, ignored field",
+			description: "scalar fields with one field ignored",
 			source: `
 package mypkg
 
@@ -39,6 +38,10 @@ type Metadata struct {
     Namespace string BACKTICKprotobuf:"bytes,2,opt,name=Namespace,proto3" json:"-"BACKTICK
     // Description is the resource's description.
     Description string BACKTICKprotobuf:"bytes,3,opt,name=Description,proto3" json:"description,omitempty"BACKTICK
+    // Age is the resource's age in seconds.
+    Age uint BACKTICKjson:"age"BACKTICK
+    // Active indicates whether the resource is currently in use.
+    Active bool BACKTICKjson:"active"BACKTICK
 }
 `,
 			expected: Resource{
@@ -47,6 +50,8 @@ type Metadata struct {
 				SourcePath:  "myfile.go",
 				YAMLExample: `  name: "string"
   description: "string"
+  age: 1
+  active: true
 `,
 				Fields: []Field{
 					Field{
@@ -58,6 +63,16 @@ type Metadata struct {
 						Name:        "description",
 						Description: "The resource's description.",
 						Type:        "string",
+					},
+					Field{
+						Name:        "age",
+						Description: "The resource's age in seconds.",
+						Type:        "number",
+					},
+					Field{
+						Name:        "active",
+						Description: "Indicates whether the resource is currently in use.",
+						Type:        "Boolean",
 					},
 				},
 			},
