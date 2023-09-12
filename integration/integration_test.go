@@ -280,7 +280,7 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 
 	require.NoError(t, teleport.CreateEx(t, nil, tconf))
 	require.NoError(t, teleport.Start())
-	defer teleport.StopAll()
+	t.Cleanup(func() { teleport.StopAll() })
 
 	clt := teleport.GetSiteAPI(clusterName)
 	require.NotNil(t, clt)

@@ -747,26 +747,8 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	authAddr, err := getFreePort()
-	require.NoError(t, err)
-	listenAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: authAddr}
+	listenAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	token := "join-token"
-
-	// Create Node process.
-	nodeCfg := MakeDefaultConfig()
-	nodeCfg.SetAuthServerAddress(listenAddr)
-	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.SetToken(token)
-	nodeCfg.Auth.Enabled = false
-	nodeCfg.Proxy.Enabled = false
-	nodeCfg.SSH.Enabled = true
-
-	// Set the Node's major version to be greater than the Auth Service's,
-	// which should make the version check fail.
-	currentVersion, err := semver.NewVersion(teleport.Version)
-	require.NoError(t, err)
-	currentVersion.Major++
-	nodeCfg.TeleportVersion = currentVersion.String()
 
 	// Create Auth Service process.
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -801,6 +783,23 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 		authProc.Close()
 	})
 
+	// Create Node process, pointing at the auth server's local port
+	authListenAddr := authProc.Config.AuthServerAddresses()[0]
+	nodeCfg := MakeDefaultConfig()
+	nodeCfg.SetAuthServerAddress(authListenAddr)
+	nodeCfg.DataDir = t.TempDir()
+	nodeCfg.SetToken(token)
+	nodeCfg.Auth.Enabled = false
+	nodeCfg.Proxy.Enabled = false
+	nodeCfg.SSH.Enabled = true
+
+	// Set the Node's major version to be greater than the Auth Service's,
+	// which should make the version check fail.
+	currentVersion, err := semver.NewVersion(teleport.Version)
+	require.NoError(t, err)
+	currentVersion.Major++
+	nodeCfg.TeleportVersion = currentVersion.String()
+
 	t.Run("with version check", func(t *testing.T) {
 		testVersionCheck(t, nodeCfg, false)
 	})
@@ -828,20 +827,6 @@ func testVersionCheck(t *testing.T, nodeCfg *Config, skipVersionCheck bool) {
 	supervisor, ok := nodeProc.Supervisor.(*LocalSupervisor)
 	require.True(t, ok)
 	supervisor.signalExit()
-}
-
-func getFreePort() (string, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", err
-	}
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return "", err
-	}
-	defer l.Close()
-
-	return l.Addr().(*net.TCPAddr).String(), nil
 }
 
 func Test_readOrGenerateHostID(t *testing.T) {
