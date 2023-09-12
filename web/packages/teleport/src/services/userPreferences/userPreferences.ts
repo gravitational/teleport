@@ -33,7 +33,7 @@ export async function getUserPreferences() {
   return res;
 }
 
-export function updateUserPreferences(preferences: UserPreferences) {
+export function updateUserPreferences(preferences: Partial<UserPreferences>) {
   return api.put(cfg.api.userPreferencesPath, preferences);
 }
 

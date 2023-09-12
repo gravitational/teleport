@@ -43,7 +43,7 @@ import type { UserPreferences } from 'teleport/services/userPreferences/types';
 
 export interface UserContextValue {
   preferences: UserPreferences;
-  updatePreferences: (preferences: UserPreferences) => Promise<void>;
+  updatePreferences: (preferences: Partial<UserPreferences>) => Promise<void>;
 }
 
 export const UserContext = createContext<UserContextValue>(null);
@@ -101,7 +101,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     }
   }
 
-  function updatePreferences(newPreferences: UserPreferences) {
+  function updatePreferences(newPreferences: Partial<UserPreferences>) {
     const nextPreferences = {
       ...preferences,
       ...newPreferences,
