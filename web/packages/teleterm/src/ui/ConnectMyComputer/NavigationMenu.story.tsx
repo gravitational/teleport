@@ -131,8 +131,8 @@ function ShowState({
     edit: true,
     pb_delete: true,
   };
-  const doc: types.DocumentConnectMyComputerSetup = {
-    kind: 'doc.connect_my_computer_setup',
+  const doc: types.DocumentConnectMyComputer = {
+    kind: 'doc.connect_my_computer',
     rootClusterUri: cluster.uri,
     title: 'Connect My Computer',
     uri: '/docs/123',

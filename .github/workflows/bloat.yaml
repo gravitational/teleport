@@ -62,7 +62,7 @@ jobs:
         name: Build base
         id: build_base
         run: |
-          make BUILDDIR=base_build full
+          make WEBASSETS_SKIP_BUILD=1 BUILDDIR=base_build binaries
           cd .github/shared-workflows/bot && go run main.go -workflow=binary-sizes --artifacts="tbot,tctl,teleport,tsh" --builddir="../../../base_build" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"  >> ~/teleport_base_build_stats
           echo "base_stats_file=~/teleport_base_build_stats" >> $GITHUB_OUTPUT
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
@@ -97,7 +97,7 @@ jobs:
       - name: Build Binaries
         id: build_branch
         run: |
-          BUILD_SECRET=FAKE_SECRET make full
+          BUILD_SECRET=FAKE_SECRET make WEBASSETS_SKIP_BUILD=1 binaries
       - name: Check for Environment Leak
         id: check_branch_env_leak
         run: |
