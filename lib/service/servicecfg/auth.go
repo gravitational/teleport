@@ -31,7 +31,7 @@ type AuthConfig struct {
 	// Enabled turns auth role on or off for this process
 	Enabled bool
 
-	// PROXYProtocolMode controls behavior related to PROXY protocol.
+	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
 
 	// ListenAddr is the listening address of the auth service
