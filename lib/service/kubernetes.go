@@ -237,7 +237,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		DynamicLabels:        dynLabels,
 		CloudLabels:          process.cloudLabels,
 		Log:                  log,
-		PROXYProtocolMode:    multiplexer.PROXYProtocolOff,
+		PROXYProtocolMode:    multiplexer.PROXYProtocolOff, // Kube service doesn't need to process unsigned PROXY headers.
 	})
 	if err != nil {
 		return trace.Wrap(err)
