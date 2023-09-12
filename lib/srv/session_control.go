@@ -219,10 +219,10 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 
 	// Check that the required private key policy, defined by roles and auth pref,
 	// is met by this Identity's ssh certificate.
-	identityPolicy := identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy]
+	identityPolicy := keys.PrivateKeyPolicy(identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy])
 	requiredPolicy := identity.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err := requiredPolicy.VerifyPolicy(keys.PrivateKeyPolicy(identityPolicy)); err != nil {
-		return ctx, trace.Wrap(err)
+	if !keys.IsRequiredPolicyMet(requiredPolicy, identityPolicy) {
+		return ctx, keys.NewPrivateKeyPolicyError(requiredPolicy)
 	}
 
 	// Don't apply the following checks in non-node contexts.

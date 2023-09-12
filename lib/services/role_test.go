@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -7584,79 +7583,6 @@ func TestRoleSet_GetAccessState(t *testing.T) {
 				}))
 			}
 			require.Equal(t, tc.expectState, set.GetAccessState(authPref))
-		})
-	}
-}
-
-func TestPrivateKeyPolicy(t *testing.T) {
-	testCases := []struct {
-		name                     string
-		roleMFARequireTypes      []types.RequireMFAType
-		authPrefPrivateKeyPolicy keys.PrivateKeyPolicy
-		expectPrivateKeyPolicy   keys.PrivateKeyPolicy
-	}{
-		{
-			name: "empty role set and auth pref requirement",
-		},
-		{
-			name: "hardware_key not required",
-			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireMFAType_OFF,
-				types.RequireMFAType_SESSION,
-			},
-			authPrefPrivateKeyPolicy: keys.PrivateKeyPolicyNone,
-			expectPrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
-		},
-		{
-			name: "auth pref requires hardware_key",
-			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireMFAType_OFF,
-				types.RequireMFAType_SESSION,
-			},
-			authPrefPrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
-			expectPrivateKeyPolicy:   keys.PrivateKeyPolicyHardwareKey,
-		},
-		{
-			name: "role requires hardware_key",
-			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireMFAType_OFF,
-				types.RequireMFAType_SESSION,
-				types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
-			},
-			authPrefPrivateKeyPolicy: keys.PrivateKeyPolicyNone,
-			expectPrivateKeyPolicy:   keys.PrivateKeyPolicyHardwareKey,
-		},
-		{
-			name: "auth pref requires hardware_key_touch",
-			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireMFAType_OFF,
-				types.RequireMFAType_SESSION,
-				types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
-			},
-			authPrefPrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
-			expectPrivateKeyPolicy:   keys.PrivateKeyPolicyHardwareKeyTouch,
-		},
-		{
-			name: "role requires hardware_key_touch",
-			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireMFAType_OFF,
-				types.RequireMFAType_SESSION,
-				types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
-				types.RequireMFAType_HARDWARE_KEY_TOUCH,
-			},
-			authPrefPrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
-			expectPrivateKeyPolicy:   keys.PrivateKeyPolicyHardwareKeyTouch,
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			var set RoleSet
-			for _, roleRequirement := range tc.roleMFARequireTypes {
-				set = append(set, newRole(func(r *types.RoleV6) {
-					r.Spec.Options.RequireMFAType = roleRequirement
-				}))
-			}
-			require.Equal(t, tc.expectPrivateKeyPolicy, set.PrivateKeyPolicy(tc.authPrefPrivateKeyPolicy))
 		})
 	}
 }

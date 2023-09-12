@@ -1526,8 +1526,7 @@ func (r *dbLocalProxyRequirement) addLocalProxyWithTunnel(reasons ...string) {
 // for a given database.
 func getDBLocalProxyRequirement(tc *client.TeleportClient, route tlsca.RouteToDatabase) *dbLocalProxyRequirement {
 	var out dbLocalProxyRequirement
-	switch tc.PrivateKeyPolicy {
-	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
+	if tc.PrivateKeyPolicy != keys.PrivateKeyPolicyNone {
 		out.addLocalProxyWithTunnel(formatKeyPolicyReason(tc.PrivateKeyPolicy))
 	}
 

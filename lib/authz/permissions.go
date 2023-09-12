@@ -307,8 +307,8 @@ func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *C
 	// is met by this Identity's tls certificate.
 	identityPolicy := authContext.Identity.GetIdentity().PrivateKeyPolicy
 	requiredPolicy := authContext.Checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err := requiredPolicy.VerifyPolicy(identityPolicy); err != nil {
-		return trace.Wrap(err)
+	if !keys.IsRequiredPolicyMet(requiredPolicy, identityPolicy) {
+		return keys.NewPrivateKeyPolicyError(requiredPolicy)
 	}
 
 	return nil

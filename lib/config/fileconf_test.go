@@ -617,7 +617,7 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 			},
 			expectRequireMFAType: types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
 		}, {
-			desc: "RequireSessionMFA hardware_key",
+			desc: "RequireSessionMFA hardware_key_touch",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"require_session_mfa": types.RequireMFATypeHardwareKeyTouchString,
@@ -626,6 +626,7 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 			expectRequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			text := bytes.NewBuffer(editConfig(t, tt.mutate))

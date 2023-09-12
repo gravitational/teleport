@@ -36,23 +36,38 @@ const (
 	PrivateKeyPolicyHardwareKeyTouch PrivateKeyPolicy = "hardware_key_touch"
 )
 
-// VerifyPolicy verifies that the given policy meets the requirements of this policy.
-// If not, it will return a private key policy error, which can be parsed to retrieve
-// the unmet policy.
-func (p PrivateKeyPolicy) VerifyPolicy(policy PrivateKeyPolicy) error {
-	switch p {
-	case PrivateKeyPolicyNone:
-		return nil
-	case PrivateKeyPolicyHardwareKey:
-		if policy == PrivateKeyPolicyHardwareKey || policy == PrivateKeyPolicyHardwareKeyTouch {
-			return nil
-		}
-	case PrivateKeyPolicyHardwareKeyTouch:
-		if policy == PrivateKeyPolicyHardwareKeyTouch {
-			return nil
-		}
+var (
+	hardwareKeyTouchPolicies = []PrivateKeyPolicy{
+		PrivateKeyPolicyHardwareKeyTouch,
 	}
-	return NewPrivateKeyPolicyError(p)
+	hardwareKeyPolicies = []PrivateKeyPolicy{
+		PrivateKeyPolicyHardwareKey,
+		PrivateKeyPolicyHardwareKeyTouch,
+	}
+	privateKeyPolicies = append(hardwareKeyPolicies, PrivateKeyPolicyNone)
+)
+
+// IsRequiredPolicyMet returns whether the required key policy is met by the key's policy.
+func IsRequiredPolicyMet(requiredPolicy, keyPolicy PrivateKeyPolicy) bool {
+	switch requiredPolicy {
+	case PrivateKeyPolicyNone:
+		return true
+	case PrivateKeyPolicyHardwareKey:
+		return keyPolicy.IsHardwareKeyVerified()
+	case PrivateKeyPolicyHardwareKeyTouch:
+		return keyPolicy.isHardwareKeyTouchVerified()
+	}
+
+	return false
+}
+
+// Deprecated in favor of IsRequiredPolicyMet.
+// TODO(Joerger): delete once reference in /e is replaced.
+func (requiredPolicy PrivateKeyPolicy) VerifyPolicy(keyPolicy PrivateKeyPolicy) error {
+	if !IsRequiredPolicyMet(requiredPolicy, keyPolicy) {
+		return NewPrivateKeyPolicyError(requiredPolicy)
+	}
+	return nil
 }
 
 // IsHardwareKeyVerified return true if this private key policy requires a hardware key.
@@ -64,17 +79,34 @@ func (p PrivateKeyPolicy) IsHardwareKeyVerified() bool {
 	return false
 }
 
-// MFAVerified checks that meet this private key policy counts towards MFA verification.
-func (p PrivateKeyPolicy) MFAVerified() bool {
-	return p == PrivateKeyPolicyHardwareKeyTouch
+func (p PrivateKeyPolicy) isHardwareKeyTouchVerified() bool {
+	for _, policy := range hardwareKeyTouchPolicies {
+		if p == policy {
+			return true
+		}
+	}
+	return false
 }
 
-func (p PrivateKeyPolicy) validate() error {
-	switch p {
-	case PrivateKeyPolicyNone, PrivateKeyPolicyHardwareKey, PrivateKeyPolicyHardwareKeyTouch:
-		return nil
+// MFAVerified checks that private keys with this key policy count as MFA verified.
+// Both Hardware key touch and pin are count as MFA verification.
+func (p PrivateKeyPolicy) MFAVerified() bool {
+	return p.isHardwareKeyTouchVerified()
+}
+
+// GetPolicyFromSet returns least restrictive policy necessary to meet the given set of policies.
+func GetPolicyFromSet(policies []PrivateKeyPolicy) PrivateKeyPolicy {
+	setPolicy := PrivateKeyPolicyNone
+	for _, policy := range policies {
+		if !IsRequiredPolicyMet(policy, setPolicy) {
+			if IsRequiredPolicyMet(setPolicy, policy) {
+				// Upgrade set policy to stricter policy.
+				setPolicy = policy
+			}
+		}
 	}
-	return trace.BadParameter("%q is not a valid key policy", p)
+
+	return setPolicy
 }
 
 var privateKeyPolicyErrRegex = regexp.MustCompile(`private key policy not met: (\w+)`)
@@ -102,4 +134,14 @@ func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 // IsPrivateKeyPolicyError returns true if the given error is a private key policy error.
 func IsPrivateKeyPolicyError(err error) bool {
 	return privateKeyPolicyErrRegex.MatchString(err.Error())
+}
+
+func (p PrivateKeyPolicy) validate() error {
+	for _, policy := range privateKeyPolicies {
+		if p == policy {
+			return nil
+		}
+	}
+
+	return trace.BadParameter("%q is not a valid key policy", p)
 }

@@ -1218,24 +1218,13 @@ func (set RoleSet) getMFARequired(clusterRequireMFAType types.RequireMFAType) MF
 }
 
 // PrivateKeyPolicy returns the enforced private key policy for this role set.
-func (set RoleSet) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy {
-	if defaultPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
-		// This is the strictest option so we can return now
-		return defaultPolicy
-	}
-
-	policy := defaultPolicy
+func (set RoleSet) PrivateKeyPolicy(authPreferencePolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy {
+	policySet := []keys.PrivateKeyPolicy{authPreferencePolicy}
 	for _, role := range set {
-		switch rolePolicy := role.GetPrivateKeyPolicy(); rolePolicy {
-		case keys.PrivateKeyPolicyHardwareKey:
-			policy = rolePolicy
-		case keys.PrivateKeyPolicyHardwareKeyTouch:
-			// This is the strictest option so we can return now
-			return keys.PrivateKeyPolicyHardwareKeyTouch
-		}
+		policySet = append(policySet, role.GetPrivateKeyPolicy())
 	}
 
-	return policy
+	return keys.GetPolicyFromSet(policySet)
 }
 
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL
