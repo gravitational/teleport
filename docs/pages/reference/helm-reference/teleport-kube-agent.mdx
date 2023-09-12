@@ -681,7 +681,7 @@ Default value:
  make it expose TCP apps as well, using Kubernetes annotations.
 
 You can specify multiple filters, each of which can include these parameters:
-- `types` is a list of types of services to be exposed in Teleport, currently only "app" value is supported, with "db" value planned.
+- `types` is a list of types of services to be exposed in Teleport. Currently only `app` is supported.
  Default value is "app"
 - `namespaces` is a list of namespaces of the Kubernetes cluster to search in. Default value is `*`, which denotes all namespaces.
 - `labels` is a list of Kubernetes labels based on which to filter out services. Labels  Default value is `*`: `*` that will match any labels.
