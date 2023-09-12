@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"sort"
@@ -400,7 +401,7 @@ func (t *task) getEventsFromDataFiles(ctx context.Context, exportInfo *exportInf
 }
 
 func (t *task) fromS3ToChan(ctx context.Context, dataObj dataObjectInfo, eventsC chan<- apievents.AuditEvent, checkpoint *checkpointData, afterCheckpointIn bool) (afterCheckpointOut bool, err error) {
-	sortedExportFile, err := t.downloadFromS3AndSort(ctx, dataObj)
+	sortedExportFile, err := t.downloadFromS3AndSort(ctx, dataObj, checkpoint)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -481,7 +482,7 @@ func exportedDynamoItemToAuditEvent(ctx context.Context, decoder *json.Decoder) 
 	return event, trace.Wrap(err)
 }
 
-func (t *task) downloadFromS3AndSort(ctx context.Context, dataObj dataObjectInfo) (*os.File, error) {
+func (t *task) downloadFromS3AndSort(ctx context.Context, dataObj dataObjectInfo, checkpoint *checkpointData) (*os.File, error) {
 	originalName := path.Base(dataObj.DataFileS3Key)
 
 	var dir string
@@ -492,18 +493,52 @@ func (t *task) downloadFromS3AndSort(ctx context.Context, dataObj dataObjectInfo
 	}
 	path := path.Join(dir, originalName)
 
-	originalFile, err := os.Create(path)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if _, err := t.s3Downloader.Download(ctx, originalFile, &s3.GetObjectInput{
-		Bucket: aws.String(t.Bucket),
-		Key:    aws.String(dataObj.DataFileS3Key),
-	}); err != nil {
-		return nil, trace.NewAggregate(err, originalFile.Close())
-	}
+	var (
+		originalFile *os.File
+		err          error
+	)
+	if checkpoint.alreadyDownloaded(path) {
+		// If download checkpoint exists but the file doesn't
+		if _, err := os.Stat(path); err != nil {
+			if !errors.Is(err, fs.ErrNotExist) {
+				return nil, trace.Wrap(err)
+			}
 
-	defer originalFile.Close()
+			originalFile, err := os.Create(path)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if _, err := t.s3Downloader.Download(ctx, originalFile, &s3.GetObjectInput{
+				Bucket: aws.String(t.Bucket),
+				Key:    aws.String(dataObj.DataFileS3Key),
+			}); err != nil {
+				return nil, trace.NewAggregate(err, originalFile.Close())
+			}
+
+			checkpoint.DownloadCheckpoints = append(checkpoint.DownloadCheckpoints, path)
+		} else { // Checkpoint exists and so does the file
+			originalFile, err = os.Open(path)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	} else { // Checkpoint doesn't exist
+		originalFile, err := os.Create(path)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if _, err := t.s3Downloader.Download(ctx, originalFile, &s3.GetObjectInput{
+			Bucket: aws.String(t.Bucket),
+			Key:    aws.String(dataObj.DataFileS3Key),
+		}); err != nil {
+			return nil, trace.NewAggregate(err, originalFile.Close())
+		}
+
+		checkpoint.DownloadCheckpoints = append(checkpoint.DownloadCheckpoints, path)
+	}
+	t.storeEmitterCheckpoint(*checkpoint)
 
 	// maxMemoryUsedForSortingExportInBytes defines how big chunks of audit events
 	// will be loaded into memory, sorted and stored in temporary files.
@@ -743,6 +778,9 @@ func mergeFiles(files []*os.File, outputFile *os.File) error {
 type checkpointData struct {
 	ExportARN         string `json:"export_arn"`
 	FinishedWithError bool   `json:"finished_with_error"`
+	// DownloadCheckpoints allows a download to resume if interrupted
+	// when an exportARN is provided
+	DownloadCheckpoints []string `json:"downloadCheckpoints"`
 	// Checkpoints key represents worker index.
 	// Checkpoints value represents last valid event id.
 	Checkpoints map[int]string `json:"checkpoints"`
@@ -753,6 +791,20 @@ func (c *checkpointData) checkpointValues() []string {
 		return nil
 	}
 	return maps.Values(c.Checkpoints)
+}
+
+func (c *checkpointData) alreadyDownloaded(path string) bool {
+	if c == nil {
+		return false
+	}
+
+	for _, d := range c.DownloadCheckpoints {
+		if d == path {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (t *task) storeEmitterCheckpoint(in checkpointData) error {
