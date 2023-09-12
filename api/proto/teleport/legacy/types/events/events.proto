@@ -1036,6 +1036,7 @@ message SessionNetwork {
   int32 DstPort = 8 [(gogoproto.jsontag) = "dst_port"];
 
   // TCPVersion is the version of TCP (4 or 6).
+  // A non-zero value means TCP was used.
   int32 TCPVersion = 9 [(gogoproto.jsontag) = "version"];
 
   // Operation denotes what network operation was performed (e.g. connect)
@@ -1043,6 +1044,10 @@ message SessionNetwork {
 
   // Action denotes what happened in response to the event
   EventAction Action = 11 [(gogoproto.jsontag) = "action"];
+
+  // UDPVersion is the version of UDP (4 or 6).
+  // A non-zero value means UDP was used.
+  int32 UDPVersion = 12 [(gogoproto.jsontag) = "udp_version"];
 }
 
 // SessionData is emitted to report session data usage.
