@@ -3348,6 +3348,11 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	return certs, nil
 }
 
+func (a *ServerWithRoles) GetAccessRequestSuggestions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestSuggestions, error) {
+	suggestions, err := a.authServer.GetAccessRequestSuggestions(ctx, req)
+	return suggestions, trace.Wrap(err)
+}
+
 // verifyUserDeviceForCertIssuance verifies if the user device is a trusted
 // device, in accordance to the certificate usage and the cluster's DeviceTrust
 // settings. It's meant to be called before issuing new user certificates.

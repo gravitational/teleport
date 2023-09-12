@@ -217,7 +217,7 @@ func (s *Service[T]) UpdateResource(ctx context.Context, resource T) error {
 	return trace.Wrap(err)
 }
 
-// Upsert upserts a resource.
+// UpsertResource upserts a resource.
 func (s *Service[T]) UpsertResource(ctx context.Context, resource T) error {
 	item, err := s.MakeBackendItem(resource, resource.GetName())
 	if err != nil {

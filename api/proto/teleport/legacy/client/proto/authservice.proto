@@ -2325,6 +2325,16 @@ message ExportUpgradeWindowsResponse {
   string SystemdUnitSchedule = 3;
 }
 
+message AccessRequestSuggestionRequest {
+  // AccessRequest is the access request to get suggestions for.
+  string accessRequestID = 1;
+}
+
+// Suggestions describes a list of suggestions for an access list.
+message AccessRequestSuggestionsResponse {
+  types.AccessRequestSuggestions suggestions = 1;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2424,6 +2434,9 @@ service AuthService {
   rpc SubmitAccessReview(types.AccessReviewSubmission) returns (types.AccessRequestV3);
   // GetAccessCapabilities requests the access capabilites of a user.
   rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
+
+  // GetSuggestions returns a list of suggestions for the given access list.
+  rpc GetAccessRequestSuggestions(AccessRequestSuggestionRequest) returns (AccessRequestSuggestionsResponse);
 
   // GetPluginData gets all plugin data matching the supplied filter.
   rpc GetPluginData(types.PluginDataFilter) returns (PluginDataSeq);

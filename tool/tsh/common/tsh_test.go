@@ -187,6 +187,10 @@ func handleReexec() {
 
 type cliModules struct{}
 
+func (p *cliModules) GenerateAccessListSuggestions(_ context.Context, _ modules.AccessListGetter, _ types.AccessRequest) ([]string, error) {
+	return []string{}, nil
+}
+
 // BuildType returns build type (OSS or Enterprise)
 func (p *cliModules) BuildType() string {
 	return "CLI"

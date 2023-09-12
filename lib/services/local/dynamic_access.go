@@ -285,6 +285,49 @@ func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req type
 	return nil
 }
 
+func (s *DynamicAccessService) UpsertAccessRequestSuggestions(ctx context.Context, req types.AccessRequest, accessLists []string) error {
+	// create the new access request suggestion object
+	item, err := itemFromAccessListSuggestion(req, accessLists)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// store it in the backend
+	if _, err := s.Put(ctx, item); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *DynamicAccessService) GetAccessRequestSuggestions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestSuggestions, error) {
+	// get the access request suggestions from the backend
+	item, err := s.Get(ctx, accessRequestSuggestionKey(req.GetName()))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			// do not return nil as the caller will assume that nil error
+			// means that there are some suggestions
+			return &types.AccessRequestSuggestions{Suggestions: []*types.AccessRequestSuggestion{}}, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	// unmarshal the access request suggestions
+	suggestions, err := services.UnmarshalAccessRequestSuggestion(item.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessReqSuggestions := &types.AccessRequestSuggestions{
+		Suggestions: make([]*types.AccessRequestSuggestion, 0, len(suggestions)),
+	}
+
+	for _, suggestion := range suggestions {
+		accessReqSuggestions.Suggestions = append(accessReqSuggestions.Suggestions, &types.AccessRequestSuggestion{
+			AccessListName: suggestion,
+		})
+	}
+
+	return accessReqSuggestions, nil
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (s *DynamicAccessService) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
 	switch filter.Kind {
@@ -452,6 +495,19 @@ func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 	}, nil
 }
 
+func itemFromAccessListSuggestion(req types.AccessRequest, suggestedItems []string) (backend.Item, error) {
+	value, err := services.MarshalAccessRequestSuggestion(suggestedItems)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+	return backend.Item{
+		Key:     accessRequestSuggestionKey(req.GetName()),
+		Value:   value,
+		Expires: req.Expiry(),
+		ID:      req.GetResourceID(),
+	}, nil
+}
+
 func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (types.AccessRequest, error) {
 	opts = append(
 		opts,
@@ -502,13 +558,18 @@ func accessRequestKey(name string) []byte {
 	return backend.Key(accessRequestsPrefix, name, paramsPrefix)
 }
 
+func accessRequestSuggestionKey(name string) []byte {
+	return backend.Key(accessRequestSuggestionsPrefix, name, paramsPrefix)
+}
+
 func pluginDataKey(kind string, name string) []byte {
 	return backend.Key(pluginDataPrefix, kind, name, paramsPrefix)
 }
 
 const (
-	accessRequestsPrefix = "access_requests"
-	pluginDataPrefix     = "plugin_data"
-	maxCmpAttempts       = 7
-	retryPeriodMs        = 2048
+	accessRequestsPrefix           = "access_requests"
+	accessRequestSuggestionsPrefix = "access_request_suggestions"
+	pluginDataPrefix               = "plugin_data"
+	maxCmpAttempts                 = 7
+	retryPeriodMs                  = 2048
 )

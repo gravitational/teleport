@@ -1056,6 +1056,16 @@ func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
 	return trace.Wrap(err)
 }
 
+func (c *Client) GetAccessRequestSuggestions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestSuggestions, error) {
+	resp, err := c.grpc.GetAccessRequestSuggestions(ctx, &proto.AccessRequestSuggestionRequest{
+		AccessRequestID: req.GetName(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.Suggestions, nil
+}
+
 // SetAccessRequestState updates the state of an existing access request.
 func (c *Client) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
 	setter := proto.RequestStateSetter{

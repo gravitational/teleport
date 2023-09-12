@@ -2922,6 +2922,17 @@ message AccessReviewConditions {
   repeated string PreviewAsRoles = 4 [(gogoproto.jsontag) = "preview_as_roles,omitempty"];
 }
 
+// Suggestion describes a suggestion for an access list.
+message AccessRequestSuggestion {
+  // associated access list
+  string accessListName = 1;
+}
+
+message AccessRequestSuggestions {
+  // suggestions is a list of suggestions for access lists.
+  repeated AccessRequestSuggestion suggestions = 1;
+}
+
 // ClaimMapping maps a claim to teleport roles.
 message ClaimMapping {
   // Claim is a claim name.
