@@ -961,6 +961,7 @@ func getDeviceMetadata(dev *devicepb.Device) *apievents.DeviceMetadata {
 		OsType:       apievents.OSType(dev.OsType),
 		AssetTag:     dev.AssetTag,
 		CredentialId: dev.Credential.GetId(),
+		DeviceOrigin: apievents.DeviceOrigin(dev.Source.GetOrigin()),
 	}
 }
 
