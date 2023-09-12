@@ -53,7 +53,7 @@ type ProxyConfig struct {
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
 	ReverseTunnelListenAddr utils.NetAddr
 
-	// PROXYProtocolMode controls behavior related to PROXY protocol.
+	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
 
 	// WebAddr is address for web portal of the proxy

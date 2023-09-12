@@ -96,7 +96,7 @@ type TLSServerConfig struct {
 	// kubernetes_service. The servers are kept in memory to avoid making unnecessary
 	// unmarshal calls followed by filtering and to improve memory usage.
 	KubernetesServersWatcher *services.KubeServerWatcher
-	// PROXYProtocolMode controls behavior related to PROXY protocol.
+	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
 }
 

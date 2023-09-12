@@ -53,7 +53,7 @@ var (
 		"client source and destination addresses should be valid same TCP version non-nil IP addresses")
 )
 
-// PROXYProtocolMode controls behavior related to PROXY protocol.
+// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 // Possible values:
 // - 'on': one PROXY header is accepted and required per incoming connection.
 // - 'off': no PROXY headers are allows, otherwise connection is rejected.
@@ -85,7 +85,7 @@ type Config struct {
 	// Clock is a clock to override in tests, set to real time clock
 	// by default
 	Clock clockwork.Clock
-	// PROXYProtocolMode controls behavior related to PROXY protocol.
+	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode PROXYProtocolMode
 	// ID is an identifier used for debugging purposes
 	ID string
