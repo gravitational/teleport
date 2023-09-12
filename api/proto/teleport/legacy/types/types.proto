@@ -1258,6 +1258,12 @@ message ProvisionTokenSpecV2CircleCI {
 // ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
 // ProvisionTokenSpecV2
 message ProvisionTokenSpecV2Kubernetes {
+  message StaticJWKSConfig {
+    // JWKS should be the JSON Web Key Set formatted public keys of that the
+    // Kubernetes Cluster uses to sign service account tokens.
+    // This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
+    string JWKS = 1 [(gogoproto.jsontag) = "jwks,omitempty"];
+  }
   // Rule is a set of properties the Kubernetes-issued token might have to be
   // allowed to use this ProvisionToken
   message Rule {
@@ -1268,6 +1274,17 @@ message ProvisionTokenSpecV2Kubernetes {
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // Type controls which behavior should be used for validating the Kubernetes
+  // Service Account token. Support values:
+  // - `in_cluster`
+  // - `static_jwks`
+  // If unset, this defaults to `in_cluster`.
+  string Type = 2 [
+    (gogoproto.jsontag) = "type,omitempty",
+    (gogoproto.casttype) = "KubernetesJoinType"
+  ];
+  // StaticJWKS is the configuration specific to the `static_jwks` type.
+  StaticJWKSConfig StaticJWKS = 3 [(gogoproto.jsontag) = "static_jwks,omitempty"];
 }
 
 // ProvisionTokenSpecV2Azure contains the Azure-specific part of the
