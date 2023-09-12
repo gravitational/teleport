@@ -1097,6 +1097,10 @@
               "slug": "/database-access/guides/cassandra-self-hosted/"
             },
             {
+              "title": "Self-Hosted ClickHouse",
+              "slug": "/database-access/guides/clickhouse-self-hosted/"
+            },
+            {
               "title": "Self-Hosted CockroachDB",
               "slug": "/database-access/guides/cockroachdb-self-hosted/"
             },
