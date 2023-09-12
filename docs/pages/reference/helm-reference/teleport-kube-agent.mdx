@@ -69,8 +69,6 @@ The `teleport-kube-agent` chart deploys the following Kubernetes resources:
 | `Role`                | The release name, suffixed by `-psp`                       | Enforces security requirements for pods deployed by `teleport-kube-agent`.                                                                                                                                                                                                                              | `podSecurityPolicy.enabled` is `true` and the Kubernetes cluster version is < 1.23.                               |
 | `RoleBinding`         | The release name, suffixed by `-psp`                       | Enforces security requirements for pods deployed by `teleport-kube-agent`.                                                                                                                                                                                                                              | `podSecurityPolicy.enabled` is `true` and the Kubernetes cluster version is < 1.23.                               |
 
-## Values reference
-
 ## `roles`
 
 This parameter is not mandatory to preserve backwards compatibility with older chart versions, but we recommend it is set.
