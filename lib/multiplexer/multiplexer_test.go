@@ -907,9 +907,8 @@ func TestMux(t *testing.T) {
 
 			clt := tls.Client(conn, clientConfig(backend4))
 
-			out, err := utils.RoundtripWithConn(clt)
-			require.NoError(t, err)
-			require.Equal(t, addr1.String(), out)
+			_, err = utils.RoundtripWithConn(clt)
+			require.Error(t, err)
 		})
 		t.Run("two unsigned PROXY headers, gets an error", func(t *testing.T) {
 			conn, err := net.Dial("tcp", listener4.Addr().String())
