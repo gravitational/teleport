@@ -1,6 +1,6 @@
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: example
 spec:
@@ -163,8 +163,30 @@ spec:
     # kubernetes_resources indicates the Kubernetes resources that a user with
     # this role is allowed to access.
     kubernetes_resources:
-        # The resource kind. Teleport currently only supports "pod".
-      - kind: pod
+        # The resource kind. Teleport currently supports:
+        # - * (all resources)
+        # - pod
+        # - secret
+        # - configmap
+        # - namespace
+        # - service
+        # - serviceaccount
+        # - kube_node
+        # - persistentvolume
+        # - persistentvolumeclaim
+        # - deployment
+        # - replicaset
+        # - statefulset
+        # - daemonset
+        # - clusterrole
+        # - kube_role
+        # - clusterrolebinding
+        # - rolebinding
+        # - cronjob
+        # - job
+        # - certificatesigningrequest
+        # - ingress
+      - kind: '*'
         # The name of the Kubernetes namespace in which to allow access the
         # resources you specify with "name" and "kind".
         # The wildcard character "*" matches any sequence of characters.
@@ -176,6 +198,20 @@ spec:
         # If the value begins with "^" and ends with "$", the Kubernetes
         # Service will treat it as a regular expression.
         name: "^nginx-[a-z0-9-]+$"
+        # The verbs that the user is allowed to perform on the resource.
+        # Teleport currently supports:
+        # - * (all verbs)
+        # - get
+        # - list
+        # - watch
+        # - create
+        # - update
+        # - patch
+        # - delete
+        # - deletecollection
+        # - exec - allows users to execute commands in a pod
+        # - portforward - allows users to forward ports from a pod
+        verbs: ['*']
 
     # Functions transform variables.
     db_users: ['{{email.local(external.email)}}']

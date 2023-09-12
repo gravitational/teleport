@@ -829,7 +829,12 @@
     "yubishm",
     "znmqk",
     "zxvf",
-    "zztop"
+    "zztop",
+    "persistentvolume",
+    "persistentvolumeclaim",
+    "daemonset",
+    "certificatesigningrequest",
+    "deletecollection"
   ],
   "flagWords": [
     "hte"
