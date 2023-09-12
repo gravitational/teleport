@@ -309,10 +309,11 @@ type channelReadWriter interface {
 // DiscardChannelData discards all data received from an ssh channel in the
 // background.
 func DiscardChannelData(ch channelReadWriter) {
-	if ch != nil {
-		go io.Copy(io.Discard, ch)
-		if stderr := ch.Stderr(); stderr != nil {
-			go io.Copy(io.Discard, stderr)
-		}
+	if ch == nil {
+		return
+	}
+	go io.Copy(io.Discard, ch)
+	if stderr := ch.Stderr(); stderr != nil {
+		go io.Copy(io.Discard, stderr)
 	}
 }

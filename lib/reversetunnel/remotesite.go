@@ -379,13 +379,6 @@ func (s *remoteSite) fanOutProxies(proxies []types.Server) {
 // the connection as invalid.
 func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
 	sshutils.DiscardChannelData(ch)
-	if ch != nil {
-		defer func() {
-			if err := ch.Close(); err != nil {
-				s.logger.Warnf("Failed to close heartbeat channel: %v", err)
-			}
-		}()
-	}
 
 	logger := s.logger.WithFields(log.Fields{
 		"serverID": conn.nodeID,
