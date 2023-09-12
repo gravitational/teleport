@@ -1,0 +1,25 @@
+---
+title: Troubleshooting Server Access
+description: Describes common issues and solutions for access to servers.
+---
+
+This section describes common issues that you might encounter in managing access to servers
+with Teleport and how to work around or resolve them.
+
+## Error starting session due to teleport file settings
+
+Teleport should be set with "-rwxr-xr-x" since it is run as the user that is starting a ssh session. 
+Some systems will configure new installations it so it is not executable by any user.  
+See https://github.com/gravitational/teleport/issues/19943.
+
+- No users set for logins when converting to SSO. Our instructions show adding a user and setting a login.  
+SSO users will login often with no set logins so that leads to confusion why they don't see.  
+The fix is to hardcode or use traits in the roles.
+
+- A server listing does not mean it is actually available. 
+A server will list ~10m and sometimes more after the last heartbeat.  
+If a server is coming back as unavailable the "tctl nodes ls --format json" or "tsh ls --format json" 
+will show the expiration date.  If the expiration is
+showing low numbers that means the heartbeat isn't coming through.  LIkely that the node has stopped heartbeating.
+
+- Attempts to join sessions are failing.  This requires role permission.
