@@ -8,6 +8,9 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
+// Global toggle for UDP tracing.
+u8 udp_disable SEC(".data") = 1;
+
 // Maximum number of in-flight connect syscalls supported
 #define INFLIGHT_MAX 8192
 
@@ -30,6 +33,7 @@ struct ipv4_data_t {
     u32 daddr;
     u16 dport;
     char task[TASK_COMM_LEN];
+    u16 sk_type; // SOCK_STREAM or SOCK_DGRAM.
 };
 BPF_RING_BUF(ipv4_events, EVENTS_BUF_SIZE);
 
@@ -41,6 +45,7 @@ struct ipv6_data_t {
     struct in6_addr daddr;
     u16 dport;
     char task[TASK_COMM_LEN];
+    u16 sk_type; // SOCK_STREAM or SOCK_DGRAM.
 };
 BPF_RING_BUF(ipv6_events, EVENTS_BUF_SIZE);
 
@@ -94,6 +99,7 @@ static int trace_connect_return(int ret, short ipver)
         data4.dport = __builtin_bswap16(dport);
         data4.cgroup = bpf_get_current_cgroup_id();
         bpf_get_current_comm(&data4.task, sizeof(data4.task));
+        data4.sk_type = BPF_CORE_READ(skp, sk_type);
         if (bpf_ringbuf_output(&ipv4_events, &data4, sizeof(data4), 0) != 0)
             INCR_COUNTER(lost);
 
@@ -106,6 +112,7 @@ static int trace_connect_return(int ret, short ipver)
         data6.dport = __builtin_bswap16(dport);
         data6.cgroup = bpf_get_current_cgroup_id();
         bpf_get_current_comm(&data6.task, sizeof(data6.task));
+        data6.sk_type = BPF_CORE_READ(skp, sk_type);
         if (bpf_ringbuf_output(&ipv6_events, &data6, sizeof(data6), 0) != 0)
             INCR_COUNTER(lost);
     }
@@ -124,7 +131,7 @@ int BPF_KPROBE(kprobe__tcp_v4_connect, struct sock *sk)
 SEC("kretprobe/tcp_v4_connect")
 int kretprobe__tcp_v4_connect(struct pt_regs *ctx)
 {
-    return trace_connect_return(PT_REGS_RC(ctx), 4);
+    return trace_connect_return(PT_REGS_RC(ctx), /*ipver=*/4);
 }
 
 SEC("kprobe/tcp_v6_connect")
@@ -136,5 +143,52 @@ int BPF_KPROBE(kprobe__tcp_v6_connect, struct sock *sk)
 SEC("kretprobe/tcp_v6_connect")
 int kretprobe__tcp_v6_connect(struct pt_regs *ctx)
 {
-    return trace_connect_return(PT_REGS_RC(ctx), 6);
+    return trace_connect_return(PT_REGS_RC(ctx), /*ipver=*/6);
+}
+
+// udp_sendmsg is responsible for all UDP sends (send, sendmsg and sendto).
+// Used for both "connect"-ed and non-connect UDP sockets.
+//
+// * https://elixir.bootlin.com/linux/v5.8/source/net/ipv4/udp.c#L971
+// * https://elixir.bootlin.com/linux/v5.8/source/net/ipv4/udp.c#L2804
+SEC("kprobe/udp_sendmsg")
+int BPF_KPROBE(kprobe__udp_sendmsg, struct sock *sk, struct msghdr *msg, size_t len)
+{
+    if (udp_disable) {
+        return 0;
+    }
+    return trace_connect_entry(sk);
+}
+
+SEC("kretprobe/udp_sendmsg")
+int BPF_KRETPROBE(kretprobe__udp_sendmsg, int ret)
+{
+    if (udp_disable) {
+        return 0;
+    }
+    // ret is the number of bytes sent, or failure if -1.
+    return trace_connect_return(ret == -1 ? ret : 0, /*ipver=*/4);
+}
+
+// udpv6_sendmsg is the IPv6 version of udp_sendmsg.
+//
+// * https://elixir.bootlin.com/linux/v5.8/source/net/ipv6/udp.c#L1219
+// * https://elixir.bootlin.com/linux/v5.8/source/net/ipv6/udp.c#L1671
+SEC("kprobe/udpv6_sendmsg")
+int BPF_KPROBE(kprobe__udpv6_sendmsg, struct sock *sk, struct msghdr *msg, size_t len)
+{
+    if (udp_disable) {
+        return 0;
+    }
+    return trace_connect_entry(sk);
+}
+
+SEC("kretprobe/udpv6_sendmsg")
+int BPF_KRETPROBE(kretprobe__udpv6_sendmsg, int ret)
+{
+    if (udp_disable) {
+        return 0;
+    }
+    // ret is the number of bytes sent, or failure if -1.
+    return trace_connect_return(ret == -1 ? ret : 0, /*ipver=*/6);
 }
