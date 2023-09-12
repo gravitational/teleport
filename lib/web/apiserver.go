@@ -271,6 +271,9 @@ type Config struct {
 	// NodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
 	NodeWatcher *services.NodeWatcher
+
+	// AccessGraphAddr is the address of the Access Graph service HTTP API
+	AccessGraphAddr string
 }
 
 // SetDefaults ensures proper default values are set if
@@ -978,6 +981,11 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 // PublicProxyAddr returns the publicly advertised proxy address
 func (h *Handler) PublicProxyAddr() string {
 	return h.cfg.PublicProxyAddr
+}
+
+// AccessGraphAddr returns the TAG API address
+func (h *Handler) AccessGraphAddr() string {
+	return h.cfg.AccessGraphAddr
 }
 
 func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
