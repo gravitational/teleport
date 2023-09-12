@@ -76,8 +76,8 @@ discovery_service:
         labels:
           "*": "*"
     # Matchers for discovering services inside Kubernetes clusters and exposing them as Teleport apps
-    # When `kubernetes` value is set `discovery_group` parameter is mandatory, it should be set to 
-    # the name of Kubernetes cluster discovery service is running in.
+    # When the `kubernetes` value is set, the `discovery_group` parameter is mandatory and should be set to
+    # the name of Kubernetes cluster where the discovery service is running.
     kubernetes:
       # Type of services to discover. Currently, only "app" is supported. Default value is `["app"]`
     - types: ["app"]
