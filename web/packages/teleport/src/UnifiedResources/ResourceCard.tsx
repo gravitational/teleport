@@ -28,7 +28,7 @@ import {
 } from 'design';
 import copyToClipboard from 'design/utils/copyToClipboard';
 
-import { SkeletonLoader } from 'design/SkeletonLoader';
+import { ShimmerBox } from 'design/ShimmerBox';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import {
   Copy,
@@ -229,33 +229,23 @@ export function LoadingCard() {
     <LoadingCardWrapper p={3}>
       <Flex gap={2} alignItems="start">
         {/* Image */}
-        <Box height="45px" width="45px">
-          <SkeletonLoader />
-        </Box>
+        <ShimmerBox height="45px" width="45px" />
         {/* Name and action button */}
         <Box flex={1}>
           <Flex gap={2} mb={2} justifyContent="space-between">
-            <Box
+            <ShimmerBox
               height="24px"
               css={`
                 flex-basis: ${randomNum(100, 30)}%;
               `}
-            >
-              <SkeletonLoader />
-            </Box>
-            <Box height="24px" width="90px">
-              <SkeletonLoader />
-            </Box>
+            />
+            <ShimmerBox height="24px" width="90px" />
           </Flex>
-          <Box height="16px" width={`${randomNum(90, 40)}%`} mb={2}>
-            <SkeletonLoader />
-          </Box>
+          <ShimmerBox height="16px" width={`${randomNum(90, 40)}%`} mb={2} />
           <Box>
             <Flex gap={2}>
               {new Array(randomNum(4, 0)).fill(null).map((_, i) => (
-                <Box key={i} height="16px" width="60px">
-                  <SkeletonLoader />
-                </Box>
+                <ShimmerBox key={i} height="16px" width="60px" />
               ))}
             </Flex>
           </Box>

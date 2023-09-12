@@ -18,10 +18,10 @@ import React from 'react';
 
 import { Box, Flex } from 'design';
 
-import { SkeletonLoader } from './SkeletonLoader';
+import { ShimmerBox } from './ShimmerBox';
 
 export default {
-  title: 'SkeletonLoader',
+  title: 'Design/ShimmerBox',
 };
 
 export const Cards = () => {
@@ -38,16 +38,10 @@ const LoadingCard = () => {
   return (
     <Box p={2} width="300px">
       <Flex gap={2}>
-        <Box width="45px" height="45px">
-          <SkeletonLoader />
-        </Box>
+        <ShimmerBox width="45px" height="45px" />
         <Box flex={1}>
-          <Box height="20px" mb={2}>
-            <SkeletonLoader />
-          </Box>
-          <Box height="12px">
-            <SkeletonLoader />
-          </Box>
+          <ShimmerBox height="20px" mb={2} />
+          <ShimmerBox height="12px" />
         </Box>
       </Flex>
     </Box>
