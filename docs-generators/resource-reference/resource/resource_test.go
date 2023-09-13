@@ -21,8 +21,9 @@ func TestGenerate(t *testing.T) {
 		description string
 		// Source fixture. Replace backticks with the "BACKTICK"
 		// placeholder.
-		source   string
-		expected Resource
+		source       string
+		allResources map[PackageInfo]Resource
+		expected     Resource
 	}{
 		{
 			description: "scalar fields with one field ignored",
@@ -168,9 +169,53 @@ type Metadata struct {
 				},
 			},
 		},
-		// TODO: Test for a field pointing to a program-defined type.
-		// Leave this alone and have another part of the program edit
-		// it, since NewFromDecl only knows about a decl, not all decls
+		{
+			description: "a custom type field with no override",
+			source: `
+package mypkg
+
+// Server includes information about a server registered with Teleport.
+type Server struct {
+    // Name is the name of the resource.
+    Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
+    // Spec contains information about the server.
+    Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
+}
+`,
+			allResources: map[PackageInfo]Resource{
+				PackageInfo{
+					TypeName:    "ServerSpecV1",
+					PackageName: "types",
+				}: Resource{
+					SectionName: "ServerSpec",
+					Description: "Spec for a server.",
+					SourcePath:  "types.go",
+					Fields:      nil,
+					YAMLExample: "",
+				},
+			},
+			expected: Resource{
+				SectionName: "Server",
+				Description: "Includes information about a server registered with Teleport.",
+				SourcePath:  "myfile.go",
+				YAMLExample: `name: "string"
+spec:
+  # ... 
+`,
+				Fields: []Field{
+					Field{
+						Name:        "name",
+						Description: "The name of the resource.",
+						Type:        "string",
+					},
+					Field{
+						Name:        "spec",
+						Description: "Contains information about the server.",
+						Type:        "[ServerSpec](#ServerSpec)",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -190,7 +235,7 @@ type Metadata struct {
 				t.Fatalf("test fixture declaration is not a GenDecl")
 			}
 
-			r, err := NewFromDecl(gd, "myfile.go")
+			r, err := NewFromDecl(gd, "myfile.go", tc.allResources)
 			assert.NoError(t, err)
 
 			assert.Equal(t, tc.expected, r)
