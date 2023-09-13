@@ -63,15 +63,28 @@ type rawNamedStruct struct {
 // strings, etc. Used for printing example YAML documents and tables of fields.
 // This is not intended to be a comprehensive YAML AST.
 type yamlKindNode interface {
-	getInner() yamlKindNode
+	// String representation to include in a table of fields
+	formatForTable() string
+	// Example YAML values for the type
+	formatForExampleYAML() string
 }
 
 type yamlSequence struct {
 	elementKind yamlKindNode
 }
 
-func (y yamlSequence) getInner() yamlKindNode {
-	return y.elementKind
+func (y yamlSequence) formatForTable() string {
+	return `[]` + y.elementKind.formatForTable()
+}
+
+func (y yamlSequence) formatForExampleYAML() string {
+	return fmt.Sprintf(`- %v
+- %v
+- %v`,
+		y.elementKind.formatForExampleYAML(),
+		y.elementKind.formatForExampleYAML(),
+		y.elementKind.formatForExampleYAML(),
+	)
 }
 
 type yamlMapping struct {
@@ -79,26 +92,41 @@ type yamlMapping struct {
 	valueKind yamlKindNode
 }
 
-func (y yamlMapping) getInner() yamlKindNode {
-	return y.valueKind
+func (y yamlMapping) formatForExampleYAML() string {
+	kv := fmt.Sprintf("%v: %v", y.keyKind.formatForExampleYAML(), y.valueKind.formatForExampleYAML())
+	return fmt.Sprintf(`- %v
+- %v
+- %v`, kv, kv, kv)
 }
 
 type yamlString struct{}
 
-func (y yamlString) getInner() yamlKindNode {
-	return nil
+func (y yamlString) formatForTable() string {
+	return "string"
+}
+
+func (y yamlString) formatForExampleYAML() string {
+	return `"string"`
 }
 
 type yamlNumber struct{}
 
-func (y yamlNumber) getInner() yamlKindNode {
-	return nil
+func (y yamlNumber) formatForTable() string {
+	return "number"
+}
+
+func (y yamlNumber) formatForExampleYAML() string {
+	return "1"
 }
 
 type yamlBool struct{}
 
-func (y yamlBool) getInner() yamlKindNode {
-	return nil
+func (y yamlBool) formatForTable() string {
+	return "Boolean"
+}
+
+func (y yamlBool) formatForExampleYAML() string {
+	return "true"
 }
 
 // getRawNamedStruct returns the type spec to use for further processing. Returns an
@@ -177,15 +205,7 @@ func makeYAMLExample(fields []rawField) (string, error) {
 		// TODO: handle predeclared composite types per the relevant section of the
 		// RFD.
 		// TODO: handle named types per the relevant section of the RFD
-
-		switch node.(type) {
-		case yamlString:
-			example.WriteString(`"string"`)
-		case yamlNumber:
-			example.WriteString("1")
-		case yamlBool:
-			example.WriteString("true")
-		}
+		example.WriteString(node.formatForExampleYAML())
 		return nil
 	}
 
@@ -245,26 +265,6 @@ func getYAMLType(field *ast.Field) (yamlKindNode, error) {
 	}
 }
 
-// tableValueFor returns a summary of a YAML type suitable for printing in a
-// table of fields within the resource reference. For composite types,
-// recursively traverses the children of node.
-func tableValueFor(node yamlKindNode) (string, error) {
-	traverseNode := func(node yamlKindNode, partialReturn string) (string, error) {
-		switch node.(type) {
-		case yamlString:
-			return "string", nil
-		case yamlNumber:
-			return "number", nil
-		case yamlBool:
-			return "Boolean", nil
-		default:
-			return "", fmt.Errorf("we cannot find a value to print to the field table for type %+v", node)
-
-		}
-	}
-	return traverseNode(node, "")
-}
-
 // makeRawField translates an *ast.Field into a rawField for downstream
 // processing.
 func makeRawField(field *ast.Field) (rawField, error) {
@@ -298,14 +298,10 @@ func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 	for _, field := range fields {
 		desc := strings.Trim(strings.ReplaceAll(field.doc, "\n", " "), " ")
 
-		tv, err := tableValueFor(field.kind)
-		if err != nil {
-			return nil, err
-		}
 		result = append(result, Field{
 			Description: descriptionWithoutName(desc, field.name),
 			Name:        field.jsonName,
-			Type:        tv,
+			Type:        field.kind.formatForTable(),
 		})
 	}
 	return result, nil
