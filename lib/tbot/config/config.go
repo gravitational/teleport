@@ -662,7 +662,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 // ReadConfigFromFile reads and parses a YAML config from a file.
 func ReadConfigFromFile(filePath string, manualMigration bool) (*BotConfig, error) {
-	f, err := utils.OpenFileAllowingSymlinks(filePath)
+	f, err := utils.OpenFileAllowingUnsafeLinks(filePath)
 	if err != nil {
 		return nil, trace.Wrap(err, fmt.Sprintf("failed to open file: %v", filePath))
 	}

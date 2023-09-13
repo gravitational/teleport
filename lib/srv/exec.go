@@ -527,7 +527,7 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	envRootPath := defaultEnvRootPath
 
 	// open file, if it doesn't exist return a default path and move on
-	f, err := utils.OpenFileAllowingSymlinks(loginDefsPath)
+	f, err := utils.OpenFileAllowingUnsafeLinks(loginDefsPath)
 	if err != nil {
 		if uid == "0" {
 			log.Infof("Unable to open %q: %v: returning default su path: %q", loginDefsPath, err, defaultEnvRootPath)
