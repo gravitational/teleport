@@ -3,4 +3,156 @@ title: Deploying Machine ID on Kubernetes
 description: How to install and configure Machine ID on Kubernetes
 ---
 
-TODO
+Kubernetes is a popular container workload orchestrator. This document covers
+deploying Machine ID as a Kubernetes workload in order to provide credentials
+to other workloads running in the same Kubernetes namespace.
+
+## Background
+
+There are typically two deployment styles when it comes to workloads such as
+`tbot` which provide a service to other workloads in your cluster.
+
+**Standalone Deployment**: `tbot` runs as a Kubernetes deployment, writing the
+output credentials to a Kubernetes secret, which can then be mounted in the pods
+that need to use the credentials.
+
+**Sidecar**: `tbot` runs as a second container within the same pod as the
+service that needs to use the credentials. The credentials are written to a
+directory which is mounted within both the containers.
+
+Due to the current limited support in Kubernetes for sidecars, we recommend that
+the Standalone Deployment style is used. This style will be covered later in
+this guide.
+
+## Guide
+
+### Before you start
+
+###
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: kubernetes-bot
+spec:
+  roles: [Bot]
+  bot_name: docker-desktop
+  join_method: kubernetes
+  kubernetes:
+    type: static_jwks
+    static_jwks:
+      jwks: |
+        {"keys":[{"use":"sig","kty":"RSA","kid":"KCk4tlf5yXj7GJ20L9XcvviNIiCf1QaUhw1Cyzd5VjA","alg":"RS256","n":"vYiAKomeNl--3-HaQ24DhJLlgg05gWIKmYRUxPx5vg4NLTdezUHxl70mygFNSYQrSgRqGpUp1j3_fOQYVKhWOVMPLtIYz4pnH-3mUBhNhpfLZiyMUqtjhijekqGOhlbEwHDvCm0tAMESSJBNHneR2tqEugsnDOpPmi3Z220MPJFO9FotFNd4vhmwEp9raWEIRSW3tRZiBoZ_1DAgR5LlO4q__sr125WL0n3s9exVrjQJxpkkUD4ECdO9020VtgPXL3sw__bE0UMuOWDvAY2sCb6rIN76rRLUbGc_IIP1ahLoFVDqdef-tsFM4pW_dbXu77YpfTfK_sTKOEVeGtKBJQ","e":"AQAB"}]}
+    allow:
+    - service_account: "default:tbot"
+```
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tbot
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tbot-secrets-admin
+subjects:
+  - kind: ServiceAccount
+    name: tbot
+roleRef:
+  kind: Role
+  name:  secrets-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: secrets-admin
+rules:
+  - apiGroups: [""] # "" indicates the core API group
+    resources: ["secrets"]
+    verbs: ["*"]
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tbot
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tbot
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tbot
+    spec:
+      containers:
+        - name: tbot
+          image: public.ecr.aws/gravitational/teleport:14.0.0
+          command:
+            - tbot
+          args:
+            - start
+            - -c
+            - /config/tbot.yaml
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: KUBERNETES_TOKEN_PATH
+              value: /var/run/secrets/tokens/join-sa-token
+          volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /var/run/secrets/tokens
+              name: join-sa-token
+      serviceAccountName: tbot
+      volumes:
+        - name: config
+          configMap:
+            name: tbot-config
+        - name: join-sa-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: join-sa-token
+                  expirationSeconds: 600
+                  audience: leaf.tele.ottr.sh
+```
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tbot-config
+data:
+  tbot.yaml: |
+    version: v2
+    onboarding:
+      join_method: kubernetes
+      token: bot-kubernetes
+    storage:
+      type: memory
+    auth_server: example.teleport.sh:443
+    outputs:
+      # Replace this output with the appropriate one determined in the access
+      # guide you follow after this guide. Retain the `destination` field to
+      # write to a secret.
+      - type: identity
+        destination:
+          type: kubernetes_secret
+          secret_name: output-secret
+```
+
+## Next steps
+
+TODO: Follow an access guide to configure access >:3
