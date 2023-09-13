@@ -1,4 +1,4 @@
-.version: &version "15.0.0-dev-reeddebian12.2"
+.version: &version "15.0.0-dev-reeddebian12.0"
 
 name: teleport-kube-agent
 apiVersion: v2
