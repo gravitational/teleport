@@ -101,12 +101,14 @@ type yamlMapping struct {
 
 func (y yamlMapping) formatForExampleYAML(indents int) string {
 	var leading string
+	// Add an extra indent for mappings
+	indents = indents + 1
 	for i := 0; i < indents; i++ {
 		leading += "  "
 	}
 
-	kv := fmt.Sprintf("%v%v: %v\n", leading, y.keyKind.formatForExampleYAML(0), y.valueKind.formatForExampleYAML(indents+1))
-	return fmt.Sprintf(`%v%v%v`, kv, kv, kv)
+	kv := fmt.Sprintf("%v%v: %v", leading, y.keyKind.formatForExampleYAML(0), y.valueKind.formatForExampleYAML(indents+1))
+	return fmt.Sprintf("\n%v\n%v\n%v", kv, kv, kv)
 }
 
 func (y yamlMapping) formatForTable() string {
