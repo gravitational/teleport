@@ -528,6 +528,14 @@ const (
 	// Must be power of 2.
 	OpenPerfBufferPageCount = 128
 
+	// UDPSilencePeriod is the default value in which subsequent UDP sends are
+	// silenced to avoid audit noise.
+	UDPSilencePeriod = 10 * time.Second
+
+	// UDPSilenceBufferSize is the default max number of concurrently silenced
+	// UDP sockets.
+	UDPSilenceBufferSize = 128
+
 	// CgroupPath is where the cgroupv2 hierarchy will be mounted.
 	CgroupPath = "/cgroup2"
 )

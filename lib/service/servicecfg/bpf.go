@@ -14,7 +14,11 @@
 
 package servicecfg
 
-import "github.com/gravitational/teleport/lib/defaults"
+import (
+	"time"
+
+	"github.com/gravitational/teleport/lib/defaults"
+)
 
 // BPFConfig holds configuration for the BPF service.
 type BPFConfig struct {
@@ -35,6 +39,20 @@ type BPFConfig struct {
 
 	// UDPDisableTracing disables UDP connection events.
 	UDPDisableTracing bool
+
+	// UDPSilencePeriod is the period in which subsequent UDP sends are silenced
+	// to avoid audit noise.
+	//
+	// Set to zero to log every send.
+	//
+	// Defaults to [defaults.UDPSilencePeriod].
+	UDPSilencePeriod *time.Duration
+
+	// UDPSilenceBufferSize is the max number of concurrently silenced UDP
+	// sockets.
+	//
+	// See [defaults.UDPSilenceBufferSize].
+	UDPSilenceBufferSize *int
 }
 
 // CheckAndSetDefaults checks BPF configuration.
@@ -53,6 +71,14 @@ func (c *BPFConfig) CheckAndSetDefaults() error {
 	}
 	if c.CgroupPath == "" {
 		c.CgroupPath = defaults.CgroupPath
+	}
+	if c.UDPSilencePeriod == nil {
+		val := defaults.UDPSilencePeriod
+		c.UDPSilencePeriod = &val
+	}
+	if c.UDPSilenceBufferSize == nil {
+		val := defaults.UDPSilenceBufferSize
+		c.UDPSilenceBufferSize = &val
 	}
 
 	return nil
