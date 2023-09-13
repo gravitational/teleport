@@ -13,14 +13,28 @@ This guide will help you:
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- A running Teleport cluster with some built in resources. Following the
-  [Web Application Access Guide](../../application-access/guides/connecting-apps.mdx) will create a base with a
-  simple application that we can use to demonstrate access lists.
-- An administrative user with the preset `editor` role, which will have permissions to create Access Lists.
+- A running Teleport cluster with some built in resources.
+- A user with the preset `editor` role, which will have permissions to create Access Lists.
 
-## Step 1/3. Create a test user
+### Step 1/4. Setting up an application service on the cluster for testing
 
-First, we need to create a simple test user that has only the `requester` role, which has no default access
+One of the easiest ways to get resources on the cluster for testing is to set up an application service
+with the debugging application enabled. To do this, add the following config to your `teleport.yaml`
+configuration:
+
+```yaml
+app_service:
+  enabled: yes
+  debug_app: true
+```
+
+And restart Teleport. The "dumper" app should show up in the resource list.
+
+![Debug app](../../../img/access-controls/access-lists/debug-app.png)
+
+## Step 2/4. Create a test user
+
+We need to create a simple test user that has only the `requester` role, which has no default access
 to anything within a cluster. This user will only be used for the purposes of this guide, so you may use
 another user if you so choose. If you would rather use your own user, skip to the next step.
 
@@ -30,8 +44,9 @@ the name and select `requester` as the role.
 ![Create Test User](../../../img/access-controls/access-lists/create-test-user.png)
 
 Click "Save," and then navigate to the provided URL in order to set up the credentials for your test user.
+Try logging into the cluster with the test user to verify that no resources show up in the resources page.
 
-## Step 2/3. Create an Access List
+## Step 3/4. Create an Access List
 
 Next, we'll create a simple access list that will grant the `access` role to its members.
 Login as the administrative user mentioned in the prerequisites. Navigate to the management pane and
@@ -55,10 +70,10 @@ Under "Members" select `requester` as a required role, then add your test user t
 We'll leave the the requirements fields blank and then click "Create Access List" at the bottom
 of the page.
 
-## Step 3/3. Login as the test user
+## Step 4/4. Login as the test user
 
-Again, login as the test user. When logging in now, you should now see the resources contained within
-the cluster, and should be able to interact with them as expected.
+Again, login as the test user. When logging in now, you should now see the dumper application contained within
+the cluster, and should be able to interact with it as expected.
 
 ## Next Steps
 
