@@ -199,8 +199,8 @@ type Server struct {
 				Description: "Includes information about a server registered with Teleport.",
 				SourcePath:  "myfile.go",
 				YAMLExample: `name: "string"
-spec:
-  # ... 
+spec: 
+# [...]
 `,
 				Fields: []Field{
 					Field{
@@ -211,7 +211,7 @@ spec:
 					Field{
 						Name:        "spec",
 						Description: "Contains information about the server.",
-						Type:        "[ServerSpec](#ServerSpec)",
+						Type:        "[ServerSpec](#serverspec)",
 					},
 				},
 			},
