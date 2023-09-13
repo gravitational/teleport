@@ -598,13 +598,13 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Access list member delete all membersfailure
+              Access list member delete all members failure
             </div>
           </td>
           <td
             style="word-break: break-word;"
           >
-            Failure when user [mike] attempted to delete all members from access list [access-list]
+            User [mike] failed to remove all members from access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -646,13 +646,13 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              All members deleted for access list
+              All members removed from access list
             </div>
           </td>
           <td
             style="word-break: break-word;"
           >
-            All members were deleted from access list [access-list] by user [mike]
+            User [mike] removed all members from access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -700,13 +700,13 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Access list member delete failure
+              Access list member removal failure
             </div>
           </td>
           <td
             style="word-break: break-word;"
           >
-            Failure when user [mike] attempted to delete member [user] from access list [access-list]
+            User [mike] failed to remove member [user] from access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -748,13 +748,13 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
-              Access list member deleted
+              Access list member removed
             </div>
           </td>
           <td
             style="word-break: break-word;"
           >
-            Member [user] was deleted from access list [access-list] by user [mike]
+            User [mike] removed member [user] from access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -808,7 +808,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Failure when user [mike] attempted to update member [user] in access list [access-list]
+            User [mike] failed to update member [user] in access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -856,7 +856,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Member [user] was updated in access list [access-list] by user [mike]
+            User [mike] updated member [user] in access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -910,7 +910,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Failure when user [mike] attempted to add member [user] to access list [access-list]
+            User [mike] failed to add member [user] to access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -958,7 +958,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Member [user] was added to access list [access-list] by user [mike]
+            User [mike] added member [user] to access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -1012,7 +1012,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Failure during to review access list [access-list] by user [mike]
+            User [mike] failed to to review access list [access-list]]
           </td>
           <td
             style="min-width: 120px;"
@@ -1066,7 +1066,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Access list [access-list] has been reviewed by user [mike]
+            User [mike] has reviewed access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -1174,7 +1174,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Access list [access-list] has been deleted by user [mike]
+            User [mike] has deleted access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -1282,7 +1282,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Access list [access-list] has been updated by user [mike]
+            User [mike] has updated access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -1390,7 +1390,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Access list [access-list] has been created by user [mike]
+            User [mike] has created access list [access-list]
           </td>
           <td
             style="min-width: 120px;"

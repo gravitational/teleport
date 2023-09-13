@@ -216,6 +216,12 @@ message OktaAssignmentMetadata {
 
 // AccessListMemberMetadata contains common metadata for access list member resource events.
 message AccessListMemberMetadata {
+  // Members are all members affected by the access list membership change.
+  repeated AccessListMember Members = 1 [(gogoproto.jsontag) = "members,omitempty"];
+}
+
+// AccessListMember is metadata surrounding an individual access list member.
+message AccessListMember {
   // JoinedOn is the date that the member joined.
   google.protobuf.Timestamp JoinedOn = 1 [
     (gogoproto.stdtime) = true,
