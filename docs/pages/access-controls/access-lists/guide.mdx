@@ -22,14 +22,14 @@ This guide will help you:
 
 First, we need to create a simple test user that has only the `requester` role, which has no default access
 to anything within a cluster. This user will only be used for the purposes of this guide, so you may use
-another user if you so choose.
+another user if you so choose. If you would rather use your own user, skip to the next step.
 
-```code
-$ tctl users add test-user --roles=requester --logins=root,ubuntu,ec2-user
-```
+Navigate to the management pane and select "Users." Click on "Create New User" and fill in `test-user` as
+the name and select `requester` as the role.
 
-Then, follow the link provided and create credentials for this user. Try logging in to verify that no resources
-are found.
+![Create Test User](../../../img/access-controls/access-lists/create-test-user.png)
+
+Click "Save," and then navigate to the provided URL in order to set up the credentials for your test user.
 
 ## Step 2/3. Create an Access List
 
