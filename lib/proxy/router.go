@@ -290,6 +290,9 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		if port == "" || port == "0" {
 			port = strconv.Itoa(defaults.SSHServerListenPort)
 		}
+
+		// This is non registered in Teleport node, it doesn't have agent, we need to know it so we don't send
+		// signed PROXY header to it, or connection will fail.
 		isAgentlessNode = true
 
 		serverAddr = net.JoinHostPort(host, port)
