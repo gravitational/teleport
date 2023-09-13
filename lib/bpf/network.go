@@ -21,6 +21,8 @@ package bpf
 
 import (
 	_ "embed"
+	"encoding/binary"
+	"net"
 
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/trace"
@@ -67,6 +69,17 @@ type rawConn4Event struct {
 
 	// Command is name of the executable making the connection.
 	Command [CommMax]byte
+
+	// SockType is the socket type, either SOCK_STREAM or SOCK_DGRAM.
+	SockType uint16
+}
+
+func (e *rawConn4Event) SrcIP() net.IP {
+	return ipv4HostToIP(e.SrcAddr)
+}
+
+func (e *rawConn4Event) DstIP() net.IP {
+	return ipv4HostToIP(e.DstAddr)
 }
 
 // rawConn6Event is sent by the eBPF program that Teleport pulls off the perf
@@ -92,6 +105,32 @@ type rawConn6Event struct {
 
 	// Command is name of the executable making the connection.
 	Command [CommMax]byte
+
+	// SockType is the socket type, either SOCK_STREAM or SOCK_DGRAM.
+	SockType uint16
+}
+
+func (e *rawConn6Event) SrcIP() net.IP {
+	return ipv6HostToIP(e.SrcAddr)
+}
+
+func (e *rawConn6Event) DstIP() net.IP {
+	return ipv6HostToIP(e.DstAddr)
+}
+
+func ipv4HostToIP(addr uint32) net.IP {
+	val := make([]byte, 4)
+	binary.LittleEndian.PutUint32(val, addr)
+	return net.IP(val)
+}
+
+func ipv6HostToIP(addr [4]uint32) net.IP {
+	val := make([]byte, 16)
+	binary.LittleEndian.PutUint32(val[0:], addr[0])
+	binary.LittleEndian.PutUint32(val[4:], addr[1])
+	binary.LittleEndian.PutUint32(val[8:], addr[2])
+	binary.LittleEndian.PutUint32(val[12:], addr[3])
+	return net.IP(val)
 }
 
 type conn struct {
@@ -103,7 +142,7 @@ type conn struct {
 	lost *Counter
 }
 
-func startConn(bufferSize int) (*conn, error) {
+func startConn(bufferSize int, udpDisableTracing bool) (*conn, error) {
 	err := metrics.RegisterPrometheusCollectors(lostNetworkEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -131,17 +170,28 @@ func startConn(bufferSize int) (*conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	var udpDisableVal = uint8(0)
+	if udpDisableTracing {
+		udpDisableVal = 1
+	}
+	if err := c.session.module.InitGlobalVariable("udp_disable", udpDisableVal); err != nil {
+		return nil, trace.Wrap(err, "setting udp_disable global")
+	}
+
 	// Load into the kernel
 	if err = c.session.module.BPFLoadObject(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err = AttachKprobe(c.session.module, "tcp_v4_connect"); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err = AttachKprobe(c.session.module, "tcp_v6_connect"); err != nil {
-		return nil, trace.Wrap(err)
+	for _, name := range []string{
+		"tcp_v4_connect",
+		"tcp_v6_connect",
+		"udp_sendmsg",
+		"udpv6_sendmsg",
+	} {
+		if err = AttachKprobe(c.session.module, name); err != nil {
+			return nil, trace.Wrap(err, "%v probe", name)
+		}
 	}
 
 	c.event4Buf, err = NewRingBuffer(c.session.module, network4EventsBuffer)

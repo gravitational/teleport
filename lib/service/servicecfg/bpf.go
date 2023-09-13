@@ -32,6 +32,9 @@ type BPFConfig struct {
 
 	// CgroupPath is where the cgroupv2 hierarchy is mounted.
 	CgroupPath string
+
+	// UDPDisableTracing disables UDP connection events.
+	UDPDisableTracing bool
 }
 
 // CheckAndSetDefaults checks BPF configuration.

@@ -26,7 +26,6 @@ import (
 	"context"
 	"embed"
 	"encoding/binary"
-	"net"
 	"strconv"
 	"sync"
 	"time"
@@ -34,6 +33,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -177,7 +177,7 @@ func New(config *servicecfg.BPFConfig, restrictedSession *servicecfg.RestrictedS
 	}
 
 	// Load network BPF modules only when required.
-	s.conn, err = startConn(*config.NetworkBufferSize)
+	s.conn, err = startConn(*config.NetworkBufferSize, config.UDPDisableTracing)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -495,16 +495,8 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		return
 	}
 
-	// Source.
-	src := make([]byte, 4)
-	binary.LittleEndian.PutUint32(src, event.SrcAddr)
-	srcAddr := net.IP(src)
-
-	// Destination.
-	dst := make([]byte, 4)
-	binary.LittleEndian.PutUint32(dst, event.DstAddr)
-	dstAddr := net.IP(dst)
-
+	srcAddr := event.SrcIP()
+	dstAddr := event.DstIP()
 	sessionNetworkEvent := &apievents.SessionNetwork{
 		Metadata: apievents.Metadata{
 			Type: events.SessionNetworkEvent,
@@ -527,10 +519,15 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 			Program:  ConvertString(unsafe.Pointer(&event.Command)),
 			PID:      uint64(event.PID),
 		},
-		DstPort:    int32(event.DstPort),
-		DstAddr:    dstAddr.String(),
-		SrcAddr:    srcAddr.String(),
-		TCPVersion: 4,
+		DstPort: int32(event.DstPort),
+		DstAddr: dstAddr.String(),
+		SrcAddr: srcAddr.String(),
+	}
+	if event.SockType == unix.SOCK_STREAM {
+		sessionNetworkEvent.TCPVersion = 4
+	} else { // UDP
+		sessionNetworkEvent.Operation = apievents.SessionNetwork_SEND
+		sessionNetworkEvent.UDPVersion = 4
 	}
 	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit network event.")
@@ -559,22 +556,8 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		return
 	}
 
-	// Source.
-	src := make([]byte, 16)
-	binary.LittleEndian.PutUint32(src[0:], event.SrcAddr[0])
-	binary.LittleEndian.PutUint32(src[4:], event.SrcAddr[1])
-	binary.LittleEndian.PutUint32(src[8:], event.SrcAddr[2])
-	binary.LittleEndian.PutUint32(src[12:], event.SrcAddr[3])
-	srcAddr := net.IP(src)
-
-	// Destination.
-	dst := make([]byte, 16)
-	binary.LittleEndian.PutUint32(dst[0:], event.DstAddr[0])
-	binary.LittleEndian.PutUint32(dst[4:], event.DstAddr[1])
-	binary.LittleEndian.PutUint32(dst[8:], event.DstAddr[2])
-	binary.LittleEndian.PutUint32(dst[12:], event.DstAddr[3])
-	dstAddr := net.IP(dst)
-
+	srcAddr := event.SrcIP()
+	dstAddr := event.DstIP()
 	sessionNetworkEvent := &apievents.SessionNetwork{
 		Metadata: apievents.Metadata{
 			Type: events.SessionNetworkEvent,
@@ -597,10 +580,15 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 			Program:  ConvertString(unsafe.Pointer(&event.Command)),
 			PID:      uint64(event.PID),
 		},
-		DstPort:    int32(event.DstPort),
-		DstAddr:    dstAddr.String(),
-		SrcAddr:    srcAddr.String(),
-		TCPVersion: 6,
+		DstPort: int32(event.DstPort),
+		DstAddr: dstAddr.String(),
+		SrcAddr: srcAddr.String(),
+	}
+	if event.SockType == unix.SOCK_STREAM { // TCP
+		sessionNetworkEvent.TCPVersion = 6
+	} else { // UDP
+		sessionNetworkEvent.Operation = apievents.SessionNetwork_SEND
+		sessionNetworkEvent.UDPVersion = 6
 	}
 	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit network event.")
