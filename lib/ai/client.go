@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
-	"github.com/tiktoken-go/tokenizer/codec"
 
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/ai/model"
@@ -75,10 +74,7 @@ func (client *Client) NewChat(toolContext *modeltools.ToolContext) *Chat {
 				Content: model.PromptCharacter(toolContext.User),
 			},
 		},
-		// Initialize a tokenizer for prompt token accounting.
-		// Cl100k is used by GPT-3 and GPT-4.
-		tokenizer: codec.NewCl100kBase(),
-		agent:     model.NewAgent(toolContext, tools...),
+		agent: model.NewAgent(toolContext, tools...),
 	}
 }
 
@@ -92,10 +88,45 @@ func (client *Client) NewCommand(username string) *Chat {
 				Content: model.PromptCharacter(username),
 			},
 		},
-		// Initialize a tokenizer for prompt token accounting.
-		// Cl100k is used by GPT-3 and GPT-4.
-		tokenizer: codec.NewCl100kBase(),
-		agent:     model.NewAgent(toolContext, &modeltools.CommandGenerationTool{}),
+		agent: model.NewAgent(toolContext, &modeltools.CommandGenerationTool{}),
+	}
+}
+
+func (client *Client) RunTool(ctx context.Context, toolContext *modeltools.ToolContext, toolName, toolInput string) (any, *tokens.TokenCount, error) {
+	tools := []modeltools.Tool{
+		&modeltools.CommandExecutionTool{},
+		&modeltools.EmbeddingRetrievalTool{},
+		&modeltools.AuditQueryGenerationTool{LLM: client.svc},
+	}
+	// The following tools are only available in the enterprise build. They will fail
+	// if included in OSS due to the lack of the required backend APIs.
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		tools = append(tools, &modeltools.AccessRequestCreateTool{},
+			&modeltools.AccessRequestsListTool{},
+			&modeltools.AccessRequestListRequestableRolesTool{},
+			&modeltools.AccessRequestListRequestableResourcesTool{})
+	}
+	agent := model.NewAgent(toolContext, tools...)
+	action := &model.AgentAction{
+		Action:    toolName,
+		Input:     toolInput,
+		Reasoning: "Tool invoked directly",
+	}
+
+	return agent.DoAction(ctx, client.svc, action)
+}
+
+func (client *Client) NewAuditQuery(username string) *Chat {
+	toolContext := &modeltools.ToolContext{User: username}
+	return &Chat{
+		client: client,
+		messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: model.PromptCharacter(username),
+			},
+		},
+		agent: model.NewAgent(toolContext, &modeltools.AuditQueryGenerationTool{LLM: client.svc}),
 	}
 }
 

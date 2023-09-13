@@ -688,7 +688,7 @@ func TestPluginDiscordValidation(t *testing.T) {
 		return &PluginSpecV1_Discord{
 			&PluginDiscordSettings{
 				RoleToRecipients: map[string]*DiscordChannels{
-					"*": &DiscordChannels{ChannelIds: []string{"1234567890"}},
+					"*": {ChannelIds: []string{"1234567890"}},
 				},
 			},
 		}

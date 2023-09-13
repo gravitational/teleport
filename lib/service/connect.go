@@ -206,7 +206,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 			}, nil
 		}
 		process.log.Infof("Connecting to the cluster %v with TLS client certificate.", identity.ClusterName)
-		clt, err := process.newClient(identity)
+		clt, reused, err := process.getClient(identity)
 		if err != nil {
 			// In the event that a user is attempting to connect a machine to
 			// a different cluster it will give a cryptic warning about an
@@ -221,6 +221,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		}
 		return &Connector{
 			Client:         clt,
+			ReusedClient:   reused,
 			ClientIdentity: identity,
 			ServerIdentity: identity,
 		}, nil
@@ -235,12 +236,13 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 					ServerIdentity: identity,
 				}, nil
 			}
-			clt, err := process.newClient(identity)
+			clt, reused, err := process.getClient(identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &Connector{
 				Client:         clt,
+				ReusedClient:   reused,
 				ClientIdentity: identity,
 				ServerIdentity: identity,
 			}, nil
@@ -257,12 +259,13 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 					ServerIdentity: identity,
 				}, nil
 			}
-			clt, err := process.newClient(newIdentity)
+			clt, reused, err := process.getClient(newIdentity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &Connector{
 				Client:         clt,
+				ReusedClient:   reused,
 				ClientIdentity: newIdentity,
 				ServerIdentity: identity,
 			}, nil
@@ -279,12 +282,13 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 					ServerIdentity: newIdentity,
 				}, nil
 			}
-			clt, err := process.newClient(newIdentity)
+			clt, reused, err := process.getClient(newIdentity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &Connector{
 				Client:         clt,
+				ReusedClient:   reused,
 				ClientIdentity: newIdentity,
 				ServerIdentity: newIdentity,
 			}, nil
@@ -299,12 +303,13 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 					ServerIdentity: identity,
 				}, nil
 			}
-			clt, err := process.newClient(identity)
+			clt, reused, err := process.getClient(identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &Connector{
 				Client:         clt,
+				ReusedClient:   reused,
 				ClientIdentity: identity,
 				ServerIdentity: identity,
 			}, nil
@@ -486,6 +491,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			JoinMethod:           process.Config.JoinMethod,
 			CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 			FIPS:                 process.Config.FIPS,
+			Insecure:             lib.IsInsecureDevMode(),
 		}
 		if registerParams.JoinMethod == types.JoinMethodAzure {
 			registerParams.AzureParams = auth.AzureParams{
@@ -517,7 +523,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			ServerIdentity: identity,
 		}
 	} else {
-		clt, err := process.newClient(identity)
+		clt, reused, err := process.getClient(identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -525,6 +531,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			ClientIdentity: identity,
 			ServerIdentity: identity,
 			Client:         clt,
+			ReusedClient:   reused,
 		}
 	}
 
@@ -755,10 +762,6 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 			}
 			if ca.GetType() != types.HostCA || ca.GetClusterName() != conn.ClientIdentity.ClusterName {
 				process.log.Debugf("Skipping event for %v %v", ca.GetType(), ca.GetClusterName())
-				continue
-			}
-			if status.ca.GetResourceID() > ca.GetResourceID() {
-				process.log.Debugf("Skipping stale event %v, latest object version is %v.", ca.GetResourceID(), status.ca.GetResourceID())
 				continue
 			}
 			status, err := process.syncRotationStateAndBroadcast(conn)
@@ -1041,20 +1044,36 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 	}
 }
 
+// getClient gets an appropriate client for the given identity. The instance client is reused if appropriate, otherwise
+// a new client is created. Reused clients should not be closed since they are owned by another service. In practice, the value
+// of 'reused' should just be passed directly to Connector.ReusedClient when building the connector of this client. Connector.Close
+// will handle closure correctly as long as this value is set.
+func (process *TeleportProcess) getClient(identity *auth.Identity) (clt *auth.Client, reused bool, err error) {
+	if identity.ID.Role != types.RoleInstance {
+		// non-instance roles should wait to see if the instance client can be reused
+		// before acquiring their own client.
+		if conn := process.waitForInstanceConnector(); conn != nil && conn.Client != nil {
+			if conn.ClientIdentity.HasSystemRole(identity.ID.Role) {
+				process.log.Infof("Reusing Instance client for %s. additionalSystemRoles=%+v", identity.ID.Role, conn.ClientIdentity.SystemRoles)
+				return conn.Client, true, nil
+			} else {
+				process.log.Warnf("Unable to reuse Instance client for %s. additionalSystemRoles=%+v", identity.ID.Role, conn.ClientIdentity.SystemRoles)
+			}
+		} else {
+			process.log.Warnf("Unable to reuse Instance client for %s. (not available)", identity.ID.Role)
+		}
+	}
+
+	clt, err = process.newClient(identity)
+	return clt, false, err
+}
+
 // newClient attempts to connect to either the proxy server or auth server
 // For config v3 and onwards, it will only connect to either the proxy (via tunnel) or the auth server (direct),
 // depending on what was specified in the config.
 // For config v1 and v2, it will attempt to direct dial the auth server, and fallback to trying to tunnel
 // to the Auth Server through the proxy.
 func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client, error) {
-	if identity.ID.Role != types.RoleInstance && identity.ID.Role != types.RoleMDM {
-		clt, ok := process.waitForInstanceClient()
-		if !ok {
-			return nil, trace.Errorf("failed to get instance client for identity %q", identity.ID.Role)
-		}
-		return clt, nil
-	}
-
 	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)

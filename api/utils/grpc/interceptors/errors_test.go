@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package interceptors
+package interceptors_test
 
 import (
 	"context"
@@ -27,18 +27,18 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
-// service is used to implement EchoServer
-type service struct {
+type errService struct {
 	proto.UnimplementedAuthServiceServer
 }
 
-func (s *service) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
+func (s *errService) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
 	return nil, trace.NotFound("not found")
 }
 
-func (s *service) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) error {
+func (s *errService) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) error {
 	return trace.AlreadyExists("already exists")
 }
 
@@ -51,10 +51,10 @@ func TestGRPCErrorWrapping(t *testing.T) {
 	require.NoError(t, err)
 
 	server := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(GRPCServerUnaryErrorInterceptor),
-		grpc.ChainStreamInterceptor(GRPCServerStreamErrorInterceptor),
+		grpc.ChainUnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.ChainStreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
-	proto.RegisterAuthServiceServer(server, &service{})
+	proto.RegisterAuthServiceServer(server, &errService{})
 	go func() {
 		server.Serve(listener)
 	}()
@@ -63,8 +63,8 @@ func TestGRPCErrorWrapping(t *testing.T) {
 	conn, err := grpc.Dial(
 		listener.Addr().String(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithChainUnaryInterceptor(GRPCClientUnaryErrorInterceptor),
-		grpc.WithChainStreamInterceptor(GRPCClientStreamErrorInterceptor),
+		grpc.WithChainUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
+		grpc.WithChainStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
 	)
 	require.NoError(t, err)
 	defer conn.Close()

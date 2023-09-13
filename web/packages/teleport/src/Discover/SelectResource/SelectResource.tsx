@@ -106,8 +106,14 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
     // We sort the list by the specified resource type,
     // and then apply a search filter to it to reduce
     // the amount of results.
+    // We don't do this if the resource type is `unified_resource`,
+    // since we want to show all resources.
+    // TODO(bl-nero): remove this once the localstorage setting to disable unified resources is removed.
     const resourceKindSpecifiedByUrlLoc = location.state?.entity;
-    if (resourceKindSpecifiedByUrlLoc) {
+    if (
+      resourceKindSpecifiedByUrlLoc &&
+      resourceKindSpecifiedByUrlLoc !== SearchResource.UNIFIED_RESOURCE
+    ) {
       const sortedResourcesByKind = sortResourcesByKind(
         resourceKindSpecifiedByUrlLoc,
         sortedResources

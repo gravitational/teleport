@@ -28,6 +28,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -50,6 +51,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	kubeexec "k8s.io/client-go/util/exec"
@@ -2070,6 +2072,7 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
 		authCtx:               ctx,
@@ -2078,6 +2081,7 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 		pingPeriod:            f.cfg.ConnPingPeriod,
 		originalHeaders:       req.Header,
 		useIdentityForwarding: useImpersonation,
+		proxier:               sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
@@ -2101,6 +2105,7 @@ func (f *Forwarder) getSPDYDialer(ctx authContext, sess *clusterSession, req *ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
 		authCtx:               ctx,
@@ -2109,6 +2114,7 @@ func (f *Forwarder) getSPDYDialer(ctx authContext, sess *clusterSession, req *ht
 		pingPeriod:            f.cfg.ConnPingPeriod,
 		originalHeaders:       req.Header,
 		useIdentityForwarding: useImpersonation,
+		proxier:               sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
@@ -2156,13 +2162,13 @@ type clusterSession struct {
 	// connCtx is the context used to monitor the connection.
 	connCtx context.Context
 	// connMonitorCancel is the conn monitor connMonitorCancel function.
-	connMonitorCancel context.CancelFunc
+	connMonitorCancel context.CancelCauseFunc
 }
 
 // close cancels the connection monitor context if available.
 func (s *clusterSession) close() {
 	if s.connMonitorCancel != nil {
-		s.connMonitorCancel()
+		s.connMonitorCancel(io.EOF)
 	}
 }
 
@@ -2178,7 +2184,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		Cancel:  s.connMonitorCancel,
 	})
 	if err != nil {
-		s.connMonitorCancel()
+		s.connMonitorCancel(err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -2197,29 +2203,42 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		Emitter:               s.parent.cfg.AuthClient,
 	})
 	if err != nil {
-		tc.Close()
-		s.connMonitorCancel()
+		tc.CloseWithCause(err)
 		return nil, trace.Wrap(err)
 	}
 	return tc, nil
 }
 
 func (s *clusterSession) Dial(network, addr string) (net.Conn, error) {
-	return s.monitorConn(s.dial(s.requestContext, network))
+	return s.monitorConn(s.dial(s.requestContext, network, addr))
 }
 
 func (s *clusterSession) DialWithContext(opts ...contextDialerOption) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return s.monitorConn(s.dial(ctx, network, opts...))
+		return s.monitorConn(s.dial(ctx, network, addr, opts...))
 	}
 }
 
-func (s *clusterSession) dial(ctx context.Context, network string, opts ...contextDialerOption) (net.Conn, error) {
+func (s *clusterSession) dial(ctx context.Context, network, addr string, opts ...contextDialerOption) (net.Conn, error) {
 	dialer := s.parent.getContextDialerFunc(s, opts...)
 
-	conn, err := dialer(ctx, network, s.targetAddr)
+	conn, err := dialer(ctx, network, addr)
 
 	return conn, trace.Wrap(err)
+}
+
+// getProxier returns the proxier function to use for this session.
+// If the target cluster is not served by this teleport service, the proxier
+// must be nil to avoid using it through the reverse tunnel.
+// If the target cluster is served by this teleport service, the proxier
+// must be set to the default proxy function.
+func (s *clusterSession) getProxier() func(req *http.Request) (*url.URL, error) {
+	// When the target cluster is not served by this teleport service, the
+	// proxier must be nil to avoid using it through the reverse tunnel.
+	if s.kubeAPICreds == nil {
+		return nil
+	}
+	return utilnet.NewProxierWithNoProxyCIDR(http.ProxyFromEnvironment)
 }
 
 // TODO(awly): unit test this
@@ -2244,7 +2263,7 @@ func (f *Forwarder) newClusterSession(ctx context.Context, authCtx authContext) 
 
 func (f *Forwarder) newClusterSessionRemoteCluster(ctx context.Context, authCtx authContext) (*clusterSession, error) {
 	f.log.Debugf("Forwarding kubernetes session for %v to remote cluster.", authCtx)
-	connCtx, cancel := context.WithCancel(ctx)
+	connCtx, cancel := context.WithCancelCause(ctx)
 	return &clusterSession{
 		parent:      f,
 		authContext: authCtx,
@@ -2292,7 +2311,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 		return nil, trace.Wrap(err)
 	}
 
-	connCtx, cancel := context.WithCancel(ctx)
+	connCtx, cancel := context.WithCancelCause(ctx)
 	f.log.Debugf("Handling kubernetes session for %v using local credentials.", authCtx)
 	return &clusterSession{
 		parent:                 f,
@@ -2308,7 +2327,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 }
 
 func (f *Forwarder) newClusterSessionDirect(ctx context.Context, authCtx authContext) (*clusterSession, error) {
-	connCtx, cancel := context.WithCancel(ctx)
+	connCtx, cancel := context.WithCancelCause(ctx)
 	return &clusterSession{
 		parent:      f,
 		authContext: authCtx,

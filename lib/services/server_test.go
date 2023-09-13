@@ -74,9 +74,10 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 				SubKind: "openssh-ec2-ice",
 				Metadata: types.Metadata{
 					Labels: map[string]string{
-						"account-id": "1234567889012",
-						"region":     "us-east-1",
-						"MyTag":      "MyTagValue",
+						"account-id":               "1234567889012",
+						"region":                   "us-east-1",
+						"MyTag":                    "MyTagValue",
+						"teleport.dev/instance-id": "i-123456789abcedf",
 					},
 					Namespace: "default",
 				},
@@ -120,9 +121,10 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 				SubKind: "openssh-ec2-ice",
 				Metadata: types.Metadata{
 					Labels: map[string]string{
-						"account-id": "1234567889012",
-						"region":     "us-east-1",
-						"MyTag":      "MyTagValue",
+						"account-id":               "1234567889012",
+						"region":                   "us-east-1",
+						"MyTag":                    "MyTagValue",
+						"teleport.dev/instance-id": "i-123456789abcedf",
 					},
 					Namespace: "default",
 				},

@@ -92,6 +92,14 @@ enum ResourceKind {
   //
   // PostHog property value: "node.openssh"
   RESOURCE_KIND_NODE_OPENSSH = 6;
+
+  // ServerV3 ("node") heartbeat with a subkind of "openssh-ec2-ice".
+  // Nodes that map EC2 instances and are accessed using EC2 Instance Connect Endpoint.
+  // Not used in keepalives.
+  // This is the SubKind SubKindOpenSSHEICENode in teleport repo.
+  //
+  // PostHog property value: "node.openssh_ec2_ice"
+  RESOURCE_KIND_NODE_OPENSSH_EICE = 7;
 }
 
 // a heartbeat for a resource served by a Teleport instance outside of the
@@ -775,6 +783,31 @@ message DeviceAuthenticateEvent {
   string device_os_type = 3;
 }
 
+// Device Enrollment event
+//
+// PostHost event: tp.device.enroll
+message DeviceEnrollEvent {
+  // anonymized device ID, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.device_id
+  string device_id = 1;
+
+  // anonymized username, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.user_name
+  string user_name = 2;
+
+  // device OS type
+  //
+  // PostHog property: tp.device_os_type
+  string device_os_type = 3;
+
+  // device origin
+  //
+  // PostHog property: tp.device_origin
+  string device_origin = 4;
+}
+
 // FeatureRecommendationEvent captures event emitted when a feature is recommended to user or
 // when user completes the desired CTA for the feature.
 //
@@ -808,6 +841,26 @@ enum FeatureRecommendationStatus {
   FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1;
   // FEATURE_RECOMMENDATION_STATUS_DONE is emitted when user completes the desired CTA.
   FEATURE_RECOMMENDATION_STATUS_DONE = 2;
+}
+
+// LicenseLimitEvent is emitted when access to Teleport feature
+// is denied based on license limits
+//
+// PostHost event: tp.license.limit
+message LicenseLimitEvent {
+  // PostHost property: tp.license_limit
+  LicenseLimit license_limit = 1;
+}
+
+// LicenseLimit indicates event type that triggered LicenseLimitEvent.
+enum LicenseLimit {
+  LICENSE_LIMIT_UNSPECIFIED = 0;
+  // LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF is emitted if license does not
+  // allow Jamf integration (e.g. Team Plan)
+  LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF = 1;
+  // LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE is emitted when allowed enrolled device
+  // limit is reached
+  LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2;
 }
 
 message SubmitEventRequest {
@@ -901,6 +954,10 @@ message SubmitEventRequest {
 
     AssistAccessRequestEvent assist_access_request = 54;
     AssistActionEvent assist_action = 55;
+
+    DeviceEnrollEvent device_enroll_event = 56;
+
+    LicenseLimitEvent license_limit_event = 57;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

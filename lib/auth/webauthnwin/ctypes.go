@@ -35,6 +35,10 @@ type webauthnRPEntityInformation struct {
 	// "Acme Corporation", "Widgets Inc" or "Awesome Site".
 	// This field is required.
 	pwszName *uint16
+
+	// RP icon (previously pwszIcon).
+	// This field is kept just to keep size of struct valid.
+	_ *uint16
 }
 
 type webauthnUserEntityInformation struct {
@@ -46,6 +50,9 @@ type webauthnUserEntityInformation struct {
 	// "john.p.smith@example.com".
 	// It holds the Teleport user name.
 	pwszName *uint16
+	// User icon (previously pwszIcon).
+	// This field is kept just to keep size of struct valid.
+	_ *uint16
 	// For User: Contains the friendly name associated with the user account by the Relying Party, such as "John P. Smith".
 	pwszDisplayName *uint16
 }

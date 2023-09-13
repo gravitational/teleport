@@ -17,9 +17,13 @@ limitations under the License.
 package awsoidc
 
 import (
+	"context"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestIssuerFromPublicAddress(t *testing.T) {
@@ -53,6 +57,75 @@ func TestIssuerFromPublicAddress(t *testing.T) {
 			got, err := IssuerFromPublicAddress(tt.addr)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+type mockProxyGetter struct {
+	proxies   []types.Server
+	returnErr error
+}
+
+func (m *mockProxyGetter) GetProxies() ([]types.Server, error) {
+	if m.returnErr != nil {
+		return nil, m.returnErr
+	}
+	return m.proxies, nil
+}
+
+func TestIssuerForCluster(t *testing.T) {
+	ctx := context.Background()
+	for _, tt := range []struct {
+		name           string
+		mockProxies    []types.Server
+		mockErr        error
+		checkErr       require.ErrorAssertionFunc
+		expectedIssuer string
+	}{
+		{
+			name: "valid",
+			mockProxies: []types.Server{
+				&types.ServerV2{Spec: types.ServerSpecV2{
+					PublicAddr: "127.0.0.1.nip.io",
+				}},
+			},
+			expectedIssuer: "https://127.0.0.1.nip.io",
+		},
+		{
+			name: "only the second server has a valid public address",
+			mockProxies: []types.Server{
+				&types.ServerV2{Spec: types.ServerSpecV2{
+					PublicAddr: "",
+				}},
+				&types.ServerV2{Spec: types.ServerSpecV2{
+					PublicAddr: "127.0.0.1.nip.io",
+				}},
+			},
+			expectedIssuer: "https://127.0.0.1.nip.io",
+		},
+		{
+			name:     "api returns not found",
+			mockErr:  &trace.NotFoundError{},
+			checkErr: notFounCheck,
+		},
+		{
+			name:        "api returns an empty list of proxies",
+			mockProxies: []types.Server{},
+			checkErr:    badParameterCheck,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			clt := &mockProxyGetter{
+				proxies:   tt.mockProxies,
+				returnErr: tt.mockErr,
+			}
+			issuer, err := IssuerForCluster(ctx, clt)
+			if tt.checkErr != nil {
+				tt.checkErr(t, err)
+			}
+			if tt.expectedIssuer != "" {
+				require.Equal(t, tt.expectedIssuer, issuer)
+			}
 		})
 	}
 }

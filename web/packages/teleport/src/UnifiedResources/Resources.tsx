@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect, useRef } from 'react';
-import { Box, Indicator, Flex } from 'design';
-
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
+import { Box, Indicator, Flex, Text } from 'design';
+import { Magnifier } from 'design/Icon';
+
+import { TextIcon } from 'teleport/Discover/Shared';
 
 import {
   FeatureBox,
@@ -36,9 +38,18 @@ import { useInfiniteScroll } from 'teleport/components/hooks/useInfiniteScroll';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { useUrlFiltering } from 'teleport/components/hooks';
 
-import { ResourceCard } from './ResourceCard';
+import { ResourceCard, LoadingCard } from './ResourceCard';
 import SearchPanel from './SearchPanel';
 import { FilterPanel } from './FilterPanel';
+import './unifiedStyles.css';
+
+const RESOURCES_MAX_WIDTH = '1800px';
+// get 48 resources to start
+const INITIAL_FETCH_SIZE = 48;
+// increment by 24 every fetch
+const FETCH_MORE_SIZE = 24;
+
+const loadingCardArray = new Array(FETCH_MORE_SIZE).fill(undefined);
 
 export function Resources() {
   const { isLeafCluster } = useStickyClusterId();
@@ -64,12 +75,25 @@ export function Resources() {
   const { fetchInitial, fetchedData, attempt, fetchMore } = useInfiniteScroll({
     fetchFunc: teleCtx.resourceService.fetchUnifiedResources,
     clusterId,
+    initialFetchSize: INITIAL_FETCH_SIZE,
+    fetchMoreSize: FETCH_MORE_SIZE,
     params,
   });
 
   useEffect(() => {
     fetchInitial();
   }, [clusterId, search]);
+
+  const noResults =
+    attempt.status === 'success' && fetchedData.agents.length === 0;
+
+  const [isSearchEmpty, setIsSearchEmpty] = useState(true);
+
+  // Using a useEffect for this prevents the "Add your first resource" component from being
+  // shown for a split second when making a search after a search that yielded no results.
+  useEffect(() => {
+    setIsSearchEmpty(!params?.query && !params?.search);
+  }, [params.query, params.search]);
 
   const infiniteScrollDetector = useRef(null);
 
@@ -100,8 +124,22 @@ export function Resources() {
   }
 
   return (
-    <FeatureBox>
-      <FeatureHeader alignItems="center" justifyContent="space-between">
+    <FeatureBox
+      className="ContainerContext"
+      px={4}
+      css={`
+        max-width: ${RESOURCES_MAX_WIDTH};
+        margin: auto;
+      `}
+    >
+      <FeatureHeader
+        css={`
+          border-bottom: none;
+        `}
+        mb={1}
+        alignItems="center"
+        justifyContent="space-between"
+      >
         <FeatureHeaderTitle>Resources</FeatureHeaderTitle>
         <Flex alignItems="center">
           <AgentButtonAdd
@@ -128,10 +166,13 @@ export function Resources() {
       {attempt.status === 'failed' && (
         <ErrorMessage message={attempt.statusText} />
       )}
-      <ResourcesContainer gap={2}>
+      <ResourcesContainer className="ResourcesContainer" gap={2}>
         {fetchedData.agents.map((agent, i) => (
           <ResourceCard key={i} onLabelClick={onLabelClick} resource={agent} />
         ))}
+        {/* Using index as key here is ok because these elements never change order */}
+        {attempt.status === 'processing' &&
+          loadingCardArray.map((_, i) => <LoadingCard key={i} />)}
       </ResourcesContainer>
       <div
         ref={infiniteScrollDetector}
@@ -148,15 +189,44 @@ export function Resources() {
           </Box>
         )}
       </div>
-      {attempt.status === 'success' && fetchedData.agents.length === 0 && (
+      {noResults && isSearchEmpty && (
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}
           emptyStateInfo={emptyStateInfo}
         />
       )}
+      {noResults && !isSearchEmpty && (
+        <NoResults query={params?.query || params?.search} />
+      )}
     </FeatureBox>
   );
+}
+
+function NoResults({ query }: { query: string }) {
+  // Prevent `No resources were found for ""` flicker.
+  if (query) {
+    return (
+      <Box p={8} mt={3} mx="auto" maxWidth="720px" textAlign="center">
+        <TextIcon typography="h3">
+          <Magnifier />
+          No resources were found for&nbsp;
+          <Text
+            as="span"
+            bold
+            css={`
+              max-width: 270px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            `}
+          >
+            {query}
+          </Text>
+        </TextIcon>
+      </Box>
+    );
+  }
+  return null;
 }
 
 const ResourcesContainer = styled(Flex)`
@@ -172,4 +242,5 @@ const emptyStateInfo: EmptyStateInfo = {
     title: 'No Resources Found',
     resource: 'resources',
   },
+  resourceType: 'unified_resource',
 };

@@ -113,8 +113,7 @@ func (c *Client) DeleteAccessList(ctx context.Context, name string) error {
 
 // DeleteAllAccessLists removes all access lists.
 func (c *Client) DeleteAllAccessLists(ctx context.Context) error {
-	_, err := c.grpcClient.DeleteAllAccessLists(ctx, &accesslistv1.DeleteAllAccessListsRequest{})
-	return trace.Wrap(err)
+	return trace.NotImplemented("DeleteAllAccessLists not supported in the gRPC client")
 }
 
 // ListAccessListMembers returns a paginated list of all access list members for an access list.
@@ -175,7 +174,7 @@ func (c *Client) DeleteAccessListMember(ctx context.Context, accessList string, 
 	return trace.Wrap(err)
 }
 
-// DeleteAllAccessListMembers hard deletes all access list members for an access list.
+// DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.
 func (c *Client) DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error {
 	_, err := c.grpcClient.DeleteAllAccessListMembersForAccessList(ctx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{
 		AccessList: accessList,
@@ -185,6 +184,28 @@ func (c *Client) DeleteAllAccessListMembersForAccessList(ctx context.Context, ac
 
 // DeleteAllAccessListMembers hard deletes all access list members.
 func (c *Client) DeleteAllAccessListMembers(ctx context.Context) error {
-	_, err := c.grpcClient.DeleteAllAccessListMembers(ctx, &accesslistv1.DeleteAllAccessListMembersRequest{})
-	return trace.Wrap(err)
+	return trace.NotImplemented("DeleteAllAccessListMembers is not supported in the gRPC client")
+}
+
+// UpsertAccessListWithMembers creates or updates an access list resource and its members.
+func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accesslist.AccessList, members []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
+		AccessList: conv.ToProto(list),
+		Members:    conv.ToMembersProto(members),
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	accessList, err := conv.FromProto(resp.AccessList)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	updatedMembers, err := conv.FromMembersProto(resp.Members)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return accessList, updatedMembers, nil
 }

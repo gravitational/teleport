@@ -44,7 +44,9 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Application} text="Application" />
     <IconBox IconCmpt={Icon.Archive} text="Archive" />
     <IconBox IconCmpt={Icon.ArrowBack} text="ArrowBack" />
+    <IconBox IconCmpt={Icon.ArrowDown} text="ArrowDown" />
     <IconBox IconCmpt={Icon.ArrowForward} text="ArrowForward" />
+    <IconBox IconCmpt={Icon.ArrowUp} text="ArrowUp" />
     <IconBox IconCmpt={Icon.BookOpenText} text="BookOpenText" />
     <IconBox IconCmpt={Icon.Bubble} text="Bubble" />
     <IconBox IconCmpt={Icon.CCAmex} text="CCAmex" />
@@ -52,6 +54,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.CCMasterCard} text="CCMasterCard" />
     <IconBox IconCmpt={Icon.CCStripe} text="CCStripe" />
     <IconBox IconCmpt={Icon.CCVisa} text="CCVisa" />
+    <IconBox IconCmpt={Icon.Calendar} text="Calendar" />
     <IconBox IconCmpt={Icon.Camera} text="Camera" />
     <IconBox IconCmpt={Icon.CardView} text="CardView" />
     <IconBox IconCmpt={Icon.Cash} text="Cash" />

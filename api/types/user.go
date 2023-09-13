@@ -180,6 +180,16 @@ func (u *UserV2) SetResourceID(id int64) {
 	u.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (u *UserV2) GetRevision() string {
+	return u.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (u *UserV2) SetRevision(rev string) {
+	u.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns object metadata
 func (u *UserV2) GetMetadata() Metadata {
 	return u.Metadata

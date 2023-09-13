@@ -19,9 +19,7 @@ package model
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -135,6 +133,28 @@ func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHist
 	}
 }
 
+func (a *Agent) DoAction(ctx context.Context, llm *openai.Client, action *AgentAction) (any, *tokens.TokenCount, error) {
+	state := &executionState{
+		llm:        llm,
+		tokenCount: tokens.NewTokenCount(),
+	}
+	out, err := a.doAction(ctx, state, action)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	switch {
+	case out.finish != nil:
+		// If the tool already breaks execution, we don't have to do anything
+		return out.finish.output, state.tokenCount, nil
+	case out.observation != "":
+		// If the tool doesn't break execution and returns a single observation,
+		// we wrap the observation in a Message.
+		return &output.Message{Content: out.observation}, state.tokenCount, nil
+	default:
+		return nil, state.tokenCount, trace.Errorf("action %s did not end execution nor returned an observation", action.Action)
+	}
+}
+
 // stepOutput represents the inputs and outputs of a single thought step.
 type stepOutput struct {
 	// if the agent is done, finish is set.
@@ -191,6 +211,10 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 	// If action is set, the agent is not done and called upon a tool.
 	progressUpdates(action)
 
+	return a.doAction(ctx, state, action)
+}
+
+func (a *Agent) doAction(ctx context.Context, state *executionState, action *AgentAction) (stepOutput, error) {
 	var tool tools.Tool
 	for _, candidate := range a.tools {
 		if candidate.Name() == action.Action {
@@ -253,6 +277,25 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 
 		log.Tracef("agent decided on command generation, let's translate to an agentFinish")
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
+	case *tools.AuditQueryGenerationTool:
+		log.Tracef("Tool called with input:'%s'", action.Input)
+		tableName, err := tool.ChooseEventTable(ctx, action.Input, state.tokenCount)
+		// If the query was not answerable by audit logs,
+		// we return to the agent thinking loop and tell that the tool failed
+		if trace.IsNotFound(err) {
+			return stepOutput{action: action, observation: err.Error()}, nil
+		}
+		if err != nil {
+			return stepOutput{}, trace.Wrap(err)
+		}
+
+		log.Tracef("Tool chose to query table '%s'", tableName)
+		response, err := tool.GenerateQuery(ctx, tableName, action.Input, state.tokenCount)
+		if err != nil {
+			return stepOutput{}, trace.Wrap(err)
+		}
+
+		return stepOutput{finish: &agentFinish{output: response}}, nil
 	default:
 		runOut, err := tool.Run(ctx, a.toolCtx, action.Input)
 		if err != nil {
@@ -284,23 +327,7 @@ func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, 
 		return nil, nil, trace.Wrap(err)
 	}
 
-	deltas := make(chan string)
-	go func() {
-		defer close(deltas)
-
-		for {
-			response, err := stream.Recv()
-			if errors.Is(err, io.EOF) {
-				return
-			} else if err != nil {
-				log.Tracef("agent encountered an error while streaming: %v", err)
-				return
-			}
-
-			delta := response.Choices[0].Delta.Content
-			deltas <- delta
-		}
-	}()
+	deltas := output.StreamToDeltas(stream)
 
 	action, finish, completionTokenCounter, err := parsePlanningOutput(deltas)
 	state.tokenCount.AddCompletionCounter(completionTokenCounter)
@@ -370,25 +397,11 @@ func parsePlanningOutput(deltas <-chan string) (*AgentAction, *agentFinish, toke
 		text += delta
 
 		if strings.HasPrefix(text, finalResponseHeader) {
-			parts := make(chan string)
-			streamingTokenCounter, err := tokens.NewAsynchronousTokenCounter(text)
+			message, tc, err := output.NewStreamingMessage(deltas, text, finalResponseHeader)
 			if err != nil {
 				return nil, nil, nil, trace.Wrap(err)
 			}
-			go func() {
-				defer close(parts)
-
-				parts <- strings.TrimPrefix(text, finalResponseHeader)
-				for delta := range deltas {
-					parts <- delta
-					errCount := streamingTokenCounter.Add()
-					if errCount != nil {
-						log.WithError(errCount).Debug("Failed to add streamed completion text to the token counter")
-					}
-				}
-			}()
-
-			return nil, &agentFinish{output: &output.StreamingMessage{Parts: parts}}, streamingTokenCounter, nil
+			return nil, &agentFinish{output: message}, tc, nil
 		}
 	}
 

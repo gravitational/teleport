@@ -3,10 +3,12 @@ run-name: Build CI Buildbox Images
 on:
   push:
     paths:
+      - .github/workflows/build-ci-buildbox-images.yaml
       - build.assets/Dockerfile
       - build.assets/Dockerfile-centos7
       - build.assets/Makefile
       - build.assets/images.mk
+      - build.assets/versions.mk
     branches:
       - master
       - branch/**

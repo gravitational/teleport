@@ -46,7 +46,7 @@ First, create a file named `role.yaml` with the following content:
 kind: role
 metadata:
   name: machine-id-kube-role
-version: v6
+version: v7
 spec:
   allow:
     kubernetes_labels:
@@ -249,7 +249,7 @@ $ kubectl --kubeconfig /opt/machine-id/kubeconfig.yaml get pods -n demo
 ```
 
 This `kubeconfig.yaml` can also be passed to any other Kubernetes API clients
-that support credential provider plugins, including those built with 
+that support credential provider plugins, including those built with
 [`kubernetes/client-go`](https://github.com/kubernetes/client-go) and most other
 language libraries.
 

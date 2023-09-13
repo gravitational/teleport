@@ -128,7 +128,7 @@ listing the IAM role ARN created in the previous step. Create a file called
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: aws-opensearch-access
 spec:
@@ -201,13 +201,15 @@ Service. The step below will overwrite an existing configuration file, so if
 you're running multiple services add `--output=stdout` to print the config in
 your terminal, and manually adjust `/etc/teleport.yaml`.
 
-Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
+Generate a configuration file at `/etc/teleport.yaml` for the Database Service.
+Set the `--proxy` command-line option to the address for your Teleport cluster
+and database parameters to your AWS environment.
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=<Var name="proxy-address" /> \
+   --proxy=<Var name="teleport.example.com" />:443 \
    --name=example-opensearch \
    --protocol=opensearch \
    --uri=your-opensearch-domain-url.eu-central-1.es.amazonaws.com:443 \
@@ -215,30 +217,7 @@ $ teleport db configure create \
    --labels=env=dev
 ```
 
-<Tabs>
-<TabItem label="Package Manager">
-
-On the host where you will run {{ service }}, start Teleport:
-
-```code
-$ sudo systemctl enable teleport
-$ sudo systemctl start teleport
-```
-
-</TabItem>
-<TabItem label="TAR Archive">
-
-On the host where you will run {{ service }}, create a systemd service
-configuration for Teleport, enable the Teleport service, and start Teleport:
-
-```code
-$ sudo teleport install systemd -o /etc/systemd/system/teleport.service
-$ sudo systemctl enable teleport
-$ sudo systemctl start teleport
-```
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 </TabItem>
 
@@ -352,4 +331,3 @@ opensearchsql> select * from movies;
 #+----------------+---------+---------------+--------+-------------+
 opensearchsql>
 ```
-
