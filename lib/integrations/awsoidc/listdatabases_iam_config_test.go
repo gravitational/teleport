@@ -28,22 +28,18 @@ import (
 )
 
 func TestListDatabasesIAMConfigReqDefaults(t *testing.T) {
-	baseReq := func() ListDatabasesIAMConfigureRequest {
-		return ListDatabasesIAMConfigureRequest{
-			Region:          "us-east-1",
-			IntegrationRole: "integrationrole",
-		}
-	}
-
 	for _, tt := range []struct {
 		name     string
-		req      func() ListDatabasesIAMConfigureRequest
+		req      ListDatabasesIAMConfigureRequest
 		errCheck require.ErrorAssertionFunc
 		expected ListDatabasesIAMConfigureRequest
 	}{
 		{
-			name:     "set defaults",
-			req:      baseReq,
+			name: "set defaults",
+			req: ListDatabasesIAMConfigureRequest{
+				Region:          "us-east-1",
+				IntegrationRole: "integrationrole",
+			},
 			errCheck: require.NoError,
 			expected: ListDatabasesIAMConfigureRequest{
 				Region:              "us-east-1",
@@ -53,49 +49,42 @@ func TestListDatabasesIAMConfigReqDefaults(t *testing.T) {
 		},
 		{
 			name: "missing region",
-			req: func() ListDatabasesIAMConfigureRequest {
-				req := baseReq()
-				req.Region = ""
-				return req
+			req: ListDatabasesIAMConfigureRequest{
+				IntegrationRole: "integrationrole",
 			},
 			errCheck: badParameterCheck,
 		},
 		{
 			name: "missing integration role",
-			req: func() ListDatabasesIAMConfigureRequest {
-				req := baseReq()
-				req.IntegrationRole = ""
-				return req
+			req: ListDatabasesIAMConfigureRequest{
+				IntegrationRole: "integrationrole",
 			},
 			errCheck: badParameterCheck,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			req := tt.req()
-			err := req.CheckAndSetDefaults()
+			err := tt.req.CheckAndSetDefaults()
 			tt.errCheck(t, err)
 			if err != nil {
 				return
 			}
 
-			require.Equal(t, tt.expected, req)
+			require.Equal(t, tt.expected, tt.req)
 		})
 	}
 }
 
 func TestListDatabasesIAMConfig(t *testing.T) {
 	ctx := context.Background()
-	baseReq := func() ListDatabasesIAMConfigureRequest {
-		return ListDatabasesIAMConfigureRequest{
-			Region:          "us-east-1",
-			IntegrationRole: "integrationrole",
-		}
+	baseReq := ListDatabasesIAMConfigureRequest{
+		Region:          "us-east-1",
+		IntegrationRole: "integrationrole",
 	}
 
 	for _, tt := range []struct {
 		name              string
 		mockExistingRoles []string
-		req               func() ListDatabasesIAMConfigureRequest
+		req               ListDatabasesIAMConfigureRequest
 		errCheck          require.ErrorAssertionFunc
 	}{
 		{
@@ -116,7 +105,7 @@ func TestListDatabasesIAMConfig(t *testing.T) {
 				existingRoles: tt.mockExistingRoles,
 			}
 
-			err := ConfigureListDatabasesIAM(ctx, &clt, tt.req())
+			err := ConfigureListDatabasesIAM(ctx, &clt, tt.req)
 			tt.errCheck(t, err)
 		})
 	}
@@ -128,8 +117,8 @@ type mockListDatabasesIAMConfigClient struct {
 
 // PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 func (m *mockListDatabasesIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
-	noSuchEntityMessage := fmt.Sprintf("role %q does not exist.", *params.RoleName)
 	if !slices.Contains(m.existingRoles, *params.RoleName) {
+		noSuchEntityMessage := fmt.Sprintf("role %q does not exist.", *params.RoleName)
 		return nil, &iamTypes.NoSuchEntityException{
 			Message: &noSuchEntityMessage,
 		}
