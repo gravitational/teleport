@@ -6,20 +6,81 @@ description: Describes common issues and solutions for access to servers.
 This section describes common issues that you might encounter in managing access to servers
 with Teleport and how to work around or resolve them.
 
-## Error starting session due to teleport file settings
+## Starting SSH sessions fails
 
-Teleport should be set with "-rwxr-xr-x" since it is run as the user that is starting a ssh session. 
-Some systems will configure new installations it so it is not executable by any user.  
-See https://github.com/gravitational/teleport/issues/19943.
+By default, if you use SSH to connect to a server, Teleport runs as the user login that starts 
+the SSH session. If starting the session fails, it might be due to the Teleport file permission
+settings for the user login that Teleport is using to connect to the remote servr.
+This issue might be caused by systems that prevent newly installed software from being executable 
+by any user.  
 
-- No users set for logins when converting to SSO. Our instructions show adding a user and setting a login.  
-SSO users will login often with no set logins so that leads to confusion why they don't see.  
-The fix is to hardcode or use traits in the roles.
+## Symptom
 
-- A server listing does not mean it is actually available. 
+This issue results in a disconnected session and an error message similar to the following:
+
+```text
+Failed to launch: fork/exec /proc/self/exe: permission denied.
+Process exited with status 255
+```
+
+## Solution
+
+You should check the permission settings for the `teleport` service. 
+
+To check the permissions on the teleport service:
+
+1. Open a terminal shell on the computer where you have installed the `teleport` service.
+
+1. Determine the location of the Teleport binary by running the following command:
+   
+   ```code
+   which teleport
+   ```
+
+1. Check the permission settings for the binary by running the following command:
+   
+   ```code
+   ls -al <Var name="/usr/local/bin/teleport" />
+   ```
+
+   The command should return output similar to the following:
+   
+   ```text
+   -rwxr-xr-x  1 root  wheel  531849504 Aug 30 18:32 /usr/local/bin/teleport
+   ```
+   
+   If you don't see the permission that allows other users to read and execute (-rwxr-x**r-x**), 
+   you should update the permissions. For example:
+
+   ```code
+   chmod o+rx teleport
+   ```
+   
+1. Restart the `teleport` service.
+
+## Missing logins for single sign-on users
+
+If you use an external identity provider to enable single sign-on for users, you should be sure
+to assign logins for those users.
+
+### Symptom
+
+Users who have access to Teleport through an authentication connector for an external identity
+provider don't see any of the logins they need to access remote resources.
+
+### Solution
+
+To fix this issue, you can assign logins to your single sign-on users or modify the traits in 
+the Teleport roles assigned to users through their group membership in the external identity provider.
+
+## Listing available servers
+
+A server listing does not mean it is actually available. 
 A server will list ~10m and sometimes more after the last heartbeat.  
 If a server is coming back as unavailable the "tctl nodes ls --format json" or "tsh ls --format json" 
 will show the expiration date.  If the expiration is
 showing low numbers that means the heartbeat isn't coming through.  LIkely that the node has stopped heartbeating.
 
-- Attempts to join sessions are failing.  This requires role permission.
+## Attempts to join fail
+
+This operation requires role permission.
