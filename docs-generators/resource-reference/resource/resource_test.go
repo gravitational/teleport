@@ -328,6 +328,26 @@ my_string: "string"
   - "string"
 `,
 		},
+		{
+			description: "maps of numbers to strings",
+			input: []rawField{
+				rawField{
+					name:     "myMap",
+					jsonName: "my_map",
+					doc:      "myMap is a map of ints to strings",
+					tags:     `json:"my_map"`,
+					kind: yamlMapping{
+						keyKind:   yamlNumber{},
+						valueKind: yamlString{},
+					},
+				},
+			},
+			expected: `my_map: 
+  1: "string"
+  1: "string"
+  1: "string"
+`,
+		},
 	}
 
 	for _, c := range cases {
