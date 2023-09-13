@@ -99,6 +99,10 @@ func (y yamlMapping) formatForExampleYAML() string {
 - %v`, kv, kv, kv)
 }
 
+func (y yamlMapping) formatForTable() string {
+	return fmt.Sprintf("map[%v]%v", y.keyKind.formatForTable(), y.valueKind.formatForTable())
+}
+
 type yamlString struct{}
 
 func (y yamlString) formatForTable() string {
@@ -197,25 +201,11 @@ func getRawNamedStruct(decl *ast.GenDecl) (rawNamedStruct, error) {
 // makeYAMLExample creates an example YAML document illustrating the fields
 // within the declaration.
 func makeYAMLExample(fields []rawField) (string, error) {
-	// Write part of a potentially complex type to the YAML example.
-	// Assumes that the part will be on the same line as its predecessor.
-	addNodeToExample := func(example *bytes.Buffer, node yamlKindNode) error {
-		// TODO: In the recursive function:
-		// TODO: handle custom fields per the "Custom fields" section of the RFD
-		// TODO: handle predeclared composite types per the relevant section of the
-		// RFD.
-		// TODO: handle named types per the relevant section of the RFD
-		example.WriteString(node.formatForExampleYAML())
-		return nil
-	}
-
 	var buf bytes.Buffer
 
 	for _, field := range fields {
 		buf.WriteString("  " + getJSONTag(field.tags) + ": ")
-		if err := addNodeToExample(&buf, field.kind); err != nil {
-			return "", err
-		}
+		buf.WriteString(field.kind.formatForExampleYAML())
 		buf.WriteString("\n")
 	}
 
@@ -240,10 +230,11 @@ func getJSONTag(tags string) string {
 	return strings.TrimSuffix(kv[1], ",omitempty")
 }
 
-// getYAMLType returns a name for field that is suitable for printing within the
-// resource reference.
-func getYAMLType(field *ast.Field) (yamlKindNode, error) {
-	switch t := field.Type.(type) {
+// getYAMLTypeForExpr takes an AST type expression and recursively
+// traverses it to populate a yamlKindNode. Each iteration converts a
+// single *ast.Expr into a single yamlKindNode, returning the new node.
+func getYAMLTypeForExpr(exp ast.Expr) (yamlKindNode, error) {
+	switch t := exp.(type) {
 	// TODO: Handle fields with manually overriden types per the
 	// "Predeclared scalar types" section of the RFD.
 	case *ast.Ident:
@@ -257,12 +248,43 @@ func getYAMLType(field *ast.Field) (yamlKindNode, error) {
 		default:
 			return nil, fmt.Errorf("unsupported type: %+v", t.Name)
 		}
-		// TODO: Handle slices, maps, and structs
+	case *ast.MapType:
+		k, err := getYAMLTypeForExpr(t.Key)
+		if err != nil {
+			return nil, err
+		}
+
+		v, err := getYAMLTypeForExpr(t.Value)
+		if err != nil {
+			return nil, err
+		}
+		return yamlMapping{
+			keyKind:   k,
+			valueKind: v,
+		}, nil
+	case *ast.ArrayType:
+		e, err := getYAMLTypeForExpr(t.Elt)
+		if err != nil {
+			return nil, err
+		}
+		return yamlSequence{
+			elementKind: e,
+		}, nil
+	// TODO: Handle named structs
 	// TODO: For declared types, field.Type is an *ast.SelectorExpr.
 	// Figure out how to handle this case.
 	default:
 		return nil, nil
 	}
+
+}
+
+// getYAMLType returns a name for field that is suitable for printing within the
+// resource reference.
+func getYAMLType(field *ast.Field) (yamlKindNode, error) {
+
+	return getYAMLTypeForExpr(field.Type)
+
 }
 
 // makeRawField translates an *ast.Field into a rawField for downstream

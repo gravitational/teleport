@@ -89,7 +89,7 @@ type Metadata struct {
     Names []string BACKTICKjson:"names"BACKTICK
     // Numbers is a list of numbers.
     Numbers []int BACKTICKjson:"numbers"BACKTICK
-    // Booleans is a list of Booleans
+    // Booleans is a list of Booleans.
     Booleans []bool BACKTICKjson:"booleans"BACKTICK
 }
 `,
@@ -119,7 +119,7 @@ type Metadata struct {
 					Field{
 						Name:        "numbers",
 						Description: "A list of numbers.",
-						Type:        "[]string",
+						Type:        "[]number",
 					},
 					Field{
 						Name:        "booleans",
