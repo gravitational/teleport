@@ -110,7 +110,6 @@ func createAccessRequest(ctx context.Context, clt accessRequestAPIGetter, reques
 		return usResp, trace.Wrap(err)
 	}
 
-	// DELETE IN 15.0.0 - use CreateAccessRequestV2 instead
 	req, err = clt.CreateAccessRequestV2(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)

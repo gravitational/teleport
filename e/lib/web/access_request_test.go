@@ -550,7 +550,7 @@ func TestSuggestAccessLists(t *testing.T) {
 	// create an access request for reviewer to request access to the "access" role
 	accessRequest, err := services.NewAccessRequest("reviewer", "access")
 	require.NoError(t, err)
-	_, err = authClient.CreateAccessRequestV2(ctx, accessRequest)
+	accessRequest, err = authClient.CreateAccessRequestV2(ctx, accessRequest)
 	require.NoError(t, err)
 
 	// create four access lists:
