@@ -298,6 +298,31 @@ func TestMakeYAMLExample(t *testing.T) {
   my_string: "string"
 `,
 		},
+		{
+			description: "sequence of sequence of strings",
+			input: []rawField{
+				rawField{
+					name:     "mySeq",
+					jsonName: "my_seq",
+					doc:      "mySeq is a sequence of sequences of strings",
+					tags:     `json:"my_seq"`,
+					kind: yamlSequence{
+						elementKind: yamlSequence{
+							elementKind: yamlString{},
+						},
+					},
+				},
+			},
+			expected: `  my_seq: - - "string"
+  - "string"
+  - "string"
+- - "string"
+  - "string"
+  - "string"
+- - "string"
+  - "string"
+  - "string" `,
+		},
 	}
 
 	for _, c := range cases {
