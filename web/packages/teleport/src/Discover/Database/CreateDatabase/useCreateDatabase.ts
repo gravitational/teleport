@@ -296,7 +296,7 @@ export function useCreateDatabase() {
       createdDb.awsRds?.resourceId !== db.awsRds?.resourceId ||
       createdDb.awsRds?.vpcId !== db.awsRds?.vpcId ||
       createdDb.awsRds?.subnets !== db.awsRds?.subnets ||
-      createdDb.awsRds?.accountId !== db.awsRds?.accountId 
+      createdDb.awsRds?.accountId !== db.awsRds?.accountId
     );
   }
 
