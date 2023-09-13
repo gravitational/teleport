@@ -706,7 +706,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [mike] failed to remove member [user] from access list [access-list]
+            User [undefined] failed to remove member [undefined] from access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -754,7 +754,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [mike] removed member [user] from access list [access-list]
+            User [undefined] removed member [undefined] from access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -808,7 +808,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [mike] failed to update member [user] in access list [access-list]
+            User [undefined] failed to update member [undefined] in access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -856,7 +856,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [mike] updated member [user] in access list [access-list]
+            User [undefined] updated member [undefined] in access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -910,7 +910,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [mike] failed to add member [user] to access list [access-list]
+            User [undefined] failed to add member [undefined] to access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -958,7 +958,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [mike] added member [user] to access list [access-list]
+            User [undefined] added member [undefined] to access list [access-list]
           </td>
           <td
             style="min-width: 120px;"

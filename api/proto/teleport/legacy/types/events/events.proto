@@ -216,8 +216,11 @@ message OktaAssignmentMetadata {
 
 // AccessListMemberMetadata contains common metadata for access list member resource events.
 message AccessListMemberMetadata {
+  // AccessListName is the name of the access list the members are being added to or removed from.
+  string AccessListName = 1 [(gogoproto.jsontag) = "access_list_name,omitempty"];
+
   // Members are all members affected by the access list membership change.
-  repeated AccessListMember Members = 1 [(gogoproto.jsontag) = "members,omitempty"];
+  repeated AccessListMember Members = 2 [(gogoproto.jsontag) = "members,omitempty"];
 }
 
 // AccessListMember is metadata surrounding an individual access list member.
@@ -239,11 +242,8 @@ message AccessListMember {
   // Reason is the reason that the member was added, modified, or removed.
   string Reason = 3 [(gogoproto.jsontag) = "reason,omitempty"];
 
-  // AccessListName is the name of the access list the member is being added to or removed from.
-  string AccessListName = 4 [(gogoproto.jsontag) = "access_list_name,omitempty"];
-
   // MemberName is the name of the member.
-  string MemberName = 5 [(gogoproto.jsontag) = "member_name,omitempty"];
+  string MemberName = 4 [(gogoproto.jsontag) = "member_name,omitempty"];
 }
 
 // AccessListReviewMetadata contains metadata for access list review events.

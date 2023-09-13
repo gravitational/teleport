@@ -3056,48 +3056,72 @@ export const events = [
     event: 'access_list.member.add',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
-    member_name: 'user',
-    updated_by: 'mike',
+    members: [
+      {
+        member_name: 'user',
+        updated_by: 'mike',
+      },
+    ],
   },
   {
     code: 'TAL005E',
     event: 'access_list.member.add',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
-    member_name: 'user',
-    updated_by: 'mike',
+    members: [
+      {
+        member_name: 'user',
+        updated_by: 'mike',
+      },
+    ],
   },
   {
     code: 'TAL006I',
     event: 'access_list.member.update',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
-    member_name: 'user',
-    updated_by: 'mike',
+    members: [
+      {
+        member_name: 'user',
+        updated_by: 'mike',
+      },
+    ],
   },
   {
     code: 'TAL006E',
     event: 'access_list.member.update',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
-    member_name: 'user',
-    updated_by: 'mike',
+    members: [
+      {
+        member_name: 'user',
+        updated_by: 'mike',
+      },
+    ],
   },
   {
     code: 'TAL007I',
     event: 'access_list.member.delete',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
-    member_name: 'user',
-    updated_by: 'mike',
+    members: [
+      {
+        member_name: 'user',
+        updated_by: 'mike',
+      },
+    ],
   },
   {
     code: 'TAL007E',
     event: 'access_list.member.delete',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
-    member_name: 'user',
-    updated_by: 'mike',
+    members: [
+      {
+        member_name: 'user',
+        updated_by: 'mike',
+      },
+    ],
   },
   {
     code: 'TAL008I',
