@@ -60,9 +60,9 @@ the leaf cluster. For example, assume you assign the leaf cluster a label using 
 tctl update rc/leaf --set-labels=env=prod
 ```
 
-This label can't prevent access to the leaf cluster if a user has a certificate signed by the root cluster.
-Because of the potential security vulnerability, you should use role mapping as the primary way to restrict access 
-to leaf clusters and use `cluster_labels` for filtering and limiting the visibility of leaf cluster resources.
+This label can't prevent direct access to the leaf cluster if a user has a certificate signed by the root cluster.
+You should use role mapping as the primary way to restrict access to leaf clusters and use `cluster_labels` for 
+filtering and limiting the visibility of leaf cluster resources.
 
 ## Next steps
 
