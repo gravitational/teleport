@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/discovery"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 )
@@ -910,7 +911,7 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{
-				GCPMatchers: []GCPMatcher{
+				GCPMatchers: []discovery.GCPMatcher{
 					{
 						Types:     []string{"gke"},
 						Locations: []string{"*"},
@@ -940,7 +941,7 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{
-				GCPMatchers: []GCPMatcher{
+				GCPMatchers: []discovery.GCPMatcher{
 					{
 						Types:     []string{"gke"},
 						Locations: []string{"eucentral1"},
@@ -971,7 +972,7 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{
-				GCPMatchers: []GCPMatcher{
+				GCPMatchers: []discovery.GCPMatcher{
 					{
 						Types:     []string{"gke"},
 						Locations: []string{"eucentral1"},
@@ -980,8 +981,8 @@ func TestDiscoveryConfig(t *testing.T) {
 						},
 						ProjectIDs:      []string{"p1", "p2"},
 						ServiceAccounts: []string{"a@example.com", "b@example.com"},
-						InstallParams: &InstallParams{
-							JoinParams: JoinParams{
+						InstallParams: &discovery.InstallParams{
+							JoinParams: types.JoinParams{
 								TokenName: defaults.GCPInviteTokenName,
 								Method:    types.JoinMethodGCP,
 							},
@@ -1004,7 +1005,7 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{
-				AzureMatchers: []AzureMatcher{
+				AzureMatchers: []discovery.AzureMatcher{
 					{
 						Types:   []string{"aks"},
 						Regions: []string{"*"},
@@ -1036,7 +1037,7 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{
-				AzureMatchers: []AzureMatcher{
+				AzureMatchers: []discovery.AzureMatcher{
 					{
 						Types:   []string{"aks"},
 						Regions: []string{"eucentral1"},
@@ -1066,22 +1067,22 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{
-				AWSMatchers: []AWSMatcher{
+				AWSMatchers: []discovery.AWSMatcher{
 					{
 						Types:   []string{"ec2"},
 						Regions: []string{"eu-central-1"},
 						Tags: map[string]apiutils.Strings{
 							"discover_teleport": []string{"yes"},
 						},
-						InstallParams: &InstallParams{
-							JoinParams: JoinParams{
+						InstallParams: &discovery.InstallParams{
+							JoinParams: types.JoinParams{
 								TokenName: defaults.IAMInviteTokenName,
 								Method:    types.JoinMethodIAM,
 							},
 							SSHDConfig: "/etc/ssh/sshd_config",
 							ScriptName: installers.InstallerScriptName,
 						},
-						SSM: AWSSSM{DocumentName: defaults.AWSInstallerDocument},
+						SSM: discovery.AWSSSM{DocumentName: defaults.AWSInstallerDocument},
 					},
 				},
 			},
@@ -1115,22 +1116,22 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{
-				AWSMatchers: []AWSMatcher{
+				AWSMatchers: []discovery.AWSMatcher{
 					{
 						Types:   []string{"ec2"},
 						Regions: []string{"eu-central-1"},
 						Tags: map[string]apiutils.Strings{
 							"discover_teleport": []string{"yes"},
 						},
-						InstallParams: &InstallParams{
-							JoinParams: JoinParams{
+						InstallParams: &discovery.InstallParams{
+							JoinParams: types.JoinParams{
 								TokenName: "hello-iam-a-token",
 								Method:    types.JoinMethodIAM,
 							},
 							SSHDConfig: "/etc/ssh/sshd_config",
 							ScriptName: "installer-custom",
 						},
-						SSM:           AWSSSM{DocumentName: "hello_document"},
+						SSM:           discovery.AWSSSM{DocumentName: "hello_document"},
 						AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 						ExternalID:    "externalID123",
 					},
@@ -1213,22 +1214,22 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{
-				AWSMatchers: []AWSMatcher{
+				AWSMatchers: []discovery.AWSMatcher{
 					{
 						Types:   []string{"redshift-serverless"},
 						Regions: []string{"us-west-1"},
 						Tags: map[string]apiutils.Strings{
 							"discover_teleport": []string{"yes"},
 						},
-						InstallParams: &InstallParams{
-							JoinParams: JoinParams{
+						InstallParams: &discovery.InstallParams{
+							JoinParams: types.JoinParams{
 								TokenName: "aws-discovery-iam-token",
 								Method:    types.JoinMethodIAM,
 							},
 							SSHDConfig: "/etc/ssh/sshd_config",
 							ScriptName: "default-installer",
 						},
-						SSM:           AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+						SSM:           discovery.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 						AssumeRoleARN: "",
 						ExternalID:    "externalid123",
 					},
@@ -1291,15 +1292,15 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{
-				AWSMatchers: []AWSMatcher{
+				AWSMatchers: []discovery.AWSMatcher{
 					{
-						SSM: AWSSSM{
+						SSM: discovery.AWSSSM{
 							DocumentName: defaults.AWSInstallerDocument,
 						},
 						Regions: []string{"eu-west-1"},
 						Tags:    map[string]apiutils.Strings{"*": {"*"}},
-						InstallParams: &InstallParams{
-							JoinParams: JoinParams{
+						InstallParams: &discovery.InstallParams{
+							JoinParams: types.JoinParams{
 								TokenName: defaults.IAMInviteTokenName,
 								Method:    types.JoinMethodIAM,
 							},
@@ -1329,7 +1330,7 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{
-				AzureMatchers: []AzureMatcher{
+				AzureMatchers: []discovery.AzureMatcher{
 					{
 						Types:          []string{"vm"},
 						Regions:        []string{"westcentralus"},
@@ -1338,8 +1339,8 @@ func TestDiscoveryConfig(t *testing.T) {
 						ResourceTags: map[string]apiutils.Strings{
 							"discover_teleport": []string{"yes"},
 						},
-						InstallParams: &InstallParams{
-							JoinParams: JoinParams{
+						InstallParams: &discovery.InstallParams{
+							JoinParams: types.JoinParams{
 								TokenName: "azure-discovery-token",
 								Method:    "azure",
 							},
@@ -1375,7 +1376,7 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{
-				AzureMatchers: []AzureMatcher{
+				AzureMatchers: []discovery.AzureMatcher{
 					{
 						Types:          []string{"vm"},
 						Regions:        []string{"westcentralus"},
@@ -1384,8 +1385,8 @@ func TestDiscoveryConfig(t *testing.T) {
 						ResourceTags: map[string]apiutils.Strings{
 							"discover_teleport": []string{"yes"},
 						},
-						InstallParams: &InstallParams{
-							JoinParams: JoinParams{
+						InstallParams: &discovery.InstallParams{
+							JoinParams: types.JoinParams{
 								TokenName: "custom-azure-token",
 								Method:    "azure",
 							},

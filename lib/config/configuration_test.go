@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/discovery"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -351,7 +352,7 @@ func TestConfigReading(t *testing.T) {
 				EnabledFlag:    "true",
 				ListenAddress:  "",
 			},
-			AWSMatchers: []AWSMatcher{
+			AWSMatchers: []discovery.AWSMatcher{
 				{
 					Types:   []string{"ec2"},
 					Regions: []string{"us-west-1", "us-east-1"},
@@ -360,18 +361,18 @@ func TestConfigReading(t *testing.T) {
 					},
 					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 					ExternalID:    "externalID123",
-					InstallParams: &InstallParams{
-						JoinParams: JoinParams{
+					InstallParams: &discovery.InstallParams{
+						JoinParams: types.JoinParams{
 							TokenName: "aws-discovery-iam-token",
 							Method:    "iam",
 						},
 						SSHDConfig: "/etc/ssh/sshd_config",
 						ScriptName: "default-installer",
 					},
-					SSM: AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+					SSM: discovery.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 				},
 			},
-			AzureMatchers: []AzureMatcher{
+			AzureMatchers: []discovery.AzureMatcher{
 				{
 					Types:   []string{"aks"},
 					Regions: []string{"uswest1"},
@@ -382,7 +383,7 @@ func TestConfigReading(t *testing.T) {
 					Subscriptions:  []string{"sub1"},
 				},
 			},
-			GCPMatchers: []GCPMatcher{
+			GCPMatchers: []discovery.GCPMatcher{
 				{
 					Types:     []string{"gke"},
 					Locations: []string{"uswest1"},
@@ -479,7 +480,7 @@ func TestConfigReading(t *testing.T) {
 					},
 				},
 			},
-			AWSMatchers: []AWSMatcher{
+			AWSMatchers: []discovery.AWSMatcher{
 				{
 					Types:   []string{"rds"},
 					Regions: []string{"us-west-1", "us-east-1"},
@@ -498,7 +499,7 @@ func TestConfigReading(t *testing.T) {
 					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 				},
 			},
-			AzureMatchers: []AzureMatcher{
+			AzureMatchers: []discovery.AzureMatcher{
 				{
 					Subscriptions:  []string{"sub1", "sub2"},
 					ResourceGroups: []string{"rg1", "rg2"},
@@ -1487,7 +1488,7 @@ func makeConfigFixture() string {
 
 	// discovery service
 	conf.Discovery.EnabledFlag = "true"
-	conf.Discovery.AWSMatchers = []AWSMatcher{
+	conf.Discovery.AWSMatchers = []discovery.AWSMatcher{
 		{
 			Types:         []string{"ec2"},
 			Regions:       []string{"us-west-1", "us-east-1"},
@@ -1497,7 +1498,7 @@ func makeConfigFixture() string {
 		},
 	}
 
-	conf.Discovery.AzureMatchers = []AzureMatcher{
+	conf.Discovery.AzureMatchers = []discovery.AzureMatcher{
 		{
 			Types:   []string{"aks"},
 			Regions: []string{"uswest1"},
@@ -1509,7 +1510,7 @@ func makeConfigFixture() string {
 		},
 	}
 
-	conf.Discovery.GCPMatchers = []GCPMatcher{
+	conf.Discovery.GCPMatchers = []discovery.GCPMatcher{
 		{
 			Types:     []string{"gke"},
 			Locations: []string{"uswest1"},
@@ -1592,7 +1593,7 @@ func makeConfigFixture() string {
 			},
 		},
 	}
-	conf.Databases.AWSMatchers = []AWSMatcher{
+	conf.Databases.AWSMatchers = []discovery.AWSMatcher{
 		{
 			Types:         []string{"rds"},
 			Regions:       []string{"us-west-1", "us-east-1"},
@@ -1607,7 +1608,7 @@ func makeConfigFixture() string {
 			AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 		},
 	}
-	conf.Databases.AzureMatchers = []AzureMatcher{
+	conf.Databases.AzureMatchers = []discovery.AzureMatcher{
 		{
 			Subscriptions:  []string{"sub1", "sub2"},
 			ResourceGroups: []string{"rg1", "rg2"},
@@ -3738,12 +3739,12 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 		{
 			name: "azure matchers",
 			discoveryConfig: Discovery{
-				AzureMatchers: []AzureMatcher{
+				AzureMatchers: []discovery.AzureMatcher{
 					{
 						Types:         []string{"aks", "vm"},
 						Subscriptions: []string{"abcd"},
-						InstallParams: &InstallParams{
-							JoinParams: JoinParams{
+						InstallParams: &discovery.InstallParams{
+							JoinParams: types.JoinParams{
 								TokenName: "azure-token",
 								Method:    "azure",
 							},
@@ -3772,7 +3773,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 		{
 			name: "azure matchers no installer",
 			discoveryConfig: Discovery{
-				AzureMatchers: []AzureMatcher{
+				AzureMatchers: []discovery.AzureMatcher{
 					{
 						Types:         []string{"aks"},
 						Subscriptions: []string{"abcd"},
@@ -4120,7 +4121,7 @@ func TestGetInstallerProxyAddr(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name              string
-		installParams     *InstallParams
+		installParams     *discovery.InstallParams
 		fc                *FileConfig
 		expectedProxyAddr string
 	}{
@@ -4131,7 +4132,7 @@ func TestGetInstallerProxyAddr(t *testing.T) {
 		},
 		{
 			name: "explicit proxy addr",
-			installParams: &InstallParams{
+			installParams: &discovery.InstallParams{
 				PublicProxyAddr: "explicit.example.com",
 			},
 			fc: &FileConfig{

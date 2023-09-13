@@ -85,6 +85,18 @@ func ValidateJoinMethod(method JoinMethod) error {
 	return nil
 }
 
+// JoinParams configures the parameters for Simplified Node Joining.
+type JoinParams struct {
+	TokenName string          `yaml:"token_name"`
+	Method    JoinMethod      `yaml:"method"`
+	Azure     AzureJoinParams `yaml:"azure,omitempty"`
+}
+
+// AzureJoinParams configures the parameters specific to the Azure join method.
+type AzureJoinParams struct {
+	ClientID string `yaml:"client_id"`
+}
+
 type KubernetesJoinType string
 
 var (

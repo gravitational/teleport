@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
+	"github.com/gravitational/teleport/lib/discovery"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -79,7 +80,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
-					AWSMatchers: []config.AWSMatcher{
+					AWSMatchers: []discovery.AWSMatcher{
 						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
 					},
 				},
@@ -109,7 +110,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
-					AWSMatchers: []config.AWSMatcher{
+					AWSMatchers: []discovery.AWSMatcher{
 						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
 					},
 				},
@@ -173,7 +174,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
-					AWSMatchers: []config.AWSMatcher{
+					AWSMatchers: []discovery.AWSMatcher{
 						{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
 					},
 				},
@@ -200,7 +201,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
-					AWSMatchers: []config.AWSMatcher{
+					AWSMatchers: []discovery.AWSMatcher{
 						{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
 					},
 				},
@@ -258,7 +259,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
-					AWSMatchers: []config.AWSMatcher{
+					AWSMatchers: []discovery.AWSMatcher{
 						{Types: []string{services.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}},
 					},
 				},
@@ -409,7 +410,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
-					AWSMatchers: []config.AWSMatcher{
+					AWSMatchers: []discovery.AWSMatcher{
 						{Types: []string{services.AWSMatcherMemoryDB}, Regions: []string{"us-west-2"}},
 					},
 				},
@@ -543,13 +544,13 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Discovery: config.Discovery{
 					Service: config.Service{EnabledFlag: "true"},
-					AWSMatchers: []config.AWSMatcher{
+					AWSMatchers: []discovery.AWSMatcher{
 						{
 							Types:   []string{services.AWSMatcherEC2},
 							Regions: []string{"eu-central-1"},
 							Tags:    map[string]utils.Strings{"*": []string{"*"}},
-							InstallParams: &config.InstallParams{
-								JoinParams: config.JoinParams{
+							InstallParams: &discovery.InstallParams{
+								JoinParams: types.JoinParams{
 									TokenName: "token",
 									Method:    types.JoinMethodIAM,
 								},
@@ -585,7 +586,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
-					AWSMatchers: []config.AWSMatcher{
+					AWSMatchers: []discovery.AWSMatcher{
 						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
 					},
 				},
@@ -596,7 +597,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
-					AWSMatchers: []config.AWSMatcher{
+					AWSMatchers: []discovery.AWSMatcher{
 						{Types: []string{services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
 					},
 				},
@@ -656,7 +657,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
-					AWSMatchers: []config.AWSMatcher{
+					AWSMatchers: []discovery.AWSMatcher{
 						{Types: []string{services.AWSMatcherRedshiftServerless}, Regions: []string{"us-west-2"}},
 					},
 				},
@@ -756,7 +757,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
-					AWSMatchers: []config.AWSMatcher{
+					AWSMatchers: []discovery.AWSMatcher{
 						{Types: []string{services.AWSMatcherOpenSearch}, Regions: []string{"us-west-2"}},
 					},
 				},
@@ -830,7 +831,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 							},
 						},
 					},
-					AWSMatchers: []config.AWSMatcher{
+					AWSMatchers: []discovery.AWSMatcher{
 						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}, AssumeRoleARN: role4},
 						{Types: []string{services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}, AssumeRoleARN: roleTarget.String(), ExternalID: "foo"},
 					},
@@ -879,7 +880,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 							},
 						},
 					},
-					AWSMatchers: []config.AWSMatcher{
+					AWSMatchers: []discovery.AWSMatcher{
 						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}, AssumeRoleARN: role4},
 						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}, AssumeRoleARN: role5, ExternalID: "foo"},
 					},
@@ -932,7 +933,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
 						},
 					},
@@ -950,7 +951,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
 						},
 					},
@@ -968,7 +969,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
 						},
 					},
@@ -986,7 +987,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherRedshiftServerless}, Regions: []string{"us-west-2"}},
 						},
 					},
@@ -1004,7 +1005,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}},
 						},
 					},
@@ -1022,7 +1023,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherMemoryDB}, Regions: []string{"us-west-2"}},
 						},
 					},
@@ -1040,7 +1041,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherOpenSearch}, Regions: []string{"us-west-2"}},
 						},
 					},
@@ -1058,7 +1059,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-1"}},
 							{Types: []string{services.AWSMatcherRedshift, services.AWSMatcherRDS, services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
 							{Types: []string{services.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}, AssumeRoleARN: role1, ExternalID: "foo"},
@@ -1138,7 +1139,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
 						},
 					},
@@ -1172,7 +1173,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
 						},
 					},
@@ -1206,7 +1207,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
 						},
 					},
@@ -1240,7 +1241,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherRedshiftServerless}, Regions: []string{"us-west-2"}},
 						},
 					},
@@ -1264,7 +1265,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}},
 						},
 					},
@@ -1318,7 +1319,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherMemoryDB}, Regions: []string{"us-west-2"}},
 						},
 					},
@@ -1362,7 +1363,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherOpenSearch}, Regions: []string{"us-west-2"}},
 						},
 					},
@@ -1386,7 +1387,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
-						AWSMatchers: []config.AWSMatcher{
+						AWSMatchers: []discovery.AWSMatcher{
 							{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-1"}},
 							{Types: []string{services.AWSMatcherRedshift, services.AWSMatcherRDS, services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
 							{Types: []string{services.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}, AssumeRoleARN: role1, ExternalID: "foo"},
@@ -1792,11 +1793,11 @@ func TestAWSDocumentConfigurator(t *testing.T) {
 			PublicAddr: []string{"proxy.example.org:443"},
 		},
 		Discovery: config.Discovery{
-			AWSMatchers: []config.AWSMatcher{
+			AWSMatchers: []discovery.AWSMatcher{
 				{
 					Types:   []string{"ec2"},
 					Regions: []string{"eu-central-1"},
-					SSM:     config.AWSSSM{DocumentName: "document"},
+					SSM:     discovery.AWSSSM{DocumentName: "document"},
 				},
 			},
 		},

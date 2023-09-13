@@ -41,18 +41,16 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/discovery"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // FileConfig structure represents the teleport configuration stored in a config file
@@ -226,7 +224,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	if joinMethod == "" && flags.AuthToken != "" {
 		joinMethod = string(types.JoinMethodToken)
 	}
-	g.JoinParams = JoinParams{
+	g.JoinParams = types.JoinParams{
 		TokenName: flags.AuthToken,
 		Method:    types.JoinMethod(joinMethod),
 	}
@@ -470,13 +468,13 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	if err := checkAndSetDefaultsForAWSMatchers(conf.Discovery.AWSMatchers); err != nil {
+	if err := discovery.CheckAndSetDefaultsForAWSMatchers(conf.Discovery.AWSMatchers); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := checkAndSetDefaultsForAzureMatchers(conf.Discovery.AzureMatchers); err != nil {
+	if err := discovery.CheckAndSetDefaultsForAzureMatchers(conf.Discovery.AzureMatchers); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := checkAndSetDefaultsForGCPMatchers(conf.Discovery.GCPMatchers); err != nil {
+	if err := discovery.CheckAndSetDefaultsForGCPMatchers(conf.Discovery.GCPMatchers); err != nil {
 		return trace.Wrap(err)
 	}
 	if len(conf.Discovery.KubernetesMatchers) > 0 {
@@ -485,301 +483,12 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 			return trace.BadParameter(`parameter 'discovery_group' should be defined for discovery service if
 kubernetes matchers are present`)
 		}
-		if err := checkAndSetDefaultsForKubeMatchers(conf.Discovery.KubernetesMatchers); err != nil {
+		if err := discovery.CheckAndSetDefaultsForKubeMatchers(conf.Discovery.KubernetesMatchers); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	return nil
-}
-
-// checkAndSetDefaultsForAWSMatchers sets the default values for discovery AWS matchers
-// and validates the provided types.
-func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
-	for i := range matcherInput {
-		matcher := &matcherInput[i]
-		for _, matcherType := range matcher.Types {
-			if !slices.Contains(services.SupportedAWSMatchers, matcherType) {
-				return trace.BadParameter("discovery service type does not support %q, supported resource types are: %v",
-					matcherType, services.SupportedAWSMatchers)
-			}
-		}
-
-		if len(matcher.Regions) == 0 {
-			return trace.BadParameter("discovery service requires at least one region; supported regions are: %v",
-				awsutils.GetKnownRegions())
-		}
-
-		for _, region := range matcher.Regions {
-			if err := awsapiutils.IsValidRegion(region); err != nil {
-				return trace.BadParameter("discovery service does not support region %q; supported regions are: %v",
-					region, awsutils.GetKnownRegions())
-			}
-		}
-
-		if matcher.AssumeRoleARN != "" {
-			_, err := awsutils.ParseRoleARN(matcher.AssumeRoleARN)
-			if err != nil {
-				return trace.Wrap(err, "discovery service AWS matcher assume_role_arn is invalid")
-			}
-		} else if matcher.ExternalID != "" {
-			for _, t := range matcher.Types {
-				if !slices.Contains(services.RequireAWSIAMRolesAsUsersMatchers, t) {
-					return trace.BadParameter("discovery service AWS matcher assume_role_arn is empty, but has external_id %q",
-						matcher.ExternalID)
-				}
-			}
-		}
-
-		if matcher.Tags == nil || len(matcher.Tags) == 0 {
-			matcher.Tags = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
-		}
-
-		var installParams types.InstallerParams
-		var err error
-
-		if matcher.InstallParams == nil {
-			matcher.InstallParams = &InstallParams{
-				JoinParams: JoinParams{
-					TokenName: defaults.IAMInviteTokenName,
-					Method:    types.JoinMethodIAM,
-				},
-				ScriptName:      installers.InstallerScriptName,
-				InstallTeleport: "",
-				SSHDConfig:      defaults.SSHDConfigPath,
-			}
-			installParams, err = matcher.InstallParams.Parse()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		} else {
-			if method := matcher.InstallParams.JoinParams.Method; method == "" {
-				matcher.InstallParams.JoinParams.Method = types.JoinMethodIAM
-			} else if method != types.JoinMethodIAM {
-				return trace.BadParameter("only IAM joining is supported for EC2 auto-discovery")
-			}
-
-			if matcher.InstallParams.JoinParams.TokenName == "" {
-				matcher.InstallParams.JoinParams.TokenName = defaults.IAMInviteTokenName
-			}
-
-			if matcher.InstallParams.SSHDConfig == "" {
-				matcher.InstallParams.SSHDConfig = defaults.SSHDConfigPath
-			}
-
-			installParams, err = matcher.InstallParams.Parse()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if installer := matcher.InstallParams.ScriptName; installer == "" {
-				if installParams.InstallTeleport {
-					matcher.InstallParams.ScriptName = installers.InstallerScriptName
-				} else {
-					matcher.InstallParams.ScriptName = installers.InstallerScriptNameAgentless
-				}
-			}
-		}
-
-		if matcher.SSM.DocumentName == "" {
-			if installParams.InstallTeleport {
-				matcher.SSM.DocumentName = defaults.AWSInstallerDocument
-			} else {
-				matcher.SSM.DocumentName = defaults.AWSAgentlessInstallerDocument
-			}
-		}
-	}
-	return nil
-}
-
-// checkAndSetDefaultsForAzureMatchers sets the default values for discovery Azure matchers
-// and validates the provided types.
-func checkAndSetDefaultsForAzureMatchers(matcherInput []AzureMatcher) error {
-	for i := range matcherInput {
-		matcher := &matcherInput[i]
-
-		if len(matcher.Types) == 0 {
-			return trace.BadParameter("At least one Azure discovery service type must be specified, the supported resource types are: %v",
-				services.SupportedAzureMatchers)
-		}
-
-		for _, matcherType := range matcher.Types {
-			if !slices.Contains(services.SupportedAzureMatchers, matcherType) {
-				return trace.BadParameter("Azure discovery service type does not support %q resource type; supported resource types are: %v",
-					matcherType, services.SupportedAzureMatchers)
-			}
-		}
-
-		if slices.Contains(matcher.Types, services.AzureMatcherVM) {
-			if err := checkAndSetDefaultsForAzureInstaller(matcher); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		if slices.Contains(matcher.Regions, types.Wildcard) || len(matcher.Regions) == 0 {
-			matcher.Regions = []string{types.Wildcard}
-		}
-
-		if slices.Contains(matcher.Subscriptions, types.Wildcard) || len(matcher.Subscriptions) == 0 {
-			matcher.Subscriptions = []string{types.Wildcard}
-		}
-
-		if slices.Contains(matcher.ResourceGroups, types.Wildcard) || len(matcher.ResourceGroups) == 0 {
-			matcher.ResourceGroups = []string{types.Wildcard}
-		}
-
-		if len(matcher.ResourceTags) == 0 {
-			matcher.ResourceTags = map[string]apiutils.Strings{
-				types.Wildcard: {types.Wildcard},
-			}
-		}
-
-	}
-	return nil
-}
-
-func checkAndSetDefaultsForAzureInstaller(matcher *AzureMatcher) error {
-	if matcher.InstallParams == nil {
-		matcher.InstallParams = &InstallParams{
-			JoinParams: JoinParams{
-				TokenName: defaults.AzureInviteTokenName,
-				Method:    types.JoinMethodAzure,
-			},
-			ScriptName: installers.InstallerScriptName,
-		}
-		return nil
-	}
-
-	switch matcher.InstallParams.JoinParams.Method {
-	case types.JoinMethodAzure, "":
-		matcher.InstallParams.JoinParams.Method = types.JoinMethodAzure
-	default:
-		return trace.BadParameter("only Azure joining is supported for Azure auto-discovery")
-	}
-
-	if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
-		matcher.InstallParams.JoinParams.TokenName = defaults.AzureInviteTokenName
-	}
-
-	if installer := matcher.InstallParams.ScriptName; installer == "" {
-		matcher.InstallParams.ScriptName = installers.InstallerScriptName
-	}
-	return nil
-}
-
-// checkAndSetDefaultsForGCPMatchers sets the default values for GCP matchers
-// and validates the provided types.
-func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
-	for i := range matcherInput {
-		matcher := &matcherInput[i]
-
-		if len(matcher.Types) == 0 {
-			return trace.BadParameter("At least one GCP discovery service type must be specified, the supported resource types are: %v",
-				services.SupportedGCPMatchers)
-		}
-
-		for _, matcherType := range matcher.Types {
-			if !slices.Contains(services.SupportedGCPMatchers, matcherType) {
-				return trace.BadParameter("GCP discovery service type does not support %q resource type; supported resource types are: %v",
-					matcherType, services.SupportedGCPMatchers)
-			}
-		}
-
-		if slices.Contains(matcher.Types, services.GCPMatcherCompute) {
-			if err := checkAndSetDefaultsForGCPInstaller(matcher); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		if slices.Contains(matcher.Locations, types.Wildcard) || len(matcher.Locations) == 0 {
-			matcher.Locations = []string{types.Wildcard}
-		}
-
-		if slices.Contains(matcher.ProjectIDs, types.Wildcard) {
-			return trace.BadParameter("GCP discovery service project_ids does not support wildcards; please specify at least one value in project_ids.")
-		}
-		if len(matcher.ProjectIDs) == 0 {
-			return trace.BadParameter("GCP discovery service project_ids does cannot be empty; please specify at least one value in project_ids.")
-		}
-
-		if len(matcher.Tags) == 0 {
-			matcher.Tags = map[string]apiutils.Strings{
-				types.Wildcard: {types.Wildcard},
-			}
-		}
-
-	}
-	return nil
-}
-
-func checkAndSetDefaultsForGCPInstaller(matcher *GCPMatcher) error {
-	if matcher.InstallParams == nil {
-		matcher.InstallParams = &InstallParams{
-			JoinParams: JoinParams{
-				TokenName: defaults.GCPInviteTokenName,
-				Method:    types.JoinMethodGCP,
-			},
-			ScriptName: installers.InstallerScriptName,
-		}
-		return nil
-	}
-
-	switch matcher.InstallParams.JoinParams.Method {
-	case types.JoinMethodGCP, "":
-		matcher.InstallParams.JoinParams.Method = types.JoinMethodGCP
-	default:
-		return trace.BadParameter("only GCP joining is supported for GCP auto-discovery")
-	}
-
-	if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
-		matcher.InstallParams.JoinParams.TokenName = defaults.GCPInviteTokenName
-	}
-
-	if installer := matcher.InstallParams.ScriptName; installer == "" {
-		matcher.InstallParams.ScriptName = installers.InstallerScriptName
-	}
-	return nil
-}
-
-// checkAndSetDefaultsForKubeMatchers sets the default values for Kubernetes matchers
-// and validates the provided types.
-func checkAndSetDefaultsForKubeMatchers(matchers []KubernetesMatcher) error {
-	for i := range matchers {
-		matcher := &matchers[i]
-
-		for _, t := range matcher.Types {
-			if !slices.Contains(services.SupportedKubernetesMatchers, t) {
-				return trace.BadParameter("Kubernetes discovery does not support %q resource type; supported resource types are: %v",
-					t, services.SupportedKubernetesMatchers)
-			}
-		}
-
-		if len(matcher.Types) == 0 {
-			matcher.Types = []string{services.KubernetesMatchersApp}
-		}
-
-		if len(matcher.Namespaces) == 0 {
-			matcher.Namespaces = []string{types.Wildcard}
-		}
-
-		if len(matcher.Labels) == 0 {
-			matcher.Labels = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
-		}
-	}
-
-	return nil
-}
-
-// JoinParams configures the parameters for Simplified Node Joining.
-type JoinParams struct {
-	TokenName string           `yaml:"token_name"`
-	Method    types.JoinMethod `yaml:"method"`
-	Azure     AzureJoinParams  `yaml:"azure,omitempty"`
-}
-
-// AzureJoinParams configures the parameters specific to the Azure join method.
-type AzureJoinParams struct {
-	ClientID string `yaml:"client_id"`
 }
 
 // ConnectionRate configures rate limiter
@@ -861,7 +570,7 @@ type Global struct {
 	DataDir  string `yaml:"data_dir,omitempty"`
 	PIDFile  string `yaml:"pid_file,omitempty"`
 
-	JoinParams JoinParams `yaml:"join_params,omitempty"`
+	JoinParams types.JoinParams `yaml:"join_params,omitempty"`
 
 	// v1, v2
 	AuthServers []string `yaml:"auth_servers,omitempty"`
@@ -1644,16 +1353,16 @@ type Discovery struct {
 	Service `yaml:",inline"`
 
 	// AWSMatchers are used to match EC2 instances
-	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
+	AWSMatchers []discovery.AWSMatcher `yaml:"aws,omitempty"`
 
 	// AzureMatchers are used to match Azure resources.
-	AzureMatchers []AzureMatcher `yaml:"azure,omitempty"`
+	AzureMatchers []discovery.AzureMatcher `yaml:"azure,omitempty"`
 
 	// GCPMatchers are used to match GCP resources.
-	GCPMatchers []GCPMatcher `yaml:"gcp,omitempty"`
+	GCPMatchers []discovery.GCPMatcher `yaml:"gcp,omitempty"`
 
 	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
-	KubernetesMatchers []KubernetesMatcher `yaml:"kubernetes,omitempty"`
+	KubernetesMatchers []discovery.KubernetesMatcher `yaml:"kubernetes,omitempty"`
 
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
@@ -1666,23 +1375,6 @@ type Discovery struct {
 	// PollInterval is the cadence at which the discovery server will run each of its
 	// discovery cycles.
 	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
-}
-
-// GCPMatcher matches GCP resources.
-type GCPMatcher struct {
-	// Types are GKE resource types to match: "gke", "gce".
-	Types []string `yaml:"types,omitempty"`
-	// Locations are GKE locations to search resources for.
-	Locations []string `yaml:"locations,omitempty"`
-	// Tags are GCP labels to match.
-	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
-	// ProjectIDs are the GCP project ID where the resources are deployed.
-	ProjectIDs []string `yaml:"project_ids,omitempty"`
-	// ServiceAccounts are the emails of service accounts attached to VMs.
-	ServiceAccounts []string `yaml:"service_accounts,omitempty"`
-	// InstallParams sets the join method when installing on
-	// discovered GCP VMs.
-	InstallParams *InstallParams `yaml:"install,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -1800,9 +1492,9 @@ type Databases struct {
 	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 	// AWSMatchers match AWS-hosted databases.
-	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
+	AWSMatchers []discovery.AWSMatcher `yaml:"aws,omitempty"`
 	// AzureMatchers match Azure hosted databases.
-	AzureMatchers []AzureMatcher `yaml:"azure,omitempty"`
+	AzureMatchers []discovery.AzureMatcher `yaml:"azure,omitempty"`
 }
 
 // ResourceMatcher matches cluster resources.
@@ -1821,101 +1513,6 @@ type ResourceMatcherAWS struct {
 	// ExternalID is an optional AWS external ID used to enable assuming an AWS
 	// role across accounts.
 	ExternalID string `yaml:"external_id,omitempty"`
-}
-
-// AWSMatcher matches AWS EC2 instances and AWS Databases
-type AWSMatcher struct {
-	// Types are AWS database types to match, "ec2", "rds", "redshift", "elasticache",
-	// or "memorydb".
-	Types []string `yaml:"types,omitempty"`
-	// Regions are AWS regions to query for databases.
-	Regions []string `yaml:"regions,omitempty"`
-	// AssumeRoleARN is the AWS role to assume for database discovery.
-	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
-	// ExternalID is the AWS external ID to use when assuming a role for
-	// database discovery in an external AWS account.
-	ExternalID string `yaml:"external_id,omitempty"`
-	// Tags are AWS tags to match.
-	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
-	// InstallParams sets the join method when installing on
-	// discovered EC2 nodes
-	InstallParams *InstallParams `yaml:"install,omitempty"`
-	// SSM provides options to use when sending a document command to
-	// an EC2 node
-	SSM AWSSSM `yaml:"ssm,omitempty"`
-}
-
-// InstallParams sets join method to use on discovered nodes
-type InstallParams struct {
-	// JoinParams sets the token and method to use when generating
-	// config on cloud instances
-	JoinParams JoinParams `yaml:"join_params,omitempty"`
-	// ScriptName is the name of the teleport installer script
-	// resource for the cloud instance to execute
-	ScriptName string `yaml:"script_name,omitempty"`
-	// InstallTeleport disables agentless discovery
-	InstallTeleport string `yaml:"install_teleport,omitempty"`
-	// SSHDConfig provides the path to write sshd configuration changes
-	SSHDConfig string `yaml:"sshd_config,omitempty"`
-	// PublicProxyAddr is the address of the proxy the discovered node should use
-	// to connect to the cluster. Used ony in Azure.
-	PublicProxyAddr string `yaml:"public_proxy_addr,omitempty"`
-}
-
-func (ip *InstallParams) Parse() (types.InstallerParams, error) {
-	install := types.InstallerParams{
-		JoinMethod:      ip.JoinParams.Method,
-		JoinToken:       ip.JoinParams.TokenName,
-		ScriptName:      ip.ScriptName,
-		InstallTeleport: true,
-		SSHDConfig:      ip.SSHDConfig,
-	}
-
-	if ip.InstallTeleport == "" {
-		return install, nil
-	}
-
-	var err error
-	install.InstallTeleport, err = apiutils.ParseBool(ip.InstallTeleport)
-	if err != nil {
-		return types.InstallerParams{}, trace.Wrap(err)
-	}
-
-	return install, nil
-}
-
-// AWSSSM provides options to use when executing SSM documents
-type AWSSSM struct {
-	// DocumentName is the name of the document to use when executing an
-	// SSM command
-	DocumentName string `yaml:"document_name,omitempty"`
-}
-
-// AzureMatcher matches Azure resources.
-type AzureMatcher struct {
-	// Subscriptions are Azure subscriptions to query for resources.
-	Subscriptions []string `yaml:"subscriptions,omitempty"`
-	// ResourceGroups are Azure resource groups to query for resources.
-	ResourceGroups []string `yaml:"resource_groups,omitempty"`
-	// Types are Azure types to match: "mysql", "postgres", "aks", "vm"
-	Types []string `yaml:"types,omitempty"`
-	// Regions are Azure locations to match for databases.
-	Regions []string `yaml:"regions,omitempty"`
-	// ResourceTags are Azure tags on resources to match.
-	ResourceTags map[string]apiutils.Strings `yaml:"tags,omitempty"`
-	// InstallParams sets the join method when installing on
-	// discovered Azure nodes.
-	InstallParams *InstallParams `yaml:"install,omitempty"`
-}
-
-// KubernetesMatcher matches Kubernetes resources.
-type KubernetesMatcher struct {
-	// Types are Kubernetes services types to match. Currently only 'app' is supported.
-	Types []string `yaml:"types,omitempty"`
-	// Namespaces are Kubernetes namespaces in which to discover services
-	Namespaces []string `yaml:"namespaces,omitempty"`
-	// Labels are Kubernetes services labels to match.
-	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
 }
 
 // Database represents a single database proxied by the service.

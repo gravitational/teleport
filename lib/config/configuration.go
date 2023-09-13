@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
+	"github.com/gravitational/teleport/lib/discovery"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
@@ -1323,7 +1324,7 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 
 // getInstallerProxyAddr determines the address of the proxy for discovered
 // nodes to connect to.
-func getInstallerProxyAddr(installParams *InstallParams, fc *FileConfig) string {
+func getInstallerProxyAddr(installParams *discovery.InstallParams, fc *FileConfig) string {
 	// Explicit proxy address.
 	if installParams != nil && installParams.PublicProxyAddr != "" {
 		return installParams.PublicProxyAddr
@@ -2518,7 +2519,7 @@ func splitRoles(roles string) []string {
 // applyTokenConfig applies the auth_token and join_params to the config
 func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.AuthToken != "" {
-		if fc.JoinParams != (JoinParams{}) {
+		if fc.JoinParams != (types.JoinParams{}) {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
 
@@ -2528,7 +2529,7 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return nil
 	}
 
-	if fc.JoinParams != (JoinParams{}) {
+	if fc.JoinParams != (types.JoinParams{}) {
 		cfg.SetToken(fc.JoinParams.TokenName)
 
 		if err := types.ValidateJoinMethod(fc.JoinParams.Method); err != nil {
@@ -2537,7 +2538,7 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 		cfg.JoinMethod = fc.JoinParams.Method
 
-		if fc.JoinParams.Azure != (AzureJoinParams{}) {
+		if fc.JoinParams.Azure != (types.AzureJoinParams{}) {
 			cfg.JoinParams = servicecfg.JoinParams{
 				Azure: servicecfg.AzureJoinParams{
 					ClientID: fc.JoinParams.Azure.ClientID,

@@ -61,7 +61,7 @@ func generateTeleportConfigString(req DeployServiceRequest) (string, error) {
 			AWSARN:     "arn:aws:sts::<account-id>:assumed-role/<taskRoleARN>/*",
 		}
 	*/
-	teleportConfig.JoinParams = config.JoinParams{
+	teleportConfig.JoinParams = types.JoinParams{
 		TokenName: *req.TeleportIAMTokenName,
 		Method:    types.JoinMethodIAM,
 	}
