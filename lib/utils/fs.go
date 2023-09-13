@@ -104,14 +104,14 @@ func NormalizePath(path string, evaluateSymlinks bool) (string, error) {
 // OpenFileAllowingUnsafeLinks opens a file, if the path includes a symlink, the returned os.File will be resolved to
 // the actual file.  This will return an error if the file is not found or is a directory.
 func OpenFileAllowingUnsafeLinks(path string) (*os.File, error) {
-	return openFile(path, true, true)
+	return openFile(path, true /* allowSymlink */, true /* allowMultipleHardlinks */)
 }
 
 // OpenFileNoUnsafeLinks opens a file, ensuring it's an actual file and not a directory or symlink.  Depending on
 // the os, it may also prevent hardlinks.  This is important because MacOS allows hardlinks without validating write
 // permissions (similar to a symlink in that regard).
 func OpenFileNoUnsafeLinks(path string) (*os.File, error) {
-	return openFile(path, false, runtime.GOOS != "darwin")
+	return openFile(path, false /* allowSymlink */, runtime.GOOS != "darwin" /* allowMultipleHardlinks */)
 }
 
 func openFile(path string, allowSymlink, allowMultipleHardlinks bool) (*os.File, error) {

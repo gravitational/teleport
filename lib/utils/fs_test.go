@@ -154,9 +154,11 @@ func TestOpenFileLinks(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			f, err := openFile(tt.filePath, tt.allowSymln, tt.allowHardln)
+			if f != nil {
+				f.Close()
+			}
 			if tt.expectErr == "" {
 				require.NoError(t, err)
-				f.Close()
 			} else {
 				require.ErrorContains(t, err, tt.expectErr)
 			}
