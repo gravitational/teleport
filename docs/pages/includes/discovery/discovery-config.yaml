@@ -72,6 +72,6 @@ discovery_service:
         # Email addresses of service accounts that instances can join with.
         # If empty, any service account is allowed.
         service_accounts: []
-        # GCP resource tag filters used to match resources.
-        tags:
+        # GCP resource label filters used to match resources.
+        labels:
           "*": "*"
