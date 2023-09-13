@@ -62,9 +62,43 @@ type rawNamedStruct struct {
 // an integer, a map of integers to strings, a sequence of maps of strings to
 // strings, etc. Used for printing example YAML documents and tables of fields.
 // This is not intended to be a comprehensive YAML AST.
-type yamlKindNode struct {
-	kind     yamlKind
-	children []yamlKindNode
+type yamlKindNode interface {
+	getInner() yamlKindNode
+}
+
+type yamlSequence struct {
+	elementKind yamlKindNode
+}
+
+func (y yamlSequence) getInner() yamlKindNode {
+	return y.elementKind
+}
+
+type yamlMapping struct {
+	keyKind   yamlKindNode
+	valueKind yamlKindNode
+}
+
+func (y yamlMapping) getInner() yamlKindNode {
+	return y.valueKind
+}
+
+type yamlString struct{}
+
+func (y yamlString) getInner() yamlKindNode {
+	return nil
+}
+
+type yamlNumber struct{}
+
+func (y yamlNumber) getInner() yamlKindNode {
+	return nil
+}
+
+type yamlBool struct{}
+
+func (y yamlBool) getInner() yamlKindNode {
+	return nil
 }
 
 // getRawNamedStruct returns the type spec to use for further processing. Returns an
@@ -144,12 +178,12 @@ func makeYAMLExample(fields []rawField) (string, error) {
 		// RFD.
 		// TODO: handle named types per the relevant section of the RFD
 
-		switch node.kind {
-		case stringKind:
+		switch node.(type) {
+		case yamlString:
 			example.WriteString(`"string"`)
-		case numberKind:
+		case yamlNumber:
 			example.WriteString("1")
-		case boolKind:
+		case yamlBool:
 			example.WriteString("true")
 		}
 		return nil
@@ -195,26 +229,19 @@ func getYAMLType(field *ast.Field) (yamlKindNode, error) {
 	case *ast.Ident:
 		switch t.Name {
 		case "string":
-			return yamlKindNode{
-				kind: stringKind,
-			}, nil
+			return yamlString{}, nil
 		case "uint", "uint8", "uint16", "uint32", "uint64", "int", "int8", "int16", "int32", "int64", "float32", "float64":
-			return yamlKindNode{
-				kind: numberKind,
-			}, nil
+			return yamlNumber{}, nil
 		case "bool":
-			return yamlKindNode{
-					kind: boolKind,
-				},
-				nil
+			return yamlBool{}, nil
 		default:
-			return yamlKindNode{}, fmt.Errorf("unsupported type: %+v", t.Name)
+			return nil, fmt.Errorf("unsupported type: %+v", t.Name)
 		}
 		// TODO: Handle slices, maps, and structs
 	// TODO: For declared types, field.Type is an *ast.SelectorExpr.
 	// Figure out how to handle this case.
 	default:
-		return yamlKindNode{}, nil
+		return nil, nil
 	}
 }
 
@@ -223,15 +250,15 @@ func getYAMLType(field *ast.Field) (yamlKindNode, error) {
 // recursively traverses the children of node.
 func tableValueFor(node yamlKindNode) (string, error) {
 	traverseNode := func(node yamlKindNode, partialReturn string) (string, error) {
-		switch node.kind {
-		case stringKind:
+		switch node.(type) {
+		case yamlString:
 			return "string", nil
-		case numberKind:
+		case yamlNumber:
 			return "number", nil
-		case boolKind:
+		case yamlBool:
 			return "Boolean", nil
 		default:
-			return "", fmt.Errorf("we cannot find a value to print to the field table for type %v", node.kind)
+			return "", fmt.Errorf("we cannot find a value to print to the field table for type %+v", node)
 
 		}
 	}

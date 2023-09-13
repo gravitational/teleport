@@ -276,26 +276,20 @@ func TestMakeYAMLExample(t *testing.T) {
 			description: "all scalars",
 			input: []rawField{
 				rawField{
-					doc: "myInt is an int",
-					kind: yamlKindNode{
-						kind: numberKind,
-					},
+					doc:  "myInt is an int",
+					kind: yamlNumber{},
 					name: "myInt",
 					tags: `json:"my_int"`,
 				},
 				rawField{
-					doc: "myBool is a Boolean",
-					kind: yamlKindNode{
-						kind: boolKind,
-					},
+					doc:  "myBool is a Boolean",
+					kind: yamlBool{},
 					name: "myBool",
 					tags: `json:"my_bool"`,
 				},
 				rawField{
-					doc: "myString is a string",
-					kind: yamlKindNode{
-						kind: stringKind,
-					},
+					doc:  "myString is a string",
+					kind: yamlString{},
 					tags: `json:"my_string"`,
 				},
 			},
