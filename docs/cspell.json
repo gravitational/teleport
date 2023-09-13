@@ -315,6 +315,7 @@
     "clusterrolebinding",
     "clusterrolebindings",
     "clusterroles",
+    "clickhouse",
     "cockroachdb",
     "codingllama",
     "compat",
@@ -829,7 +830,12 @@
     "yubishm",
     "znmqk",
     "zxvf",
-    "zztop"
+    "zztop",
+    "persistentvolume",
+    "persistentvolumeclaim",
+    "daemonset",
+    "certificatesigningrequest",
+    "deletecollection"
   ],
   "flagWords": [
     "hte"

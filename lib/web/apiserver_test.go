@@ -7695,9 +7695,9 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 
 	mux, err := multiplexer.New(multiplexer.Config{
-		Listener:                    proxyListener,
-		EnableExternalProxyProtocol: false,
-		ID:                          teleport.Component(teleport.ComponentProxy, "ssh"),
+		Listener:          proxyListener,
+		PROXYProtocolMode: multiplexer.PROXYProtocolOff,
+		ID:                teleport.Component(teleport.ComponentProxy, "ssh"),
 		CertAuthorityGetter: func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 			return client.GetCertAuthority(ctx, id, loadKeys)
 		},
@@ -8234,7 +8234,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	accessReq, err := services.NewAccessRequest(username, requestableRolename)
 	require.NoError(t, err)
 	accessReq.SetState(types.RequestState_APPROVED)
-	err = env.server.Auth().CreateAccessRequest(ctx, accessReq, identity)
+	accessReq, err = env.server.Auth().CreateAccessRequestV2(ctx, accessReq, identity)
 	require.NoError(t, err)
 
 	// Get the ID of the created and approved access request.
