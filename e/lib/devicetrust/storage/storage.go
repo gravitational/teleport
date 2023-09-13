@@ -38,6 +38,9 @@ const (
 	DeviceEnrollTokenExpireDuration = 1 * time.Hour
 )
 
+// ErrEnrolledDeviceLimit is returned when device enrollment is restricted due to license limit.
+var ErrEnrolledDeviceLimit = &trace.AccessDeniedError{Message: "cluster has reached its enrolled trusted device limit, please contact the cluster administrator"}
+
 const (
 	currentAPIVersion = "v1"
 
@@ -1575,10 +1578,9 @@ func (s *S) VerifyEnrolledDevicesLimit(ctx context.Context) error {
 		return nil // unlimited
 	}
 
-	const deviceLimitReachedMessage = "cluster has reached its enrolled trusted device limit, please contact the cluster administrator"
 	limit := f.DeviceTrust.DevicesUsageLimit
 	if limit <= 0 {
-		return trace.AccessDenied(deviceLimitReachedMessage)
+		return trace.Wrap(ErrEnrolledDeviceLimit)
 	}
 
 	usage, err := s.getDevicesUsage(ctx, limit)
@@ -1586,7 +1588,7 @@ func (s *S) VerifyEnrolledDevicesLimit(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	if usage.NumEnrolled >= limit {
-		return trace.AccessDenied(deviceLimitReachedMessage)
+		return trace.Wrap(ErrEnrolledDeviceLimit)
 	}
 
 	return nil

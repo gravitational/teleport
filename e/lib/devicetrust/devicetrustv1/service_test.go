@@ -34,11 +34,13 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
+	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 func TestService_authz(t *testing.T) {
@@ -2407,4 +2409,40 @@ func assertEvents(t *testing.T, got []apievents.AuditEvent, want []wantEvent) {
 			t.Errorf(`Audit: event mismatch: got[%v].Device.DeviceId="", want non-empty`, i)
 		}
 	}
+}
+
+func TestService_EnrollDevice_issuesDevicesLimitEvent(t *testing.T) {
+	var emittedEvents []usagereporter.Anonymizable
+	fakeAnonymizeAndSubmit := func(events ...usagereporter.Anonymizable) {
+		emittedEvents = append(emittedEvents, events...)
+	}
+	env := testenv.NewUsingT(
+		t,
+		testenv.WithAnonymizeAndSubmitFunc(fakeAnonymizeAndSubmit),
+	)
+	devicesClient := env.DevicesClient
+	ctx := context.Background()
+
+	// Safe because of NewUsingT.
+	m := modules.GetModules().(*modules.TestModules)
+	m.TestFeatures.IsUsageBasedBilling = true
+	m.TestFeatures.DeviceTrust.DevicesUsageLimit = 1
+
+	if _, _, err := createAndEnroll(ctx, devicesClient, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	}); err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+
+	wantLimitEvent := []usagereporter.Anonymizable{&usagereporter.LicenseLimitEvent{
+		LicenseLimit: prehogv1alpha.LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE,
+	}}
+
+	_, _, err := createAndEnroll(ctx, devicesClient, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "exceeded-llama",
+	})
+	assert.ErrorContains(t, err, "device limit")
+	assert.Equal(t, wantLimitEvent, emittedEvents)
 }

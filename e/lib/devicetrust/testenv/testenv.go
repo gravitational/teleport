@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 // DefaultUser is the default RPC caller, when not using a custom
@@ -38,17 +39,22 @@ const DefaultUser = "llama"
 // [auth.Server.AugmentContextUserCertificates].
 type AugmentContextCertsFunc func(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
 
+// AnonymizeAndSubmitFunc mimics the signature of
+// [auth.Server.AnonymizeAndSubmit].
+type AnonymizeAndSubmitFunc func(event ...usagereporter.Anonymizable)
+
 // E is an integrated test environment for device trust.
 type E struct {
 	DevicesClient   devicepb.DeviceTrustServiceClient
 	IdentityService *local.IdentityService
 
-	augmentCertsFunc AugmentContextCertsFunc
-	authSpec         *types.AuthPreferenceSpecV2
-	authorizer       authz.Authorizer
-	emitter          apievents.Emitter
-	limiter          devicetrustv1.RateLimiter
-	closers          []func() error
+	augmentCertsFunc       AugmentContextCertsFunc
+	authSpec               *types.AuthPreferenceSpecV2
+	anonymizeAndSubmitFunc AnonymizeAndSubmitFunc
+	authorizer             authz.Authorizer
+	emitter                apievents.Emitter
+	limiter                devicetrustv1.RateLimiter
+	closers                []func() error
 }
 
 // Close tears down the test environment.
@@ -74,6 +80,11 @@ func WithAugmentCertsFunc(f AugmentContextCertsFunc) Opt {
 // WithAuthPreferenceSpec customizes the underlying [E] auth preference spec.
 func WithAuthPreferenceSpec(spec types.AuthPreferenceSpecV2) Opt {
 	return func(e *E) { e.authSpec = &spec }
+}
+
+// WithAnonymizeAndSubmitFunc customizes the underlying [E] anonymizeAndSubmit function.
+func WithAnonymizeAndSubmitFunc(f AnonymizeAndSubmitFunc) Opt {
+	return func(e *E) { e.anonymizeAndSubmitFunc = f }
 }
 
 // WithAuthorizer customizes the [E] authorizer.
@@ -131,10 +142,11 @@ func New(opts ...Opt) (*E, error) {
 	e := &E{
 		augmentCertsFunc: fakeAugmentCertsFunc,
 		// A non-nil spec is good enough for most tests.
-		authSpec:   &types.AuthPreferenceSpecV2{},
-		authorizer: &noopAuthorizer{},
-		emitter:    &noopEmitter{},
-		limiter:    &noopLimiter{},
+		authSpec:               &types.AuthPreferenceSpecV2{},
+		anonymizeAndSubmitFunc: fakeAnonymizeAndSubmitFunc,
+		authorizer:             &noopAuthorizer{},
+		emitter:                &noopEmitter{},
+		limiter:                &noopLimiter{},
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -170,8 +182,9 @@ func New(opts ...Opt) (*E, error) {
 	dtV1, err := devicetrustv1.New(devicetrustv1.ServiceParams{
 		Logger: logger,
 		AuthServer: &fakeAuthServer{
-			augmentFunc: e.augmentCertsFunc,
-			authSpec:    e.authSpec,
+			augmentFunc:            e.augmentCertsFunc,
+			authSpec:               e.authSpec,
+			anonymizeAndSubmitFunc: e.anonymizeAndSubmitFunc,
 		},
 		Authorizer:         e.authorizer,
 		CachedUsersService: e.IdentityService,
@@ -241,9 +254,12 @@ func fakeAugmentCertsFunc(ctx context.Context, authCtx *authz.Context, opts *aut
 	}, nil
 }
 
+func fakeAnonymizeAndSubmitFunc(event ...usagereporter.Anonymizable) {}
+
 type fakeAuthServer struct {
-	augmentFunc AugmentContextCertsFunc
-	authSpec    *types.AuthPreferenceSpecV2
+	augmentFunc            AugmentContextCertsFunc
+	authSpec               *types.AuthPreferenceSpecV2
+	anonymizeAndSubmitFunc AnonymizeAndSubmitFunc
 }
 
 func (s *fakeAuthServer) AugmentContextUserCertificates(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
@@ -252,6 +268,10 @@ func (s *fakeAuthServer) AugmentContextUserCertificates(ctx context.Context, aut
 
 func (s *fakeAuthServer) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return types.NewAuthPreference(*s.authSpec)
+}
+
+func (s *fakeAuthServer) AnonymizeAndSubmit(event ...usagereporter.Anonymizable) {
+	s.anonymizeAndSubmitFunc(event...)
 }
 
 type noopAuthorizer struct{}

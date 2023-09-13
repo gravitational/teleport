@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
+	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 // DataDriftDetectedMessage is the error message used to redact data drift
@@ -94,6 +96,9 @@ type AuthServer interface {
 	// GetAuthPreference gets the cluster's auth preferences.
 	// This method is not guarded by user permissions.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	// AnonymizeAndSubmit submits usage events to Prehog.
+	AnonymizeAndSubmit(event ...usagereporter.Anonymizable)
 }
 
 // UsersService represents the [local.IdentityService] methods used by
@@ -624,6 +629,9 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	start := time.Now()
 	defer func() {
 		if err != nil {
+			if errors.Is(err, storage.ErrEnrolledDeviceLimit) {
+				s.emitDeviceLimitEvent(context.Background(), prehogv1alpha.LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE)
+			}
 			s.logger.
 				WithFields(log.Fields{
 					"code":  status.Code(trail.ToGRPC(err)),
@@ -805,6 +813,8 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 
 	// MDMs are disallowed for Teleport Team.
 	if f := modules.GetModules().Features(); f.IsUsageBasedBilling {
+		// TODO(sshah): update event type once Intune integration is supported.
+		s.emitDeviceLimitEvent(ctx, prehogv1alpha.LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF)
 		return trace.AccessDenied(
 			"this Teleport cluster is not licensed for MDM integrations, please contact the cluster administrator")
 	}
@@ -946,6 +956,12 @@ func (s *Service) emitAuditEvent(ctx context.Context, e apievents.AuditEvent) {
 			}).
 			Warn("Failed to emit audit event")
 	}
+}
+
+func (s *Service) emitDeviceLimitEvent(ctx context.Context, l prehogv1alpha.LicenseLimit) {
+	s.authServer.AnonymizeAndSubmit(&usagereporter.LicenseLimitEvent{
+		LicenseLimit: l,
+	})
 }
 
 func (s *Service) rateLimitByUser(user string) error {
