@@ -26,18 +26,37 @@ this guide.
 
 ## Before you start
 
+This guide will deploy the resources to the `default` Kubernetes Namespace.
+Modify this value to deploy Machine ID into a Namespace of your choosing.
+
 ## Step 1/4. Prepare Kubernetes RBAC
+
+In order to prepare the Kubernetes cluster for Machine ID, several Kubernetes
+RBAC resources must be created.
+
+A ServiceAccount will be created and later assigned to the Pod that will run
+`tbot`. This creates a static identity that we can allow access to join the
+Teleport Cluster and also provides an identity to which we can assign Kubernetes
+privileges.
+
+A Role granting the ability to read and write to secrets in the Namespace will
+be created and then assigned to the ServiceAccount using a RoleBinding. This
+will allow the `tbot` Pod to read and write credentials to a Secret.
+
+Create a file called `k8s-rbac.yaml`:
 
 ```yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: tbot
+  namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: tbot-secrets-admin
+  namespace: default
 subjects:
   - kind: ServiceAccount
     name: tbot
@@ -49,16 +68,26 @@ roleRef:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  namespace: default
   name: secrets-admin
+  namespace: default
 rules:
-  - apiGroups: [""] # "" indicates the core API group
+  - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["*"]
 ```
 
+Apply this file to your Kubernetes Cluster:
+
+```code
+$ kubectl apply -f ./k8s-rbac.yaml
+```
 
 ## Step 2/4. Create a join token and bot user
+
+```code
+$ kubectl proxy -p 8080
+$ curl http://localhost:8080/openid/v1/jwks
+```
 
 ```yaml
 kind: token
@@ -73,9 +102,9 @@ spec:
     type: static_jwks
     static_jwks:
       jwks: |
-        {"keys":[{"use":"sig","kty":"RSA","kid":"KCk4tlf5yXj7GJ20L9XcvviNIiCf1QaUhw1Cyzd5VjA","alg":"RS256","n":"vYiAKomeNl--3-HaQ24DhJLlgg05gWIKmYRUxPx5vg4NLTdezUHxl70mygFNSYQrSgRqGpUp1j3_fOQYVKhWOVMPLtIYz4pnH-3mUBhNhpfLZiyMUqtjhijekqGOhlbEwHDvCm0tAMESSJBNHneR2tqEugsnDOpPmi3Z220MPJFO9FotFNd4vhmwEp9raWEIRSW3tRZiBoZ_1DAgR5LlO4q__sr125WL0n3s9exVrjQJxpkkUD4ECdO9020VtgPXL3sw__bE0UMuOWDvAY2sCb6rIN76rRLUbGc_IIP1ahLoFVDqdef-tsFM4pW_dbXu77YpfTfK_sTKOEVeGtKBJQ","e":"AQAB"}]}
+        # Place the data returned by the curl command here
     allow:
-    - service_account: "default:tbot"
+    - service_account: "default:tbot" # In the format of `namespace:service_account_name`
 ```
 
 ## Step 3/4. Create a `tbot` deployment
@@ -85,6 +114,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: tbot-config
+  namespace: default
 data:
   tbot.yaml: |
     version: v2
@@ -102,6 +132,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: tbot
+  namespace: default
 spec:
   replicas: 1
   strategy:
@@ -149,6 +180,11 @@ spec:
                   audience: example.teleport.sh
 ```
 
+```code
+$ kubectl apply -f ./k8s-deployment-config.yaml
+$ kubectl apply -f ./k8s-deployment.yaml
+```
+
 ## Step 4/4. Configure Outputs
 
 Follow one of the access guides to configure an output that produces the type
@@ -171,6 +207,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: tsh
+  namespace: default
 spec:
   containers:
     - name: tsh
