@@ -375,6 +375,23 @@
           ]
         },
         {
+          "title": "Access Lists",
+          "slug": "/access-controls/access-lists/",
+          "forScopes": ["enterprise", "cloud"],
+          "entries": [
+            {
+              "title": "A Simple Access List Example",
+              "slug": "/access-controls/access-lists/guide/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Reference",
+              "slug": "/access-controls/access-lists/reference/",
+              "forScopes": ["enterprise", "cloud"]
+            }
+          ]
+        },
+        {
           "title": "Access Requests",
           "slug": "/access-controls/access-requests/",
           "forScopes": ["oss", "enterprise", "cloud"],
