@@ -70,6 +70,7 @@ type AuthorizerOpts struct {
 
 type AccessGraphConfig struct {
 	Enabled  bool
+	UseAuth  bool
 	Endpoint string
 }
 
@@ -398,7 +399,7 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 // authorizeLocalUser returns authz context based on the username
 func (a *authorizer) authorizeLocalUser(u LocalUser) (*Context, error) {
 	var opt []services.AccessCheckerOption
-	if a.accessGraph.Enabled {
+	if a.accessGraph.Enabled && a.accessGraph.UseAuth {
 		opt = append(opt, services.WithTAG(a.accessGraph.Endpoint))
 	}
 	return ContextForLocalUser(u, a.accessPoint, a.clusterName, a.disableDeviceAuthorization, opt...)

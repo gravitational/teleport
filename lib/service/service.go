@@ -1894,6 +1894,7 @@ func (process *TeleportProcess) initAuthService() error {
 		AccessGraph: authz.AccessGraphConfig{
 			Enabled:  cfg.AccessGraph.Enabled,
 			Endpoint: cfg.AccessGraph.Addr,
+			UseAuth:  cfg.AccessGraph.UseAuth,
 		},
 	})
 	if err != nil {
@@ -4045,7 +4046,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			OpenAIConfig:    cfg.OpenAIConfig,
 			NodeWatcher:     nodeWatcher,
 			AccessGraphAddr: accessGraphAddr,
-			TracerProvider: process.TracingProvider,
+			TracerProvider:  process.TracingProvider,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {

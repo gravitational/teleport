@@ -1115,6 +1115,7 @@ type PluginService struct {
 // AccessGraph represents the configuration for the AccessGraph service.
 type AccessGraph struct {
 	Enabled  bool   `yaml:"enabled"`
+	UseAuth  bool   `yaml:"use_auth"`
 	Endpoint string `yaml:"endpoint"`
 }
 
