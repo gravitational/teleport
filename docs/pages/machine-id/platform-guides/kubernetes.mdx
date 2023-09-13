@@ -9,10 +9,11 @@ to other workloads running in the same Kubernetes namespace.
 
 ## Background
 
-There are typically two deployment styles when it comes to workloads such as
-`tbot` which provide a service to other workloads in your cluster.
+### Deployment vs Sidecar
 
-**Standalone Deployment**: `tbot` runs as a Kubernetes deployment, writing the
+When deploying `tbot` into your Kubernetes cluster, there are two main options:
+
+**Deployment**: `tbot` runs as a Kubernetes deployment, writing the
 output credentials to a Kubernetes secret, which can then be mounted in the pods
 that need to use the credentials.
 
@@ -24,12 +25,41 @@ Due to the current limited support in Kubernetes for sidecars, we recommend that
 the Standalone Deployment style is used. This style will be covered later in
 this guide.
 
-## Before you start
+### Join Method
 
-This guide will deploy the resources to the `default` Kubernetes Namespace.
-Modify this value to deploy Machine ID into a Namespace of your choosing.
+In order for `tbot` to join your Teleport cluster, a join token must be
+configured. A join token is configured with a join method that specifies how
+`tbot` can perform the initial authentication. These join methods are platform
+specific in order to leverage forms of identity available on that platform.
 
-## Step 1/4. Prepare Kubernetes RBAC
+When deploying `tbot` to a Teleport cluster, it is generally recommended to use
+the `kubernetes` join method. This will work with most Kubernetes clusters.
+The guide that follows will demonstrate configuring this join method.
+
+However, when using certain cloud Kubernetes services, it is possible to use the
+join method associated with that platform rather than the `kubernetes` join
+method. This may be beneficial if you wish to manage the joining of `tbot`
+within the Kubernetes clusters and on standard VMs on the same platform with
+a single join token. These services are:
+
+- Google Kubernetes Engine: Where
+  [GCP Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity)
+  is configured for the cluster, it is possible to use the `gcp` join method.
+  See the [GCP Platform Guide](./gcp.mdx) for further information.
+- AWS Elastic Kubernetes Service: Where
+  [IAM Roles for Service Accounts (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)
+  is configured for the cluster, it is possible to use the `iam` join method.
+  See the [AWS Platform Guide](./aws.mdx) for further information.
+
+## Guide
+
+### Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+- `kubectl` configured to access the cluster you wish to deploy `tbot` into.
+- TODO: K8S version
+
+### Step 1/4. Prepare Kubernetes RBAC
 
 In order to prepare the Kubernetes cluster for Machine ID, several Kubernetes
 RBAC resources must be created.
@@ -82,7 +112,7 @@ Apply this file to your Kubernetes Cluster:
 $ kubectl apply -f ./k8s-rbac.yaml
 ```
 
-## Step 2/4. Create a join token and bot user
+### Step 2/4. Create a join token and bot user
 
 ```code
 $ kubectl proxy -p 8080
@@ -93,7 +123,7 @@ $ curl http://localhost:8080/openid/v1/jwks
 kind: token
 version: v2
 metadata:
-  name: bot-kubernetes
+  name: bot-kubernetes-demo
 spec:
   roles: [Bot]
   bot_name: docker-desktop
@@ -107,7 +137,11 @@ spec:
     - service_account: "default:tbot" # In the format of `namespace:service_account_name`
 ```
 
-## Step 3/4. Create a `tbot` deployment
+```code
+$ tctl bots add kubernetes-demo --token bot-kubernetes-demo --roles TODO-THEYNEEDAROLEHEREBUTWEDONTKNOWWHATTHJEROLENEEDSUNTILACCESS
+```
+
+### Step 3/4. Create a `tbot` deployment
 
 ```yaml
 apiVersion: v1
@@ -185,12 +219,14 @@ $ kubectl apply -f ./k8s-deployment-config.yaml
 $ kubectl apply -f ./k8s-deployment.yaml
 ```
 
-## Step 4/4. Configure Outputs
+### Step 4/4. Configure Outputs
 
-Follow one of the access guides to configure an output that produces the type
-of credentials.
+Follow one of the [access guides](../access-guides.mdx) to configure an output
+that meets your access needs.
 
-When configuring the outputs, use a Kubernetes secret destination (e.g):
+In order to adjust the access guide to work well with Kubernetes, use the
+Kubernetes Secret destination type. This will write the generated artifacts
+to a specified Kubernetes Secret, for example:
 
 ```yaml
 outputs:
@@ -229,4 +265,7 @@ spec:
         secretName: identity-output
 ```
 
-## Further steps
+## Next steps
+
+REFERENCE
+ACCESS GUIDES
