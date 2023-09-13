@@ -224,7 +224,7 @@ func fetchSingleRDSDBInstance(ctx context.Context, clt ListDatabasesClient, req 
 	}
 
 	if len(rdsDBs.DBInstances) == 0 {
-		return nil, trace.BadParameter("DB Cluster %s has no DB Instance", clusterID)
+		return nil, trace.BadParameter("database cluster %s has no instance", clusterID)
 	}
 
 	return &rdsDBs.DBInstances[0], nil

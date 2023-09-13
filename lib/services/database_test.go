@@ -1071,7 +1071,7 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 		require.NoError(t, err)
 		actual, err := NewDatabaseFromRDSV2Cluster(cluster, instance)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(expected, actual))
+		require.Empty(t, cmp.Diff(expected, actual), "NewDatabaseFromRDSV2Cluster diff (-want +got)")
 	})
 }
 
