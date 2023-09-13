@@ -842,6 +842,10 @@
           "slug": "/application-access/controls/"
         },
         {
+          "title": "Troubleshooting Application Access",
+          "slug": "/application-access/troubleshooting-apps/"
+        },           
+        {
           "title": "Reference",
           "slug": "/application-access/reference/"
         }
