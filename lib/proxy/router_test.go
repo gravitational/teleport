@@ -546,6 +546,25 @@ func TestRouter_DialHost(t *testing.T) {
 				require.NotNil(t, conn)
 			},
 		},
+		{
+			name: "dial success to non-registered agentless node with TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING=yes",
+			router: Router{
+				clusterName:           "test",
+				log:                   logger,
+				localSite:             &testRemoteSite{conn: fakeConn{}},
+				siteGetter:            &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
+				tracer:                tracing.NoopTracer("test"),
+				serverResolver:        serverResolver(nil, nil),
+				permitUnlistedDialing: true,
+			},
+			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
+				require.NoError(t, err)
+				require.Equal(t, nil, params.TargetServer)
+				require.Nil(t, params.AgentlessSigner)
+				require.True(t, params.IsAgentlessNode)
+				require.NotNil(t, conn)
+			},
+		},
 	}
 
 	ctx := context.Background()

@@ -290,6 +290,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		if port == "" || port == "0" {
 			port = strconv.Itoa(defaults.SSHServerListenPort)
 		}
+		isAgentlessNode = true
 
 		serverAddr = net.JoinHostPort(host, port)
 		r.log.Warnf("server lookup failed: using default=%v", serverAddr)
