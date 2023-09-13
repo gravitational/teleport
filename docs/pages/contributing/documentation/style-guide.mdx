@@ -5,30 +5,18 @@ description: Use this reference to ensure our docs are consistent and effective
 
 To keep our documentation effective as Teleport develops, we need to ensure that we maintain a consistent approach to organizing information.
 
-## Information types and pages
+## Organizing information into purpose-driven documents
 
-Depending on your point of view and goals, information can be classified in different ways.
-The classic broad categories classify information as:
-
-- Factual information
-- Conceptual information
-- Procedural information
-- Reference information
-
-### Organizing information into purpose-driven documents
-
-These information categories often translate into separate documents—or
-sections within documents—that serve a specific purpose or audience. 
 For software documentation, you can typically structure information using the
 following basic information model:
 
-- Tutorials are learning-oriented and designed to give a newcomer a positive, successful 
+- Tutorials are learning oriented and designed to give a newcomer a positive, successful 
   experience. Tutorials should be tested regularly to ensure they don't get stale and that
   they always provide a successful result.
-- How-to guides are task-oriented with practical steps to achieve a specific goal. 
+- How-to guides are task oriented with practical steps to achieve a specific goal. 
   These guides assume that readers are familiar enough with Teleport that they know the task
   they want to complete for a specific scenario but not necessarily how to complete it.
-- References are information-oriented technical descriptions of a system or its components.
+- References are information oriented technical descriptions of a system or its components.
 - Explanations are the conceptual framework for understanding how or why a system works.
   Explanation provide the context that surrounds what people learn in a tutorial, do in a 
   how-to guide, or look up in reference material.
@@ -36,7 +24,7 @@ following basic information model:
 For more detailed information and examples of how to structure documentation using this 
 information model, see [The Grand Unified Theory of Documentation](https://documentation.divio.com/).
 
-### Structuring content into pages
+## Structuring content into pages
 
 In general, every page of documentation should have a purpose and be self-contained. 
 It's okay for information to be in multiple places and similar content can exist in 
@@ -73,12 +61,11 @@ In most cases, how-to guides contain the following sections:
 
 - One or more introductory paragraphs that explain what the task-at-hand is, the use case or 
   scenario driving the reader to complete the task, and the expected outcome.
-  Avoid recreating content if you can refer a reader to a single, separate guide. 
 
-- Before you begin list of prerequisites.
+- List of prerequisites.
   Actions that are common to multiple topics that must be taken before starting the procedure 
-  in how-to topic are generally documented in include files and referenced in the
-  list of Prerequisites. 
+  in how-to topics are generally documented in partial files and referenced in the
+  list of prerequisites. 
 
 - Task step sections that break down the how-to procedure into manageable chunks or subtasks
   with clearly-defined goals.
@@ -108,12 +95,12 @@ AWS documentation" instead of "Read the AWS documentation for more information".
 
 ## Tutorials
 
-Tutorials—and, to some extent, Getting started guides—are designed to give first-time 
-Teleport users hands-on experience completing a set of explicit instructions. Tutorials 
-should be as simple and straightforward as possible. Tutorials must provide a positive 
-learning experience and a successful outcome with no unexpected behavior or unexplained 
-errors. It's okay for a tutorial to include a red herring to illustrate a common misstep 
-but the author must provide a sufficient explanation of the error and how to correct it.
+Tutorials are designed to give first-time Teleport users hands-on experience completing 
+a set of explicit instructions. Tutorials should be as simple and straightforward as 
+possible. Tutorials must provide a positive learning experience and a successful outcome 
+with no unexpected behavior or unexplained errors. It's okay for a tutorial to include a 
+red herring to illustrate a common misstep but the author must provide a sufficient 
+explanation of the error and how to correct it.
 
 ### What's in a tutorial?
 
@@ -140,7 +127,23 @@ Guide for conceptual and architectural information can include the following typ
   reducing attack vectors.
 - **Deployment** for audiences interested in deployment architecture.
 
-### Reference manuals
+### What's in a conceptual guide?
+
+Conceptual guides typically contain the following sections:
+
+- Frontmatter with a guide title, description, and other information.
+  The title should be short and identify the subject of the how-to topic in the fewest words possible.
+  The description should be a sentence that starts with a verb and summarizes the content of the topic.
+  Additional information might include a list of keywords, or an alternate first-level heading.
+
+- Body paragraphs that explain that explain concepts, components, system operations, and context to
+  help the reader understand what something is, why it's important, and how it works.
+
+- Diagrams to illustrate component relationships or flow of operations.
+
+- Links to related topics, where applicable. 
+
+## Reference manuals
 
 **Reference manuals** provide an exhaustive list of configuration options, API methods, 
 and other possible fields and values for the various ways in which users can interact with 
@@ -152,6 +155,23 @@ Teleport.
 - Should be easy to navigate with a browser's search functionality. List all content on 
   the same page.
 - Should avoid prose and be expressed with brevity.
+
+### What's in a reference manual?
+
+Reference manuals typically contain the following sections:
+
+- Frontmatter with a guide title, description, and other information.
+  The title should be short and identify the subject of the how-to topic in the fewest words possible.
+  The description should be a sentence that starts with a verb and summarizes the content of the topic.
+  Additional information might include a list of keywords.
+
+- One or more introductory paragraphs that explain what information the covers.
+
+- Formatted reference information. The format might resemble a `man` page or API description with a 
+  common set of sections (name, description, syntax, options, examples, and so on) or the format
+  might use lists or tables to present information.
+
+- Links to related topics, where applicable. 
 
 ## General style rules
 
