@@ -20,6 +20,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -77,15 +78,15 @@ func TestOpenFileLinks(t *testing.T) {
 	err = os.Link(dirHardfilePath, dirHardLinkToHardfile)
 	require.NoError(t, err)
 
-	// Define and run tests
-	type testCase struct {
+	// Define and run tests against underline openFile function
+	type openFileTestCase struct {
 		name        string
 		filePath    string
 		allowSymln  bool
 		allowHardln bool
 		expectErr   string
 	}
-	testCases := []testCase{
+	commonOpenFileTestCases := []openFileTestCase{
 		{
 			name:        "directFileOpenAllowed",
 			filePath:    dirFilePath,
@@ -129,6 +130,15 @@ func TestOpenFileLinks(t *testing.T) {
 			expectErr:   "symlink",
 		},
 		{
+			name:        "hardlinkFileOpenDenied",
+			filePath:    dirHardLinkToHardfile,
+			allowSymln:  false,
+			allowHardln: false,
+			expectErr:   "hardlink",
+		},
+	}
+	openFileTestCases := append(commonOpenFileTestCases, []openFileTestCase{
+		{
 			name:        "circularSymlink",
 			filePath:    circularSymlink,
 			allowSymln:  false,
@@ -142,18 +152,87 @@ func TestOpenFileLinks(t *testing.T) {
 			allowHardln: false,
 			expectErr:   "symlink",
 		},
-		{
-			name:        "hardlinkFileOpenDenied",
-			filePath:    dirHardLinkToHardfile,
-			allowSymln:  false,
-			allowHardln: false,
-			expectErr:   "hardlink",
-		},
-	}
+	}...)
 
-	for _, tt := range testCases {
+	for _, tt := range openFileTestCases {
 		t.Run(tt.name, func(t *testing.T) {
 			f, err := openFile(tt.filePath, tt.allowSymln, tt.allowHardln)
+			if f != nil {
+				f.Close()
+			}
+			if tt.expectErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.expectErr)
+			}
+		})
+	}
+
+	// Define and run tests against OS specific public functions
+	// OpenFileAllowingUnsafeLinks should always allow all the common test cases to pass without error
+	for _, tt := range commonOpenFileTestCases {
+		t.Run("unsafe-"+tt.name, func(t *testing.T) {
+			f, err := OpenFileAllowingUnsafeLinks(tt.filePath)
+			if f != nil {
+				f.Close()
+			}
+			require.NoError(t, err)
+		})
+	}
+	// OpenFileNoUnsafeLinks has OS conditional logic that necessitates us to define the expected behavior
+	type safeOpenFileTestCase struct {
+		name      string
+		filePath  string
+		expectErr string
+	}
+	safeOpenFileTestCases := []safeOpenFileTestCase{
+		{
+			name:      "directFileOpenAllowed",
+			filePath:  dirFilePath,
+			expectErr: "",
+		},
+		{
+			name:      "symlinkFileOpenDenied",
+			filePath:  dirSymlinkToFile,
+			expectErr: "symlink",
+		},
+		{
+			name:      "symlinkDirFileOpenDenied",
+			filePath:  filepath.Join(symlinkDir, "file"),
+			expectErr: "symlink",
+		},
+		{
+			name:      "symlinkRecursiveDirFileOpenDenied",
+			filePath:  filepath.Join(symlinkToSymlinkDir, "file"),
+			expectErr: "symlink",
+		},
+		{
+			name:      "circularSymlink",
+			filePath:  circularSymlink,
+			expectErr: "symlink",
+		},
+		{
+			name:      "brokenSymlink",
+			filePath:  brokenSymlink,
+			expectErr: "symlink",
+		},
+	}
+	if runtime.GOOS == "darwin" {
+		safeOpenFileTestCases = append(safeOpenFileTestCases, safeOpenFileTestCase{
+			name:      "hardlinkFileOpen",
+			filePath:  dirHardLinkToHardfile,
+			expectErr: "hardlink",
+		})
+	} else {
+		safeOpenFileTestCases = append(safeOpenFileTestCases, safeOpenFileTestCase{
+			name:      "hardlinkFileOpen",
+			filePath:  dirHardLinkToHardfile,
+			expectErr: "",
+		})
+	}
+	for _, tt := range safeOpenFileTestCases {
+		t.Run("safe-"+tt.name, func(t *testing.T) {
+			f, err := OpenFileNoUnsafeLinks(tt.filePath)
 			if f != nil {
 				f.Close()
 			}
