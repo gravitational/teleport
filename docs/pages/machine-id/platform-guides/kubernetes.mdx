@@ -24,29 +24,9 @@ Due to the current limited support in Kubernetes for sidecars, we recommend that
 the Standalone Deployment style is used. This style will be covered later in
 this guide.
 
-## Guide
+## Before you start
 
-### Before you start
-
-###
-
-```yaml
-kind: token
-version: v2
-metadata:
-  name: kubernetes-bot
-spec:
-  roles: [Bot]
-  bot_name: docker-desktop
-  join_method: kubernetes
-  kubernetes:
-    type: static_jwks
-    static_jwks:
-      jwks: |
-        {"keys":[{"use":"sig","kty":"RSA","kid":"KCk4tlf5yXj7GJ20L9XcvviNIiCf1QaUhw1Cyzd5VjA","alg":"RS256","n":"vYiAKomeNl--3-HaQ24DhJLlgg05gWIKmYRUxPx5vg4NLTdezUHxl70mygFNSYQrSgRqGpUp1j3_fOQYVKhWOVMPLtIYz4pnH-3mUBhNhpfLZiyMUqtjhijekqGOhlbEwHDvCm0tAMESSJBNHneR2tqEugsnDOpPmi3Z220MPJFO9FotFNd4vhmwEp9raWEIRSW3tRZiBoZ_1DAgR5LlO4q__sr125WL0n3s9exVrjQJxpkkUD4ECdO9020VtgPXL3sw__bE0UMuOWDvAY2sCb6rIN76rRLUbGc_IIP1ahLoFVDqdef-tsFM4pW_dbXu77YpfTfK_sTKOEVeGtKBJQ","e":"AQAB"}]}
-    allow:
-    - service_account: "default:tbot"
-```
+## Step 1/4. Prepare Kubernetes RBAC
 
 ```yaml
 apiVersion: v1
@@ -77,6 +57,46 @@ rules:
     verbs: ["*"]
 ```
 
+
+## Step 2/4. Create a join token and bot user
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: bot-kubernetes
+spec:
+  roles: [Bot]
+  bot_name: docker-desktop
+  join_method: kubernetes
+  kubernetes:
+    type: static_jwks
+    static_jwks:
+      jwks: |
+        {"keys":[{"use":"sig","kty":"RSA","kid":"KCk4tlf5yXj7GJ20L9XcvviNIiCf1QaUhw1Cyzd5VjA","alg":"RS256","n":"vYiAKomeNl--3-HaQ24DhJLlgg05gWIKmYRUxPx5vg4NLTdezUHxl70mygFNSYQrSgRqGpUp1j3_fOQYVKhWOVMPLtIYz4pnH-3mUBhNhpfLZiyMUqtjhijekqGOhlbEwHDvCm0tAMESSJBNHneR2tqEugsnDOpPmi3Z220MPJFO9FotFNd4vhmwEp9raWEIRSW3tRZiBoZ_1DAgR5LlO4q__sr125WL0n3s9exVrjQJxpkkUD4ECdO9020VtgPXL3sw__bE0UMuOWDvAY2sCb6rIN76rRLUbGc_IIP1ahLoFVDqdef-tsFM4pW_dbXu77YpfTfK_sTKOEVeGtKBJQ","e":"AQAB"}]}
+    allow:
+    - service_account: "default:tbot"
+```
+
+## Step 3/4. Create a `tbot` deployment
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tbot-config
+data:
+  tbot.yaml: |
+    version: v2
+    onboarding:
+      join_method: kubernetes
+      token: bot-kubernetes
+    storage:
+      type: memory
+    auth_server: example.teleport.sh:443
+    outputs: [] # This section will be filled later in the guide.
+```
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -96,7 +116,7 @@ spec:
     spec:
       containers:
         - name: tbot
-          image: public.ecr.aws/gravitational/teleport:14.0.0
+          image: public.ecr.aws/gravitational/teleport:(=teleport.version=)
           command:
             - tbot
           args:
@@ -126,33 +146,50 @@ spec:
               - serviceAccountToken:
                   path: join-sa-token
                   expirationSeconds: 600
-                  audience: leaf.tele.ottr.sh
+                  audience: example.teleport.sh
 ```
+
+## Step 4/4. Configure Outputs
+
+Follow one of the access guides to configure an output that produces the type
+of credentials.
+
+When configuring the outputs, use a Kubernetes secret destination (e.g):
+
+```yaml
+outputs:
+  - type: identity
+    destination:
+      type: kubernetes_secret
+      secret_name: identity-output
+```
+
+The output can then be consumed by mounting this secret within another pod:
 
 ```yaml
 apiVersion: v1
-kind: ConfigMap
+kind: Pod
 metadata:
-  name: tbot-config
-data:
-  tbot.yaml: |
-    version: v2
-    onboarding:
-      join_method: kubernetes
-      token: bot-kubernetes
-    storage:
-      type: memory
-    auth_server: example.teleport.sh:443
-    outputs:
-      # Replace this output with the appropriate one determined in the access
-      # guide you follow after this guide. Retain the `destination` field to
-      # write to a secret.
-      - type: identity
-        destination:
-          type: kubernetes_secret
-          secret_name: output-secret
+  name: tsh
+spec:
+  containers:
+    - name: tsh
+      image: public.ecr.aws/gravitational/teleport:(=teleport.version=)
+      command:
+        - tsh
+      args:
+       - -i
+       - /identity-output/identity
+       - --proxy
+       - example.teleport.sh:443
+       - ls
+      volumeMounts:
+        - name: identity-output
+          mountPath: /identity-output
+  volumes:
+    - name: identity-output
+      secret:
+        secretName: identity-output
 ```
 
-## Next steps
-
-TODO: Follow an access guide to configure access >:3
+## Further steps
