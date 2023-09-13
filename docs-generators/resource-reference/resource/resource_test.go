@@ -48,10 +48,10 @@ type Metadata struct {
 				SectionName: "Metadata",
 				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
 				SourcePath:  "myfile.go",
-				YAMLExample: `  name: "string"
-  description: "string"
-  age: 1
-  active: true
+				YAMLExample: `name: "string"
+description: "string"
+age: 1
+active: true
 `,
 				Fields: []Field{
 					Field{
@@ -97,18 +97,18 @@ type Metadata struct {
 				SectionName: "Metadata",
 				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
 				SourcePath:  "myfile.go",
-				YAMLExample: `  names:
-  - "string"
-  - "string"
-  - "string"
-  numbers:
-  - 1
-  - 1
-  - 1
-  booleans:
-  - true
-  - true
-  - true
+				YAMLExample: `names: 
+- "string"
+- "string"
+- "string"
+numbers: 
+- 1
+- 1
+- 1
+booleans: 
+- true
+- true
+- true
 `,
 				Fields: []Field{
 					Field{
@@ -293,9 +293,9 @@ func TestMakeYAMLExample(t *testing.T) {
 					tags: `json:"my_string"`,
 				},
 			},
-			expected: `  my_int: 1
-  my_bool: true
-  my_string: "string"
+			expected: `my_int: 1
+my_bool: true
+my_string: "string"
 `,
 		},
 		{
@@ -313,15 +313,20 @@ func TestMakeYAMLExample(t *testing.T) {
 					},
 				},
 			},
-			expected: `  my_seq: - - "string"
+			expected: `my_seq: 
+- 
   - "string"
   - "string"
-- - "string"
+  - "string"
+- 
   - "string"
   - "string"
-- - "string"
   - "string"
-  - "string" `,
+- 
+  - "string"
+  - "string"
+  - "string"
+`,
 		},
 	}
 
