@@ -32,6 +32,9 @@ type BPFConfig struct {
 
 	// CgroupPath is where the cgroupv2 hierarchy is mounted.
 	CgroupPath string
+
+	// UDP enables UDP connection events.
+	UDP bool
 }
 
 // CheckAndSetDefaults checks BPF configuration.
