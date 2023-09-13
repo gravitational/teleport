@@ -139,7 +139,6 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing revision on insert")
 		}
-		_ = revision
 
 		return []backend.Event{{
 			Type: types.OpPut,
@@ -147,6 +146,7 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 				Key:     key,
 				Value:   value,
 				Expires: expires.UTC(),
+				ID:      idFromRevision(revision),
 			},
 		}}, nil
 
@@ -203,7 +203,6 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing revision on update")
 		}
-		_ = revision
 
 		if oldKey != nil {
 			return []backend.Event{{
@@ -217,6 +216,7 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 					Key:     key,
 					Value:   value,
 					Expires: expires.UTC(),
+					ID:      idFromRevision(revision),
 				},
 			}}, nil
 		}
@@ -227,6 +227,7 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 				Key:     key,
 				Value:   value,
 				Expires: expires.UTC(),
+				ID:      idFromRevision(revision),
 			},
 		}}, nil
 	}

@@ -25,11 +25,14 @@ import { Clusters } from './Clusters';
 import { Identity } from './Identity';
 import { AdditionalActions } from './AdditionalActions';
 
-export function TopBar() {
+export function TopBar(props: {
+  topBarContainerRef: React.MutableRefObject<HTMLDivElement>;
+}) {
   return (
     <Grid>
       <JustifyLeft>
         <Connections />
+        <div ref={props.topBarContainerRef} />
       </JustifyLeft>
       <CentralContainer>
         <Clusters />
@@ -61,6 +64,7 @@ const CentralContainer = styled(Flex).attrs({ gap: 3 })`
 
 const JustifyLeft = styled(Flex).attrs({ gap: 3 })`
   align-items: center;
+  min-width: 80px; // reserves space for CMC icon to prevent layout shifting
   height: 100%;
 `;
 

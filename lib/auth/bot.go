@@ -295,13 +295,14 @@ func (s *Server) getBotUsers(ctx context.Context) ([]types.User, error) {
 // supportedBotJoinMethods should match SupportedJoinMethods declared in
 // lib/tbot/config
 var supportedBotJoinMethods = []types.JoinMethod{
-	types.JoinMethodToken,
 	types.JoinMethodAzure,
 	types.JoinMethodCircleCI,
 	types.JoinMethodGCP,
 	types.JoinMethodGitHub,
 	types.JoinMethodGitLab,
 	types.JoinMethodIAM,
+	types.JoinMethodKubernetes,
+	types.JoinMethodToken,
 }
 
 // checkOrCreateBotToken checks the existing token if given, or creates a new

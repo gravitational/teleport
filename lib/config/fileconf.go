@@ -30,13 +30,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
@@ -45,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
@@ -494,21 +493,9 @@ kubernetes matchers are present`)
 	return nil
 }
 
-// awsRegions returns the list of all regions available on every aws partition.
-// It is used to validate the AWSMatcher.Regions values.
-func awsRegions() []string {
-	var regions []string
-	partitions := endpoints.DefaultPartitions()
-	for _, partition := range partitions {
-		regions = append(regions, maps.Keys(partition.Regions())...)
-	}
-	return regions
-}
-
 // checkAndSetDefaultsForAWSMatchers sets the default values for discovery AWS matchers
 // and validates the provided types.
 func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
-	regions := awsRegions()
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
 		for _, matcherType := range matcher.Types {
@@ -520,13 +507,13 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 
 		if len(matcher.Regions) == 0 {
 			return trace.BadParameter("discovery service requires at least one region; supported regions are: %v",
-				regions)
+				awsutils.GetKnownRegions())
 		}
 
 		for _, region := range matcher.Regions {
-			if !slices.Contains(regions, region) {
+			if err := awsapiutils.IsValidRegion(region); err != nil {
 				return trace.BadParameter("discovery service does not support region %q; supported regions are: %v",
-					region, regions)
+					region, awsutils.GetKnownRegions())
 			}
 		}
 
@@ -989,9 +976,14 @@ func (s *Service) Disabled() bool {
 type Auth struct {
 	Service `yaml:",inline"`
 
-	// ProxyProtocol enables support for HAProxy proxy protocol version 1 when it is turned 'on'.
-	// Verify whether the service is in front of a trusted load balancer.
-	// The default value is 'on'.
+	// ProxyProtocol controls support for HAProxy PROXY protocol.
+	// Possible values:
+	// - 'on': one PROXY header is accepted and required per incoming connection.
+	// - 'off': no PROXY headers are allows, otherwise connection is rejected.
+	// If unspecified - one PROXY header is allowed, but not required. Connection is marked with source port set to 0
+	// and IP pinning will not be allowed. It is supposed to be used only as default mode for test setups.
+	// In production you should always explicitly set the mode based on your network setup - if you have L4 load balancer
+	// with enabled PROXY protocol in front of Teleport you should set it to 'on', if you don't have it, set it to 'off'
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
 
 	// ClusterName is the name of the CA who manages this cluster
@@ -2176,7 +2168,7 @@ type Proxy struct {
 	KeyFile string `yaml:"https_key_file,omitempty"`
 	// CertFile is a TLS Certificate file
 	CertFile string `yaml:"https_cert_file,omitempty"`
-	// ProxyProtocol turns on support for HAProxy proxy protocol
+	// ProxyProtocol turns on support for HAProxy PROXY protocol
 	// this is the option that has be turned on only by administrator,
 	// as only admin knows whether service is in front of trusted load balancer
 	// or not.

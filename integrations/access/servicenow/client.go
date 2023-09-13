@@ -77,6 +77,8 @@ type ClientConfig struct {
 	Username string
 	// APIToken is the token used for basic auth.
 	APIToken string
+	// CloseCode is the ServiceNow close code that incidents will be closed with.
+	CloseCode string
 }
 
 // NewClient creates a new Servicenow client for managing incidents.
@@ -85,6 +87,18 @@ func NewClient(conf ClientConfig) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 	client := resty.NewWithClient(defaults.Config().HTTPClient)
+	apiURL, err := url.Parse(conf.APIEndpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if apiURL.Scheme == "http" && apiURL.Hostname() != "127.0.0.1" {
+		return nil, trace.BadParameter("http scheme is only permitted for localhost: %v", apiURL.Host)
+	}
+	if apiURL.Hostname() != "127.0.0.1" {
+		apiURL.Scheme = "https"
+	}
+
 	client.SetBaseURL(conf.APIEndpoint).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json").
@@ -114,7 +128,7 @@ func errWrapper(statusCode int, body string) error {
 
 // CreateIncident creates an servicenow incident.
 func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData RequestData) (Incident, error) {
-	bodyDetails, err := buildIncidentBody(snc.WebProxyURL, reqID, reqData)
+	bodyDetails, err := snc.buildIncidentBody(snc.WebProxyURL, reqID, reqData)
 	if err != nil {
 		return Incident{}, trace.Wrap(err)
 	}
@@ -124,7 +138,7 @@ func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData Req
 		Description:      bodyDetails,
 	}
 
-	var result Incident
+	var result incidentResult
 	resp, err := snc.client.NewRequest().
 		SetContext(ctx).
 		SetBody(body).
@@ -137,12 +151,13 @@ func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData Req
 	if resp.IsError() {
 		return Incident{}, errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
-	return result, nil
+
+	return result.Result, nil
 }
 
 // PostReviewNote posts a note once a new request review appears.
 func (snc *Client) PostReviewNote(ctx context.Context, incidentID string, review types.AccessReview) error {
-	note, err := buildReviewNoteBody(review)
+	note, err := snc.buildReviewNoteBody(review)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -166,12 +181,12 @@ func (snc *Client) PostReviewNote(ctx context.Context, incidentID string, review
 
 // ResolveIncident resolves an incident and posts a note with resolution details.
 func (snc *Client) ResolveIncident(ctx context.Context, incidentID string, resolution Resolution) error {
-	note, err := buildResolutionNoteBody(resolution)
+	note, err := snc.buildResolutionNoteBody(resolution)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	body := Incident{
-		CloseCode:     resolution.CloseCode,
+		CloseCode:     snc.CloseCode,
 		IncidentState: resolution.State,
 		CloseNotes:    note,
 	}
@@ -223,6 +238,24 @@ func (snc *Client) GetOnCall(ctx context.Context, rotaID string) ([]string, erro
 	return emails, nil
 }
 
+// CheckHealth pings servicenow to check if it is reachable.
+func (snc *Client) CheckHealth(ctx context.Context) error {
+	resp, err := snc.client.NewRequest().
+		SetContext(ctx).
+		SetQueryParams(map[string]string{
+			"sysparm_limit": "1",
+		}).
+		Get("/api/now/table/incident")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer resp.RawResponse.Body.Close()
+	if resp.IsError() {
+		return errWrapper(resp.StatusCode(), string(resp.Body()))
+	}
+	return nil
+}
+
 // GetUserEmail returns the email address for the given user ID
 func (snc *Client) GetUserEmail(ctx context.Context, userID string) (string, error) {
 	var result userResult
@@ -250,7 +283,7 @@ func (snc *Client) GetUserEmail(ctx context.Context, userID string) (string, err
 	return result.Result[0].Email, nil
 }
 
-func buildIncidentBody(webProxyURL *url.URL, reqID string, reqData RequestData) (string, error) {
+func (snc *Client) buildIncidentBody(webProxyURL *url.URL, reqID string, reqData RequestData) (string, error) {
 	var requestLink string
 	if webProxyURL != nil {
 		reqURL := *webProxyURL
@@ -276,7 +309,7 @@ func buildIncidentBody(webProxyURL *url.URL, reqID string, reqData RequestData) 
 	return builder.String(), nil
 }
 
-func buildReviewNoteBody(review types.AccessReview) (string, error) {
+func (snc *Client) buildReviewNoteBody(review types.AccessReview) (string, error) {
 	var builder strings.Builder
 	err := reviewNoteTemplate.Execute(&builder, struct {
 		types.AccessReview
@@ -293,13 +326,13 @@ func buildReviewNoteBody(review types.AccessReview) (string, error) {
 	return builder.String(), nil
 }
 
-func buildResolutionNoteBody(resolution Resolution) (string, error) {
+func (snc *Client) buildResolutionNoteBody(resolution Resolution) (string, error) {
 	var builder strings.Builder
 	err := resolutionNoteTemplate.Execute(&builder, struct {
 		Resolution    string
 		ResolveReason string
 	}{
-		Resolution:    resolution.CloseCode,
+		Resolution:    snc.CloseCode,
 		ResolveReason: resolution.Reason,
 	})
 	if err != nil {

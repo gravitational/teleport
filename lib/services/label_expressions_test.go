@@ -212,7 +212,7 @@ func TestLabelExpressions(t *testing.T) {
 			desc: "contains_any match",
 			expr: `contains_any(user.spec.traits["projects"], labels_matching("project-*"))`,
 			userTraits: map[string][]string{
-				"projects": []string{"parser", "skunkworks", "algorithms"},
+				"projects": {"parser", "skunkworks", "algorithms"},
 			},
 			resourceLabels: map[string]string{
 				"project-name":  "skunkworks",
@@ -224,7 +224,7 @@ func TestLabelExpressions(t *testing.T) {
 			desc: "contains_any no match",
 			expr: `contains_any(user.spec.traits["projects"], labels_matching("project-*"))`,
 			userTraits: map[string][]string{
-				"projects": []string{"parser", "algorithms"},
+				"projects": {"parser", "algorithms"},
 			},
 			resourceLabels: map[string]string{
 				"project-name":  "skunkworks",
@@ -246,7 +246,7 @@ func TestLabelExpressions(t *testing.T) {
 			desc: "contains_any empty second arg",
 			expr: `contains_any(user.spec.traits["projects"], labels_matching("project-*"))`,
 			userTraits: map[string][]string{
-				"projects": []string{"parser", "algorithms"},
+				"projects": {"parser", "algorithms"},
 			},
 			resourceLabels: map[string]string{
 				"team": "security",
@@ -257,7 +257,7 @@ func TestLabelExpressions(t *testing.T) {
 			desc: "contains_all match",
 			expr: `contains_all(user.spec.traits["projects"], labels_matching("project-*"))`,
 			userTraits: map[string][]string{
-				"projects": []string{"parser", "skunkworks", "algorithms"},
+				"projects": {"parser", "skunkworks", "algorithms"},
 			},
 			resourceLabels: map[string]string{
 				"project-primary":   "parser",
@@ -269,7 +269,7 @@ func TestLabelExpressions(t *testing.T) {
 			desc: "contains_all no match",
 			expr: `contains_all(user.spec.traits["projects"], labels_matching("project-*"))`,
 			userTraits: map[string][]string{
-				"projects": []string{"parser", "skunkworks", "algorithms"},
+				"projects": {"parser", "skunkworks", "algorithms"},
 			},
 			resourceLabels: map[string]string{
 				"project-primary":   "parser",
@@ -293,7 +293,7 @@ func TestLabelExpressions(t *testing.T) {
 			desc: "contains_all empty second arg",
 			expr: `contains_all(user.spec.traits["projects"], labels_matching("project-*"))`,
 			userTraits: map[string][]string{
-				"projects": []string{"parser", "skunkworks", "algorithms"},
+				"projects": {"parser", "skunkworks", "algorithms"},
 			},
 			// This resource seems unrelated to the contains_all expression. To
 			// avoid footguns, contains_all intentionally returns false when the

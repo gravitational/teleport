@@ -150,7 +150,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		}
 
 	case *apievents.DeviceEvent2:
-		// Only count successful device authentication.
+		// Only count successful events.
 		if !e.Success {
 			return nil
 		}
@@ -161,6 +161,13 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				DeviceId:     e.Device.DeviceId,
 				UserName:     e.User,
 				DeviceOsType: e.Device.OsType.String(),
+			}
+		case events.DeviceEnrollEvent:
+			return &DeviceEnrollEvent{
+				DeviceId:     e.Device.DeviceId,
+				UserName:     e.User,
+				DeviceOsType: e.Device.OsType.String(),
+				DeviceOrigin: e.Device.DeviceOrigin.String(),
 			}
 		}
 	}
