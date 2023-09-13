@@ -63,10 +63,11 @@ type rawNamedStruct struct {
 // strings, etc. Used for printing example YAML documents and tables of fields.
 // This is not intended to be a comprehensive YAML AST.
 type yamlKindNode interface {
-	// String representation to include in a table of fields
+	// Generate a string representation to include in a table of fields
 	formatForTable() string
-	// Example YAML values for the type
-	formatForExampleYAML() string
+	// Generate an example YAML value for the type with the provided number
+	// of indendations.
+	formatForExampleYAML(indents int) string
 }
 
 type yamlSequence struct {
@@ -77,13 +78,19 @@ func (y yamlSequence) formatForTable() string {
 	return `[]` + y.elementKind.formatForTable()
 }
 
-func (y yamlSequence) formatForExampleYAML() string {
-	return fmt.Sprintf(`- %v
-- %v
-- %v`,
-		y.elementKind.formatForExampleYAML(),
-		y.elementKind.formatForExampleYAML(),
-		y.elementKind.formatForExampleYAML(),
+func (y yamlSequence) formatForExampleYAML(indents int) string {
+	var leading string
+	for i := 0; i < indents; i++ {
+		leading += "  "
+	}
+	// Always start a sequence on a new line
+	return fmt.Sprintf(`
+%v- %v
+%v- %v
+%v- %v`,
+		leading, y.elementKind.formatForExampleYAML(indents+1),
+		leading, y.elementKind.formatForExampleYAML(indents+1),
+		leading, y.elementKind.formatForExampleYAML(indents+1),
 	)
 }
 
@@ -92,11 +99,14 @@ type yamlMapping struct {
 	valueKind yamlKindNode
 }
 
-func (y yamlMapping) formatForExampleYAML() string {
-	kv := fmt.Sprintf("%v: %v", y.keyKind.formatForExampleYAML(), y.valueKind.formatForExampleYAML())
-	return fmt.Sprintf(`- %v
-- %v
-- %v`, kv, kv, kv)
+func (y yamlMapping) formatForExampleYAML(indents int) string {
+	var leading string
+	for i := 0; i < indents; i++ {
+		leading += "  "
+	}
+
+	kv := fmt.Sprintf("%v%v: %v\n", leading, y.keyKind.formatForExampleYAML(0), y.valueKind.formatForExampleYAML(indents+1))
+	return fmt.Sprintf(`%v%v%v`, kv, kv, kv)
 }
 
 func (y yamlMapping) formatForTable() string {
@@ -109,7 +119,7 @@ func (y yamlString) formatForTable() string {
 	return "string"
 }
 
-func (y yamlString) formatForExampleYAML() string {
+func (y yamlString) formatForExampleYAML(indents int) string {
 	return `"string"`
 }
 
@@ -119,7 +129,7 @@ func (y yamlNumber) formatForTable() string {
 	return "number"
 }
 
-func (y yamlNumber) formatForExampleYAML() string {
+func (y yamlNumber) formatForExampleYAML(indents int) string {
 	return "1"
 }
 
@@ -129,7 +139,7 @@ func (y yamlBool) formatForTable() string {
 	return "Boolean"
 }
 
-func (y yamlBool) formatForExampleYAML() string {
+func (y yamlBool) formatForExampleYAML(indents int) string {
 	return "true"
 }
 
@@ -204,8 +214,8 @@ func makeYAMLExample(fields []rawField) (string, error) {
 	var buf bytes.Buffer
 
 	for _, field := range fields {
-		buf.WriteString("  " + getJSONTag(field.tags) + ": ")
-		buf.WriteString(field.kind.formatForExampleYAML())
+		buf.WriteString(getJSONTag(field.tags) + ": ")
+		buf.WriteString(field.kind.formatForExampleYAML(0))
 		buf.WriteString("\n")
 	}
 
