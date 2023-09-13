@@ -779,8 +779,7 @@ func (g *GRPCServer) GetAccessRequestsV2(f *types.AccessRequestFilter, stream au
 }
 
 func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *types.AccessRequestV3) (*emptypb.Empty, error) {
-	_, err := g.CreateAccessRequestV2(ctx, req)
-	return &emptypb.Empty{}, trace.Wrap(err)
+	return nil, trace.NotImplemented("access request creation API has changed, please update your client to v14 or newer")
 }
 
 func (g *GRPCServer) CreateAccessRequestV2(ctx context.Context, req *types.AccessRequestV3) (*types.AccessRequestV3, error) {
@@ -796,10 +795,17 @@ func (g *GRPCServer) CreateAccessRequestV2(ctx context.Context, req *types.Acces
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.ServerWithRoles.CreateAccessRequest(ctx, req); err != nil {
+	out, err := auth.ServerWithRoles.CreateAccessRequestV2(ctx, req)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return req, nil
+
+	r, ok := out.(*types.AccessRequestV3)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected access request type %T", r))
+	}
+
+	return r, nil
 }
 
 func (g *GRPCServer) DeleteAccessRequest(ctx context.Context, id *authpb.RequestID) (*emptypb.Empty, error) {

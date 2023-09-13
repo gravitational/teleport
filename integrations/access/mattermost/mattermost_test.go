@@ -256,9 +256,9 @@ func (s *MattermostSuite) createAccessRequest(reviewers []User) types.AccessRequ
 	t.Helper()
 
 	req := s.newAccessRequest(reviewers)
-	err := s.requestor().CreateAccessRequest(s.Context(), req)
+	out, err := s.requestor().CreateAccessRequestV2(s.Context(), req)
 	require.NoError(s.T(), err)
-	return req
+	return out
 }
 
 func (s *MattermostSuite) checkPluginData(reqID string, cond func(common.GenericPluginData) bool) common.GenericPluginData {
@@ -650,7 +650,7 @@ func (s *MattermostSuite) TestRace() {
 				return setRaceErr(trace.Wrap(err))
 			}
 			req.SetSuggestedReviewers([]string{reviewer1.Email, reviewer2.Email})
-			if err := s.requestor().CreateAccessRequest(ctx, req); err != nil {
+			if _, err := s.requestor().CreateAccessRequestV2(ctx, req); err != nil {
 				return setRaceErr(trace.Wrap(err))
 			}
 			return nil
