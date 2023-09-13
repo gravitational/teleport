@@ -18,6 +18,7 @@ package types
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -165,6 +166,13 @@ func (d *WindowsDesktopV3) setStaticFields() {
 func (d *WindowsDesktopV3) CheckAndSetDefaults() error {
 	if d.Spec.Addr == "" {
 		return trace.BadParameter("WindowsDesktopV3.Spec missing Addr field")
+	}
+
+	// We use SNI to identify the desktop to route a connection to,
+	// and '.' will add an extra subdomain, preventing Teleport from
+	// correctly establishing TLS connections.
+	if name := d.GetName(); strings.Contains(name, ".") {
+		return trace.BadParameter("invalid name %q: desktop names cannot contain periods", name)
 	}
 
 	d.setStaticFields()

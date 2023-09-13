@@ -64,7 +64,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
@@ -88,13 +87,13 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -4055,7 +4054,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 		}
 		// we need to wait until we know about the node because direct dial to
 		// unregistered servers is no longer supported
-		_, err := site.GetNode(ctx, apidefaults.Namespace, main.Config.HostUUID)
+		_, err := site.GetNode(ctx, defaults.Namespace, main.Config.HostUUID)
 		assert.NoError(t, err)
 	}, time.Minute, 250*time.Millisecond)
 
@@ -7614,8 +7613,9 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 }
 
 func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
-	for _, proxyProtocolEnabled := range []bool{false, true} {
-		t.Run(fmt.Sprintf("proxy protocol: %v", proxyProtocolEnabled), func(t *testing.T) {
+	for _, proxyProtocolMode := range []multiplexer.PROXYProtocolMode{
+		multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff, multiplexer.PROXYProtocolUnspecified} {
+		t.Run(fmt.Sprintf("proxy protocol mode: %v", proxyProtocolMode), func(t *testing.T) {
 			lib.SetInsecureDevMode(true)
 			t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
@@ -7626,9 +7626,21 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 			mainConfig.Proxy.Enabled = true
 			mainConfig.Proxy.DisableWebService = false
 			mainConfig.Proxy.DisableWebInterface = true
-			mainConfig.Proxy.EnableProxyProtocol = proxyProtocolEnabled
+			mainConfig.Proxy.PROXYProtocolMode = proxyProtocolMode
 
 			mainConfig.SSH.Enabled = false
+
+			// Create load balancer that will send PROXY header if required
+			frontendTun := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
+			tunLB, err := utils.NewLoadBalancer(context.Background(), frontendTun)
+			require.NoError(t, err)
+			if proxyProtocolMode == multiplexer.PROXYProtocolOn {
+				tunLB.PROXYHeader = []byte("PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n")
+			}
+			err = tunLB.Listen()
+			require.NoError(t, err)
+
+			mainConfig.Proxy.TunnelPublicAddrs = []utils.NetAddr{*utils.MustParseAddr(tunLB.Addr().String())}
 
 			main := suite.NewTeleportWithConfig(t, nil, nil, mainConfig)
 			t.Cleanup(func() { require.NoError(t, main.StopAll()) })
@@ -7642,7 +7654,13 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 			nodeConfig.Proxy.Enabled = false
 			nodeConfig.SSH.Enabled = true
 
-			_, err := main.StartNodeWithTargetPort(nodeConfig, helpers.PortStr(t, main.ReverseTunnel))
+			backendTun := *utils.MustParseAddr(main.ReverseTunnel)
+			tunLB.AddBackend(backendTun)
+			require.NoError(t, err)
+			go tunLB.Serve()
+			t.Cleanup(func() { require.NoError(t, tunLB.Close()) })
+
+			_, err = main.StartNodeWithTargetPort(nodeConfig, helpers.PortStr(t, tunLB.Addr().String()))
 			require.NoError(t, err, "Node failed to join over reverse tunnel")
 		})
 	}
@@ -7669,8 +7687,8 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 		t.Cleanup(cancel)
 		dialer := apiclient.NewDialer(
 			ctx,
-			apidefaults.DefaultIdleTimeout,
-			apidefaults.DefaultIOTimeout,
+			defaults.DefaultIdleTimeout,
+			defaults.DefaultIOTimeout,
 		)
 		tlsConfig := utils.TLSConfig(nil)
 		tlsConfig.InsecureSkipVerify = true
@@ -8099,12 +8117,12 @@ func testAgentlessConn(t *testing.T, tc, joinTC *client.TeleportClient, node *ty
 
 	// forward SSH agent
 	sshClient := nodeClient.Client.Client
-	session, err := sshClient.NewSession()
+	s, err := sshClient.NewSession()
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		// the SSH server will close the session to avoid a deadlock,
 		// so closing it here will result in io.EOF if the test passes
-		_ = session.Close()
+		_ = s.Close()
 	})
 
 	// this is essentially what agent.ForwardToAgent does, but we're
@@ -8126,12 +8144,12 @@ func testAgentlessConn(t *testing.T, tc, joinTC *client.TeleportClient, node *ty
 		}
 	}()
 
-	require.NoError(t, agent.RequestAgentForwarding(session))
+	require.NoError(t, agent.RequestAgentForwarding(s))
 
 	// request a shell so Teleport starts tracking this session
-	session.Stderr = io.Discard
-	session.Stdout = io.Discard
-	require.NoError(t, session.Shell())
+	s.Stderr = io.Discard
+	s.Stdout = io.Discard
+	require.NoError(t, s.Shell())
 
 	var sessTracker types.SessionTracker
 	require.Eventually(t, func() bool {
@@ -8145,7 +8163,7 @@ func testAgentlessConn(t *testing.T, tc, joinTC *client.TeleportClient, node *ty
 	}, 3*time.Second, 100*time.Millisecond)
 
 	// test that attempting to join the session returns an error
-	err = joinTC.Join(ctx, types.SessionPeerMode, tc.Namespace, rsession.ID(sessTracker.GetSessionID()), nil)
+	err = joinTC.Join(ctx, types.SessionPeerMode, tc.Namespace, session.ID(sessTracker.GetSessionID()), nil)
 	require.True(t, trace.IsBadParameter(err))
 	require.ErrorContains(t, err, "session joining is only supported for Teleport nodes, not OpenSSH nodes")
 

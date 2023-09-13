@@ -390,7 +390,7 @@ func (a *BaseApp) getMessageRecipients(ctx context.Context, req types.AccessRequ
 	recipientSet := NewRecipientSet()
 
 	switch a.Conf.GetPluginType() {
-	case types.PluginTypeOpsgenie:
+	case types.PluginTypeOpsgenie, types.PluginTypeServiceNow:
 		if recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
 			for _, recipient := range recipients {
 				rec, err := a.bot.FetchRecipient(ctx, recipient)

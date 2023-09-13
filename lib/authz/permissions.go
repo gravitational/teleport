@@ -347,6 +347,10 @@ var ErrIPPinningMissing = trace.AccessDenied("pinned IP is required for the user
 // ErrIPPinningMismatch is returned when user's pinned IP doesn't match observed IP.
 var ErrIPPinningMismatch = trace.AccessDenied("pinned IP doesn't match observed client IP")
 
+// ErrIPPinningNotAllowed is returned when user's pinned IP doesn't match observed IP.
+var ErrIPPinningNotAllowed = trace.AccessDenied("IP pinning is not allowed for connections behind L4 load balancers with " +
+	"PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the proxy_service and/or auth_service config.")
+
 // CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
 // Check is considered successful if no error is returned.
 func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool, log logrus.FieldLogger) error {
@@ -362,7 +366,7 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 		return trace.Wrap(err)
 	}
 
-	clientIP, _, err := net.SplitHostPort(clientSrcAddr.String())
+	clientIP, clientPort, err := net.SplitHostPort(clientSrcAddr.String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -373,6 +377,17 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 				"client_ip": clientIP,
 				"pinned_ip": identity.PinnedIP,
 			}).Debug("Pinned IP and client IP mismatch")
+		}
+		return ErrIPPinningMismatch
+	}
+	// If connection has port 0 it means it was marked by multiplexer's 'detect()' function as affected by unexpected PROXY header.
+	// For security reason we don't allow such connection for IP pinning because we can't rely on client IP being correct.
+	if clientPort == "0" {
+		if log != nil {
+			log.WithFields(logrus.Fields{
+				"client_ip": clientIP,
+				"pinned_ip": identity.PinnedIP,
+			}).Debug(ErrIPPinningNotAllowed.Error())
 		}
 		return ErrIPPinningMismatch
 	}
@@ -1137,7 +1152,7 @@ func ConvertAuthorizerError(ctx context.Context, log logrus.FieldLogger, err err
 	case trace.IsNotFound(err):
 		// user not found, wrap error with access denied
 		return trace.Wrap(err, "access denied")
-	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch):
+	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
 		log.Warn(err)
 		return trace.Wrap(err)
 	case trace.IsAccessDenied(err):
