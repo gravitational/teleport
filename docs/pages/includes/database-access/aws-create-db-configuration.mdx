@@ -2,53 +2,38 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Create a configuration file at `/etc/teleport.yaml` (or modify an existing
-one):
+Databases can be registered dynamically by Discovery Service, `tctl`, etc.
+
+Generate a Database Service configuration that monitors the dynamic database
+resources:
 
 ```code
-$ sudo cat > /etc/teleport.yaml <<EOF
-version: v3
-teleport:
-  nodename: "database-agent"
-  data_dir: "/var/lib/teleport"
-  proxy_server: <Var name="mytenant.teleport.sh:443" />
-  auth_token: "/tmp/token"
-proxy_service:
-  enabled: "no"
-auth_service:
-  enabled: "no"
-ssh_service:
-  enabled: "no"
-db_service:
-  enabled: "yes"
-  # Monitor dynamic resources from Auto-Discovery, tctl, Terraform:
-  resources:
-  - labels:
-      env: prod
-    aws:
-      # Optional AWS role that the Database Service will assume to access
-      # this database.
-      assume_role_arn: ""
-      # Optional AWS external ID that the Database Service will use to assume
-      # a role in an external AWS account.
-      external_id: ""
-  # Or, define an AWS {{ type }} database statically:
-  databases:
-  - name: example-{{ matcher }}
-    protocol: {{ protocol }}
-    uri: <Var name="{{ example }}" />
-    aws:
-      # Optional AWS role that the Database Service will assume to access
-      # this database.
-      assume_role_arn: ""
-      # Optional AWS external ID that the Database Service will use to assume
-      # a role in an external AWS account.
-      external_id: ""
-    static_labels:
-      env: prod
-EOF
+$ sudo teleport db configure create \
+   -o file \
+   --proxy=<Var name="mytenant.teleport.sh:443"/> \
+   --token=/tmp/token \
+   --dynamic-resources-labels env=prod
 ```
 
-Update this sample configuration to match your environment.
+This command will place the Database Service configuration at the
+`/etc/teleport.yaml` location.
 
-(!docs/pages/includes/database-access/aws-create-db-configuration-discovery.mdx type="{{type}}" matcher="{{matcher}}" !)
+<Details title="Enable auto-discovery for AWS {{type}} in Discovery Service?">
+
+In your Teleport Discovery Service's configuration, use AWS matcher type
+`{{ matcher }}`, and update `region` and `tags` that match your {{ type }}
+databases:
+
+```yaml
+discovery_service:
+  enabled: "yes"
+  aws:
+  - types: ["{{ matcher }}"]
+    regions: ["<Var name="us-west-1"/>"]
+    tags:
+      "env": "prod" # Match database resource tags where tag:env=prod
+```
+
+Restart the Discovery Service.
+
+</Details>
