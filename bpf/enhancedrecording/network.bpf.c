@@ -33,7 +33,8 @@ struct ipv4_data_t {
     u32 daddr;
     u16 dport;
     char task[TASK_COMM_LEN];
-    u16 sk_type; // SOCK_STREAM or SOCK_DGRAM.
+    u16 sk_type;  // SOCK_STREAM or SOCK_DGRAM.
+    u64 sk_inode; // inode backing the socket.
 };
 BPF_RING_BUF(ipv4_events, EVENTS_BUF_SIZE);
 
@@ -45,7 +46,8 @@ struct ipv6_data_t {
     struct in6_addr daddr;
     u16 dport;
     char task[TASK_COMM_LEN];
-    u16 sk_type; // SOCK_STREAM or SOCK_DGRAM.
+    u16 sk_type;  // SOCK_STREAM or SOCK_DGRAM.
+    u64 sk_inode; // inode backing the socket.
 };
 BPF_RING_BUF(ipv6_events, EVENTS_BUF_SIZE);
 
@@ -100,6 +102,7 @@ static int trace_connect_return(int ret, short ipver)
         data4.cgroup = bpf_get_current_cgroup_id();
         bpf_get_current_comm(&data4.task, sizeof(data4.task));
         data4.sk_type = BPF_CORE_READ(skp, sk_type);
+        data4.sk_inode = BPF_CORE_READ(skp, sk_socket, file, f_inode, i_ino);
         if (bpf_ringbuf_output(&ipv4_events, &data4, sizeof(data4), 0) != 0)
             INCR_COUNTER(lost);
 
@@ -113,6 +116,7 @@ static int trace_connect_return(int ret, short ipver)
         data6.cgroup = bpf_get_current_cgroup_id();
         bpf_get_current_comm(&data6.task, sizeof(data6.task));
         data6.sk_type = BPF_CORE_READ(skp, sk_type);
+        data6.sk_inode = BPF_CORE_READ(skp, sk_socket, file, f_inode, i_ino);
         if (bpf_ringbuf_output(&ipv6_events, &data6, sizeof(data6), 0) != 0)
             INCR_COUNTER(lost);
     }

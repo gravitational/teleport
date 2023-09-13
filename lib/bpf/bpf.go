@@ -112,6 +112,12 @@ type Service struct {
 	// conn is a BPF programs that hooks connect.
 	// conn is set only when restricted sessions are enabled.
 	conn *conn
+
+	// udpSilencedSockets holds all UDP sockets that are currently silenced.
+	udpSilencedSockets *ttlmap.TTLMap // inode->nil
+
+	// udpSilencePeriod is the expiration time for udpSilencedSockets keys.
+	udpSilencePeriod time.Duration
 }
 
 // New creates a BPF service.
@@ -146,6 +152,11 @@ func New(config *servicecfg.BPFConfig, restrictedSession *servicecfg.RestrictedS
 
 	closeContext, closeFunc := context.WithCancel(context.Background())
 
+	udpSilencedSockets, err := ttlmap.New(*config.UDPSilenceBufferSize)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	s := &Service{
 		BPFConfig: config,
 
@@ -155,6 +166,9 @@ func New(config *servicecfg.BPFConfig, restrictedSession *servicecfg.RestrictedS
 		closeFunc:    closeFunc,
 
 		cgroup: cgroup,
+
+		udpSilencedSockets: udpSilencedSockets,
+		udpSilencePeriod:   *config.UDPSilencePeriod,
 	}
 
 	// Create args cache used by the exec BPF program.
@@ -495,6 +509,10 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		return
 	}
 
+	if event.SockType == unix.SOCK_DGRAM && s.filterUDPSocket(event.SockInode) {
+		return
+	}
+
 	srcAddr := event.SrcIP()
 	dstAddr := event.DstIP()
 	sessionNetworkEvent := &apievents.SessionNetwork{
@@ -556,6 +574,10 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		return
 	}
 
+	if event.SockType == unix.SOCK_DGRAM && s.filterUDPSocket(event.SockInode) {
+		return
+	}
+
 	srcAddr := event.SrcIP()
 	dstAddr := event.DstIP()
 	sessionNetworkEvent := &apievents.SessionNetwork{
@@ -593,6 +615,22 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit network event.")
 	}
+}
+
+func (s *Service) filterUDPSocket(id uint64) bool {
+	// Log everything if period is zeroed.
+	if s.udpSilencePeriod <= 0 {
+		return false
+	}
+
+	key := strconv.FormatUint(id, 10)
+	if _, ok := s.udpSilencedSockets.Get(key); ok {
+		return true
+	}
+
+	// Start a new silence period.
+	s.udpSilencedSockets.Set(key, nil /* value */, s.udpSilencePeriod)
+	return false
 }
 
 // unmarshalEvent will unmarshal the perf event.

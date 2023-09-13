@@ -72,6 +72,10 @@ type rawConn4Event struct {
 
 	// SockType is the socket type, either SOCK_STREAM or SOCK_DGRAM.
 	SockType uint16
+
+	// SockInode is the inode backing the socket.
+	// Used to identify repeated sends by the same socket.
+	SockInode uint64
 }
 
 func (e *rawConn4Event) SrcIP() net.IP {
@@ -108,6 +112,10 @@ type rawConn6Event struct {
 
 	// SockType is the socket type, either SOCK_STREAM or SOCK_DGRAM.
 	SockType uint16
+
+	// SockInode is the inode backing the socket.
+	// Used to identify repeated sends by the same socket.
+	SockInode uint64
 }
 
 func (e *rawConn6Event) SrcIP() net.IP {
