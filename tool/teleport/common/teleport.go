@@ -968,7 +968,7 @@ func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabase
 		return trace.Wrap(err)
 	}
 
-	err = awsoidc.ConfigureListDatabasesIAM(ctx, iamClient, awsoidc.ListDatabasesIAMConfigureRequest{
+	err = awsoidc.ConfigureListDatabasesIAM(ctx, iamClient, awsoidc.ConfigureIAMListDatabasesRequest{
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 	})

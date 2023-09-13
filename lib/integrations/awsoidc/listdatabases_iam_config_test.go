@@ -30,18 +30,18 @@ import (
 func TestListDatabasesIAMConfigReqDefaults(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
-		req      ListDatabasesIAMConfigureRequest
+		req      ConfigureIAMListDatabasesRequest
 		errCheck require.ErrorAssertionFunc
-		expected ListDatabasesIAMConfigureRequest
+		expected ConfigureIAMListDatabasesRequest
 	}{
 		{
 			name: "set defaults",
-			req: ListDatabasesIAMConfigureRequest{
+			req: ConfigureIAMListDatabasesRequest{
 				Region:          "us-east-1",
 				IntegrationRole: "integrationrole",
 			},
 			errCheck: require.NoError,
-			expected: ListDatabasesIAMConfigureRequest{
+			expected: ConfigureIAMListDatabasesRequest{
 				Region:              "us-east-1",
 				IntegrationRole:     "integrationrole",
 				ListDatabasesPolicy: "ListDatabases",
@@ -49,14 +49,14 @@ func TestListDatabasesIAMConfigReqDefaults(t *testing.T) {
 		},
 		{
 			name: "missing region",
-			req: ListDatabasesIAMConfigureRequest{
+			req: ConfigureIAMListDatabasesRequest{
 				IntegrationRole: "integrationrole",
 			},
 			errCheck: badParameterCheck,
 		},
 		{
 			name: "missing integration role",
-			req: ListDatabasesIAMConfigureRequest{
+			req: ConfigureIAMListDatabasesRequest{
 				IntegrationRole: "integrationrole",
 			},
 			errCheck: badParameterCheck,
@@ -76,7 +76,7 @@ func TestListDatabasesIAMConfigReqDefaults(t *testing.T) {
 
 func TestListDatabasesIAMConfig(t *testing.T) {
 	ctx := context.Background()
-	baseReq := ListDatabasesIAMConfigureRequest{
+	baseReq := ConfigureIAMListDatabasesRequest{
 		Region:          "us-east-1",
 		IntegrationRole: "integrationrole",
 	}
@@ -84,7 +84,7 @@ func TestListDatabasesIAMConfig(t *testing.T) {
 	for _, tt := range []struct {
 		name              string
 		mockExistingRoles []string
-		req               ListDatabasesIAMConfigureRequest
+		req               ConfigureIAMListDatabasesRequest
 		errCheck          require.ErrorAssertionFunc
 	}{
 		{
