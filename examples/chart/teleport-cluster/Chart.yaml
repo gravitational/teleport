@@ -1,4 +1,4 @@
-.version: &version "15.0.0-dev-reeddebian12.1"
+.version: &version "15.0.0-dev-reeddebian12.2"
 
 name: teleport-cluster
 apiVersion: v2
