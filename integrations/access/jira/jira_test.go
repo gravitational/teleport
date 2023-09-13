@@ -249,9 +249,9 @@ func (s *JiraSuite) createAccessRequest() types.AccessRequest {
 	t.Helper()
 
 	req := s.newAccessRequest()
-	err := s.requestor().CreateAccessRequest(s.Context(), req)
+	out, err := s.requestor().CreateAccessRequestV2(s.Context(), req)
 	require.NoError(t, err)
-	return req
+	return out
 }
 
 func (s *JiraSuite) checkPluginData(reqID string, cond func(PluginData) bool) PluginData {
@@ -323,7 +323,8 @@ func (s *JiraSuite) TestIssueCreationWithRequestReason() {
 
 	req := s.newAccessRequest()
 	req.SetRequestReason("because of")
-	err := s.requestor().CreateAccessRequest(s.Context(), req)
+	var err error
+	req, err = s.requestor().CreateAccessRequestV2(s.Context(), req)
 	require.NoError(t, err)
 	s.checkPluginData(req.GetName(), func(data PluginData) bool {
 		return data.IssueID != ""
@@ -344,7 +345,8 @@ func (s *JiraSuite) TestIssueCreationWithLargeRequestReason() {
 
 	req := s.newAccessRequest()
 	req.SetRequestReason(strings.Repeat("a", jiraReasonLimit+10))
-	err := s.requestor().CreateAccessRequest(s.Context(), req)
+	var err error
+	req, err = s.requestor().CreateAccessRequestV2(s.Context(), req)
 	require.NoError(t, err)
 	s.checkPluginData(req.GetName(), func(data PluginData) bool {
 		return data.IssueID != ""
@@ -757,7 +759,8 @@ func (s *JiraSuite) TestRace() {
 			if err != nil {
 				return setRaceErr(trace.Wrap(err))
 			}
-			if err = s.requestor().CreateAccessRequest(s.Context(), req); err != nil {
+			_, err = s.requestor().CreateAccessRequestV2(s.Context(), req)
+			if err != nil {
 				return setRaceErr(trace.Wrap(err))
 			}
 			return nil

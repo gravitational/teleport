@@ -3256,6 +3256,22 @@ enum OSType {
   OS_TYPE_WINDOWS = 3;
 }
 
+// DeviceOrigin is the same as teleport.devicetrust.v1.DeviceOrigin.
+// Duplicated because gogo doesn't play well with protoc-gen-go.
+enum DeviceOrigin {
+  // Unspecified or absent origin.
+  DEVICE_ORIGIN_UNSPECIFIED = 0;
+
+  // Devices originated from direct API usage.
+  DEVICE_ORIGIN_API = 1;
+
+  // Devices originated from Jamf sync.
+  DEVICE_ORIGIN_JAMF = 2;
+
+  // Source originated from Microsoft Intune sync.
+  DEVICE_ORIGIN_INTUNE = 3;
+}
+
 // DeviceMetadata groups device information for events.
 message DeviceMetadata {
   // ID of the device.
@@ -3266,6 +3282,8 @@ message DeviceMetadata {
   string asset_tag = 3 [(gogoproto.jsontag) = "asset_tag,omitempty"];
   // Device credential identifier.
   string credential_id = 4 [(gogoproto.jsontag) = "credential_id,omitempty"];
+  // Device origin.
+  DeviceOrigin device_origin = 5 [(gogoproto.jsontag) = "device_origin,omitempty"];
 }
 
 // DeviceEvent is a device-related event.

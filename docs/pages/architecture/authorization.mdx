@@ -75,7 +75,7 @@ of non-interactive users:
   bordered="true"
   caption="Machine-ID certs"
   >
-  
+
 ![Certificates for services](../../img/architecture/certs-machine-id@1.8x.svg)
 </Figure>
 
@@ -169,12 +169,13 @@ spec:
        'environment': ['test', 'stage']
     kubernetes_labels:
        'environment': ['test', 'stage']
-    # Allow access to any Kubernetes pod in a cluster with the labels specified
+    # Allow access to any Kubernetes resources in a cluster with the labels specified
     # above.
     kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
+      - kind: '*'
+        namespace: '*'
+        name: '*'
+        verbs: ['*']
 ```
 
 Prod role allows SSH access as `ubuntu` and `view` access to kubernetes for
@@ -192,9 +193,10 @@ spec:
     kubernetes_labels:
        'environment': ['prod']
     kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
+      - kind: '*'
+        namespace: '*'
+        name: '*'
+        verbs: ['*']
 ```
 
 Here is how Teleport will evaluate Alice's access:

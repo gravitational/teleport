@@ -109,6 +109,7 @@ func TestMessage(t *testing.T) {
 	t.Parallel()
 
 	s := func(s string) *string { return &s }
+	rev := uuid.New()
 
 	m := &wal2jsonMessage{
 		Action: "I",
@@ -153,7 +154,7 @@ func TestMessage(t *testing.T) {
 			{Name: "key", Type: "bytea", Value: s("666f6f")},
 			{Name: "value", Type: "bytea", Value: s("")},
 			{Name: "expires", Type: "timestamp with time zone", Value: nil},
-			{Name: "revision", Type: "uuid", Value: s(uuid.NewString())},
+			{Name: "revision", Type: "uuid", Value: s(rev.String())},
 		},
 		Identity: []wal2jsonColumn{},
 	}
@@ -165,6 +166,7 @@ func TestMessage(t *testing.T) {
 		Item: backend.Item{
 			Key:   []byte("foo"),
 			Value: []byte(""),
+			ID:    idFromRevision(rev),
 		},
 	}))
 
@@ -184,7 +186,7 @@ func TestMessage(t *testing.T) {
 		Identity: []wal2jsonColumn{
 			{Name: "key", Type: "bytea", Value: s("666f6f")},
 			{Name: "value", Type: "bytea", Value: s("")},
-			{Name: "revision", Type: "uuid", Value: s(uuid.NewString())},
+			{Name: "revision", Type: "uuid", Value: s(rev.String())},
 		},
 	}
 	evs, err = m.Events()
@@ -195,6 +197,7 @@ func TestMessage(t *testing.T) {
 		Item: backend.Item{
 			Key:   []byte("foo"),
 			Value: []byte("foo2"),
+			ID:    idFromRevision(rev),
 		},
 	}))
 
@@ -213,7 +216,7 @@ func TestMessage(t *testing.T) {
 		Identity: []wal2jsonColumn{
 			{Name: "key", Type: "bytea", Value: s("666f6f")},
 			{Name: "value", Type: "bytea", Value: s("")},
-			{Name: "revision", Type: "uuid", Value: s(uuid.NewString())},
+			{Name: "revision", Type: "uuid", Value: s(rev.String())},
 		},
 	}
 	evs, err = m.Events()
@@ -231,6 +234,7 @@ func TestMessage(t *testing.T) {
 			Key:     []byte("foo2"),
 			Value:   []byte("foo2"),
 			Expires: time.Date(2023, 9, 5, 15, 57, 1, 340426000, time.UTC),
+			ID:      idFromRevision(rev),
 		},
 	}))
 

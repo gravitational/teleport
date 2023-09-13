@@ -284,6 +284,7 @@
     "buildbox",
     "cacerts",
     "caddef",
+    "canonicalize",
     "categorisation",
     "cavium",
     "centralus",
@@ -314,6 +315,7 @@
     "clusterrolebinding",
     "clusterrolebindings",
     "clusterroles",
+    "clickhouse",
     "cockroachdb",
     "codingllama",
     "compat",
@@ -533,6 +535,7 @@
     "multiaccount",
     "multistep",
     "myauth",
+    "mybot",
     "mycluster",
     "mycommand",
     "mydevice",
@@ -791,6 +794,7 @@
     "vkxz",
     "vmcopy",
     "vmjm",
+    "VPCID",
     "walkthrough",
     "watcherjob",
     "webapi",
@@ -826,7 +830,12 @@
     "yubishm",
     "znmqk",
     "zxvf",
-    "zztop"
+    "zztop",
+    "persistentvolume",
+    "persistentvolumeclaim",
+    "daemonset",
+    "certificatesigningrequest",
+    "deletecollection"
   ],
   "flagWords": [
     "hte"

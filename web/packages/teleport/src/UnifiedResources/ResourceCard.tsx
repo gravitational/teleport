@@ -14,8 +14,14 @@
  * limitations under the License.
  */
 
-import React, { useCallback, useState, useLayoutEffect, useRef } from 'react';
-import styled from 'styled-components';
+import React, {
+  useCallback,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from 'react';
+import styled, { css } from 'styled-components';
 
 import {
   Box,
@@ -28,6 +34,7 @@ import {
 } from 'design';
 import copyToClipboard from 'design/utils/copyToClipboard';
 
+import { ShimmerBox } from 'design/ShimmerBox';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import {
   Copy,
@@ -75,14 +82,16 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   const ResTypeIcon = resourceTypeIcon(resource.kind);
   const description = resourceDescription(resource);
 
-  const labelsInnerContainer = useRef(null);
-
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(false);
   const [numMoreLabels, setNumMoreLabels] = useState(0);
-
-  const nameTextRef = useRef<HTMLDivElement | null>(null);
   const [isNameOverflowed, setIsNameOverflowed] = useState(false);
+
+  const innerContainer = useRef<Element | null>(null);
+  const labelsInnerContainer = useRef(null);
+  const nameText = useRef<HTMLDivElement | null>(null);
+  const collapseTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+
   // This effect installs a resize observer whose purpose is to detect the size
   // of the component that contains all the labels. If this component is taller
   // than the height of a single label row, we show a "+x more" button.
@@ -93,8 +102,8 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
       // This check will let us know if the name text has overflowed. We do this
       // to conditionally render a tooltip for only overflowed names
       if (
-        nameTextRef.current?.scrollWidth >
-        nameTextRef.current?.parentElement.offsetWidth
+        nameText.current?.scrollWidth >
+        nameText.current?.parentElement.offsetWidth
       ) {
         setIsNameOverflowed(true);
       } else {
@@ -132,17 +141,44 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
     };
   });
 
+  // Clear the timeout on unmount to prevent changing a state of an unmounted
+  // component.
+  useEffect(() => () => clearTimeout(collapseTimeout.current), []);
+
   const onMoreLabelsClick = () => {
     setShowAllLabels(true);
+  };
+
+  const onMouseLeave = () => {
+    // If the user expanded the labels and then scrolled down enough to hide the
+    // top of the card, we scroll back up and collapse the labels with a small
+    // delay to keep the user from losing focus on the card that they were
+    // looking at. The delay is picked by hand, since there's no (easy) way to
+    // know when the animation ends.
+    if (
+      showAllLabels &&
+      (innerContainer.current?.getBoundingClientRect().top ?? 0) < 0
+    ) {
+      innerContainer.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+      clearTimeout(collapseTimeout.current);
+      collapseTimeout.current = setTimeout(() => setShowAllLabels(false), 700);
+    } else {
+      // Otherwise, we just collapse the labels immediately.
+      setShowAllLabels(false);
+    }
   };
 
   return (
     <CardContainer>
       <CardInnerContainer
+        ref={innerContainer}
         p={3}
         alignItems="start"
         showAllLabels={showAllLabels}
-        onMouseLeave={() => setShowAllLabels(false)}
+        onMouseLeave={onMouseLeave}
       >
         <ResourceIcon name={resIcon} width="45px" height="45px" ml={2} />
         {/* MinWidth is important to prevent descriptions from overflowing. */}
@@ -151,12 +187,12 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
             <SingleLineBox flex="1">
               {isNameOverflowed ? (
                 <HoverTooltip tipContent={<>{name}</>}>
-                  <Text ref={nameTextRef} typography="h5" fontWeight={300}>
+                  <Text ref={nameText} typography="h5" fontWeight={300}>
                     {name}
                   </Text>
                 </HoverTooltip>
               ) : (
-                <Text ref={nameTextRef} typography="h5" fontWeight={300}>
+                <Text ref={nameText} typography="h5" fontWeight={300}>
                   {name}
                 </Text>
               )}
@@ -216,6 +252,41 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
         </Flex>
       </CardInnerContainer>
     </CardContainer>
+  );
+}
+
+export function LoadingCard() {
+  function randomNum(min: number, max: number) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  return (
+    <LoadingCardWrapper p={3}>
+      <Flex gap={2} alignItems="start">
+        {/* Image */}
+        <ShimmerBox height="45px" width="45px" />
+        {/* Name and action button */}
+        <Box flex={1}>
+          <Flex gap={2} mb={2} justifyContent="space-between">
+            <ShimmerBox
+              height="24px"
+              css={`
+                flex-basis: ${randomNum(100, 30)}%;
+              `}
+            />
+            <ShimmerBox height="24px" width="90px" />
+          </Flex>
+          <ShimmerBox height="16px" width={`${randomNum(90, 40)}%`} mb={2} />
+          <Box>
+            <Flex gap={2}>
+              {new Array(randomNum(4, 0)).fill(null).map((_, i) => (
+                <ShimmerBox key={i} height="16px" width="60px" />
+              ))}
+            </Flex>
+          </Box>
+        </Box>
+      </Flex>
+    </LoadingCardWrapper>
   );
 }
 
@@ -345,6 +416,12 @@ const CardContainer = styled(Box)`
   position: relative;
 `;
 
+const elevatedCardMixin = css`
+  background-color: ${props => props.theme.colors.levels.elevated};
+  border-color: ${props => props.theme.colors.levels.elevated};
+  box-shadow: ${props => props.theme.boxShadow[1]};
+`;
+
 /**
  * The inner container that normally holds a regular layout of the card, and is
  * fully contained inside the outer container.  Once the user clicks the "more"
@@ -355,26 +432,25 @@ const CardContainer = styled(Box)`
  * outer container.
  */
 const CardInnerContainer = styled(Flex)`
-  border-top: 2px solid ${props => props.theme.colors.spotBackground[0]};
   background-color: transparent;
+  border: ${props => props.theme.borders[2]}
+    ${props => props.theme.colors.spotBackground[0]};
+  border-radius: ${props => props.theme.radii[3]}px;
 
   ${props =>
-    props.showAllLabels
-      ? 'position: absolute; left: 0; right: 0; z-index: 1;'
-      : ''}
+    props.showAllLabels &&
+    css`
+      position: absolute;
+      left: 0;
+      right: 0;
+      z-index: 1;
+      ${elevatedCardMixin}
+    `}
 
   transition: all 150ms;
 
   ${CardContainer}:hover & {
-    background-color: ${props => props.theme.colors.levels.elevated};
-    border-color: ${props => props.theme.colors.levels.elevated};
-    box-shadow: ${props => props.theme.boxShadow[1]};
-  }
-
-  @media (min-width: ${props => props.theme.breakpoints.tablet}px) {
-    border: ${props => props.theme.borders[2]}
-      ${props => props.theme.colors.spotBackground[0]};
-    border-radius: ${props => props.theme.radii[3]}px;
+    ${elevatedCardMixin}
   }
 `;
 
@@ -494,4 +570,11 @@ const MoreLabelsButton = styled(ButtonLink)`
   ${CardContainer}:hover & {
     background-color: ${props => props.theme.colors.levels.elevated};
   }
+`;
+
+const LoadingCardWrapper = styled(Box)`
+  height: 100px;
+  border: ${props => props.theme.borders[2]}
+    ${props => props.theme.colors.spotBackground[0]};
+  border-radius: ${props => props.theme.radii[3]}px;
 `;

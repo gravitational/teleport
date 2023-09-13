@@ -282,7 +282,8 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) 
 		}
 		return trace.Wrap(printJSON(req, "request"))
 	}
-	if err := client.CreateAccessRequest(ctx, req); err != nil {
+	req, err = client.CreateAccessRequestV2(ctx, req)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("%s\n", req.GetName())
