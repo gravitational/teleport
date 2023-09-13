@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOpenFileSymlinks(t *testing.T) {
+func TestOpenFileLinks(t *testing.T) {
 	// symlink structure setup, this will produce the following structure under the temp directory created below:
 	// dir
 	// dir-s -> dir
@@ -35,18 +35,21 @@ func TestOpenFileSymlinks(t *testing.T) {
 	// dir/file-s -> dir/file
 	// circular-s -> circular-s
 	// broken-s -> nonexistent
+	// hardfile
+	// hardfile-h -> hardfile
 	rootDir := t.TempDir()
 
 	dirPath := filepath.Join(rootDir, "dir")
 	err := os.Mkdir(dirPath, 0755)
 	require.NoError(t, err)
 
-	filePath := filepath.Join(dirPath, "file")
-	_, err = os.Create(filePath)
+	dirFilePath := filepath.Join(dirPath, "file")
+	f, err := os.Create(dirFilePath)
 	require.NoError(t, err)
+	f.Close()
 
-	symlinkToFile := filepath.Join(dirPath, "file-s")
-	err = os.Symlink(filePath, symlinkToFile)
+	dirSymlinkToFile := filepath.Join(dirPath, "file-s")
+	err = os.Symlink(dirFilePath, dirSymlinkToFile)
 	require.NoError(t, err)
 
 	symlinkDir := filepath.Join(rootDir, "dir-s")
@@ -65,39 +68,100 @@ func TestOpenFileSymlinks(t *testing.T) {
 	err = os.Symlink(filepath.Join(rootDir, "nonexistent"), brokenSymlink)
 	require.NoError(t, err)
 
-	// Tests below can not be done with t.Parallel due to the need for directory cleanup in defer
-	t.Run("directFileOpenAllowed", func(t *testing.T) {
-		filePath, err = filepath.EvalSymlinks(filePath)
-		require.NoError(t, err)
-		f, err := openFile(filePath, false)
-		require.NoError(t, err)
-		defer f.Close()
-	})
-	t.Run("symlinkFileOpenAllowed", func(t *testing.T) {
-		f, err := openFile(symlinkToFile, true)
-		require.NoError(t, err)
-		defer f.Close()
-	})
-	t.Run("symlinkFileOpenDenied", func(t *testing.T) {
-		_, err := openFile(symlinkToFile, false)
-		require.Error(t, err)
-	})
-	t.Run("symlinkDirFileOpenDenied", func(t *testing.T) {
-		_, err := openFile(filepath.Join(symlinkDir, "file"), false)
-		require.Error(t, err)
-	})
-	t.Run("symlinkRecursiveDirFileOpenDenied", func(t *testing.T) {
-		_, err := openFile(filepath.Join(symlinkToSymlinkDir, "file"), false)
-		require.Error(t, err)
-	})
-	t.Run("circularSymlink", func(t *testing.T) {
-		_, err := openFile(circularSymlink, false)
-		require.Error(t, err)
-	})
-	t.Run("brokenSymlink", func(t *testing.T) {
-		_, err := openFile(brokenSymlink, false)
-		require.Error(t, err)
-	})
+	dirHardfilePath := filepath.Join(rootDir, "hardfile")
+	f, err = os.Create(dirHardfilePath)
+	require.NoError(t, err)
+	f.Close()
+
+	dirHardLinkToHardfile := filepath.Join(rootDir, "hardfile-h")
+	err = os.Link(dirHardfilePath, dirHardLinkToHardfile)
+	require.NoError(t, err)
+
+	// Define and run tests
+	type testCase struct {
+		name        string
+		filePath    string
+		allowSymln  bool
+		allowHardln bool
+		expectErr   string
+	}
+	testCases := []testCase{
+		{
+			name:        "directFileOpenAllowed",
+			filePath:    dirFilePath,
+			allowSymln:  false,
+			allowHardln: false,
+			expectErr:   "",
+		},
+		{
+			name:        "symlinkFileOpenAllowed",
+			filePath:    dirSymlinkToFile,
+			allowSymln:  true,
+			allowHardln: false,
+			expectErr:   "",
+		},
+		{
+			name:        "hardlinkFileOpenAllowed",
+			filePath:    dirHardLinkToHardfile,
+			allowSymln:  false,
+			allowHardln: true,
+			expectErr:   "",
+		},
+		{
+			name:        "symlinkFileOpenDenied",
+			filePath:    dirSymlinkToFile,
+			allowSymln:  false,
+			allowHardln: false,
+			expectErr:   "symlink",
+		},
+		{
+			name:        "symlinkDirFileOpenDenied",
+			filePath:    filepath.Join(symlinkDir, "file"),
+			allowSymln:  false,
+			allowHardln: false,
+			expectErr:   "symlink",
+		},
+		{
+			name:        "symlinkRecursiveDirFileOpenDenied",
+			filePath:    filepath.Join(symlinkToSymlinkDir, "file"),
+			allowSymln:  false,
+			allowHardln: false,
+			expectErr:   "symlink",
+		},
+		{
+			name:        "circularSymlink",
+			filePath:    circularSymlink,
+			allowSymln:  false,
+			allowHardln: false,
+			expectErr:   "symlink",
+		},
+		{
+			name:        "brokenSymlink",
+			filePath:    brokenSymlink,
+			allowSymln:  false,
+			allowHardln: false,
+			expectErr:   "symlink",
+		},
+		{
+			name:        "hardlinkFileOpenDenied",
+			filePath:    dirHardLinkToHardfile,
+			allowSymln:  false,
+			allowHardln: false,
+			expectErr:   "hardlink",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := openFile(tt.filePath, tt.allowSymln, tt.allowHardln)
+			if tt.expectErr == "" {
+				require.NoError(t, err)
+				f.Close()
+			} else {
+				require.ErrorContains(t, err, tt.expectErr)
+			}
+		})
+	}
 }
 
 func TestLocks(t *testing.T) {

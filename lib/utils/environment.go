@@ -29,7 +29,7 @@ import (
 func ReadEnvironmentFile(filename string) ([]string, error) {
 	// open the users environment file. if we don't find a file, move on as
 	// having this file for the user is optional.
-	file, err := OpenFileNoSymlinks(filename)
+	file, err := OpenFileNoUnsafeLinks(filename)
 	if err != nil {
 		log.Warnf("Unable to open environment file %v: %v, skipping", filename, err)
 		return []string{}, nil

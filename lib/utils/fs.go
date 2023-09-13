@@ -23,7 +23,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -99,20 +101,20 @@ func NormalizePath(path string, evaluateSymlinks bool) (string, error) {
 	return s, nil
 }
 
-// OpenFileAllowingSymlinks will open a file, if it's a symlink the file referenced by the link will be associated to
-// the returned os.File.  This will return an error if the file is not found or is a directory.
-func OpenFileAllowingSymlinks(path string) (*os.File, error) {
-	return openFile(path, true)
+// OpenFileAllowingUnsafeLinks opens a file, if the path includes a symlink, the returned os.File will be resolved to
+// the actual file.  This will return an error if the file is not found or is a directory.
+func OpenFileAllowingUnsafeLinks(path string) (*os.File, error) {
+	return openFile(path, true, true)
 }
 
-// OpenFileNoSymlinks will open a file, ensuring it's an actual file and not a directory or symlink.
-func OpenFileNoSymlinks(path string) (*os.File, error) {
-	return openFile(path, false)
+// OpenFileNoUnsafeLinks opens a file, ensuring it's an actual file and not a directory or symlink.  Depending on
+// the os, it may also prevent hardlinks.  This is important because MacOS allows hardlinks without validating write
+// permissions (similar to a symlink in that regard).
+func OpenFileNoUnsafeLinks(path string) (*os.File, error) {
+	return openFile(path, false, runtime.GOOS != "darwin")
 }
 
-// openFile opens a file and returns file handle. In general symlinks should not be allowed to reduce the risk of
-// privilege escalation from Teleports elevated privileges to potentially less privileged users accidentally.
-func openFile(path string, allowSymlink bool) (*os.File, error) {
+func openFile(path string, allowSymlink, allowMultipleHardlinks bool) (*os.File, error) {
 	newPath, err := NormalizePath(path, allowSymlink)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -135,12 +137,18 @@ func openFile(path string, allowSymlink bool) (*os.File, error) {
 			if err != nil {
 				return nil, trace.ConvertSystemError(err)
 			} else if fi.Mode().Type()&os.ModeSymlink != 0 {
-				return nil, trace.BadParameter("failed to open file %v, symlink not allowed in path: %v", path, subPath)
+				return nil, trace.BadParameter("opening file %s, symlink not allowed in path: %s", path, subPath)
 			}
 		}
 	}
+	if !allowMultipleHardlinks {
+		// hardlinks can only exist at the end file, not for directories within the path
+		if statT, ok := fi.Sys().(*syscall.Stat_t); ok && statT.Nlink > 1 {
+			return nil, trace.BadParameter("file has hardlink count greater than 1: %s", path)
+		}
+	}
 	if fi.IsDir() {
-		return nil, trace.BadParameter("%v is not a file", path)
+		return nil, trace.BadParameter("%s is not a file", path)
 	}
 	f, err := os.Open(newPath)
 	if err != nil {

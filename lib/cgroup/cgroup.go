@@ -172,7 +172,7 @@ func (s *Service) Place(sessionID string, pid int) error {
 // readPids returns a slice of PIDs from a file. Used to get list of all PIDs
 // within a cgroup.
 func readPids(path string) ([]string, error) {
-	f, err := utils.OpenFileNoSymlinks(path)
+	f, err := utils.OpenFileNoUnsafeLinks(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
