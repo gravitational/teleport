@@ -129,6 +129,48 @@ booleans:
 				},
 			},
 		},
+		{
+			description: "a map of strings to sequences",
+			source: `
+package mypkg
+
+// Metadata describes information about a dynamic resource. Every dynamic
+// resource in Teleport has a metadata object.
+type Metadata struct {
+  // Attributes indicates additional data for the resource.
+  Attributes map[string][]string BACKTICKjson:"attributes"BACKTICK
+}
+`,
+			expected: Resource{
+				SectionName: "Metadata",
+				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
+				SourcePath:  "myfile.go",
+				YAMLExample: `attributes: 
+  "string": 
+    - "string"
+    - "string"
+    - "string"
+  "string": 
+    - "string"
+    - "string"
+    - "string"
+  "string": 
+    - "string"
+    - "string"
+    - "string"
+`,
+				Fields: []Field{
+					Field{
+						Name:        "attributes",
+						Description: "Indicates additional data for the resource.",
+						Type:        "map[string][]string",
+					},
+				},
+			},
+		},
+		// TODO: Test for a field pointing to a program-defined type.
+		// Leave this alone and have another part of the program edit
+		// it, since NewFromDecl only knows about a decl, not all decls
 	}
 
 	for _, tc := range cases {
