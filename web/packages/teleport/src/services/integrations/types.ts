@@ -147,6 +147,7 @@ export const awsRegionMap = {
   'eu-south-2': 'Europe (Spain)',
   'eu-north-1': 'Europe (Stockholm)',
   'eu-central-2': 'Europe (Zurich)',
+  'il-central-1': 'Israel (Tel Aviv)',
   'me-south-1': 'Middle East (Bahrain)',
   'me-central-1': 'Middle East (UAE)',
   'sa-east-1': 'South America (São Paulo)',
