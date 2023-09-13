@@ -195,6 +195,7 @@ func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDataba
 		// RDS Clusters do not return VPC and Subnets.
 		// To get this value, a member of the cluster is fetched and its Network Information is used to
 		// populate the RDS Cluster information.
+		// All the members have the same network information, so picking one at random should not matter.
 		clusterInstance, err := fetchSingleRDSDBInstance(ctx, clt, req, aws.ToString(db.DBClusterIdentifier))
 		if err != nil {
 			return nil, trace.Wrap(err)
