@@ -152,9 +152,44 @@ func (y yamlBool) formatForExampleYAML(indents int) string {
 	return "true"
 }
 
+// A type declared by the program, i.e., not one of Go's predeclared types.
+type yamlCustomType struct {
+	allTypes map[PackageInfo]Resource
+	pkg      string
+	name     string
+}
+
+func (y yamlCustomType) formatForExampleYAML(indents int) string {
+	var leading string
+	for i := 0; i < indents; i++ {
+		leading += "  "
+	}
+
+	return "\n" + leading + "# [...]"
+}
+
+func (y yamlCustomType) formatForTable() string {
+	var name string
+	t, ok := y.allTypes[PackageInfo{
+		TypeName:    y.name,
+		PackageName: y.pkg,
+	}]
+
+	if !ok {
+		name = y.name
+	}
+
+	name = t.SectionName
+	return fmt.Sprintf(
+		"[%v](#%v)",
+		name,
+		strings.ToLower(name),
+	)
+}
+
 // getRawNamedStruct returns the type spec to use for further processing. Returns an
 // error if there is either no type spec or more than one.
-func getRawNamedStruct(decl *ast.GenDecl) (rawNamedStruct, error) {
+func getRawNamedStruct(decl *ast.GenDecl, allResources map[PackageInfo]Resource) (rawNamedStruct, error) {
 	if len(decl.Specs) == 0 {
 		return rawNamedStruct{}, errors.New("declaration has no specs")
 	}
@@ -185,7 +220,7 @@ func getRawNamedStruct(decl *ast.GenDecl) (rawNamedStruct, error) {
 	var rawFields []rawField
 
 	for _, field := range str.Fields.List {
-		f, err := makeRawField(field)
+		f, err := makeRawField(field, allResources)
 
 		if err != nil {
 			return rawNamedStruct{}, err
@@ -252,7 +287,7 @@ func getJSONTag(tags string) string {
 // getYAMLTypeForExpr takes an AST type expression and recursively
 // traverses it to populate a yamlKindNode. Each iteration converts a
 // single *ast.Expr into a single yamlKindNode, returning the new node.
-func getYAMLTypeForExpr(exp ast.Expr) (yamlKindNode, error) {
+func getYAMLTypeForExpr(exp ast.Expr, allResources map[PackageInfo]Resource) (yamlKindNode, error) {
 	switch t := exp.(type) {
 	// TODO: Handle fields with manually overriden types per the
 	// "Predeclared scalar types" section of the RFD.
@@ -268,12 +303,12 @@ func getYAMLTypeForExpr(exp ast.Expr) (yamlKindNode, error) {
 			return nil, fmt.Errorf("unsupported type: %+v", t.Name)
 		}
 	case *ast.MapType:
-		k, err := getYAMLTypeForExpr(t.Key)
+		k, err := getYAMLTypeForExpr(t.Key, allResources)
 		if err != nil {
 			return nil, err
 		}
 
-		v, err := getYAMLTypeForExpr(t.Value)
+		v, err := getYAMLTypeForExpr(t.Value, allResources)
 		if err != nil {
 			return nil, err
 		}
@@ -282,33 +317,38 @@ func getYAMLTypeForExpr(exp ast.Expr) (yamlKindNode, error) {
 			valueKind: v,
 		}, nil
 	case *ast.ArrayType:
-		e, err := getYAMLTypeForExpr(t.Elt)
+		e, err := getYAMLTypeForExpr(t.Elt, allResources)
 		if err != nil {
 			return nil, err
 		}
 		return yamlSequence{
 			elementKind: e,
 		}, nil
-	// TODO: Handle named structs
-	// TODO: For declared types, field.Type is an *ast.SelectorExpr.
-	// Figure out how to handle this case.
+	case *ast.SelectorExpr:
+		pkg, ok := t.X.(*ast.Ident)
+		if !ok {
+			return nil, fmt.Errorf("selector expression has unexpected X type: %v", t.X)
+		}
+		return yamlCustomType{
+			allTypes: allResources,
+			pkg:      pkg.Name,
+			name:     t.Sel.Name,
+		}, nil
 	default:
-		return nil, nil
+		return nil, fmt.Errorf("unexpected type: %v", t)
 	}
 
 }
 
 // getYAMLType returns a name for field that is suitable for printing within the
 // resource reference.
-func getYAMLType(field *ast.Field) (yamlKindNode, error) {
-
-	return getYAMLTypeForExpr(field.Type)
-
+func getYAMLType(field *ast.Field, allResources map[PackageInfo]Resource) (yamlKindNode, error) {
+	return getYAMLTypeForExpr(field.Type, allResources)
 }
 
 // makeRawField translates an *ast.Field into a rawField for downstream
 // processing.
-func makeRawField(field *ast.Field) (rawField, error) {
+func makeRawField(field *ast.Field, allResources map[PackageInfo]Resource) (rawField, error) {
 	doc := field.Doc.Text()
 	if len(field.Names) > 1 {
 		return rawField{}, fmt.Errorf("field %+v contains more than one name", field)
@@ -318,7 +358,7 @@ func makeRawField(field *ast.Field) (rawField, error) {
 		return rawField{}, fmt.Errorf("field %+v has no names", field)
 	}
 
-	tn, err := getYAMLType(field)
+	tn, err := getYAMLType(field, allResources)
 	if err != nil {
 		return rawField{}, err
 	}
@@ -383,7 +423,7 @@ func descriptionWithoutName(description, name string) string {
 // the Go source file where the declaration was made, and is used only for
 // printing. NewFromDecl uses allResources to look up custom fields.
 func NewFromDecl(decl *ast.GenDecl, filepath string, allResources map[PackageInfo]Resource) (Resource, error) {
-	rs, err := getRawNamedStruct(decl)
+	rs, err := getRawNamedStruct(decl, allResources)
 	if err != nil {
 		return Resource{}, err
 	}
