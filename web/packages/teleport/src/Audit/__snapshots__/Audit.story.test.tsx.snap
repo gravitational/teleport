@@ -1066,7 +1066,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [mike] has reviewed access list [access-list]
+            User [mike] reviewed access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -1174,7 +1174,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [mike] has deleted access list [access-list]
+            User [mike] deleted access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -1282,7 +1282,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [mike] has updated access list [access-list]
+            User [mike] updated access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
@@ -1390,7 +1390,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [mike] has created access list [access-list]
+            User [mike] created access list [access-list]
           </td>
           <td
             style="min-width: 120px;"

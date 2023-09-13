@@ -1437,7 +1437,7 @@ export const formatters: Formatters = {
     type: 'access_list.create',
     desc: 'Access list created',
     format: ({ name, updated_by }) =>
-      `User [${updated_by}] has created access list [${name}]`,
+      `User [${updated_by}] created access list [${name}]`,
   },
   [eventCodes.ACCESS_LIST_CREATE_FAILURE]: {
     type: 'access_list.create',
@@ -1449,7 +1449,7 @@ export const formatters: Formatters = {
     type: 'access_list.update',
     desc: 'Access list updated',
     format: ({ name, updated_by }) =>
-      `User [${updated_by}] has updated access list [${name}]`,
+      `User [${updated_by}] updated access list [${name}]`,
   },
   [eventCodes.ACCESS_LIST_UPDATE_FAILURE]: {
     type: 'access_list.update',
@@ -1461,7 +1461,7 @@ export const formatters: Formatters = {
     type: 'access_list.delete',
     desc: 'Access list deleted',
     format: ({ name, updated_by }) =>
-      `User [${updated_by}] has deleted access list [${name}]`,
+      `User [${updated_by}] deleted access list [${name}]`,
   },
   [eventCodes.ACCESS_LIST_DELETE_FAILURE]: {
     type: 'access_list.delete',
@@ -1473,7 +1473,7 @@ export const formatters: Formatters = {
     type: 'access_list.review',
     desc: 'Access list reviewed',
     format: ({ name, updated_by }) =>
-      `User [${updated_by}] has reviewed access list [${name}]`,
+      `User [${updated_by}] reviewed access list [${name}]`,
   },
   [eventCodes.ACCESS_LIST_REVIEW_FAILURE]: {
     type: 'access_list.review',
