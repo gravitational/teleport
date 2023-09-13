@@ -195,12 +195,12 @@ spec:
 
 ### Optional: Max Age
 
-Teleport supports setting the `max_age` field to control the maximum age of users'
-sessions before they will be forced to reauthenticate. By default `max_age` is empty,
-meaning once a user authenticates using OIDC they will not have to reauthenticate
-unless the configured OIDC provider forces them to. This can be set to a duration
-of time to force users to reauthenticate more often. If `max_age` is set to zero
-seconds, users will be forced to reauthenticate every time.
+Teleport supports setting the `max_age` field since version 13.3.7 to control the
+maximum age of users' sessions before they will be forced to reauthenticate. By
+default `max_age` is unset, meaning once a user authenticates using OIDC they will
+not have to reauthenticate unless the configured OIDC provider forces them to. This
+can be set to a duration of time to force users to reauthenticate more often. If
+`max_age` is set to zero seconds, users will be forced to reauthenticate every time.
 
 Note that the specified duration must be in whole seconds. `24h` works because that's
 the same as `1440s`, but `60s500ms` would not be allowed as that is 60.5 seconds.
@@ -211,7 +211,7 @@ spec:
   max_age: 24h
 ```
 
-Note that not all OIDC providers support setting `max_age`. Google and Gitlab are
+Note that not all OIDC providers support setting `max_age`. Google and GitLab are
 both known not to support it and authentication with those providers will not work
 when the `max_age` field is set.
 
