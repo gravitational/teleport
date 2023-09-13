@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -1232,6 +1233,17 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) error {
 		installParams, err := matcher.InstallParams.Parse()
 		if err != nil {
 			return trace.Wrap(err)
+		}
+
+		for _, region := range matcher.Regions {
+			if !awsutils.IsKnownRegion(region) {
+				log.Warnf("AWS matcher uses unknown region %q. "+
+					"There could be a typo in %q. "+
+					"Ignore this message if this is a new AWS region that is unknown to the AWS SDK used to compile this binary. "+
+					"Known regions are: %v.",
+					region, region, awsutils.GetKnownRegions(),
+				)
+			}
 		}
 
 		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,

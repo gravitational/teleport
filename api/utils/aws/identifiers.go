@@ -17,6 +17,8 @@ limitations under the License.
 package aws
 
 import (
+	"regexp"
+
 	"github.com/gravitational/trace"
 )
 
@@ -35,3 +37,28 @@ func IsValidAccountID(accountID string) error {
 
 	return nil
 }
+
+// IsValidRegion ensures the region looks to be valid.
+// It does not do a full validation, because AWS doesn't provide documentation for that.
+// However, they usually only have the following chars: [a-z0-9\-]
+func IsValidRegion(region string) error {
+	if matchRegion.MatchString(region) {
+		return nil
+	}
+	return trace.BadParameter("region %q is invalid", region)
+}
+
+var (
+	// matchRegion is a regex that defines the format of AWS regions.
+	//
+	// The regex matches the following from left to right:
+	// - starts with 2 lower case letters that represents a geo region like a
+	//   country code
+	// - optional -gov, -iso, -isob for corresponding partitions
+	// - a word that should be a direction like "east", "west", etc.
+	// - a number counter
+	//
+	// Reference:
+	// https://github.com/aws/aws-sdk-go-v2/blob/main/codegen/smithy-aws-go-codegen/src/main/resources/software/amazon/smithy/aws/go/codegen/endpoints.json
+	matchRegion = regexp.MustCompile(`^[a-z]{2}(-gov|-iso|-isob)?-\w+-\d+$`)
+)
