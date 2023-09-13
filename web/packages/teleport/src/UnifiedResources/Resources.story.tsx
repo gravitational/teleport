@@ -39,8 +39,17 @@ export default {
   loaders: [mswLoader],
 };
 
+const aLotOfLabels = {
+  ...databases[0],
+  name: 'A DB with a lot of labels',
+  labels: Array(300)
+    .fill(0)
+    .map((_, i) => ({ name: `label-${i}`, value: `value ${i}` })),
+};
+
 const allResources = [
   ...apps,
+  aLotOfLabels,
   ...databases,
   ...kubes,
   ...desktops,
