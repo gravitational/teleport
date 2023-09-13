@@ -74,7 +74,7 @@ should not create ServiceAccount for post-delete hook if serviceAccount.create i
       name: RELEASE-NAME-delete-hook
     subjects:
     - kind: ServiceAccount
-      name: RELEASE-NAME-delete-hook
+      name: lint-serviceaccount
       namespace: NAMESPACE
   3: |
     apiVersion: batch/v1
