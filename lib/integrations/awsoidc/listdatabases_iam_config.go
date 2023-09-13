@@ -32,8 +32,8 @@ const (
 	defaultPolicyNameForListDatabases = "ListDatabases"
 )
 
-// ListDatabasesIAMConfigureRequest is a request to configure the required Policy to use the List Databases action.
-type ListDatabasesIAMConfigureRequest struct {
+// ConfigureIAMListDatabasesRequest is a request to configure the required Policy to use the List Databases action.
+type ConfigureIAMListDatabasesRequest struct {
 	// Region is the AWS Region.
 	// Used to set up the AWS SDK Client.
 	Region string
@@ -47,7 +47,7 @@ type ListDatabasesIAMConfigureRequest struct {
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
-func (r *ListDatabasesIAMConfigureRequest) CheckAndSetDefaults() error {
+func (r *ConfigureIAMListDatabasesRequest) CheckAndSetDefaults() error {
 	if r.Region == "" {
 		return trace.BadParameter("region is required")
 	}
@@ -96,7 +96,7 @@ func NewListDatabasesIAMConfigureClient(ctx context.Context, region string) (Lis
 //
 // The following actions must be allowed by the IAM Role assigned in the Client.
 //   - iam:PutRolePolicy
-func ConfigureListDatabasesIAM(ctx context.Context, clt ListDatabasesIAMConfigureClient, req ListDatabasesIAMConfigureRequest) error {
+func ConfigureListDatabasesIAM(ctx context.Context, clt ListDatabasesIAMConfigureClient, req ConfigureIAMListDatabasesRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
