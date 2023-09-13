@@ -243,7 +243,7 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	fmt.Fprint(w, script)
+	_, err = fmt.Fprint(w, script)
 
 	return nil, trace.Wrap(err)
 }
@@ -279,7 +279,7 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	fmt.Fprint(w, script)
+	_, err = fmt.Fprint(w, script)
 
 	return nil, trace.Wrap(err)
 }
@@ -494,7 +494,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	fmt.Fprint(w, script)
+	_, err = fmt.Fprint(w, script)
 
 	return nil, trace.Wrap(err)
 }
@@ -529,7 +529,7 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	fmt.Fprint(w, script)
+	_, err = fmt.Fprint(w, script)
 
 	return nil, trace.Wrap(err)
 }
