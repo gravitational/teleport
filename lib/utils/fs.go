@@ -126,13 +126,14 @@ func openFile(path string, allowSymlink, allowMultipleHardlinks bool) (*os.File,
 			return nil, trace.ConvertSystemError(err)
 		}
 	} else {
-		isAbs := filepath.IsAbs(newPath)
 		components := strings.Split(newPath, string(os.PathSeparator))
-		for i := 1; i <= len(components); i++ {
-			subPath := filepath.Join(components[:i]...)
-			if isAbs {
-				subPath = string(os.PathSeparator) + subPath
+		var subPath string
+		for _, p := range components {
+			subPath = filepath.Join(subPath, p)
+			if subPath == "" {
+				subPath = string(os.PathSeparator)
 			}
+
 			fi, err = os.Lstat(subPath)
 			if err != nil {
 				return nil, trace.ConvertSystemError(err)
