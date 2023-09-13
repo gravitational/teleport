@@ -108,6 +108,9 @@ export const ConnectMyComputerContextProvider: FC<{
       [connectMyComputerService, props.rootClusterUri]
     )
   );
+  const isAgentConfigured =
+    isAgentConfiguredAttempt.status === 'success' &&
+    isAgentConfiguredAttempt.data;
 
   const rootCluster = clustersService.findCluster(props.rootClusterUri);
   const canUse = useMemo(
@@ -116,8 +119,8 @@ export const ConnectMyComputerContextProvider: FC<{
         rootCluster,
         configService,
         mainProcessClient.getRuntimeSettings()
-      ),
-    [configService, mainProcessClient, rootCluster]
+      ) || isAgentConfigured,
+    [configService, isAgentConfigured, mainProcessClient, rootCluster]
   );
 
   const [currentActionKind, setCurrentActionKind] =
@@ -260,9 +263,6 @@ export const ConnectMyComputerContextProvider: FC<{
     }
   }, [checkIfAgentIsConfigured, isAgentConfiguredAttempt.status]);
 
-  const isAgentConfigured =
-    isAgentConfiguredAttempt.status === 'success' &&
-    isAgentConfiguredAttempt.data;
   const agentIsNotStarted =
     currentAction.kind === 'observe-process' &&
     currentAction.agentProcessState.status === 'not-started';
