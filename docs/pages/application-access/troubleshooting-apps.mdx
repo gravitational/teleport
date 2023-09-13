@@ -39,7 +39,7 @@ in the Teleport configuration file for each application.
 
 To fix CSRF or CORS issues:
 
-1. Open the `/etc/teleport.yaml` file that contains the app service configuration in a text editor.
+1. Open the `/etc/teleport.yaml` file that contains the application configuration in a text editor.
 
 1. Add a `rewrite.headers` section similar to the following `grafana` example:
 
@@ -60,7 +60,8 @@ To fix CSRF or CORS issues:
 
 To fix CSRF or CORS issues if you deploy applications using Kubernetes and `teleport-kube-agent`:
 
-1. Open the `teleport/examples/chart/teleport-kube-agent/values.yaml` file that contains the app service configuration in a text editor.
+1. Open the `teleport/examples/chart/teleport-kube-agent/values.yaml` file that contains the application 
+   configuration in a text editor.
 
 1. Locate the `apps` section in the `values.yaml` file.
    
