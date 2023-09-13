@@ -11,6 +11,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -222,6 +223,22 @@ func TestRBAC(t *testing.T) {
 					UserMetadata: authz.ClientUserMetadata(ctx),
 				},
 			},
+		},
+		{
+			desc: "test",
+			f: func() error {
+				_, err := service.TestLoginRule(ctx, &loginrulepb.TestLoginRuleRequest{Traits: map[string]*wrappers.StringValues{"test": {Values: []string{"test"}}}})
+				return err
+			},
+			allow: map[check]bool{
+				{types.KindLoginRule, types.VerbRead}: true,
+				{types.KindLoginRule, types.VerbList}: true,
+			},
+			expectChecks: []check{
+				{types.KindLoginRule, types.VerbRead},
+				{types.KindLoginRule, types.VerbList},
+			},
+			expectEvents: []apievents.AuditEvent{},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {

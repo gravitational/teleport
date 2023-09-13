@@ -11,10 +11,12 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	oss "github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -131,6 +133,55 @@ func (s *Service) DeleteLoginRule(ctx context.Context, req *loginrulepb.DeleteLo
 
 	err := s.storage.DeleteLoginRule(ctx, req.Name)
 	return &emptypb.Empty{}, trace.Wrap(err)
+}
+
+// TestLoginRule evaluates login rules against provided user traits
+// to test that the output matches expectations prior to them being enforced and
+// potentially locking out users.
+func (s *Service) TestLoginRule(ctx context.Context, req *loginrulepb.TestLoginRuleRequest) (*loginrulepb.TestLoginRuleResponse, error) {
+	if err := s.authorizeVerbs(ctx, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(req.Traits) == 0 {
+		return nil, trace.BadParameter("at least one trait must be provided")
+	}
+
+	rules := req.LoginRules
+	if req.LoadFromCluster {
+		for next := ""; ; {
+			retrieved, token, err := s.storage.ListLoginRules(ctx, 100, next)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			next = token
+			rules = append(rules, retrieved...)
+
+			if token == "" {
+				break
+			}
+		}
+	}
+
+	traits := make(map[string][]string, len(req.Traits))
+	for key, values := range req.Traits {
+		traits[key] = values.Values
+	}
+
+	output, err := loginrule.Evaluate(rules, &oss.EvaluationInput{Traits: traits})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make(map[string]*wrappers.StringValues, len(output.Traits))
+	for key, values := range output.Traits {
+		out[key] = &wrappers.StringValues{
+			Values: append([]string{}, values...),
+		}
+	}
+
+	return &loginrulepb.TestLoginRuleResponse{Traits: out}, nil
 }
 
 func (s *Service) authorizeVerbs(ctx context.Context, verbs ...string) error {
