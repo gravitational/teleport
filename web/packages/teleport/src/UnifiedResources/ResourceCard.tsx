@@ -319,6 +319,9 @@ function CopyButton({ name }: { name: string }) {
 }
 
 function resourceName(resource: UnifiedResource) {
+  if (resource.kind === 'app' && resource.friendlyName) {
+    return resource.friendlyName;
+  }
   return resource.kind === 'node' ? resource.hostname : resource.name;
 }
 
@@ -326,8 +329,8 @@ function resourceDescription(resource: UnifiedResource) {
   switch (resource.kind) {
     case 'app':
       return {
-        primary: resource.addrWithProtocol,
-        secondary: resource.description,
+        primary: resource.description,
+        secondary: resource.addrWithProtocol,
       };
     case 'db':
       return { primary: resource.type, secondary: resource.description };
