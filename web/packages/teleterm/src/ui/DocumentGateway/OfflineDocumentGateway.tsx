@@ -40,7 +40,7 @@ export function OfflineDocumentGateway(props: OfflineDocumentGatewayProps) {
 
   return (
     <Flex
-      maxWidth="590px"
+      maxWidth="680px"
       width="100%"
       flexDirection="column"
       mx="auto"

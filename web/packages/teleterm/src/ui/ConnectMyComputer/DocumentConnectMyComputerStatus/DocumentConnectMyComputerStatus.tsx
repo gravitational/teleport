@@ -95,7 +95,7 @@ export function DocumentConnectMyComputerStatus() {
   const disableStartAgentButton = isDownloading || isStarting;
 
   return (
-    <Box maxWidth="590px" mx="auto" mt="4" px="5" width="100%">
+    <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
       {isAgentConfiguredAttempt.status === 'error' && (
         <Alert
           css={`
