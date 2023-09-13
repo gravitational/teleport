@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+// Package is used to look up a Go declaration in a map of declaration names to
+// resource data.
+type PackageInfo struct {
+	TypeName    string
+	PackageName string
+}
+
 type Resource struct {
 	SectionName string
 	Description string
@@ -374,8 +381,8 @@ func descriptionWithoutName(description, name string) string {
 
 // NewFromDecl creates a Resource object from the provided *GenDecl. filepath is
 // the Go source file where the declaration was made, and is used only for
-// printing.
-func NewFromDecl(decl *ast.GenDecl, filepath string) (Resource, error) {
+// printing. NewFromDecl uses allResources to look up custom fields.
+func NewFromDecl(decl *ast.GenDecl, filepath string, allResources map[PackageInfo]Resource) (Resource, error) {
 	rs, err := getRawNamedStruct(decl)
 	if err != nil {
 		return Resource{}, err
