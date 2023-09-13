@@ -1,8 +1,8 @@
 # This Dockerfile is used to build Teleport on ARM only.
-# We are using the official Debian 11 image as a base image
+# We are using the official Debian 12 image as a base image
 # because the final binary must be compatible with distroless
-# images that are also Debian 11 based: https://github.com/GoogleContainerTools/distroless
-FROM docker.io/library/debian:11
+# images that are also Debian 12 based: https://github.com/GoogleContainerTools/distroless
+FROM docker.io/library/debian:12
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
