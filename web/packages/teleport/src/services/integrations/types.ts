@@ -203,6 +203,8 @@ export type AwsRdsDatabase = {
   labels: Label[];
   // subnets is a list of subnets for the RDS instance.
   subnets: string[];
+  // vpcId is the AWS VPC ID for the DB.
+  vpcId: string;
   // region is the AWS cloud region that this database is from.
   region: Regions;
   // status contains this Instance status.
