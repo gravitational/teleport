@@ -69,10 +69,6 @@ type ListDatabasesIAMConfigureClient interface {
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 }
 
-type defaultListDatabasesIAMConfigureClient struct {
-	*iam.Client
-}
-
 // NewListDatabasesIAMConfigureClient creates a new ListDatabasesIAMConfigureClient.
 func NewListDatabasesIAMConfigureClient(ctx context.Context, region string) (ListDatabasesIAMConfigureClient, error) {
 	if region == "" {
@@ -84,9 +80,7 @@ func NewListDatabasesIAMConfigureClient(ctx context.Context, region string) (Lis
 		return nil, trace.Wrap(err)
 	}
 
-	return &defaultListDatabasesIAMConfigureClient{
-		Client: iam.NewFromConfig(cfg),
-	}, nil
+	return iam.NewFromConfig(cfg), nil
 }
 
 // ConfigureListDatabasesIAM set ups the policy required for accessing an RDS DB Instances and RDS DB Clusters.
