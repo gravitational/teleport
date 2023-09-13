@@ -78,6 +78,15 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   /labels/#auto-discovery)
   for more details.
   </Admonition>
+
+  Create or print the required IAM policies with the following commands and
+  attach them to the respective IAM roles:
+  - `teleport db configure aws create-iam --types redshift,redshift-serverless --name teleport-redshift-access`
+  - `teleport db configure aws print-iam --types redshift,redshift-serverless`
+
+  Refer to the command usage for a complete list of database types supported by
+  the `--types` option.
+
   </TabItem>
 
   <TabItem label="Auto-Discovery by Database Service">
@@ -101,6 +110,14 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   ```
   The Database Service will use the IAM roles specified `assume_role_arn` for
   both discovery and authentication.
+
+  To bootstrap IAM permissions, run the bootstrap command for each `assume_role_arn`:
+   ```code
+   $ teleport db configure bootstrap \
+       -c /etc/teleport.yaml \
+       --policy-name teleport-policy-rds-env-prod \
+       --attach-to-role "arn:aws:iam::123456789012:role/example-role-rds-env-prod"
+  ```
   </TabItem>
 
   <TabItem label="Static config">
@@ -115,6 +132,14 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
       uri: "rds-postgres.abcdef012345.us-west-1.rds.amazonaws.com:5432"
       aws:
           assume_role_arn: "arn:aws:iam::123456789012:role/example-rds-access-role"
+  ```
+
+  To bootstrap IAM permissions, run the bootstrap command for each `assume_role_arn`:
+   ```code
+   $ teleport db configure bootstrap \
+       -c /etc/teleport.yaml \
+       --policy-name teleport-policy-rds-access \
+       --attach-to-role "arn:aws:iam::123456789012:role/example-rds-access-role"
   ```
   </TabItem>
 
@@ -151,6 +176,14 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
       - labels:
           "env": "prod"
   ```
+
+  Create or print the required IAM policies with the following commands and
+  attach them to the respective IAM roles:
+  - `teleport db configure aws create-iam --types rds --name teleport-rds-access`
+  - `teleport db configure aws print-iam --types rds`
+
+  Refer to the command usage for a complete list of database types supported by
+  the `--types` option.
   </TabItem>
 
 </Tabs>
