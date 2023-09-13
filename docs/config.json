@@ -380,7 +380,7 @@
           "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
-              "title": "A Simple Access List Example",
+              "title": "Getting Started with Access Lists",
               "slug": "/access-controls/access-lists/guide/",
               "forScopes": ["enterprise", "cloud"]
             },
