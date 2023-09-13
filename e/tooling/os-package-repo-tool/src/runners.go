@@ -41,7 +41,7 @@ type AptRunner struct {
 func NewAptRunner() (*AptRunner, error) {
 	runner := &AptRunner{
 		supportedOSs: map[string][]string{
-			// When adding a new supportedOS, update the lib/web/scipts/node-join/install.sh script
+			// When adding a new supportedOS, update the lib/web/scripts/node-join/install.sh script
 			// Otherwise, it will keep using the binary installation instead of the deb repo.
 			"debian": { // See https://wiki.debian.org/DebianReleases#Production_Releases for details
 				"stretch",  // 9
@@ -49,6 +49,7 @@ func NewAptRunner() (*AptRunner, error) {
 				"bullseye", // 11
 				"bookworm", // 12
 				"trixie",   // 13
+				"forky",    // 14
 			},
 			"ubuntu": { // See https://wiki.ubuntu.com/Releases for details
 				"xenial",   // 16.04 LTS
@@ -64,6 +65,9 @@ func NewAptRunner() (*AptRunner, error) {
 				"hirsuite", // 21.04 (EOL)
 				"impish",   // 21.10 (EOL)
 				"jammy",    // 22.04 LTS
+				"kinetic",  // 22.10 (EOL)
+				"lunar",    // 23.04
+				"mantic",   // 23.10
 			},
 		},
 	}
@@ -134,7 +138,7 @@ type YumRunner struct {
 func NewYumRunner() (*YumRunner, error) {
 	runner := &YumRunner{
 		supportedOSs: map[string][]string{
-			// When adding a new supportedOS, update the lib/web/scipts/node-join/install.sh script
+			// When adding a new supportedOS, update the lib/web/scripts/node-join/install.sh script
 			// Otherwise, it will keep using the binary installation instead of the yum repo.
 			"rhel": { // See https://access.redhat.com/articles/3078 for details
 				"7",

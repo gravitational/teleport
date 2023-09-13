@@ -197,21 +197,10 @@ jobs:
         with:
           driver: docker-container
 
-      # The distroless validation keywas sourced from
-      # https://github.com/GoogleContainerTools/distroless/blob/main/cosign.pub
-      - name: Install Distroless Image Validation Key 
-        run: |
-          cat << EOF > distroless-key.pub
-          -----BEGIN PUBLIC KEY-----
-          MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEWZzVzkb8A+DbgDpaJId/bOmV8n7Q
-          OqxYbK0Iro6GzSmOzxkn+N2AKawLyXi84WSwJQBK//psATakCgAQKkNTAA==
-          -----END PUBLIC KEY-----
-          EOF
-
       - name: Install cosign
-        uses: sigstore/cosign-installer@9becc617647dfa20ae7b1151972e9b3a2c338a2b # v2.8.1
+        uses: sigstore/cosign-installer@11086d25041f77fe8fe7b9ea4e48e3b9192b8f19 # v3.1.2
         with:
-          cosign-release: 'v1.13.1'
+          cosign-release: 'v2.2.0'
 
       # Attempt to fetch a deploy token from the GitHub App we use to broker
       # access to private repositories. If this fails, we are in one of 2 
@@ -282,7 +271,7 @@ jobs:
         env:
           BASE_IMAGE: ${{ inputs.base-image }}
         run: |
-          cosign verify --key ./distroless-key.pub ${BASE_IMAGE} > validated-image.json
+          cosign verify ${BASE_IMAGE} --certificate-oidc-issuer https://accounts.google.com --certificate-identity keyless@distroless.iam.gserviceaccount.com > validated-image.json
           BASE_IMAGE_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
           echo BASE_IMAGE_HASH=${BASE_IMAGE_HASH} >> $GITHUB_ENV
 
@@ -370,7 +359,7 @@ jobs:
           SIGNING_KEY: ${{ inputs.signing-key-url }}
           DST_IMAGE: "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
         run: |        
-          cosign sign --key ${SIGNING_KEY} --recursive ${DST_IMAGE}
+          cosign sign --yes --key ${SIGNING_KEY} --recursive ${DST_IMAGE}
 
   trivy-scan:
     name: Scan Multiarch Image with Trivy

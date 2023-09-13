@@ -114,10 +114,10 @@ jobs:
               arm
               arm64
           - mode: 'production'
-            base-image: 'gcr.io/distroless/cc-debian11:latest'
+            base-image: 'gcr.io/distroless/cc-debian12:latest'
             repo-debug-suffix: ''
           - mode: 'debug'
-            base-image: 'gcr.io/distroless/cc-debian11:debug'
+            base-image: 'gcr.io/distroless/cc-debian12:debug'
             repo-debug-suffix: '-debug'
           - release: 'oss'
             repo-enterprise-infix: ''

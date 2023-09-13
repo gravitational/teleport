@@ -411,7 +411,7 @@ jobs:
       fail-fast: false
       matrix:
         # Multiple images are used to test for the ever recurring libc version issue
-        container-image: ["ubuntu:22.04", "ubuntu:20.04", "ubuntu:18.04", "debian:10", "debian:11"]
+        container-image: ["ubuntu:22.04", "ubuntu:20.04", "ubuntu:18.04", "debian:10", "debian:11", "debian:12"]
     container:
       image: ${{ matrix.container-image }}
     defaults:

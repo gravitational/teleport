@@ -108,10 +108,10 @@ jobs:
         mode: ['debug', 'production']
         include:
           - mode: 'production'
-            base-image: 'gcr.io/distroless/static-debian11:latest'
+            base-image: 'gcr.io/distroless/static-debian12:latest'
             repo-debug-suffix: ''
           - mode: 'debug'
-            base-image: 'gcr.io/distroless/static-debian11:debug'
+            base-image: 'gcr.io/distroless/static-debian12:debug'
             repo-debug-suffix: '-debug'
     uses: ./.github/workflows/oci-image-build.yml
     with:
