@@ -348,6 +348,37 @@ my_string: "string"
   1: "string"
 `,
 		},
+		{
+			description: "sequence of maps of strings to Booleans",
+			input: []rawField{
+				rawField{
+					name:     "mySeq",
+					jsonName: "my_seq",
+					doc:      "mySeq is a complex type",
+					tags:     `json:"my_seq"`,
+					kind: yamlSequence{
+						elementKind: yamlMapping{
+							keyKind:   yamlString{},
+							valueKind: yamlBool{},
+						},
+					},
+				},
+			},
+			expected: `my_seq: 
+- 
+    "string": true
+    "string": true
+    "string": true
+- 
+    "string": true
+    "string": true
+    "string": true
+- 
+    "string": true
+    "string": true
+    "string": true
+`,
+		},
 	}
 
 	for _, c := range cases {
