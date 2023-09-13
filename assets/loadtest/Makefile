@@ -64,7 +64,7 @@ create-user:
 # teleport cluster
 .PHONY: create-token
 create-token:
-	kubectl --namespace teleport exec deploy/teleport-auth -- tctl tokens add --type=node --ttl=8h
+	kubectl --namespace teleport exec deploy/teleport-auth -- tctl tokens add --type=node,db --ttl=8h
 
 # forwards the grafana web app to localhost:6060
 .PHONY: forward-grafana
@@ -76,3 +76,38 @@ forward-grafana:
 scale-auth:
 	kubectl scale deployment/teleport-auth --replicas=$(REPLICAS) -n teleport
 
+.PHONY: create-rds-database
+create-rds-database:
+	$(MAKE) -C databases/rds apply
+
+.PHONY: deploy-database-agents
+deploy-database-agents: POSTGRES_NAME ?= rdspostgres
+deploy-database-agents: POSTGRES_URL ?=
+deploy-database-agents: MYSQL_NAME ?= rdsmysql
+deploy-database-agents: MYSQL_URL ?=
+deploy-database-agents: DATABASE_ROLE_ARN ?=
+deploy-database-agents:
+ifndef TELEPORT_VERSION
+	@echo "TELEPORT_VERSION is required but not provided"
+	@exit 1
+endif
+
+	helm upgrade --install \
+		database-agents \
+		-n database-agents \
+		--create-namespace \
+		teleport/teleport-kube-agent \
+		--set teleportVersionOverride="${TELEPORT_VERSION}" \
+		--set highAvailability.replicaCount=${NODE_REPLICAS} \
+		--set roles=db \
+		--set proxyAddr=${PROXY_SERVER} \
+		--set authToken=${NODE_TOKEN} \
+		--set annotations.serviceAccount."eks\.amazonaws\.com/role-arn"=${DATABASE_ROLE_ARN} \
+		--set databases[0].name=${POSTGRES_NAME} \
+		--set databases[0].protocol=postgres \
+		--set databases[0].uri=${POSTGRES_URL} \
+		--set databases[1].name=${MYSQL_NAME} \
+		--set databases[1].protocol=mysql \
+		--set databases[1].uri=${MYSQL_URL}
+
+	$(MAKE) -C control-plane enable-database-agents-monitoring

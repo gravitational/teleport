@@ -32,8 +32,10 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/protoadapt"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
@@ -308,15 +310,6 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 }
 
 func TestPublisherConsumer(t *testing.T) {
-	fS3 := newFakeS3manager()
-	fq := newFakeQueue()
-	p := &publisher{
-		PublisherConfig: PublisherConfig{
-			SNSPublisher: fq,
-			Uploader:     fS3,
-		},
-	}
-
 	smallEvent := &apievents.AppCreate{
 		Metadata: apievents.Metadata{
 			ID:   uuid.NewString(),
@@ -340,36 +333,119 @@ func TestPublisherConsumer(t *testing.T) {
 		},
 	}
 
-	cfg := validCollectCfgForTests(t)
-	cfg.sqsReceiver = fq
-	cfg.payloadDownloader = fS3
-	cfg.batchMaxItems = 2
-	require.NoError(t, cfg.CheckAndSetDefaults())
-	c := newSqsMessagesCollector(cfg)
+	eventWithoutID := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			Time: time.Now().UTC(),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: "app-small",
+		},
+	}
+	eventWithoutTime := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: "app-small",
+		},
+	}
+	tests := []struct {
+		name  string
+		input interface {
+			apievents.AuditEvent
+			protoadapt.MessageV1
+		}
+		assertFn func(t *testing.T, got apievents.AuditEvent, s3fake *fakeS3manager)
+	}{
+		{
+			name:  "standard event via sns",
+			input: smallEvent,
+			assertFn: func(t *testing.T, got apievents.AuditEvent, s3fake *fakeS3manager) {
+				require.Empty(t, cmp.Diff(smallEvent, got))
+				// no calls via s3.
+				require.Equal(t, 0, s3fake.uploadCount)
+			},
+		},
+		{
+			name:  "large via s3",
+			input: largeEvent,
+			assertFn: func(t *testing.T, got apievents.AuditEvent, s3fake *fakeS3manager) {
+				require.Empty(t, cmp.Diff(largeEvent, got))
+				// S3 for uplodad should be called only once.
+				require.Equal(t, 1, s3fake.uploadCount)
+			},
+		},
+		{
+			name: "missing event id",
+			// Input event is modified during emitting even if some fields are missing.
+			// We are using clone to be able to do proper assertion.
+			input: eventWithoutID,
+			assertFn: func(t *testing.T, got apievents.AuditEvent, s3fake *fakeS3manager) {
+				require.Empty(t, cmp.Diff(eventWithoutID, got, cmpopts.IgnoreFields(apievents.Metadata{}, "ID")))
+				// ID should be set by emitting.
+				require.NotEmpty(t, got.GetID())
+				// no calls via s3.
+				require.Equal(t, 0, s3fake.uploadCount)
+			},
+		},
+		{
+			name:  "missing event time",
+			input: eventWithoutTime,
+			assertFn: func(t *testing.T, got apievents.AuditEvent, s3fake *fakeS3manager) {
+				require.Empty(t, cmp.Diff(eventWithoutTime, got, cmpopts.IgnoreFields(apievents.Metadata{}, "Time")))
+				// Time should be set by emitting.
+				require.NotEmpty(t, got.GetTime())
+				// no calls via s3.
+				require.Equal(t, 0, s3fake.uploadCount)
+			},
+		},
+	}
 
-	eventsChan := c.getEventsChan()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fS3 := newFakeS3manager()
+			fq := newFakeQueue()
+			p := &publisher{
+				PublisherConfig: PublisherConfig{
+					SNSPublisher: fq,
+					Uploader:     fS3,
+				},
+			}
+			cfg := validCollectCfgForTests(t)
+			cfg.sqsReceiver = fq
+			cfg.payloadDownloader = fS3
+			cfg.batchMaxItems = 1
+			require.NoError(t, cfg.CheckAndSetDefaults())
+			c := newSqsMessagesCollector(cfg)
 
-	ctx := context.Background()
-	readSQSCtx, readCancel := context.WithCancel(ctx)
-	defer readCancel()
+			eventsChan := c.getEventsChan()
 
-	go c.fromSQS(readSQSCtx)
+			ctx := context.Background()
+			readSQSCtx, readCancel := context.WithCancel(ctx)
+			defer readCancel()
 
-	// receiver is used to read messages from eventsChan.
-	r := &receiver{}
-	go r.Do(eventsChan)
+			go c.fromSQS(readSQSCtx)
 
-	err := p.EmitAuditEvent(ctx, smallEvent)
-	require.NoError(t, err)
-	err = p.EmitAuditEvent(ctx, largeEvent)
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		return len(r.GetMsgs()) == 2
-	}, 200*time.Millisecond, 1*time.Millisecond, "missing events, got %d", len(r.GetMsgs()))
+			// receiver is used to read messages from eventsChan.
+			r := &receiver{}
+			go r.Do(eventsChan)
 
-	requireEventsEqualInAnyOrder(t, []apievents.AuditEvent{smallEvent, largeEvent}, eventAndAckIDToAuditEvents(r.GetMsgs()))
-	// S3 for uplodad should be called only once.
-	require.Equal(t, 1, fS3.uploadCount)
+			// we need to clone input because it's used for assertions and
+			// EmitAuditEvent modifies input in case id/time is empty.
+			clonedInput := apiutils.CloneProtoMsg(tt.input)
+			err := p.EmitAuditEvent(ctx, clonedInput)
+			require.NoError(t, err)
+
+			// wait for event to be propagated.
+			require.Eventually(t, func() bool {
+				return len(r.GetMsgs()) == 1
+			}, 1*time.Second, 10*time.Millisecond, "missing events, got %d", len(r.GetMsgs()))
+
+			tt.assertFn(t, eventAndAckIDToAuditEvents(r.GetMsgs())[0], fS3)
+		})
+	}
 }
 
 // requireEventsEqualInAnyOrder compares slices of auditevents ignoring order.

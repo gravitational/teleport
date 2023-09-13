@@ -1,9 +1,0 @@
-teleport:
-  data_dir: data/teleport
-  storage:
-      type: etcd
-      peers: ["https://127.0.0.1:2379"]
-      prefix: /teleport.secrets/
-      tls_key_file: certs/client-key.pem
-      tls_cert_file: certs/client-cert.pem
-      tls_ca_file: certs/ca-cert.pem

@@ -93,7 +93,7 @@ export const integrationService = {
         body = {
           ...req,
           rdsType: 'cluster',
-          engines: ['aurora', 'aurora-mysql'],
+          engines: ['aurora-mysql'],
         };
         break;
       case 'aurora-postgres':
@@ -160,6 +160,7 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
     labels: labels ?? [],
     subnets: aws?.rds?.subnets,
     resourceId: aws?.rds?.resource_id,
+    vpcId: aws?.rds?.vpc_id,
     accountId: aws?.account_id,
     region: aws?.region,
   };

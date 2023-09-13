@@ -38,6 +38,7 @@ export function createPtyHostService(): IPtyHostServer {
           cwd: ptyOptions.cwd,
           ptyId,
           env: call.request.getEnv()?.toJavaScript() as Record<string, string>,
+          initMessage: ptyOptions.initMessage,
         });
         ptyProcesses.set(ptyId, ptyProcess);
       } catch (error) {

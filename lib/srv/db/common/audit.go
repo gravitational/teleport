@@ -23,6 +23,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 )
@@ -57,6 +58,10 @@ type AuditConfig struct {
 	Emitter events.Emitter
 	// Recorder is used to record session events.
 	Recorder libevents.SessionPreparerRecorder
+	// Database is the database in context.
+	Database types.Database
+	// Component is the component in use.
+	Component string
 }
 
 // Check validates the config.
@@ -66,6 +71,12 @@ func (c *AuditConfig) Check() error {
 	}
 	if c.Recorder == nil {
 		return trace.BadParameter("missing Recorder")
+	}
+	if c.Database == nil {
+		return trace.BadParameter("missing Database")
+	}
+	if c.Component == "" {
+		c.Component = "db:audit"
 	}
 	return nil
 }
@@ -85,7 +96,7 @@ func NewAudit(config AuditConfig) (Audit, error) {
 	}
 	return &audit{
 		cfg: config,
-		log: logrus.WithField(trace.Component, "db:audit"),
+		log: logrus.WithField(trace.Component, config.Component),
 	}, nil
 }
 
@@ -103,6 +114,7 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 			Success: true,
 		},
 	}
+
 	// If the database session wasn't started successfully, emit
 	// a failure event with error details.
 	if sessionErr != nil {
@@ -160,6 +172,7 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
 
 // EmitEvent emits the provided audit event using configured emitter.
 func (a *audit) EmitEvent(ctx context.Context, event events.AuditEvent) {
+	defer methodCallMetrics("EmitEvent", a.cfg.Component, a.cfg.Database)()
 	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(event)
 	if err != nil {
 		a.log.WithError(err).Errorf("Failed to setup event: %s - %s.", event.GetType(), event.GetID())
@@ -212,5 +225,7 @@ func MakeDatabaseMetadata(session *Session) events.DatabaseMetadata {
 		DatabaseName:     session.DatabaseName,
 		DatabaseUser:     session.DatabaseUser,
 		DatabaseRoles:    session.DatabaseRoles,
+		DatabaseType:     session.Database.GetType(),
+		DatabaseOrigin:   session.Database.Origin(),
 	}
 }

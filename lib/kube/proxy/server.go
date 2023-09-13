@@ -96,6 +96,8 @@ type TLSServerConfig struct {
 	// kubernetes_service. The servers are kept in memory to avoid making unnecessary
 	// unmarshal calls followed by filtering and to improve memory usage.
 	KubernetesServersWatcher *services.KubeServerWatcher
+	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
+	PROXYProtocolMode multiplexer.PROXYProtocolMode
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -237,6 +239,8 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
 			ReadHeaderTimeout: apidefaults.DefaultIOTimeout * 2,
+			ReadTimeout:       apidefaults.DefaultIOTimeout,
+			WriteTimeout:      apidefaults.DefaultIOTimeout,
 			IdleTimeout:       apidefaults.DefaultIdleTimeout,
 			TLSConfig:         cfg.TLS,
 			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
@@ -269,13 +273,13 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 	}
 	// Wrap listener with a multiplexer to get Proxy Protocol support.
 	mux, err := multiplexer.New(multiplexer.Config{
-		Context:                     t.Context,
-		Listener:                    listener,
-		Clock:                       t.Clock,
-		EnableExternalProxyProtocol: true,
-		ID:                          t.Component,
-		CertAuthorityGetter:         caGetter,
-		LocalClusterName:            t.ClusterName,
+		Context:             t.Context,
+		Listener:            listener,
+		Clock:               t.Clock,
+		PROXYProtocolMode:   t.PROXYProtocolMode,
+		ID:                  t.Component,
+		CertAuthorityGetter: caGetter,
+		LocalClusterName:    t.ClusterName,
 		// Increases deadline until the agent receives the first byte to 10s.
 		// It's required to accommodate setups with high latency and where the time
 		// between the TCP being accepted and the time for the first byte is longer
@@ -421,7 +425,7 @@ func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 	// Note: we *don't* want to add suffix for kubernetes_service!
 	// This breaks reverse tunnel routing, which uses server.Name.
 	if t.KubeServiceType != KubeService {
-		name += "-proxy_service"
+		name += teleport.KubeLegacyProxySuffix
 	}
 
 	srv, err := types.NewKubernetesServerV3(

@@ -17,21 +17,17 @@ package ssh
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/observability/tracing"
-	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 const (
@@ -41,9 +37,11 @@ const (
 	EnvsRequest = "envs@goteleport.com"
 
 	// TracingRequest is sent by clients to server to pass along tracing context.
+	// TODO(tross): DELETE in 15.0.0
 	TracingRequest = "tracing@goteleport.com"
 
 	// TracingChannel is a SSH channel used to indicate that servers support tracing.
+	// TODO(tross): DELETE in 15.0.0
 	TracingChannel = "tracing"
 
 	// instrumentationName is the name of this instrumentation package.
@@ -147,7 +145,7 @@ func Dial(ctx context.Context, network, addr string, config *ssh.ClientConfig, o
 // properly over the ssh connection.
 func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig, opts ...tracing.Option) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
 	tracer := tracing.NewConfig(opts).TracerProvider.Tracer(instrumentationName)
-	ctx, span := tracer.Start(
+	ctx, span := tracer.Start( //nolint:staticcheck,ineffassign // keeping shadowed ctx to avoid accidental missing in the future
 		ctx,
 		"ssh/NewClientConn",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -162,20 +160,6 @@ func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.
 		),
 	)
 	defer span.End()
-
-	hp := &sshutils.HandshakePayload{
-		TracingContext: tracing.PropagationContextFromContext(ctx, opts...),
-	}
-
-	if len(hp.TracingContext) > 0 {
-		payloadJSON, err := json.Marshal(hp)
-		if err == nil {
-			payload := fmt.Sprintf("%s%s\x00", constants.ProxyHelloSignature, payloadJSON)
-			if _, err := conn.Write([]byte(payload)); err != nil {
-				log.WithError(err).Warnf("Failed to pass along tracing context to proxy %v", addr)
-			}
-		}
-	}
 
 	c, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
 	if err != nil {

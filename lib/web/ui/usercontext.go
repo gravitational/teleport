@@ -63,6 +63,8 @@ type UserContext struct {
 	// ConsumedAccessRequestID is the request ID of the access request from which the assumed role was
 	// obtained
 	ConsumedAccessRequestID string `json:"accessRequestId,omitempty"`
+	// AllowedSearchAsRoles is the SearchAsRoles the user has access to for creating access requests.
+	AllowedSearchAsRoles []string `json:"allowedSearchAsRoles"`
 }
 
 func getAccessStrategy(roleset services.RoleSet) accessStrategy {

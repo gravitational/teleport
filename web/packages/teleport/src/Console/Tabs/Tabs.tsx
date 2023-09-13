@@ -90,7 +90,7 @@ export function Tabs(props: Props & { parties: stores.Parties }) {
           title="New Tab"
           onClick={onNew}
         >
-          <Icons.Add fontSize="16px" />
+          <Icons.Add size="small" />
         </ButtonIcon>
       )}
     </StyledTabs>

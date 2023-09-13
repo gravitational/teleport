@@ -38,8 +38,8 @@ cloud provider such as:
 
 <Notice type="tip">
 You can import the cluster under a different name into Teleport's registry.
-To achieve this, you must attach the following tag to the resources — EKS and AKS — in your cloud provider:
- - ***key***: `teleport.dev/kubernetes-name`
+To achieve this, you must attach the following tag to the resources — EKS, AKS, GKE — in your cloud provider:
+ - ***key***: `TeleportKubernetesName`
  - ***value***: desired name
 
 The Discovery Service will check if the cluster includes the tag and use its value
@@ -101,6 +101,21 @@ discovery_service:
       # Optional section: Defaults to "*":"*"
       tags:
         "env": "prod"
+    # Matchers for discovering GCP-hosted resources.
+    gcp:
+      # GCP resource types. Valid options are:
+      # 'gke' - discovers and registers GCP GKE Kubernetes Clusters.
+    - types: ["gke"]
+      # GCP location to search for resources from. Valid options are:
+      # '*' - discovers resources in all locations (default).
+      # Any valid GCP region or zone name.
+      locations: ["*"]
+      # GCP project ID
+      project_ids: ["myproject"]
+      # GCP resource tag filters used to match resources.
+      # Optional section: Defaults to "*":"*"
+      tags:
+        "*" : "*"
 ```
 
 ### Forwarding requests to the Kubernetes Cluster

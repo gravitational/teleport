@@ -86,7 +86,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 
 	mfaClt := c
 	if target.Cluster != rootClusterName {
-		aclt, err := auth.NewClient(c.ProxyClient.ClientConfig(ctx, rootClusterName))
+		authClient, err := auth.NewClient(c.ProxyClient.ClientConfig(ctx, rootClusterName))
 		if err != nil {
 			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
@@ -94,12 +94,12 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 		mfaClt = &ClusterClient{
 			tc:          c.tc,
 			ProxyClient: c.ProxyClient,
-			AuthClient:  aclt,
+			AuthClient:  authClient,
 			Tracer:      c.Tracer,
 			cluster:     rootClusterName,
 		}
 		// only close the new auth client and not the copied cluster client.
-		defer aclt.Close()
+		defer authClient.Close()
 	}
 
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
@@ -275,7 +275,21 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, clt *ClusterClie
 
 	resp, err := stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(trail.FromGRPC(err))
+		err = trail.FromGRPC(err)
+		// If connecting to a host in a leaf cluster and MFA failed check to see
+		// if the leaf cluster requires MFA. If it doesn't return an error indicating
+		// that MFA was not required instead of the error received from the root cluster.
+		if c.cluster != clt.cluster {
+			check, err := c.AuthClient.IsMFARequired(ctx, params.isMFARequiredRequest(clt.tc.HostLogin))
+			if err != nil {
+				return nil, trace.Wrap(MFARequiredUnknown(err))
+			}
+			if !check.Required {
+				return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+			}
+		}
+
+		return nil, trace.Wrap(err)
 	}
 	mfaChal := resp.GetMFAChallenge()
 	if mfaChal == nil {
@@ -299,7 +313,7 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, clt *ClusterClie
 		// Proceed with the prompt for MFA below.
 	}
 
-	mfaResp, err := clt.tc.PromptMFAChallenge(ctx, clt.tc.WebProxyAddr, mfaChal, nil /* applyOpts */)
+	mfaResp, err := clt.tc.PromptMFA(ctx, mfaChal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

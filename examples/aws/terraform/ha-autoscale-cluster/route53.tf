@@ -13,8 +13,8 @@ resource "aws_route53_record" "proxy" {
   count   = var.use_acm ? 0 : 1
 
   alias {
-    name                   = aws_lb.proxy.dns_name
-    zone_id                = aws_lb.proxy.zone_id
+    name                   = aws_lb.proxy[0].dns_name
+    zone_id                = aws_lb.proxy[0].zone_id
     evaluate_target_health = true
   }
 }
@@ -28,8 +28,8 @@ resource "aws_route53_record" "proxy_wildcard" {
   count   = var.add_wildcard_route53_record && !var.use_acm ? 1 : 0
 
   alias {
-    name                   = aws_lb.proxy.dns_name
-    zone_id                = aws_lb.proxy.zone_id
+    name                   = aws_lb.proxy[0].dns_name
+    zone_id                = aws_lb.proxy[0].zone_id
     evaluate_target_health = true
   }
 }
@@ -70,8 +70,8 @@ resource "aws_route53_record" "proxy_acm_nlb_alias" {
   count   = var.use_acm ? var.route53_domain_acm_nlb_alias != "" ? 1 : 0 : 0
 
   alias {
-    name                   = aws_lb.proxy.dns_name
-    zone_id                = aws_lb.proxy.zone_id
+    name                   = aws_lb.proxy[0].dns_name
+    zone_id                = aws_lb.proxy[0].zone_id
     evaluate_target_health = true
   }
 }

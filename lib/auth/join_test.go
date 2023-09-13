@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -43,7 +42,6 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	ctx := context.Background()
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
-	a := p.a
 
 	// create a static token
 	staticToken := types.ProvisionTokenV1{
@@ -57,12 +55,22 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	err = p.a.SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	// create a dynamic token
+	// create a valid dynamic token
 	dynamicToken := generateTestToken(
 		ctx,
 		t,
-		types.SystemRoles{types.RoleNode}, time.Now().Add(time.Minute*30),
-		a,
+		types.SystemRoles{types.RoleNode},
+		p.a.GetClock().Now().Add(time.Minute*30),
+		p.a,
+	)
+
+	// create an expired dynamic token
+	expiredDynamicToken := generateTestToken(
+		ctx,
+		t,
+		types.SystemRoles{types.RoleNode},
+		p.a.GetClock().Now().Add(-time.Minute*30),
+		p.a,
 	)
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
@@ -76,7 +84,6 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 		req              *types.RegisterUsingTokenRequest
 		certsAssertion   func(*proto.Certs)
 		errorAssertion   func(error) bool
-		clock            clockwork.Clock
 		waitTokenDeleted bool // Expired tokens are deleted in background, might need slight delay in relevant test
 	}{
 		{
@@ -216,7 +223,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 		{
 			desc: "reject expired dynamic token",
 			req: &types.RegisterUsingTokenRequest{
-				Token:        dynamicToken,
+				Token:        expiredDynamicToken,
 				HostID:       "localhost",
 				NodeName:     "node-name",
 				Role:         types.RoleNode,
@@ -224,37 +231,31 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 				PublicTLSKey: tlsPublicKey,
 			},
 			waitTokenDeleted: true,
-			clock:            clockwork.NewFakeClockAt(time.Now().Add(time.Hour + 1)),
 			errorAssertion:   trace.IsAccessDenied,
 		},
 		{
 			// relies on token being deleted during previous testcase
 			desc: "expired token should be gone",
 			req: &types.RegisterUsingTokenRequest{
-				Token:        dynamicToken,
+				Token:        expiredDynamicToken,
 				HostID:       "localhost",
 				NodeName:     "node-name",
 				Role:         types.RoleNode,
 				PublicSSHKey: sshPublicKey,
 				PublicTLSKey: tlsPublicKey,
 			},
-			clock:          clockwork.NewRealClock(),
 			errorAssertion: trace.IsAccessDenied,
 		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.desc, func(t *testing.T) {
-			if tc.clock == nil {
-				tc.clock = clockwork.NewRealClock()
-			}
-			a.SetClock(tc.clock)
-			certs, err := a.RegisterUsingToken(ctx, tc.req)
+			certs, err := p.a.RegisterUsingToken(ctx, tc.req)
 			if tc.errorAssertion != nil {
 				require.True(t, tc.errorAssertion(err))
 				if tc.waitTokenDeleted {
 					require.Eventually(t, func() bool {
-						_, err := a.ValidateToken(ctx, tc.req.Token)
+						_, err := p.a.ValidateToken(ctx, tc.req.Token)
 						return err != nil && strings.Contains(err.Error(), TokenExpiredOrNotFound)
 					}, time.Millisecond*100, time.Millisecond*10)
 				}

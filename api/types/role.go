@@ -19,6 +19,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"path"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -306,6 +307,16 @@ func (r *RoleV6) SetResourceID(id int64) {
 	r.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (r *RoleV6) GetRevision() string {
+	return r.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (r *RoleV6) SetRevision(rev string) {
+	r.Metadata.SetRevision(rev)
+}
+
 // SetExpiry sets expiry time for the object.
 func (r *RoleV6) SetExpiry(expires time.Time) {
 	r.Metadata.SetExpiry(expires)
@@ -431,7 +442,9 @@ func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []Kuber
 			for _, resource := range KubernetesResourcesKinds {
 				// Ignore Pod resources for older roles because Pods were already supported
 				// so we don't need to keep backwards compatibility for them.
-				if resource == KindKubePod {
+				// Also ignore Namespace resources because it grants access to all resources
+				// in the namespace.
+				if resource == KindKubePod || resource == KindNamespace {
 					continue
 				}
 				resources = append(resources, KubernetesResource{Kind: resource, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}})
@@ -1648,7 +1661,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 // ClusterResource returns the resource name in the following format
 // <namespace>/<name>.
 func (k *KubernetesResource) ClusterResource() string {
-	return k.Namespace + "/" + k.Name
+	return path.Join(k.Namespace, k.Name)
 }
 
 // IsEmpty will return true if the condition is empty.

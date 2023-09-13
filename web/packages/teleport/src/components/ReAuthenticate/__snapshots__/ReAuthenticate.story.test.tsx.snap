@@ -142,9 +142,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
 .c11 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -384,6 +382,10 @@ exports[`render failed state for re-authentication dialog 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c12 .react-select__input {
+  color: #FFFFFF;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -443,7 +445,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
                 font-size="0"
                 for="select"
               >
-                Two-factor type
+                Two-factor Type
               </label>
               <div
                 class="c12"
@@ -647,9 +649,7 @@ exports[`render re-authentication dialog 1`] = `
 .c10 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -889,6 +889,10 @@ exports[`render re-authentication dialog 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c11 .react-select__input {
+  color: #FFFFFF;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -941,7 +945,7 @@ exports[`render re-authentication dialog 1`] = `
                 font-size="0"
                 for="select"
               >
-                Two-factor type
+                Two-factor Type
               </label>
               <div
                 class="c11"

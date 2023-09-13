@@ -87,7 +87,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: {
     type: 'access_request.search',
-    desc: 'Resource Access Request Search',
+    desc: 'Resource Access Search',
     format: ({ user, resource_type, search_as_roles }) =>
       `User [${user}] searched for resource type [${resource_type}] with role(s) [${search_as_roles}]`,
   },

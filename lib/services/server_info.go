@@ -92,8 +92,8 @@ func UnmarshalServerInfos(bytes []byte) ([]types.ServerInfo, error) {
 	}
 
 	out := make([]types.ServerInfo, len(serverInfos))
-	for i, v := range serverInfos {
-		out[i] = types.ServerInfo(&v)
+	for i := range serverInfos {
+		out[i] = types.ServerInfo(&serverInfos[i])
 	}
 
 	return out, nil

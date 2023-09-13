@@ -34,7 +34,8 @@ To manage cluster roles, a Teleport administrator can use the Web UI or the
 command line using [tctl resource commands](../reference/resources.mdx).
 To see the list of roles in a Teleport cluster, an administrator can execute:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
@@ -44,8 +45,8 @@ $ tsh login --user=myuser --proxy=teleport.example.com
 $ tctl get roles
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl.
@@ -53,7 +54,9 @@ $ tsh login --user=myuser --proxy=mytenant.teleport.sh
 $ tctl get roles
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 (!docs/pages/includes/backup-warning.mdx!)
 
@@ -132,7 +135,7 @@ Teleport provides several pre-defined roles out-of-the-box:
 
 ### Role versions
 
-There are currently four supported role versions: `v3`, `v4`, `v5` and `v6`. `v4`, `v5` and `v6` roles are
+There are currently four supported role versions: `v3`, `v4`, `v5`, `v6` and `v7`. `v4`, `v5` and `v6` roles are
 completely backwards-compatible with `v3`, the only difference lies in the
 default values which will be applied to the role if they are not
 explicitly set. Additionally, roles `v5` or `v6` are required to use [Moderated Sessions](./guides/moderated-sessions.mdx).
@@ -147,9 +150,11 @@ Label              | `v3` Default   | `v4`, `v5` and `v6` Default
 Role `v6` introduced a new field `kubernetes_resources` that allows
 fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../kubernetes-access/manage-access/rbac.mdx) for more details.
 
-Label              | `v3`, `v4` and `v5` Default   | `v6` Default
------------------- | -------------- | ---------------
-`kubernetes_resources` | `[{"kind":"pod", "name":"*", "namespace":"*"}]` | `[]`
+Version              |  `kubernetes_resources`
+------------------ | --------------
+`v3`, `v4` and `v5` Default | `[{"kind":"pod", "name":"*", "namespace":"*", "verbs": ["*"]}]`
+`v6` Default |  `[]`
+`v7` Default |  `[{"kind":"*", "name":"*", "namespace":"*", "verbs": ["*"]}]`
 
 ## RBAC for resources
 
@@ -255,7 +260,7 @@ or labeled `team=<team>`, where `<team>` is one of the values of the user's
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: example-role
 spec:
@@ -363,12 +368,6 @@ It is possible to further limit access to
 The examples below illustrate how to restrict session access only for the user
 who created the session.
 
-<Details title="Version Warning: Before 8.1">
-Teleport versions prior to 8.1 don't support the roles shown below.
-You may create these roles after upgrading, but in the event of a cluster
-downgrade they will become invalid.
-</Details>
-
 <Admonition
   type="warning"
   title="Preset Auditor Role"
@@ -437,3 +436,4 @@ Here is an explanation of the fields used in the `where` and `filter` conditions
 
 Check out our [predicate language](../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
 guide for a more in depth explanation of the language.
+

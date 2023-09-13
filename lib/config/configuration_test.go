@@ -821,6 +821,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 					Enabled: types.NewBoolOption(true),
 				},
 			},
+			Okta: &types.OktaOptions{},
 		},
 	}, protocmp.Transform()))
 
@@ -910,6 +911,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.True(t, cfg.Okta.Enabled)
 	require.Equal(t, cfg.Okta.APIEndpoint, "https://some-endpoint")
 	require.Equal(t, cfg.Okta.APITokenPath, oktaAPITokenPath)
+	require.Equal(t, cfg.Okta.SyncPeriod, time.Second*300)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -1737,7 +1739,6 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 				ReverseTunnelListenAddr: *utils.MustParseAddr("0.0.0.0:3024"),
 				SSHAddr:                 *utils.MustParseAddr("0.0.0.0:3023"),
 				Enabled:                 true,
-				EnableProxyProtocol:     true,
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: false,
 				},
@@ -1764,9 +1765,8 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 				},
 			},
 			want: servicecfg.ProxyConfig{
-				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
-				Enabled:             true,
-				EnableProxyProtocol: true,
+				WebAddr: *utils.MustParseAddr("0.0.0.0:9999"),
+				Enabled: true,
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: true,
 				},
@@ -1976,13 +1976,13 @@ func TestProxyKube(t *testing.T) {
 			cfg: Proxy{Kube: KubeProxy{
 				Service:        Service{EnabledFlag: "yes", ListenAddress: "0.0.0.0:8080"},
 				KubeconfigFile: "/tmp/kubeconfig",
-				PublicAddr:     apiutils.Strings([]string{"kube.example.com:443"}),
+				PublicAddr:     apiutils.Strings([]string{constants.KubeTeleportProxyALPNPrefix + "example.com:443"}),
 			}},
 			want: servicecfg.KubeProxyConfig{
 				Enabled:         true,
 				ListenAddr:      *utils.MustParseAddr("0.0.0.0:8080"),
 				KubeconfigPath:  "/tmp/kubeconfig",
-				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr("kube.example.com:443")},
+				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr(constants.KubeTeleportProxyALPNPrefix + "example.com:443")},
 				LegacyKubeProxy: true,
 			},
 			checkErr: require.NoError,
@@ -2013,7 +2013,7 @@ func TestProxyKube(t *testing.T) {
 				Kube: KubeProxy{
 					Service:        Service{EnabledFlag: "no", ListenAddress: "0.0.0.0:8080"},
 					KubeconfigFile: "/tmp/kubeconfig",
-					PublicAddr:     apiutils.Strings([]string{"kube.example.com:443"}),
+					PublicAddr:     apiutils.Strings([]string{constants.KubeTeleportProxyALPNPrefix + "example.com:443"}),
 				},
 			},
 			want: servicecfg.KubeProxyConfig{
@@ -2067,9 +2067,8 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				},
 			},
 			want: servicecfg.ProxyConfig{
-				WebAddr:             *utils.MustParseAddr("0.0.0.0:3080"),
-				Enabled:             true,
-				EnableProxyProtocol: true,
+				WebAddr: *utils.MustParseAddr("0.0.0.0:3080"),
+				Enabled: true,
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: true,
 				},
@@ -2097,9 +2096,8 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				},
 			},
 			want: servicecfg.ProxyConfig{
-				Enabled:             true,
-				EnableProxyProtocol: true,
-				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
+				Enabled: true,
+				WebAddr: *utils.MustParseAddr("0.0.0.0:9999"),
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: true,
 				},
@@ -4114,6 +4112,82 @@ func TestApplyKubeConfig(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, test.wantServiceConfig, cfg.Kube)
 			}
+		})
+	}
+}
+
+func TestGetInstallerProxyAddr(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name              string
+		installParams     *InstallParams
+		fc                *FileConfig
+		expectedProxyAddr string
+	}{
+		{
+			name:              "empty",
+			fc:                &FileConfig{},
+			expectedProxyAddr: "",
+		},
+		{
+			name: "explicit proxy addr",
+			installParams: &InstallParams{
+				PublicProxyAddr: "explicit.example.com",
+			},
+			fc: &FileConfig{
+				Global: Global{
+					ProxyServer: "proxy.example.com",
+				},
+			},
+			expectedProxyAddr: "explicit.example.com",
+		},
+		{
+			name: "proxy server",
+			fc: &FileConfig{
+				Global: Global{
+					ProxyServer: "proxy.example.com",
+				},
+			},
+			expectedProxyAddr: "proxy.example.com",
+		},
+		{
+			name: "local proxy service",
+			fc: &FileConfig{
+				Global: Global{
+					AuthServer: "auth.example.com",
+				},
+				Proxy: Proxy{
+					Service: Service{
+						EnabledFlag: "yes",
+					},
+					PublicAddr: apiutils.Strings{"proxy.example.com"},
+				},
+			},
+			expectedProxyAddr: "proxy.example.com",
+		},
+		{
+			name: "v1/v2 auth servers",
+			fc: &FileConfig{
+				Version: "v2",
+				Global: Global{
+					AuthServers: []string{"proxy.example.com"},
+				},
+			},
+			expectedProxyAddr: "proxy.example.com",
+		},
+		{
+			name: "auth server",
+			fc: &FileConfig{
+				Global: Global{
+					AuthServer: "auth.example.com",
+				},
+			},
+			expectedProxyAddr: "auth.example.com",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expectedProxyAddr, getInstallerProxyAddr(tc.installParams, tc.fc))
 		})
 	}
 }

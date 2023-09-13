@@ -19,27 +19,50 @@ package ai
 import (
 	"sort"
 	"sync"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/ai/embedding"
 )
+
+// Document is a embedding enriched with similarity score
+type Document struct {
+	*embedding.Embedding
+	SimilarityScore float64
+}
+
+func calculateSimilarity(v1, v2 []float64) (float64, error) {
+	if len(v1) != len(v2) {
+		return 0, trace.BadParameter("vectors must be the same length")
+	}
+
+	var result float64
+	for i, val := range v1 {
+		result += val * v2[i]
+	}
+
+	return result, nil
+}
 
 // SimpleRetriever is a simple implementation of embeddings retriever.
 // It stores all the embeddings in memory and retrieves the k nearest neighbors
 // by iterating over all the embeddings. Do not use for large datasets.
 type SimpleRetriever struct {
-	embeddings map[string]*Embedding
+	embeddings map[string]*embedding.Embedding
 	maxSize    int
 	mtx        sync.Mutex
 }
 
 func NewSimpleRetriever() *SimpleRetriever {
 	return &SimpleRetriever{
-		embeddings: make(map[string]*Embedding),
+		embeddings: make(map[string]*embedding.Embedding),
 		maxSize:    1_000, // keep the number low to avoid OOM
 	}
 }
 
 // Insert adds the embedding to the retriever. If the retriever is full, the
 // embedding is not added and false is returned.
-func (r *SimpleRetriever) Insert(id string, embedding *Embedding) bool {
+func (r *SimpleRetriever) Insert(id string, embedding *embedding.Embedding) bool {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 	if len(r.embeddings) >= r.maxSize {
@@ -68,11 +91,11 @@ func (r *SimpleRetriever) Swap(s *SimpleRetriever) {
 
 // FilterFn is a function that filters out embeddings.
 // If the function returns false, the embedding is filtered out.
-type FilterFn func(id string, embedding *Embedding) bool
+type FilterFn func(id string, embedding *embedding.Embedding) bool
 
 // GetRelevant returns the k nearest neighbors to the query embedding.
 // If a filter is provided, only the embeddings that pass the filter are considered.
-func (r *SimpleRetriever) GetRelevant(query *Embedding, k int, filter FilterFn) []*Document {
+func (r *SimpleRetriever) GetRelevant(query *embedding.Embedding, k int, filter FilterFn) []*Document {
 	// Replace with priority queue if k is large.
 	results := make([]*Document, 0, k)
 

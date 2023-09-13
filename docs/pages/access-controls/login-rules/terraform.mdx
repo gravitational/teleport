@@ -59,7 +59,7 @@ spec:
     rules:
       - resources: [login_rule]
         verbs: [list, read, create, update, delete]
-version: v6
+version: v7
 ```
 
 Create the role with `tctl`:
@@ -78,7 +78,7 @@ provider and create two example Login Rules.
 Make sure to update the `addr = "teleport.example.com:443"` field with the
 public address of your Teleport Proxy.
 
-```
+```hcl
 (!examples/resources/terraform/terraform-login-rules.tf!)
 ```
 

@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.loginrule.v1;
 
 import "google/protobuf/empty.proto";
+import "teleport/legacy/types/wrappers/wrappers.proto";
 import "teleport/loginrule/v1/loginrule.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1;loginrulev1";
@@ -39,6 +40,11 @@ service LoginRuleService {
 
   // DeleteLoginRule deletes an existing login rule.
   rpc DeleteLoginRule(DeleteLoginRuleRequest) returns (google.protobuf.Empty);
+
+  // TestLoginRule evaluates login rules against provided user traits
+  // to test that the output matches expectations prior to them being enforced and
+  // potentially locking out users.
+  rpc TestLoginRule(TestLoginRuleRequest) returns (TestLoginRuleResponse);
 }
 
 // CreateLoginRuleRequest is a request to create a login rule.
@@ -84,4 +90,21 @@ message ListLoginRulesResponse {
 message DeleteLoginRuleRequest {
   // Name is the name of the login rule to delete.
   string name = 1;
+}
+
+// TestLoginRuleRequest is a request to test a login rule against traits.
+message TestLoginRuleRequest {
+  // LoginRules is the list of the rules to evaluate.
+  repeated LoginRule login_rules = 1;
+  // Traits are the user traits to test the login rule against.
+  map<string, wrappers.StringValues> traits = 4;
+  // LoadFromCluster indicates if existing login rules should be included
+  // when evaluating rules.
+  bool load_from_cluster = 3;
+}
+
+// TestLoginRuleResponse is a response to a login rule test.
+message TestLoginRuleResponse {
+  // Traits contain the output from evaluating the login rules.
+  map<string, wrappers.StringValues> traits = 4;
 }

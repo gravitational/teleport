@@ -203,7 +203,7 @@ node_labels_expression: 'contains(user.spec.traits["access-env"], labels["env"])
 Pros:
 
 - No confusing mix of expression/template syntax.
-- Parsed expressions can be cached accross all users and roles, keyed by the
+- Parsed expressions can be cached across all users and roles, keyed by the
   expression string only. If individual user traits were templated into every
   expression, cache size would explode.
 - Disallowing templates within expressions prevents any possibility of

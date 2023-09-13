@@ -26,8 +26,9 @@ import { ClusterAdd } from './ClusterAdd';
 import { ClusterLogin } from './ClusterLogin';
 
 export function ClusterConnect(props: ClusterConnectProps) {
-  const [createdClusterUri, setCreatedClusterUri] =
-    useState<RootClusterUri | undefined>();
+  const [createdClusterUri, setCreatedClusterUri] = useState<
+    RootClusterUri | undefined
+  >();
   const { clustersService } = useAppContext();
   const clusterUri = props.clusterUri || createdClusterUri;
 

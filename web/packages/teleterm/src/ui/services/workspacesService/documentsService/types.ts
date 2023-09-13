@@ -82,6 +82,7 @@ export interface DocumentTshNodeWithLoginHost extends DocumentTshNodeBase {
   // force places which use DocumentTshNode to narrow down the type before using it.
 }
 
+// DELETE IN 15.0.0. See DocumentGatewayKube for more details.
 export interface DocumentTshKube extends DocumentBase {
   kind: 'doc.terminal_tsh_kube';
   // status is used merely to show a progress bar when the document is being set up.
@@ -122,7 +123,7 @@ export interface DocumentGatewayCliClient extends DocumentBase {
   //
   // targetUri and targetUser are also needed to find a gateway providing the connection to the
   // target.
-  targetUri: tsh.Gateway['targetUri'];
+  targetUri: uri.DatabaseUri;
   targetUser: tsh.Gateway['targetUser'];
   targetName: tsh.Gateway['targetName'];
   targetProtocol: tsh.Gateway['protocol'];
@@ -131,6 +132,14 @@ export interface DocumentGatewayCliClient extends DocumentBase {
   // type something out immediately after starting while others only after they actually connect to
   // a resource.
   status: '' | 'connecting' | 'connected' | 'error';
+}
+
+export interface DocumentGatewayKube extends DocumentBase {
+  kind: 'doc.gateway_kube';
+  rootClusterId: string;
+  leafClusterId: string | undefined;
+  targetUri: uri.KubeUri;
+  origin: DocumentOrigin;
 }
 
 export interface DocumentCluster extends DocumentBase {
@@ -152,9 +161,9 @@ export interface DocumentPtySession extends DocumentBase {
   leafClusterId?: string;
 }
 
-export interface DocumentConnectMyComputerSetup extends DocumentBase {
-  kind: 'doc.connect_my_computer_setup';
-  // `DocumentConnectMyComputerSetup` always operates on the root cluster, so in theory `rootClusterUri` is not needed.
+export interface DocumentConnectMyComputer extends DocumentBase {
+  kind: 'doc.connect_my_computer';
+  // `DocumentConnectMyComputer` always operates on the root cluster, so in theory `rootClusterUri` is not needed.
   // However, there are a few components in the system, such as `getResourceUri`, which need to determine the relation
   // between a document and a cluster just by looking at the document fields.
   rootClusterUri: uri.RootClusterUri;
@@ -164,7 +173,8 @@ export type DocumentTerminal =
   | DocumentPtySession
   | DocumentGatewayCliClient
   | DocumentTshNode
-  | DocumentTshKube;
+  | DocumentTshKube
+  | DocumentGatewayKube;
 
 export type Document =
   | DocumentAccessRequests
@@ -172,7 +182,7 @@ export type Document =
   | DocumentGateway
   | DocumentCluster
   | DocumentTerminal
-  | DocumentConnectMyComputerSetup;
+  | DocumentConnectMyComputer;
 
 export function isDocumentTshNodeWithLoginHost(
   doc: Document

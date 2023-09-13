@@ -53,7 +53,7 @@ func TestCreateAlert(t *testing.T) {
 		User:          "someUser",
 		Roles:         []string{"role1", "role2"},
 		RequestReason: "someReason",
-		ResolveAnnotations: types.Labels{
+		SystemAnnotations: types.Labels{
 			types.TeleportNamespace + types.ReqAnnotationSchedulesLabel: {"responder@teleport.com"},
 		},
 	})

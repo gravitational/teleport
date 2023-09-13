@@ -92,7 +92,8 @@ export function getPtyProcessOptions(
         path: settings.defaultShell,
         args: [],
         cwd: cmd.cwd,
-        env,
+        env: { ...env, ...cmd.env },
+        initMessage: cmd.initMessage,
       };
     }
 

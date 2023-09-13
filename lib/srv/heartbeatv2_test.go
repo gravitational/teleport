@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory"
+	"github.com/gravitational/teleport/lib/inventory/metadata"
 )
 
 type fakeHeartbeatDriver struct {
@@ -52,7 +54,7 @@ type fakeHeartbeatDriver struct {
 	disableFallback bool
 }
 
-func (h *fakeHeartbeatDriver) Poll() (changed bool) {
+func (h *fakeHeartbeatDriver) Poll(ctx context.Context) (changed bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.pollCount++
@@ -458,4 +460,76 @@ func awaitEvents(t *testing.T, ch <-chan hbv2TestEvent, opts ...eventOption) {
 			require.Failf(t, "timeout waiting for events", "expect=%+v", options.expect)
 		}
 	}
+}
+
+type fakeDownstreamHandle struct {
+	inventory.DownstreamHandle
+}
+
+func (f *fakeDownstreamHandle) CloseContext() context.Context {
+	return context.Background()
+}
+
+func mockMetadataGetter() (metadataGetter, chan *metadata.Metadata) {
+	ch := make(chan *metadata.Metadata, 1)
+	return func(ctx context.Context) (*metadata.Metadata, error) {
+		meta := <-ch
+		if meta == nil {
+			return nil, fmt.Errorf("error fetching metadata")
+		}
+		return meta, nil
+	}, ch
+}
+
+func makeMetadata(id string) *metadata.Metadata {
+	return &metadata.Metadata{
+		CloudMetadata: &types.CloudMetadata{
+			AWS: &types.AWSInfo{
+				InstanceID: id,
+			},
+		},
+	}
+}
+
+func TestNewHeartbeatFetchMetadata(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	heartbeat, err := NewSSHServerHeartbeat(SSHServerHeartbeatConfig{
+		InventoryHandle: &fakeDownstreamHandle{},
+		GetServer: func() *types.ServerV2 {
+			return &types.ServerV2{
+				Spec: types.ServerSpecV2{},
+			}
+		},
+	})
+	require.NoError(t, err)
+	metadataGetter, metaCh := mockMetadataGetter()
+	t.Cleanup(func() { close(metaCh) })
+	inner := heartbeat.inner.(*sshServerHeartbeatV2)
+	inner.getMetadata = metadataGetter
+
+	// Metadata won't be set before metadata getter returns.
+	server := inner.getServer(ctx)
+	assert.Nil(t, server.GetCloudMetadata(), "Metadata was set before background process returned")
+
+	// Metadata won't be set if the getter fails.
+	metaCh <- nil
+	time.Sleep(100 * time.Millisecond) // Wait for goroutines to complete
+	assert.Nil(t, inner.getServer(ctx).GetCloudMetadata(), "Metadata was set despite metadata getter failing")
+
+	// getServer gets updated metadata value.
+	metaCh <- makeMetadata("foo")
+	time.Sleep(100 * time.Millisecond) // Wait for goroutines to complete
+	meta := inner.getServer(ctx).GetCloudMetadata()
+	assert.NotNil(t, meta, "Heartbeat never got metadata")
+	assert.Equal(t, "foo", meta.AWS.InstanceID)
+
+	// Metadata won't be fetched more than once.
+	metaCh <- makeMetadata("bar")
+	time.Sleep(100 * time.Millisecond) // Wait for goroutines to complete
+	meta = inner.getServer(ctx).GetCloudMetadata()
+	assert.NotNil(t, meta, "Lost metadata")
+	assert.NotEqual(t, "bar", meta.AWS.InstanceID)
 }

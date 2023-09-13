@@ -29,6 +29,7 @@ import { ViewMode } from 'teleport/Assist/types';
 import { Settings } from 'teleport/Assist/Settings';
 import { ErrorBanner, ErrorList } from 'teleport/Assist/ErrorBanner';
 import { useUser } from 'teleport/User/UserContext';
+import { LandingPage } from 'teleport/Assist/LandingPage';
 
 interface AssistProps {
   onClose: () => void;
@@ -377,7 +378,11 @@ function AssistContent(props: AssistProps) {
             />
           )}
           <AssistConversation>
-            <ConversationList viewMode={preferences.assist.viewMode} />
+            {conversations.selectedId ? (
+              <ConversationList viewMode={preferences.assist.viewMode} />
+            ) : (
+              <LandingPage />
+            )}
           </AssistConversation>
         </Content>
       </AssistContainer>

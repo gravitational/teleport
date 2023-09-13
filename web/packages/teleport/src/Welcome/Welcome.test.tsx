@@ -26,6 +26,8 @@ import auth from 'teleport/services/auth';
 
 import { userEventService } from 'teleport/services/userEvent';
 
+import { NewCredentials } from 'teleport/Welcome/NewCredentials';
+
 import Welcome from './Welcome';
 
 const invitePath = '/web/invite/5182';
@@ -60,7 +62,7 @@ describe('teleport/components/Welcome', () => {
     render(
       <Router history={mockHistory}>
         <Route path={cfg.routes.userInvite}>
-          <Welcome />
+          <Welcome NewCredentials={NewCredentials} />
         </Route>
       </Router>
     );
@@ -92,7 +94,7 @@ describe('teleport/components/Welcome', () => {
     render(
       <Router history={mockHistory}>
         <Route path={cfg.routes.userReset}>
-          <Welcome />
+          <Welcome NewCredentials={NewCredentials} />
         </Route>
       </Router>
     );
@@ -298,7 +300,7 @@ function renderInvite(url = inviteContinuePath) {
   render(
     <MemoryRouter initialEntries={[url]}>
       <Route path={cfg.routes.userInviteContinue}>
-        <Welcome />
+        <Welcome NewCredentials={NewCredentials} />
       </Route>
     </MemoryRouter>
   );

@@ -23,6 +23,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -43,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -240,6 +242,10 @@ type ServerConfig struct {
 	// It **MUST** only be populated when the target is a teleport ssh server
 	// or an agentless server.
 	TargetServer types.Server
+
+	// IsAgentlessNode indicates whether the targetServer is a Node with an OpenSSH server (no teleport agent).
+	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEphemeralKey.
+	IsAgentlessNode bool
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -250,8 +256,18 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
 	}
-	if s.UserAgent == nil && s.AgentlessSigner == nil {
-		return trace.BadParameter("user agent or agentless signer required to connect to remote host")
+	if s.IsAgentlessNode {
+		if s.TargetServer == nil {
+			return trace.BadParameter("target server is required for agentless nodes")
+		}
+
+		if s.TargetServer.GetSubKind() == types.SubKindOpenSSHNode && s.AgentlessSigner == nil {
+			return trace.BadParameter("agentless signer is required for OpenSSH Nodes")
+		}
+	}
+
+	if s.UserAgent == nil && !s.IsAgentlessNode {
+		return trace.BadParameter("user agent required for teleport nodes (agentless)")
 	}
 	if s.TargetConn == nil {
 		return trace.BadParameter("connection to target connection required")
@@ -573,9 +589,9 @@ func (s *Server) Serve() {
 		return
 	}
 
-	// OpenSSH nodes don't support moderated sessions, send an error to
-	// the user and gracefully fail the user is attempting to create one.
-	if s.targetServer != nil && s.targetServer.GetSubKind() == types.SubKindOpenSSHNode {
+	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+		// OpenSSH nodes don't support moderated sessions, send an error to
+		// the user and gracefully fail if the user is attempting to create one.
 		policySets := s.identityContext.AccessChecker.SessionPolicySets()
 		evaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, s.identityContext.TeleportUser)
 		if evaluator.IsModerated() {
@@ -584,6 +600,16 @@ func (s *Server) Serve() {
 
 			s.log.Debugf("Dropping connection to %s@%s that needs moderation", sconn.User(), s.clientConn.RemoteAddr())
 			return
+		}
+
+		if s.targetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
+			sshSigner, err := s.sendSSHPublicKeyToTarget(ctx)
+			if err != nil {
+				s.log.Warnf("Unable to upload SSH Public Key to EC2 Instance  %q: %v", s.targetServer.GetName(), err)
+				return
+			}
+
+			s.agentlessSigner = sshSigner
 		}
 	}
 
@@ -617,6 +643,56 @@ func (s *Server) Serve() {
 	})
 
 	go s.handleConnection(ctx, chans, reqs)
+}
+
+func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, error) {
+	awsInfo := s.targetServer.GetAWSInfo()
+	if awsInfo == nil {
+		return nil, trace.BadParameter("missing aws cloud metadata")
+	}
+
+	issuer, err := awsoidc.IssuerForCluster(ctx, s.authClient)
+	if err != nil {
+		return nil, trace.BadParameter("failed to get issuer %v", err)
+	}
+
+	token, err := s.authClient.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
+		Issuer: issuer,
+	})
+	if err != nil {
+		return nil, trace.BadParameter("failed to generate aws token: %v", err)
+	}
+
+	integration, err := s.authClient.GetIntegration(ctx, awsInfo.Integration)
+	if err != nil {
+		return nil, trace.BadParameter("failed to fetch integration details: %v", err)
+	}
+
+	if integration.GetAWSOIDCIntegrationSpec() == nil {
+		return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", awsInfo.Integration)
+	}
+
+	sendSSHClient, err := awsoidc.NewEICESendSSHPublicKeyClient(ctx, &awsoidc.AWSClientRequest{
+		IntegrationName: integration.GetName(),
+		Token:           token,
+		RoleARN:         integration.GetAWSOIDCIntegrationSpec().RoleARN,
+		Region:          awsInfo.Region,
+	})
+	if err != nil {
+		return nil, trace.BadParameter("failed to create an aws client to send ssh public key:  %v", err)
+	}
+
+	sshSigner, err := awsoidc.SendSSHPublicKeyToEC2(ctx, sendSSHClient, awsoidc.SendSSHPublicKeyToEC2Request{
+		InstanceID:      awsInfo.InstanceID,
+		EC2SSHLoginUser: s.identityContext.Login,
+	})
+	if err != nil {
+		return nil, trace.BadParameter("send ssh public key failed for instance %s: %v", awsInfo.InstanceID, err)
+	}
+
+	// This is the SSH Signer that the client must use to connect to the EC2.
+	// This signer generates trusted keys, because the public key was sent to the target EC2 host.
+	return sshSigner, nil
 }
 
 // Close will close all underlying connections that the forwarding server holds.
@@ -1344,6 +1420,16 @@ func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request
 		return trace.Wrap(err, "failed to parse env request")
 	}
 
+	if isTeleportEnv(e.Name) {
+		// As a forwarder we want to capture the Teleport environment variables
+		// set by the caller. Environment variables are used to pass existing
+		// session IDs (Assist) and other flags like enabling non-interactive
+		// session recording.
+		// We want to save the environment variables even if the ssh server rejects
+		// them, as we still need their information (e.g. the session ID).
+		scx.SetEnv(e.Name, e.Value)
+	}
+
 	err := scx.RemoteSession.Setenv(ctx, e.Name, e.Value)
 	if err != nil {
 		s.log.Debugf("Unable to set environment variable: %v: %v", e.Name, e.Value)
@@ -1364,6 +1450,18 @@ func (s *Server) handleEnvs(ctx context.Context, ch ssh.Channel, req *ssh.Reques
 	var envs map[string]string
 	if err := json.Unmarshal(raw.EnvsJSON, &envs); err != nil {
 		return trace.Wrap(err, "failed to unmarshal envs")
+	}
+
+	for envName, envValue := range envs {
+		if isTeleportEnv(envName) {
+			// As a forwarder we want to capture the Teleport environment variables
+			// set by the caller. Environment variables are used to pass existing
+			// session IDs (Assist) and other flags like enabling non-interactive
+			// session recording.
+			// We want to save the environment variables even if the ssh server rejects
+			// them, as we still need their information (e.g. the session ID).
+			scx.SetEnv(envName, envValue)
+		}
 	}
 
 	if err := scx.RemoteSession.SetEnvs(ctx, envs); err != nil {
@@ -1419,4 +1517,20 @@ func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
 	// of leaving handleSessionRequests to do it) so set the WantReply flag to false here.
 	req.WantReply = false
 	return nil
+}
+
+// teleportVarPrefixes contains the list of prefixes used by Teleport environment
+// variables. Matching variables are saved in the session context when forwarding
+// the calls to a remote SSH server as they can contain Teleport-specific
+// information used to process the session properly (e.g. TELEPORT_SESSION or
+// SSH_TELEPORT_RECORD_NON_INTERACTIVE)
+var teleportVarPrefixes = []string{"TELEPORT_", "SSH_TELEPORT_"}
+
+func isTeleportEnv(varName string) bool {
+	for _, prefix := range teleportVarPrefixes {
+		if strings.HasPrefix(varName, prefix) {
+			return true
+		}
+	}
+	return false
 }

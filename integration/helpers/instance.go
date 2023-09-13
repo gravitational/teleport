@@ -845,6 +845,7 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 	})
 	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
+	conf.Databases.Enabled = true
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 	conf.Apps.Enabled = false
@@ -1211,6 +1212,10 @@ func (i *TeleInstance) Start() error {
 	}
 	if i.Config.Kube.Enabled {
 		expectedEvents = append(expectedEvents, service.KubernetesReady)
+	}
+
+	if i.Config.Discovery.Enabled {
+		expectedEvents = append(expectedEvents, service.DiscoveryReady)
 	}
 
 	expectedEvents = append(expectedEvents, service.InstanceReady)
@@ -1638,6 +1643,27 @@ func (i *TeleInstance) StopNodes() error {
 		}
 	}
 	return trace.NewAggregate(errors...)
+}
+
+// RestartAuth stops and then starts the auth service.
+func (i *TeleInstance) RestartAuth() error {
+	if i.Process == nil {
+		return nil
+	}
+
+	i.Log.Infof("Asking Teleport instance %q to stop", i.Secrets.SiteName)
+	err := i.Process.Close()
+	if err != nil {
+		i.Log.WithError(err).Error("Failed closing the teleport process.")
+		return trace.Wrap(err)
+	}
+	i.Log.Infof("Teleport instance %q stopped!", i.Secrets.SiteName)
+
+	if err := i.Process.Wait(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(i.Process.Start())
 }
 
 // StopAuth stops the auth server process. If removeData is true, the data

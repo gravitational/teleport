@@ -109,6 +109,38 @@ export function TopBar() {
     const oldPrefix = cfg.getClusterRoute(clusterId);
 
     const newPath = history.location.pathname.replace(oldPrefix, newPrefix);
+
+    // TODO (avatus) DELETE IN 15 (LEGACY RESOURCES SUPPORT)
+    // this is a temporary hack to support leaf clusters _maybe_ not having access
+    // to unified resources yet. When unified resources are loaded in fetchUnifiedResources,
+    // if the response is a 404 (the endpoint doesnt exist), we:
+    // 1. push them to the servers page (old default)
+    // 2. set this variable conditionally render the "legacy" navigation
+    // When we switch clusters (to leaf or root), we remove the item and perform the check again by pushing
+    // to the resource (new default view).
+    window.localStorage.removeItem(KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED);
+    const legacyResourceRoutes = [
+      cfg.getNodesRoute(clusterId),
+      cfg.getAppsRoute(clusterId),
+      cfg.getKubernetesRoute(clusterId),
+      cfg.getDatabasesRoute(clusterId),
+      cfg.getDesktopsRoute(clusterId),
+    ];
+
+    if (
+      legacyResourceRoutes.some(route =>
+        history.location.pathname.includes(route)
+      )
+    ) {
+      const unifiedPath = cfg
+        .getUnifiedResourcesRoute(clusterId)
+        .replace(oldPrefix, newPrefix);
+
+      history.replace(unifiedPath);
+      return;
+    }
+
+    // keep current view just change the clusterId
     history.push(newPath);
   }
 
@@ -133,7 +165,7 @@ export function TopBar() {
   return (
     <TopBarContainer>
       {!hasClusterUrl && (
-        <Text fontSize="18px" bold>
+        <Text fontSize="18px" bold data-testid="title">
           {title}
         </Text>
       )}
@@ -167,7 +199,7 @@ export function TopBar() {
                     <PopupLogos>
                       <OpenAIIcon size={30} />
                       <PopupLogosSpacer>+</PopupLogosSpacer>
-                      <TeleportIcon light={theme.name === 'light'} />
+                      <TeleportIcon light={theme.type === 'light'} />
                     </PopupLogos>
 
                     <PopupButton onClick={() => setShowAssistPopup(false)}>

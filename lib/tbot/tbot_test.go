@@ -218,6 +218,10 @@ func TestBot(t *testing.T) {
 			sshHostOutput,
 			kubeOutput,
 		},
+		testhelpers.DefaultBotConfigOpts{
+			UseAuthServer: true,
+			Insecure:      true,
+		},
 	)
 	b := New(botConfig, log)
 	require.NoError(t, b.Run(ctx))
@@ -235,17 +239,17 @@ func TestBot(t *testing.T) {
 	})
 
 	t.Run("output: identity", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, identityOutput.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, identityOutput.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
 	})
 
 	t.Run("output: identity with role specified", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, identityOutputWithRoles.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithRoles.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, []string{mainRole}, botParams.UserName)
 	})
 
 	t.Run("output: kubernetes", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, kubeOutput.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, kubeOutput.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
 		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
 		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
@@ -253,7 +257,7 @@ func TestBot(t *testing.T) {
 	})
 
 	t.Run("output: application", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, appOutput.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, appOutput.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
 		route := tlsIdent.RouteToApp
 		require.Equal(t, appName, route.Name)
@@ -262,7 +266,7 @@ func TestBot(t *testing.T) {
 	})
 
 	t.Run("output: database", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, dbOutput.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, dbOutput.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
 		route := tlsIdent.RouteToDatabase
 		require.Equal(t, databaseServiceName, route.ServiceName)
@@ -275,7 +279,7 @@ func TestBot(t *testing.T) {
 		dest := sshHostOutput.GetDestination()
 
 		// Validate ssh_host
-		hostKeyBytes, err := dest.Read("ssh_host")
+		hostKeyBytes, err := dest.Read(ctx, "ssh_host")
 		require.NoError(t, err)
 		hostKey, err := ssh.ParsePrivateKey(hostKeyBytes)
 		require.NoError(t, err)
@@ -284,7 +288,7 @@ func TestBot(t *testing.T) {
 		require.NoError(t, err)
 
 		// Validate ssh_host-cert.pub
-		hostCertBytes, err := dest.Read("ssh_host-cert.pub")
+		hostCertBytes, err := dest.Read(ctx, "ssh_host-cert.pub")
 		require.NoError(t, err)
 		hostCert, err := sshutils.ParseCertificate(hostCertBytes)
 		require.NoError(t, err)
@@ -305,7 +309,7 @@ func TestBot(t *testing.T) {
 		require.NoError(t, hostCert.Key.Verify(testData, signedTestData), "signature by host key does not verify with public key in host certificate")
 
 		// Validate ssh_host-user-ca.pub
-		userCABytes, err := dest.Read("ssh_host-user-ca.pub")
+		userCABytes, err := dest.Read(ctx, "ssh_host-user-ca.pub")
 		require.NoError(t, err)
 		userCAKey, _, _, _, err := ssh.ParseAuthorizedKey(userCABytes)
 		require.NoError(t, err)
@@ -333,13 +337,13 @@ func requireValidOutputTLSIdent(t *testing.T, ident *tlsca.Identity, wantRoles [
 	require.Equal(t, wantRoles, ident.Groups)
 }
 
-func tlsIdentFromDest(t *testing.T, dest bot.Destination) *tlsca.Identity {
+func tlsIdentFromDest(ctx context.Context, t *testing.T, dest bot.Destination) *tlsca.Identity {
 	t.Helper()
-	keyBytes, err := dest.Read(identity.PrivateKeyKey)
+	keyBytes, err := dest.Read(ctx, identity.PrivateKeyKey)
 	require.NoError(t, err)
-	certBytes, err := dest.Read(identity.TLSCertKey)
+	certBytes, err := dest.Read(ctx, identity.TLSCertKey)
 	require.NoError(t, err)
-	hostCABytes, err := dest.Read(config.HostCAPath)
+	hostCABytes, err := dest.Read(ctx, config.HostCAPath)
 	require.NoError(t, err)
 	ident := &identity.Identity{}
 	err = identity.ReadTLSIdentityFromKeyPair(ident, keyBytes, certBytes, [][]byte{hostCABytes})
@@ -369,7 +373,13 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	// Create bot user and join token
 	botParams := testhelpers.MakeBot(t, rootClient, "test", "access")
 
-	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{})
+	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
+		testhelpers.DefaultBotConfigOpts{
+			UseAuthServer: true,
+			Insecure:      true,
+		},
+	)
+
 	// Use a destination directory to ensure locking behaves correctly and
 	// the bot isn't left in a locked state.
 	directoryDest := &config.DestinationDirectory{
@@ -393,4 +403,37 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	botConfig.Onboarding.TokenValue = ""
 	thirdBot := New(botConfig, log)
 	require.NoError(t, thirdBot.Run(ctx))
+}
+
+func TestBot_InsecureViaProxy(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	log := utils.NewLoggerForTests()
+
+	// Make a new auth server.
+	fc, fds := testhelpers.DefaultConfig(t)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+
+	// Create bot user and join token
+	botParams := testhelpers.MakeBot(t, rootClient, "test", "access")
+
+	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
+		testhelpers.DefaultBotConfigOpts{
+			UseAuthServer: false,
+			Insecure:      true,
+		},
+	)
+	// Use a destination directory to ensure locking behaves correctly and
+	// the bot isn't left in a locked state.
+	directoryDest := &config.DestinationDirectory{
+		Path:     t.TempDir(),
+		Symlinks: botfs.SymlinksInsecure,
+		ACLs:     botfs.ACLOff,
+	}
+	botConfig.Storage.Destination = directoryDest
+
+	// Run the bot a first time
+	firstBot := New(botConfig, log)
+	require.NoError(t, firstBot.Run(ctx))
 }

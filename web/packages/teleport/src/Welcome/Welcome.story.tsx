@@ -17,28 +17,34 @@ limitations under the License.
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
+import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
+
+import { NewCredentials } from 'teleport/Welcome/NewCredentials';
+
 import Welcome from './Welcome';
 import { CardWelcome } from './CardWelcome';
 
 export default { title: 'Teleport/Welcome' };
 
 export const WelcomeCustom = () => (
-  <CardWelcome
-    title="Some Title"
-    subTitle="some small subtitle"
-    btnText="Button Text"
-    onClick={() => null}
-  />
+  <WelcomeWrapper>
+    <CardWelcome
+      title="Some Title"
+      subTitle="some small subtitle"
+      btnText="Button Text"
+      onClick={() => null}
+    />
+  </WelcomeWrapper>
 );
 
 export const WelcomeInvite = () => (
   <MemoryRouter initialEntries={['/web/invite/1234']}>
-    <Welcome />
+    <Welcome NewCredentials={NewCredentials} />
   </MemoryRouter>
 );
 
 export const WelcomeReset = () => (
   <MemoryRouter initialEntries={['/web/reset/1234']}>
-    <Welcome />
+    <Welcome NewCredentials={NewCredentials} />
   </MemoryRouter>
 );

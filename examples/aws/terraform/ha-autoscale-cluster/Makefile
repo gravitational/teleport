@@ -32,12 +32,15 @@ TF_VAR_route53_domain ?=
 TF_VAR_add_wildcard_route53_record ?= true
 
 # Enable adding MongoDB listeners in Teleport proxy, load balancer ports and security groups
+# This will be ignored if TF_VAR_use_tls_routing is set to true
 TF_VAR_enable_mongodb_listener ?= true
 
 # Enable adding MySQL listeners in Teleport proxy, load balancer ports and security groups
+# This will be ignored if TF_VAR_use_tls_routing is set to true
 TF_VAR_enable_mysql_listener ?= true
 
 # Enable adding Postgres listeners in Teleport proxy, load balancer ports and security groups
+# This will be ignored if TF_VAR_use_tls_routing is set to true
 TF_VAR_enable_postgres_listener ?= true
 
 # Bucket name to store encrypted letsencrypt certificates.
@@ -52,7 +55,14 @@ TF_VAR_grafana_pass ?=
 # (optional) Set to true to use ACM (Amazon Certificate Manager) to provision certificates rather than Letsencrypt
 # If you wish to use a pre-existing ACM certificate rather than having Terraform generate one for you, you can import it:
 # terraform import aws_acm_certificate.cert <certificate_arn>
-# TF_VAR_use_acm ?=
+TF_VAR_use_acm ?= false
+
+# (optional) Set to true to use TLS routing to multiplex all Teleport traffic over one port
+# See https://goteleport.com/docs/architecture/tls-routing for more information
+# Setting this will disable ALL separate listener ports. If you also use ACM, then:
+# - you must use Teleport and tsh v13+
+# - you must use `tsh proxy` commands for Kubernetes/database access
+TF_VAR_use_tls_routing ?= false
 
 export
 

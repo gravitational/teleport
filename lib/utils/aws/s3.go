@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
 
 	awsV2 "github.com/aws/aws-sdk-go-v2/aws"
 	managerV2 "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
@@ -34,6 +35,12 @@ func ConvertS3Error(err error, args ...interface{}) error {
 	if err == nil {
 		return nil
 	}
+
+	// SDK v1 errors:
+	if rerr, ok := err.(awserr.RequestFailure); ok && rerr.StatusCode() == http.StatusForbidden {
+		return trace.AccessDenied(rerr.Message())
+	}
+
 	if aerr, ok := err.(awserr.Error); ok {
 		switch aerr.Code() {
 		case s3.ErrCodeNoSuchKey, s3.ErrCodeNoSuchBucket, s3.ErrCodeNoSuchUpload, "NotFound":
@@ -45,6 +52,7 @@ func ConvertS3Error(err error, args ...interface{}) error {
 		}
 	}
 
+	// SDK v2 errors:
 	var noSuchKey *s3Types.NoSuchKey
 	if errors.As(err, &noSuchKey) {
 		return trace.NotFound(noSuchKey.Error(), args...)
@@ -65,6 +73,11 @@ func ConvertS3Error(err error, args ...interface{}) error {
 	if errors.As(err, &bucketAlreadyOwned) {
 		return trace.AlreadyExists(bucketAlreadyOwned.Error(), args...)
 	}
+	var notFound *s3Types.NotFound
+	if errors.As(err, &notFound) {
+		return trace.NotFound(notFound.Error(), args...)
+	}
+
 	return err
 }
 

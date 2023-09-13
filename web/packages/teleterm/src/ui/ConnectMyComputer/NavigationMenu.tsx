@@ -14,80 +14,214 @@
  * limitations under the License.
  */
 
-import React, { useRef, useState } from 'react';
-import Popover from 'design/Popover';
-import styled from 'styled-components';
-import { Box } from 'design';
+import React, { forwardRef, useRef, useState } from 'react';
+import styled, { css } from 'styled-components';
+import { Box, Button, Indicator, Menu, MenuItem } from 'design';
+import { Laptop, Warning } from 'design/Icon';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { ListItem } from 'teleterm/ui/components/ListItem';
-import { ClusterUri } from 'teleterm/ui/uri';
+import { Attempt, AttemptStatus } from 'shared/hooks/useAsync';
 
-import { NavigationMenuIcon } from './NavigationMenuIcon';
-import { canUseConnectMyComputer } from './permissions';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
-interface NavigationMenuProps {
-  clusterUri: ClusterUri;
-}
+import {
+  CurrentAction,
+  useConnectMyComputerContext,
+} from './connectMyComputerContext';
 
-export function NavigationMenu(props: NavigationMenuProps) {
+/**
+ * IndicatorStatus combines a couple of different states into a single enum which dictates the
+ * decorative look of NavigationMenu.
+ */
+type IndicatorStatus = AttemptStatus;
+
+export function NavigationMenu() {
   const iconRef = useRef();
-  const [isPopoverOpened, setIsPopoverOpened] = useState(false);
-  const appCtx = useAppContext();
-  // DocumentCluster renders this component only if the cluster exists.
-  const cluster = appCtx.clustersService.findCluster(props.clusterUri);
+  const [isMenuOpened, setIsMenuOpened] = useState(false);
+  const { documentsService, rootClusterUri } = useWorkspaceContext();
+  const { isAgentConfiguredAttempt, currentAction, canUse } =
+    useConnectMyComputerContext();
+  const indicatorStatus = getIndicatorStatus(
+    currentAction,
+    isAgentConfiguredAttempt
+  );
 
-  if (cluster.leaf) {
+  if (!canUse) {
     return null;
   }
 
-  const rootCluster = cluster;
-
-  function togglePopover() {
-    setIsPopoverOpened(wasOpened => !wasOpened);
+  function toggleMenu() {
+    setIsMenuOpened(wasOpened => !wasOpened);
   }
 
-  function openSetupDocument(): void {
-    const documentService =
-      appCtx.workspacesService.getWorkspaceDocumentService(rootCluster.uri);
-    const document = documentService.createConnectMyComputerSetupDocument({
-      rootClusterUri: rootCluster.uri,
+  function openDocument(): void {
+    documentsService.openConnectMyComputerDocument({
+      rootClusterUri,
     });
-    documentService.add(document);
-    documentService.open(document.uri);
-    setIsPopoverOpened(false);
+    setIsMenuOpened(false);
   }
 
-  if (
-    !canUseConnectMyComputer(
-      rootCluster,
-      appCtx.configService,
-      appCtx.mainProcessClient.getRuntimeSettings()
-    )
-  ) {
-    return null;
-  }
+  const setupMenuItem = (
+    <MenuItem onClick={openDocument}>Connect My Computer</MenuItem>
+  );
+  const statusMenuItem = (
+    <MenuItem onClick={openDocument}>
+      {indicatorStatus === 'error' && (
+        <Warning size="small" color="error.main" mr={1} />
+      )}
+      Manage agent
+    </MenuItem>
+  );
 
   return (
     <>
-      <NavigationMenuIcon onClick={togglePopover} ref={iconRef} />
-      <Popover
-        open={isPopoverOpened}
+      <MenuIcon
+        indicatorStatus={indicatorStatus}
+        onClick={toggleMenu}
+        ref={iconRef}
+      />
+      <Menu
+        getContentAnchorEl={null}
+        open={isMenuOpened}
         anchorEl={iconRef.current}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        onClose={() => setIsPopoverOpened(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        onClose={() => setIsMenuOpened(false)}
+        menuListCss={() =>
+          css`
+            display: flex;
+            flex-direction: column;
+          `
+        }
       >
-        <Container width="200px">
-          <ListItem onClick={openSetupDocument}>Set up agent</ListItem>
-        </Container>
-      </Popover>
+        {isAgentConfiguredAttempt.status === 'processing' && (
+          <Indicator
+            delay="none"
+            css={`
+              align-self: center;
+            `}
+          />
+        )}
+        {isAgentConfiguredAttempt.status === 'success' &&
+          (!isAgentConfiguredAttempt.data ? setupMenuItem : statusMenuItem)}
+        {isAgentConfiguredAttempt.status === 'error' && statusMenuItem}
+      </Menu>
     </>
   );
 }
 
-const Container = styled(Box)`
-  background: ${props => props.theme.colors.levels.elevated};
+function getIndicatorStatus(
+  currentAction: CurrentAction,
+  isAgentConfiguredAttempt: Attempt<boolean>
+): IndicatorStatus {
+  if (isAgentConfiguredAttempt.status === 'error') {
+    return 'error';
+  }
+
+  if (currentAction.kind === 'observe-process') {
+    switch (currentAction.agentProcessState.status) {
+      case 'not-started': {
+        return '';
+      }
+      case 'error': {
+        return 'error';
+      }
+      case 'exited': {
+        return currentAction.agentProcessState.exitedSuccessfully
+          ? ''
+          : 'error';
+      }
+      case 'running': {
+        return 'success';
+      }
+      default: {
+        assertUnreachable(currentAction.agentProcessState);
+      }
+    }
+  } else {
+    return currentAction.attempt.status;
+  }
+}
+
+interface MenuIconProps {
+  onClick(): void;
+  indicatorStatus: IndicatorStatus;
+}
+
+export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
+  (props, ref) => {
+    return (
+      <StyledButton
+        setRef={ref}
+        onClick={props.onClick}
+        kind="secondary"
+        size="small"
+        title="Open Connect My Computer"
+      >
+        <Laptop size="medium" />
+        {indicatorStatusToStyledStatus(props.indicatorStatus)}
+      </StyledButton>
+    );
+  }
+);
+
+const indicatorStatusToStyledStatus = (
+  indicatorStatus: IndicatorStatus
+): JSX.Element => {
+  return (
+    <StyledStatus
+      status={indicatorStatus}
+      css={`
+        @keyframes blink {
+          0% {
+            opacity: 0;
+          }
+          50% {
+            opacity: 100%;
+          }
+          100% {
+            opacity: 0;
+          }
+        }
+
+        animation: blink 1.4s ease-in-out;
+        animation-iteration-count: ${props => {
+          const hasFinished =
+            props.status === 'success' || props.status === 'error';
+          return hasFinished ? '0' : 'infinite';
+        }};
+        visibility: ${props => (props.status === '' ? 'hidden' : 'visible')};
+        background: ${props => getIndicatorColor(props.status, props.theme)};
+      `}
+    />
+  );
+};
+
+function getIndicatorColor(status: IndicatorStatus, theme: any): string {
+  switch (status) {
+    case 'processing':
+    case 'success':
+      return theme.colors.success;
+    case 'error':
+      return theme.colors.error.main;
+  }
+}
+
+const StyledButton = styled(Button)`
+  position: relative;
+  background: ${props => props.theme.colors.spotBackground[0]};
+  padding: 0;
+  width: ${props => props.theme.space[5]}px;
+  height: ${props => props.theme.space[5]}px;
+`;
+
+const StyledStatus = styled(Box)`
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 `;

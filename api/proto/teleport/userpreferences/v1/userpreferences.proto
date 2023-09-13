@@ -35,8 +35,8 @@ message UserPreferences {
 
 // GetUserPreferencesRequest is a request to get the user preferences.
 message GetUserPreferencesRequest {
-  // username is the username of the owner of the user preferences to get.
-  string username = 1;
+  reserved 1;
+  reserved "username";
 }
 
 // GetUserPreferencesResponse is a response to get the user preferences.
@@ -49,8 +49,9 @@ message GetUserPreferencesResponse {
 message UpsertUserPreferencesRequest {
   // preferences is the new user preferences to set.
   UserPreferences preferences = 1;
-  // username is the username of the owner of the user preferences to update.
-  string username = 2;
+
+  reserved 2;
+  reserved "username";
 }
 
 // UserPreferencesService is a service that stores user settings.

@@ -85,8 +85,16 @@ message Metadata {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
-  // ID is a record ID
-  int64 ID = 7 [(gogoproto.jsontag) = "id,omitempty"];
+  // ID is a record ID.
+  // Deprecated: Use revision instead.
+  int64 ID = 7 [
+    deprecated = true,
+    (gogoproto.jsontag) = "id,omitempty"
+  ];
+  // Revision is an opaque identifier which tracks the versions of a resource
+  // over time. Clients should ignore and not alter its value but must return
+  // the revision in any updates of a resource.
+  string Revision = 8 [(gogoproto.jsontag) = "revision,omitempty"];
 }
 
 // Rotation is a status of the rotation of the certificate authority
@@ -194,68 +202,31 @@ message DatabaseServerV3 {
 
 // DatabaseServerSpecV3 is the database server spec.
 message DatabaseServerSpecV3 {
-  // Description is a free-form text describing this database server.
-  //
-  // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
-  string Description = 1 [
-    (gogoproto.jsontag) = "description,omitempty",
-    deprecated = true
-  ];
-  // Protocol is the database type e.g. postgres, mysql, etc.
-  //
-  // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
-  string Protocol = 2 [
-    (gogoproto.jsontag) = "protocol",
-    deprecated = true
-  ];
-  // URI is the database connection address.
-  //
-  // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
-  string URI = 3 [
-    (gogoproto.jsontag) = "uri",
-    deprecated = true
-  ];
-  // CACert is an optional base64-encoded database CA certificate.
-  //
-  // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
-  bytes CACert = 4 [
-    (gogoproto.jsontag) = "ca_cert,omitempty",
-    deprecated = true
-  ];
-  // AWS contains AWS specific settings for RDS/Aurora databases.
-  //
-  // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
-  AWS AWS = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "aws",
-    deprecated = true
-  ];
+  reserved 1; // Description
+  reserved "Description";
+  reserved 2; // Protocol
+  reserved "Protocol";
+  reserved 3; // URI
+  reserved "URI";
+  reserved 4; // CACert
+  reserved "CACert";
+  reserved 5; // AWS
+  reserved "AWS";
+  reserved 9; // DynamicLabels
+  reserved "DynamicLabels";
+  reserved 11; // GCP
+  reserved "GCP";
+
   // Version is the Teleport version that the server is running.
   string Version = 6 [(gogoproto.jsontag) = "version"];
   // Hostname is the database server hostname.
   string Hostname = 7 [(gogoproto.jsontag) = "hostname"];
   // HostID is the ID of the host the database server is running on.
   string HostID = 8 [(gogoproto.jsontag) = "host_id"];
-  // DynamicLabels is the database server dynamic labels.
-  //
-  // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
-  map<string, CommandLabelV2> DynamicLabels = 9 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "dynamic_labels,omitempty",
-    deprecated = true
-  ];
   // Rotation contains the server CA rotation information.
   Rotation Rotation = 10 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "rotation,omitempty"
-  ];
-  // GCP contains parameters specific to GCP Cloud SQL databases.
-  //
-  // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
-  GCPCloudSQL GCP = 11 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "gcp,omitempty",
-    deprecated = true
   ];
   // Database is the database proxied by this database server.
   DatabaseV3 Database = 12 [(gogoproto.jsontag) = "database,omitempty"];
@@ -353,6 +324,11 @@ message DatabaseSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "mongo_atlas,omitempty"
   ];
+  // Oracle is an additional Oracle configuration options.
+  OracleOptions Oracle = 13 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "oracle,omitempty"
+  ];
 }
 
 // DatabaseAdminUser contains information about privileged database user used
@@ -360,6 +336,13 @@ message DatabaseSpecV3 {
 message DatabaseAdminUser {
   // Name is the username of the privileged database user.
   string Name = 1 [(gogoproto.jsontag) = "name"];
+}
+
+// OracleOptions contains information about privileged database user used
+// for database audit.
+message OracleOptions {
+  // AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+  string AuditUser = 1 [(gogoproto.jsontag) = "audit_user"];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
@@ -383,6 +366,35 @@ message DatabaseStatusV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "azure"
   ];
+}
+
+// IAMPolicyStatus represents states that describe if an AWS database
+// has its IAM policy properly configured or not.
+// This enum is set in a Sync.Map during an IAM task that checks for the
+// validity of IAM policy, and the database gets updated with the value
+// from this map during a heartbeat.
+enum IAMPolicyStatus {
+  // IAM_POLICY_STATUS_UNSPECIFIED represents a zero value where
+  // nothing has been attempted yet.
+  IAM_POLICY_STATUS_UNSPECIFIED = 0;
+  // IAM_POLICY_STATUS_PENDING represents a state where iam policy status
+  // is pending to be checked. This enum value is set at the start of
+  // registering a database -> IAM setup (before the db heartbeat starts).
+  //
+  // This state was required for two reasons:
+  //   1) To be able to tell apart from an older service that do not update
+  //      the IAMPolicyStatus (in which case the enum value will remain the
+  //      zero value).
+  //   2) When starting a database, the heartbeat and its IAM task starts,
+  //      and the heartbeat may run first before the IAM task finishes.
+  IAM_POLICY_STATUS_PENDING = 1;
+  // IAM_POLICY_STATUS_FAILED represents a state where an error occured
+  // while checking for IAM policy status eg: no AWS credentials provider found
+  // or the policy was misconfigured.
+  IAM_POLICY_STATUS_FAILED = 2;
+  // IAM_POLICY_STATUS_SUCCESS represents a state where IAM policy was configured
+  // correctly.
+  IAM_POLICY_STATUS_SUCCESS = 3;
 }
 
 // AWS contains AWS metadata about the database.
@@ -436,6 +448,14 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "opensearch,omitempty"
   ];
+
+  reserved 13;
+  reserved "IAMPolicyExists";
+
+  // IAMPolicyStatus indicates whether the IAM Policy is configured properly for database access.
+  // If not, the user must update the AWS profile identity to allow access to the Database.
+  // Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.
+  IAMPolicyStatus IAMPolicyStatus = 14 [(gogoproto.jsontag) = "iam_policy_status"];
 }
 
 // SecretStore contains secret store configurations.
@@ -464,6 +484,8 @@ message RDS {
   bool IAMAuth = 4 [(gogoproto.jsontag) = "iam_auth"];
   // Subnets is a list of subnets for the RDS instance.
   repeated string Subnets = 5 [(gogoproto.jsontag) = "subnets,omitempty"];
+  // VPCID is the VPC where the RDS is running.
+  string VPCID = 6 [(gogoproto.jsontag) = "vpc_id,omitempty"];
 }
 
 // RDSProxy contains AWS RDS Proxy specific database metadata.
@@ -745,13 +767,6 @@ message ServerV2 {
   ];
 }
 
-// ServerV2List is a list of servers.
-// DELETE IN 8.0.0 only used in deprecated GetNodes rpc
-message ServerV2List {
-  // Servers is a list of servers.
-  repeated ServerV2 Servers = 1;
-}
-
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
   // Addr is a host:port address where this server can be reached.
@@ -776,23 +791,47 @@ message ServerSpecV2 {
   bool UseTunnel = 6 [(gogoproto.jsontag) = "use_tunnel,omitempty"];
   // TeleportVersion is the teleport version that the server is running on
   string Version = 7 [(gogoproto.jsontag) = "version"];
-  // Apps is a list of applications this server is proxying.
-  //
-  // DELETE IN 9.0. Deprecated, moved to AppServerSpecV3.
-  repeated App Apps = 9 [
-    (gogoproto.jsontag) = "apps,omitempty",
-    deprecated = true
-  ];
+
   // PeerAddr is the address a proxy server is reachable at by its peer proxies.
   string PeerAddr = 11 [(gogoproto.jsontag) = "peer_addr,omitempty"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 12 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
   // PublicAddrs is a list of public addresses where this server can be reached.
   repeated string public_addrs = 13;
+  // CloudMetadata contains info about the cloud instance the server is running
+  // on, if any.
+  CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
 
   reserved 8;
   reserved 10;
   reserved "KubernetesClusters";
+  reserved 9; // Apps json_tag="apps"
+  reserved "Apps";
+}
+
+// AWSInfo contains attributes to match to an EC2 instance.
+message AWSInfo {
+  // AccountID is an AWS account ID.
+  string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
+  // InstanceID is an EC2 instance ID.
+  string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
+  // Region is the AWS EC2 Instance Region.
+  string Region = 3 [(gogoproto.jsontag) = "region,omitempty"];
+  // VPCID is the AWS VPC ID where the Instance is running.
+  string VPCID = 4 [(gogoproto.jsontag) = "vpc_id,omitempty"];
+  // Integration is the integration name that added this Node.
+  // When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection.
+  // This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.
+  string Integration = 5 [(gogoproto.jsontag) = "integration,omitempty"];
+  // SubnetID is the Subnet ID in use by the instance.
+  string SubnetID = 6 [(gogoproto.jsontag) = "subnet_id,omitempty"];
+}
+
+// CloudMetadata contains info about the cloud instance a server is running
+// on, if any.
+message CloudMetadata {
+  // AWSInfo contains attributes to match to an EC2 instance.
+  AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -889,31 +928,20 @@ message AppSpecV3 {
   repeated string UserGroups = 8;
 }
 
-// App is a specific application that a server proxies.
-//
-// DELETE IN 9.0. Deprecated, use AppV3.
-message App {
-  // Name is the name of the application.
-  string Name = 1 [(gogoproto.jsontag) = "name"];
-  // URI is the internal address the application is available at.
-  string URI = 2 [(gogoproto.jsontag) = "uri"];
-  // PublicAddr is the public address the application is accessible at.
-  string PublicAddr = 3 [(gogoproto.jsontag) = "public_addr,omitempty"];
-  // StaticLabels is map of static labels associated with an application.
-  // Used for RBAC.
-  map<string, string> StaticLabels = 4 [(gogoproto.jsontag) = "labels,omitempty"];
-  // DynamicLabels is map of dynamic labels associated with an application.
-  // Used for RBAC.
-  map<string, CommandLabelV2> DynamicLabels = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "commands,omitempty"
-  ];
-  // InsecureSkipVerify disables app's TLS certificate verification.
-  bool InsecureSkipVerify = 6 [(gogoproto.jsontag) = "insecure_skip_verify"];
-  // Rewrite is a list of rewriting rules to apply to requests and responses.
-  Rewrite Rewrite = 7 [(gogoproto.jsontag) = "rewrite,omitempty"];
-  // Description is an optional free-form app description.
-  string Description = 8 [(gogoproto.jsontag) = "description,omitempty"];
+// AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
+// Used in application listings that request both app servers and saml apps.
+message AppServerOrSAMLIdPServiceProviderV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+  // Kind is the resource kind. Always "app_server_saml_idp_sp".
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // The AppServer or SAMLIdPServiceProvider resource.
+  oneof Resource {
+    // AppServer is the AppServer resource.
+    AppServerV3 AppServer = 2 [(gogoproto.jsontag) = "app_server,omitempty"];
+    // SAMLIdPServiceProvider is the SAMLIdPServiceProvider resource.
+    SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 3 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
+  }
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -924,6 +952,8 @@ message Rewrite {
   // Headers is a list of headers to inject when passing the request over
   // to the application.
   repeated Header Headers = 2 [(gogoproto.jsontag) = "headers,omitempty"];
+  // JWTClaims configures whether roles/traits are included in the JWT token.
+  string JWTClaims = 3 [(gogoproto.jsontag) = "jwt_claims,omitempty"];
 }
 
 // Header represents a single http header passed over to the proxied application.
@@ -1310,6 +1340,12 @@ message ProvisionTokenSpecV2CircleCI {
 // ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
 // ProvisionTokenSpecV2
 message ProvisionTokenSpecV2Kubernetes {
+  message StaticJWKSConfig {
+    // JWKS should be the JSON Web Key Set formatted public keys of that the
+    // Kubernetes Cluster uses to sign service account tokens.
+    // This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
+    string JWKS = 1 [(gogoproto.jsontag) = "jwks,omitempty"];
+  }
   // Rule is a set of properties the Kubernetes-issued token might have to be
   // allowed to use this ProvisionToken
   message Rule {
@@ -1320,6 +1356,17 @@ message ProvisionTokenSpecV2Kubernetes {
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // Type controls which behavior should be used for validating the Kubernetes
+  // Service Account token. Support values:
+  // - `in_cluster`
+  // - `static_jwks`
+  // If unset, this defaults to `in_cluster`.
+  string Type = 2 [
+    (gogoproto.jsontag) = "type,omitempty",
+    (gogoproto.casttype) = "KubernetesJoinType"
+  ];
+  // StaticJWKS is the configuration specific to the `static_jwks` type.
+  StaticJWKSConfig StaticJWKS = 3 [(gogoproto.jsontag) = "static_jwks,omitempty"];
 }
 
 // ProvisionTokenSpecV2Azure contains the Azure-specific part of the
@@ -1578,6 +1625,13 @@ message ClusterNetworkingConfigSpecV2 {
     (gogoproto.jsontag) = "proxy_ping_interval,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // AssistCommandExecutionWorkers determines the number of workers that will
+  // execute arbitrary Assist commands on servers in parallel
+  int32 AssistCommandExecutionWorkers = 11 [(gogoproto.jsontag) = "assist_command_execution_workers,omitempty"];
+
+  // CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
+  bool CaseInsensitiveRouting = 12 [(gogoproto.jsontag) = "case_insensitive_routing,omitempty"];
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.
@@ -1760,6 +1814,10 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "default_session_ttl,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // Okta is a set of options related to the Okta service in Teleport.
+  // Requires Teleport Enterprise.
+  OktaOptions Okta = 17 [(gogoproto.jsontag) = "okta,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -2164,6 +2222,20 @@ message AccessRequestSpecV3 {
   // DryRun indicates that the request should not actually be created, the
   // auth server should only validate the access request.
   bool DryRun = 16 [(gogoproto.jsontag) = "dry_run,omitempty"];
+
+  // MaxDuration indicates how long the access should be granted for.
+  google.protobuf.Timestamp MaxDuration = 17 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "max_duration,omitempty"
+  ];
+
+  // SessionTLL indicated how long a certificate for a session should be valid for.
+  google.protobuf.Timestamp SessionTTL = 18 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "session_ttl,omitempty"
+  ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -2818,6 +2890,13 @@ message AccessRequestConditions {
   // defines the underlying roles which will be requested as part of any
   // Resource Access Request.
   repeated string SearchAsRoles = 6 [(gogoproto.jsontag) = "search_as_roles,omitempty"];
+
+  // MaxDuration is the amount of time the access will be granted for.
+  // If this is zero, the default duration is used.
+  int64 MaxDuration = 7 [
+    (gogoproto.jsontag) = "max_duration,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on
@@ -2971,9 +3050,13 @@ message UserSpecV2 {
     (gogoproto.jsontag) = "created_by,omitempty"
   ];
 
-  // LocalAuths hold sensitive data necessary for performing local
+  // LocalAuth holds sensitive data necessary for performing local
   // authentication
   LocalAuthSecrets LocalAuth = 9 [(gogoproto.jsontag) = "local_auth,omitempty"];
+
+  // TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user.
+  // Managed by the Device Trust subsystem, avoid manual edits.
+  repeated string TrustedDeviceIDs = 10 [(gogoproto.jsontag) = "trusted_device_ids,omitempty"];
 }
 
 // ExternalIdentity is OpenID Connect/SAML or Github identity that is linked
@@ -3850,6 +3933,22 @@ message OIDCConnectorSpecV3 {
   bool AllowUnverifiedEmail = 15 [(gogoproto.jsontag) = "allow_unverified_email,omitempty"];
   // UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.
   string UsernameClaim = 16 [(gogoproto.jsontag) = "username_claim,omitempty"];
+  // MaxAge is the amount of time that user logins are
+  // valid for. If a user logs in, but then does not login again
+  // within this time period, they will be forced to re-authenticate.
+  MaxAge MaxAge = 17 [
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+}
+
+// MaxAge allows the max_age parameter to be nullable to preserve backwards
+// compatibility. The duration is stored as nanoseconds.
+message MaxAge {
+  int64 Value = 1 [
+    (gogoproto.jsontag) = "max_age",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -4835,6 +4934,9 @@ message SessionTrackerSpecV1 {
   // It's useful for Kubernetes moderated sessions when running in high availabilty
   // otherwise kube proxy is not able to know which agent runs the session.
   string HostID = 21 [(gogoproto.jsontag) = "host_id,omitempty"];
+
+  // TargetSubKind is the sub kind of the target server.
+  string TargetSubKind = 22 [(gogoproto.jsontag) = "target_sub_kind,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker
@@ -5228,6 +5330,14 @@ message PluginSpecV1 {
     PluginJamfSettings jamf = 5;
     // Settings for the PagerDuty plugin
     PluginPagerDutySettings pager_duty = 6;
+    // Settings for the Mattermost plugin
+    PluginMattermostSettings mattermost = 7;
+    // Settings for the JIRA plugin
+    PluginJiraSettings jira = 8;
+    // Settings for the Discord plugin
+    PluginDiscordSettings discord = 9;
+    // Settings for the ServiceNow plugin
+    PluginServiceNowSettings serviceNow = 10;
   }
 }
 
@@ -5253,6 +5363,20 @@ message PluginOpsgenieAccessSettings {
   string api_endpoint = 5;
 }
 
+// PluginServiceNowSettings are the settings for the serviceNow plugin
+message PluginServiceNowSettings {
+  option (gogoproto.equal) = true;
+
+  // ApiEndpoint is the ServiceNow API endpoint.
+  string api_endpoint = 1 [(gogoproto.jsontag) = "api_endpoint,omitempty"];
+  // Username is the ServiceNow API username.
+  string username = 2 [(gogoproto.jsontag) = "username,omitempty"];
+  // Password is the ServiceNow API password.
+  string password = 3 [(gogoproto.jsontag) = "password,omitempty"];
+  // CloseCode is the close code that ServiceNow incidents will use.
+  string close_code = 4 [(gogoproto.jsontag) = "close_code,omitempty"];
+}
+
 message PluginPagerDutySettings {
   option (gogoproto.equal) = true;
 
@@ -5266,9 +5390,39 @@ message PluginPagerDutySettings {
   string api_endpoint = 2;
 }
 
+message PluginJiraSettings {
+  option (gogoproto.equal) = true;
+
+  // ServerURL is the address of the target JIRA Server instance.
+  string server_url = 1;
+
+  // ProjectKey is the key of the Jira project that will receive
+  // notifications and issues from the plugin.
+  string project_key = 2;
+
+  // IssueType is the type of Jira Issue that the plugin will create
+  string issue_type = 3;
+}
+
 // Defines settings for the OpenAI plugin. Currently there are no settings.
 message PluginOpenAISettings {
   option (gogoproto.equal) = true;
+}
+
+// Defines settings for the Mattermost plugin.
+message PluginMattermostSettings {
+  option (gogoproto.equal) = true;
+  // serverURL is the URL to access Mattermost.
+  string server_url = 1;
+  // team is the Mattermost workspace.
+  string team = 2;
+  // channel is the Mattermost channel in the workspace
+  // (team) to send notifications to.
+  string channel = 3;
+  // report_to_email is an optional email address of a Mattermost user
+  // to notify via a direct message when the plugin receives an
+  // Access Request event.
+  string report_to_email = 4;
 }
 
 // Defines settings for Jamf plugin.
@@ -5284,6 +5438,22 @@ message PluginOktaSettings {
 
   // OrgUrl is the Okta organization URL to use for API communication.
   string org_url = 1;
+}
+
+// Defines a set of discord channel IDs
+message DiscordChannels {
+  option (gogoproto.equal) = true;
+  repeated string channel_ids = 1;
+}
+
+// Defines settings for the discord plugin
+message PluginDiscordSettings {
+  option (gogoproto.equal) = true;
+
+  // RoleToRecipients maps Teleport roles (by name) to the set of Discord
+  // channel IDs that will receive notifications and requests regarding that
+  // that Role.
+  map<string, DiscordChannels> role_to_recipients = 1;
 }
 
 message PluginBootstrapCredentialsV1 {
@@ -5819,8 +5989,8 @@ message WatchStatusSpecV1 {
 message ServerInfoV1 {
   // Kind is the resource kind.
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // SubKind is an optional resource subkind. Currently unused for this resource.
-  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind"];
   // Version is the resource version.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is the resource metadata.
@@ -5837,15 +6007,10 @@ message ServerInfoV1 {
 
 // ServerInfoSpecV1 contains fields used to match Nodes to this ServerInfo.
 message ServerInfoSpecV1 {
-  // AWSInfo contains attributes to match to an EC2 instance.
-  message AWSInfo {
-    // AccountID is an AWS account ID.
-    string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
-    // InstanceID is an EC2 instance ID.
-    string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
-  }
-  // AWS matches an EC2 instance.
-  AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+  reserved 1;
+  reserved "AWS";
+  // NewLabels is the set of labels to add to nodes matching this ServerInfo.
+  map<string, string> NewLabels = 2 [(gogoproto.jsontag) = "new_labels,omitempty"];
 }
 
 // JamfSpecV1 is the base configuration for the Jamf MDM service.
@@ -6028,7 +6193,7 @@ message AzureMatcher {
 
 // GCPMatcher matches GCP resources.
 message GCPMatcher {
-  // Types are GKE resource types to match: "gke".
+  // Types are GKE resource types to match: "gke", "vm".
   repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
   // Locations are GKE locations to search resources for.
   repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
@@ -6040,4 +6205,32 @@ message GCPMatcher {
   ];
   // ProjectIDs are the GCP project ID where the resources are deployed.
   repeated string ProjectIDs = 4 [(gogoproto.jsontag) = "project_ids,omitempty"];
+  // ServiceAccounts are the emails of service accounts attached to VMs.
+  repeated string ServiceAccounts = 5 [(gogoproto.jsontag) = "service_accounts,omitempty"];
+  // Params sets the join method when installing on
+  // discovered GCP nodes.
+  InstallerParams Params = 6 [(gogoproto.jsontag) = "install_params,omitempty"];
+}
+
+// KubernetesMatcher matches Kubernetes services.
+message KubernetesMatcher {
+  // Types are Kubernetes services types to match. Currently only 'app' is supported.
+  repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
+  // Namespaces are Kubernetes namespaces in which to discover services
+  repeated string Namespaces = 2 [(gogoproto.jsontag) = "namespaces,omitempty"];
+  // Labels are Kubernetes services labels to match.
+  wrappers.LabelValues Labels = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+}
+
+// OktaOptions specify options related to the Okta service.
+message OktaOptions {
+  // SyncPeriod is the duration between synchronization calls in nanoseconds.
+  int64 SyncPeriod = 1 [
+    (gogoproto.jsontag) = "sync_period,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }

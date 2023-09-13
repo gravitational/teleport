@@ -62,6 +62,18 @@ export class ResourceCreateEvent extends jspb.Message {
     getResourceType(): string;
     setResourceType(value: string): ResourceCreateEvent;
 
+    getResourceOrigin(): string;
+    setResourceOrigin(value: string): ResourceCreateEvent;
+
+    getCloudProvider(): string;
+    setCloudProvider(value: string): ResourceCreateEvent;
+
+
+    hasDatabase(): boolean;
+    clearDatabase(): void;
+    getDatabase(): DiscoveredDatabaseMetadata | undefined;
+    setDatabase(value?: DiscoveredDatabaseMetadata): ResourceCreateEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ResourceCreateEvent.AsObject;
@@ -76,6 +88,34 @@ export class ResourceCreateEvent extends jspb.Message {
 export namespace ResourceCreateEvent {
     export type AsObject = {
         resourceType: string,
+        resourceOrigin: string,
+        cloudProvider: string,
+        database?: DiscoveredDatabaseMetadata.AsObject,
+    }
+}
+
+export class DiscoveredDatabaseMetadata extends jspb.Message { 
+    getDbType(): string;
+    setDbType(value: string): DiscoveredDatabaseMetadata;
+
+    getDbProtocol(): string;
+    setDbProtocol(value: string): DiscoveredDatabaseMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DiscoveredDatabaseMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: DiscoveredDatabaseMetadata): DiscoveredDatabaseMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DiscoveredDatabaseMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DiscoveredDatabaseMetadata;
+    static deserializeBinaryFromReader(message: DiscoveredDatabaseMetadata, reader: jspb.BinaryReader): DiscoveredDatabaseMetadata;
+}
+
+export namespace DiscoveredDatabaseMetadata {
+    export type AsObject = {
+        dbType: string,
+        dbProtocol: string,
     }
 }
 
@@ -118,6 +158,12 @@ export class SessionStartEvent extends jspb.Message {
     setSessionType(value: string): SessionStartEvent;
 
 
+    hasDatabase(): boolean;
+    clearDatabase(): void;
+    getDatabase(): SessionStartDatabaseMetadata | undefined;
+    setDatabase(value?: SessionStartDatabaseMetadata): SessionStartEvent;
+
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SessionStartEvent.AsObject;
     static toObject(includeInstance: boolean, msg: SessionStartEvent): SessionStartEvent.AsObject;
@@ -132,6 +178,36 @@ export namespace SessionStartEvent {
     export type AsObject = {
         userName: string,
         sessionType: string,
+        database?: SessionStartDatabaseMetadata.AsObject,
+    }
+}
+
+export class SessionStartDatabaseMetadata extends jspb.Message { 
+    getDbType(): string;
+    setDbType(value: string): SessionStartDatabaseMetadata;
+
+    getDbProtocol(): string;
+    setDbProtocol(value: string): SessionStartDatabaseMetadata;
+
+    getDbOrigin(): string;
+    setDbOrigin(value: string): SessionStartDatabaseMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SessionStartDatabaseMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: SessionStartDatabaseMetadata): SessionStartDatabaseMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SessionStartDatabaseMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SessionStartDatabaseMetadata;
+    static deserializeBinaryFromReader(message: SessionStartDatabaseMetadata, reader: jspb.BinaryReader): SessionStartDatabaseMetadata;
+}
+
+export namespace SessionStartDatabaseMetadata {
+    export type AsObject = {
+        dbType: string,
+        dbProtocol: string,
+        dbOrigin: string,
     }
 }
 
@@ -1322,6 +1398,9 @@ export class AgentMetadataEvent extends jspb.Message {
     getCloudEnvironment(): string;
     setCloudEnvironment(value: string): AgentMetadataEvent;
 
+    getExternalUpgrader(): string;
+    setExternalUpgrader(value: string): AgentMetadataEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AgentMetadataEvent.AsObject;
@@ -1346,6 +1425,7 @@ export namespace AgentMetadataEvent {
         containerRuntime: string,
         containerOrchestrator: string,
         cloudEnvironment: string,
+        externalUpgrader: string,
     }
 }
 
@@ -1380,6 +1460,146 @@ export namespace AssistCompletionEvent {
     export type AsObject = {
         userName: string,
         conversationId: string,
+        totalTokens: number,
+        promptTokens: number,
+        completionTokens: number,
+    }
+}
+
+export class AssistExecutionEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AssistExecutionEvent;
+
+    getConversationId(): string;
+    setConversationId(value: string): AssistExecutionEvent;
+
+    getNodeCount(): number;
+    setNodeCount(value: number): AssistExecutionEvent;
+
+    getTotalTokens(): number;
+    setTotalTokens(value: number): AssistExecutionEvent;
+
+    getPromptTokens(): number;
+    setPromptTokens(value: number): AssistExecutionEvent;
+
+    getCompletionTokens(): number;
+    setCompletionTokens(value: number): AssistExecutionEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AssistExecutionEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AssistExecutionEvent): AssistExecutionEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AssistExecutionEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AssistExecutionEvent;
+    static deserializeBinaryFromReader(message: AssistExecutionEvent, reader: jspb.BinaryReader): AssistExecutionEvent;
+}
+
+export namespace AssistExecutionEvent {
+    export type AsObject = {
+        userName: string,
+        conversationId: string,
+        nodeCount: number,
+        totalTokens: number,
+        promptTokens: number,
+        completionTokens: number,
+    }
+}
+
+export class AssistNewConversationEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AssistNewConversationEvent;
+
+    getCategory(): string;
+    setCategory(value: string): AssistNewConversationEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AssistNewConversationEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AssistNewConversationEvent): AssistNewConversationEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AssistNewConversationEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AssistNewConversationEvent;
+    static deserializeBinaryFromReader(message: AssistNewConversationEvent, reader: jspb.BinaryReader): AssistNewConversationEvent;
+}
+
+export namespace AssistNewConversationEvent {
+    export type AsObject = {
+        userName: string,
+        category: string,
+    }
+}
+
+export class AssistAccessRequestEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AssistAccessRequestEvent;
+
+    getResourceType(): string;
+    setResourceType(value: string): AssistAccessRequestEvent;
+
+    getTotalTokens(): number;
+    setTotalTokens(value: number): AssistAccessRequestEvent;
+
+    getPromptTokens(): number;
+    setPromptTokens(value: number): AssistAccessRequestEvent;
+
+    getCompletionTokens(): number;
+    setCompletionTokens(value: number): AssistAccessRequestEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AssistAccessRequestEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AssistAccessRequestEvent): AssistAccessRequestEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AssistAccessRequestEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AssistAccessRequestEvent;
+    static deserializeBinaryFromReader(message: AssistAccessRequestEvent, reader: jspb.BinaryReader): AssistAccessRequestEvent;
+}
+
+export namespace AssistAccessRequestEvent {
+    export type AsObject = {
+        userName: string,
+        resourceType: string,
+        totalTokens: number,
+        promptTokens: number,
+        completionTokens: number,
+    }
+}
+
+export class AssistActionEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AssistActionEvent;
+
+    getAction(): string;
+    setAction(value: string): AssistActionEvent;
+
+    getTotalTokens(): number;
+    setTotalTokens(value: number): AssistActionEvent;
+
+    getPromptTokens(): number;
+    setPromptTokens(value: number): AssistActionEvent;
+
+    getCompletionTokens(): number;
+    setCompletionTokens(value: number): AssistActionEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AssistActionEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AssistActionEvent): AssistActionEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AssistActionEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AssistActionEvent;
+    static deserializeBinaryFromReader(message: AssistActionEvent, reader: jspb.BinaryReader): AssistActionEvent;
+}
+
+export namespace AssistActionEvent {
+    export type AsObject = {
+        userName: string,
+        action: string,
         totalTokens: number,
         promptTokens: number,
         completionTokens: number,
@@ -1485,6 +1705,118 @@ export namespace EditorChangeEvent {
     export type AsObject = {
         userName: string,
         status: EditorChangeStatus,
+    }
+}
+
+export class DeviceAuthenticateEvent extends jspb.Message { 
+    getDeviceId(): string;
+    setDeviceId(value: string): DeviceAuthenticateEvent;
+
+    getUserName(): string;
+    setUserName(value: string): DeviceAuthenticateEvent;
+
+    getDeviceOsType(): string;
+    setDeviceOsType(value: string): DeviceAuthenticateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeviceAuthenticateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: DeviceAuthenticateEvent): DeviceAuthenticateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeviceAuthenticateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeviceAuthenticateEvent;
+    static deserializeBinaryFromReader(message: DeviceAuthenticateEvent, reader: jspb.BinaryReader): DeviceAuthenticateEvent;
+}
+
+export namespace DeviceAuthenticateEvent {
+    export type AsObject = {
+        deviceId: string,
+        userName: string,
+        deviceOsType: string,
+    }
+}
+
+export class DeviceEnrollEvent extends jspb.Message { 
+    getDeviceId(): string;
+    setDeviceId(value: string): DeviceEnrollEvent;
+
+    getUserName(): string;
+    setUserName(value: string): DeviceEnrollEvent;
+
+    getDeviceOsType(): string;
+    setDeviceOsType(value: string): DeviceEnrollEvent;
+
+    getDeviceOrigin(): string;
+    setDeviceOrigin(value: string): DeviceEnrollEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeviceEnrollEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: DeviceEnrollEvent): DeviceEnrollEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeviceEnrollEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeviceEnrollEvent;
+    static deserializeBinaryFromReader(message: DeviceEnrollEvent, reader: jspb.BinaryReader): DeviceEnrollEvent;
+}
+
+export namespace DeviceEnrollEvent {
+    export type AsObject = {
+        deviceId: string,
+        userName: string,
+        deviceOsType: string,
+        deviceOrigin: string,
+    }
+}
+
+export class FeatureRecommendationEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): FeatureRecommendationEvent;
+
+    getFeature(): Feature;
+    setFeature(value: Feature): FeatureRecommendationEvent;
+
+    getFeatureRecommendationStatus(): FeatureRecommendationStatus;
+    setFeatureRecommendationStatus(value: FeatureRecommendationStatus): FeatureRecommendationEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): FeatureRecommendationEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: FeatureRecommendationEvent): FeatureRecommendationEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: FeatureRecommendationEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): FeatureRecommendationEvent;
+    static deserializeBinaryFromReader(message: FeatureRecommendationEvent, reader: jspb.BinaryReader): FeatureRecommendationEvent;
+}
+
+export namespace FeatureRecommendationEvent {
+    export type AsObject = {
+        userName: string,
+        feature: Feature,
+        featureRecommendationStatus: FeatureRecommendationStatus,
+    }
+}
+
+export class LicenseLimitEvent extends jspb.Message { 
+    getLicenseLimit(): LicenseLimit;
+    setLicenseLimit(value: LicenseLimit): LicenseLimitEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): LicenseLimitEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: LicenseLimitEvent): LicenseLimitEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: LicenseLimitEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): LicenseLimitEvent;
+    static deserializeBinaryFromReader(message: LicenseLimitEvent, reader: jspb.BinaryReader): LicenseLimitEvent;
+}
+
+export namespace LicenseLimitEvent {
+    export type AsObject = {
+        licenseLimit: LicenseLimit,
     }
 }
 
@@ -1775,6 +2107,54 @@ export class SubmitEventRequest extends jspb.Message {
     setBotJoin(value?: BotJoinEvent): SubmitEventRequest;
 
 
+    hasAssistExecution(): boolean;
+    clearAssistExecution(): void;
+    getAssistExecution(): AssistExecutionEvent | undefined;
+    setAssistExecution(value?: AssistExecutionEvent): SubmitEventRequest;
+
+
+    hasAssistNewConversation(): boolean;
+    clearAssistNewConversation(): void;
+    getAssistNewConversation(): AssistNewConversationEvent | undefined;
+    setAssistNewConversation(value?: AssistNewConversationEvent): SubmitEventRequest;
+
+
+    hasDeviceAuthenticateEvent(): boolean;
+    clearDeviceAuthenticateEvent(): void;
+    getDeviceAuthenticateEvent(): DeviceAuthenticateEvent | undefined;
+    setDeviceAuthenticateEvent(value?: DeviceAuthenticateEvent): SubmitEventRequest;
+
+
+    hasFeatureRecommendationEvent(): boolean;
+    clearFeatureRecommendationEvent(): void;
+    getFeatureRecommendationEvent(): FeatureRecommendationEvent | undefined;
+    setFeatureRecommendationEvent(value?: FeatureRecommendationEvent): SubmitEventRequest;
+
+
+    hasAssistAccessRequest(): boolean;
+    clearAssistAccessRequest(): void;
+    getAssistAccessRequest(): AssistAccessRequestEvent | undefined;
+    setAssistAccessRequest(value?: AssistAccessRequestEvent): SubmitEventRequest;
+
+
+    hasAssistAction(): boolean;
+    clearAssistAction(): void;
+    getAssistAction(): AssistActionEvent | undefined;
+    setAssistAction(value?: AssistActionEvent): SubmitEventRequest;
+
+
+    hasDeviceEnrollEvent(): boolean;
+    clearDeviceEnrollEvent(): void;
+    getDeviceEnrollEvent(): DeviceEnrollEvent | undefined;
+    setDeviceEnrollEvent(value?: DeviceEnrollEvent): SubmitEventRequest;
+
+
+    hasLicenseLimitEvent(): boolean;
+    clearLicenseLimitEvent(): void;
+    getLicenseLimitEvent(): LicenseLimitEvent | undefined;
+    setLicenseLimitEvent(value?: LicenseLimitEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1837,6 +2217,14 @@ export namespace SubmitEventRequest {
         botCreate?: BotCreateEvent.AsObject,
         uiOnboardQuestionnaireSubmit?: UIOnboardQuestionnaireSubmitEvent.AsObject,
         botJoin?: BotJoinEvent.AsObject,
+        assistExecution?: AssistExecutionEvent.AsObject,
+        assistNewConversation?: AssistNewConversationEvent.AsObject,
+        deviceAuthenticateEvent?: DeviceAuthenticateEvent.AsObject,
+        featureRecommendationEvent?: FeatureRecommendationEvent.AsObject,
+        assistAccessRequest?: AssistAccessRequestEvent.AsObject,
+        assistAction?: AssistActionEvent.AsObject,
+        deviceEnrollEvent?: DeviceEnrollEvent.AsObject,
+        licenseLimitEvent?: LicenseLimitEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1933,6 +2321,22 @@ export namespace SubmitEventRequest {
     UI_ONBOARD_QUESTIONNAIRE_SUBMIT = 48,
 
     BOT_JOIN = 49,
+
+    ASSIST_EXECUTION = 50,
+
+    ASSIST_NEW_CONVERSATION = 51,
+
+    DEVICE_AUTHENTICATE_EVENT = 52,
+
+    FEATURE_RECOMMENDATION_EVENT = 53,
+
+    ASSIST_ACCESS_REQUEST = 54,
+
+    ASSIST_ACTION = 55,
+
+    DEVICE_ENROLL_EVENT = 56,
+
+    LICENSE_LIMIT_EVENT = 57,
 
     }
 
@@ -2037,6 +2441,7 @@ export enum ResourceKind {
     RESOURCE_KIND_DB_SERVER = 4,
     RESOURCE_KIND_WINDOWS_DESKTOP = 5,
     RESOURCE_KIND_NODE_OPENSSH = 6,
+    RESOURCE_KIND_NODE_OPENSSH_EICE = 7,
 }
 
 export enum DiscoverResource {
@@ -2124,4 +2529,21 @@ export enum EditorChangeStatus {
     EDITOR_CHANGE_STATUS_UNSPECIFIED = 0,
     EDITOR_CHANGE_STATUS_ROLE_GRANTED = 1,
     EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2,
+}
+
+export enum Feature {
+    FEATURE_UNSPECIFIED = 0,
+    FEATURE_TRUSTED_DEVICES = 1,
+}
+
+export enum FeatureRecommendationStatus {
+    FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0,
+    FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1,
+    FEATURE_RECOMMENDATION_STATUS_DONE = 2,
+}
+
+export enum LicenseLimit {
+    LICENSE_LIMIT_UNSPECIFIED = 0,
+    LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF = 1,
+    LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2,
 }

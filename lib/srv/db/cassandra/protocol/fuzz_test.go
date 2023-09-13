@@ -20,10 +20,35 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/datastax/go-cassandra-native-protocol/compression/lz4"
+	"github.com/datastax/go-cassandra-native-protocol/segment"
 	"github.com/stretchr/testify/require"
 )
 
+func encodeSegment(f *testing.F, compressor segment.PayloadCompressor, seg *segment.Segment) []byte {
+	writer := &bytes.Buffer{}
+	err := segment.NewCodecWithCompression(compressor).EncodeSegment(seg, writer)
+	require.NoError(f, err)
+	return writer.Bytes()
+}
+
 func FuzzReadPacket(f *testing.F) {
+	// payload 8 byte, self-contained, uncompressed
+	f.Add(encodeSegment(f, nil, &segment.Segment{
+		Header:  &segment.Header{IsSelfContained: true},
+		Payload: &segment.Payload{UncompressedData: []byte{1, 2, 3, 4, 5, 6, 7, 8}},
+	}))
+	// payload 8 byte, multi-part, uncompressed
+	f.Add(encodeSegment(f, nil, &segment.Segment{
+		Header:  &segment.Header{IsSelfContained: false},
+		Payload: &segment.Payload{UncompressedData: []byte{1, 2, 3, 4, 5, 6, 7, 8}},
+	}))
+	// payload 100 bytes, self-contained, compressed
+	f.Add(encodeSegment(f, lz4.Compressor{}, &segment.Segment{
+		Header:  &segment.Header{IsSelfContained: true},
+		Payload: &segment.Payload{UncompressedData: make([]byte, 100)},
+	}))
+
 	f.Fuzz(func(t *testing.T, body []byte) {
 		require.NotPanics(t, func() {
 			rawConn := &mockConn{

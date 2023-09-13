@@ -58,7 +58,7 @@ func (o *KubernetesOutput) templates() []template {
 
 func (o *KubernetesOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
 	dest := o.GetDestination()
-	if err := identity.SaveIdentity(ident, dest, identity.DestinationKinds()...); err != nil {
+	if err := identity.SaveIdentity(ctx, ident, dest, identity.DestinationKinds()...); err != nil {
 		return trace.Wrap(err, "persisting identity")
 	}
 
@@ -71,13 +71,13 @@ func (o *KubernetesOutput) Render(ctx context.Context, p provider, ident *identi
 	return nil
 }
 
-func (o *KubernetesOutput) Init() error {
+func (o *KubernetesOutput) Init(ctx context.Context) error {
 	subDirs, err := listSubdirectories(o.templates())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(o.Destination.Init(subDirs))
+	return trace.Wrap(o.Destination.Init(ctx, subDirs))
 }
 
 func (o *KubernetesOutput) CheckAndSetDefaults() error {

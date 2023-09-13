@@ -21,7 +21,7 @@ const loading = keyframes`
     opacity: 0;
   }
   50% {
-    opacity: 0.8;
+    opacity: 1;
   }
   100% {
     opacity: 0;
@@ -39,10 +39,10 @@ export const TypingContainer = styled.div`
 `;
 
 export const TypingDot = styled.div`
-  width: 8px;
-  height: 8px;
-  margin-right: 8px;
-  background: #8d8c91;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  background: ${p => p.theme.colors.spotBackground[2]};
   border-radius: 50%;
   opacity: 0;
   animation: ${loading} 1.5s ease-in-out infinite;

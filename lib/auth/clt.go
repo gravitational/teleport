@@ -32,8 +32,9 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
+	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -84,6 +85,7 @@ var _ ClientI = &Client{}
 // functionality that hasn't been ported to the new client yet.
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
 	cfg.DialInBackground = true
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -149,17 +151,7 @@ func (c *Client) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority
 	}
 
 	_, err := c.APIClient.UpsertCertAuthority(ctx, ca)
-	switch {
-	case err == nil:
-		return nil
-	// Fallback to HTTP API
-	// DELETE IN 14.0.0
-	case trace.IsNotImplemented(err):
-		err := c.HTTPClient.UpsertCertAuthority(ctx, ca)
-		return trace.Wrap(err)
-	default:
-		return trace.Wrap(err)
-	}
+	return trace.Wrap(err)
 }
 
 // CompareAndSwapCertAuthority updates existing cert authority if the existing cert authority
@@ -175,17 +167,7 @@ func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthTy
 	}
 
 	cas, err := c.APIClient.GetCertAuthorities(ctx, caType, loadKeys)
-	switch {
-	case err == nil:
-		return cas, nil
-	// Fallback to HTTP API
-	// DELETE IN 14.0.0
-	case trace.IsNotImplemented(err):
-		cas, err := c.HTTPClient.GetCertAuthorities(ctx, caType, loadKeys)
-		return cas, trace.Wrap(err)
-	default:
-		return nil, trace.Wrap(err)
-	}
+	return cas, trace.Wrap(err)
 }
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
@@ -196,17 +178,7 @@ func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, load
 	}
 
 	ca, err := c.APIClient.GetCertAuthority(ctx, id, loadSigningKeys)
-	switch {
-	case err == nil:
-		return ca, nil
-	// Fallback to HTTP API
-	// DELETE IN 14.0.0
-	case trace.IsNotImplemented(err):
-		ca, err := c.HTTPClient.GetCertAuthority(ctx, id, loadSigningKeys)
-		return ca, trace.Wrap(err)
-	default:
-		return nil, trace.Wrap(err)
-	}
+	return ca, trace.Wrap(err)
 }
 
 // DeleteCertAuthority deletes cert authority by ID
@@ -216,17 +188,7 @@ func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) e
 	}
 
 	err := c.APIClient.DeleteCertAuthority(ctx, id)
-	switch {
-	case err == nil:
-		return nil
-	// Fallback to HTTP API
-	// DELETE IN 14.0.0
-	case trace.IsNotImplemented(err):
-		err = c.HTTPClient.DeleteCertAuthority(ctx, id)
-		return trace.Wrap(err)
-	default:
-		return trace.Wrap(err)
-	}
+	return trace.Wrap(err)
 }
 
 // ActivateCertAuthority not implemented: can only be called locally.
@@ -279,14 +241,14 @@ func (c *Client) DeleteAuthServer(name string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpdateAndSwapUser not implemented: can only be called locally.
+func (c *Client) UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (bool, error)) (types.User, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // CompareAndSwapUser not implemented: can only be called locally
 func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.User) error {
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-// GetNodeStream not implemented: can only be called locally
-func (c *Client) GetNodeStream(_ context.Context, _ string) stream.Stream[types.Server] {
-	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
@@ -475,6 +437,14 @@ func (c *Client) OktaClient() services.Okta {
 	return c.APIClient.OktaClient()
 }
 
+func (c *Client) AccessListClient() services.AccessLists {
+	return c.APIClient.AccessListClient()
+}
+
+func (c *Client) UserLoginStateClient() services.UserLoginStates {
+	return c.APIClient.UserLoginStateClient()
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
@@ -557,6 +527,12 @@ type IdentityService interface {
 
 	// UpdateUser updates an existing user in a backend.
 	UpdateUser(ctx context.Context, user types.User) error
+
+	// UpdateAndSwapUser reads an existing user, runs `fn` against it and writes
+	// the result to storage. Return `false` from `fn` to avoid storage changes.
+	// Roughly equivalent to [GetUser] followed by [CompareAndSwapUser].
+	// Returns the storage user.
+	UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error)
 
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user types.User) error
@@ -712,7 +688,6 @@ type ClientI interface {
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.Assistant
-	services.UserPreferences
 	WebService
 	services.Status
 	services.ClusterConfiguration
@@ -858,9 +833,42 @@ type ClientI interface {
 	// "not implemented" errors (as per the default gRPC behavior).
 	OktaClient() services.Okta
 
+	// AccessListClient returns an access list client.
+	// Clients connecting to  older Teleport versions, still get an access list client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	AccessListClient() services.AccessLists
+
+	// UserLoginStateClient returns a user login state client.
+	// Clients connecting to  older Teleport versions, still get a user login state client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	UserLoginStateClient() services.UserLoginStates
+
+	// ResourceUsageClient returns a resource usage service client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient
+
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
 
 	// GetResources returns a paginated list of resources.
 	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+
+	// GetUserPreferences returns the user preferences for a given user.
+	GetUserPreferences(ctx context.Context, req *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.GetUserPreferencesResponse, error)
+
+	// UpsertUserPreferences creates or updates user preferences for a given username.
+	UpsertUserPreferences(ctx context.Context, req *userpreferencesv1.UpsertUserPreferencesRequest) error
+
+	// ListUnifiedResources returns a paginated list of unified resources.
+	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
+
+	// GetSSHTargets gets all servers that would match an equivalent ssh dial request. Note that this method
+	// returns all resources directly accessible to the user *and* all resources available via 'SearchAsRoles',
+	// which is what we want when handling things like ambiguous host errors and resource-based access requests,
+	// but may result in confusing behavior if it is used outside of those contexts.
+	GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error)
 }

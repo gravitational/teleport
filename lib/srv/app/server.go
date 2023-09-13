@@ -269,7 +269,9 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		}
 	}()
 
-	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{})
+	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
+		Clock: c.Clock,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -473,7 +475,7 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
-	copy := s.appWithUpdatedLabels(app)
+	copy := s.appWithUpdatedLabelsLocked(app)
 	s.mu.RUnlock()
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewAppServerV3(types.Metadata{
@@ -700,7 +702,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 func (s *Server) handleConnection(conn net.Conn) (func(), error) {
-	ctx, cancel := context.WithCancel(s.closeContext)
+	ctx, cancel := context.WithCancelCause(s.closeContext)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   s.c.Clock,
@@ -1005,18 +1007,19 @@ func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app t
 func (s *Server) getApp(ctx context.Context, publicAddr string) (types.Application, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	for _, a := range s.getApps() {
+	// don't call s.getApps() as this will call RLock and potentially deadlock.
+	for _, a := range s.apps {
 		if publicAddr == a.GetPublicAddr() {
-			return s.appWithUpdatedLabels(a), nil
+			return s.appWithUpdatedLabelsLocked(a), nil
 		}
 	}
 	return nil, trace.NotFound("no application at %v found", publicAddr)
 }
 
-// appWithUpdatedLabels will inject updated dynamic and cloud labels into an application
-// object. The caller must invoke an RLock on `s.mu` before calling this function.
-func (s *Server) appWithUpdatedLabels(app types.Application) *types.AppV3 {
+// appWithUpdatedLabelsLocked will inject updated dynamic and cloud labels into
+// an application object.
+// The caller must invoke an RLock on `s.mu` before calling this function.
+func (s *Server) appWithUpdatedLabelsLocked(app types.Application) *types.AppV3 {
 	// Create a copy of the application to modify
 	copy := app.Copy()
 
@@ -1049,7 +1052,9 @@ func (s *Server) newHTTPServer(clusterName string) *http.Server {
 
 	return &http.Server{
 		Handler:           httplib.MakeTracingHandler(s.authMiddleware, teleport.ComponentApp),
-		ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {

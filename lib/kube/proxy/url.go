@@ -17,12 +17,18 @@ limitations under the License.
 package proxy
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"path"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 )
 
 type apiResource struct {
@@ -155,14 +161,32 @@ type allowedResourcesKey struct {
 	resourceKind string
 }
 
-// allowedResources is a map of supported resources and their corresponding
+type rbacSupportedResources map[allowedResourcesKey]string
+
+// getResourceWithKey returns the teleport resource kind for a given resource key if
+// it exists, otherwise returns an empty string.
+func (r rbacSupportedResources) getResourceWithKey(k allowedResourcesKey) string {
+	if k.apiGroup == "" {
+		k.apiGroup = "core"
+	}
+	return r[k]
+}
+
+func (r rbacSupportedResources) getTeleportResourceKindFromAPIResource(api apiResource) (string, bool) {
+	resource := getResourceFromAPIResource(api.resourceKind)
+	resourceType, ok := r[allowedResourcesKey{apiGroup: api.apiGroup, resourceKind: resource}]
+	return resourceType, ok
+}
+
+// defaultRBACResources is a map of supported resources and their corresponding
 // teleport resource kind for the purpose of resource rbac.
-var allowedResources = map[allowedResourcesKey]string{
+var defaultRBACResources = rbacSupportedResources{
 	{apiGroup: "core", resourceKind: "pods"}:                                      types.KindKubePod,
 	{apiGroup: "core", resourceKind: "secrets"}:                                   types.KindKubeSecret,
 	{apiGroup: "core", resourceKind: "configmaps"}:                                types.KindKubeConfigmap,
 	{apiGroup: "core", resourceKind: "namespaces"}:                                types.KindKubeNamespace,
 	{apiGroup: "core", resourceKind: "services"}:                                  types.KindKubeService,
+	{apiGroup: "core", resourceKind: "endpoints"}:                                 types.KindKubeService,
 	{apiGroup: "core", resourceKind: "serviceaccounts"}:                           types.KindKubeServiceAccount,
 	{apiGroup: "core", resourceKind: "nodes"}:                                     types.KindKubeNode,
 	{apiGroup: "core", resourceKind: "persistentvolumes"}:                         types.KindKubePersistentVolume,
@@ -181,54 +205,83 @@ var allowedResources = map[allowedResourcesKey]string{
 	{apiGroup: "networking.k8s.io", resourceKind: "ingresses"}:                    types.KindKubeIngress,
 }
 
-// getKubeResourceAndAPIGroupFromType returns the Kubernetes resource kind and
-// API group for a given Teleport resource kind. If the Teleport resource kind
-// is not supported, it returns the Teleport resource kind as the Kubernetes
-// resource kind and an empty string as the API group.
-func getKubeResourceAndAPIGroupFromType(s string) (kind string, apiGroup string) {
-	for k, v := range allowedResources {
-		if v == s {
-			apiGroup := ""
-			if k.apiGroup != "core" {
-				apiGroup = k.apiGroup
-			}
-			return k.resourceKind, apiGroup
-		}
-	}
-	return s + "s", ""
-}
-
-// getResourceWithKey returns the teleport resource kind for a given resource key if
-// it exists, otherwise returns an empty string.
-func getResourceWithKey(k allowedResourcesKey) string {
-	if k.apiGroup == "" {
-		k.apiGroup = "core"
-	}
-	return allowedResources[k]
-}
-
 // getResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific endpoint that Teleport support resource filtering. Otherwise, returns nil.
-func getResourceFromRequest(req *http.Request) (*types.KubernetesResource, apiResource) {
+func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (*types.KubernetesResource, apiResource, error) {
 	apiResource := parseResourcePath(req.URL.Path)
-	resourceType, ok := getTeleportResourceKindFromAPIResource(apiResource)
-	// if the resource is not supported, return nil.
-	// if the resource is supported but the resource name is not present, return nil because it's a list request.
-	if !ok || apiResource.resourceName == "" {
-		return nil, apiResource
+	verb := apiResource.getVerb(req)
+	if kubeDetails == nil {
+		return nil, apiResource, nil
 	}
+
+	codecFactory, rbacSupportedTypes, err := kubeDetails.getClusterSupportedResources()
+	if err != nil {
+		return nil, apiResource, trace.Wrap(err)
+	}
+
+	resourceType, ok := rbacSupportedTypes.getTeleportResourceKindFromAPIResource(apiResource)
+	switch {
+	case !ok:
+		// if the resource is not supported, return nil.
+		return nil, apiResource, nil
+	case apiResource.resourceName == "" && verb != types.KubeVerbCreate:
+		// if the resource is supported but the resource name is not present and not a create request,
+		// return nil because it's a list request.
+		return nil, apiResource, nil
+
+	case apiResource.resourceName == "" && verb == types.KubeVerbCreate:
+		// If the request is a create request, extract the resource name from the request body.
+		var err error
+		if apiResource.resourceName, err = extractResourceNameFromPostRequest(req, codecFactory); err != nil {
+			return nil, apiResource, trace.Wrap(err)
+		}
+	}
+
 	return &types.KubernetesResource{
 		Kind:      resourceType,
 		Namespace: apiResource.namespace,
 		Name:      apiResource.resourceName,
-		Verbs:     []string{apiResource.getVerb(req)},
-	}, apiResource
+		Verbs:     []string{verb},
+	}, apiResource, nil
 }
 
-func getTeleportResourceKindFromAPIResource(r apiResource) (string, bool) {
-	resource := getResourceFromAPIResource(r.resourceKind)
-	resourceType, ok := allowedResources[allowedResourcesKey{apiGroup: r.apiGroup, resourceKind: resource}]
-	return resourceType, ok
+// extractResourceNameFromPostRequest extracts the resource name from a POST body.
+// It reads the full body - required because data can be proto encoded -
+// and decodes it into a Kubernetes object. It then extracts the resource name
+// from the object.
+// The body is then reset to the original request body using a new buffer.
+func extractResourceNameFromPostRequest(req *http.Request, codecs *serializer.CodecFactory) (string, error) {
+	if req.Body == nil {
+		return "", trace.BadParameter("request body is empty")
+	}
+
+	negotiator := newClientNegotiator(codecs)
+	_, decoder, err := newEncoderAndDecoderForContentType(
+		responsewriters.GetContentTypeHeader(req.Header),
+		negotiator,
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	newBody := bytes.NewBuffer(make([]byte, 0, 2048))
+	if _, err := io.Copy(newBody, req.Body); err != nil {
+		return "", trace.Wrap(err)
+	}
+	if err := req.Body.Close(); err != nil {
+		return "", trace.Wrap(err)
+	}
+	req.Body = io.NopCloser(newBody)
+	// decode memory rw body.
+	obj, err := decodeAndSetGVK(decoder, newBody.Bytes())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	namer, ok := obj.(kubeObjectInterface)
+	if !ok {
+		return "", trace.BadParameter("object %T does not implement kubeObjectInterface", obj)
+	}
+	return namer.GetName(), nil
 }
 
 // getResourceFromAPIResource returns the resource kind from the api resource.
@@ -256,31 +309,38 @@ func isKubeWatchRequest(req *http.Request, r apiResource) bool {
 func (r apiResource) getVerb(req *http.Request) string {
 	verb := ""
 	isWatch := isKubeWatchRequest(req, r)
-	switch req.Method {
-	case http.MethodPost:
-		verb = types.KubeVerbCreate
-	case http.MethodGet, http.MethodHead, http.MethodOptions:
-		switch {
-		case isWatch:
-			return types.KubeVerbWatch
-		case r.resourceName == "":
-			return types.KubeVerbList
-		default:
-			return types.KubeVerbGet
-		}
-	case http.MethodPut:
-		verb = types.KubeVerbUpdate
-	case http.MethodPatch:
-		verb = types.KubeVerbPatch
-	case http.MethodDelete:
-		switch {
-		case r.resourceName != "":
-			verb = types.KubeVerbDelete
-		default:
-			verb = types.KubeVerbDeleteCollection
-		}
+	switch r.resourceKind {
+	case "pods/exec", "pods/attach":
+		verb = types.KubeVerbExec
+	case "pods/portforward":
+		verb = types.KubeVerbPortForward
 	default:
-		verb = ""
+		switch req.Method {
+		case http.MethodPost:
+			verb = types.KubeVerbCreate
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			switch {
+			case isWatch:
+				return types.KubeVerbWatch
+			case r.resourceName == "":
+				return types.KubeVerbList
+			default:
+				return types.KubeVerbGet
+			}
+		case http.MethodPut:
+			verb = types.KubeVerbUpdate
+		case http.MethodPatch:
+			verb = types.KubeVerbPatch
+		case http.MethodDelete:
+			switch {
+			case r.resourceName != "":
+				verb = types.KubeVerbDelete
+			default:
+				verb = types.KubeVerbDeleteCollection
+			}
+		default:
+			verb = ""
+		}
 	}
 
 	return verb

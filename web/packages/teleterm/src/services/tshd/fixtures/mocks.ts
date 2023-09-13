@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+
 import {
   AuthSettings,
   AccessRequest,
@@ -34,11 +36,12 @@ import {
   TshAbortSignal,
   TshClient,
   GetRequestableRolesResponse,
+  UpdateHeadlessAuthenticationStateParams,
 } from '../types';
 
 export class MockTshClient implements TshClient {
   listRootClusters: () => Promise<Cluster[]>;
-  listLeafClusters: (clusterUri: string) => Promise<Cluster[]>;
+  listLeafClusters = () => Promise.resolve([]);
   getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
   getDatabases: (params: GetResourcesParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: string) => Promise<string[]>;
@@ -79,7 +82,7 @@ export class MockTshClient implements TshClient {
     localPort: string
   ) => Promise<Gateway>;
 
-  getCluster: (clusterUri: string) => Promise<Cluster>;
+  getCluster = () => Promise.resolve(makeRootCluster());
   getAuthSettings: (clusterUri: string) => Promise<AuthSettings>;
   removeCluster = () => Promise.resolve();
   loginLocal: (
@@ -97,4 +100,13 @@ export class MockTshClient implements TshClient {
   logout = () => Promise.resolve();
   transferFile: () => undefined;
   reportUsageEvent: () => undefined;
+
+  createConnectMyComputerRole = () => Promise.resolve({ certsReloaded: true });
+  createConnectMyComputerNodeToken = () =>
+    Promise.resolve({ token: 'abc', labelsList: [] });
+  deleteConnectMyComputerToken = () => Promise.resolve();
+
+  updateHeadlessAuthenticationState: (
+    params: UpdateHeadlessAuthenticationStateParams
+  ) => Promise<void>;
 }

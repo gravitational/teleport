@@ -15,6 +15,7 @@
  */
 
 import React, { useMemo } from 'react';
+import { createPortal } from 'react-dom';
 
 import styled from 'styled-components';
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
@@ -32,7 +33,12 @@ import {
 import DocumentCluster from 'teleterm/ui/DocumentCluster';
 import DocumentGateway from 'teleterm/ui/DocumentGateway';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
-import { DocumentConnectMyComputerSetup } from 'teleterm/ui/ConnectMyComputer';
+import {
+  ConnectMyComputerContextProvider,
+  DocumentConnectMyComputer,
+  ConnectMyComputerNavigationMenu,
+} from 'teleterm/ui/ConnectMyComputer';
+import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 
 import Document from 'teleterm/ui/Document';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -40,7 +46,9 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 import { WorkspaceContextProvider } from './workspaceContext';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 
-export function DocumentsRenderer() {
+export function DocumentsRenderer(props: {
+  topBarContainerRef: React.MutableRefObject<HTMLDivElement>;
+}) {
   const { workspacesService } = useAppContext();
 
   function renderDocuments(documentsService: DocumentsService) {
@@ -75,11 +83,21 @@ export function DocumentsRenderer() {
           key={workspace.rootClusterUri}
         >
           <WorkspaceContextProvider value={workspace}>
-            {workspace.documentsService.getDocuments().length ? (
-              renderDocuments(workspace.documentsService)
-            ) : (
-              <KeyboardShortcutsPanel />
-            )}
+            <ConnectMyComputerContextProvider
+              rootClusterUri={workspace.rootClusterUri}
+            >
+              {workspace.documentsService.getDocuments().length ? (
+                renderDocuments(workspace.documentsService)
+              ) : (
+                <KeyboardShortcutsPanel />
+              )}
+              {workspace.rootClusterUri ===
+                workspacesService.getRootClusterUri() &&
+                createPortal(
+                  <ConnectMyComputerNavigationMenu />,
+                  props.topBarContainerRef?.current
+                )}
+            </ConnectMyComputerContextProvider>
           </WorkspaceContextProvider>
         </DocumentsContainer>
       ))}
@@ -101,14 +119,18 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentGateway doc={doc} visible={visible} />;
       case 'doc.gateway_cli_client':
         return <DocumentGatewayCliClient doc={doc} visible={visible} />;
+      case 'doc.gateway_kube':
+        return <DocumentGatewayKube doc={doc} visible={visible} />;
       case 'doc.terminal_shell':
       case 'doc.terminal_tsh_node':
+        return <DocumentTerminal doc={doc} visible={visible} />;
+      // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
       case 'doc.terminal_tsh_kube':
         return <DocumentTerminal doc={doc} visible={visible} />;
       case 'doc.access_requests':
         return <DocumentAccessRequests doc={doc} visible={visible} />;
-      case 'doc.connect_my_computer_setup':
-        return <DocumentConnectMyComputerSetup doc={doc} visible={visible} />;
+      case 'doc.connect_my_computer':
+        return <DocumentConnectMyComputer doc={doc} visible={visible} />;
       default:
         return (
           <Document visible={visible}>

@@ -118,6 +118,7 @@ test('fetchAwsDatabases response', async () => {
         labels: [{ name: 'env', value: 'prod' }],
         accountId: 'account-id-1',
         resourceId: 'resource-id-1',
+        vpcId: 'vpc-123',
       },
       {
         engine: 'mysql',
@@ -127,6 +128,7 @@ test('fetchAwsDatabases response', async () => {
         status: undefined,
         accountId: undefined,
         resourceId: undefined,
+        vpcId: undefined,
       },
       {
         engine: 'mysql',
@@ -136,6 +138,7 @@ test('fetchAwsDatabases response', async () => {
         status: undefined,
         accountId: undefined,
         resourceId: undefined,
+        vpcId: undefined,
       },
     ],
     nextToken: 'next-token',
@@ -157,11 +160,11 @@ test('fetchAwsDatabases response', async () => {
 
 describe('fetchAwsDatabases() request body formatting', () => {
   test.each`
-    protocol             | expectedEngines               | expectedRdsType
-    ${'mysql'}           | ${['mysql', 'mariadb']}       | ${'instance'}
-    ${'postgres'}        | ${['postgres']}               | ${'instance'}
-    ${'aurora-mysql'}    | ${['aurora', 'aurora-mysql']} | ${'cluster'}
-    ${'aurora-postgres'} | ${['aurora-postgresql']}      | ${'cluster'}
+    protocol             | expectedEngines          | expectedRdsType
+    ${'mysql'}           | ${['mysql', 'mariadb']}  | ${'instance'}
+    ${'postgres'}        | ${['postgres']}          | ${'instance'}
+    ${'aurora-mysql'}    | ${['aurora-mysql']}      | ${'cluster'}
+    ${'aurora-postgres'} | ${['aurora-postgresql']} | ${'cluster'}
   `(
     'format protocol $protocol',
     async ({ protocol, expectedEngines, expectedRdsType }) => {
@@ -206,6 +209,7 @@ const mockAwsDbs = [
       account_id: 'account-id-1',
       rds: {
         resource_id: 'resource-id-1',
+        vpc_id: 'vpc-123',
       },
     },
   },

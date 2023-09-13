@@ -3,28 +3,17 @@ title: Database Access with Snowflake
 description: How to configure Teleport database access with Snowflake.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="10.0"
->
-  Database access for Snowflake is available starting from Teleport `10.0`.
-</Details>
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Snowflake" dbConfigure="Snowflake database with key pair authentication" dbName="Snowflake" !)
 
-This guide will help you to:
-
-- Install and configure Teleport.
-- Assign Teleport's public key to a Snowflake user.
-- Connect to Snowflake through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
   ![Teleport Database Access Snowflake Self-Hosted](../../../img/database-access/guides/snowflake_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
   ![Teleport Database Access Snowflake Cloud](../../../img/database-access/guides/snowflake_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -80,7 +69,6 @@ $ tctl auth sign --format=snowflake --out=server
 The command will create a `server.pub` file with Teleport's public key. Teleport will use the corresponding private key to
 generate a JWT (JSON Web Token) that will be used to authenticate to Snowflake.
 
-(!docs/pages/includes/database-access/rotation-note.mdx!)
 
 ## Step 4/5. Add the public key to your Snowflake user
 
@@ -157,3 +145,4 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

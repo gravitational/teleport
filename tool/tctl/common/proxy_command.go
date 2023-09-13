@@ -51,11 +51,13 @@ func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI auth.ClientI)
 		return trace.Wrap(err)
 	}
 
-	sc := &serverCollection{proxies, false}
+	sc := &serverCollection{proxies}
 
 	switch p.format {
 	case teleport.Text:
-		return sc.writeText(os.Stdout)
+		// proxies don't have labels.
+		verbose := false
+		return sc.writeText(os.Stdout, verbose)
 	case teleport.YAML:
 		return writeYAML(sc, os.Stdout)
 	case teleport.JSON:

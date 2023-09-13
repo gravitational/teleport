@@ -52,34 +52,32 @@ func TestString(t *testing.T) {
 	}
 }
 
-func TestParseClusterURI(t *testing.T) {
+func TestGetClusterURI(t *testing.T) {
 	tests := []struct {
-		in  string
+		in  uri.ResourceURI
 		out uri.ResourceURI
 	}{
 		{
-			"/clusters/cluster.sh",
+			uri.NewClusterURI("cluster.sh"),
 			uri.NewClusterURI("cluster.sh"),
 		},
 		{
-			"/clusters/cluster.sh/servers/server1",
+			uri.NewClusterURI("cluster.sh").AppendServer("server1"),
 			uri.NewClusterURI("cluster.sh"),
 		},
 		{
-			"/clusters/cluster.sh/leaves/leaf.sh",
+			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh"),
 			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh"),
 		},
 		{
-			"/clusters/cluster.sh/leaves/leaf.sh/dbs/postgres",
+			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh").AppendDB("postgres"),
 			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh"),
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.in, func(t *testing.T) {
-			out, err := uri.ParseClusterURI(tt.in)
-			require.NoError(t, err)
-			require.Equal(t, tt.out, out)
+		t.Run(tt.in.String(), func(t *testing.T) {
+			require.Equal(t, tt.out, tt.in.GetClusterURI())
 		})
 	}
 }
@@ -324,5 +322,85 @@ func TestIsKube(t *testing.T) {
 
 	for _, tt := range tests {
 		tt.check(t, tt.in.IsKube())
+	}
+}
+
+func TestIsRoot(t *testing.T) {
+	tests := []struct {
+		name   string
+		in     uri.ResourceURI
+		expect require.BoolAssertionFunc
+	}{
+		{
+			name:   "root cluster URI",
+			in:     uri.NewClusterURI("foo"),
+			expect: require.True,
+		},
+		{
+			name:   "leaf cluster URI",
+			in:     uri.NewClusterURI("foo").AppendLeafCluster("leaf"),
+			expect: require.False,
+		},
+		{
+			name:   "root cluster resource URI",
+			in:     uri.NewClusterURI("foo").AppendServer("bar"),
+			expect: require.True,
+		},
+		{
+			name:   "leaf cluster resource URI",
+			in:     uri.NewClusterURI("foo").AppendLeafCluster("leaf").AppendServer("bar"),
+			expect: require.False,
+		},
+		{
+			name:   "gateway URI",
+			in:     uri.NewGatewayURI("gateway"),
+			expect: require.False,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.expect(t, tt.in.IsRoot())
+		})
+	}
+}
+
+func TestIsLeaf(t *testing.T) {
+	tests := []struct {
+		name   string
+		in     uri.ResourceURI
+		expect require.BoolAssertionFunc
+	}{
+		{
+			name:   "root cluster URI",
+			in:     uri.NewClusterURI("foo"),
+			expect: require.False,
+		},
+		{
+			name:   "leaf cluster URI",
+			in:     uri.NewClusterURI("foo").AppendLeafCluster("leaf"),
+			expect: require.True,
+		},
+		{
+			name:   "root cluster resource URI",
+			in:     uri.NewClusterURI("foo").AppendServer("bar"),
+			expect: require.False,
+		},
+		{
+			name:   "leaf cluster resource URI",
+			in:     uri.NewClusterURI("foo").AppendLeafCluster("leaf").AppendServer("bar"),
+			expect: require.True,
+		},
+		{
+			name:   "gateway URI",
+			in:     uri.NewGatewayURI("gateway"),
+			expect: require.False,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.expect(t, tt.in.IsLeaf())
+		})
 	}
 }

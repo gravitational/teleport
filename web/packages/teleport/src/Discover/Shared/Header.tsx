@@ -35,7 +35,7 @@ export const HeaderWithBackBtn: React.FC<{ onPrev(): void }> = ({
 }) => (
   <Flex alignItems="center">
     <ButtonIcon size={1} title="Go Back" onClick={onPrev} ml={-2}>
-      <ArrowBack fontSize="24px" />
+      <ArrowBack size="large" />
     </ButtonIcon>
     <Text my={1} fontSize="18px" bold>
       {children}

@@ -57,6 +57,10 @@ const (
 	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = "integration_awsoidc"
+
+	// OriginDiscoveryKubernetes indicates that the resource was imported
+	// from kubernetes cluster by discovery service.
+	OriginDiscoveryKubernetes = "discovery-kubernetes"
 )
 
 // OriginValues lists all possible origin values.
@@ -67,4 +71,5 @@ var OriginValues = []string{
 	OriginCloud,
 	OriginKubernetes,
 	OriginOkta,
+	OriginDiscoveryKubernetes,
 }

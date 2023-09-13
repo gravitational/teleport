@@ -64,7 +64,7 @@ export class WindowsManager {
       width: windowState.width,
       height: windowState.height,
       backgroundColor: activeTheme.colors.levels.sunken,
-      minWidth: 400,
+      minWidth: 490,
       minHeight: 300,
       show: false,
       autoHideMenuBar: true,
@@ -186,6 +186,10 @@ export class WindowsManager {
       this.window.restore();
     }
     app.focus({ steal: true });
+  }
+
+  getWindow() {
+    return this.window;
   }
 
   private saveWindowState(window: BrowserWindow): void {

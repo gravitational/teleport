@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -250,11 +251,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	dbInfo, err := newDatabaseInfo(cf, tc, tlsca.RouteToDatabase{
-		ServiceName: cf.DatabaseService,
-		Username:    cf.DatabaseUser,
-		Database:    cf.DatabaseName,
-	})
+	dbInfo, err := newDatabaseInfo(cf, tc, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -273,8 +270,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 		"name": dbInfo.ServiceName,
 	}
 
-	// DynamoDB does not support a connect command, so don't try to print one.
-	if database.GetProtocol() != defaults.ProtocolDynamoDB {
+	if protocolSupportsInteractiveMode(database.GetProtocol()) {
 		templateData["connectCommand"] = utils.Color(utils.Yellow, formatDatabaseConnectCommand(cf.SiteName, dbInfo.RouteToDatabase))
 	}
 
@@ -285,6 +281,16 @@ func onDatabaseLogin(cf *CLIConf) error {
 		templateData["configCommand"] = utils.Color(utils.Yellow, formatDatabaseConfigCommand(cf.SiteName, dbInfo.RouteToDatabase))
 	}
 	return trace.Wrap(dbConnectTemplate.Execute(cf.Stdout(), templateData))
+}
+
+// protocolSupportsInteractiveMode checks if DB Protocol integration support
+// client interactive mode that is needed for the tsh db connect flow.
+func protocolSupportsInteractiveMode(dbProtocol string) bool {
+	switch dbProtocol {
+	case defaults.ProtocolDynamoDB, defaults.ProtocolClickHouseHTTP:
+		return false
+	}
+	return true
 }
 
 func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo) error {
@@ -311,7 +317,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 					Database:    dbInfo.Database,
 				},
 				AccessRequests: profile.ActiveRequests.AccessRequests,
-			}, nil /*applyOpts*/)
+			})
 			return trace.Wrap(err)
 		}); err != nil {
 			return trace.Wrap(err)
@@ -351,7 +357,11 @@ func onDatabaseLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
+	activeRoutes, err := profile.DatabasesForCluster(tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logout, _, err := filterActiveDatabases(cf.Context, tc, activeRoutes)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -360,32 +370,47 @@ func onDatabaseLogout(cf *CLIConf) error {
 		log.Info("Note: an identity file is in use (`-i ...`); will only update database config files.")
 	}
 
-	var logout []tlsca.RouteToDatabase
-	// If database name wasn't given on the command line, log out of all.
-	if cf.DatabaseService == "" {
-		logout = activeDatabases
-	} else {
-		for _, db := range activeDatabases {
-			if db.ServiceName == cf.DatabaseService {
-				logout = append(logout, db)
-			}
-		}
-		if len(logout) == 0 {
-			return trace.BadParameter("Not logged into database %q",
-				tc.DatabaseService)
-		}
-	}
 	for _, db := range logout {
 		if err := databaseLogout(tc, db, profile.IsVirtual); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	if len(logout) == 1 {
-		fmt.Println("Logged out of database", logout[0].ServiceName)
-	} else {
-		fmt.Println("Logged out of all databases")
+	msg, err := makeLogoutMessage(cf, logout, activeRoutes)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	fmt.Fprintln(cf.Stdout(), msg)
 	return nil
+}
+
+// makeLogoutMessage is a helper func that returns a logout message for the
+// result of "tsh db logout".
+func makeLogoutMessage(cf *CLIConf, logout, activeRoutes []tlsca.RouteToDatabase) (string, error) {
+	switch len(logout) {
+	case 0:
+		selectors := resourceSelectors{
+			kind:   "database",
+			name:   cf.DatabaseService,
+			labels: cf.Labels,
+			query:  cf.PredicateExpression,
+		}
+		if selectors.IsEmpty() {
+			return "", trace.NotFound("Not logged into any databases")
+		}
+		return "", trace.NotFound("Not logged into %v", selectors)
+	case 1:
+		return fmt.Sprintf("Logged out of database %v", logout[0].ServiceName), nil
+	case len(activeRoutes):
+		return "Logged out of all databases", nil
+	default:
+		names := make([]string, 0, len(logout))
+		for _, route := range logout {
+			names = append(names, route.ServiceName)
+		}
+		slices.Sort(names)
+		nameLines := strings.Join(names, "\n")
+		return fmt.Sprintf("Logged out of databases:\n%v", nameLines), nil
+	}
 }
 
 func databaseLogout(tc *client.TeleportClient, db tlsca.RouteToDatabase, virtual bool) error {
@@ -413,7 +438,7 @@ func onDatabaseEnv(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	database, err := pickActiveDatabase(cf)
+	database, err := pickActiveDatabase(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -471,7 +496,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	database, err := pickActiveDatabase(cf)
+	database, err := pickActiveDatabase(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -576,12 +601,11 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	}
 
 	opts, err := prepareLocalProxyOptions(&localProxyConfig{
-		cf:               cf,
-		tc:               tc,
-		profile:          profile,
-		dbInfo:           dbInfo,
-		autoReissueCerts: requires.tunnel,
-		tunnel:           requires.tunnel,
+		cf:      cf,
+		tc:      tc,
+		profile: profile,
+		dbInfo:  dbInfo,
+		tunnel:  requires.tunnel,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -623,12 +647,11 @@ type localProxyConfig struct {
 	tc      *client.TeleportClient
 	profile *client.ProfileStatus
 	dbInfo  *databaseInfo
-	// autoReissueCerts indicates whether a cert auto reissuer should be used
-	// for the local proxy to keep certificates valid.
+	// tunnel controls whether client certs will always be used to dial upstream
+	// by the local proxy, and whether db certs will be auto-reissued for the
+	// connection.
 	// - when `tsh db connect` needs to tunnel it will set this field.
 	// - when `tsh proxy db` is used with `--tunnel` cli flag it will set this field.
-	autoReissueCerts bool
-	// tunnel controls whether client certs will always be used to dial upstream.
 	tunnel bool
 }
 
@@ -658,26 +681,31 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 		alpnproxy.WithClusterCAsIfConnUpgrade(arg.cf.Context, arg.tc.RootClusterCACertPool),
 	}
 
-	if !arg.tunnel && arg.dbInfo.Protocol == defaults.ProtocolPostgres {
-		opts = append(opts, alpnproxy.WithCheckCertsNeeded())
+	if arg.tunnel {
+		cc := client.NewDBCertChecker(arg.tc, arg.dbInfo.RouteToDatabase, nil)
+		opts = append(opts, alpnproxy.WithMiddleware(cc))
+		// When using a tunnel, try to load certs, but if that fails
+		// just skip them and let the reissuer fetch new certs when the local
+		// proxy starts instead.
+		cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
+		if err == nil {
+			opts = append(opts, alpnproxy.WithClientCerts(cert))
+		}
+		return opts, nil
 	}
 
-	// load certs if local proxy needs to be able to tunnel.
-	// certs are needed for non-tunnel postgres cancel requests.
-	if arg.tunnel || arg.dbInfo.Protocol == defaults.ProtocolPostgres {
-		certs, err := getDBLocalProxyCerts(arg)
+	// no tunnel, check for protocol-specific cases
+	switch arg.dbInfo.Protocol {
+	case defaults.ProtocolPostgres:
+		// certs are needed for non-tunnel postgres cancel requests.
+		cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		opts = append(opts, alpnproxy.WithClientCerts(certs...))
-	}
-
-	if arg.autoReissueCerts {
-		opts = append(opts, alpnproxy.WithMiddleware(client.NewDBCertChecker(arg.tc, arg.dbInfo.RouteToDatabase, nil)))
-	}
-
-	// To set correct MySQL server version DB proxy needs additional protocol.
-	if !arg.tunnel && arg.dbInfo.Protocol == defaults.ProtocolMySQL {
+		opts = append(opts, alpnproxy.WithClientCerts(cert))
+		opts = append(opts, alpnproxy.WithCheckCertsNeeded())
+	case defaults.ProtocolMySQL:
+		// To set correct MySQL server version DB proxy needs additional protocol.
 		db, err := arg.dbInfo.GetDatabase(arg.cf, arg.tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -685,43 +713,6 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 		opts = append(opts, alpnproxy.WithMySQLVersionProto(db))
 	}
 	return opts, nil
-}
-
-// getDBLocalProxyCerts gets cert/key file specified by cli config, or
-// if both are not specified then it tries to load certs from the profile.
-// This is a helper func for preparing local proxy options.
-func getDBLocalProxyCerts(arg *localProxyConfig) ([]tls.Certificate, error) {
-	if arg.cf.LocalProxyCertFile != "" || arg.cf.LocalProxyKeyFile != "" {
-		return getUserSpecifiedLocalProxyCerts(arg)
-	}
-	// if neither --cert-file nor --key-file are specified, load db cert from client store.
-	cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
-	if err != nil {
-		if arg.autoReissueCerts {
-			// If using a reissuer, just return nil certs and let the reissuer
-			// fetch new certs when the local proxy starts instead.
-			// We don't do this for user specified certs (above), because it is
-			// surprising UX to get a login prompt when a user passes
-			// --cert-file/--key-file, and we don't know how the user wants to
-			// proceed.
-			return nil, nil
-		}
-		return nil, trace.Wrap(err)
-	}
-	return []tls.Certificate{cert}, nil
-}
-
-// getUserSpecifiedLocalProxyCerts loads certs from files specified by cli arguments.
-// This is a helper func for preparing local proxy options.
-func getUserSpecifiedLocalProxyCerts(arg *localProxyConfig) ([]tls.Certificate, error) {
-	if arg.cf.LocalProxyCertFile == "" || arg.cf.LocalProxyKeyFile == "" {
-		return nil, trace.BadParameter("both --cert-file and --key-file are required")
-	}
-	cert, err := keys.LoadX509KeyPair(arg.cf.LocalProxyCertFile, arg.cf.LocalProxyKeyFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []tls.Certificate{cert}, nil
 }
 
 // onDatabaseConnect implements "tsh db connect" command.
@@ -738,7 +729,9 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if dbInfo.Protocol == defaults.ProtocolDynamoDB {
+
+	switch dbInfo.Protocol {
+	case defaults.ProtocolDynamoDB, defaults.ProtocolClickHouseHTTP:
 		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, dbInfo.RouteToDatabase))
 	}
 
@@ -790,18 +783,121 @@ func onDatabaseConnect(cf *CLIConf) error {
 }
 
 // getDatabaseInfo fetches information about the database from tsh profile if DB
-// is active in profile. Otherwise, the ListDatabases endpoint is called.
+// is active in profile and no labels or predicate query are given.
+// Otherwise, the ListDatabases endpoint is called.
 func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient) (*databaseInfo, error) {
-	if route, err := pickActiveDatabase(cf); err == nil {
-		return newDatabaseInfo(cf, tc, *route)
-	} else if err != nil && !trace.IsNotFound(err) {
+	haveSelectors := tc.DatabaseService != "" || len(tc.Labels) > 0 || tc.PredicateExpression != ""
+	if !haveSelectors {
+		// if selectors are given, we might incur an extra ListDatabases API
+		// call here to match against an active database.
+		// So try to pick an active database only when we don't have
+		// selectors.
+		if route, err := pickActiveDatabase(cf, tc); err == nil {
+			return newDatabaseInfo(cf, tc, route)
+		} else if err != nil && !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return newDatabaseInfo(cf, tc, nil)
+}
+
+// newDatabaseInfo makes a new databaseInfo from the given route to the db.
+// It checks the route and sets defaults as needed for protocol, db user, or db
+// name. If the route is not given or the remote database is needed for setting
+// a default, the database is retrieved by calling ListDatabases API and cached.
+func newDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, route *tlsca.RouteToDatabase) (*databaseInfo, error) {
+	dbInfo := &databaseInfo{}
+	if route != nil {
+		dbInfo.RouteToDatabase = *route
+		// the only way we're going to have all this info populated is from an
+		// active cert.
+		if dbInfo.ServiceName != "" && dbInfo.Protocol != "" &&
+			dbInfo.Username != "" && dbInfo.Database != "" {
+			return dbInfo, nil
+		}
+	}
+	db, err := dbInfo.GetDatabase(cf, tc)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newDatabaseInfo(cf, tc, tlsca.RouteToDatabase{
-		ServiceName: cf.DatabaseService,
-		Username:    cf.DatabaseUser,
-		Database:    cf.DatabaseName,
+	// now ensure the route name and protocol matches the db we fetched.
+	dbInfo.ServiceName = db.GetName()
+	dbInfo.Protocol = db.GetProtocol()
+	return dbInfo, dbInfo.checkAndSetPrincipalDefaults(cf, tc, db)
+}
+
+// checkAndSetPrincipalDefaults checks the db route (schema) name and username,
+// and sets them to defaults if necessary.
+func (d *databaseInfo) checkAndSetPrincipalDefaults(cf *CLIConf, tc *client.TeleportClient, db types.Database) error {
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// if either user or db name isn't given as a cli flag, try to populate
+	// user/db name from an active db cert.
+	if cf.DatabaseUser == "" || cf.DatabaseName == "" {
+		routes, err := profile.DatabasesForCluster(tc.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if route, ok := findActiveDatabase(d.ServiceName, routes); ok {
+			d.Username = route.Username
+			d.Database = route.Database
+		}
+	}
+	if cf.DatabaseUser != "" {
+		d.Username = cf.DatabaseUser
+	}
+	if cf.DatabaseName != "" {
+		d.Database = cf.DatabaseName
+	}
+	// If database has admin user defined, we're most likely using automatic
+	// user provisioning so default to Teleport username unless database
+	// username was provided explicitly.
+	if d.Username == "" && db.GetAdminUser() != "" {
+		log.Debugf("Defaulting to Teleport username %q as database username.", tc.Username)
+		d.Username = tc.Username
+	}
+	// recheck to see if we can avoid fetching the roleset to set defaults.
+	needDBUser := d.Username == "" && role.RequireDatabaseUserMatcher(d.Protocol)
+	needDBName := d.Database == "" && role.RequireDatabaseNameMatcher(d.Protocol)
+	if !needDBUser && !needDBName {
+		return nil
+	}
+
+	var proxy *client.ProxyClient
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		proxy, err = tc.ConnectToProxy(cf.Context)
+		return trace.Wrap(err)
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxy.Close()
+
+	checker, err := accessCheckerForRemoteCluster(cf.Context, profile, proxy, tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if needDBUser {
+		dbUser, err := getDefaultDBUser(db, checker)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.Debugf("Defaulting to the allowed database user %q\n", dbUser)
+		d.Username = dbUser
+	}
+	if needDBName {
+		dbName, err := getDefaultDBName(db, checker)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.Debugf("Defaulting to the allowed database name %q\n", dbName)
+		d.Database = dbName
+	}
+	return nil
 }
 
 // databaseInfo wraps a RouteToDatabase and the corresponding database.
@@ -818,103 +914,150 @@ type databaseInfo struct {
 // GetDatabase returns the cached database or fetches it using the db route and
 // caches the result.
 func (d *databaseInfo) GetDatabase(cf *CLIConf, tc *client.TeleportClient) (types.Database, error) {
+	if d.ServiceName == "" && cf.DatabaseService == "" &&
+		len(tc.Labels) == 0 && tc.PredicateExpression == "" {
+		return nil, trace.BadParameter("specify a database service by name, --labels, or --query")
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.database != nil {
 		return d.database, nil
 	}
-	var databases []types.Database
 	// holding mutex across the api call to avoid multiple redundant api calls.
-	err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		var err error
-		databases, err = tc.ListDatabases(cf.Context, &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			ResourceType:        types.KindDatabaseServer,
-			PredicateExpression: fmt.Sprintf(`name == "%s"`, d.ServiceName),
-		})
-		return trace.Wrap(err)
-	})
+	var databases types.Databases
+	var err error
+	name := d.ServiceName
+	if name != "" {
+		databases, err = listDatabasesByName(cf.Context, tc, name)
+	} else {
+		name = cf.DatabaseService
+		// search by prefix if the db name comes from cli flag instead of cert.
+		databases, err = listDatabasesByPrefix(cf.Context, tc, name)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(databases) == 0 {
-		return nil, trace.NotFound(
-			"database %q not found, use '%v' to see registered databases",
-			d.ServiceName, formatDatabaseListCommand(cf.SiteName))
+	db, err := chooseOneDatabase(cf, name, databases)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	d.database = databases[0]
+
+	d.database = db
 	return d.database, nil
 }
 
-// newDatabaseInfo makes a new databaseInfo from the given route to the db.
-// It checks the route and sets defaults as needed for protocol, db user, or db
-// name. If the remote database is needed for setting a default, it is retrieved
-// by calling ListDatabases API and cached.
-func newDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, route tlsca.RouteToDatabase) (*databaseInfo, error) {
-	dbInfo := databaseInfo{RouteToDatabase: route}
-	if dbInfo.ServiceName == "" {
-		return nil, trace.BadParameter("missing database service name")
+// chooseOneDatabase is a helper func for GetDatabase that returns either the
+// only database in a list of databases or returns a database that matches the
+// nameOrPrefix exactly, otherwise an error.
+func chooseOneDatabase(cf *CLIConf, nameOrPrefix string, databases types.Databases) (types.Database, error) {
+	if len(databases) == 1 {
+		return databases[0], nil
 	}
-	if dbInfo.Protocol != "" && dbInfo.Username != "" && dbInfo.Database != "" {
-		return &dbInfo, nil
+	// Check if nameOrPrefix matches any database exactly and, if so, choose
+	// that database over any others.
+	for _, db := range databases {
+		if db.GetName() == nameOrPrefix {
+			return db, nil
+		}
 	}
-	db, err := dbInfo.GetDatabase(cf, tc)
+
+	// error - we need exactly one database.
+	selectors := resourceSelectors{
+		kind:   "database",
+		name:   nameOrPrefix,
+		labels: cf.Labels,
+		query:  cf.PredicateExpression,
+	}
+	if len(databases) == 0 {
+		return nil, trace.NotFound(
+			"%v not found, use '%v' to see registered databases", selectors,
+			formatDatabaseListCommand(cf.SiteName))
+	}
+	errMsg := formatAmbiguousDB(cf, selectors, databases)
+	return nil, trace.BadParameter(errMsg)
+}
+
+// listActiveDatabases lists databases that match active (logged in) databases.
+func listActiveDatabases(ctx context.Context, tc *client.TeleportClient, routes []tlsca.RouteToDatabase) (types.Databases, error) {
+	names := make([]string, 0, len(routes))
+	for _, r := range routes {
+		names = append(names, fmt.Sprintf("(name == %q)", r.ServiceName))
+	}
+	predicate := strings.Join(names, "||")
+	return listDatabasesWithPredicate(ctx, tc, predicate)
+}
+
+// listDatabasesByName lists database that match a given name.
+func listDatabasesByName(ctx context.Context, tc *client.TeleportClient, name string) (types.Databases, error) {
+	predicate := fmt.Sprintf("name == %q", name)
+	return listDatabasesWithPredicate(ctx, tc, predicate)
+}
+
+// makePrefixPredicate returns a predicate expression that matches resources
+// by prefix name.
+func makePrefixPredicate(prefix string) string {
+	if prefix == "" {
+		return ""
+	}
+	return fmt.Sprintf(`hasPrefix(name, %q)`, prefix)
+}
+
+// listDatabasesByPrefix lists databases that match a given name prefix.
+func listDatabasesByPrefix(ctx context.Context, tc *client.TeleportClient, prefix string) (types.Databases, error) {
+	predicate := makePrefixPredicate(prefix)
+	databases, err := listDatabasesWithPredicate(ctx, tc, predicate)
+	if err == nil || !utils.IsPredicateError(err) || predicate == "" {
+		return databases, trace.Wrap(err)
+	}
+	// predicate error from using hasPrefix expression.
+	// fallback to listing without the hasPrefix predicate and filtering
+	// on client side for backwards compatibility.
+	databases, err = listDatabasesWithPredicate(ctx, tc, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	dbInfo.Protocol = db.GetProtocol()
-	// If database has admin user defined, we're most likely using automatic
-	// user provisioning so default to Teleport username unless database
-	// username was provided explicitly.
-	if dbInfo.Username == "" && db.GetAdminUser() != "" {
-		log.Debugf("Defaulting to Teleport username %q as database username.", tc.Username)
-		dbInfo.Username = tc.Username
+	var out types.Databases
+	for _, db := range databases {
+		if strings.HasPrefix(db.GetName(), prefix) {
+			out = append(out, db)
+		}
 	}
-	// recheck to see if we can avoid fetching the roleset to set defaults.
-	needDBUser := dbInfo.Username == "" && role.RequireDatabaseUserMatcher(dbInfo.Protocol)
-	needDBName := dbInfo.Database == "" && role.RequireDatabaseNameMatcher(dbInfo.Protocol)
-	if !needDBUser && !needDBName {
-		return &dbInfo, nil
-	}
+	return out, nil
+}
 
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var proxy *client.ProxyClient
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		proxy, err = tc.ConnectToProxy(cf.Context)
+// listDatabasesWithPredicate is a helper func for listing databases using
+// a given additional predicate expression. If the teleport client already
+// has a predicate expression, the predicates are combined with a logical AND.
+func listDatabasesWithPredicate(ctx context.Context, tc *client.TeleportClient, predicate string) (types.Databases, error) {
+	var databases []types.Database
+	err := client.RetryWithRelogin(ctx, tc, func() error {
+		var err error
+		databases, err = tc.ListDatabases(ctx, &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			ResourceType:        types.KindDatabaseServer,
+			PredicateExpression: combinePredicateExpressions(predicate, tc.PredicateExpression),
+			Labels:              tc.Labels,
+		})
 		return trace.Wrap(err)
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxy.Close()
+	return databases, trace.Wrap(err)
+}
 
-	checker, err := accessCheckerForRemoteCluster(cf.Context, profile, proxy, tc.SiteName)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// combinePredicateExpressions combines two predicate expressions into one
+// expression as a conjunction (logical AND) of the expressions.
+func combinePredicateExpressions(a, b string) string {
+	a = strings.TrimSpace(a)
+	b = strings.TrimSpace(b)
+	switch {
+	case a == "":
+		return b
+	case b == "":
+		return a
+	case a == b:
+		return a
+	default:
+		return fmt.Sprintf("(%v) && (%v)", a, b)
 	}
-
-	if needDBUser {
-		dbUser, err := getDefaultDBUser(db, checker)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		log.Debugf("Defaulting to the allowed database user %q\n", dbUser)
-		dbInfo.Username = dbUser
-	}
-	if needDBName {
-		dbName, err := getDefaultDBName(db, checker)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		log.Debugf("Defaulting to the allowed database name %q\n", dbName)
-		dbInfo.Database = dbName
-	}
-
-	return &dbInfo, nil
 }
 
 // getDefaultDBUser enumerates the allowed database users for a given database
@@ -984,7 +1127,7 @@ func getDefaultDBName(db types.Database, checker services.AccessChecker) (string
 }
 
 func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route tlsca.RouteToDatabase, profile *client.ProfileStatus, requires *dbLocalProxyRequirement) (bool, error) {
-	if (requires.localProxy && requires.tunnel) || isLocalProxyTunnelRequested(cf) {
+	if (requires.localProxy && requires.tunnel) || cf.LocalProxyTunnel {
 		switch route.Protocol {
 		case defaults.ProtocolOracle:
 			// Oracle Protocol needs to generate a local configuration files.
@@ -1105,47 +1248,129 @@ func isMFADatabaseAccessRequired(ctx context.Context, tc *client.TeleportClient,
 //
 // If logged into multiple databases, returns an error unless one specified
 // explicitly via --db flag.
-func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
-	profile, err := cf.ProfileStatus()
+func pickActiveDatabase(cf *CLIConf, tc *client.TeleportClient) (*tlsca.RouteToDatabase, error) {
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	activeDatabases, err := profile.DatabasesForCluster(cf.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(activeDatabases) == 0 {
+	if len(routes) == 0 {
 		return nil, trace.NotFound("please login using 'tsh db login' first")
 	}
 
-	name := cf.DatabaseService
-	if name == "" {
-		if len(activeDatabases) > 1 {
-			var services []string
-			for _, database := range activeDatabases {
-				services = append(services, database.ServiceName)
-			}
-			return nil, trace.BadParameter("Multiple databases are available (%v), please specify one using CLI argument",
-				strings.Join(services, ", "))
-		}
-		name = activeDatabases[0].ServiceName
+	routes, databases, err := filterActiveDatabases(cf.Context, tc, routes)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	for _, db := range activeDatabases {
-		if db.ServiceName == name {
-			// If database user or name were provided on the CLI,
-			// override the default ones.
-			if cf.DatabaseUser != "" {
-				db.Username = cf.DatabaseUser
+
+	if len(routes) != 1 {
+		// error - we need exactly one route.
+		selectors := resourceSelectors{
+			kind:   "database",
+			name:   cf.DatabaseService,
+			labels: cf.Labels,
+			query:  cf.PredicateExpression,
+		}
+		if len(routes) == 0 {
+			return nil, trace.NotFound("not logged into %v", selectors)
+		}
+		if len(databases) == 0 {
+			// if not already given, try to fetch them so we can print full
+			// the full `tsh db ls -v` table of ambiguously matching active DBs.
+			databases, err = listActiveDatabases(cf.Context, tc, routes)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
-			if cf.DatabaseName != "" {
-				db.Database = cf.DatabaseName
-			}
-			return &db, nil
+		}
+		errMsg := formatAmbiguousDB(cf, selectors, databases)
+		return nil, trace.BadParameter(errMsg)
+	}
+
+	route := &routes[0]
+	// If database user or name were provided on the CLI,
+	// override the default ones.
+	if cf.DatabaseUser != "" {
+		route.Username = cf.DatabaseUser
+	}
+	if cf.DatabaseName != "" {
+		route.Database = cf.DatabaseName
+	}
+	return route, nil
+}
+
+// filterActiveDatabases takes a list of active database routes and returns a
+// filtered list and, possibly, their corresponding types.Databases.
+// Callers should therefore not assume that the types.Databases are populated.
+// Filtering is done by matching on database name prefix, label, and query
+// predicate selectors from the Teleport client.
+// If an active database name matches exactly, all other active databases are
+// filtered out - this is to avoid requiring additional selectors
+// when a user gives an exact database name.
+func filterActiveDatabases(ctx context.Context, tc *client.TeleportClient, activeRoutes []tlsca.RouteToDatabase) ([]tlsca.RouteToDatabase, types.Databases, error) {
+	if len(activeRoutes) == 0 {
+		// nothing to filter
+		return nil, nil, nil
+	}
+	prefix := tc.DatabaseService
+	if len(tc.Labels) == 0 && tc.PredicateExpression == "" {
+		// when we have a name but don't have label or predicate query, look for
+		// a route that matches the name exactly to maybe avoid calling
+		// ListDatabases API below.
+		if route, ok := findActiveDatabase(prefix, activeRoutes); ok {
+			return []tlsca.RouteToDatabase{route}, nil, nil
 		}
 	}
-	return nil, trace.NotFound("Not logged into database %q", name)
+
+	// make a ListDatabases API call filtered by prefix name
+	databases, err := listDatabasesByPrefix(ctx, tc, prefix)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	databasesByName := databases.ToMap()
+
+	// when a database matches the prefix fully, look for a
+	// corresponding active route.
+	if db, ok := databasesByName[prefix]; ok {
+		for _, route := range activeRoutes {
+			if route.ServiceName == db.GetName() {
+				return []tlsca.RouteToDatabase{route}, types.Databases{db}, nil
+			}
+		}
+		// no active route, but return the fetched databases if the caller is
+		// interested.
+		return nil, databases, nil
+	}
+
+	// otherwise, just filter routes to those that match the names of the
+	// databases.
+	var selectedRoutes []tlsca.RouteToDatabase
+	var activeDBs types.Databases
+	for _, route := range activeRoutes {
+		if db, ok := databasesByName[route.ServiceName]; ok {
+			selectedRoutes = append(selectedRoutes, route)
+			activeDBs = append(activeDBs, db)
+		}
+	}
+	return selectedRoutes, activeDBs, nil
+}
+
+// findActiveDatabase returns a database route and a bool indicating whether
+// the route was found.
+func findActiveDatabase(name string, activeRoutes []tlsca.RouteToDatabase) (tlsca.RouteToDatabase, bool) {
+	if name == "" && len(activeRoutes) == 1 {
+		return activeRoutes[0], true
+	}
+	for _, r := range activeRoutes {
+		if r.ServiceName == name {
+			return r, true
+		}
+	}
+	return tlsca.RouteToDatabase{}, false
 }
 
 func formatDatabaseListCommand(clusterFlag string) string {
@@ -1242,7 +1467,7 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route tlsca.RouteToDa
 	// port, a local proxy must be used so the TLS routing request can be
 	// upgraded, regardless whether Proxy is in single or separate port mode.
 	if tc.TLSRoutingConnUpgradeRequired && tc.DoesDatabaseUseWebProxyHostPort(route) {
-		out.addLocalProxy("Teleport Proxy is behind a load balancer")
+		out.addLocalProxy("Teleport Proxy is behind a layer 7 load balancer or reverse proxy")
 	}
 
 	switch route.Protocol {
@@ -1250,7 +1475,8 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route tlsca.RouteToDa
 		defaults.ProtocolDynamoDB,
 		defaults.ProtocolSQLServer,
 		defaults.ProtocolCassandra,
-		defaults.ProtocolOracle:
+		defaults.ProtocolOracle,
+		defaults.ProtocolClickHouse:
 
 		// Some protocols only work in the local tunnel mode.
 		out.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
@@ -1346,7 +1572,9 @@ func getDbCmdAlternatives(clusterFlag string, route tlsca.RouteToDatabase) []str
 	var alts []string
 	switch route.Protocol {
 	case defaults.ProtocolDynamoDB:
-		// DynamoDB only works with a local proxy tunnel and there is no "shell-like" cli, so `tsh db connect` doesn't make sense.
+	// DynamoDB only works with a local proxy tunnel and there is no "shell-like" cli, so `tsh db connect` doesn't make sense.
+	case defaults.ProtocolClickHouseHTTP:
+	// ClickHouse HTTP protocol don't support interactive mode
 	default:
 		// prefer displaying the connect command as the first suggested command alternative.
 		alts = append(alts, formatDatabaseConnectCommand(clusterFlag, route))
@@ -1354,6 +1582,77 @@ func getDbCmdAlternatives(clusterFlag string, route tlsca.RouteToDatabase) []str
 	// all db protocols support this command.
 	alts = append(alts, formatDatabaseProxyCommand(clusterFlag, route))
 	return alts
+}
+
+// formatAmbiguousDB is a helper func that formats an ambiguous database error
+// message.
+func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs types.Databases) string {
+	var activeDBs []tlsca.RouteToDatabase
+	if profile, err := cf.ProfileStatus(); err == nil {
+		if dbs, err := profile.DatabasesForCluster(cf.SiteName); err == nil {
+			activeDBs = dbs
+		}
+	}
+	// Pass a nil access checker to avoid making a proxy roundtrip.
+	// Access info isn't relevant to an ambiguity error anyway.
+	var checker services.AccessChecker
+	var sb strings.Builder
+	verbose := true
+	showDatabasesAsText(&sb, cf.SiteName, matchedDBs, activeDBs, checker, verbose)
+
+	listCommand := formatDatabaseListCommand(cf.SiteName)
+	fullNameExample := matchedDBs[0].GetName()
+	return formatAmbiguityErrTemplate(cf, selectors, listCommand, sb.String(), fullNameExample)
+}
+
+// resourceSelectors is a helper struct for gathering up the selectors for a
+// resource, as an aggregate of name, labels, and predicate query.
+type resourceSelectors struct {
+	kind,
+	name,
+	labels,
+	query string
+}
+
+// String returns the resource selectors as a formatted string.
+// Example:
+// command: `tsh db connect foo --labels k1=v1 --query 'labels["k2"]=="v2"'`
+// output: database "foo" with labels "k1=v1" with query (labels["k2"]=="v2")
+func (r resourceSelectors) String() string {
+	out := r.kind
+	if r.name != "" {
+		out = fmt.Sprintf("%s %q", out, r.name)
+	}
+	if len(r.labels) > 0 {
+		out = fmt.Sprintf("%s with labels %q", out, r.labels)
+	}
+	if len(r.query) > 0 {
+		out = fmt.Sprintf("%s with query (%s)", out, r.query)
+	}
+	return strings.TrimSpace(out)
+}
+
+// IsEmpty returns whether the selectors (except kind) are empty.
+func (r resourceSelectors) IsEmpty() bool {
+	return r.name == "" && r.labels == "" && r.query == ""
+}
+
+// formatAmbiguityErrTemplate is a helper func that formats an ambiguous
+// resource error message.
+func formatAmbiguityErrTemplate(cf *CLIConf, selectors resourceSelectors, listCommand, matchTable, fullNameExample string) string {
+	data := map[string]any{
+		"command":     cf.CommandWithBinary(),
+		"listCommand": strings.TrimSpace(listCommand),
+		"kind":        strings.TrimSpace(selectors.kind),
+		"matchTable":  strings.TrimSpace(matchTable),
+		"example":     strings.TrimSpace(fullNameExample),
+	}
+	if !selectors.IsEmpty() {
+		data["selectors"] = strings.TrimSpace(selectors.String())
+	}
+	var sb strings.Builder
+	_ = ambiguityErrTemplate.Execute(&sb, data)
+	return sb.String()
 }
 
 const (
@@ -1383,9 +1682,7 @@ Please use one of the following commands to connect to the database:
 	{{- range .alternatives}}
     {{.}}{{end -}}
 {{- end}}`))
-)
 
-var (
 	// dbConnectTemplate is the message printed after a successful "tsh db login" on how to connect.
 	dbConnectTemplate = template.Must(template.New("").Parse(`Connection information for database "{{ .name }}" has been saved.
 
@@ -1410,5 +1707,20 @@ You can start a local proxy for database GUI clients:
   {{ .proxyCommand }}
 
 {{end -}}
+`))
+
+	// ambiguityErrTemplate is the error message printed when a resource is
+	// specified ambiguously by name prefix and/or labels.
+	ambiguityErrTemplate = template.Must(template.New("").Parse(`{{if .selectors -}}
+{{ .selectors }} matches multiple {{ .kind }}s:
+{{- else -}}
+multiple {{ .kind }}s are available:
+{{- end }}
+
+{{ .matchTable }}
+
+Hint: use '{{ .listCommand }} -v' or '{{ .listCommand }} --format=[json|yaml]' to list all {{ .kind }}s with full details.
+Hint: try selecting the {{ .kind }} with a more specific name (ex: {{ .command }} {{ .example }}).
+Hint: try selecting the {{ .kind }} with additional --labels or --query predicate.
 `))
 )

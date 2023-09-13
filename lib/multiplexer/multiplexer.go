@@ -39,7 +39,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -52,6 +51,22 @@ var (
 	// ErrBadIP is returned when there's a problem with client source or destination IP address
 	ErrBadIP = trace.BadParameter(
 		"client source and destination addresses should be valid same TCP version non-nil IP addresses")
+)
+
+// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
+// Possible values:
+// - 'on': one PROXY header is accepted and required per incoming connection.
+// - 'off': no PROXY headers are allows, otherwise connection is rejected.
+// If unspecified - one PROXY header is allowed, but not required. Connection is marked with source port set to 0
+// and IP pinning will not be allowed. It is supposed to be used only as default mode for test setups.
+// In production you should always explicitly set the mode based on your network setup - if you have L4 load balancer
+// with enabled PROXY protocol in front of Teleport you should set it to 'on', if you don't have it, set it to 'off'
+type PROXYProtocolMode string
+
+const (
+	PROXYProtocolOn          PROXYProtocolMode = "on"
+	PROXYProtocolOff         PROXYProtocolMode = "off"
+	PROXYProtocolUnspecified PROXYProtocolMode = ""
 )
 
 // CertAuthorityGetter allows to get cluster's host CA for verification of signed PROXY headers.
@@ -70,14 +85,19 @@ type Config struct {
 	// Clock is a clock to override in tests, set to real time clock
 	// by default
 	Clock clockwork.Clock
-	// EnableExternalProxyProtocol enables proxy protocol from external (unsigned) sources
-	EnableExternalProxyProtocol bool
+	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
+	PROXYProtocolMode PROXYProtocolMode
 	// ID is an identifier used for debugging purposes
 	ID string
 	// CertAuthorityGetter is used to get CA to verify singed PROXY headers sent internally by teleport
 	CertAuthorityGetter CertAuthorityGetter
 	// LocalClusterName set the local cluster for the multiplexer, it's used in PROXY headers verification.
 	LocalClusterName string
+
+	// IgnoreSelfConnections is used for tests, it makes multiplexer ignore the fact that it's self
+	// connection (coming from same IP as the listening address) when deciding if it should drop connection with
+	// missing required PROXY header. This is needed since all connections in tests are self connections.
+	IgnoreSelfConnections bool
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
@@ -368,15 +388,16 @@ func signPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterName str
 var errorSubstrings = []string{
 	failedToPeekConnectionError,
 	failedToDetectConnectionProtocolError,
-	proxyProtocolDisabledError,
 	externalProxyProtocolDisabledError,
-	duplicateProxyLineError,
 	duplicateSignedProxyLineError,
 	duplicateUnsignedProxyLineError,
 	invalidProxyLineError,
 	invalidProxyV2LineError,
 	invalidProxySignatureError,
 	unknownProtocolError,
+	missingProxyLineError,
+	unexpectedPROXYLineError,
+	unsignedPROXYLineAfterSignedError,
 }
 
 const (
@@ -386,15 +407,21 @@ const (
 
 	failedToPeekConnectionError           = "failed to peek connection"
 	failedToDetectConnectionProtocolError = "failed to detect connection protocol"
-	proxyProtocolDisabledError            = "proxy protocol support is disabled"
-	externalProxyProtocolDisabledError    = "external proxy protocol support is disabled"
-	duplicateProxyLineError               = "duplicate proxy line"
-	duplicateSignedProxyLineError         = "duplicate signed proxy line"
-	duplicateUnsignedProxyLineError       = "duplicate unsigned proxy line"
-	invalidProxyLineError                 = "invalid proxy line"
-	invalidProxyV2LineError               = "invalid proxy v2 line"
+	externalProxyProtocolDisabledError    = "external PROXY protocol support is disabled"
+	duplicateSignedProxyLineError         = "duplicate signed PROXY line"
+	duplicateUnsignedProxyLineError       = "duplicate unsigned PROXY line"
+	invalidProxyLineError                 = "invalid PROXY line"
+	invalidProxyV2LineError               = "invalid PROXY v2 line"
 	invalidProxySignatureError            = "could not verify PROXY signature for connection"
-	unknownProtocolError                  = "unknown protocol"
+	missingProxyLineError                 = `connection (%s -> %s) rejected because PROXY protocol is enabled but required
+PROXY protocol line wasn't received. 
+Make sure you have correct configuration, only enable "proxy_protocol: on" in config if Teleport is running behind L4 
+load balancer with enabled PROXY protocol.`
+	unknownProtocolError     = "unknown protocol"
+	unexpectedPROXYLineError = `received unexpected PROXY protocol line. Connection will be allowed, but this is usually a result of misconfiguration - 
+if Teleport is running behind L4 load balancer with enabled PROXY protocol you should explicitly set config field "proxy_protocol" to "on".
+See documentation for more details`
+	unsignedPROXYLineAfterSignedError = "received unsigned PROXY line after already receiving signed PROXY line"
 )
 
 // detect finds out a type of the connection and returns wrapper that support PROXY protocol
@@ -407,6 +434,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 	// We allow only one unsigned PROXY header from external sources, if it's enabled, and one
 	// signed header from our own proxies, which take precedence.
 	var proxyLine *ProxyLine
+	unsignedPROXYLineReceived := false
 	for i := 0; i < maxDetectionPasses; i++ {
 		proto, err := detectProto(reader)
 		if err != nil {
@@ -415,43 +443,61 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 		switch proto {
 		case ProtoProxy:
-			if !m.EnableExternalProxyProtocol {
-				return nil, trace.BadParameter(proxyProtocolDisabledError)
-			}
-			// We allow only one unsigned proxy line
-			if proxyLine != nil {
-				return nil, trace.BadParameter(duplicateProxyLineError)
-			}
-			proxyLine, err = ReadProxyLine(reader)
+			newPROXYLine, err := ReadProxyLine(reader)
 			if err != nil {
 				return nil, trace.Wrap(err, invalidProxyLineError)
 			}
+
+			if m.PROXYProtocolMode == PROXYProtocolOff {
+				return nil, trace.BadParameter(externalProxyProtocolDisabledError)
+			}
+
+			if unsignedPROXYLineReceived {
+				// We allow only one unsigned PROXY line
+				return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
+			}
+			unsignedPROXYLineReceived = true
+
+			if m.PROXYProtocolMode == PROXYProtocolUnspecified {
+				m.logLimiter.Log(m.WithFields(log.Fields{
+					"direct_src_addr": conn.RemoteAddr(),
+					"direct_dst_addr": conn.LocalAddr(),
+					"proxy_src_addr:": newPROXYLine.Source.String(),
+					"proxy_dst_addr:": newPROXYLine.Destination.String(),
+				}), log.ErrorLevel, unexpectedPROXYLineError)
+				newPROXYLine.Source.Port = 0 // Mark connection, so if later IP pinning check is used on it we can reject it.
+			}
+
+			if proxyLine != nil && proxyLine.IsVerified {
+				// Unsigned PROXY line after signed one should not happen
+				return nil, trace.BadParameter(unsignedPROXYLineAfterSignedError)
+			}
+
+			proxyLine = newPROXYLine
+
 			// repeat the cycle to detect the protocol
 		case ProtoProxyV2:
-			newProxyLine, err := ReadProxyLineV2(reader)
+			newPROXYLine, err := ReadProxyLineV2(reader)
 			if err != nil {
 				return nil, trace.Wrap(err, invalidProxyV2LineError)
 			}
-			if newProxyLine == nil {
-				continue
+			if newPROXYLine == nil {
+				if unsignedPROXYLineReceived {
+					// We allow only one unsigned PROXY line
+					return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
+				}
+				unsignedPROXYLineReceived = true
+				continue // Skipping LOCAL command of PROXY protocol
 			}
 
 			// If proxyline is not signed, so we don't try to verify to avoid unnecessary load
-			if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && newProxyLine.IsSigned() {
-				err = newProxyLine.VerifySignature(m.context, m.CertAuthorityGetter, m.LocalClusterName, m.Clock)
+			if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && newPROXYLine.IsSigned() {
+				err = newPROXYLine.VerifySignature(m.context, m.CertAuthorityGetter, m.LocalClusterName, m.Clock)
 				if errors.Is(err, ErrNoHostCA) {
 					m.WithFields(log.Fields{
 						"src_addr": conn.RemoteAddr(),
 						"dst_addr": conn.LocalAddr(),
 					}).Warnf("%s - could not get host CA", invalidProxySignatureError)
-					continue
-				}
-				// DELETE IN 14.0, early 12 versions could send PROXY headers to remote auth server
-				if errors.Is(err, ErrNonLocalCluster) {
-					m.WithFields(log.Fields{
-						"src_addr": conn.RemoteAddr(),
-						"dst_addr": conn.LocalAddr(),
-					}).Debugf("%s - signed by non local cluster", invalidProxySignatureError)
 					continue
 				}
 				if err != nil {
@@ -460,43 +506,64 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				m.WithFields(log.Fields{
 					"conn_src_addr":   conn.RemoteAddr(),
 					"conn_dst_addr":   conn.LocalAddr(),
-					"client_src_addr": newProxyLine.Source.String(),
+					"client_src_addr": newPROXYLine.Source.String(),
 				}).Tracef("Successfully verified signed PROXYv2 header")
 			}
 
 			// If proxy line is signed and successfully verified and there's no already signed proxy header,
 			// we accept, otherwise reject
-			if newProxyLine.IsVerified {
+			if newPROXYLine.IsVerified {
 				if proxyLine != nil && proxyLine.IsVerified {
 					return nil, trace.BadParameter(duplicateSignedProxyLineError)
 				}
 
-				proxyLine = newProxyLine
+				proxyLine = newPROXYLine
 				continue
 			}
 
-			if m.CertAuthorityGetter != nil && newProxyLine.IsSigned() && !newProxyLine.IsVerified {
-				return nil, trace.BadParameter("could not verify proxy line signature")
+			if m.CertAuthorityGetter != nil && newPROXYLine.IsSigned() && !newPROXYLine.IsVerified {
+				return nil, trace.BadParameter("could not verify PROXY line signature")
 			}
 
 			// This is unsigned proxy line, return error if external PROXY protocol is not enabled
-			if !m.EnableExternalProxyProtocol {
+			if m.PROXYProtocolMode == PROXYProtocolOff {
 				return nil, trace.BadParameter(externalProxyProtocolDisabledError)
 			}
 
-			// If current proxy line was signed and verified, it takes precedence over new not signed proxy line
-			if proxyLine != nil && proxyLine.IsVerified {
-				continue
-			}
-
-			// We allow only one unsigned proxy line
-			if proxyLine != nil {
+			if unsignedPROXYLineReceived {
+				// We allow only one unsigned PROXY line
 				return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
 			}
+			unsignedPROXYLineReceived = true
 
-			proxyLine = newProxyLine
+			if m.PROXYProtocolMode == PROXYProtocolUnspecified {
+				m.logLimiter.Log(m.WithFields(log.Fields{
+					"direct_src_addr": conn.RemoteAddr(),
+					"direct_dst_addr": conn.LocalAddr(),
+					"proxy_src_addr:": newPROXYLine.Source.String(),
+					"proxy_dst_addr:": newPROXYLine.Destination.String(),
+				}), log.ErrorLevel, unexpectedPROXYLineError)
+				newPROXYLine.Source.Port = 0 // Mark connection, so if later IP pinning check is used on it we can reject it.
+			}
+
+			// Unsigned PROXY line after signed should not happen
+			if proxyLine != nil && proxyLine.IsVerified {
+				return nil, trace.BadParameter(unsignedPROXYLineAfterSignedError)
+			}
+
+			proxyLine = newPROXYLine
 			// repeat the cycle to detect the protocol
 		case ProtoTLS, ProtoSSH, ProtoHTTP, ProtoPostgres:
+			// Proxy and other services might call itself directly, avoiding
+			// load balancer, so we shouldn't fail connections without PROXY headers for such cases.
+			selfConnection, err := m.isSelfConnection(conn)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !selfConnection && m.PROXYProtocolMode == PROXYProtocolOn && !unsignedPROXYLineReceived {
+				return nil, trace.BadParameter(missingProxyLineError, conn.RemoteAddr().String(), conn.LocalAddr().String())
+			}
+
 			return &Conn{
 				protocol:  proto,
 				Conn:      conn,
@@ -507,6 +574,23 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 	}
 	// if code ended here after three attempts, something is wrong
 	return nil, trace.BadParameter(unknownProtocolError)
+}
+
+func (m *Mux) isSelfConnection(conn net.Conn) (bool, error) {
+	if m.IgnoreSelfConnections {
+		return false, nil
+	}
+
+	remoteHost, _, err := net.SplitHostPort(conn.RemoteAddr().String())
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	localHost, _, err := net.SplitHostPort(conn.LocalAddr().String())
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return remoteHost == localHost, nil
 }
 
 // Protocol defines detected protocol type.
@@ -547,11 +631,10 @@ func (p Protocol) String() string {
 }
 
 var (
-	proxyPrefix      = []byte{'P', 'R', 'O', 'X', 'Y'}
-	ProxyV2Prefix    = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
-	sshPrefix        = []byte{'S', 'S', 'H'}
-	tlsPrefix        = []byte{0x16}
-	proxyHelloPrefix = []byte(constants.ProxyHelloSignature)
+	proxyPrefix   = []byte{'P', 'R', 'O', 'X', 'Y'}
+	ProxyV2Prefix = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
+	sshPrefix     = []byte{'S', 'S', 'H'}
+	tlsPrefix     = []byte{0x16}
 )
 
 // This section defines Postgres wire protocol messages detected by Teleport:
@@ -621,16 +704,6 @@ func detectProto(r *bufio.Reader) (Protocol, error) {
 		}
 		if bytes.HasPrefix(in, ProxyV2Prefix) {
 			return ProtoProxyV2, nil
-		}
-	case bytes.HasPrefix(in, proxyHelloPrefix[:8]):
-		// Support for SSH connections opened with the ProxyHelloSignature for
-		// Teleport to Teleport connections.
-		in, err = r.Peek(len(proxyHelloPrefix))
-		if err != nil {
-			return ProtoUnknown, trace.Wrap(err, failedToPeekConnectionError)
-		}
-		if bytes.HasPrefix(in, proxyHelloPrefix) {
-			return ProtoSSH, nil
 		}
 	case bytes.HasPrefix(in, sshPrefix):
 		return ProtoSSH, nil

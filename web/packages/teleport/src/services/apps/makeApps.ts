@@ -16,7 +16,7 @@
 
 import cfg from 'teleport/config';
 
-import { App } from './types';
+import { App, GuessedAppType } from './types';
 
 export default function makeApp(json: any): App {
   json = json || {};
@@ -28,6 +28,7 @@ export default function makeApp(json: any): App {
     clusterId = '',
     fqdn = '',
     awsConsole = false,
+    samlApp = false,
     friendlyName = '',
   } = json;
 
@@ -54,7 +55,13 @@ export default function makeApp(json: any): App {
     }
   }
 
+  let samlAppSsoUrl = '';
+  if (samlApp) {
+    samlAppSsoUrl = `${cfg.baseUrl}/enterprise/saml-idp/login/${name}`;
+  }
+
   return {
+    kind: 'app',
     id,
     name,
     description,
@@ -67,8 +74,42 @@ export default function makeApp(json: any): App {
     awsRoles,
     awsConsole,
     isCloudOrTcpEndpoint: isTcp || isCloud,
+    guessedAppIconName: guessAppIcon(json),
     addrWithProtocol,
     friendlyName,
     userGroups,
+    samlApp,
+    samlAppSsoUrl,
   };
+}
+
+function guessAppIcon(json: any): GuessedAppType {
+  const { name, labels, awsConsole = false } = json;
+
+  if (awsConsole) {
+    return 'Aws';
+  }
+
+  if (
+    name?.toLocaleLowerCase().includes('slack') ||
+    labels?.some(l => `${l.name}:${l.value}` === 'icon:slack')
+  ) {
+    return 'Slack';
+  }
+
+  if (
+    name?.toLocaleLowerCase().includes('grafana') ||
+    labels?.some(l => `${l.name}:${l.value}` === 'icon:grafana')
+  ) {
+    return 'Grafana';
+  }
+
+  if (
+    name?.toLocaleLowerCase().includes('jenkins') ||
+    labels?.some(l => `${l.name}:${l.value}` === 'icon:jenkins')
+  ) {
+    return 'Jenkins';
+  }
+
+  return 'Application';
 }

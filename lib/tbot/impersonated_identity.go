@@ -539,7 +539,7 @@ func (b *Bot) renewOutputs(
 		// ACLs are misconfigured, regardless of configuration.
 		// TODO: consider not making these a hard error? e.g. write other
 		// destinations even if this one is broken?
-		if err := identity.VerifyWrite(dest); err != nil {
+		if err := identity.VerifyWrite(ctx, dest); err != nil {
 			return trace.Wrap(err, "testing output destination: %s", output)
 		}
 

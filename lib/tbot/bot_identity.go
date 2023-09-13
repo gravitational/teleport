@@ -111,7 +111,7 @@ func (b *Bot) renewBotIdentity(
 ) error {
 	currentIdentity := b.ident()
 	// Make sure we can still write to the bot's destination.
-	if err := identity.VerifyWrite(botDestination); err != nil {
+	if err := identity.VerifyWrite(ctx, botDestination); err != nil {
 		return trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
 	}
 
@@ -120,30 +120,31 @@ func (b *Bot) renewBotIdentity(
 	if b.cfg.Onboarding.RenewableJoinMethod() {
 		// When using a renewable join method, we use GenerateUserCerts to
 		// request a new certificate using our current identity.
-		authClient, err := b.AuthenticatedUserClientFromIdentity(ctx, b.ident())
+		authClient, err := b.AuthenticatedUserClientFromIdentity(ctx, currentIdentity)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "creating auth client")
 		}
+		defer authClient.Close()
 		newIdentity, err = botIdentityFromAuth(
 			ctx, b.log, currentIdentity, authClient, b.cfg.CertificateTTL,
 		)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "renewing identity with existing identity")
 		}
 	} else {
 		// When using the non-renewable join methods, we rejoin each time rather
 		// than using certificate renewal.
 		newIdentity, err = botIdentityFromToken(b.log, b.cfg)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "renewing identity with token")
 		}
 	}
 
 	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Info("Fetched new bot identity.")
 	b.setIdent(newIdentity)
 
-	if err := identity.SaveIdentity(newIdentity, botDestination, identity.BotKinds()...); err != nil {
-		return trace.Wrap(err)
+	if err := identity.SaveIdentity(ctx, newIdentity, botDestination, identity.BotKinds()...); err != nil {
+		return trace.Wrap(err, "saving new identity")
 	}
 	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Debug("Bot identity persisted.")
 
@@ -171,7 +172,7 @@ func botIdentityFromAuth(
 		Expires:   time.Now().Add(ttl),
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "calling GenerateUserCerts")
 	}
 
 	newIdentity, err := identity.ReadIdentityFromStore(
@@ -180,7 +181,7 @@ func botIdentityFromAuth(
 		identity.BotKinds()...,
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "reading renewed identity")
 	}
 
 	return newIdentity, nil
@@ -221,7 +222,9 @@ func botIdentityFromToken(log logrus.FieldLogger, cfg *config.BotConfig) (*ident
 		Expires:            &expires,
 		FIPS:               cfg.FIPS,
 		CipherSuites:       cfg.CipherSuites(),
+		Insecure:           cfg.Insecure,
 	}
+
 	if params.JoinMethod == types.JoinMethodAzure {
 		params.AzureParams = auth.AzureParams{
 			ClientID: cfg.Onboarding.Azure.ClientID,

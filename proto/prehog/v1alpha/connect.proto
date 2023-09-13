@@ -78,6 +78,23 @@ message ConnectUserJobRoleUpdateEvent {
   string job_role = 1;
 }
 
+message ConnectConnectMyComputerSetup {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+  bool success = 3;
+  // empty when success is true
+  string failed_step = 4;
+}
+
+message ConnectConnectMyComputerAgentStart {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+}
+
 message SubmitConnectEventRequest {
   // UUID
   string distinct_id = 1;
@@ -93,6 +110,8 @@ message SubmitConnectEventRequest {
     ConnectAccessRequestAssumeRoleEvent access_request_assume_role = 7;
     ConnectFileTransferRunEvent file_transfer_run = 8;
     ConnectUserJobRoleUpdateEvent user_job_role_update = 9;
+    ConnectConnectMyComputerSetup connect_my_computer_setup = 10;
+    ConnectConnectMyComputerAgentStart connect_my_computer_agent_start = 11;
   }
 }
 

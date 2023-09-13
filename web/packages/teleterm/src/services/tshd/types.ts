@@ -29,12 +29,19 @@ import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
 import apiLabel from 'gen-proto-js/teleport/lib/teleterm/v1/label_pb';
 import apiService, {
   FileTransferDirection,
+  HeadlessAuthenticationState,
 } from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
 import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
 import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
 import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
 
 import * as uri from 'teleterm/ui/uri';
+
+// We want to reexport both the type and the value of UserType. Because it's in a namespace, we have
+// to alias it first to do the reexport.
+// https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
+import UserType = apiCluster.LoggedInUser.UserType;
+export { UserType };
 
 export interface Kube extends apiKube.Kube.AsObject {
   uri: uri.KubeUri;
@@ -46,7 +53,7 @@ export interface Server extends apiServer.Server.AsObject {
 
 export interface Gateway extends apiGateway.Gateway.AsObject {
   uri: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.KubeUri;
   // The type of gatewayCliCommand was repeated here just to refer to the type with the JSDoc.
   gatewayCliCommand: GatewayCLICommand;
 }
@@ -229,6 +236,22 @@ export type TshClient = {
     abortSignal?: TshAbortSignal
   ) => FileTransferListeners;
   reportUsageEvent: (event: ReportUsageEventRequest) => Promise<void>;
+
+  createConnectMyComputerRole: (
+    rootClusterUri: uri.RootClusterUri
+  ) => Promise<CreateConnectMyComputerRoleResponse>;
+  createConnectMyComputerNodeToken: (
+    clusterUri: uri.RootClusterUri
+  ) => Promise<CreateConnectMyComputerNodeTokenResponse>;
+  deleteConnectMyComputerToken: (
+    clusterUri: uri.RootClusterUri,
+    token: string
+  ) => Promise<void>;
+
+  updateHeadlessAuthenticationState: (
+    params: UpdateHeadlessAuthenticationStateParams,
+    abortSignal?: TshAbortSignal
+  ) => Promise<void>;
 };
 
 export type TshAbortController = {
@@ -261,7 +284,7 @@ export interface LoginPasswordlessParams extends LoginParamsBase {
 }
 
 export type CreateGatewayParams = {
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.KubeUri;
   port?: string;
   user: string;
   subresource_name?: string;
@@ -316,5 +339,19 @@ export { FileTransferDirection };
 
 export type Label = apiLabel.Label.AsObject;
 
+export type CreateConnectMyComputerRoleResponse =
+  apiService.CreateConnectMyComputerRoleResponse.AsObject;
+
+export type CreateConnectMyComputerNodeTokenResponse =
+  apiService.CreateConnectMyComputerNodeTokenResponse.AsObject;
+
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;
+
+export type UpdateHeadlessAuthenticationStateParams = {
+  rootClusterUri: uri.RootClusterUri;
+  headlessAuthenticationId: string;
+  state: apiService.HeadlessAuthenticationState;
+};
+
+export { HeadlessAuthenticationState };

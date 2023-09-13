@@ -44,6 +44,10 @@ type DialParams struct {
 	// forwarding proxy.
 	GetUserAgent teleagent.Getter
 
+	// IsAgentlessNode indicates whether the Node is an OpenSSH Node.
+	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEICE.
+	IsAgentlessNode bool
+
 	// AgentlessSigner is used for authenticating to the remote host when it is an
 	// agentless node.
 	AgentlessSigner ssh.Signer
@@ -78,9 +82,6 @@ type DialParams struct {
 	// FromPeerProxy indicates that the dial request is being tunneled from
 	// a peer proxy.
 	FromPeerProxy bool
-
-	// TeleportVersion shows version of the target node, if we know that it's teleport node.
-	TeleportVersion string
 
 	// OriginalClientDstAddr is used in PROXY headers to show where client originally contacted Teleport infrastructure
 	OriginalClientDstAddr net.Addr

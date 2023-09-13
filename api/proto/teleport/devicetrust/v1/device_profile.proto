@@ -49,4 +49,10 @@ message DeviceProfile {
 
   // External device identifier, for example the Jamf or Intune ID.
   string external_id = 7;
+
+  // OS build supplemental number.
+  // May match `sw_vers` BuildVersion more closely in certain situations, like
+  // macOS rapid security response builds.
+  // Example: "22F770820d".
+  string os_build_supplemental = 8;
 }

@@ -96,6 +96,9 @@ export class LoggedInUser extends jspb.Message {
     setRequestableRolesList(value: Array<string>): LoggedInUser;
     addRequestableRoles(value: string, index?: number): string;
 
+    getUserType(): LoggedInUser.UserType;
+    setUserType(value: LoggedInUser.UserType): LoggedInUser;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): LoggedInUser.AsObject;
@@ -116,7 +119,15 @@ export namespace LoggedInUser {
         activeRequestsList: Array<string>,
         suggestedReviewersList: Array<string>,
         requestableRolesList: Array<string>,
+        userType: LoggedInUser.UserType,
     }
+
+    export enum UserType {
+    USER_TYPE_UNSPECIFIED = 0,
+    USER_TYPE_LOCAL = 1,
+    USER_TYPE_SSO = 2,
+    }
+
 }
 
 export class ACL extends jspb.Message { 

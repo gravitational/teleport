@@ -86,9 +86,9 @@ export function TextSelectCopyMulti({ lines, bash = true }: Props) {
                   `}
                 >
                   <ButtonCopyCheck onClick={() => onCopyClick(index)}>
-                    <Icon className="icon-container" color="dark">
-                      <Copy data-testid="btn-copy" color="light" />
-                      <Check data-testid="btn-check" />
+                    <Icon className="icon-container">
+                      <Copy data-testid="btn-copy" color="light" size={16} />
+                      <Check data-testid="btn-check" color="light" size={16} />
                     </Icon>
                   </ButtonCopyCheck>
                 </Box>
@@ -102,16 +102,17 @@ export function TextSelectCopyMulti({ lines, bash = true }: Props) {
 }
 
 const Icon = styled.div`
+  display: flex;
   .icon-check {
     display: none;
   }
   .icon-copy {
-    display: block;
+    display: inline-flex;
   }
 
   &.copied {
     .icon-check {
-      display: block;
+      display: inline-flex;
     }
     .icon-copy {
       display: none;

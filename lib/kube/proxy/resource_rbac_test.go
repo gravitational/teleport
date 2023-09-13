@@ -31,16 +31,20 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer/streaming"
 	kubetypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	restclientwatch "k8s.io/client-go/rest/watch"
+	controllerclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
@@ -551,8 +555,8 @@ func TestWatcherResponseWriter(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			userReader, userWriter := io.Pipe()
-			negotiator := newClientNegotiator()
-			filterWrapper := newResourceFilterer(types.KindKubePod, types.KubeVerbWatch, tt.args.allowed, tt.args.denied, log)
+			negotiator := newClientNegotiator(&globalKubeCodecs)
+			filterWrapper := newResourceFilterer(types.KindKubePod, types.KubeVerbWatch, &globalKubeCodecs, tt.args.allowed, tt.args.denied, log)
 			// watcher parses the data written into itself and if the user is allowed to
 			// receive the update, it writes the event into target.
 			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter) /*target*/, negotiator, filterWrapper)
@@ -1116,6 +1120,261 @@ func TestListClusterRoleRBAC(t *testing.T) {
 			} else {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.want.getTestResult.Error())
+			}
+		})
+	}
+}
+
+func TestCustomResourcesRBAC(t *testing.T) {
+	const (
+		usernameWithFullAccess    = "full_user"
+		usernameWithLimitedAccess = "limited_user"
+		testTeleportRoleName      = "telerole-test"
+		testTeleportRoleNamespace = "default"
+	)
+
+	getTeleroleUnstructured := func(kind string) *unstructured.Unstructured {
+		u := &unstructured.Unstructured{}
+		u.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "resources.teleport.dev",
+			Version: "v6",
+			Kind:    kind,
+		})
+		return u
+	}
+
+	// register the custom resources with the scheme
+	kubeScheme := runtime.NewScheme()
+	require.NoError(t, registerDefaultKubeTypes(kubeScheme))
+	for _, kind := range []string{"TeleportRole", "TeleportRoleList"} {
+		kubeScheme.AddKnownTypeWithName(getTeleroleUnstructured(kind).GroupVersionKind(), getTeleroleUnstructured(kind))
+	}
+
+	// kubeMock is a Kubernetes API mock for the session tests.
+	// Once a new session is created, this mock will write to
+	// stdout and stdin (if available) the pod name, followed
+	// by copying the contents of stdin into both streams.
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	// creates a Kubernetes service with a configured cluster pointing to mock api server
+	testCtx := SetupTestContext(
+		context.Background(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		},
+	)
+	// close tests
+	t.Cleanup(func() { assert.NoError(t, testCtx.Close()) })
+
+	// create a user with full access to all namespaces.
+	// (kubernetes_user and kubernetes_groups specified)
+	userWithFullAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithFullAccess,
+		RoleSpec{
+			Name:       usernameWithFullAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow, []types.KubernetesResource{
+					{
+						Kind:  types.KindKubeNamespace,
+						Name:  types.Wildcard,
+						Verbs: []string{types.Wildcard},
+					},
+				})
+			},
+		},
+	)
+
+	// create a user with limited access to kubernetes namespaces.
+	userWithLimitedAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithLimitedAccess,
+		RoleSpec{
+			Name:       usernameWithLimitedAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow,
+					[]types.KubernetesResource{
+						{
+							Kind:  types.KindKubeNamespace,
+							Name:  "dev",
+							Verbs: []string{types.Wildcard},
+						},
+					},
+				)
+			},
+		},
+	)
+
+	type args struct {
+		user types.User
+		opts []GenTestKubeClientTLSCertOptions
+	}
+	type want struct {
+		listTeleportRolesResult []string
+		getTestResult           error
+	}
+	tests := []struct {
+		name string
+		args args
+		want want
+	}{
+		{
+			name: "list teleport roles for user with full access",
+			args: args{
+				user: userWithFullAccess,
+			},
+			want: want{
+				listTeleportRolesResult: []string{
+					"default/telerole-1",
+					"default/telerole-1",
+					"default/telerole-2",
+					"default/telerole-test",
+					"dev/telerole-1",
+					"dev/telerole-2",
+				},
+			},
+		},
+		{
+			name: "list teleport roles for user with limited access",
+			args: args{
+				user: userWithLimitedAccess,
+			},
+			want: want{
+				listTeleportRolesResult: []string{
+					"dev/telerole-1",
+					"dev/telerole-2",
+				},
+				getTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "teleportroles \"telerole-test\" is forbidden: User \"limited_user\" cannot get resource \"teleportroles\" in API group \"resources.teleport.dev\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+		},
+
+		{
+			name: "user with namespace access request that no longer fullfills the role requirements",
+			args: args{
+				user: userWithLimitedAccess,
+				opts: []GenTestKubeClientTLSCertOptions{
+					WithResourceAccessRequests(
+						types.ResourceID{
+							ClusterName:     testCtx.ClusterName,
+							Kind:            types.KindKubeNamespace,
+							Name:            kubeCluster,
+							SubResourceName: "default",
+						},
+					),
+				},
+			},
+			want: want{
+				getTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "teleportroles \"telerole-test\" is forbidden: User \"limited_user\" cannot get resource \"teleportroles\" in API group \"resources.teleport.dev\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+		},
+		{
+			name: "user with namespace access request that restricts the role requirements",
+			args: args{
+				user: userWithFullAccess,
+				opts: []GenTestKubeClientTLSCertOptions{
+					WithResourceAccessRequests(
+						types.ResourceID{
+							ClusterName:     testCtx.ClusterName,
+							Kind:            types.KindKubeNamespace,
+							Name:            kubeCluster,
+							SubResourceName: "dev",
+						},
+					),
+				},
+			},
+			want: want{
+				listTeleportRolesResult: []string{"dev/telerole-1", "dev/telerole-2"},
+				getTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "teleportroles \"telerole-test\" is forbidden: User \"full_user\" cannot get resource \"teleportroles\" in API group \"resources.teleport.dev\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// generate a kube client with user certs for auth
+			_, rest := testCtx.GenTestKubeClientTLSCert(
+				t,
+				tt.args.user.GetName(),
+				kubeCluster,
+				tt.args.opts...,
+			)
+
+			client, err := controllerclient.New(rest, controllerclient.Options{
+				Scheme: kubeScheme,
+			})
+
+			require.NoError(t, err)
+			list := getTeleroleUnstructured("TeleportRole")
+
+			err = client.List(context.Background(), list)
+			require.NoError(t, err)
+
+			require.True(t, list.IsList())
+			var teleportRolesList []string
+			// iterate over the list of teleport roles and get the namespace and name
+			// of each role in the format <namespace>/<name>
+			require.NoError(
+				t,
+				list.EachListItem(
+					func(itemI runtime.Object) error {
+						item := itemI.(*unstructured.Unstructured)
+						teleportRolesList = append(teleportRolesList, item.GetNamespace()+"/"+item.GetName())
+						return nil
+					},
+				))
+
+			require.ElementsMatch(t, tt.want.listTeleportRolesResult, teleportRolesList)
+
+			get := getTeleroleUnstructured("TeleportRole")
+
+			err = client.Get(context.Background(),
+				kubetypes.NamespacedName{
+					Name:      testTeleportRoleName,
+					Namespace: testTeleportRoleNamespace,
+				},
+				get,
+			)
+
+			if tt.want.getTestResult == nil {
+				require.NoError(t, err)
+				require.Equal(t, testTeleportRoleName, get.GetName())
+				require.Equal(t, testTeleportRoleNamespace, get.GetNamespace())
+			} else {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.want.getTestResult.Error())
 			}
 		})
 	}

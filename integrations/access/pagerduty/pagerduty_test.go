@@ -340,9 +340,9 @@ func (s *PagerdutySuite) createAccessRequest() types.AccessRequest {
 	t.Helper()
 
 	req := s.newAccessRequest()
-	err := s.requestor().CreateAccessRequest(s.Context(), req)
+	out, err := s.requestor().CreateAccessRequestV2(s.Context(), req)
 	require.NoError(t, err)
-	return req
+	return out
 }
 
 func (s *PagerdutySuite) checkPluginData(reqID string, cond func(PluginData) bool) PluginData {
@@ -851,7 +851,8 @@ func (s *PagerdutySuite) TestRace() {
 			if err != nil {
 				return setRaceErr(trace.Wrap(err))
 			}
-			if err := s.clients[userName].CreateAccessRequest(ctx, req); err != nil {
+			req, err = s.clients[userName].CreateAccessRequestV2(ctx, req)
+			if err != nil {
 				return setRaceErr(trace.Wrap(err))
 			}
 			pendingRequests.Store(req.GetName(), struct{}{})

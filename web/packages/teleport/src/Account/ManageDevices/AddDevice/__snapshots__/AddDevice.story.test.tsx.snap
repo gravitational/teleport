@@ -167,9 +167,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 .c12 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -177,9 +175,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 .c16 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -424,6 +420,10 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   color: rgba(255,255,255,0.36);
 }
 
+.c13 .react-select__input {
+  color: #FFFFFF;
+}
+
 .c7 {
   box-sizing: border-box;
   margin-bottom: 24px;
@@ -496,7 +496,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
                 font-size="0"
                 for="select"
               >
-                Two-factor type
+                Two-factor Type
               </label>
               <div
                 class="c13"
@@ -626,7 +626,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
               class="c16"
               font-size="0"
             >
-              Device name
+              Device Name
               <input
                 autocomplete="off"
                 class="c17"
@@ -853,9 +853,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 .c13 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -863,9 +861,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 .c17 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -1110,6 +1106,10 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c14 .react-select__input {
+  color: #FFFFFF;
+}
+
 .c8 {
   box-sizing: border-box;
   margin-bottom: 24px;
@@ -1189,7 +1189,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
                 font-size="0"
                 for="select"
               >
-                Two-factor type
+                Two-factor Type
               </label>
               <div
                 class="c14"
@@ -1319,7 +1319,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
               class="c17"
               font-size="0"
             >
-              Device name
+              Device Name
               <input
                 autocomplete="off"
                 class="c18"
@@ -1555,9 +1555,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 .c15 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -1565,9 +1563,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 .c18 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -1822,6 +1818,10 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   color: rgba(255,255,255,0.36);
 }
 
+.c16 .react-select__input {
+  color: #FFFFFF;
+}
+
 .c8 {
   box-sizing: border-box;
   margin-bottom: 24px;
@@ -1918,7 +1918,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
                 font-size="0"
                 for="select"
               >
-                Two-factor type
+                Two-factor Type
               </label>
               <div
                 class="c16"
@@ -1982,7 +1982,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
                 class="c18"
                 font-size="0"
               >
-                Authenticator code
+                Authenticator Code
                 <input
                   autocomplete="one-time-code"
                   class="c19"
@@ -2002,7 +2002,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
               class="c18"
               font-size="0"
             >
-              Device name
+              Device Name
               <input
                 autocomplete="off"
                 class="c19"

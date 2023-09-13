@@ -376,7 +376,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	// These steps are not needed with `--tunnel`, because the local proxy tunnel
 	// will manage database certificates itself and reissue them as needed.
 	requires := getDBLocalProxyRequirement(tc, dbInfo.RouteToDatabase)
-	if requires.tunnel && !isLocalProxyTunnelRequested(cf) {
+	if requires.tunnel && !cf.LocalProxyTunnel {
 		// Some scenarios require a local proxy tunnel, e.g.:
 		// - Snowflake, DynamoDB protocol
 		// - Hardware-backed private key policy
@@ -409,14 +409,12 @@ func onProxyCommandDB(cf *CLIConf) error {
 		}
 	}()
 
-	tunnel := isLocalProxyTunnelRequested(cf)
 	proxyOpts, err := prepareLocalProxyOptions(&localProxyConfig{
-		cf:               cf,
-		tc:               tc,
-		profile:          profile,
-		dbInfo:           dbInfo,
-		autoReissueCerts: cf.LocalProxyTunnel, // only auto-reissue certs for --tunnel flag.
-		tunnel:           tunnel,
+		cf:      cf,
+		tc:      tc,
+		profile: profile,
+		dbInfo:  dbInfo,
+		tunnel:  cf.LocalProxyTunnel,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -431,7 +429,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		lp.Close()
 	}()
 
-	if tunnel {
+	if cf.LocalProxyTunnel {
 		addr, err := utils.ParseAddr(lp.GetAddr())
 		if err != nil {
 			return trace.Wrap(err)
@@ -847,15 +845,6 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-// isLocalProxyTunnelRequested is a helper function that returns whether the user
-// requested a local proxy tunnel, either via --tunnel or equivalently by specifying
-// --cert-file/--key-file.
-func isLocalProxyTunnelRequested(cf *CLIConf) bool {
-	return cf.LocalProxyTunnel ||
-		cf.LocalProxyCertFile != "" ||
-		cf.LocalProxyKeyFile != ""
-}
-
 func makeBasicLocalProxyConfig(cf *CLIConf, tc *libclient.TeleportClient, listener net.Listener) alpnproxy.LocalProxyConfig {
 	return alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:         tc.WebProxyAddr,
@@ -892,10 +881,15 @@ func generateDBLocalProxyCert(key *libclient.Key, profile *libclient.ProfileStat
 	return nil
 }
 
+const dbProxyConnectAd = `Teleport Connect is a desktop app that can manage database proxies for you.
+Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-a-database
+`
+
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.
 var dbProxyTpl = template.Must(template.New("").Parse(`Started DB proxy on {{.address}}
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
+` + dbProxyConnectAd + `
 Use following credentials to connect to the {{.database}} proxy:
   ca_file={{.ca}}
   cert_file={{.cert}}
@@ -911,6 +905,7 @@ var dbProxyAuthTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
+` + dbProxyConnectAd + `
 Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ {{.command}}
 `))
@@ -920,6 +915,7 @@ var dbProxyOracleAuthTpl = template.Must(template.New("").Funcs(templateFunction
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
+` + dbProxyConnectAd + `
 Use the following command to connect to the Oracle database server using CLI:
   $ {{.command}}
 
@@ -936,6 +932,7 @@ var dbProxyAuthMultiTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
+` + dbProxyConnectAd + `
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 {{range $item := .commands}}
   * {{$item.Description}}: 
