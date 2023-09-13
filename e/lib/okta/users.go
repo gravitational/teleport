@@ -60,6 +60,9 @@ type UserAssignmentCreatorAccessPoint interface {
 
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
+
+	// GetUserOrLoginState will return the given user or the login state associated with the user.
+	GetUserOrLoginState(ctx context.Context, username string) (services.UserState, error)
 }
 
 // UserAssignmentCreatorConfig is the configuration for the UserAssignmentCreator.
@@ -140,9 +143,14 @@ func NewUserAssignmentCreator(config UserAssignmentCreatorConfig) (*UserAssignme
 // OnLogin will be run on login and will reconcile the user's current permissions to Okta assignment
 // access.
 func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) error {
-	// It should be okay to get the access info from the user here because we're only concerned about
-	// the permissions tied to the user.
-	accessInfo := services.AccessInfoFromUser(user)
+	userState, err := u.accessPoint.GetUserOrLoginState(ctx, user.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// It should be okay to get the access info from the user state here because we're only concerned about
+	// the permissions tied to the user and associated permissions granted by access lists.
+	accessInfo := services.AccessInfoFromUserState(userState)
 	accessChecker, err := services.NewAccessChecker(accessInfo, u.clusterName, u.accessPoint)
 	if err != nil {
 		return trace.Wrap(err)
@@ -158,7 +166,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		return trace.Wrap(err, "listing app servers for Okta access calculation")
 	}
 
-	assignmentName, err := uacAssignmentName(u.hash, user.GetName(), groups, apps)
+	assignmentName, err := uacAssignmentName(u.hash, userState.GetName(), groups, apps)
 	if err != nil {
 		return trace.Wrap(err, "creating user OktaAssignment name")
 	}
@@ -170,7 +178,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		// The Okta assignment already exists, so skip any further processing.
 		foundAssignment, err := u.accessPoint.GetOktaAssignment(ctx, assignmentName)
 		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err, "finding Okta assignment for user %s", user.GetName())
+			return trace.Wrap(err, "finding Okta assignment for user %s", userState.GetName())
 		}
 
 		// The current assignment is still active, so we'll return.
@@ -179,7 +187,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		}
 
 		// The Okta assignment doesn't exist, so let's create the new one.
-		newAssignment, err = u.newOktaAssignment(ctx, assignmentName, user.GetName(), groups, apps)
+		newAssignment, err = u.newOktaAssignment(ctx, assignmentName, userState.GetName(), groups, apps)
 		if err != nil {
 			return trace.Wrap(err, "creating the new Okta assignment")
 		}
@@ -201,7 +209,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 	}
 
 	// The Okta assignment doesn't exist, so find the old reconciler assignment for this user.
-	oldAssignments, err := u.findOldOktaAssignments(ctx, user.GetName())
+	oldAssignments, err := u.findOldOktaAssignments(ctx, userState.GetName())
 	if err != nil {
 		return trace.Wrap(err, "finding old Okta assignments")
 	}
@@ -220,10 +228,10 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 	if logrus.IsLevelEnabled(logrus.DebugLevel) {
 		newGroups, newApps, removedGroups, removedApps := assignmentDiff(newAssignment, oldAssignments...)
 
-		u.log.Debugf("New groups for user %s: %v", user.GetName(), newGroups)
-		u.log.Debugf("New apps for user %s: %v", user.GetName(), newApps)
-		u.log.Debugf("Removed groups for user %s: %v", user.GetName(), removedGroups)
-		u.log.Debugf("Removed apps for user %s: %v", user.GetName(), removedApps)
+		u.log.Debugf("New groups for user %s: %v", userState.GetName(), newGroups)
+		u.log.Debugf("New apps for user %s: %v", userState.GetName(), newApps)
+		u.log.Debugf("Removed groups for user %s: %v", userState.GetName(), removedGroups)
+		u.log.Debugf("Removed apps for user %s: %v", userState.GetName(), removedApps)
 	}
 
 	return nil

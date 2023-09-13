@@ -27,15 +27,33 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/services"
 )
+
+type testUACAccessPoint struct {
+	*testAccessPoint
+
+	userState *userloginstate.UserLoginState
+}
+
+// GetUserOrLoginState will return the given user or the login state associated with the user.
+func (t *testUACAccessPoint) GetUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
+	if t.userState == nil {
+		return t.GetUser(username, false)
+	}
+	return t.userState, nil
+}
 
 func TestUserAssignmentCreator(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
-	ap := newTestAccessPoint(t, clock)
+	ap := &testUACAccessPoint{
+		testAccessPoint: newTestAccessPoint(t, clock),
+	}
 	uac, err := NewUserAssignmentCreator(UserAssignmentCreatorConfig{
 		Clock:       clock,
 		ClusterName: testClusterName,
@@ -239,17 +257,18 @@ func TestUserAssignmentCreator(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.OktaAssignment{expectedAssignment1, expectedAssignment2, expectedAssignment3}, assignments,
 		cmpopts.SortSlices(assignmentLess)))
 
-	// Delete everything to see that no assignments are active.
-	require.NoError(t, ap.DeleteUserGroup(ctx, group1.GetName()))
-	require.NoError(t, ap.DeleteApplicationServer(ctx, apidefaults.Namespace, app1.GetHostID(), app1.GetName()))
-	require.NoError(t, ap.DeleteApplicationServer(ctx, apidefaults.Namespace, app2.GetHostID(), app2.GetName()))
+	// Create an empty user state, which should cause a cleanup of all assignmentssince it has no permissions.
+	ap.userState, err = userloginstate.New(header.Metadata{
+		Name: testUser,
+	}, userloginstate.Spec{})
+	require.NoError(t, err)
 
 	require.NoError(t, uac.OnLogin(ctx, user))
 
 	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
 	require.NoError(t, err)
 
-	// Old assignment should be marked as needing cleanup, other assignment should be restored.
+	// All assignments should have a cleanup time set to now.
 	expectedAssignment1.SetCleanupTime(clock.Now())
 	expectedAssignment2.SetCleanupTime(clock.Now())
 
