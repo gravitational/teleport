@@ -410,6 +410,8 @@ func descriptionWithoutName(description, name string) string {
 	return result
 }
 
+const yamlExampleDelimeter string = "Example YAML:\n---\n"
+
 // NewFromDecl creates a Resource object from the provided *GenDecl. filepath is
 // the Go source file where the declaration was made, and is used only for
 // printing. NewFromDecl uses allResources to look up custom fields.
@@ -419,22 +421,34 @@ func NewFromDecl(decl *ast.GenDecl, filepath string) (ReferenceEntry, error) {
 		return ReferenceEntry{}, err
 	}
 
-	yml, err := makeYAMLExample(rs.fields)
-	if err != nil {
-		return ReferenceEntry{}, err
-	}
+	description := rs.doc
+	var example string
 
+	if strings.Contains(rs.doc, yamlExampleDelimeter) {
+		sides := strings.Split(rs.doc, yamlExampleDelimeter)
+		if len(sides) != 2 {
+			return ReferenceEntry{}, errors.New("malformed example YAML in description: " + rs.doc)
+		}
+		example = sides[1]
+		description = sides[0]
+	} else {
+
+		example, err = makeYAMLExample(rs.fields)
+		if err != nil {
+			return ReferenceEntry{}, err
+		}
+	}
 	fld, err := makeFieldTableInfo(rs.fields)
 	if err != nil {
 		return ReferenceEntry{}, err
 	}
 
-	desc := strings.Trim(strings.ReplaceAll(rs.doc, "\n", " "), " ")
+	description = strings.Trim(strings.ReplaceAll(description, "\n", " "), " ")
 	return ReferenceEntry{
 		SectionName: rs.name,
-		Description: descriptionWithoutName(desc, rs.name),
+		Description: descriptionWithoutName(description, rs.name),
 		SourcePath:  filepath,
 		Fields:      fld,
-		YAMLExample: yml,
+		YAMLExample: example,
 	}, nil
 }
