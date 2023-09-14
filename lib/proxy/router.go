@@ -303,7 +303,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		name := "unknown server " + serverAddr
 		target, err = types.NewServer(name, types.KindNode, types.ServerSpecV2{
 			Addr:     serverAddr,
-			Hostname: "unknown_server",
+			Hostname: host,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "error creating server resource")
