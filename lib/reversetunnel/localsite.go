@@ -275,16 +275,17 @@ func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error
 	return s.DialTCP(params)
 }
 
-func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, useTunnel, isAgentlessNode bool, srcAddr, dstAddr net.Addr) bool {
+func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, useTunnel, isNonTeleportNode bool, srcAddr, dstAddr net.Addr) bool {
 	return !(signer == nil ||
 		useTunnel ||
-		isAgentlessNode ||
+		isNonTeleportNode ||
 		srcAddr == nil ||
 		dstAddr == nil)
 }
 
 func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialParams, conn net.Conn, useTunnel bool) error {
-	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, params.IsAgentlessNode, params.From, params.OriginalClientDstAddr) {
+	isNonTeleport := params.IsAgentlessNode || params.TargetServer == nil
+	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, isNonTeleport, params.From, params.OriginalClientDstAddr) {
 		return nil
 	}
 
