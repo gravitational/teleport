@@ -1741,8 +1741,8 @@ type BPF struct {
 	// CgroupPath controls where cgroupv2 hierarchy is mounted.
 	CgroupPath string `yaml:"cgroup_path"`
 
-	// UDPDisableTracing disables UDP connection events.
-	UDPDisableTracing string `yaml:"udp_disable_tracing,omitempty"`
+	// UDP enables UDP connection events.
+	UDP string `yaml:"udp,omitempty"`
 
 	// UDPSilencePeriod is the period in which subsequent UDP sends are silenced
 	// to avoid audit noise.
@@ -1756,14 +1756,14 @@ type BPF struct {
 // Parse will parse the enhanced session recording configuration.
 func (b *BPF) Parse() *servicecfg.BPFConfig {
 	enabled, _ := apiutils.ParseBool(b.Enabled)
-	udpDisabled, _ := apiutils.ParseBool(b.UDPDisableTracing)
+	udp, _ := apiutils.ParseBool(b.UDP)
 	return &servicecfg.BPFConfig{
 		Enabled:              enabled,
 		CommandBufferSize:    b.CommandBufferSize,
 		DiskBufferSize:       b.DiskBufferSize,
 		NetworkBufferSize:    b.NetworkBufferSize,
 		CgroupPath:           b.CgroupPath,
-		UDPDisableTracing:    udpDisabled,
+		UDP:                  udp,
 		UDPSilencePeriod:     b.UDPSilencePeriod,
 		UDPSilenceBufferSize: b.UDPSilenceBufferSize,
 	}

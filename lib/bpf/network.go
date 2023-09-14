@@ -150,7 +150,7 @@ type conn struct {
 	lost *Counter
 }
 
-func startConn(bufferSize int, udpDisableTracing bool) (*conn, error) {
+func startConn(bufferSize int, udpEnabled bool) (*conn, error) {
 	err := metrics.RegisterPrometheusCollectors(lostNetworkEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -178,11 +178,11 @@ func startConn(bufferSize int, udpDisableTracing bool) (*conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var udpDisableVal = uint8(0)
-	if udpDisableTracing {
-		udpDisableVal = 1
+	var udpEnabledVal = uint8(0)
+	if udpEnabled {
+		udpEnabledVal = 1
 	}
-	if err := c.session.module.InitGlobalVariable("udp_disable", udpDisableVal); err != nil {
+	if err := c.session.module.InitGlobalVariable("udp_enabled", udpEnabledVal); err != nil {
 		return nil, trace.Wrap(err, "setting udp_disable global")
 	}
 

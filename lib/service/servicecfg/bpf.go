@@ -37,8 +37,8 @@ type BPFConfig struct {
 	// CgroupPath is where the cgroupv2 hierarchy is mounted.
 	CgroupPath string
 
-	// UDPDisableTracing disables UDP connection events.
-	UDPDisableTracing bool
+	// UDP enables UDP connection events.
+	UDP bool
 
 	// UDPSilencePeriod is the period in which subsequent UDP sends are silenced
 	// to avoid audit noise.

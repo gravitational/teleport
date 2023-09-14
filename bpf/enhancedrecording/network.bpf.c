@@ -9,7 +9,7 @@
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 // Global toggle for UDP tracing.
-u8 udp_disable SEC(".data") = 1;
+u8 udp_enabled SEC(".data") = 0;
 
 // Maximum number of in-flight connect syscalls supported
 #define INFLIGHT_MAX 8192
@@ -158,7 +158,7 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx)
 SEC("kprobe/udp_sendmsg")
 int BPF_KPROBE(kprobe__udp_sendmsg, struct sock *sk, struct msghdr *msg, size_t len)
 {
-    if (udp_disable) {
+    if (!udp_enabled) {
         return 0;
     }
     return trace_connect_entry(sk);
@@ -167,7 +167,7 @@ int BPF_KPROBE(kprobe__udp_sendmsg, struct sock *sk, struct msghdr *msg, size_t 
 SEC("kretprobe/udp_sendmsg")
 int BPF_KRETPROBE(kretprobe__udp_sendmsg, int ret)
 {
-    if (udp_disable) {
+    if (!udp_enabled) {
         return 0;
     }
     // ret is the number of bytes sent, or failure if -1.
@@ -181,7 +181,7 @@ int BPF_KRETPROBE(kretprobe__udp_sendmsg, int ret)
 SEC("kprobe/udpv6_sendmsg")
 int BPF_KPROBE(kprobe__udpv6_sendmsg, struct sock *sk, struct msghdr *msg, size_t len)
 {
-    if (udp_disable) {
+    if (!udp_enabled) {
         return 0;
     }
     return trace_connect_entry(sk);
@@ -190,7 +190,7 @@ int BPF_KPROBE(kprobe__udpv6_sendmsg, struct sock *sk, struct msghdr *msg, size_
 SEC("kretprobe/udpv6_sendmsg")
 int BPF_KRETPROBE(kretprobe__udpv6_sendmsg, int ret)
 {
-    if (udp_disable) {
+    if (!udp_enabled) {
         return 0;
     }
     // ret is the number of bytes sent, or failure if -1.

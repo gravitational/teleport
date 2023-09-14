@@ -191,7 +191,7 @@ func New(config *servicecfg.BPFConfig, restrictedSession *servicecfg.RestrictedS
 	}
 
 	// Load network BPF modules only when required.
-	s.conn, err = startConn(*config.NetworkBufferSize, config.UDPDisableTracing)
+	s.conn, err = startConn(*config.NetworkBufferSize, config.UDP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
