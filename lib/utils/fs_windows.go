@@ -43,6 +43,6 @@ func getPlatformLockFilePath(path string) string {
 	return path + lockPostfix
 }
 
-func getHardLinkCount(fi os.FileInfo) (bool, uint64) {
-	return false, 0
+func getHardLinkCount(fi os.FileInfo) (uint64, bool) {
+	return 0, false
 }
