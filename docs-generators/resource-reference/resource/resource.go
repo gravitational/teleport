@@ -170,13 +170,13 @@ func (y yamlCustomType) formatForTable() string {
 	return fmt.Sprintf(
 		"[%v](#%v)",
 		y.name,
-		strings.ToLower(y.name),
+		strings.ReplaceAll(strings.ToLower(y.name), " ", "-"),
 	)
 }
 
 // getRawNamedStruct returns the type spec to use for further processing. Returns an
 // error if there is either no type spec or more than one.
-func getRawNamedStruct(decl *ast.GenDecl, allResources map[PackageInfo]ReferenceEntry) (rawNamedStruct, error) {
+func getRawNamedStruct(decl *ast.GenDecl) (rawNamedStruct, error) {
 	if len(decl.Specs) == 0 {
 		return rawNamedStruct{}, errors.New("declaration has no specs")
 	}
@@ -207,7 +207,7 @@ func getRawNamedStruct(decl *ast.GenDecl, allResources map[PackageInfo]Reference
 	var rawFields []rawField
 
 	for _, field := range str.Fields.List {
-		f, err := makeRawField(field, allResources)
+		f, err := makeRawField(field)
 
 		if err != nil {
 			return rawNamedStruct{}, err
@@ -271,10 +271,20 @@ func getJSONTag(tags string) string {
 	return strings.TrimSuffix(kv[1], ",omitempty")
 }
 
+var camelCaseWordBoundary *regexp.Regexp = regexp.MustCompile("([a-z]+)([A-Z])")
+var versionNumber *regexp.Regexp = regexp.MustCompile("V([0-9]+)")
+
+// makeSectionName edits the original name of a declaration to make it more
+// suitable as a section within the resource reference.
+func makeSectionName(original string) string {
+	s := camelCaseWordBoundary.ReplaceAllString(original, "$1 $2")
+	return versionNumber.ReplaceAllString(s, "v$1")
+}
+
 // getYAMLTypeForExpr takes an AST type expression and recursively
 // traverses it to populate a yamlKindNode. Each iteration converts a
 // single *ast.Expr into a single yamlKindNode, returning the new node.
-func getYAMLTypeForExpr(exp ast.Expr, allResources map[PackageInfo]ReferenceEntry) (yamlKindNode, error) {
+func getYAMLTypeForExpr(exp ast.Expr) (yamlKindNode, error) {
 	switch t := exp.(type) {
 	// TODO: Handle fields with manually overriden types per the
 	// "Predeclared scalar types" section of the RFD.
@@ -290,12 +300,12 @@ func getYAMLTypeForExpr(exp ast.Expr, allResources map[PackageInfo]ReferenceEntr
 			return nil, fmt.Errorf("unsupported type: %+v", t.Name)
 		}
 	case *ast.MapType:
-		k, err := getYAMLTypeForExpr(t.Key, allResources)
+		k, err := getYAMLTypeForExpr(t.Key)
 		if err != nil {
 			return nil, err
 		}
 
-		v, err := getYAMLTypeForExpr(t.Value, allResources)
+		v, err := getYAMLTypeForExpr(t.Value)
 		if err != nil {
 			return nil, err
 		}
@@ -304,7 +314,7 @@ func getYAMLTypeForExpr(exp ast.Expr, allResources map[PackageInfo]ReferenceEntr
 			valueKind: v,
 		}, nil
 	case *ast.ArrayType:
-		e, err := getYAMLTypeForExpr(t.Elt, allResources)
+		e, err := getYAMLTypeForExpr(t.Elt)
 		if err != nil {
 			return nil, err
 		}
@@ -312,24 +322,8 @@ func getYAMLTypeForExpr(exp ast.Expr, allResources map[PackageInfo]ReferenceEntr
 			elementKind: e,
 		}, nil
 	case *ast.SelectorExpr:
-		pkg, ok := t.X.(*ast.Ident)
-		if !ok {
-			return nil, fmt.Errorf("selector expression has unexpected X type: %v", t.X)
-		}
-		var name string
-		r, ok := allResources[PackageInfo{
-			TypeName:    t.Sel.Name,
-			PackageName: pkg.Name,
-		}]
-
-		if !ok {
-			name = t.Sel.Name
-		} else {
-			name = r.SectionName
-		}
-
 		return yamlCustomType{
-			name: name,
+			name: makeSectionName(t.Sel.Name),
 		}, nil
 	default:
 		return nil, fmt.Errorf("unexpected type: %v", t)
@@ -339,13 +333,13 @@ func getYAMLTypeForExpr(exp ast.Expr, allResources map[PackageInfo]ReferenceEntr
 
 // getYAMLType returns a name for field that is suitable for printing within the
 // resource reference.
-func getYAMLType(field *ast.Field, allResources map[PackageInfo]ReferenceEntry) (yamlKindNode, error) {
-	return getYAMLTypeForExpr(field.Type, allResources)
+func getYAMLType(field *ast.Field) (yamlKindNode, error) {
+	return getYAMLTypeForExpr(field.Type)
 }
 
 // makeRawField translates an *ast.Field into a rawField for downstream
 // processing.
-func makeRawField(field *ast.Field, allResources map[PackageInfo]ReferenceEntry) (rawField, error) {
+func makeRawField(field *ast.Field) (rawField, error) {
 	doc := field.Doc.Text()
 	if len(field.Names) > 1 {
 		return rawField{}, fmt.Errorf("field %+v contains more than one name", field)
@@ -355,7 +349,7 @@ func makeRawField(field *ast.Field, allResources map[PackageInfo]ReferenceEntry)
 		return rawField{}, fmt.Errorf("field %+v has no names", field)
 	}
 
-	tn, err := getYAMLType(field, allResources)
+	tn, err := getYAMLType(field)
 	if err != nil {
 		return rawField{}, err
 	}
@@ -419,8 +413,8 @@ func descriptionWithoutName(description, name string) string {
 // NewFromDecl creates a Resource object from the provided *GenDecl. filepath is
 // the Go source file where the declaration was made, and is used only for
 // printing. NewFromDecl uses allResources to look up custom fields.
-func NewFromDecl(decl *ast.GenDecl, filepath string, allResources map[PackageInfo]ReferenceEntry) (ReferenceEntry, error) {
-	rs, err := getRawNamedStruct(decl, allResources)
+func NewFromDecl(decl *ast.GenDecl, filepath string) (ReferenceEntry, error) {
+	rs, err := getRawNamedStruct(decl)
 	if err != nil {
 		return ReferenceEntry{}, err
 	}
