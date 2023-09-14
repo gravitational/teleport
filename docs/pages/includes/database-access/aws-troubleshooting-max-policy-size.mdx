@@ -81,8 +81,11 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
 
   Create or print the required IAM policies with the following commands and
   attach them to the respective IAM roles:
-  - `teleport db configure aws create-iam --types redshift,redshift-serverless --name teleport-redshift-access`
-  - `teleport db configure aws print-iam --types redshift,redshift-serverless`
+
+  ```code
+  $ teleport db configure aws create-iam --types redshift,redshift-serverless --name teleport-redshift-access
+  $ teleport db configure aws print-iam --types redshift,redshift-serverless
+  ```
 
   Refer to the command usage for a complete list of database types supported by
   the `--types` option.
@@ -112,6 +115,7 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   both discovery and authentication.
 
   To bootstrap IAM permissions, run the bootstrap command for each `assume_role_arn`:
+
    ```code
    $ teleport db configure bootstrap \
        -c /etc/teleport.yaml \
@@ -135,6 +139,7 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   ```
 
   To bootstrap IAM permissions, run the bootstrap command for each `assume_role_arn`:
+
    ```code
    $ teleport db configure bootstrap \
        -c /etc/teleport.yaml \
@@ -179,8 +184,11 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
 
   Create or print the required IAM policies with the following commands and
   attach them to the respective IAM roles:
-  - `teleport db configure aws create-iam --types rds --name teleport-rds-access`
-  - `teleport db configure aws print-iam --types rds`
+
+  ```code
+  $ teleport db configure aws create-iam --types rds --name teleport-rds-access
+  $ teleport db configure aws print-iam --types rds
+  ```
 
   Refer to the command usage for a complete list of database types supported by
   the `--types` option.
