@@ -320,7 +320,7 @@ func TestKubeSelection(t *testing.T) {
 		mustMakeDynamicKubeCluster(t, kubeBarEKS, "bar", map[string]string{types.DiscoveryLabelRegion: "us-west-1", "env": "dev"}),
 		mustMakeDynamicKubeCluster(t, kubeBazEKS1, "baz", map[string]string{types.DiscoveryLabelRegion: "us-west-1", "env": "prod"}),
 		mustMakeDynamicKubeCluster(t, kubeBazEKS2, "baz", map[string]string{types.DiscoveryLabelRegion: "us-west-2", "env": "prod"}),
-		mustMakeDynamicKubeCluster(t, kubeRootEKS, "root-cluster", map[string]string{types.DiscoveryLabelRegion: "us-west-2", "env": "restricted"}),
+		mustMakeDynamicKubeCluster(t, kubeRootEKS, "root-cluster", map[string]string{types.DiscoveryLabelRegion: "us-east-2", "env": "restricted"}),
 	)
 	allKubes := []string{kubeBarEKS, kubeBazEKS1, kubeBazEKS2}
 
@@ -619,7 +619,6 @@ func TestKubeSelection(t *testing.T) {
 		t.Parallel()
 		// login as the user.
 		tshHome, kubeConfig := mustLogin(t, s)
-		const kubeClusterEKS = "root-cluster-eks-us-west-1-123456789012"
 
 		// Run the login command in a goroutine so we can check if the access
 		// request was created and approved.
@@ -663,7 +662,7 @@ func TestKubeSelection(t *testing.T) {
 					{
 						ClusterName: s.root.Config.Auth.ClusterName.GetClusterName(),
 						Kind:        types.KindKubernetesCluster,
-						Name:        kubeClusterEKS,
+						Name:        kubeRootEKS,
 					},
 				},
 			)
