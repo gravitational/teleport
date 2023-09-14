@@ -2029,6 +2029,9 @@ impl DeviceAnnounceHeader {
         let mut preferred_dos_name: &str = match self.device_type {
             // In this case we can just use any random value, since it will be ignored in favor
             // of the UTF-8 encoded drive name in the DeviceData field.
+            //
+            // We may need to revisit this if we ever support multiple drives
+            // (i.e. do "FILE1", "FILE2", etc).
             DeviceType::RDPDR_DTYP_FILESYSTEM => "FILE",
             // If DeviceType is set to RDPDR_DTYP_SMARTCARD, the PreferredDosName MUST be set to "SCARD".
             // See: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/32e34332-774b-4ead-8c9d-5d64720d6bf9
