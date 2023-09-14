@@ -297,7 +297,7 @@ func TestRootPrograms(t *testing.T) {
 	defer opensnoop.close()
 
 	// Start tcpconnect.
-	tcpconnect, err := startConn(8192)
+	tcpconnect, err := startConn(8192, false /* udpEnabled */)
 	require.NoError(t, err)
 	defer tcpconnect.close()
 
