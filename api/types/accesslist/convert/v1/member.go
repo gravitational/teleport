@@ -25,8 +25,10 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 )
 
+type MemberOption func(*accesslistv1.Member)
+
 // FromMemberProto converts a v1 access list member into an internal access list member object.
-func FromMemberProto(msg *accesslistv1.Member) (*accesslist.AccessListMember, error) {
+func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslist.AccessListMember, error) {
 	if msg == nil {
 		return nil, trace.BadParameter("access list message is nil")
 	}
@@ -35,13 +37,23 @@ func FromMemberProto(msg *accesslistv1.Member) (*accesslist.AccessListMember, er
 		return nil, trace.BadParameter("spec is missing")
 	}
 
+	for _, opt := range opts {
+		opt(msg)
+	}
+
+	ineligibleStatus := ""
+	if msg.Spec.IneligibleStatus != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {
+		ineligibleStatus = msg.Spec.IneligibleStatus.Enum().String()
+	}
+
 	member, err := accesslist.NewAccessListMember(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.AccessListMemberSpec{
-		AccessList: msg.Spec.AccessList,
-		Name:       msg.Spec.Name,
-		Joined:     msg.Spec.Joined.AsTime(),
-		Expires:    msg.Spec.Expires.AsTime(),
-		Reason:     msg.Spec.Reason,
-		AddedBy:    msg.Spec.AddedBy,
+		AccessList:       msg.Spec.AccessList,
+		Name:             msg.Spec.Name,
+		Joined:           msg.Spec.Joined.AsTime(),
+		Expires:          msg.Spec.Expires.AsTime(),
+		Reason:           msg.Spec.Reason,
+		AddedBy:          msg.Spec.AddedBy,
+		IneligibleStatus: ineligibleStatus,
 	})
 
 	return member, trace.Wrap(err)
@@ -62,15 +74,21 @@ func FromMembersProto(msgs []*accesslistv1.Member) ([]*accesslist.AccessListMemb
 
 // ToMemberProto converts an internal access list member into a v1 access list member object.
 func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
+	var ineligibleStatus accesslistv1.IneligibleStatus
+	if enumVal, ok := accesslistv1.IneligibleStatus_value[member.Spec.IneligibleStatus]; ok {
+		ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
+	}
+
 	return &accesslistv1.Member{
 		Header: headerv1.ToResourceHeaderProto(member.ResourceHeader),
 		Spec: &accesslistv1.MemberSpec{
-			AccessList: member.Spec.AccessList,
-			Name:       member.Spec.Name,
-			Joined:     timestamppb.New(member.Spec.Joined),
-			Expires:    timestamppb.New(member.Spec.Expires),
-			Reason:     member.Spec.Reason,
-			AddedBy:    member.Spec.AddedBy,
+			AccessList:       member.Spec.AccessList,
+			Name:             member.Spec.Name,
+			Joined:           timestamppb.New(member.Spec.Joined),
+			Expires:          timestamppb.New(member.Spec.Expires),
+			Reason:           member.Spec.Reason,
+			AddedBy:          member.Spec.AddedBy,
+			IneligibleStatus: ineligibleStatus,
 		},
 	}
 }
