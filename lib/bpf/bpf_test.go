@@ -24,6 +24,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -35,11 +36,14 @@ import (
 	"unsafe"
 
 	"github.com/aquasecurity/libbpfgo"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -53,42 +57,51 @@ import (
 const (
 	// reexecInCGroupCmd is a cmd used to re-exec the test binary and call arbitrary program.
 	reexecInCGroupCmd = "reexecCgroup"
+
 	// networkInCgroupCmd is a cmd used to re-exec the test binary and make HTTP call.
 	networkInCgroupCmd = "networkCgroup"
+
+	// networkInCgroupSend is a cmd used to re-exec the test binary and make a raw
+	// net send.
+	// Arguments: network (eg, "udp4") and addr (eg, "localhost:1234").
+	networkInCgroupSend = "networkUDP"
+
+	bufferSize = 8192
 )
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 
-	// Check if the re-exec was requested.
-	if len(os.Args) == 3 {
-		var err error
-
-		switch os.Args[1] {
-		case reexecInCGroupCmd:
-			// Get the command to run passed as the 3rd argument.
-			cmd := os.Args[2]
-
-			err = waitAndRun(cmd)
-		case networkInCgroupCmd:
-			// Get the endpoint to call.
-			endpoint := os.Args[2]
-
-			err = callEndpoint(endpoint)
-		default:
-			os.Exit(2)
-		}
-
-		if err != nil {
-			// Something went wrong, exit with error.
-			os.Exit(1)
-		}
-
-		// The rexec was handled and nothing bad happened.
-		os.Exit(0)
+	if len(os.Args) < 2 {
+		// Not a reexec.
+		os.Exit(m.Run())
 	}
 
-	os.Exit(m.Run())
+	// Might be a reexec, decide based on args.
+	var err error
+	switch os.Args[1] {
+	case reexecInCGroupCmd:
+		cmd := os.Args[2]
+		err = waitAndRun(cmd)
+
+	case networkInCgroupCmd:
+		endpoint := os.Args[2]
+		err = callEndpoint(endpoint)
+
+	case networkInCgroupSend:
+		network := os.Args[2]
+		addr := os.Args[3]
+		err = netSend(network, addr)
+
+	default:
+		// Not a reexec.
+		os.Exit(m.Run())
+	}
+	if err != nil {
+		os.Exit(1)
+	}
+
+	os.Exit(0)
 }
 
 // waitAndRun wait for continue signal to be generated an executes the
@@ -115,6 +128,22 @@ func callEndpoint(endpoint string) error {
 	}
 
 	return err
+}
+
+func netSend(network, addr string) error {
+	if err := waitForContinue(); err != nil {
+		return err
+	}
+
+	conn, err := net.Dial(network, addr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v failed: %v", networkInCgroupSend, err)
+		return err
+	}
+
+	fmt.Fprintln(conn, "Hello, socket")
+	conn.Close()
+	return nil
 }
 
 // waitForContinue opens FD 3 and waits the signal from parent process that
@@ -237,7 +266,7 @@ func TestRootObfuscate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start execsnoop.
-	execsnoop, err := startExec(8192)
+	execsnoop, err := startExec(bufferSize)
 	defer execsnoop.close()
 	require.NoError(t, err)
 
@@ -263,7 +292,7 @@ func TestRootObfuscate(t *testing.T) {
 		for {
 			select {
 			case <-ticker.C:
-				runCmd(t, reexecInCGroupCmd, fileName, execsnoop)
+				runCmd(t, execsnoop, reexecInCGroupCmd, fileName)
 			case <-done:
 				return
 			}
@@ -307,7 +336,7 @@ func TestRootScript(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start execsnoop.
-	execsnoop, err := startExec(8192)
+	execsnoop, err := startExec(bufferSize)
 	defer execsnoop.close()
 	require.NoError(t, err)
 
@@ -326,7 +355,7 @@ func TestRootScript(t *testing.T) {
 				return
 			case <-ticker.C:
 				// Run script in a cgroup.
-				runCmd(t, reexecInCGroupCmd, fileName, execsnoop)
+				runCmd(t, execsnoop, reexecInCGroupCmd, fileName)
 			}
 		}
 	}()
@@ -370,17 +399,17 @@ func TestRootPrograms(t *testing.T) {
 	defer ts.Close()
 
 	// Start execsnoop.
-	execsnoop, err := startExec(8192)
+	execsnoop, err := startExec(bufferSize)
 	require.NoError(t, err)
 	defer execsnoop.close()
 
 	// Start opensnoop.
-	opensnoop, err := startOpen(8192)
+	opensnoop, err := startOpen(bufferSize)
 	require.NoError(t, err)
 	defer opensnoop.close()
 
 	// Start tcpconnect.
-	tcpconnect, err := startConn(8192, false /* udpEnabled */)
+	tcpconnect, err := startConn(bufferSize, false /* udpEnabled */)
 	require.NoError(t, err)
 	defer tcpconnect.close()
 
@@ -519,6 +548,98 @@ func TestRootBPFCounter(t *testing.T) {
 	counter.Close()
 }
 
+func TestBPF_udpEvents(t *testing.T) {
+	if !bpfTestEnabled() {
+		t.Skip("BPF testing is disabled")
+	}
+	if !isRoot() {
+		t.Skip("Tests for package bpf can only be run as root.")
+	}
+
+	connTrace, err := startConn(bufferSize, true /* udpEnabled */)
+	require.NoError(t, err, "startConn errored")
+	defer connTrace.close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	type simplifiedEvent struct {
+		Version   int
+		SockType  int
+		SockInode int
+	}
+
+	// Capture and stream events.
+	eventsC := make(chan simplifiedEvent)
+	go func() {
+		for {
+			select {
+			case data := <-connTrace.v4Events():
+				var event rawConn4Event
+				if err := unmarshalEvent(data, &event); err != nil {
+					t.Errorf("unmarshalEvent(conn4) failed: %v", err)
+					continue
+				}
+				t.Logf("conn4 event: %#v", event)
+				eventsC <- simplifiedEvent{
+					Version:   int(event.Version),
+					SockType:  int(event.SockType),
+					SockInode: int(event.SockInode),
+				}
+			case data := <-connTrace.v6Events():
+				var event rawConn6Event
+				if err := unmarshalEvent(data, &event); err != nil {
+					t.Errorf("unmarshalEvent(conn6) failed: %v", err)
+					break
+				}
+				t.Logf("conn6 event: %#v", event)
+				eventsC <- simplifiedEvent{
+					Version:   int(event.Version),
+					SockType:  int(event.SockType),
+					SockInode: int(event.SockInode),
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	send := func(t *testing.T, network, addr string) {
+		runCmd(t, connTrace, networkInCgroupSend, network, addr)
+	}
+
+	receive := func(t *testing.T) *simplifiedEvent {
+		t.Helper()
+		select {
+		case <-time.After(2 * time.Second):
+			t.Fatal("Timed out waiting for event")
+			return nil
+		case e := <-eventsC:
+			return &e
+		}
+	}
+
+	// Listen at a random port.
+	// We don't need to actively read from it.
+	const network = "udp4"
+	pc, err := net.ListenPacket(network, "localhost:0")
+	require.NoError(t, err, "ListenPacket errored")
+	defer pc.Close()
+
+	send(t, network, pc.LocalAddr().String())
+	got := receive(t)
+	assert.True(t, got.SockInode != 0, "got.SockInode=0, want non-zero")
+
+	want := &simplifiedEvent{
+		Version:   4,
+		SockType:  unix.SOCK_DGRAM,
+		SockInode: got.SockInode,
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("UDP event mismatch (-want +got)\n%s", diff)
+	}
+}
+
 // waitForEvent will wait for an event to arrive over the perf buffer and
 // signal when it has.
 func waitForEvent(ctx context.Context, cancel context.CancelFunc, eventCh <-chan []byte, verifyFn func(event []byte) bool) {
@@ -611,14 +732,14 @@ func executeCommand(t *testing.T, doneContext context.Context, file string,
 			fullPath, err := osexec.LookPath(path)
 			require.NoError(t, err)
 
-			runCmd(t, reexecInCGroupCmd, fullPath, traceCgroup)
+			runCmd(t, traceCgroup, reexecInCGroupCmd, fullPath)
 		case <-doneContext.Done():
 			return
 		}
 	}
 }
 
-func runCmd(t *testing.T, reexecCmd string, arg string, traceCgroup cgroupRegister) {
+func runCmd(t *testing.T, traceCgroup cgroupRegister, reexecCmd string, args ...string) {
 	t.Helper()
 
 	// Create a pipe to communicate with the child process after re-exec.
@@ -631,8 +752,9 @@ func runCmd(t *testing.T, reexecCmd string, arg string, traceCgroup cgroupRegist
 	})
 
 	// Re-exec the test binary. We can then move the binary to a new cgroup.
-	cmd := osexec.Command(os.Args[0], reexecCmd, arg)
-
+	cmd := osexec.Command(os.Args[0], append([]string{reexecCmd}, args...)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	cmd.ExtraFiles = append(cmd.ExtraFiles, readP)
 
 	// Start the re-exec
@@ -674,7 +796,7 @@ func executeHTTP(t *testing.T, doneContext context.Context, endpoint string, tra
 				t.Logf("HTTP request failed: %v.", err)
 			}
 
-			runCmd(t, networkInCgroupCmd, endpoint, traceCgroup)
+			runCmd(t, traceCgroup, networkInCgroupCmd, endpoint)
 
 		case <-doneContext.Done():
 			return
