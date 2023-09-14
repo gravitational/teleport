@@ -74,3 +74,55 @@ func TestIsValidAccountID(t *testing.T) {
 		})
 	}
 }
+
+func TestIsValidRegion(t *testing.T) {
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
+		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+	}
+
+	for _, tt := range []struct {
+		name     string
+		region   string
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:     "us region",
+			region:   "us-east-1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "eu region",
+			region:   "eu-west-1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "us gov",
+			region:   "us-gov-east-1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "valid format",
+			region:   "xx-iso-somewhere-100",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "empty",
+			region:   "",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "symbols",
+			region:   "us@east-1",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "invalid country code",
+			region:   "xxx-east-1",
+			errCheck: isBadParamErrFn,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, IsValidRegion(tt.region))
+		})
+	}
+}
