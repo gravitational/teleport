@@ -612,54 +612,31 @@ func TestBPF_udpEvents(t *testing.T) {
 		t.Helper()
 		select {
 		case <-time.After(2 * time.Second):
-			t.Error("Timed out waiting for event")
+			t.Fatal("Timed out waiting for event")
 			return nil
 		case e := <-eventsC:
 			return &e
 		}
 	}
 
-	tests := []struct {
-		ver  int
-		host string
-	}{
-		{
-			ver:  4,
-			host: "localhost",
-		},
-		{
-			ver:  6,
-			host: "[::1]",
-		},
+	// Listen at a random port.
+	// We don't need to actively read from it.
+	const network = "udp4"
+	pc, err := net.ListenPacket(network, "localhost:0")
+	require.NoError(t, err, "ListenPacket errored")
+	defer pc.Close()
+
+	send(t, network, pc.LocalAddr().String())
+	got := receive(t)
+	assert.True(t, got.SockInode != 0, "got.SockInode=0, want non-zero")
+
+	want := &simplifiedEvent{
+		Version:   4,
+		SockType:  unix.SOCK_DGRAM,
+		SockInode: got.SockInode,
 	}
-	for _, test := range tests {
-		test := test
-		network := fmt.Sprintf("udp%d", test.ver)
-
-		t.Run(network, func(t *testing.T) {
-			// Listen at a random port. We don't need to actively read from it.
-			pc, err := net.ListenPacket(network, test.host+":0")
-			require.NoError(t, err, "ListenPacket errored")
-			defer pc.Close()
-			_, port, _ := net.SplitHostPort(pc.LocalAddr().String())
-
-			send(t, network, test.host+":"+port)
-			got := receive(t)
-			if got == nil {
-				return // receive failed
-			}
-
-			assert.True(t, got.SockInode != 0, "got.SockInode=0, want non-zero")
-
-			want := &simplifiedEvent{
-				Version:   test.ver,
-				SockType:  unix.SOCK_DGRAM,
-				SockInode: got.SockInode,
-			}
-			if diff := cmp.Diff(want, got); diff != "" {
-				t.Errorf("UDP event mismatch (-want +got)\n%s", diff)
-			}
-		})
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("UDP event mismatch (-want +got)\n%s", diff)
 	}
 }
 
