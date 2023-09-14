@@ -125,18 +125,21 @@ export function StepSlider<T>(props: Props<T>) {
     }
   };
 
-  const setMarginYOnInitialMount = (node: HTMLElement) => {
+  const setHeightOnInitialMount = (node: HTMLElement) => {
     if (node !== null) {
       setHeight(node.getBoundingClientRect().height + getMarginY(node));
     }
   };
 
   function generateCurrentStep(View: StepComponent, requirePreMount = false) {
-    let refCallbackFn;
+    // refCallbackFn is called with the DOM element ("View") that
+    // has been mounted. This way we can get the true height of
+    // the "View" container with the margins.
+    let refCallbackFn: (node: HTMLElement) => void;
     if (requirePreMount) {
       refCallbackFn = setHeightOnPreMount;
     } else if (!rootRef?.current) {
-      refCallbackFn = setMarginYOnInitialMount;
+      refCallbackFn = setHeightOnInitialMount;
     }
     return (
       <View
@@ -178,12 +181,12 @@ export function StepSlider<T>(props: Props<T>) {
     }
   }
 
+  // Sets the height of the outer container (root container).
+  // Initial render will always be 'auto' since rootRef current
+  // will be undefined.
   let heightWithMargins = 'auto';
   if (rootRef?.current) {
-    const currHeight = parseInt(rootRef.current.style.height);
-    if (!isNaN(currHeight)) {
-      heightWithMargins = `${currHeight}px`;
-    }
+    heightWithMargins = rootRef.current.style.height;
   }
 
   const rootStyle = {
@@ -191,9 +194,6 @@ export function StepSlider<T>(props: Props<T>) {
     // to keep views "stacked" on top of each other. Position relative is needed
     // so these children's position themselves relative to parent.
     position: 'relative',
-    // Height 'auto' is only ever used on the initial render to let it
-    // take up as much space it needs. Afterward, it sets the starting
-    // height.
     height: heightWithMargins,
     transition: `height ${tDuration}ms ease`,
   };
