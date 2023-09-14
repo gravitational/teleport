@@ -93,3 +93,6 @@ coverage
 
 # vite
 .swc
+
+# Vagrant
+/.vagrant/
