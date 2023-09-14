@@ -604,13 +604,6 @@ func TestBPF_udpEvents(t *testing.T) {
 		}
 	}()
 
-	// Bind a random port for our sends.
-	// We don't have to read from it.
-	pc, err := net.ListenPacket("udp", ":0")
-	require.NoError(t, err, "ListenPacket errored")
-	defer pc.Close()
-	_, port, _ := net.SplitHostPort(pc.LocalAddr().String())
-
 	send := func(t *testing.T, network, addr string) {
 		runCmd(t, connTrace, networkInCgroupSend, network, addr)
 	}
@@ -626,17 +619,31 @@ func TestBPF_udpEvents(t *testing.T) {
 		}
 	}
 
-	for _, ver := range []int{4, 6} {
-		network := fmt.Sprintf("udp%v", ver)
-		var addr string
-		if ver == 4 {
-			addr = "localhost:" + port
-		} else {
-			addr = "[::1]:" + port
-		}
+	tests := []struct {
+		ver  int
+		host string
+	}{
+		{
+			ver:  4,
+			host: "localhost",
+		},
+		{
+			ver:  6,
+			host: "[::1]",
+		},
+	}
+	for _, test := range tests {
+		test := test
+		network := fmt.Sprintf("udp%d", test.ver)
 
 		t.Run(network, func(t *testing.T) {
-			send(t, network, addr)
+			// Listen at a random port. We don't need to actively read from it.
+			pc, err := net.ListenPacket(network, test.host+":0")
+			require.NoError(t, err, "ListenPacket errored")
+			defer pc.Close()
+			_, port, _ := net.SplitHostPort(pc.LocalAddr().String())
+
+			send(t, network, test.host+":"+port)
 			got := receive(t)
 			if got == nil {
 				return // receive failed
@@ -645,7 +652,7 @@ func TestBPF_udpEvents(t *testing.T) {
 			assert.True(t, got.SockInode != 0, "got.SockInode=0, want non-zero")
 
 			want := &simplifiedEvent{
-				Version:   ver,
+				Version:   test.ver,
 				SockType:  unix.SOCK_DGRAM,
 				SockInode: got.SockInode,
 			}
