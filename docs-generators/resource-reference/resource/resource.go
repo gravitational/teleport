@@ -154,9 +154,7 @@ func (y yamlBool) formatForExampleYAML(indents int) string {
 
 // A type declared by the program, i.e., not one of Go's predeclared types.
 type yamlCustomType struct {
-	allTypes map[PackageInfo]ReferenceEntry
-	pkg      string
-	name     string
+	name string
 }
 
 func (y yamlCustomType) formatForExampleYAML(indents int) string {
@@ -169,21 +167,10 @@ func (y yamlCustomType) formatForExampleYAML(indents int) string {
 }
 
 func (y yamlCustomType) formatForTable() string {
-	var name string
-	t, ok := y.allTypes[PackageInfo{
-		TypeName:    y.name,
-		PackageName: y.pkg,
-	}]
-
-	if !ok {
-		name = y.name
-	}
-
-	name = t.SectionName
 	return fmt.Sprintf(
 		"[%v](#%v)",
-		name,
-		strings.ToLower(name),
+		y.name,
+		strings.ToLower(y.name),
 	)
 }
 
@@ -329,10 +316,20 @@ func getYAMLTypeForExpr(exp ast.Expr, allResources map[PackageInfo]ReferenceEntr
 		if !ok {
 			return nil, fmt.Errorf("selector expression has unexpected X type: %v", t.X)
 		}
+		var name string
+		r, ok := allResources[PackageInfo{
+			TypeName:    t.Sel.Name,
+			PackageName: pkg.Name,
+		}]
+
+		if !ok {
+			name = t.Sel.Name
+		} else {
+			name = r.SectionName
+		}
+
 		return yamlCustomType{
-			allTypes: allResources,
-			pkg:      pkg.Name,
-			name:     t.Sel.Name,
+			name: name,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unexpected type: %v", t)
