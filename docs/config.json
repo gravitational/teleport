@@ -439,6 +439,11 @@
               "forScopes": ["cloud"]
             },
             {
+              "title": "ServiceNow",
+              "slug": "/access-controls/access-request-plugins/servicenow/",
+              "forScopes": ["cloud"]
+            },
+            {
               "title": "Jira",
               "slug": "/access-controls/access-request-plugins/ssh-approval-jira/",
               "forScopes": ["enterprise", "cloud"]
