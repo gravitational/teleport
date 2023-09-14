@@ -212,7 +212,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	require.Equal(t, checkpoint, "")
 
 	// This serves no special purpose except to make querying easier.
-	baseTime2 := time.Date(2019, time.August, 10, 14, 43, 47, 0, time.UTC)
+	baseTime2 := time.Now().UTC().AddDate(0, 0, -2)
 
 	for _, name := range names {
 		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
