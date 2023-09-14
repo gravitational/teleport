@@ -1332,6 +1332,8 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
+	t.Setenv("TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING", "yes")
+
 	startNodes := func(t *testing.T, root, leaf *helpers.TeleInstance) {
 		rootNodes := []string{"root-one", "root-two"}
 		leafNodes := []string{"leaf-one", "leaf-two"}
@@ -1508,6 +1510,70 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		require.Equal(t, local.get().String(), pingResp.RemoteAddr, "client IP:port that auth server sees doesn't match the real one")
 	}
 
+	testSSHUnregisteredNodeConnection := func(t *testing.T, instance *helpers.TeleInstance, clusterName string) {
+		sshListener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			sshListener.Close()
+		})
+
+		resultChan := make(chan bool)
+		// Start listening, emulating unregistered node.
+		go func() {
+			conn, err := sshListener.Accept()
+			if err != nil {
+				assert.Fail(t, err.Error())
+				return
+			}
+
+			buf := make([]byte, 3)
+			_, err = conn.Read(buf)
+			assert.NoError(t, err)
+
+			// On the received connection first bytes should be SSH prefix, not PROXY protocol
+			resultChan <- slices.Equal(buf, []byte("SSH"))
+		}()
+
+		nodeAddr := sshListener.Addr().String()
+		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*5)
+		t.Cleanup(cancelFunc)
+
+		nodeHost, nodePortStr, err := net.SplitHostPort(nodeAddr)
+		require.NoError(t, err)
+
+		nodePort, err := strconv.Atoi(nodePortStr)
+		require.NoError(t, err)
+
+		tc, err := instance.NewClient(helpers.ClientConfig{
+			Login:   suite.Me.Username,
+			Cluster: clusterName,
+			Host:    nodeHost,
+			Port:    nodePort,
+		})
+		require.NoError(t, err)
+
+		clt, err := tc.ConnectToProxy(ctx)
+		require.NoError(t, err)
+		defer clt.Close()
+
+		nodeClient, _ := clt.ConnectToNode(
+			ctx,
+			client.NodeDetails{Addr: nodeAddr, Namespace: tc.Namespace, Cluster: tc.SiteName},
+			tc.Config.HostLogin,
+			sshutils.ClusterDetails{},
+		)
+		if err != nil {
+			defer nodeClient.Close()
+		}
+
+		select {
+		case res := <-resultChan:
+			require.True(t, res, "Didn't receive SSH prefix as first bytes on the connection")
+		case <-time.After(time.Second):
+			require.Fail(t, "Timed out waiting for connection to the node")
+		}
+	}
+
 	testSSHAuthConnection := func(t *testing.T, instance *helpers.TeleInstance, clusterName string) {
 		ctx := context.Background()
 
@@ -1570,6 +1636,15 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 				})
 			})
 		}
+	})
+
+	t.Run("We don't propagate IP to non Teleport nodes", func(t *testing.T) {
+		t.Run("connecting through root cluster", func(t *testing.T) {
+			testSSHUnregisteredNodeConnection(t, root, "root-test")
+		})
+		t.Run("connecting through leaf cluster", func(t *testing.T) {
+			testSSHUnregisteredNodeConnection(t, root, "leaf-test")
+		})
 	})
 
 	t.Run("Host Connections", func(t *testing.T) {

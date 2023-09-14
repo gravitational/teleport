@@ -284,8 +284,8 @@ func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, useTunnel
 }
 
 func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialParams, conn net.Conn, useTunnel bool) error {
-	isNonTeleport := params.IsAgentlessNode || params.TargetServer == nil
-	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, isNonTeleport, params.From, params.OriginalClientDstAddr) {
+	isNonTeleportNode := params.IsAgentlessNode || (params.TargetServer == nil && params.ConnType == types.NodeTunnel)
+	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, isNonTeleportNode, params.From, params.OriginalClientDstAddr) {
 		return nil
 	}
 
