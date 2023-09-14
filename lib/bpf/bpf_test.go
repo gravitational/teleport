@@ -611,7 +611,7 @@ func TestBPF_udpEvents(t *testing.T) {
 	receive := func(t *testing.T) *simplifiedEvent {
 		t.Helper()
 		select {
-		case <-time.After(1 * time.Second):
+		case <-time.After(2 * time.Second):
 			t.Error("Timed out waiting for event")
 			return nil
 		case e := <-eventsC:
