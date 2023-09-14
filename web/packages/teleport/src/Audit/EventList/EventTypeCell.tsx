@@ -221,6 +221,23 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE]: Icons.Warning,
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: Icons.Info,
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_CREATE]: Icons.Info,
+  [eventCodes.ACCESS_LIST_CREATE_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_UPDATE]: Icons.Info,
+  [eventCodes.ACCESS_LIST_UPDATE_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_DELETE]: Icons.Info,
+  [eventCodes.ACCESS_LIST_DELETE_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_REVIEW]: Icons.Info,
+  [eventCodes.ACCESS_LIST_REVIEW_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE]: Icons.User,
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: Icons.User,
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE]: Icons.User,
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: Icons.User,
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]:
+    Icons.Warning,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 
