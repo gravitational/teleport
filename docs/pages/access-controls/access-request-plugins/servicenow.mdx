@@ -22,12 +22,12 @@ ServiceNow.
 - The ServiceNow integration is currently only available in Teleport Cloud.
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Create services
+## Step 1/4. Create services
 
 We will configure the ServiceNow plugin to create an incident when
 certain users create an Access Request.
 
-## Step 2/5. Define RBAC resources
+## Step 2/4. Define RBAC resources
 
 The Teleport ServiceNow plugin works by receiving Access Request events from the
 Teleport Auth Service and, based on these events, interacting with the ServiceNow
@@ -69,11 +69,7 @@ Then select 'Create New User' and create a user with the requester role.
 
 ![Add user two](../../../img/enterprise/plugins/servicenow/add-user-two.png)
 
-## Step 3/5. Set up an ServiceNow roles for the ServiceNow user
-
-TODO: Add instructions for which roles are needed
-
-## Step 4/5. Configure the ServiceNow plugin
+## Step 3/4. Configure the ServiceNow plugin
 
 At this point, you have a ServiceNow user that the ServiceNow plugin will use
 to connect to the ServiceNow API. To configure the plugin to use this user navigate
@@ -81,7 +77,10 @@ to Management -> Integrations -> Enroll New Integration.
 
 ![Integrations page](../../../img/enterprise/plugins/servicenow/servicenow-integration-page.png)
 
-## Step 5/5. Test the ServiceNow plugin
+For the plugin to function the credentials given to the plugin to use
+must allow for reading and writing from the incident table.
+
+## Step 4/4. Test the ServiceNow plugin
 
 ### Create an Access Request
 
