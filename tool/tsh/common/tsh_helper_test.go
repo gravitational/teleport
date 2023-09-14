@@ -28,12 +28,15 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
@@ -412,4 +415,59 @@ func mustCloneTempDir(t *testing.T, srcDir string) string {
 	})
 	require.NoError(t, err)
 	return dstDir
+}
+
+func mustMakeDynamicKubeCluster(t *testing.T, name, discoveredName string, labels map[string]string) types.KubeCluster {
+	t.Helper()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[types.OriginLabel] = types.OriginDynamic
+	if discoveredName != "" {
+		// setup a fake "discovered" kube cluster by adding a discovered name label
+		labels[types.DiscoveredNameLabel] = discoveredName
+	}
+	kc, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.KubernetesClusterSpecV3{
+			Kubeconfig: newKubeConfig(t, name),
+		},
+	)
+	require.NoError(t, err)
+	return kc
+}
+
+func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.Server, clusters ...types.KubeCluster) {
+	t.Helper()
+	if len(clusters) == 0 {
+		return
+	}
+
+	wg, _ := errgroup.WithContext(ctx)
+	wantNames := make([]string, 0, len(clusters))
+	for _, kc := range clusters {
+		kc := kc
+		wg.Go(func() error {
+			err := authSrv.CreateKubernetesCluster(ctx, kc)
+			return trace.Wrap(err)
+		})
+		wantNames = append(wantNames, kc.GetName())
+	}
+	require.NoError(t, wg.Wait())
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		servers, err := authSrv.GetKubernetesServers(ctx)
+		assert.NoError(c, err)
+		gotNames := map[string]struct{}{}
+		for _, ks := range servers {
+			gotNames[ks.GetName()] = struct{}{}
+		}
+		for _, name := range wantNames {
+			assert.Contains(c, gotNames, name, "missing kube cluster")
+		}
+	}, time.Second*10, time.Millisecond*500, "dynamically created kube clusters failed to register")
+
 }
