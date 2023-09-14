@@ -27,8 +27,10 @@ import (
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 )
 
+type AccessListOption func(*accesslistv1.AccessList)
+
 // FromProto converts a v1 access list into an internal access list object.
-func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
+func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accesslist.AccessList, error) {
 	if msg == nil {
 		return nil, trace.BadParameter("access list message is nil")
 	}
@@ -49,11 +51,20 @@ func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
 		return nil, trace.BadParameter("grants is missing")
 	}
 
+	for _, opt := range opts {
+		opt(msg)
+	}
+
 	owners := make([]accesslist.Owner, len(msg.Spec.Owners))
 	for i, owner := range msg.Spec.Owners {
+		ineligibleStatus := ""
+		if owner.IneligibleStatus != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {
+			ineligibleStatus = owner.IneligibleStatus.Enum().String()
+		}
 		owners[i] = accesslist.Owner{
-			Name:        owner.Name,
-			Description: owner.Description,
+			Name:             owner.Name,
+			Description:      owner.Description,
+			IneligibleStatus: ineligibleStatus,
 		}
 	}
 
@@ -86,9 +97,14 @@ func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
 func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 	owners := make([]*accesslistv1.AccessListOwner, len(accessList.Spec.Owners))
 	for i, owner := range accessList.Spec.Owners {
+		var ineligibleStatus accesslistv1.IneligibleStatus
+		if enumVal, ok := accesslistv1.IneligibleStatus_value[owner.IneligibleStatus]; ok {
+			ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
+		}
 		owners[i] = &accesslistv1.AccessListOwner{
-			Name:        owner.Name,
-			Description: owner.Description,
+			Name:             owner.Name,
+			Description:      owner.Description,
+			IneligibleStatus: ineligibleStatus,
 		}
 	}
 
