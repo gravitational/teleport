@@ -210,15 +210,15 @@ spec:
 package mypkg
 
 // Server includes information about a server registered with Teleport.
+// Example YAML:
+// ---
+// qualities:
+//    - "region:us-east-1"
+//    - team:security
+//      env:dev
+//      role:primary
 type Server struct {
   // Qualities is a list of either maps or "key:value" strings.
-  // Example YAML:
-  // ---
-  // qualities:
-  //   - "region:us-east-1"
-  //   - team:security
-  //     env:dev
-  //     role:primary
   Qualities types.CustomAttributes BACKTICKjson:"qualities"BACKTICK
 }
 `,
