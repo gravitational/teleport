@@ -14,18 +14,12 @@ limitations under the License.
 package web
 
 import (
-	"crypto/sha1"
-	"crypto/tls"
-	"fmt"
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/jwt"
 )
@@ -100,49 +94,5 @@ func (h *Handler) jwksOIDC(_ http.ResponseWriter, r *http.Request, _ httprouter.
 // Returns the thumbprint of the top intermediate CA that signed the TLS cert used to serve HTTPS requests.
 // In case of a self signed certificate, then it returns the thumbprint of the TLS cert itself.
 func (h *Handler) thumbprint(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	// Dial requires the following address format: host:port
-	cfgPublicAddress := h.PublicProxyAddr()
-	if !strings.Contains(cfgPublicAddress, "://") {
-		cfgPublicAddress = "https://" + cfgPublicAddress
-	}
-
-	addrURL, err := url.Parse(cfgPublicAddress)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	d := tls.Dialer{
-		Config: &tls.Config{
-			InsecureSkipVerify: lib.IsInsecureDevMode(),
-		},
-	}
-	conn, err := d.DialContext(r.Context(), "tcp", addrURL.Host)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	tlsConn, ok := conn.(*tls.Conn)
-	if !ok {
-		return nil, trace.Errorf("failed to create a tls connection")
-	}
-
-	certs := tlsConn.ConnectionState().PeerCertificates
-	if len(certs) == 0 {
-		return nil, trace.Errorf("no certificates were provided")
-	}
-
-	// Get the last certificate of the chain
-	// https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html
-	// > If you see more than one certificate, find the last certificate displayed (at the end of the command output).
-	// > This contains the certificate of the top intermediate CA in the certificate authority chain.
-	//
-	// The guide above uses openssl but the expected list of certificates and their order is the same.
-
-	lastCertificateIdx := len(certs) - 1
-	cert := certs[lastCertificateIdx]
-	thumbprint := sha1.Sum(cert.Raw)
-
-	// Convert the thumbprint ([]bytes) into their hex representation.
-	return fmt.Sprintf("%x", thumbprint), nil
+	return awsoidc.ThumbprintIdP(r.Context(), h.PublicProxyAddr())
 }
