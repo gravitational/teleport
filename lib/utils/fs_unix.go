@@ -29,10 +29,10 @@ func getPlatformLockFilePath(path string) string {
 	return path
 }
 
-func getHardLinkCount(fi os.FileInfo) (bool, uint64) {
+func getHardLinkCount(fi os.FileInfo) (uint64, bool) {
 	if statT, ok := fi.Sys().(*syscall.Stat_t); ok {
-		return true, statT.Nlink
+		return statT.Nlink, true
 	} else {
-		return false, 0
+		return 0, false
 	}
 }
