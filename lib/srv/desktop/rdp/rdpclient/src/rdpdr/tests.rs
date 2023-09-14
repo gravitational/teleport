@@ -306,16 +306,9 @@ fn test_handle_client_id_confirm() {
         },
         vec![(
             PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
-            Box::new(ClientDeviceListAnnounceRequest {
-                device_count: 1,
-                device_list: vec![DeviceAnnounceHeader {
-                    device_type: DeviceType::RDPDR_DTYP_SMARTCARD,
-                    device_id: 1,
-                    preferred_dos_name: "SCARD".to_string(),
-                    device_data_length: 0,
-                    device_data: vec![],
-                }],
-            }),
+            Box::new(ClientDeviceListAnnounceRequest::new_smartcard(
+                SCARD_DEVICE_ID,
+            )),
         )],
     );
 
