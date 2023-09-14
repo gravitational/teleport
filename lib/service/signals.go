@@ -83,8 +83,12 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				process.log.Infof("All services stopped, exiting.")
 				return nil
 			case syscall.SIGTERM, syscall.SIGKILL, syscall.SIGINT:
-				process.log.Infof("Got signal %q, exiting immediately.", signal)
-				process.Close()
+				timeout := time.Second * 3
+				cancelCtx, cancelFunc := context.WithTimeout(ctx, timeout)
+				process.log.Infof("Got signal %q, exiting within %vs.", signal, timeout.Seconds())
+				process.Shutdown(cancelCtx)
+				process.log.Infof("All services stopped or timeout passed, exiting immediately.")
+				cancelFunc()
 				return nil
 			case syscall.SIGUSR1:
 				// All programs placed diagnostics on the standard output.
