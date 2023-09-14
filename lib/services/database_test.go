@@ -1004,7 +1004,7 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 			AWS:      expectedAWS,
 		})
 		require.NoError(t, err)
-		actual, err := NewDatabaseFromRDSV2Cluster(cluster)
+		actual, err := NewDatabaseFromRDSV2Cluster(cluster, nil)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(expected, actual))
 
@@ -1020,11 +1020,59 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 				)
 				expected.Metadata.Name = newName
 
-				actual, err := NewDatabaseFromRDSV2Cluster(cluster)
+				actual, err := NewDatabaseFromRDSV2Cluster(cluster, nil)
 				require.NoError(t, err)
 				require.Equal(t, actual.GetName(), newName)
 			})
 		}
+	})
+
+	t.Run("DB Cluster uses network information from DB Instance when available", func(t *testing.T) {
+		instance := &rdsTypesV2.DBInstance{
+			DBSubnetGroup: &rdsTypesV2.DBSubnetGroup{
+				VpcId: aws.String("vpc-123"),
+				Subnets: []rdsTypesV2.Subnet{
+					{SubnetIdentifier: aws.String("subnet-123")},
+					{SubnetIdentifier: aws.String("subnet-456")},
+				},
+			},
+		}
+
+		expected, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "override-1",
+			Description: "Aurora cluster in us-east-1",
+			Labels: map[string]string{
+				"TeleportDatabaseName":            "override-1",
+				"teleport.dev/database_name":      "override-1",
+				types.DiscoveryLabelAccountID:     "123456789012",
+				types.CloudLabel:                  types.CloudAWS,
+				types.OriginLabel:                 types.OriginCloud,
+				types.DiscoveryLabelRegion:        "us-east-1",
+				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
+				types.DiscoveryLabelEngineVersion: "8.0.0",
+				types.DiscoveryLabelEndpointType:  "primary",
+				types.DiscoveryLabelStatus:        "available",
+				"key":                             "val",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "localhost:3306",
+			AWS: types.AWS{
+				AccountID: "123456789012",
+				Region:    "us-east-1",
+				RDS: types.RDS{
+					ClusterID:  "cluster-1",
+					ResourceID: "resource-1",
+					IAMAuth:    true,
+					Subnets:    []string{"subnet-123", "subnet-456"},
+					VPCID:      "vpc-123",
+				},
+			},
+		})
+		require.NoError(t, err)
+		actual, err := NewDatabaseFromRDSV2Cluster(cluster, instance)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(expected, actual), "NewDatabaseFromRDSV2Cluster diff (-want +got)")
 	})
 }
 

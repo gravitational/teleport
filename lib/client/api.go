@@ -1920,6 +1920,9 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if session.GetSessionKind() != types.SSHSessionKind {
 		return trace.BadParameter("session joining is only supported for ssh sessions, not %q sessions", session.GetSessionKind())
 	}
+	if types.IsOpenSSHNodeSubKind(session.GetTargetSubKind()) {
+		return trace.BadParameter("session joining is only supported for Teleport nodes, not OpenSSH nodes")
+	}
 
 	// connect to server:
 	nc, err := tc.ConnectToNode(ctx,

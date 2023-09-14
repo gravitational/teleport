@@ -4968,6 +4968,9 @@ message SessionTrackerSpecV1 {
 
   // DesktopName is the windows desktop server this session belongs to.
   string DesktopName = 20 [(gogoproto.jsontag) = "desktop_name,omitempty"];
+
+  // TargetSubKind is the sub kind of the target server.
+  string TargetSubKind = 22 [(gogoproto.jsontag) = "target_sub_kind,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker

@@ -18,8 +18,6 @@ package aws
 
 import (
 	"regexp"
-	"strings"
-	"unicode"
 
 	"github.com/gravitational/trace"
 )
@@ -40,9 +38,6 @@ func IsValidAccountID(accountID string) error {
 	return nil
 }
 
-// matchRoleName is a regex that matches against AWS IAM Role Names.
-var matchRoleName = regexp.MustCompile(`^[\w+=,.@-]+$`).MatchString
-
 // IsValidIAMRoleName checks whether the role name is a valid AWS IAM Role identifier.
 //
 // > Length Constraints: Minimum length of 1. Maximum length of 64.
@@ -60,17 +55,26 @@ func IsValidIAMRoleName(roleName string) error {
 // It does not do a full validation, because AWS doesn't provide documentation for that.
 // However, they usually only have the following chars: [a-z0-9\-]
 func IsValidRegion(region string) error {
-	indexNotFound := -1
-
-	if len(region) == 0 {
-		return trace.BadParameter("region is invalid")
-	}
-
-	if strings.IndexFunc(region, func(r rune) bool {
-		return !(unicode.IsDigit(r) || unicode.IsLetter(r) || r == '-')
-	}) == indexNotFound {
+	if matchRegion.MatchString(region) {
 		return nil
 	}
-
-	return trace.BadParameter("region is invalid")
+	return trace.BadParameter("region %q is invalid", region)
 }
+
+var (
+	// matchRoleName is a regex that matches against AWS IAM Role Names.
+	matchRoleName = regexp.MustCompile(`^[\w+=,.@-]+$`).MatchString
+
+	// matchRegion is a regex that defines the format of AWS regions.
+	//
+	// The regex matches the following from left to right:
+	// - starts with 2 lower case letters that represents a geo region like a
+	//   country code
+	// - optional -gov, -iso, -isob for corresponding partitions
+	// - a word that should be a direction like "east", "west", etc.
+	// - a number counter
+	//
+	// Reference:
+	// https://github.com/aws/aws-sdk-go-v2/blob/main/codegen/smithy-aws-go-codegen/src/main/resources/software/amazon/smithy/aws/go/codegen/endpoints.json
+	matchRegion = regexp.MustCompile(`^[a-z]{2}(-gov|-iso|-isob)?-\w+-\d+$`)
+)
