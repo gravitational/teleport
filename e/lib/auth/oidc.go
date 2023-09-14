@@ -615,6 +615,11 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 		return nil, trace.Wrap(err)
 	}
 
+	userState, err := oas.auth.GetUserOrLoginState(ctx, user.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Auth was successful, return session, certificate, etc. to caller.
 	resp := &auth.OIDCAuthResponse{
 		Req: OIDCAuthRequestFromProto(req),
@@ -622,7 +627,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 			ConnectorID: params.ConnectorName,
 			Username:    params.Username,
 		},
-		Username: user.GetName(),
+		Username: userState.GetName(),
 	}
 
 	// In test flow skip signing and creating web sessions.
@@ -638,9 +643,9 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
 		session, err := oas.auth.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
-			User:       user.GetName(),
-			Roles:      user.GetRoles(),
-			Traits:     user.GetTraits(),
+			User:       userState.GetName(),
+			Roles:      userState.GetRoles(),
+			Traits:     userState.GetTraits(),
 			SessionTTL: params.SessionTTL,
 			LoginTime:  oas.auth.GetClock().Now().UTC(),
 			LoginIP:    req.ClientLoginIP,
@@ -653,7 +658,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 
 	// If a public key was provided, sign it and return a certificate.
 	if len(req.PublicKey) != 0 {
-		sshCert, tlsCert, err := oas.auth.CreateSessionCert(user, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
+		sshCert, tlsCert, err := oas.auth.CreateSessionCert(userState, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
 			req.KubernetesCluster, req.ClientLoginIP, keys.AttestationStatementFromProto(req.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")

@@ -571,13 +571,18 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		return nil, trace.Wrap(err)
 	}
 
+	userState, err := sas.auth.GetUserOrLoginState(ctx, user.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Auth was successful, return session, certificate, etc. to caller.
 	resp := &auth.SAMLAuthResponse{
 		Identity: types.ExternalIdentity{
 			ConnectorID: params.ConnectorName,
 			Username:    params.Username,
 		},
-		Username: user.GetName(),
+		Username: userState.GetName(),
 	}
 
 	if request != nil {
@@ -601,9 +606,9 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	// If the request is coming from a browser, create a web session.
 	if request == nil || request.CreateWebSession {
 		session, err := sas.auth.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
-			User:       user.GetName(),
-			Roles:      user.GetRoles(),
-			Traits:     user.GetTraits(),
+			User:       userState.GetName(),
+			Roles:      userState.GetRoles(),
+			Traits:     userState.GetTraits(),
 			SessionTTL: params.SessionTTL,
 			LoginTime:  sas.auth.GetClock().Now().UTC(),
 			LoginIP:    loginIP,
@@ -617,7 +622,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 
 	// If a public key was provided, sign it and return a certificate.
 	if request != nil && len(request.PublicKey) != 0 {
-		sshCert, tlsCert, err := sas.auth.CreateSessionCert(user, params.SessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster,
+		sshCert, tlsCert, err := sas.auth.CreateSessionCert(userState, params.SessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster,
 			request.KubernetesCluster, loginIP, keys.AttestationStatementFromProto(request.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
