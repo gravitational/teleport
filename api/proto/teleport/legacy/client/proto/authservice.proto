@@ -501,6 +501,8 @@ message Features {
   bool FeatureHiding = 20 [(gogoproto.jsontag) = "feature_hiding,omitempty"];
   // AccessRequests holds its namesake feature settings.
   AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
+  // CustomTheme holds the name of WebUI custom theme.
+  string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -2965,4 +2967,7 @@ service AuthService {
 
   // UpdateClusterMaintenanceConfig updates the current maintenance window config singleton.
   rpc UpdateClusterMaintenanceConfig(types.ClusterMaintenanceConfigV1) returns (google.protobuf.Empty);
+
+  // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
+  rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

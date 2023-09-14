@@ -91,7 +91,7 @@ export const MachineIDIntegrationSection = () => {
           to access resources protected by Teleport.
         </Text>
       </Box>
-      <Flex mb={2} gap={3}>
+      <Flex mb={2} gap={3} flexWrap="wrap">
         {integrations.map(i => {
           return (
             <IntegrationTile

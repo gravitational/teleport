@@ -167,8 +167,6 @@ type AccessRequestGetter interface {
 // DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
 type DynamicAccessCore interface {
 	AccessRequestGetter
-	// CreateAccessRequest stores a new access request.
-	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
 	// CreateAccessRequestV2 stores a new access request.
 	CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error)
 	// DeleteAccessRequest deletes an access request.
@@ -261,6 +259,8 @@ func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resource
 // used to implement some auth server internals.
 type DynamicAccessExt interface {
 	DynamicAccessCore
+	// CreateAccessRequest stores a new access request.
+	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
 	// ApplyAccessReview applies a review to a request in the backend and returns the post-application state.
 	ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker ReviewPermissionChecker) (types.AccessRequest, error)
 	// UpsertAccessRequest creates or updates an access request.
@@ -396,16 +396,18 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 		rev.Created = time.Now()
 	}
 
-	// set threshold indexes and store the review
+	// set threshold indexes
 	rev.ThresholdIndexes = tids
-	req.SetReviews(append(req.GetReviews(), rev))
 
-	// if request has already exited the pending state, then no further work
-	// needs to be done (subsequent reviews have no effect after initial
-	// state-transition).
-	if !req.GetState().IsPending() {
-		return nil
+	// Resolved requests should not be updated.
+	switch {
+	case req.GetState().IsApproved():
+		return trace.AccessDenied("the access request has been already approved")
+	case req.GetState().IsDenied():
+		return trace.AccessDenied("the access request has been already denied")
 	}
+
+	req.SetReviews(append(req.GetReviews(), rev))
 
 	// request is still pending, so check to see if this
 	// review introduces a state-transition.
@@ -1124,6 +1126,8 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 		accessTTL := now.Add(ttl)
 		req.SetAccessExpiry(accessTTL)
+		// Adjusted max access duration is equal to the access expiry time.
+		req.SetMaxDuration(accessTTL)
 	}
 
 	return nil
@@ -1149,7 +1153,13 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 	}
 
 	maxDuration := maxDurationTime.Sub(req.GetCreationTime())
-	if maxDuration < 0 {
+
+	// For dry run requests, the max_duration is set to 7 days.
+	// This prevents the time drift that can occur as the value is set on the client side.
+	// TODO(jakule): Replace with MaxAccessDuration that is a duration (5h, 4d etc), and not a point in time.
+	if req.GetDryRun() {
+		maxDuration = maxAccessDuration
+	} else if maxDuration < 0 {
 		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
 	}
 

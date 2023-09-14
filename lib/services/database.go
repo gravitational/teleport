@@ -620,16 +620,7 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 		return nil, trace.Wrap(err)
 	}
 
-	var subnets []string
-	if rdsInstance.DBSubnetGroup != nil {
-		subnets = make([]string, 0, len(rdsInstance.DBSubnetGroup.Subnets))
-		for _, s := range rdsInstance.DBSubnetGroup.Subnets {
-			if s.SubnetIdentifier == nil || *s.SubnetIdentifier == "" {
-				continue
-			}
-			subnets = append(subnets, *s.SubnetIdentifier)
-		}
-	}
+	vpcID, subnets := rdsSubnetGroupToNetworkInfo(rdsInstance.DBSubnetGroup)
 
 	return &types.AWS{
 		Region:    parsedARN.Region,
@@ -640,6 +631,7 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
 			IAMAuth:    rdsInstance.IAMDatabaseAuthenticationEnabled,
 			Subnets:    subnets,
+			VPCID:      vpcID,
 		},
 	}, nil
 }
@@ -657,8 +649,8 @@ func labelsFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance, meta *types.AWS
 
 // NewDatabaseFromRDSV2Cluster creates a database resource from an RDS cluster (Aurora).
 // It uses aws sdk v2.
-func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster) (types.Database, error) {
-	metadata, err := MetadataFromRDSV2Cluster(cluster)
+func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster, firstInstance *rdsTypesV2.DBInstance) (types.Database, error) {
+	metadata, err := MetadataFromRDSV2Cluster(cluster, firstInstance)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -683,13 +675,39 @@ func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster) (types.Database,
 		})
 }
 
+func rdsSubnetGroupToNetworkInfo(subnetGroup *rdsTypesV2.DBSubnetGroup) (vpcID string, subnets []string) {
+	if subnetGroup == nil {
+		return
+	}
+
+	vpcID = aws.StringValue(subnetGroup.VpcId)
+	subnets = make([]string, 0, len(subnetGroup.Subnets))
+	for _, s := range subnetGroup.Subnets {
+		subnetID := aws.StringValue(s.SubnetIdentifier)
+		if subnetID != "" {
+			subnets = append(subnets, subnetID)
+		}
+	}
+
+	return
+}
+
 // MetadataFromRDSV2Cluster creates AWS metadata from the provided RDS cluster.
 // It uses aws sdk v2.
-func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster) (*types.AWS, error) {
+// An optional [rdsTypesV2.DBInstance] can be passed to fill the network configuration of the Cluster.
+func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster, rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(rdsCluster.DBClusterArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var vpcID string
+	var subnets []string
+
+	if rdsInstance != nil {
+		vpcID, subnets = rdsSubnetGroupToNetworkInfo(rdsInstance.DBSubnetGroup)
+	}
+
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
@@ -697,6 +715,8 @@ func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster) (*types.AWS, err
 			ClusterID:  aws.StringValue(rdsCluster.DBClusterIdentifier),
 			ResourceID: aws.StringValue(rdsCluster.DbClusterResourceId),
 			IAMAuth:    aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
+			Subnets:    subnets,
+			VPCID:      vpcID,
 		},
 	}, nil
 }

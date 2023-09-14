@@ -18,9 +18,9 @@ limitations under the License.
  * The result of validating a field.
  */
 export type ValidationResult = {
-  valid: boolean,
-  message?: string,
-}
+  valid: boolean;
+  message?: string;
+};
 
 /**
  * A function to validate a field value.
@@ -33,13 +33,16 @@ export type Rule<T> = (value: T) => () => ValidationResult;
  * @param message The custom error message to display to users.
  * @param value The value user entered.
  */
-const requiredField = (message: string): Rule<string> => (value: string) => () => {
-  const valid = !(!value || value.length === 0);
-  return {
-    valid,
-    message: !valid ? message : '',
+const requiredField =
+  <T = string>(message: string): Rule<string | T[]> =>
+  value =>
+  () => {
+    const valid = !(!value || value.length === 0);
+    return {
+      valid,
+      message: !valid ? message : '',
+    };
   };
-};
 
 const requiredToken: Rule<string> = (value: string) => () => {
   if (!value || value.length === 0) {
@@ -68,7 +71,9 @@ const requiredPassword: Rule<string> = (value: string) => () => {
 };
 
 const requiredConfirmedPassword =
-  (password: string): Rule<string> => (confirmedPassword: string) => () => {
+  (password: string): Rule<string> =>
+  (confirmedPassword: string) =>
+  () => {
     if (!confirmedPassword) {
       return {
         valid: false,
@@ -122,7 +127,7 @@ const requiredEmailLike: Rule<string> = (email: string) => () => {
     return {
       valid: false,
       message: 'Email address is required',
-    }
+    };
   }
 
   // Must contain an @, i.e. 2 entries, and each must be nonempty.
@@ -131,12 +136,12 @@ const requiredEmailLike: Rule<string> = (email: string) => () => {
     return {
       valid: false,
       message: `Email address '${email}' is invalid`,
-    }
+    };
   }
 
   return {
-    valid: true
-  }
+    valid: true,
+  };
 };
 
 export {

@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
@@ -1106,6 +1107,7 @@ func TestClusterNodesGet(t *testing.T) {
 	require.ElementsMatch(t, res.Items, []ui.Server{
 		{
 			Kind:        types.KindNode,
+			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
 			Name:        server1.GetName(),
 			Hostname:    server1.GetHostname(),
@@ -1116,6 +1118,7 @@ func TestClusterNodesGet(t *testing.T) {
 		},
 		{
 			Kind:        types.KindNode,
+			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
 			Name:        "server2",
 			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
@@ -1642,7 +1645,13 @@ func TestResizeTerminal(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws1.Close()) })
 
-	// Create a new user "bar", open a terminal to the session created above
+	// Wait for session to have started
+	require.Eventually(t, func() bool {
+		_, err := s.server.Auth().GetSessionTracker(context.Background(), sess.ID.String())
+		return err == nil
+	}, 3*time.Second, 200*time.Millisecond, "session not available")
+
+	// Create a new user "bar" and join the session created above
 	pack2 := s.authPack(t, "bar")
 	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID), withParticipantMode(types.SessionPeerMode))
 	require.NoError(t, err)
@@ -1688,7 +1697,7 @@ t1ready:
 	select {
 	case e := <-ws2Messages:
 		if isResizeEventEnvelope(e) {
-			require.FailNow(t, "terminal 2 should not have received a resize event")
+			require.FailNow(t, "terminal 2 should not have received a resize event: %v", e)
 		}
 	case err := <-errs:
 		require.NoError(t, err)
@@ -1927,9 +1936,9 @@ func TestTerminalNameResolution(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Wait for the node to be registered as the registration is asynchronous.
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		nodes, err := s.proxyClient.GetNodes(ctx, "default")
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		return len(nodes) == 2 // one created by default and llama
 	}, 5*time.Second, 200*time.Millisecond, "failed to register node")
@@ -3638,7 +3647,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 			insertResource: func() {
 				resource := &types.AppServerV3{
 					Metadata: types.Metadata{Name: "test-app"},
-					Kind:     types.KindAppServer,
+					Kind:     types.KindApp,
 					Version:  types.V2,
 					Spec: types.AppServerSpecV3{
 						HostID: "hostid",
@@ -4159,7 +4168,7 @@ func TestClusterKubePodsGet(t *testing.T) {
 	proxy := env.proxies[0]
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	// Init fake grpc Kube service.
+	// Init fake gRPC Kube service.
 	initGRPCServer(t, env, listener)
 	addr := utils.MustParseAddr(listener.Addr().String())
 	proxy.handler.handler.cfg.ProxyWebAddr = *addr
@@ -4211,7 +4220,7 @@ func TestClusterAppsGet(t *testing.T) {
 
 	resource := &types.AppServerV3{
 		Metadata: types.Metadata{Name: "test-app"},
-		Kind:     types.KindAppServer,
+		Kind:     types.KindApp,
 		Version:  types.V2,
 		Spec: types.AppServerSpecV3{
 			HostID: "hostid",
@@ -4273,7 +4282,7 @@ func TestClusterAppsGet(t *testing.T) {
 	require.Len(t, resp.Items, 3)
 	require.Equal(t, 3, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.App{{
-		Kind:        types.KindAppServer,
+		Kind:        types.KindApp,
 		Name:        "app1",
 		Description: resource.Spec.App.GetDescription(),
 		URI:         resource.Spec.App.GetURI(),
@@ -4284,7 +4293,7 @@ func TestClusterAppsGet(t *testing.T) {
 		AWSConsole:  true,
 		UserGroups:  []ui.UserGroupAndDescription{{Name: "ug1", Description: "ug1-description"}},
 	}, {
-		Kind:       types.KindAppServer,
+		Kind:       types.KindApp,
 		Name:       "app2",
 		URI:        "uri",
 		Labels:     []ui.Label{},
@@ -4293,7 +4302,7 @@ func TestClusterAppsGet(t *testing.T) {
 		PublicAddr: "publicaddrs",
 		AWSConsole: false,
 	}, {
-		Kind:        types.KindSAMLIdPServiceProvider,
+		Kind:        types.KindApp,
 		Name:        "test-saml-app",
 		Description: "SAML Application",
 		URI:         "",
@@ -6007,7 +6016,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
-					Error:   "Teleport proxy failed to connect to",
+					Error:   "direct dialing to nodes not found in inventory is not supported",
 				},
 			},
 		},
@@ -7242,7 +7251,14 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 
 	ws, resp, err := dialer.Dial(u.String(), header)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		var sb strings.Builder
+		sb.WriteString("websocket dial")
+		if resp != nil {
+			fmt.Fprintf(&sb, "; status code %v;", resp.StatusCode)
+			fmt.Fprintf(&sb, "headers: %v; body: ", resp.Header)
+			io.Copy(&sb, resp.Body)
+		}
+		return nil, nil, trace.Wrap(err, sb.String())
 	}
 
 	ty, raw, err := ws.ReadMessage()
@@ -7549,7 +7565,10 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	require.NoError(t, err)
 
 	require.NoError(t, node.Start())
-	t.Cleanup(func() { require.NoError(t, node.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, node.Close())
+		node.Wait()
+	})
 
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
@@ -7676,9 +7695,9 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 
 	mux, err := multiplexer.New(multiplexer.Config{
-		Listener:                    proxyListener,
-		EnableExternalProxyProtocol: false,
-		ID:                          teleport.Component(teleport.ComponentProxy, "ssh"),
+		Listener:          proxyListener,
+		PROXYProtocolMode: multiplexer.PROXYProtocolOff,
+		ID:                teleport.Component(teleport.ComponentProxy, "ssh"),
 		CertAuthorityGetter: func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 			return client.GetCertAuthority(ctx, id, loadKeys)
 		},
@@ -7733,11 +7752,11 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	sshGRPCServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			utils.GRPCServerUnaryErrorInterceptor,
+			interceptors.GRPCServerUnaryErrorInterceptor,
 			otelgrpc.UnaryServerInterceptor(),
 		),
 		grpc.ChainStreamInterceptor(
-			utils.GRPCServerStreamErrorInterceptor,
+			interceptors.GRPCServerStreamErrorInterceptor,
 			otelgrpc.StreamServerInterceptor(),
 		),
 		grpc.Creds(creds),
@@ -8215,7 +8234,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	accessReq, err := services.NewAccessRequest(username, requestableRolename)
 	require.NoError(t, err)
 	accessReq.SetState(types.RequestState_APPROVED)
-	err = env.server.Auth().CreateAccessRequest(ctx, accessReq, identity)
+	accessReq, err = env.server.Auth().CreateAccessRequestV2(ctx, accessReq, identity)
 	require.NoError(t, err)
 
 	// Get the ID of the created and approved access request.
@@ -8993,7 +9012,7 @@ func TestGetIsDashboard(t *testing.T) {
 	}
 }
 
-// initGRPCServer creates a grpc server serving on the provided listener.
+// initGRPCServer creates a gRPC server serving on the provided listener.
 func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	clusterName := env.server.ClusterName()
 	// Auth client, lock watcher and authorizer for Kube proxy.
@@ -9024,12 +9043,8 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			authMiddleware.UnaryInterceptor(),
-		),
-		grpc.ChainStreamInterceptor(
-			authMiddleware.StreamInterceptor(),
-		),
+		grpc.ChainUnaryInterceptor(authMiddleware.UnaryInterceptors()...),
+		grpc.ChainStreamInterceptor(authMiddleware.StreamInterceptors()...),
 		grpc.Creds(creds),
 	)
 

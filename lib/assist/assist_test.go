@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/ai/model"
+	"github.com/gravitational/teleport/lib/ai/model/tools"
 	aitest "github.com/gravitational/teleport/lib/ai/testutils"
 	"github.com/gravitational/teleport/lib/auth"
 )
@@ -64,7 +64,7 @@ func TestChatComplete(t *testing.T) {
 	require.NoError(t, err)
 
 	// And created conversation.
-	toolContext := &model.ToolContext{
+	toolContext := &tools.ToolContext{
 		User: "bob",
 	}
 	conversationResp, err := authSrv.AuthServer.CreateAssistantConversation(ctx, &assist.CreateAssistantConversationRequest{

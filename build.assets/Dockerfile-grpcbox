@@ -1,4 +1,4 @@
-FROM docker.io/golang:1.20
+FROM docker.io/golang:1.21
 
 # Image layers go from less likely to most likely to change.
 RUN apt-get update && \
@@ -33,12 +33,10 @@ RUN VERSION="$PROTOC_VERSION" && \
   rm -f "$PB_FILE"
 
 # buf
-# eg, "1.19.0"
+# eg, "v1.26.1"
 ARG BUF_VERSION
-RUN BIN='/usr/local/bin' && \
-  VERSION="$BUF_VERSION" && \
-  curl -fsSL "https://github.com/bufbuild/buf/releases/download/v$VERSION/buf-$(uname -s)-$(uname -m)" -o "${BIN}/buf" && \
-  chmod +x "$BIN/buf"
+RUN VERSION="$BUF_VERSION"; \
+    go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
 
 # Pre-install go-runned binaries.
 # This is meant to be the only step that changes depending on the Teleport

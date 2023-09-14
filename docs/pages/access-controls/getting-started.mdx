@@ -102,7 +102,8 @@ will be able to act as a system administrator and auditor at the same time.
 Next, follow the instructions to set up an authentication connector that maps
 users within your SSO solution to Teleport roles.
 
-  <ScopedBlock scope={["oss"]}>
+<Tabs>
+  <TabItem label="Teleport Community Edition" scope={["oss"]}>
 
     Save the file below as `github.yaml` and update the fields. You will need to
     set up a
@@ -139,9 +140,9 @@ users within your SSO solution to Teleport roles.
     $ tctl create github.yaml
     ```
 
-  </ScopedBlock>
+  </TabItem>
 
-  <ScopedBlock scope={["enterprise", "cloud"]}>
+  <TabItem label="Commercial Editions"  scope={["enterprise", "cloud"]}>
 
   Create a SAML or OIDC application that Teleport can integrate with, then
   create an authentication connector that maps users within your application to
@@ -198,7 +199,8 @@ users within your SSO solution to Teleport roles.
   </TabItem>
   </Tabs>
 
-  </ScopedBlock>
+  </TabItem>
+</Tabs>
 
 ## Step 3/3. Create a custom role
 
@@ -210,7 +212,7 @@ Save this role as `interns.yaml`:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: interns
 spec:
@@ -226,9 +228,10 @@ spec:
     kubernetes_labels:
       'env': 'dev'
     kubernetes_resources:
-      - kind: pod
+      - kind: *
         namespace: "*"
         name: "*"
+        verbs: ["*"]
     app_labels:
       'type': ['monitoring']
   # The deny rules always override allow rules.
@@ -240,9 +243,8 @@ spec:
     kubernetes_labels:
       'env': 'prod'
     kubernetes_resources:
-      - kind: pod
-        namespace: "prod"
-        name: "*"
+      - kind: "namespace"
+        name: "prod"
     db_labels:
       'env': 'prod'
     app_labels:

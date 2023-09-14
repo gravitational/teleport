@@ -347,7 +347,7 @@ download() {
     fi
     # if we have a hashing utility installed, also download and validate the checksum
     SHA_COMMAND=""
-    # shasum is installed by default on MacOS and some distros
+    # shasum is installed by default on macOS and some distros
     if check_exists shasum; then
         SHA_COMMAND="shasum -a 256"
     # sha256sum is installed by default in some other distros
@@ -485,7 +485,7 @@ install_teleport_node_config() {
       "${LABELS_FLAG[@]}" \
       --output ${TELEPORT_CONFIG_PATH}
 }
-# checks whether the given host is running MacOS
+# checks whether the given host is running macOS
 is_macos_host() { if [[ ${OSTYPE} == "darwin"* ]]; then return 0; else return 1; fi }
 # checks whether teleport is already running on the host
 is_running_teleport() {
@@ -610,7 +610,7 @@ else
 fi
 
 # use OSTYPE variable to figure out host type/arch
-if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
+if [[ "${OSTYPE}" == "linux"* ]]; then
     # linux host, now detect arch
     TELEPORT_BINARY_TYPE="linux"
     ARCH=$(uname -m)
@@ -661,7 +661,8 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
             fi
             if [[ ${DISTRO_TYPE} =~ "debian" ]]; then
                 TELEPORT_FORMAT="deb"
-            elif [[ "$DISTRO_TYPE" =~ "amzn"* ]] || [[ ${DISTRO_TYPE} =~ "centos"* ]] || [[ ${DISTRO_TYPE} =~ "rhel" ]] || [[ ${DISTRO_TYPE} =~ "fedora"* ]]; then
+            elif [[ "$DISTRO_TYPE" =~ "amzn"* ]] || [[ ${DISTRO_TYPE} =~ "centos"* ]] || [[ ${DISTRO_TYPE} =~ "rhel" ]] || [[ ${DISTRO_TYPE} =~ "fedora"* ]] || \
+                     [[ ${DISTRO_TYPE} == *"suse"* ]] || [[ ${DISTRO_TYPE} =~ "sles"* ]]; then
                 TELEPORT_FORMAT="rpm"
             else
                 log "Couldn't match a distro type using /etc/os-release, falling back to tarball installer"
@@ -675,7 +676,7 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
         fi
     fi
 elif [[ "${OSTYPE}" == "darwin"* ]]; then
-    # macos host, now detect arch
+    # macOS host, now detect arch
     TELEPORT_BINARY_TYPE="darwin"
     ARCH=$(uname -m)
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
@@ -687,7 +688,7 @@ elif [[ "${OSTYPE}" == "darwin"* ]]; then
         log_important "Error: unsupported architecture from uname -m: ${ARCH}"
         exit 1
     fi
-    log "Detected MacOS ${ARCH} architecture, using Teleport arch ${TELEPORT_ARCH}"
+    log "Detected macOS ${ARCH} architecture, using Teleport arch ${TELEPORT_ARCH}"
     TELEPORT_FORMAT="tarball"
 else
     log_important "Error - unsupported platform: ${OSTYPE}"
@@ -817,6 +818,9 @@ install_from_file() {
         elif check_exists yum; then
             log "Found 'yum' package manager, using it"
             PACKAGE_MANAGER_COMMAND="yum -y localinstall"
+        elif check_exists zypper; then
+            log "Found 'zypper' package manager, using it"
+            PACKAGE_MANAGER_COMMAND="zypper --non-interactive install"
         else
             PACKAGE_MANAGER_COMMAND=""
             log "Cannot find 'yum' or 'dnf' package manager commands, will try installing the rpm manually instead"
@@ -872,7 +876,7 @@ install_from_repo() {
         fi
         apt-get update
         apt-get install -y ${PACKAGE_LIST}
-    elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ] ; then
+    elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ]; then
         if [ "$ID" = "rhel" ]; then
             VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
         fi
@@ -885,6 +889,16 @@ install_from_repo() {
         yum --disablerepo="*" --enablerepo="teleport" clean metadata
 
         yum install -y ${PACKAGE_LIST}
+    elif [ "$ID" = "sles" ] || [ "$ID" = "opensuse-tumbleweed" ] || [ "$ID" = "opensuse-leap" ]; then
+        if [ "$ID" = "opensuse-tumbleweed" ]; then
+          VERSION_ID="15" # tumbleweed uses dated VERSION_IDs like 20230702
+        else
+          VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
+        fi
+        sudo rpm --import "https://zypper.releases.teleport.dev/gpg"
+        sudo zypper --non-interactive addrepo "$(rpm --eval "https://zypper.releases.teleport.dev/sles/$VERSION_ID/Teleport/%{_arch}/${REPO_CHANNEL}/teleport.repo")"
+        sudo zypper --gpg-auto-import-keys refresh
+        sudo zypper --non-interactive install ${PACKAGE_LIST}
     else
         echo "Unsupported distro: $ID"
         exit 1
@@ -919,7 +933,7 @@ package_list() {
 }
 
 is_repo_available() {
-    if [[ "${OSTYPE}" != "linux-gnu" ]]; then
+    if [[ "${OSTYPE}" != "linux"* ]]; then
         return 1
     fi
 
@@ -930,10 +944,11 @@ is_repo_available() {
     # The following distros+version have a Teleport repository to install from.
     case "${ID}-${VERSION_ID}" in
         ubuntu-16.04* | ubuntu-18.04* | ubuntu-20.04* | ubuntu-22.04* | \
-        debian-9* | debian-10* | debian-11* | \
+        debian-9* | debian-10* | debian-11* | debian-12* | \
         rhel-7* | rhel-8* | rhel-9* | \
         centos-7* | centos-8* | centos-9* | \
-        amzn-2 | amzn-2023)
+        amzn-2 | amzn-2023 | \
+        opensuse-tumbleweed* | sles-12* | sles-15* | opensuse-leap-15*)
             return 0;;
     esac
 
@@ -981,13 +996,13 @@ if is_using_systemd; then
     fi
     start_teleport_systemd
     print_welcome_message
-# install launchd config on MacOS hosts
+# install launchd config on macOS hosts
 elif is_macos_host; then
-    log "Host is running MacOS"
+    log "Host is running macOS"
     install_launchd_config
     start_teleport_launchd
     print_welcome_message
-# not a MacOS host and no systemd available, print a warning
+# not a macOS host and no systemd available, print a warning
 # and temporarily start Teleport in the foreground
 else
     log "Host does not appear to be using systemd"

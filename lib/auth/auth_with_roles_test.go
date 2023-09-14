@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
-	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
@@ -197,15 +196,15 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			renewable: true,
 			// expiration is allowed to be pushed out into the future,
 			// but no more than the maximum renewable cert TTL
-			reqTTL:    2 * libdefaults.MaxRenewableCertTTL,
-			expiresIn: libdefaults.MaxRenewableCertTTL,
+			reqTTL:    2 * defaults.MaxRenewableCertTTL,
+			expiresIn: defaults.MaxRenewableCertTTL,
 		},
 		{
 			desc:         "not-renewable-role-requests-max-renew",
 			renewable:    false,
 			roleRequests: true,
-			reqTTL:       2 * libdefaults.MaxRenewableCertTTL,
-			expiresIn:    libdefaults.MaxRenewableCertTTL,
+			reqTTL:       2 * defaults.MaxRenewableCertTTL,
+			expiresIn:    defaults.MaxRenewableCertTTL,
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
@@ -1736,7 +1735,7 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 		Name:   "dev",
 		Labels: map[string]string{"env": "dev", types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
-		Protocol: libdefaults.ProtocolPostgres,
+		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
 	})
 	require.NoError(t, err)
@@ -1744,7 +1743,7 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 		Name:   "admin",
 		Labels: map[string]string{"env": "prod", types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
-		Protocol: libdefaults.ProtocolMySQL,
+		Protocol: defaults.ProtocolMySQL,
 		URI:      "localhost:3306",
 	})
 	require.NoError(t, err)
@@ -1851,7 +1850,7 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 			Name:   "cloud1",
 			Labels: map[string]string{"env": "prod", types.OriginLabel: types.OriginCloud},
 		}, types.DatabaseSpecV3{
-			Protocol: libdefaults.ProtocolMySQL,
+			Protocol: defaults.ProtocolMySQL,
 			URI:      "localhost:3306",
 		})
 		require.NoError(t, err)
@@ -1869,7 +1868,7 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 				Name:   "cloud2",
 				Labels: map[string]string{"env": "prod", types.OriginLabel: types.OriginCloud},
 			}, types.DatabaseSpecV3{
-				Protocol: libdefaults.ProtocolMySQL,
+				Protocol: defaults.ProtocolMySQL,
 				URI:      "localhost:3306",
 				DynamicLabels: map[string]types.CommandLabelV2{
 					"hostname": {
@@ -2620,12 +2619,12 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 	}{
 		{
 			name:       "RequireSessionMFA on MySQL protocol doesn't match database name",
-			dbProtocol: libdefaults.ProtocolMySQL,
+			dbProtocol: defaults.ProtocolMySQL,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
 					Database: &proto.RouteToDatabase{
 						ServiceName: databaseName,
-						Protocol:    libdefaults.ProtocolMySQL,
+						Protocol:    defaults.ProtocolMySQL,
 						Username:    userName,
 						Database:    "example",
 					},
@@ -2644,12 +2643,12 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 		},
 		{
 			name:       "RequireSessionMFA off",
-			dbProtocol: libdefaults.ProtocolMySQL,
+			dbProtocol: defaults.ProtocolMySQL,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
 					Database: &proto.RouteToDatabase{
 						ServiceName: databaseName,
-						Protocol:    libdefaults.ProtocolMySQL,
+						Protocol:    defaults.ProtocolMySQL,
 						Username:    userName,
 						Database:    "example",
 					},
@@ -2668,12 +2667,12 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 		},
 		{
 			name:       "RequireSessionMFA on Postgres protocol database name doesn't match",
-			dbProtocol: libdefaults.ProtocolPostgres,
+			dbProtocol: defaults.ProtocolPostgres,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
 					Database: &proto.RouteToDatabase{
 						ServiceName: databaseName,
-						Protocol:    libdefaults.ProtocolPostgres,
+						Protocol:    defaults.ProtocolPostgres,
 						Username:    userName,
 						Database:    "example",
 					},
@@ -2692,12 +2691,12 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 		},
 		{
 			name:       "RequireSessionMFA on Postgres protocol database name matches",
-			dbProtocol: libdefaults.ProtocolPostgres,
+			dbProtocol: defaults.ProtocolPostgres,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
 					Database: &proto.RouteToDatabase{
 						ServiceName: databaseName,
-						Protocol:    libdefaults.ProtocolPostgres,
+						Protocol:    defaults.ProtocolPostgres,
 						Username:    userName,
 						Database:    "example",
 					},
@@ -6353,10 +6352,19 @@ func TestCreateAccessRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(test.user))
 			require.NoError(t, err)
 
-			test.errAssertionFunc(t, client.CreateAccessRequest(ctx, test.accessRequest))
+			req, err := client.CreateAccessRequestV2(ctx, test.accessRequest)
+			test.errAssertionFunc(t, err)
+
+			if err != nil {
+				require.Nil(t, test.expected, "erroring test-cases should not assert expectations (this is a bug)")
+				return
+			}
+
+			// id should be regenerated server-side
+			require.NotEqual(t, test.accessRequest.GetName(), req.GetName())
 
 			accessRequests, err := srv.Auth().GetAccessRequests(ctx, types.AccessRequestFilter{
-				ID: test.accessRequest.GetName(),
+				ID: req.GetName(),
 			})
 			require.NoError(t, err)
 
@@ -6388,6 +6396,7 @@ func mustAccessRequest(t *testing.T, user string, state types.RequestState, crea
 	accessRequest.SetCreationTime(created)
 	accessRequest.SetExpiry(expires)
 	accessRequest.SetAccessExpiry(expires)
+	accessRequest.SetMaxDuration(expires)
 	accessRequest.SetSessionTLL(expires)
 	accessRequest.SetThresholds([]types.AccessReviewThreshold{{Name: "default", Approve: 1, Deny: 1}})
 	accessRequest.SetRoleThresholdMapping(map[string]types.ThresholdIndexSets{

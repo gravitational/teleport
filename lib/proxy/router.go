@@ -16,8 +16,10 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"sync"
 
@@ -167,6 +169,8 @@ type Router struct {
 	siteGetter     SiteGetter
 	tracer         oteltrace.Tracer
 	serverResolver serverResolverFn
+	// DELETE IN 15.0.0: necessary for smoothing over v13 to v14 transition only.
+	permitUnlistedDialing bool
 }
 
 // NewRouter creates and returns a Router that is populated
@@ -182,13 +186,14 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 	}
 
 	return &Router{
-		clusterName:    cfg.ClusterName,
-		log:            cfg.Log,
-		clusterGetter:  cfg.RemoteClusterGetter,
-		localSite:      localSite,
-		siteGetter:     cfg.SiteGetter,
-		tracer:         cfg.TracerProvider.Tracer("Router"),
-		serverResolver: cfg.serverResolver,
+		clusterName:           cfg.ClusterName,
+		log:                   cfg.Log,
+		clusterGetter:         cfg.RemoteClusterGetter,
+		localSite:             localSite,
+		siteGetter:            cfg.SiteGetter,
+		tracer:                cfg.TracerProvider.Tracer("Router"),
+		serverResolver:        cfg.serverResolver,
+		permitUnlistedDialing: os.Getenv("TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING") == "yes",
 	}, nil
 }
 
@@ -235,10 +240,10 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		serverID        string
 		serverAddr      string
 		proxyIDs        []string
+		sshSigner       ssh.Signer
 	)
 
 	if target != nil {
-		isAgentlessNode = target.GetSubKind() == types.SubKindOpenSSHNode
 		proxyIDs = target.GetProxyIDs()
 		serverID = fmt.Sprintf("%v.%v", target.GetName(), clusterName)
 
@@ -259,7 +264,29 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		case serverAddr == "" && target.GetUseTunnel():
 			serverAddr = reversetunnelclient.LocalNode
 		}
+		// If the node is a registered openssh node don't set agentGetter
+		// so a SSH user agent will not be created when connecting to the remote node.
+		if target.IsOpenSSHNode() {
+			agentGetter = nil
+			isAgentlessNode = true
+
+			if target.GetSubKind() == types.SubKindOpenSSHNode {
+				// If the node is of SubKindOpenSSHNode, create the signer.
+				client, err := r.GetSiteClient(ctx, clusterName)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				sshSigner, err = signer(ctx, client)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+		}
+
 	} else {
+		if !r.permitUnlistedDialing {
+			return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
+		}
 		if port == "" || port == "0" {
 			port = strconv.Itoa(defaults.SSHServerListenPort)
 		}
@@ -268,27 +295,12 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		r.log.Warnf("server lookup failed: using default=%v", serverAddr)
 	}
 
-	// if the node is a registered openssh node, create a signer for auth
-	// and don't set agentGetter so a SSH user agent will not be created
-	// when connecting to the remote node
-	var sshSigner ssh.Signer
-	if isAgentlessNode {
-		client, err := r.GetSiteClient(ctx, clusterName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		sshSigner, err = signer(ctx, client)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		agentGetter = nil
-	}
-
 	conn, err := site.Dial(reversetunnelclient.DialParams{
 		From:                  clientSrcAddr,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
+		IsAgentlessNode:       isAgentlessNode,
 		AgentlessSigner:       sshSigner,
 		Address:               host,
 		Principals:            principals,

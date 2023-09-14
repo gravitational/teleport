@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { AgentLabel } from 'teleport/services/agents';
+import { ResourceLabel } from 'teleport/services/agents';
 
 // Desktop is a remote desktop.
 export type Desktop = {
@@ -26,7 +26,7 @@ export type Desktop = {
   // Addr is the network address the desktop can be reached at.
   addr: string;
   // Labels.
-  labels: AgentLabel[];
+  labels: ResourceLabel[];
   // The list of logins this user can use on this desktop.
   logins: string[];
 
@@ -44,7 +44,7 @@ export type WindowsDesktopService = {
   // Addr is the network address the desktop service can be reached at.
   addr: string;
   // Labels.
-  labels: AgentLabel[];
+  labels: ResourceLabel[];
 };
 
 export type WindowsDesktopServicesResponse = {

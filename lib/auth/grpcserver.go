@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -59,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
+	"github.com/gravitational/teleport/lib/auth/loginrule"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
@@ -69,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -108,7 +111,7 @@ var (
 	)
 )
 
-// GRPCServer is GPRC Auth Server API
+// GRPCServer is gRPC Auth Server API
 type GRPCServer struct {
 	auditlogpb.UnimplementedAuditLogServiceServer
 	*logrus.Entry
@@ -779,8 +782,7 @@ func (g *GRPCServer) GetAccessRequestsV2(f *types.AccessRequestFilter, stream au
 }
 
 func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *types.AccessRequestV3) (*emptypb.Empty, error) {
-	_, err := g.CreateAccessRequestV2(ctx, req)
-	return &emptypb.Empty{}, trace.Wrap(err)
+	return nil, trace.NotImplemented("access request creation API has changed, please update your client to v14 or newer")
 }
 
 func (g *GRPCServer) CreateAccessRequestV2(ctx context.Context, req *types.AccessRequestV3) (*types.AccessRequestV3, error) {
@@ -796,10 +798,17 @@ func (g *GRPCServer) CreateAccessRequestV2(ctx context.Context, req *types.Acces
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.ServerWithRoles.CreateAccessRequest(ctx, req); err != nil {
+	out, err := auth.ServerWithRoles.CreateAccessRequestV2(ctx, req)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return req, nil
+
+	r, ok := out.(*types.AccessRequestV3)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected access request type %T", r))
+	}
+
+	return r, nil
 }
 
 func (g *GRPCServer) DeleteAccessRequest(ctx context.Context, id *authpb.RequestID) (*emptypb.Empty, error) {
@@ -1302,7 +1311,7 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 	// Okta are redirected differently which could create unpredictable or insecure behavior if applied
 	// to non-Okta apps.
 	hasOktaOrigin := server.Origin() == types.OriginOkta || app.Origin() == types.OriginOkta
-	if builtinRole, ok := auth.context.Identity.(authz.BuiltinRole); !ok || builtinRole.Role != types.RoleOkta {
+	if !authz.HasBuiltinRole(auth.context, string(types.RoleOkta)) {
 		if hasOktaOrigin {
 			return nil, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin")
 		}
@@ -1900,7 +1909,7 @@ func (g *GRPCServer) DeleteAllKubernetesServers(ctx context.Context, req *authpb
 	return &emptypb.Empty{}, nil
 }
 
-// maybeDowngradeRole tests the client version passed through the GRPC metadata,
+// maybeDowngradeRole tests the client version passed through the gRPC metadata,
 // and if the client version is unknown or less than the minimum supported
 // version for some features of the role returns a shallow copy of the given
 // role downgraded for compatibility with the older version.
@@ -1972,7 +1981,7 @@ func maybeDowngradeRoleLabelExpressions(ctx context.Context, role *types.RoleV6,
 
 var minSupportedRoleV7Version = semver.New(utils.VersionBeforeAlpha("14.0.0"))
 
-// maybeDowngradeRoleToV6 tests the client version passed through the GRPC metadata, and
+// maybeDowngradeRoleToV6 tests the client version passed through the gRPC metadata, and
 // if the client version is less than the minimum supported version
 // for V7 roles returns a shallow copy of the given role downgraded to V6, If
 // the passed in role is already V6, it is returned unmodified.
@@ -2167,11 +2176,11 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 // and updates the users presence for a given session.
 //
 // This function bypasses the `ServerWithRoles` RBAC layer. This is not
-// usually how the GRPC layer accesses the underlying auth server API's but it's done
+// usually how the gRPC layer accesses the underlying auth server API's but it's done
 // here to avoid bloating the ClientI interface with special logic that isn't designed to be touched
 // by anyone external to this process. This is not the norm and caution should be taken
 // when looking at or modifying this function. This is the same approach taken by other MFA
-// related GRPC API endpoints.
+// related gRPC API endpoints.
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authpb.AuthService_MaintainSessionPresenceServer, challengeReq *authpb.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
 
@@ -5183,25 +5192,37 @@ func (g *GRPCServer) UpdateClusterMaintenanceConfig(ctx context.Context, cmc *ty
 	return &emptypb.Empty{}, nil
 }
 
+// DeleteClusterMaintenanceConfig deletes the current maintenance config singleton.
+func (g *GRPCServer) DeleteClusterMaintenanceConfig(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteClusterMaintenanceConfig(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // GetBackend returns the backend from the underlying auth server.
 func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk
 }
 
-// GRPCServerConfig specifies GRPC server configuration
+// GRPCServerConfig specifies gRPC server configuration
 type GRPCServerConfig struct {
-	// APIConfig is GRPC server API configuration
+	// APIConfig is gRPC server API configuration
 	APIConfig
-	// TLS is GRPC server config
+	// TLS is gRPC server config
 	TLS *tls.Config
 	// Middleware is the request TLS client authenticator
 	Middleware *Middleware
-	// UnaryInterceptor intercepts individual GRPC requests
-	// for authentication and rate limiting
-	UnaryInterceptor grpc.UnaryServerInterceptor
-	// UnaryInterceptor intercepts GRPC streams
-	// for authentication and rate limiting
-	StreamInterceptor grpc.StreamServerInterceptor
+	// UnaryInterceptors is the gRPC unary interceptor chain.
+	UnaryInterceptors []grpc.UnaryServerInterceptor
+	// StreamInterceptors is the gRPC stream interceptor chain.
+	StreamInterceptors []grpc.StreamServerInterceptor
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -5209,11 +5230,11 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 	if cfg.TLS == nil {
 		return trace.BadParameter("missing parameter TLS")
 	}
-	if cfg.UnaryInterceptor == nil {
-		return trace.BadParameter("missing parameter UnaryInterceptor")
+	if cfg.UnaryInterceptors == nil {
+		return trace.BadParameter("missing parameter UnaryInterceptors")
 	}
-	if cfg.StreamInterceptor == nil {
-		return trace.BadParameter("missing parameter StreamInterceptor")
+	if cfg.StreamInterceptors == nil {
+		return trace.BadParameter("missing parameter StreamInterceptors")
 	}
 	if cfg.Middleware == nil {
 		return trace.BadParameter("missing parameter Middleware")
@@ -5221,7 +5242,7 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewGRPCServer returns a new instance of GRPC server
+// NewGRPCServer returns a new instance of gRPC server
 func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	err := metrics.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes, connectedResources)
 	if err != nil {
@@ -5231,7 +5252,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("GRPC(SERVER): keep alive %v count: %v.", cfg.KeepAlivePeriod, cfg.KeepAliveCount)
+	log.Debugf("gRPC(SERVER): keep alive %v count: %v.", cfg.KeepAlivePeriod, cfg.KeepAliveCount)
 
 	// httplib.TLSCreds are explicitly used instead of credentials.NewTLS because the latter
 	// modifies the tls.Config.NextProtos which causes problems due to multiplexing on the auth
@@ -5246,8 +5267,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	server := grpc.NewServer(
 		grpc.Creds(creds),
-		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptor),
-		grpc.ChainStreamInterceptor(cfg.StreamInterceptor),
+		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptors...),
+		grpc.ChainStreamInterceptor(cfg.StreamInterceptors...),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
 				Time:    cfg.KeepAlivePeriod,
@@ -5353,6 +5374,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	userloginstatev1.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
+
+	// Only register the service if this is an open source build. Enterprise builds
+	// register the actual service via an auth plugin, if we register here then all
+	// Enterprise builds would fail with a duplicate service registered error.
+	if modules.GetModules().BuildType() == modules.BuildOSS {
+		loginrulepb.RegisterLoginRuleServiceServer(server, loginrule.NotImplementedService{})
+	}
 
 	return authServer, nil
 }

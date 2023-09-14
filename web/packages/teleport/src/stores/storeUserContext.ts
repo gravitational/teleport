@@ -198,4 +198,8 @@ export default class StoreUserContext extends Store<UserContext> {
   getAllowedSearchAsRoles() {
     return this.state.allowedSearchAsRoles;
   }
+
+  getAccessListAccess() {
+    return this.state.acl.accessList;
+  }
 }

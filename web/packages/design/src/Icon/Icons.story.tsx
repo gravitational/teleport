@@ -44,7 +44,9 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Application} text="Application" />
     <IconBox IconCmpt={Icon.Archive} text="Archive" />
     <IconBox IconCmpt={Icon.ArrowBack} text="ArrowBack" />
+    <IconBox IconCmpt={Icon.ArrowDown} text="ArrowDown" />
     <IconBox IconCmpt={Icon.ArrowForward} text="ArrowForward" />
+    <IconBox IconCmpt={Icon.ArrowUp} text="ArrowUp" />
     <IconBox IconCmpt={Icon.BookOpenText} text="BookOpenText" />
     <IconBox IconCmpt={Icon.Bubble} text="Bubble" />
     <IconBox IconCmpt={Icon.CCAmex} text="CCAmex" />
@@ -52,6 +54,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.CCMasterCard} text="CCMasterCard" />
     <IconBox IconCmpt={Icon.CCStripe} text="CCStripe" />
     <IconBox IconCmpt={Icon.CCVisa} text="CCVisa" />
+    <IconBox IconCmpt={Icon.Calendar} text="Calendar" />
     <IconBox IconCmpt={Icon.Camera} text="Camera" />
     <IconBox IconCmpt={Icon.CardView} text="CardView" />
     <IconBox IconCmpt={Icon.Cash} text="Cash" />
@@ -167,7 +170,10 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.User} text="User" />
     <IconBox IconCmpt={Icon.UserAdd} text="UserAdd" />
     <IconBox IconCmpt={Icon.UserCircleGear} text="UserCircleGear" />
+    <IconBox IconCmpt={Icon.UserIdBadge} text="UserIdBadge" />
+    <IconBox IconCmpt={Icon.UserList} text="UserList" />
     <IconBox IconCmpt={Icon.Users} text="Users" />
+    <IconBox IconCmpt={Icon.UsersTriple} text="UsersTriple" />
     <IconBox IconCmpt={Icon.VideoGame} text="VideoGame" />
     <IconBox IconCmpt={Icon.VolumeUp} text="VolumeUp" />
     <IconBox IconCmpt={Icon.VpnKey} text="VpnKey" />
@@ -175,6 +181,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Warning} text="Warning" />
     <IconBox IconCmpt={Icon.Wifi} text="Wifi" />
     <IconBox IconCmpt={Icon.Windows} text="Windows" />
+    <IconBox IconCmpt={Icon.Wrench} text="Wrench" />
     <IconBox IconCmpt={Icon.Youtube} text="Youtube" />
   </Flex>
 );

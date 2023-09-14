@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -141,6 +142,9 @@ type Handler struct {
 	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
 	nodeWatcher *services.NodeWatcher
+
+	// tracer is used to create spans.
+	tracer oteltrace.Tracer
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -269,6 +273,16 @@ type Config struct {
 	NodeWatcher *services.NodeWatcher
 }
 
+// SetDefaults ensures proper default values are set if
+// not provided.
+func (c *Config) SetDefaults() {
+	c.ProxyClient = auth.WithGithubConnectorConversions(c.ProxyClient)
+
+	if c.TracerProvider == nil {
+		c.TracerProvider = tracing.NoopProvider()
+	}
+}
+
 type APIHandler struct {
 	handler *Handler
 
@@ -315,13 +329,16 @@ func (h *APIHandler) Close() error {
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
-	cfg.ProxyClient = auth.WithGithubConnectorConversions(cfg.ProxyClient)
+
+	cfg.SetDefaults()
+
 	h := &Handler{
 		cfg:                  cfg,
 		log:                  newPackageLogger(),
 		clock:                clockwork.NewRealClock(),
 		ClusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
+		tracer:               cfg.TracerProvider.Tracer(teleport.ComponentWeb),
 	}
 
 	// Check for self-hosted vs Cloud.
@@ -411,7 +428,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.bindDefaultEndpoints()
 	}
 
-	// if Web UI is enabled, check the assets dir:
+	// serve the web UI from the embedded filesystem
 	var indexPage *template.Template
 	if cfg.StaticFS != nil {
 		index, err := cfg.StaticFS.Open("/index.html")
@@ -429,6 +446,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
 		}
 
+		h.Handle("GET", "/robots.txt", httplib.MakeHandler(serveRobotsTxt))
 		h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
 	}
 
@@ -774,10 +792,15 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.DELETE("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsDelete))
 
 	// AWS OIDC Integration Actions
+	h.GET("/webapi/scripts/integrations/configure/awsoidc-idp.sh", h.WithLimiter(h.awsOIDCConfigureIdP))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
+	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
 
 	// AWS OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
@@ -1198,7 +1221,12 @@ func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	}
 
 	go func() {
-		if err := h.cfg.TraceClient.UploadTraces(r.Context(), data.ResourceSpans); err != nil {
+		// Because the uploading happens in a goroutine we cannot use the request scoped context
+		// since it will more than likely get canceled prior to the traces being uploaded. Use
+		// a background context with a lenient timeout to allow for a large number of spans to complete.
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := h.cfg.TraceClient.UploadTraces(ctx, data.ResourceSpans); err != nil {
 			h.log.WithError(err).Error("Failed to upload traces")
 		}
 	}()
@@ -1479,6 +1507,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		AutomaticUpgrades:        clusterFeatures.GetAutomaticUpgrades(),
 		AssistEnabled:            assistEnabled,
 		HideInaccessibleFeatures: clusterFeatures.GetFeatureHiding(),
+		CustomTheme:              clusterFeatures.GetCustomTheme(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -2483,8 +2512,8 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 
 // clusterUnifiedResourcesGet returns a list of resources for a given cluster site. This includes all resources available to be displayed in the web ui
 // such as Nodes, Apps, Desktops, etc etc
-func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	clt, err := sctx.GetUserClient(r.Context(), site)
+func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(request.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2494,12 +2523,12 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := makeUnifiedResourceRequest(r)
+	req, err := makeUnifiedResourceRequest(request)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	page, err := apiclient.ListUnifiedResourcePage(r.Context(), clt, req)
+	page, err := apiclient.ListUnifiedResourcePage(request.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2509,24 +2538,38 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	dbNames, dbUsers, err := getDatabaseUsersAndNames(accessChecker)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var userGroups []types.UserGroup
 
-	userGroups, err := apiclient.GetAllResources[types.UserGroup](r.Context(), clt, &proto.ListResourcesRequest{
-		ResourceType:     types.KindUserGroup,
-		Namespace:        apidefaults.Namespace,
-		UseSearchAsRoles: true,
-	})
-	if err != nil {
-		h.log.Debugf("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
-	}
+	// generator to retrieve UserGroupLookup on first call and return it again in subsequent calls.
+	// If we encounter an error, we log it once and return an empty UserGroupLookup for the current and subsequent calls.
+	getUserGroupLookup := func() func() map[string]types.UserGroup {
+		userGroupLookup := make(map[string]types.UserGroup)
+		var gotUserGroupLookup bool
+		return func() map[string]types.UserGroup {
+			if gotUserGroupLookup {
+				return userGroupLookup
+			}
 
-	userGroupLookup := make(map[string]types.UserGroup, len(userGroups))
-	for _, userGroup := range userGroups {
-		userGroupLookup[userGroup.GetName()] = userGroup
-	}
+			userGroups, err = apiclient.GetAllResources[types.UserGroup](request.Context(), clt, &proto.ListResourcesRequest{
+				ResourceType:     types.KindUserGroup,
+				Namespace:        apidefaults.Namespace,
+				UseSearchAsRoles: true,
+			})
+			if err != nil {
+				h.log.Infof("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
+			}
+
+			for _, userGroup := range userGroups {
+				userGroupLookup[userGroup.GetName()] = userGroup
+			}
+
+			gotUserGroupLookup = true
+			return userGroupLookup
+		}
+	}()
+
+	var dbNames, dbUsers []string
+	hasFetchedDBUsersAndNames := false
 
 	unifiedResources := make([]any, 0, len(page.Resources))
 	for _, resource := range page.Resources {
@@ -2538,6 +2581,13 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 			}
 			unifiedResources = append(unifiedResources, server)
 		case types.DatabaseServer:
+			if !hasFetchedDBUsersAndNames {
+				dbNames, dbUsers, err = getDatabaseUsersAndNames(accessChecker)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				hasFetchedDBUsersAndNames = true
+			}
 			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
@@ -2546,7 +2596,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 				LocalProxyDNSName: h.proxyDNSName(),
 				AppClusterName:    site.GetName(),
 				Identity:          identity,
-				UserGroupLookup:   userGroupLookup,
+				UserGroupLookup:   getUserGroupLookup(),
 				Logger:            h.log,
 			})
 			unifiedResources = append(unifiedResources, app)
@@ -2557,7 +2607,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 					LocalProxyDNSName: h.proxyDNSName(),
 					AppClusterName:    site.GetName(),
 					Identity:          identity,
-					UserGroupLookup:   userGroupLookup,
+					UserGroupLookup:   getUserGroupLookup(),
 					Logger:            h.log,
 				})
 				unifiedResources = append(unifiedResources, app)
@@ -2578,9 +2628,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 			unifiedResources = append(unifiedResources, desktop)
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			unifiedResources = append(unifiedResources, kube)
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", resource)
@@ -2799,7 +2846,7 @@ func (h *Handler) siteNodeConnect(
 	if params == "" {
 		return nil, trace.BadParameter("missing params")
 	}
-	var req *TerminalRequest
+	var req TerminalRequest
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2823,13 +2870,13 @@ func (h *Handler) siteNodeConnect(
 	clusterName := site.GetName()
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
-		sessionData, err = h.generateSession(ctx, clt, req, clusterName, sessionCtx)
+		sessionData, err = h.generateSession(ctx, clt, &req, clusterName, sessionCtx)
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		sessionData, tracker, err = h.fetchExistingSession(ctx, clt, req, clusterName)
+		sessionData, tracker, err = h.fetchExistingSession(ctx, clt, &req, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4180,4 +4227,15 @@ func isDashboard(features proto.Features) bool {
 	// the presence of recovery codes, which are never enabled
 	// in OSS or self-hosted Teleport.
 	return !features.GetCloud() && features.GetRecoveryCodes()
+}
+
+const robots = `User-agent: *
+Disallow: /`
+
+func serveRobotsTxt(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(robots))
+	return nil, nil
 }

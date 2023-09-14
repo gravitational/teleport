@@ -407,6 +407,15 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	t.log.Debug("Closing websocket stream")
 }
 
+type stderrWriter struct {
+	stream *TerminalStream
+}
+
+func (s stderrWriter) Write(b []byte) (int, error) {
+	s.stream.writeError(string(b))
+	return len(b), nil
+}
+
 // makeClient builds a *client.TeleportClient for the connection.
 func (t *TerminalHandler) makeClient(ctx context.Context, stream *TerminalStream, clientAddr string) (*client.TeleportClient, error) {
 	ctx, span := tracing.DefaultProvider().Tracer("terminal").Start(ctx, "terminal/makeClient")
@@ -421,7 +430,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *TerminalStream
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
 	clientConfig.Namespace = apidefaults.Namespace
 	clientConfig.Stdout = stream
-	clientConfig.Stderr = stream
+	clientConfig.Stderr = stderrWriter{stream: stream}
 	clientConfig.Stdin = stream
 	clientConfig.SiteName = t.sessionData.ClusterName
 	if err := clientConfig.ParseProxyHost(t.proxyHostPort); err != nil {
@@ -1100,14 +1109,20 @@ func (t *TerminalStream) handleWindowResize(ctx context.Context, envelope Envelo
 		return
 	}
 
-	var e map[string]string
+	var e map[string]interface{}
 	err := json.Unmarshal([]byte(envelope.Payload), &e)
 	if err != nil {
 		t.log.Warnf("Failed to parse resize payload: %v", err)
 		return
 	}
 
-	params, err := session.UnmarshalTerminalParams(e["size"])
+	size, ok := e["size"].(string)
+	if !ok {
+		t.log.Errorf("expected size to be of type string, got type %T instead", size)
+		return
+	}
+
+	params, err := session.UnmarshalTerminalParams(size)
 	if err != nil {
 		t.log.Warnf("Failed to retrieve terminal size: %v", err)
 		return

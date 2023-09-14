@@ -114,7 +114,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	}
 
 	resultApp := App{
-		Kind:         app.GetKind(),
+		Kind:         types.KindApp,
 		Name:         app.GetName(),
 		Description:  app.GetDescription(),
 		URI:          app.GetURI(),
@@ -128,6 +128,11 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		SAMLApp:      false,
 	}
 
+	if app.IsAWSConsole() {
+		resultApp.AWSRoles = aws.FilterAWSRoles(c.Identity.AWSRoleARNs,
+			app.GetAWSAccountID())
+	}
+
 	return resultApp
 }
 
@@ -135,9 +140,9 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 func MakeSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
 	resultApp := App{
-		Kind:         app.GetKind(),
+		Kind:         types.KindApp,
 		Name:         app.GetName(),
-		Description:  app.GetMetadata().Description,
+		Description:  "SAML Application",
 		PublicAddr:   "",
 		Labels:       labels,
 		ClusterID:    c.AppClusterName,
@@ -168,7 +173,7 @@ func MakeApps(c MakeAppsConfig) []App {
 			}
 
 			resultApp := App{
-				Kind:         appOrSP.GetKind(),
+				Kind:         types.KindApp,
 				Name:         appOrSP.GetName(),
 				Description:  appOrSP.GetDescription(),
 				URI:          app.GetURI(),
@@ -191,7 +196,7 @@ func MakeApps(c MakeAppsConfig) []App {
 		} else {
 			labels := makeLabels(appOrSP.GetSAMLIdPServiceProvider().GetAllLabels())
 			resultApp := App{
-				Kind:         appOrSP.GetKind(),
+				Kind:         types.KindApp,
 				Name:         appOrSP.GetName(),
 				Description:  appOrSP.GetDescription(),
 				PublicAddr:   appOrSP.GetPublicAddr(),

@@ -57,6 +57,9 @@ export interface Workspace {
     isBarCollapsed: boolean;
     pending: PendingAccessRequest;
   };
+  connectMyComputer?: {
+    autoStart: boolean;
+  };
   previous?: {
     documents: Document[];
     location: DocumentUri;
@@ -186,6 +189,21 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     this.persistState();
   }
 
+  setConnectMyComputerAutoStart(
+    rootClusterUri: RootClusterUri,
+    autoStart: boolean
+  ): void {
+    this.setState(draftState => {
+      draftState.workspaces[rootClusterUri].connectMyComputer = {
+        autoStart,
+      };
+    });
+  }
+
+  getConnectMyComputerAutoStart(rootClusterUri: RootClusterUri): boolean {
+    return this.state.workspaces[rootClusterUri].connectMyComputer?.autoStart;
+  }
+
   setActiveWorkspace(clusterUri: RootClusterUri): Promise<void> {
     const setWorkspace = () => {
       this.setState(draftState => {
@@ -288,6 +306,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
                 documents: persistedWorkspaceDocuments,
               }
             : undefined,
+          connectMyComputer: persistedWorkspace?.connectMyComputer,
         };
         return workspaces;
       }, {});
@@ -326,6 +345,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
             origin: 'reopened_session',
           };
         }
+
         return d;
       });
       workspace.location = workspace.previous.location;
@@ -386,6 +406,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         localClusterUri: workspace.localClusterUri,
         location: workspace.previous?.location || workspace.location,
         documents: workspace.previous?.documents || workspace.documents,
+        connectMyComputer: workspace.connectMyComputer,
       };
     }
     this.statePersistenceService.saveWorkspacesState(stateToSave);

@@ -51,6 +51,7 @@ exports[`empty state for enterprise, can create 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 224px;
+  text-transform: none;
 }
 
 .c11:hover,
@@ -95,6 +96,7 @@ exports[`empty state for enterprise, can create 1`] = `
   padding: 0px 24px;
   margin-left: 24px;
   width: 224px;
+  text-transform: none;
 }
 
 .c12:hover,
@@ -249,8 +251,7 @@ exports[`empty state for enterprise, can create 1`] = `
               kind="primary"
               width="224px"
             >
-              Add 
-              application
+              Add Resource
             </button>
           </a>
           <a
@@ -341,7 +342,51 @@ exports[`failed state 1`] = `
   cursor: auto;
 }
 
-.c36 {
+.c35 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 90px;
+  text-transform: none;
+}
+
+.c35:hover,
+.c35:focus {
+  background: rgba(255,255,255,0.07);
+}
+
+.c35:active {
+  background: rgba(255,255,255,0.13);
+}
+
+.c35:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c39 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -363,25 +408,25 @@ exports[`failed state 1`] = `
   margin-right: 0px;
 }
 
-.c36:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c36:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c36:hover:enabled,
-.c36:focus:enabled {
+.c39:hover:enabled,
+.c39:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c36:active:enabled {
+.c39:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c38 {
+.c41 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -402,21 +447,21 @@ exports[`failed state 1`] = `
   margin-left: 0px;
 }
 
-.c38:disabled {
+.c41:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c38:disabled {
+.c41:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c38:hover:enabled,
-.c38:focus:enabled {
+.c41:hover:enabled,
+.c41:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c38:active:enabled {
+.c41:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -456,7 +501,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c32 {
+.c36 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -504,7 +549,7 @@ exports[`failed state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #f57c00;
+  background-color: #1976d2;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -515,7 +560,18 @@ exports[`failed state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #00796b;
+  background-color: #e64a19;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c32 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #388e3c;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -526,14 +582,25 @@ exports[`failed state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #1976d2;
+  background-color: #f57c00;
   border-radius: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.c35 {
+.c34 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #00796b;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c38 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -664,7 +731,7 @@ exports[`failed state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c34 {
+.c37 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -701,11 +768,11 @@ exports[`failed state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 svg {
+.c40 svg {
   font-size: 20px;
 }
 
-.c37 svg:before {
+.c40 svg:before {
   padding-left: 1px;
 }
 
@@ -964,12 +1031,12 @@ exports[`failed state 1`] = `
               </strong>
                - 
               <strong>
-                6
+                11
               </strong>
                of
                
               <strong>
-                6
+                11
               </strong>
             </div>
           </div>
@@ -1122,6 +1189,240 @@ exports[`failed state 1`] = `
                   color="light"
                   font-size="3"
                 >
+                  T
+                </div>
+              </div>
+            </td>
+            <td>
+              TheOtherOne
+            </td>
+            <td>
+              This is a Jenkins app
+            </td>
+            <td>
+              https://jenkins.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  icon: jenkins
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/jenkins.two/one/jenkins.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c31"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  G
+                </div>
+              </div>
+            </td>
+            <td>
+              Grafana
+            </td>
+            <td>
+              This is a Grafana app
+            </td>
+            <td>
+              https://grafana.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  env: prod
+                </div>
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/g.one/one/grafana.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c32"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  1
+                </div>
+              </div>
+            </td>
+            <td>
+              11llkk2234234
+            </td>
+            <td>
+              Teleport Okta
+            </td>
+            <td>
+              https://234.dev-test.teleport
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  okta/org: https://dev-test.okta.com
+                </div>
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  teleport.dev/origin: okta
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/234.dev-test.teleport/dev-test.teleport/234.dev-test.teleport"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c30"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  C
+                </div>
+              </div>
+            </td>
+            <td>
+              Company Chat
+            </td>
+            <td>
+              This is the employee slack channel
+            </td>
+            <td>
+              https://slack.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  env: prod
+                </div>
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  icon: slack
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/s.one/one/slack.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c33"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
                   s
                 </div>
               </div>
@@ -1158,7 +1459,52 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c31"
+                class="c34"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  o
+                </div>
+              </div>
+            </td>
+            <td>
+              okta
+            </td>
+            <td>
+              SAML Application
+            </td>
+            <td />
+            <td>
+              <div
+                class="c27"
+              />
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="http://localhost/enterprise/saml-idp/login/okta"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LOGIN
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c34"
                 height="32px"
                 width="32px"
               >
@@ -1218,7 +1564,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c31"
+                class="c34"
                 height="32px"
                 width="32px"
               >
@@ -1277,7 +1623,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c30"
+                class="c33"
                 height="32px"
                 width="32px"
               >
@@ -1334,13 +1680,13 @@ exports[`failed state 1`] = `
               align="right"
             >
               <button
-                class="c29"
+                class="c35"
                 kind="border"
-                width="88px"
+                width="90px"
               >
-                LAUNCH
+                Launch
                 <span
-                  class="c32 icon icon-chevrondown"
+                  class="c36 icon icon-chevrondown"
                   color="text.slightlyMuted"
                 >
                   <svg
@@ -1364,7 +1710,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c33"
+                class="c30"
                 height="32px"
                 width="32px"
               >
@@ -1421,17 +1767,17 @@ exports[`failed state 1`] = `
         </tbody>
       </table>
       <nav
-        class="c34"
+        class="c37"
       >
         <div
-          class="c35"
+          class="c38"
           width="100%"
         >
           <div
             class="c21"
           >
             <button
-              class="c36 c37"
+              class="c39 c40"
               title="Previous page"
             >
               <span
@@ -1455,7 +1801,7 @@ exports[`failed state 1`] = `
               </span>
             </button>
             <button
-              class="c38 c37"
+              class="c41 c40"
               title="Next page"
             >
               <span
@@ -1515,6 +1861,7 @@ exports[`loaded state 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c3:hover,
@@ -1575,7 +1922,51 @@ exports[`loaded state 1`] = `
   cursor: auto;
 }
 
-.c36 {
+.c35 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 90px;
+  text-transform: none;
+}
+
+.c35:hover,
+.c35:focus {
+  background: rgba(255,255,255,0.07);
+}
+
+.c35:active {
+  background: rgba(255,255,255,0.13);
+}
+
+.c35:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c39 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1597,25 +1988,25 @@ exports[`loaded state 1`] = `
   margin-right: 0px;
 }
 
-.c36:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c36:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c36:hover:enabled,
-.c36:focus:enabled {
+.c39:hover:enabled,
+.c39:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c36:active:enabled {
+.c39:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c38 {
+.c41 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1636,21 +2027,21 @@ exports[`loaded state 1`] = `
   margin-left: 0px;
 }
 
-.c38:disabled {
+.c41:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c38:disabled {
+.c41:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c38:hover:enabled,
-.c38:focus:enabled {
+.c41:hover:enabled,
+.c41:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c38:active:enabled {
+.c41:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -1690,7 +2081,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c32 {
+.c36 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1738,7 +2129,7 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #f57c00;
+  background-color: #1976d2;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -1749,7 +2140,18 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #00796b;
+  background-color: #e64a19;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c32 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #388e3c;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -1760,14 +2162,25 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #1976d2;
+  background-color: #f57c00;
   border-radius: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.c35 {
+.c34 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #00796b;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c38 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -1898,7 +2311,7 @@ exports[`loaded state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c34 {
+.c37 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1935,11 +2348,11 @@ exports[`loaded state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 svg {
+.c40 svg {
   font-size: 20px;
 }
 
-.c37 svg:before {
+.c40 svg:before {
   padding-left: 1px;
 }
 
@@ -2203,12 +2616,12 @@ exports[`loaded state 1`] = `
               </strong>
                - 
               <strong>
-                6
+                11
               </strong>
                of
                
               <strong>
-                6
+                11
               </strong>
             </div>
           </div>
@@ -2361,6 +2774,240 @@ exports[`loaded state 1`] = `
                   color="light"
                   font-size="3"
                 >
+                  T
+                </div>
+              </div>
+            </td>
+            <td>
+              TheOtherOne
+            </td>
+            <td>
+              This is a Jenkins app
+            </td>
+            <td>
+              https://jenkins.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  icon: jenkins
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/jenkins.two/one/jenkins.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c31"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  G
+                </div>
+              </div>
+            </td>
+            <td>
+              Grafana
+            </td>
+            <td>
+              This is a Grafana app
+            </td>
+            <td>
+              https://grafana.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  env: prod
+                </div>
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/g.one/one/grafana.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c32"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  1
+                </div>
+              </div>
+            </td>
+            <td>
+              11llkk2234234
+            </td>
+            <td>
+              Teleport Okta
+            </td>
+            <td>
+              https://234.dev-test.teleport
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  okta/org: https://dev-test.okta.com
+                </div>
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  teleport.dev/origin: okta
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/234.dev-test.teleport/dev-test.teleport/234.dev-test.teleport"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c30"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  C
+                </div>
+              </div>
+            </td>
+            <td>
+              Company Chat
+            </td>
+            <td>
+              This is the employee slack channel
+            </td>
+            <td>
+              https://slack.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c27"
+              >
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  env: prod
+                </div>
+                <div
+                  class="c28"
+                  kind="secondary"
+                >
+                  icon: slack
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="/web/launch/s.one/one/slack.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c33"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
                   s
                 </div>
               </div>
@@ -2397,7 +3044,52 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c31"
+                class="c34"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c26"
+                  color="light"
+                  font-size="3"
+                >
+                  o
+                </div>
+              </div>
+            </td>
+            <td>
+              okta
+            </td>
+            <td>
+              SAML Application
+            </td>
+            <td />
+            <td>
+              <div
+                class="c27"
+              />
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c29"
+                href="http://localhost/enterprise/saml-idp/login/okta"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LOGIN
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c34"
                 height="32px"
                 width="32px"
               >
@@ -2457,7 +3149,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c31"
+                class="c34"
                 height="32px"
                 width="32px"
               >
@@ -2516,7 +3208,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c30"
+                class="c33"
                 height="32px"
                 width="32px"
               >
@@ -2573,13 +3265,13 @@ exports[`loaded state 1`] = `
               align="right"
             >
               <button
-                class="c29"
+                class="c35"
                 kind="border"
-                width="88px"
+                width="90px"
               >
-                LAUNCH
+                Launch
                 <span
-                  class="c32 icon icon-chevrondown"
+                  class="c36 icon icon-chevrondown"
                   color="text.slightlyMuted"
                 >
                   <svg
@@ -2603,7 +3295,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c33"
+                class="c30"
                 height="32px"
                 width="32px"
               >
@@ -2660,17 +3352,17 @@ exports[`loaded state 1`] = `
         </tbody>
       </table>
       <nav
-        class="c34"
+        class="c37"
       >
         <div
-          class="c35"
+          class="c38"
           width="100%"
         >
           <div
             class="c21"
           >
             <button
-              class="c36 c37"
+              class="c39 c40"
               title="Previous page"
             >
               <span
@@ -2694,7 +3386,7 @@ exports[`loaded state 1`] = `
               </span>
             </button>
             <button
-              class="c38 c37"
+              class="c41 c40"
               title="Next page"
             >
               <span

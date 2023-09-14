@@ -383,7 +383,7 @@ func (ns *NodeSession) allocateTerminal(ctx context.Context, termType string, s 
 		go ns.updateTerminalSize(ctx, s)
 	}
 	go func() {
-		if _, err := io.Copy(os.Stderr, stderr); err != nil {
+		if _, err := io.Copy(ns.nodeClient.TC.Stderr, stderr); err != nil {
 			log.Debugf("Error reading remote STDERR: %v", err)
 		}
 	}()
@@ -553,7 +553,7 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 	// fallback to non-interactive mode
 	if interactive && !ns.terminal.IsAttached() {
 		interactive = false
-		fmt.Fprintf(os.Stderr, "TTY will not be allocated on the server because stdin is not a terminal\n")
+		fmt.Fprintf(ns.nodeClient.TC.Stderr, "TTY will not be allocated on the server because stdin is not a terminal\n")
 	}
 
 	// Start a interactive session ("exec" request with a TTY).

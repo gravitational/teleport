@@ -43,8 +43,6 @@ import (
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -215,7 +213,7 @@ func TestMFADeviceManagement(t *testing.T) {
 				},
 				checkAuthErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.Error(t, err)
-					require.Equal(t, codes.PermissionDenied, status.Code(err))
+					require.True(t, trace.IsAccessDenied(err))
 				},
 			},
 		},
@@ -246,7 +244,7 @@ func TestMFADeviceManagement(t *testing.T) {
 				},
 				checkRegisterErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.Error(t, err)
-					require.Equal(t, codes.InvalidArgument, status.Code(err))
+					require.True(t, trace.IsBadParameter(err))
 				},
 			},
 		},
@@ -4249,4 +4247,91 @@ func TestRoleVersions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpsertApplicationServerOrigin(t *testing.T) {
+	t.Parallel()
+
+	parentCtx := context.Background()
+	server := newTestTLSServer(t)
+
+	admin := TestAdmin()
+
+	client, err := server.NewClient(admin)
+	require.NoError(t, err)
+
+	// Dynamic origin should work for admin role.
+	app, err := types.NewAppV3(types.Metadata{
+		Name:   "app1",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost1",
+	})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "localhost", "123456")
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(parentCtx, admin.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	// Okta origin should not work for admin role.
+	app.SetOrigin(types.OriginOkta)
+	appServer, err = types.NewAppServerV3FromApp(app, "localhost", "123456")
+	require.NoError(t, err)
+
+	ctx = authz.ContextWithUser(parentCtx, admin.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.ErrorIs(t, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"), err)
+
+	// Okta origin should not work with instance and node roles.
+	client, err = server.NewClient(TestIdentity{
+		I: authz.BuiltinRole{
+			Role: types.RoleInstance,
+			AdditionalSystemRoles: []types.SystemRole{
+				types.RoleNode,
+			},
+			Username: server.ClusterName(),
+		},
+	})
+	require.NoError(t, err)
+
+	ctx = authz.ContextWithUser(parentCtx, admin.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.ErrorIs(t, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"), err)
+
+	// Okta origin should work with Okta role in role field.
+	node := TestIdentity{
+		I: authz.BuiltinRole{
+			Role: types.RoleOkta,
+			AdditionalSystemRoles: []types.SystemRole{
+				types.RoleNode,
+			},
+			Username: server.ClusterName(),
+		},
+	}
+	client, err = server.NewClient(node)
+	require.NoError(t, err)
+
+	ctx = authz.ContextWithUser(parentCtx, node.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	// Okta origin should work with Okta role in additional system roles.
+	node = TestIdentity{
+		I: authz.BuiltinRole{
+			Role: types.RoleInstance,
+			AdditionalSystemRoles: []types.SystemRole{
+				types.RoleNode,
+				types.RoleOkta,
+			},
+			Username: server.ClusterName(),
+		},
+	}
+	client, err = server.NewClient(node)
+	require.NoError(t, err)
+
+	ctx = authz.ContextWithUser(parentCtx, node.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
 }

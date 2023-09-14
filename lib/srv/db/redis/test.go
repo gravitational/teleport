@@ -122,7 +122,7 @@ func TestServerPassword(password string) TestServerOption {
 }
 
 // NewTestServer returns a new instance of a test Redis server.
-func NewTestServer(t *testing.T, config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
+func NewTestServer(t testing.TB, config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
 	tlsConfig, err := common.MakeTestServerTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)

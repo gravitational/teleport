@@ -16,7 +16,7 @@ limitations under the License.
 
 import { useEffect, useState } from 'react';
 
-import { AgentFilter } from 'teleport/services/agents';
+import { ResourceFilter } from 'teleport/services/agents';
 
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 
@@ -99,8 +99,8 @@ function decodeUrlQueryParam(param: string) {
 export type HookProps = {
   pathname: string;
   replaceHistory: (path: string) => void;
-  params: AgentFilter;
-  setParams: (params: AgentFilter) => void;
+  params: ResourceFilter;
+  setParams: (params: ResourceFilter) => void;
 };
 
 export type SearchPanelState = ReturnType<typeof useServersideSearchPanel>;

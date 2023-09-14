@@ -25,7 +25,9 @@ export const KeysEnum = {
   USER_PREFERENCES: 'grv_teleport_user_preferences',
   ONBOARD_SURVEY: 'grv_teleport_onboard_survey',
   RECOMMEND_FEATURE: 'grv_recommend_feature',
-  UNIFIED_RESOURCES_ENABLED: 'grv_teleport_unified_resources_enabled',
+  UNIFIED_RESOURCES_DISABLED: 'grv_teleport_unified_resources_disabled',
+  UNIFIED_RESOURCES_NOT_SUPPORTED:
+    'grv_teleport_unified_resources_not_supported',
   CLOUD_USER_INVITES: 'grv_teleport_cloud_user_invites',
 };
 

@@ -80,7 +80,18 @@ variable "use_letsencrypt" {
 // Whether to use Amazon-issued certificates via ACM or not
 // This must be set to true for any use of ACM whatsoever, regardless of whether Terraform generates/approves the cert
 variable "use_acm" {
-  type = bool
+  type    = bool
+  default = false
+}
+
+// Whether to enable TLS routing in the cluster
+// See https://goteleport.com/docs/architecture/tls-routing for more information
+// Setting this will disable ALL separate listener ports. If you also use ACM, then:
+// - you must use Teleport and tsh v13+
+// - you must use `tsh proxy` commands for Kubernetes/database access
+variable "use_tls_routing" {
+  type    = bool
+  default = false
 }
 
 // CIDR blocks allowed to connect to the SSH port

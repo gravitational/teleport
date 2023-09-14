@@ -16,7 +16,7 @@ limitations under the License.
 
 import React, { useState } from 'react';
 
-import { ButtonBorder, Text, Box, Menu, MenuItem, Flex } from 'design';
+import { Box, ButtonBorder, Flex, Menu, MenuItem, Text } from 'design';
 import { ChevronDown, Warning } from 'design/Icon';
 
 import cfg from 'teleport/config';
@@ -29,11 +29,13 @@ export const SessionJoinBtn = ({
   clusterId,
   participantModes,
   showCTA,
+  showModeratedCTA,
 }: {
   sid: string;
   clusterId: string;
   participantModes: ParticipantMode[];
   showCTA: boolean;
+  showModeratedCTA: boolean;
 }) => {
   const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
 
@@ -44,7 +46,7 @@ export const SessionJoinBtn = ({
   return (
     <JoinMenu anchorEl={anchorEl} setAnchorEl={setAnchorEl}>
       {showCTA && (
-        <Box mx="12px" my="3">
+        <Box mx="12px" my={3}>
           <ButtonLockedFeature
             noIcon
             height="40px"
@@ -71,7 +73,7 @@ export const SessionJoinBtn = ({
         hasAccess={participantModes.includes('moderator')}
         participantMode="moderator"
         key="moderator"
-        showCTA={showCTA}
+        showCTA={showCTA || showModeratedCTA}
         closeMenu={closeMenu}
       />
       <JoinMenuItem
@@ -84,6 +86,17 @@ export const SessionJoinBtn = ({
         showCTA={showCTA}
         closeMenu={closeMenu}
       />
+      {showModeratedCTA && (
+        <ButtonLockedFeature
+          noIcon
+          height="40px"
+          event={CtaEvent.CTA_ACTIVE_SESSIONS}
+          m={3}
+          width="90%"
+        >
+          Join as a moderator with Teleport Enterprise
+        </ButtonLockedFeature>
+      )}
     </JoinMenu>
   );
 };
@@ -180,6 +193,7 @@ function JoinMenuItem({
         cursor: auto;
         border-bottom: 1px solid
           ${({ theme }) => theme.colors.spotBackground[0]};
+
         &:hover {
           background-color: ${({ theme }) => theme.colors.levels.elevated};
           color: ${({ theme }) => theme.colors.text.disabled};

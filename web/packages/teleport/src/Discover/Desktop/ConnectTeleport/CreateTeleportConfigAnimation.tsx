@@ -68,7 +68,7 @@ const states = (joinToken: JoinToken) => [
 ];
 
 export function CreateTeleportConfigAnimation() {
-  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
+  const { joinToken } = useJoinTokenSuspender([ResourceKind.Desktop]);
 
   const [editorState, setEditorState] = useState(EditorState.Original);
 
