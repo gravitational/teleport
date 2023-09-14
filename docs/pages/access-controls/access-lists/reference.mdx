@@ -68,9 +68,7 @@ metadata:
 spec:
   title: "Access List Title"
   # audit defines how frequently an Access List and its membership must be audited, along
-  # with the next audit date. If an Access List is not audited by the next audit date, the
-  # roles and traits granted by this Access List will be revoked from the users until the
-  # audit occurs.
+  # with the next audit date.
   audit:
     # Audit frequency defaults to 6 months. Format to golang's time.ParseDuration function:
     # https://pkg.go.dev/time#ParseDuration
