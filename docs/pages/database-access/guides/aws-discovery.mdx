@@ -15,7 +15,7 @@ description: How to configure Teleport to discover AWS-hosted databases.
 
 ## Step 1/4. Generate a join token
 
-The Discovery Service require a valid join token to connect to the cluster.
+The Discovery Service requires a valid join token to connect to the cluster.
 
 Generate a join token by running the following command against your Teleport
 Auth Service and save it in `/tmp/token` on the host that will run the
@@ -33,7 +33,8 @@ Enabling AWS database discovery requires that the `discovery_service.aws`
 section includes at least one entry and that `discovery_service.aws.types`
 includes one of database types listed in the sample YAML below. 
 
-Now create the `teleport.yaml` file on the host:
+Create a `teleport.yaml` file similar to the following on the host that will
+run the Discovery Service:
 
 ```yaml
 version: v3
@@ -91,10 +92,10 @@ Teleport can bootstrap IAM permissions for the Discovery Service using the
 `teleport discovery bootstrap` command. You can use this command in automatic
 or manual mode:
 
-- In automatic mode, Teleport will attempt to create appropriate IAM policies
+- In automatic mode, Teleport attempts to create the appropriate IAM policies
   and attach them to the specified IAM roles. This requires IAM permissions to
   create and attach IAM policies.
-- In manual mode, Teleport will print required IAM policies. You can then create
+- In manual mode, Teleport prints the required IAM policies. You can then create
   and attach them manually using the AWS management console.
 
 <Tabs>
@@ -115,8 +116,8 @@ or manual mode:
   </TabItem>
 
   <TabItem label="Manual">
-  Use this command to display required IAM policies which you will then create
-  in your AWS console:
+  Use the following command to display the required IAM policies that you need
+  to create in your AWS console:
 
   ```code
   $ teleport discovery bootstrap --manual \
@@ -129,7 +130,7 @@ or manual mode:
 
 <Details title="Bootstrapping with assume_role_arn in config">
 When `assume_role_arn` is configured for AWS matchers, `teleport discovery
-bootstrap` command will determine permissions required for the bootstrap target
+bootstrap` command determines the permissions required for the bootstrap target
 AWS IAM identity using the following logic:
 
 - When the target does not match `assume_role_arn` in any AWS matcher in the
@@ -137,8 +138,8 @@ AWS IAM identity using the following logic:
   Service's AWS IAM identity and permissions are bootstrapped for all the AWS
   matchers without `assume_role_arn`.
 - When an `--attach-to-role` target matches an `assume_role_arn` setting for
-  AWS matchers in the configuration file, permissions will be bootstrapped only
-  for those AWS matchers.
+  AWS matchers in the configuration file, permissions are bootstrapped only for
+  those AWS matchers.
 
 You will need to run the bootstrap command once with the Teleport Discovery
 Service's IAM identity as the policy attachment target, and once for each AWS
@@ -149,8 +150,8 @@ IAM role that is used for `assume_role_arn`.
 
 (!docs/pages/includes/start-teleport.mdx service="the Discovery Service"!)
 
-Once the Discovery Service starts, database servers matching the tags and
-regions specified in the AWS section will be added to the Teleport cluster
+After the Discovery Service starts, database servers matching the tags and
+regions specified in the AWS section are added to the Teleport cluster
 automatically.
 
 You can list them with the `tctl get db` command or check a specific database
