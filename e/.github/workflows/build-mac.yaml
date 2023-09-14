@@ -108,6 +108,7 @@ jobs:
       - name: Install Go Toolchain
         uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: ${{ env.GOLANG_VERSION }}
 
       - name: Install Rust Toolchain
