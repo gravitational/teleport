@@ -21,9 +21,8 @@ func TestGenerate(t *testing.T) {
 		description string
 		// Source fixture. Replace backticks with the "BACKTICK"
 		// placeholder.
-		source       string
-		allResources map[PackageInfo]ReferenceEntry
-		expected     ReferenceEntry
+		source   string
+		expected ReferenceEntry
 	}{
 		{
 			description: "scalar fields with one field ignored",
@@ -182,18 +181,7 @@ type Server struct {
     Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
 }
 `,
-			allResources: map[PackageInfo]ReferenceEntry{
-				PackageInfo{
-					TypeName:    "ServerSpecV1",
-					PackageName: "types",
-				}: ReferenceEntry{
-					SectionName: "ServerSpec",
-					Description: "Spec for a server.",
-					SourcePath:  "types.go",
-					Fields:      nil,
-					YAMLExample: "",
-				},
-			},
+
 			expected: ReferenceEntry{
 				SectionName: "Server",
 				Description: "Includes information about a server registered with Teleport.",
@@ -211,7 +199,7 @@ spec:
 					Field{
 						Name:        "spec",
 						Description: "Contains information about the server.",
-						Type:        "[ServerSpec](#serverspec)",
+						Type:        "[Server Spec v1](#server-spec-v1)",
 					},
 				},
 			},
@@ -235,7 +223,7 @@ spec:
 				t.Fatalf("test fixture declaration is not a GenDecl")
 			}
 
-			r, err := NewFromDecl(gd, "myfile.go", tc.allResources)
+			r, err := NewFromDecl(gd, "myfile.go")
 			assert.NoError(t, err)
 
 			assert.Equal(t, tc.expected, r)
@@ -473,6 +461,36 @@ my_string: "string"
 			e, err := makeYAMLExample(c.input)
 			assert.NoError(t, err)
 			assert.Equal(t, c.expected, e)
+		})
+	}
+}
+
+func TestMakeSectionName(t *testing.T) {
+	cases := []struct {
+		description string
+		original    string
+		expected    string
+	}{
+		{
+			description: "camel-case name",
+			original:    "ServerSpec",
+			expected:    "Server Spec",
+		},
+		{
+			description: "camel-case name with three words",
+			original:    "MyExcellentResource",
+			expected:    "My Excellent Resource",
+		},
+		{
+			description: "camel-case name with version",
+			original:    "ServerSpecV2",
+			expected:    "Server Spec v2",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			assert.Equal(t, c.expected, makeSectionName(c.original))
 		})
 	}
 }
