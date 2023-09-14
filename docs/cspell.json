@@ -28,6 +28,7 @@
     "Binm",
     "Brosnan",
     "CAcreateserial",
+    "Callouts",
     "CCDC",
     "CHANGEID",
     "CHANGEME",
@@ -64,6 +65,7 @@
     "Firestore",
     "Fjwg",
     "Fqmh",
+    "Frontmatter",
     "GCP's",
     "GENPASS",
     "GHES",
@@ -315,6 +317,7 @@
     "clusterrolebinding",
     "clusterrolebindings",
     "clusterroles",
+    "clickhouse",
     "cockroachdb",
     "codingllama",
     "compat",
@@ -829,7 +832,12 @@
     "yubishm",
     "znmqk",
     "zxvf",
-    "zztop"
+    "zztop",
+    "persistentvolume",
+    "persistentvolumeclaim",
+    "daemonset",
+    "certificatesigningrequest",
+    "deletecollection"
   ],
   "flagWords": [
     "hte"

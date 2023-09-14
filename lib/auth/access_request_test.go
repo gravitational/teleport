@@ -313,7 +313,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.NoError(t, err)
 
 			// send the request to the auth server
-			err = requesterClient.CreateAccessRequest(ctx, req)
+			req, err = requesterClient.CreateAccessRequestV2(ctx, req)
 			require.ErrorIs(t, err, tc.expectRequestError)
 			if tc.expectRequestError != nil {
 				return

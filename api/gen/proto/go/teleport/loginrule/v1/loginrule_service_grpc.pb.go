@@ -39,6 +39,7 @@ const (
 	LoginRuleService_GetLoginRule_FullMethodName    = "/teleport.loginrule.v1.LoginRuleService/GetLoginRule"
 	LoginRuleService_ListLoginRules_FullMethodName  = "/teleport.loginrule.v1.LoginRuleService/ListLoginRules"
 	LoginRuleService_DeleteLoginRule_FullMethodName = "/teleport.loginrule.v1.LoginRuleService/DeleteLoginRule"
+	LoginRuleService_TestLoginRule_FullMethodName   = "/teleport.loginrule.v1.LoginRuleService/TestLoginRule"
 )
 
 // LoginRuleServiceClient is the client API for LoginRuleService service.
@@ -57,6 +58,10 @@ type LoginRuleServiceClient interface {
 	ListLoginRules(ctx context.Context, in *ListLoginRulesRequest, opts ...grpc.CallOption) (*ListLoginRulesResponse, error)
 	// DeleteLoginRule deletes an existing login rule.
 	DeleteLoginRule(ctx context.Context, in *DeleteLoginRuleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// TestLoginRule evaluates login rules against provided user traits
+	// to test that the output matches expectations prior to them being enforced and
+	// potentially locking out users.
+	TestLoginRule(ctx context.Context, in *TestLoginRuleRequest, opts ...grpc.CallOption) (*TestLoginRuleResponse, error)
 }
 
 type loginRuleServiceClient struct {
@@ -112,6 +117,15 @@ func (c *loginRuleServiceClient) DeleteLoginRule(ctx context.Context, in *Delete
 	return out, nil
 }
 
+func (c *loginRuleServiceClient) TestLoginRule(ctx context.Context, in *TestLoginRuleRequest, opts ...grpc.CallOption) (*TestLoginRuleResponse, error) {
+	out := new(TestLoginRuleResponse)
+	err := c.cc.Invoke(ctx, LoginRuleService_TestLoginRule_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // LoginRuleServiceServer is the server API for LoginRuleService service.
 // All implementations must embed UnimplementedLoginRuleServiceServer
 // for forward compatibility
@@ -128,6 +142,10 @@ type LoginRuleServiceServer interface {
 	ListLoginRules(context.Context, *ListLoginRulesRequest) (*ListLoginRulesResponse, error)
 	// DeleteLoginRule deletes an existing login rule.
 	DeleteLoginRule(context.Context, *DeleteLoginRuleRequest) (*emptypb.Empty, error)
+	// TestLoginRule evaluates login rules against provided user traits
+	// to test that the output matches expectations prior to them being enforced and
+	// potentially locking out users.
+	TestLoginRule(context.Context, *TestLoginRuleRequest) (*TestLoginRuleResponse, error)
 	mustEmbedUnimplementedLoginRuleServiceServer()
 }
 
@@ -149,6 +167,9 @@ func (UnimplementedLoginRuleServiceServer) ListLoginRules(context.Context, *List
 }
 func (UnimplementedLoginRuleServiceServer) DeleteLoginRule(context.Context, *DeleteLoginRuleRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteLoginRule not implemented")
+}
+func (UnimplementedLoginRuleServiceServer) TestLoginRule(context.Context, *TestLoginRuleRequest) (*TestLoginRuleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TestLoginRule not implemented")
 }
 func (UnimplementedLoginRuleServiceServer) mustEmbedUnimplementedLoginRuleServiceServer() {}
 
@@ -253,6 +274,24 @@ func _LoginRuleService_DeleteLoginRule_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _LoginRuleService_TestLoginRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestLoginRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LoginRuleServiceServer).TestLoginRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LoginRuleService_TestLoginRule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LoginRuleServiceServer).TestLoginRule(ctx, req.(*TestLoginRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // LoginRuleService_ServiceDesc is the grpc.ServiceDesc for LoginRuleService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -279,6 +318,10 @@ var LoginRuleService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteLoginRule",
 			Handler:    _LoginRuleService_DeleteLoginRule_Handler,
+		},
+		{
+			MethodName: "TestLoginRule",
+			Handler:    _LoginRuleService_TestLoginRule_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

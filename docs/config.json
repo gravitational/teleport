@@ -842,6 +842,10 @@
           "slug": "/application-access/controls/"
         },
         {
+          "title": "Troubleshooting Application Access",
+          "slug": "/application-access/troubleshooting-apps/"
+        },           
+        {
           "title": "Reference",
           "slug": "/application-access/reference/"
         }
@@ -1095,6 +1099,10 @@
             {
               "title": "Self-Hosted Cassandra & ScyllaDB",
               "slug": "/database-access/guides/cassandra-self-hosted/"
+            },
+            {
+              "title": "Self-Hosted ClickHouse",
+              "slug": "/database-access/guides/clickhouse-self-hosted/"
             },
             {
               "title": "Self-Hosted CockroachDB",
@@ -1581,7 +1589,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.3.7",
+      "version": "13.3.9",
       "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",
