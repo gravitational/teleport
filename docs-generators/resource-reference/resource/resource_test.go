@@ -22,8 +22,8 @@ func TestGenerate(t *testing.T) {
 		// Source fixture. Replace backticks with the "BACKTICK"
 		// placeholder.
 		source       string
-		allResources map[PackageInfo]Resource
-		expected     Resource
+		allResources map[PackageInfo]ReferenceEntry
+		expected     ReferenceEntry
 	}{
 		{
 			description: "scalar fields with one field ignored",
@@ -45,7 +45,7 @@ type Metadata struct {
     Active bool BACKTICKjson:"active"BACKTICK
 }
 `,
-			expected: Resource{
+			expected: ReferenceEntry{
 				SectionName: "Metadata",
 				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
 				SourcePath:  "myfile.go",
@@ -94,7 +94,7 @@ type Metadata struct {
     Booleans []bool BACKTICKjson:"booleans"BACKTICK
 }
 `,
-			expected: Resource{
+			expected: ReferenceEntry{
 				SectionName: "Metadata",
 				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
 				SourcePath:  "myfile.go",
@@ -142,7 +142,7 @@ type Metadata struct {
   Attributes map[string][]string BACKTICKjson:"attributes"BACKTICK
 }
 `,
-			expected: Resource{
+			expected: ReferenceEntry{
 				SectionName: "Metadata",
 				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
 				SourcePath:  "myfile.go",
@@ -182,11 +182,11 @@ type Server struct {
     Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
 }
 `,
-			allResources: map[PackageInfo]Resource{
+			allResources: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
 					TypeName:    "ServerSpecV1",
 					PackageName: "types",
-				}: Resource{
+				}: ReferenceEntry{
 					SectionName: "ServerSpec",
 					Description: "Spec for a server.",
 					SourcePath:  "types.go",
@@ -194,7 +194,7 @@ type Server struct {
 					YAMLExample: "",
 				},
 			},
-			expected: Resource{
+			expected: ReferenceEntry{
 				SectionName: "Server",
 				Description: "Includes information about a server registered with Teleport.",
 				SourcePath:  "myfile.go",
