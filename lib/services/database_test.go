@@ -1046,6 +1046,7 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 				"teleport.dev/database_name":      "override-1",
 				types.DiscoveryLabelAccountID:     "123456789012",
 				types.CloudLabel:                  types.CloudAWS,
+				types.OriginLabel:                 types.OriginCloud,
 				types.DiscoveryLabelRegion:        "us-east-1",
 				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
 				types.DiscoveryLabelEngineVersion: "8.0.0",
