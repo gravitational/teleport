@@ -204,6 +204,44 @@ spec:
 				},
 			},
 		},
+		{
+			description: "example YAML block",
+			source: `
+package mypkg
+
+// Server includes information about a server registered with Teleport.
+type Server struct {
+  // Qualities is a list of either maps or "key:value" strings.
+  // Example YAML:
+  // ---
+  // qualities:
+  //   - "region:us-east-1"
+  //   - team:security
+  //     env:dev
+  //     role:primary
+  Qualities types.CustomAttributes BACKTICKjson:"qualities"BACKTICK
+}
+`,
+
+			expected: ReferenceEntry{
+				SectionName: "Server",
+				Description: "Includes information about a server registered with Teleport.",
+				SourcePath:  "myfile.go",
+				YAMLExample: `qualities:
+   - "region:us-east-1"
+   - team:security
+     env:dev
+     role:primary
+`,
+				Fields: []Field{
+					Field{
+						Name:        "qualities",
+						Description: "A list of either maps or \"key:value\" strings.",
+						Type:        "[Custom Attributes](#custom-attributes)",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
