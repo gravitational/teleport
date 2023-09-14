@@ -3,17 +3,28 @@ title: Deploying Machine ID on AWS
 description: How to install and configure Machine ID on an AWS EC2 instance
 ---
 
-Google Cloud Platform is a blah blah blah. This document covers deploying
-Machine ID onto
+This page contains relevant background information and specific steps for
+deploying Machine ID on Amazon Web Services.
 
 ## Background
 
-TODO: Introduce AWS IAM Concepts
+### The `iam` join method
+
+TODO: Brief overview of how the join method works for this platform.
 
 ### Elastic Kubernetes Service
 
-TODO: Explain how this guide can be modified to work with GKE and also point
-towards the Kubernetes guide.
+Whilst the guide on this page focuses explicitly on deploying Machine ID on an
+EC2 instance, it is also possible to use the `iam` join method with
+workloads (e.g Pods) running on an EKS Kubernetes cluster.
+
+It is a requirement that
+[IAM Roles for Service Accounts (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)
+has been configured for the cluster and the Kubernetes service account that will
+be used by the `tbot` pod.
+
+See the [Kubernetes platform guide](../kubernetes.mdx) for further guidance
+on deploying Machine ID as a workload on Kubernetes.
 
 ## Guide
 

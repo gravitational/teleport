@@ -3,17 +3,28 @@ title: Deploying Machine ID on GCP
 description: How to install and configure Machine ID on a GCP VM
 ---
 
-Google Cloud Platform is a blah blah blah. This document covers deploying
-Machine ID onto
+This page contains relevant background information and specific steps for
+deploying Machine ID on Google Cloud Platform.
 
 ## Background
 
-TODO: Introduce GCP IAM Concepts
+### The `gcp` join method
+
+TODO: Introduce GCP IAM Concepts and overview of the join method
 
 ### Google Kubernetes Engine
 
-TODO: Explain how this guide can be modified to work with GKE and also point
-towards the Kubernetes guide.
+Whilst the guide on this page focuses explicitly on deploying Machine ID on a
+GCP Virtual Machine, it is also possible to use the `gcp` join method with
+workloads (e.g Pods) running on a GKE Kubernetes cluster.
+
+It is a requirement that
+[GCP Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity)
+has been configured for the cluster and the Kubernetes service account that will
+be used by the `tbot` pod.
+
+See the [Kubernetes platform guide](../kubernetes.mdx) for further guidance
+on deploying Machine ID as a workload on Kubernetes.
 
 ## Guide
 

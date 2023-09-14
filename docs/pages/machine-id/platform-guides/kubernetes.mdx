@@ -3,9 +3,8 @@ title: Deploying Machine ID on Kubernetes
 description: How to install and configure Machine ID on Kubernetes
 ---
 
-Kubernetes is a popular container workload orchestrator. This document covers
-deploying Machine ID as a Kubernetes workload in order to provide credentials
-to other workloads running in the same Kubernetes namespace.
+This page contains relevant background information and specific steps for
+deploying Machine ID on Kubernetes.
 
 ## Background
 
@@ -22,15 +21,14 @@ service that needs to use the credentials. The credentials are written to a
 directory which is mounted within both the containers.
 
 Due to the current limited support in Kubernetes for sidecars, we recommend that
-the Standalone Deployment style is used. This style will be covered later in
-this guide.
+the Standalone Deployment style is used. The guide will demonstrate this
+recommendation.
 
-### Join method
+### The `kubernetes` join method
 
-In order for `tbot` to join your Teleport cluster, a join token must be
-configured. A join token is configured with a join method that specifies how
-`tbot` can perform the initial authentication. These join methods are platform
-specific in order to leverage forms of identity available on that platform.
+TODO: Brief overview of how the join method works for this platform.
+
+### Using a non-`kubernetes` join method
 
 When deploying `tbot` to a Teleport cluster, it is generally recommended to use
 the `kubernetes` join method. This will work with most Kubernetes clusters.
@@ -70,6 +68,7 @@ Namespace you wish to use.
   default in Kubernetes 1.20).
 - `kubectl` authenticated with the ability to create resources in the cluster
   you wish to deploy `tbot` into.
+- TODO: Rest of prerequisites
 
 ### Step 1/4. Prepare Kubernetes RBAC
 
@@ -249,7 +248,7 @@ $ kubectl apply -f ./k8s-deployment-config.yaml
 $ kubectl apply -f ./k8s-deployment.yaml
 ```
 
-TODO: VERIFY IT WORKS!!
+TODO: How to check it's running happily
 
 ### Step 4/4. Configure Outputs
 
