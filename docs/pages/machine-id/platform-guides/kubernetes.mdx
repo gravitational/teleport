@@ -25,7 +25,7 @@ Due to the current limited support in Kubernetes for sidecars, we recommend that
 the Standalone Deployment style is used. This style will be covered later in
 this guide.
 
-### Join Method
+### Join method
 
 In order for `tbot` to join your Teleport cluster, a join token must be
 configured. A join token is configured with a join method that specifies how
@@ -53,11 +53,23 @@ a single join token. These services are:
 
 ## Guide
 
+This guide will demonstrate installing `tbot` into a Kubernetes cluster as a
+Deployment. The `kubernetes` join method will be used to authenticate the bot
+to the Teleport cluster.
+
+<Admonition type="tip" title="Namespace">
+The examples in this guide will install a `tbot` deployment in the `default`
+Namespace of the Kubernetes cluster. Adjust references to `default` to the
+Namespace you wish to use.
+</Admonition>
+
 ### Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
-- `kubectl` configured to access the cluster you wish to deploy `tbot` into.
-- TODO: K8S version
+- A Kubernetes cluster with support for Token Volume Projection (enabled by
+  default in Kubernetes 1.20).
+- `kubectl` authenticated with the ability to create resources in the cluster
+  you wish to deploy `tbot` into.
 
 ### Step 1/4. Prepare Kubernetes RBAC
 
@@ -112,21 +124,56 @@ Apply this file to your Kubernetes Cluster:
 $ kubectl apply -f ./k8s-rbac.yaml
 ```
 
-### Step 2/4. Create a join token and bot user
+### Step 2/4. Create a join token, role and bot user
+
+TODO: Improve this description to make it clear this is the role the bot
+TODO: attaches to generated credentials and not the role the bot uses itself
+TODO: We need to do a better job at distinguishing this.
+TODO: As each guide will do this, let's pull this into a include
+
+First, a role must be created that the bot will use when outputting credentials.
+For now, an empty role will be created, but in the access guides, you will add
+privileges to this role.
+
+Create `bot-role.yaml`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: example-bot
+spec:
+  allow: {}
+  deny: {}
+  options: {}
+```
+
+Use `tctl` to apply this file:
+
+```code
+$ tctl create -f bot-role.yaml
+```
+
+Now the join token must be created. Before we can create it, we need to
+determine the JWKS of the Kubernetes Cluster.
+TODO: Explain why we need to fetch the jwks
 
 ```code
 $ kubectl proxy -p 8080
 $ curl http://localhost:8080/openid/v1/jwks
 ```
 
+Create `bot-token.yaml`, ensuring you insert the value from the JWKS endpoint
+in `spec.kubernetes.static_jwks.jwks`:
+
 ```yaml
 kind: token
 version: v2
 metadata:
-  name: bot-kubernetes-demo
+  name: example-bot
 spec:
   roles: [Bot]
-  bot_name: docker-desktop
+  bot_name: example
   join_method: kubernetes
   kubernetes:
     type: static_jwks
@@ -137,11 +184,15 @@ spec:
     - service_account: "default:tbot" # In the format of `namespace:service_account_name`
 ```
 
+Create the bot, specifying the token and role that you have created:
+
 ```code
-$ tctl bots add kubernetes-demo --token bot-kubernetes-demo --roles TODO-THEYNEEDAROLEHEREBUTWEDONTKNOWWHATTHJEROLENEEDSUNTILACCESS
+$ tctl bots add example --token example-bot --roles example-bot
 ```
 
 ### Step 3/4. Create a `tbot` deployment
+
+TODO: Explain these
 
 ```yaml
 apiVersion: v1
@@ -158,7 +209,8 @@ data:
     storage:
       type: memory
     auth_server: example.teleport.sh:443
-    outputs: [] # This section will be filled later in the guide.
+    # outputs will be filled in during the completion of an access guide.
+    outputs: []
 ```
 
 ```yaml
@@ -224,7 +276,7 @@ $ kubectl apply -f ./k8s-deployment.yaml
 Follow one of the [access guides](../access-guides.mdx) to configure an output
 that meets your access needs.
 
-In order to adjust the access guide to work well with Kubernetes, use the
+In order to adjust the access guides to work well with Kubernetes, use the
 Kubernetes Secret destination type. This will write the generated artifacts
 to a specified Kubernetes Secret, for example:
 
@@ -267,5 +319,7 @@ spec:
 
 ## Next steps
 
-REFERENCE
-ACCESS GUIDES
+- Follow the [access guides](../access-guides.mdx) to finish configuring `tbot` for
+  your environment.
+- Read the [configuration reference](../reference/configuration.mdx) to explore
+  all the available configuration options.
