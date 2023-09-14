@@ -1666,7 +1666,8 @@ func (c *kubeLoginCommand) accessRequestForKubeCluster(ctx context.Context, cf *
 	req.SetDryRun(true)
 	req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
 	if err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
-		return trace.Wrap(clt.CreateAccessRequest(ctx, req))
+		req, err = clt.CreateAccessRequestV2(ctx, req)
+		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}

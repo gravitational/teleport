@@ -6768,10 +6768,10 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	req, err := services.NewAccessRequest(suite.Me.Username, requestedRole.GetMetadata().Name)
 	require.NoError(t, err)
 
-	accessRequestID := req.GetName()
-
-	err = authServer.CreateAccessRequest(ctx, req, tlsca.Identity{})
+	req, err = authServer.CreateAccessRequestV2(ctx, req, tlsca.Identity{})
 	require.NoError(t, err)
+
+	accessRequestID := req.GetName()
 
 	err = authServer.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 		RequestID: accessRequestID,

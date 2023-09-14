@@ -235,9 +235,9 @@ func (s *DiscordSuite) createAccessRequest() types.AccessRequest {
 	t.Helper()
 
 	req := s.newAccessRequest()
-	err := s.requestor().CreateAccessRequest(s.Context(), req)
+	out, err := s.requestor().CreateAccessRequestV2(s.Context(), req)
 	require.NoError(t, err)
-	return req
+	return out
 }
 
 func (s *DiscordSuite) checkPluginData(reqID string, cond func(common.GenericPluginData) bool) common.GenericPluginData {
@@ -626,7 +626,7 @@ func (s *DiscordSuite) TestRace() {
 			if err != nil {
 				return setRaceErr(trace.Wrap(err))
 			}
-			if err := s.requestor().CreateAccessRequest(ctx, req); err != nil {
+			if _, err := s.requestor().CreateAccessRequestV2(ctx, req); err != nil {
 				return setRaceErr(trace.Wrap(err))
 			}
 			return nil

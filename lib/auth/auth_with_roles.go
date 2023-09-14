@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -2649,11 +2650,6 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 	return filtered, nil
 }
 
-func (a *ServerWithRoles) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
-	_, err := a.CreateAccessRequestV2(ctx, req)
-	return trace.Wrap(err)
-}
-
 func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	// An exception is made to allow users to create access *pending* requests for themselves.
 	if !req.GetState().IsPending() || a.currentUserAction(req.GetUser()) != nil {
@@ -2661,6 +2657,10 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	// ensure request ID is set server-side
+	req.SetName(uuid.NewString())
+
 	resp, err := a.authServer.CreateAccessRequestV2(ctx, req, a.context.Identity.GetIdentity())
 	return resp, trace.Wrap(err)
 }
