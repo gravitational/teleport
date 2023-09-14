@@ -422,3 +422,18 @@ fn check_dir_sharing_methods_error_when_disabled() {
         }
     }
 }
+
+/// Checks that we can encode a DeviceAnnounceHeader with a non-ascii name,
+/// which was causing a panic in the past.
+#[test]
+fn test_device_announce_header_encode_with_non_ascii() {
+    assert_eq!(
+        DeviceAnnounceHeader::new_drive(2, "中文测试".to_string())
+            .encode()
+            .unwrap(),
+        vec![
+            8, 0, 0, 0, 2, 0, 0, 0, 70, 73, 76, 69, 0, 0, 0, 0, 13, 0, 0, 0, 228, 184, 173, 230,
+            150, 135, 230, 181, 139, 232, 175, 149, 0
+        ]
+    )
+}
