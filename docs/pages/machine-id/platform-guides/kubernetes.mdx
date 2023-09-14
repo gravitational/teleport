@@ -26,7 +26,8 @@ recommendation.
 
 ### The `kubernetes` join method
 
-TODO: Brief overview of how the join method works for this platform.
+TODO: Brief overview of how the join method works for this platform. Explain
+TODO: JWKS
 
 ### Using a non-`kubernetes` join method
 
@@ -131,13 +132,18 @@ $ kubectl apply -f ./k8s-rbac.yaml
 
 (!docs/pages/includes/machine-id/blank-role.mdx!)
 
-Now the join token must be created. Before we can create it, we need to
-determine the JWKS of the Kubernetes Cluster.
-TODO: Explain why we need to fetch the jwks
+Next, a join token needs to be configured. This will be used by `tbot` to join
+the cluster. As the `kubernetes` join method will be used, the JWKS of the
+Kubernetes Cluster must first be determined. This will allow the Teleport
+Auth Server to verify that the Service Account token presented by `tbot` is
+signed legitimately by the Kubernetes cluster.
+
+Run the following commands to determine the JWKS:
 
 ```code
 $ kubectl proxy -p 8080
 $ curl http://localhost:8080/openid/v1/jwks
+{"keys":[--snip--]}%
 ```
 
 Create `bot-token.yaml`, ensuring you insert the value from the JWKS endpoint
@@ -156,7 +162,7 @@ spec:
     type: static_jwks
     static_jwks:
       jwks: |
-        # Place the data returned by the curl command here
+        {"keys":[--snip--]} # Place the data returned by the curl command here
     allow:
     - service_account: "default:tbot" # In the format of `namespace:service_account_name`
 ```
@@ -170,6 +176,11 @@ $ tctl bots add example --token example-bot --roles example-bot
 ### Step 3/4. Create a `tbot` deployment
 
 TODO: Explain these
+
+The configuration for `tbot` will be stored inside a Kubernetes ConfigMap.
+This can then be mapped into the pod.
+
+Create `k8s-deployment-config.yaml`:
 
 ```yaml
 apiVersion: v1
@@ -189,6 +200,16 @@ data:
     # outputs will be filled in during the completion of an access guide.
     outputs: []
 ```
+
+Apply this file to your Kubernetes Cluster:
+
+```code
+$ kubectl apply -f k8s-deployment-config.yaml
+```
+
+With the ConfigMap created, you can now create the `tbot` deployment itself.
+
+Create `k8s-deployment.yaml`:
 
 ```yaml
 apiVersion: apps/v1
@@ -243,12 +264,20 @@ spec:
                   audience: example.teleport.sh
 ```
 
+Apply this file to your Kubernetes Cluster:
+
 ```code
-$ kubectl apply -f ./k8s-deployment-config.yaml
 $ kubectl apply -f ./k8s-deployment.yaml
 ```
 
 TODO: How to check it's running happily
+
+```code
+$ kubectl describe deployment/tbot
+$ kubectl logs deployment/tbot
+```
+
+TODO: Explain at this point that its not doing much.
 
 ### Step 4/4. Configure Outputs
 
