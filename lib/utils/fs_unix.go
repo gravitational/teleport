@@ -19,7 +19,20 @@ limitations under the License.
 
 package utils
 
+import (
+	"os"
+	"syscall"
+)
+
 // On non-windows we just lock the target file itself.
 func getPlatformLockFilePath(path string) string {
 	return path
+}
+
+func getHardLinkCount(fi os.FileInfo) (bool, uint64) {
+	if statT, ok := fi.Sys().(*syscall.Stat_t); ok {
+		return true, statT.Nlink
+	} else {
+		return false, 0
+	}
 }

@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -144,7 +143,7 @@ func openFile(path string, allowSymlink, allowMultipleHardlinks bool) (*os.File,
 	}
 	if !allowMultipleHardlinks {
 		// hardlinks can only exist at the end file, not for directories within the path
-		if statT, ok := fi.Sys().(*syscall.Stat_t); ok && statT.Nlink > 1 {
+		if ok, linkCount := getHardLinkCount(fi); ok && linkCount > 1 {
 			return nil, trace.BadParameter("file has hardlink count greater than 1: %s", path)
 		}
 	}

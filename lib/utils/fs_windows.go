@@ -27,7 +27,10 @@ limitations under the License.
 // was causing flock.Flock.TryRLock to return either "access denied" or "The process cannot access
 // the file because it is being used by another process".
 
-import "strings"
+import (
+	"os"
+	"strings"
+)
 
 const lockPostfix = ".lock.tmp"
 
@@ -38,4 +41,8 @@ func getPlatformLockFilePath(path string) string {
 		return path
 	}
 	return path + lockPostfix
+}
+
+func getHardLinkCount(fi os.FileInfo) (bool, uint64) {
+	return false, 0
 }
