@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
@@ -239,25 +238,6 @@ func (s *localSite) DialAuthServer(params reversetunnelclient.DialParams) (net.C
 	return conn, nil
 }
 
-// shouldDialAndForward returns whether a connection should be proxied
-// and forwarded or not.
-func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types.SessionRecordingConfig) bool {
-	// connection is already being tunneled, do not forward
-	if params.FromPeerProxy {
-		return false
-	}
-	// the node is an agentless node, the connection must be forwarded
-	if params.TargetServer != nil && params.TargetServer.IsOpenSSHNode() {
-		return true
-	}
-	// proxy session recording mode is being used and an SSH session
-	// is being requested, the connection must be forwarded
-	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
-		return true
-	}
-	return false
-}
-
 func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
 	recConfig, err := s.accessPoint.GetSessionRecordingConfig(s.srv.Context)
 	if err != nil {
@@ -273,14 +253,6 @@ func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error
 
 	// Attempt to perform a direct TCP dial.
 	return s.DialTCP(params)
-}
-
-func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, useTunnel, isAgentlessNode bool, srcAddr, dstAddr net.Addr) bool {
-	return !(signer == nil ||
-		useTunnel ||
-		isAgentlessNode ||
-		srcAddr == nil ||
-		dstAddr == nil)
 }
 
 func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialParams, conn net.Conn, useTunnel bool) error {
@@ -393,13 +365,20 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 		return nil, trace.Wrap(err)
 	}
 
+	// If the node is unknown (was directly dialed) tell the forwarding
+	// server it isn't an agentless node so config checks pass.
+	// params.TargetServer will ensure the node is not treated as a
+	// Teleport node in this case.
+	// DELETE in 15.0.0
+	isAgentlessNode := params.IsAgentlessNode && !params.IsUnknownNode
+
 	// Create a forwarding server that serves a single SSH connection on it. This
 	// server does not need to close, it will close and release all resources
 	// once conn is closed.
 	serverConfig := forward.ServerConfig{
 		AuthClient:      s.client,
 		UserAgent:       userAgent,
-		IsAgentlessNode: params.IsAgentlessNode,
+		IsAgentlessNode: isAgentlessNode,
 		AgentlessSigner: params.AgentlessSigner,
 		TargetConn:      targetConn,
 		SrcAddr:         params.From,

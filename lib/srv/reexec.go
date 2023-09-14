@@ -708,7 +708,7 @@ func RunAndExit(commandType string) {
 		w, code, err = os.Stderr, teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
 	if err != nil {
-		s := fmt.Sprintf("Failed to launch: %v.\r\n", err)
+		s := fmt.Sprintf("Failed to launch %s: %v.\r\n", commandType, err)
 		io.Copy(w, bytes.NewBufferString(s))
 	}
 	os.Exit(code)

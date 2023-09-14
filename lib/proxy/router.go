@@ -241,6 +241,9 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		serverAddr      string
 		proxyIDs        []string
 		sshSigner       ssh.Signer
+
+		// DELETE IN 15.0.0
+		isUnknownNode bool
 	)
 
 	if target != nil {
@@ -282,16 +285,31 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 				}
 			}
 		}
-
 	} else {
+		// DELETE IN 15.0.0: necessary for smoothing over v13 to v14 transition only.
+		// In v15 the connection problem error should always be returned here.
 		if !r.permitUnlistedDialing {
 			return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
 		}
+
+		// Prepare a dummy server resource so this connection will not be
+		// treated like a connection to a Teleport node
+		isUnknownNode = true
+		isAgentlessNode = true
 		if port == "" || port == "0" {
 			port = strconv.Itoa(defaults.SSHServerListenPort)
 		}
-
 		serverAddr = net.JoinHostPort(host, port)
+		name := "unknown server " + serverAddr
+		target, err = types.NewServer(name, types.KindNode, types.ServerSpecV2{
+			Addr:     serverAddr,
+			Hostname: "unknown_server",
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "error creating server resource")
+		}
+		target.SetSubKind(types.SubKindOpenSSHNode)
+
 		r.log.Warnf("server lookup failed: using default=%v", serverAddr)
 	}
 
@@ -300,6 +318,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
+		IsUnknownNode:         isUnknownNode,
 		IsAgentlessNode:       isAgentlessNode,
 		AgentlessSigner:       sshSigner,
 		Address:               host,

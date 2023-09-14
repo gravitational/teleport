@@ -243,8 +243,8 @@ type ServerConfig struct {
 	// or an agentless server.
 	TargetServer types.Server
 
-	// IsAgentlessNode indicates whether the targetServer is a Node with an OpenSSH server (no teleport agent).
-	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEphemeralKey.
+	// IsAgentlessNode indicates whether the targetServer is a node with an OpenSSH server (no teleport agent).
+	// This includes nodes whose sub kind is OpenSSH and OpenSSHEphemeralKey.
 	IsAgentlessNode bool
 }
 
