@@ -353,7 +353,7 @@ exports[`render correct form to add TOTP device 1`] = `
   width: 600px;
   padding: 24px;
   text-align: left;
-  margin: 40px auto auto auto;
+  margin: 16px auto 16px auto;
   overflow-y: auto;
 }
 
@@ -884,7 +884,7 @@ exports[`render correct form to add Webauthn device 1`] = `
   width: 600px;
   padding: 24px;
   text-align: left;
-  margin: 40px auto auto auto;
+  margin: 16px auto 16px auto;
   overflow-y: auto;
 }
 
@@ -1377,7 +1377,7 @@ exports[`render correct form to add with multi option 1`] = `
   width: 600px;
   padding: 24px;
   text-align: left;
-  margin: 40px auto auto auto;
+  margin: 16px auto 16px auto;
   overflow-y: auto;
 }
 
@@ -1892,7 +1892,7 @@ exports[`render failed state for form to add with multi option 1`] = `
   width: 600px;
   padding: 24px;
   text-align: left;
-  margin: 40px auto auto auto;
+  margin: 16px auto 16px auto;
   overflow-y: auto;
 }
 
