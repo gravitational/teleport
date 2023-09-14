@@ -16,7 +16,7 @@ type PackageInfo struct {
 	PackageName string
 }
 
-type Resource struct {
+type ReferenceEntry struct {
 	SectionName string
 	Description string
 	SourcePath  string
@@ -154,7 +154,7 @@ func (y yamlBool) formatForExampleYAML(indents int) string {
 
 // A type declared by the program, i.e., not one of Go's predeclared types.
 type yamlCustomType struct {
-	allTypes map[PackageInfo]Resource
+	allTypes map[PackageInfo]ReferenceEntry
 	pkg      string
 	name     string
 }
@@ -189,7 +189,7 @@ func (y yamlCustomType) formatForTable() string {
 
 // getRawNamedStruct returns the type spec to use for further processing. Returns an
 // error if there is either no type spec or more than one.
-func getRawNamedStruct(decl *ast.GenDecl, allResources map[PackageInfo]Resource) (rawNamedStruct, error) {
+func getRawNamedStruct(decl *ast.GenDecl, allResources map[PackageInfo]ReferenceEntry) (rawNamedStruct, error) {
 	if len(decl.Specs) == 0 {
 		return rawNamedStruct{}, errors.New("declaration has no specs")
 	}
@@ -287,7 +287,7 @@ func getJSONTag(tags string) string {
 // getYAMLTypeForExpr takes an AST type expression and recursively
 // traverses it to populate a yamlKindNode. Each iteration converts a
 // single *ast.Expr into a single yamlKindNode, returning the new node.
-func getYAMLTypeForExpr(exp ast.Expr, allResources map[PackageInfo]Resource) (yamlKindNode, error) {
+func getYAMLTypeForExpr(exp ast.Expr, allResources map[PackageInfo]ReferenceEntry) (yamlKindNode, error) {
 	switch t := exp.(type) {
 	// TODO: Handle fields with manually overriden types per the
 	// "Predeclared scalar types" section of the RFD.
@@ -342,13 +342,13 @@ func getYAMLTypeForExpr(exp ast.Expr, allResources map[PackageInfo]Resource) (ya
 
 // getYAMLType returns a name for field that is suitable for printing within the
 // resource reference.
-func getYAMLType(field *ast.Field, allResources map[PackageInfo]Resource) (yamlKindNode, error) {
+func getYAMLType(field *ast.Field, allResources map[PackageInfo]ReferenceEntry) (yamlKindNode, error) {
 	return getYAMLTypeForExpr(field.Type, allResources)
 }
 
 // makeRawField translates an *ast.Field into a rawField for downstream
 // processing.
-func makeRawField(field *ast.Field, allResources map[PackageInfo]Resource) (rawField, error) {
+func makeRawField(field *ast.Field, allResources map[PackageInfo]ReferenceEntry) (rawField, error) {
 	doc := field.Doc.Text()
 	if len(field.Names) > 1 {
 		return rawField{}, fmt.Errorf("field %+v contains more than one name", field)
@@ -422,24 +422,24 @@ func descriptionWithoutName(description, name string) string {
 // NewFromDecl creates a Resource object from the provided *GenDecl. filepath is
 // the Go source file where the declaration was made, and is used only for
 // printing. NewFromDecl uses allResources to look up custom fields.
-func NewFromDecl(decl *ast.GenDecl, filepath string, allResources map[PackageInfo]Resource) (Resource, error) {
+func NewFromDecl(decl *ast.GenDecl, filepath string, allResources map[PackageInfo]ReferenceEntry) (ReferenceEntry, error) {
 	rs, err := getRawNamedStruct(decl, allResources)
 	if err != nil {
-		return Resource{}, err
+		return ReferenceEntry{}, err
 	}
 
 	yml, err := makeYAMLExample(rs.fields)
 	if err != nil {
-		return Resource{}, err
+		return ReferenceEntry{}, err
 	}
 
 	fld, err := makeFieldTableInfo(rs.fields)
 	if err != nil {
-		return Resource{}, err
+		return ReferenceEntry{}, err
 	}
 
 	desc := strings.Trim(strings.ReplaceAll(rs.doc, "\n", " "), " ")
-	return Resource{
+	return ReferenceEntry{
 		SectionName: rs.name,
 		Description: descriptionWithoutName(desc, rs.name),
 		SourcePath:  filepath,
