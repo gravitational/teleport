@@ -161,10 +161,8 @@ the host keys to the guest attributes below:
   Create a file named `add-host-keys.sh` and copy the following into it:
   ```sh
   #!/usr/bin/env bash
-  for file in /etc/ssh/ssh_host_*_key.pub
-    do
-    KEY_TYPE=$(awk '\''{print $1}'\'' $file)
-    KEY=$(awk '\''{print $2}'\''  $file)
+  for file in /etc/ssh/ssh_host_*_key.pub; do
+    read -r KEY_TYPE KEY _ <"$file"
     curl -X PUT --data "$KEY" "http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/hostkeys/$KEY_TYPE" -H "Metadata-Flavor: Google"
   done
   ```
