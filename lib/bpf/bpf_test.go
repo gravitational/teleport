@@ -599,17 +599,17 @@ func TestBPF_udpEvents(t *testing.T) {
 					SockInode: int(event.SockInode),
 				}
 			case <-ctx.Done():
-				t.Log("Event loop exited")
 				return
 			}
 		}
 	}()
 
-	// "Bind" a random port for our sends. We don't have to receive.
+	// Bind a random port for our sends.
+	// We don't have to read from it.
 	pc, err := net.ListenPacket("udp", ":0")
 	require.NoError(t, err, "ListenPacket errored")
 	defer pc.Close()
-	addr := pc.LocalAddr().String()
+	_, port, _ := net.SplitHostPort(pc.LocalAddr().String())
 
 	send := func(t *testing.T, network, addr string) {
 		runCmd(t, connTrace, networkInCgroupSend, network, addr)
@@ -628,6 +628,13 @@ func TestBPF_udpEvents(t *testing.T) {
 
 	for _, ver := range []int{4, 6} {
 		network := fmt.Sprintf("udp%v", ver)
+		var addr string
+		if ver == 4 {
+			addr = "localhost:" + port
+		} else {
+			addr = "[::1]:" + port
+		}
+
 		t.Run(network, func(t *testing.T) {
 			send(t, network, addr)
 			got := receive(t)
