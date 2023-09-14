@@ -177,8 +177,6 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] tsh ssh \<agentless-node-remote-cluster\> ls
   - [ ] tsh join \<regular-node\>
   - [ ] tsh join \<node-remote-cluster\>
-  - [ ] tsh join \<agentless-node\>
-  - [ ] tsh join \<agentless-node-remote-cluster\>
   - [ ] tsh play \<regular-node\>
   - [ ] tsh play \<node-remote-cluster\>
   - [ ] tsh play \<agentless-node\>
