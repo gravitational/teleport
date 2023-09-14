@@ -203,6 +203,10 @@ type CommandLineFlags struct {
 	// IntegrationConfEICEIAMArguments contains the arguments of
 	// `teleport integration configure eice-iam` command
 	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
+
+	// IntegrationConfAWSOIDCIdPArguments contains the arguments of
+	// `teleport integration configure awsoidc-idp` command
+	IntegrationConfAWSOIDCIdPArguments IntegrationConfAWSOIDCIdP
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -227,6 +231,22 @@ type IntegrationConfEICEIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+}
+
+// IntegrationConfAWSOIDCIdP contains the arguments of
+// `teleport integration configure awsoidc-idp` command
+type IntegrationConfAWSOIDCIdP struct {
+	// Cluster is the teleport cluster name.
+	Cluster string
+	// Name is the integration name.
+	Name string
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// Role is the AWS Role to associate with the Integration
+	Role string
+	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
+	// Eg, https://<tenant>.teleport.sh
+	ProxyPublicURL string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
