@@ -8,13 +8,12 @@ This guide will help you configure Teleport to provide secure, passwordless acce
 to Windows desktops. This configuration does not require an Active Directory domain.
 
 <Admonition type="note">
-Passwordless access for local users is an Enterprise-only feature.
+Passwordless access for local users is limited to 5 desktops in open source Teleport.
 
-For open source Teleport, consider integrating Teleport with Active Directory
-for automatic discovery by reading [Desktop Access with Active Directory](./active-directory.mdx).
+If you have more than 5 desktops configured using method below in open source Teleport
+you won't be able to connect to any of them.
 
-Teleport Enterprise users can also mix the Teleport Active Directory integration
-with the static host definitions described below.
+Enterprise users can have unlimited number of desktops.
 </Admonition>
 
 <Details
@@ -22,7 +21,7 @@ with the static host definitions described below.
   opened={true}
   min="12.0"
 >
-Passwordless access for local users is available starting from Teleport `v12`.
+Passwordless access for local users is available starting from Teleport Enterprise `v12` and Teleport Community `v14`.
 Previous versions of Teleport can implement Windows Access by integrating with
 an [Active Directory domain](./active-directory.mdx).
 </Details>
