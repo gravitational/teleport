@@ -130,33 +130,7 @@ $ kubectl apply -f ./k8s-rbac.yaml
 
 ### Step 2/4. Create a join token, role and bot user
 
-TODO: Improve this description to make it clear this is the role the bot
-TODO: attaches to generated credentials and not the role the bot uses itself
-TODO: We need to do a better job at distinguishing this.
-TODO: As each guide will do this, let's pull this into a include
-
-First, a role must be created that the bot will use when outputting credentials.
-For now, an empty role will be created, but in the access guides, you will add
-privileges to this role.
-
-Create `bot-role.yaml`:
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: example-bot
-spec:
-  allow: {}
-  deny: {}
-  options: {}
-```
-
-Use `tctl` to apply this file:
-
-```code
-$ tctl create -f bot-role.yaml
-```
+(!docs/pages/includes/machine-id/blank-role.mdx!)
 
 Now the join token must be created. Before we can create it, we need to
 determine the JWKS of the Kubernetes Cluster.
