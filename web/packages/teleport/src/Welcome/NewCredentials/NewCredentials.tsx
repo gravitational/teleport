@@ -66,6 +66,9 @@ export function NewCredentials(props: NewCredentialsProps) {
     displayOnboardingQuestionnaire = false,
     setDisplayOnboardingQuestionnaire = false,
     Questionnaire = undefined,
+    displayInviteCollaborators = false,
+    setDisplayInviteCollaborators = false,
+    InviteCollaborators = undefined,
   } = props;
 
   // Check which flow to render as default.
@@ -91,6 +94,21 @@ export function NewCredentials(props: NewCredentialsProps) {
       <PrivateKeyLoginDisabledCard
         title={resetMode ? 'Reset Complete' : 'Registration Complete'}
       />
+    );
+  }
+
+  // TODO: need to make sure this is only shown for admins... somehow.
+  if (
+    success &&
+    !resetMode &&
+    displayInviteCollaborators &&
+    setDisplayInviteCollaborators &&
+    InviteCollaborators
+  ) {
+    return (
+      <OnboardCard>
+        <InviteCollaborators />
+      </OnboardCard>
     );
   }
 

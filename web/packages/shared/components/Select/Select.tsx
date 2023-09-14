@@ -17,13 +17,14 @@ limitations under the License.
 import React from 'react';
 import ReactSelect from 'react-select';
 import ReactSelectAsync from 'react-select/async';
+import CreatableSelect from 'react-select/creatable';
 import styled from 'styled-components';
 import { width, space } from 'design/system';
 
-import { Props, AsyncProps } from './types';
+import { Props, AsyncProps, CreatableProps } from './types';
 
 export default function Select(props: Props) {
-  const { hasError = false, elevated = false, ...restOfProps } = props;
+  const { hasError = false, elevated = false, stylesConfig, ...restOfProps } = props;
   return (
     <StyledSelect hasError={hasError} elevated={elevated}>
       <ReactSelect
@@ -34,6 +35,7 @@ export default function Select(props: Props) {
         isMulti={false}
         isSearchable={true}
         placeholder="Select..."
+        styles={stylesConfig}
         {...restOfProps}
       />
     </StyledSelect>
@@ -53,6 +55,20 @@ export function SelectAsync(props: AsyncProps) {
         cacheOptions={false}
         defaultMenuIsOpen={false}
         placeholder="Select..."
+        {...restOfProps}
+      />
+    </StyledSelect>
+  );
+}
+
+export function SelectCreatable(props: CreatableProps) {
+  const { hasError = false, stylesConfig, ...restOfProps } = props;
+  return (
+    <StyledSelect hasError={hasError}>
+      <CreatableSelect
+        className="react-select-container"
+        classNamePrefix="react-select"
+        styles={stylesConfig}
         {...restOfProps}
       />
     </StyledSelect>

@@ -24,6 +24,7 @@ export function makeResource<T extends Kind>(json: any): Resource<T> {
     kind: json.kind,
     name: json.name,
     content: json.content,
+    description: json.description,
   };
 }
 

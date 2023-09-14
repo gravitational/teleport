@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-import React, {
-  ReactNode,
-} from 'react';
+import React, { ReactNode } from 'react';
 import { Indicator, Box, ButtonPrimary, Alert } from 'design';
 
 import {
@@ -51,25 +49,29 @@ export function Users(props: State) {
     onUpdate,
     onDelete,
     onReset,
+    onStartInviteCollaborators,
+    onInviteCollaboratorsClose,
     inviteCollaboratorsOpen,
-    setInviteCollaboratorsOpen
   } = props;
-
-  function handleInviteCollaboratorsClick() {
-    setInviteCollaboratorsOpen(true);
-  }
-
   return (
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Users</FeatureHeaderTitle>
         {attempt.isSuccess && (
           <>
-            <ButtonPrimary ml="auto" width="240px" onClick={onStartCreate}>
-              Create New User
-            </ButtonPrimary>
+            {!props.inviteCollaborators && (
+              <ButtonPrimary ml="auto" width="240px" onClick={onStartCreate}>
+                Create New User
+              </ButtonPrimary>
+            )}
             {props.inviteCollaborators && (
-              <ButtonPrimary ml={4} width="240px" onClick={handleInviteCollaboratorsClick}>Invite Collaborators</ButtonPrimary>
+              <ButtonPrimary
+                ml="auto"
+                width="240px"
+                onClick={onStartInviteCollaborators}
+              >
+                Enroll Users
+              </ButtonPrimary>
             )}
           </>
         )}
@@ -112,8 +114,11 @@ export function Users(props: State) {
           username={operation.user.name}
         />
       )}
-      { inviteCollaboratorsOpen && (
-        <props.inviteCollaborators open={inviteCollaboratorsOpen} setOpen={setInviteCollaboratorsOpen}/>
+      {props.inviteCollaborators && (
+        <props.inviteCollaborators
+          open={inviteCollaboratorsOpen}
+          onClose={onInviteCollaboratorsClose}
+        />
       )}
     </FeatureBox>
   );

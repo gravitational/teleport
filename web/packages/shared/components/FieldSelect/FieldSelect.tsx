@@ -20,9 +20,14 @@ import { Box, LabelInput } from 'design';
 
 import { useRule } from 'shared/components/Validation';
 
-import Select, { Props as SelectProps } from './../Select';
+import Select, {
+  SelectCreatable,
+  Props as SelectProps,
+  CreatableProps as SelectCreatableProps
+} from './../Select';
 
 export default function FieldSelect({
+  components,
   label,
   labelTip,
   value,
@@ -35,6 +40,7 @@ export default function FieldSelect({
   isMulti,
   menuPosition,
   rule = defaultRule,
+  stylesConfig,
   isSearchable = false,
   isSimpleValue = false,
   autoFocus = false,
@@ -54,6 +60,8 @@ export default function FieldSelect({
         </LabelInput>
       )}
       <Select
+        components={components}
+        stylesConfig={stylesConfig}
         inputId="select"
         name={name}
         menuPosition={menuPosition}
@@ -75,6 +83,72 @@ export default function FieldSelect({
   );
 }
 
+export function FieldSelectCreatable({
+  components,
+  label,
+  labelTip,
+  value,
+  options,
+  name,
+  onChange,
+  placeholder,
+  maxMenuHeight,
+  isClearable,
+  isMulti,
+  menuIsOpen,
+  menuPosition,
+  inputValue,
+  onKeyDown,
+  onInputChange,
+  onBlur,
+  rule = defaultRule,
+  stylesConfig,
+  isSearchable = false,
+  isSimpleValue = false,
+  autoFocus = false,
+  isDisabled = false,
+  elevated = false,
+  ...styles
+}: CreatableProps) {
+  const { valid, message } = useRule(rule(value));
+  const hasError = Boolean(!valid);
+  const labelText = hasError ? message : label;
+  return (
+    <Box mb="4" {...styles}>
+      {label && (
+        <LabelInput htmlFor={'select'} hasError={hasError}>
+          {labelText}
+          {labelTip && <LabelTip text={labelTip} />}
+        </LabelInput>
+      )}
+      <SelectCreatable
+        components={components}
+        inputId="select"
+        name={name}
+        menuPosition={menuPosition}
+        hasError={hasError}
+        isSimpleValue={isSimpleValue}
+        isSearchable={isSearchable}
+        isClearable={isClearable}
+        value={value}
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+        onInputChange={onInputChange}
+        onBlur={onBlur}
+        inputValue={inputValue}
+        maxMenuHeight={maxMenuHeight}
+        placeholder={placeholder}
+        isMulti={isMulti}
+        autoFocus={autoFocus}
+        isDisabled={isDisabled}
+        elevated={elevated}
+        menuIsOpen={menuIsOpen}
+        stylesConfig={stylesConfig}
+      />
+    </Box>
+  );
+}
+
 const defaultRule = () => () => ({ valid: true });
 
 const LabelTip = ({ text }) => (
@@ -90,3 +164,11 @@ type Props = SelectProps & {
   // styles
   [key: string]: any;
 };
+
+type CreatableProps = SelectCreatableProps & {
+  autoFocus?: boolean;
+  label?: string;
+  rule?: (options: unknown) => () => unknown;
+  // styles
+  [key: string]: any;
+}

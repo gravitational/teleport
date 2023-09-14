@@ -35,6 +35,8 @@ type ResourceItem struct {
 	Kind string `json:"kind"`
 	// Name is a resource name.
 	Name string `json:"name"`
+	// Description is an optional resource description.
+	Description string `json:"description,omitempty"`
 	// Content is resource yaml content.
 	Content string `json:"content"`
 }
@@ -48,12 +50,14 @@ func NewResourceItem(resource types.Resource) (*ResourceItem, error) {
 
 	kind := resource.GetKind()
 	name := resource.GetName()
+	description := resource.GetMetadata().Description
 
 	return &ResourceItem{
-		ID:      fmt.Sprintf("%v:%v", kind, name),
-		Kind:    kind,
-		Name:    name,
-		Content: string(data[:]),
+		ID:          fmt.Sprintf("%v:%v", kind, name),
+		Kind:        kind,
+		Name:        name,
+		Description: description,
+		Content:     string(data[:]),
 	}, nil
 
 }

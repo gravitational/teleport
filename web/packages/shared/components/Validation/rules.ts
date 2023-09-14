@@ -15,12 +15,25 @@ limitations under the License.
 */
 
 /**
+ * The result of validating a field.
+ */
+export type ValidationResult = {
+  valid: boolean,
+  message?: string,
+}
+
+/**
+ * A function to validate a field value.
+ */
+export type Rule<T> = (value: T) => () => ValidationResult;
+
+/**
  * requiredField checks for empty strings and arrays.
  *
  * @param message The custom error message to display to users.
  * @param value The value user entered.
  */
-const requiredField = (message: string) => (value: string) => () => {
+const requiredField = (message: string): Rule<string> => (value: string) => () => {
   const valid = !(!value || value.length === 0);
   return {
     valid,
@@ -28,7 +41,7 @@ const requiredField = (message: string) => (value: string) => () => {
   };
 };
 
-const requiredToken = (value: string) => () => {
+const requiredToken: Rule<string> = (value: string) => () => {
   if (!value || value.length === 0) {
     return {
       valid: false,
@@ -41,7 +54,7 @@ const requiredToken = (value: string) => () => {
   };
 };
 
-const requiredPassword = (value: string) => () => {
+const requiredPassword: Rule<string> = (value: string) => () => {
   if (!value || value.length < 6) {
     return {
       valid: false,
@@ -55,7 +68,7 @@ const requiredPassword = (value: string) => () => {
 };
 
 const requiredConfirmedPassword =
-  (password: string) => (confirmedPassword: string) => () => {
+  (password: string): Rule<string> => (confirmedPassword: string) => () => {
     if (!confirmedPassword) {
       return {
         valid: false,
@@ -78,7 +91,7 @@ const requiredConfirmedPassword =
 // requiredRoleArn checks provided arn (AWS role name) is somewhat
 // in the format as documented here:
 // https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html
-const requiredRoleArn = (roleArn: string) => () => {
+const requiredRoleArn: Rule<string> = (roleArn: string) => () => {
   let parts = [];
   if (roleArn) {
     parts = roleArn.split(':role');
@@ -104,7 +117,7 @@ const requiredRoleArn = (roleArn: string) => () => {
 
 // requiredEmailLike ensures a string contains a plausible email, i.e. that it
 // contains an '@' and some characters on each side.
-const requiredEmailLike = (email: string) => () => {
+const requiredEmailLike: Rule<string> = (email: string) => () => {
   if (!email) {
     return {
       valid: false,
@@ -117,7 +130,7 @@ const requiredEmailLike = (email: string) => () => {
   if (parts.length !== 2 || !parts[0] || !parts[1]) {
     return {
       valid: false,
-      message: 'Email address is invalid',
+      message: `Email address '${email}' is invalid`,
     }
   }
 

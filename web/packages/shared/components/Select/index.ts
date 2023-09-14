@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import Select, { SelectAsync } from './Select';
+import Select, { SelectCreatable, SelectAsync } from './Select';
 import DarkStyledSelect from './DarkStyledSelect';
 
 export * from './types';
 export default Select;
-export { SelectAsync, DarkStyledSelect };
+export { SelectAsync, SelectCreatable, DarkStyledSelect };
