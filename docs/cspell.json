@@ -310,6 +310,7 @@
     "cluster-6uysmebmutd",
     "clusteradmin",
     "clustername",
+    "clustercfg",
     "clusterolebinding",
     "clusterrole",
     "clusterrolebinding",
