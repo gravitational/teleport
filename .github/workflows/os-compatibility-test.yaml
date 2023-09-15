@@ -23,12 +23,6 @@ jobs:
     permissions:
       contents: read
 
-    container:
-      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport14
-      env:
-        GOCACHE: /tmp/gocache
-        WEBASSETS_SKIP_BUILD: 1
-
     steps:
       - name: Checkout Teleport
         uses: actions/checkout@v3
@@ -37,8 +31,12 @@ jobs:
         uses: ./.github/actions/prepare-workspace
 
       - name: Run make
-        run: |
-          make binaries
+        uses: docker://ghcr.io/gravitational/teleport-buildbox-centos7:teleport14
+        env:
+          GOCACHE: /tmp/gocache
+          WEBASSETS_SKIP_BUILD: 1
+        with:
+          args: make binaries
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3
