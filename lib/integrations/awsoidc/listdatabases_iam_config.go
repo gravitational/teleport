@@ -26,7 +26,7 @@ import (
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
-const (
+var (
 	// defaultPolicyNameForListDatabases is the default name for the Inline Policy added to the IntegrationRole.
 	defaultPolicyNameForListDatabases = "ListDatabases"
 )
@@ -39,10 +39,6 @@ type ConfigureIAMListDatabasesRequest struct {
 
 	// IntegrationRole is the Integration's AWS Role used by the integration.
 	IntegrationRole string
-
-	// listDatabasesPolicy is the Policy Name that is created to allow access to call AWS APIs.
-	// Defaults to ListDatabases
-	listDatabasesPolicy string
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -54,8 +50,6 @@ func (r *ConfigureIAMListDatabasesRequest) CheckAndSetDefaults() error {
 	if r.IntegrationRole == "" {
 		return trace.BadParameter("integration role is required")
 	}
-
-	r.listDatabasesPolicy = defaultPolicyNameForListDatabases
 
 	return nil
 }
@@ -86,7 +80,7 @@ func ConfigureListDatabasesIAM(ctx context.Context, clt ListDatabasesIAMConfigur
 	}
 
 	_, err = clt.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
-		PolicyName:     &req.listDatabasesPolicy,
+		PolicyName:     &defaultPolicyNameForListDatabases,
 		RoleName:       &req.IntegrationRole,
 		PolicyDocument: &listDatabasesPolicyDocument,
 	})
@@ -97,6 +91,9 @@ func ConfigureListDatabasesIAM(ctx context.Context, clt ListDatabasesIAMConfigur
 		return trace.Wrap(err)
 	}
 
-	log.Printf("IntegrationRole: IAM Policy %q added to Role %q\n", req.listDatabasesPolicy, req.IntegrationRole)
+	log.WithFields(log.Fields{
+		"policy": defaultPolicyNameForListDatabases,
+		"role":   req.IntegrationRole,
+	}).Info("Added Inline Policy to IAM Role")
 	return nil
 }
