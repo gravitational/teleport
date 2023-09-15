@@ -17,13 +17,24 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"errors"
 	"net"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 )
+
+var errDirectDialNoProxyRec = errors.New("direct dialing to nodes not found in inventory requires that the session recording mode is set to record at the proxy")
+
+func checkNodeAndRecConfig(params reversetunnelclient.DialParams, recConfig types.SessionRecordingConfig) error {
+	if params.IsNotInventoryNode && !services.IsRecordAtProxy(recConfig.GetMode()) {
+		return trace.Wrap(errDirectDialNoProxyRec)
+	}
+	return nil
+}
 
 // shouldDialAndForward returns whether a connection should be proxied
 // and forwarded or not.

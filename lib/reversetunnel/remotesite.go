@@ -759,6 +759,9 @@ func (s *remoteSite) Dial(params reversetunnelclient.DialParams) (net.Conn, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := checkNodeAndRecConfig(params, recConfig); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// If the proxy is in recording mode and a SSH connection is being
 	// requested or the target server is a registered OpenSSH node, build
