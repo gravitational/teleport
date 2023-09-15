@@ -426,6 +426,7 @@ func mustMakeDynamicKubeCluster(t *testing.T, name, discoveredName string, label
 	if discoveredName != "" {
 		// setup a fake "discovered" kube cluster by adding a discovered name label
 		labels[types.DiscoveredNameLabel] = discoveredName
+		labels[types.OriginLabel] = types.OriginCloud
 	}
 	kc, err := types.NewKubernetesClusterV3(
 		types.Metadata{
