@@ -155,6 +155,9 @@ func (y yamlBool) formatForExampleYAML(indents int) string {
 // A type declared by the program, i.e., not one of Go's predeclared types.
 type yamlCustomType struct {
 	name string
+	// Used to look up more information about the declaration of the custom
+	// type so we can populate additional reference entries
+	declarationInfo PackageInfo
 }
 
 func (y yamlCustomType) formatForExampleYAML(indents int) string {
@@ -322,8 +325,17 @@ func getYAMLTypeForExpr(exp ast.Expr) (yamlKindNode, error) {
 			elementKind: e,
 		}, nil
 	case *ast.SelectorExpr:
+		var pkg string
+		x, ok := t.X.(*ast.Ident)
+		if ok {
+			pkg = x.Name
+		}
 		return yamlCustomType{
 			name: makeSectionName(t.Sel.Name),
+			declarationInfo: PackageInfo{
+				TypeName:    t.Sel.Name,
+				PackageName: pkg,
+			},
 		}, nil
 	default:
 		return nil, fmt.Errorf("unexpected type: %v", t)
