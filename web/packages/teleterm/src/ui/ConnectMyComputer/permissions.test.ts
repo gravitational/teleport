@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { createMockConfigService } from 'teleterm/services/config/fixtures/mocks';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 import { Platform } from 'teleterm/mainProcess/types';
 import {
@@ -22,78 +21,36 @@ import {
   makeLoggedInUser,
 } from 'teleterm/services/tshd/testHelpers';
 
-import { canUseConnectMyComputer } from './permissions';
+import { hasConnectMyComputerPermissions } from './permissions';
 
 const testCases: {
   name: string;
   platform: Platform;
   canCreateToken: boolean;
-  isFeatureFlagEnabled: boolean;
-  isAgentConfigured: boolean;
   expect: boolean;
 }[] = [
   {
-    name: 'darwin, can create token, feature flag enabled, agent not configured',
+    name: 'should be true when OS is darwin and can create token',
     platform: 'darwin',
     canCreateToken: true,
-    isFeatureFlagEnabled: true,
-    isAgentConfigured: false,
     expect: true,
   },
   {
-    name: 'linux, can create token, feature flag enabled, agent not configured',
+    name: 'should be true when OS is  linux and can create token',
     platform: 'linux',
     canCreateToken: true,
-    isFeatureFlagEnabled: true,
-    isAgentConfigured: false,
     expect: true,
   },
   {
-    name: 'windows, can create token, feature flag enabled, agent not configured',
+    name: 'should be false when OS is windows and can create token',
     platform: 'win32',
     canCreateToken: true,
-    isFeatureFlagEnabled: true,
-    isAgentConfigured: false,
     expect: false,
   },
   {
-    name: 'darwin, cannot create token, feature flag enabled, agent not configured',
+    name: 'should be false when OS is darwin and cannot create token',
     platform: 'darwin',
     canCreateToken: false,
-    isFeatureFlagEnabled: true,
-    isAgentConfigured: false,
-    expect: false,
-  },
-  {
-    name: 'darwin, can create token, feature flag not enabled, agent not configured',
-    platform: 'darwin',
-    canCreateToken: true,
-    isFeatureFlagEnabled: false,
-    isAgentConfigured: false,
-    expect: false,
-  },
-  {
-    name: 'darwin, cannot create token, feature flag enabled, agent configured',
-    platform: 'darwin',
-    canCreateToken: false,
-    isFeatureFlagEnabled: true,
-    isAgentConfigured: true,
-    expect: true,
-  },
-  {
-    name: 'darwin, cannot create token, feature flag not enabled, agent configured',
-    platform: 'darwin',
-    canCreateToken: false,
-    isFeatureFlagEnabled: false,
-    isAgentConfigured: true,
-    expect: false,
-  },
-  {
-    name: 'windows, cannot create token, feature flag enabled, agent configured',
-    platform: 'win32',
-    canCreateToken: false,
-    isFeatureFlagEnabled: true,
-    isAgentConfigured: true,
     expect: false,
   },
 ];
@@ -113,16 +70,8 @@ test.each(testCases)('$name', testCase => {
       },
     }),
   });
-  const configService = createMockConfigService({
-    'feature.connectMyComputer': testCase.isFeatureFlagEnabled,
-  });
   const runtimeSettings = makeRuntimeSettings({ platform: testCase.platform });
 
-  const isPermitted = canUseConnectMyComputer(
-    cluster,
-    configService,
-    runtimeSettings,
-    testCase.isAgentConfigured
-  );
+  const isPermitted = hasConnectMyComputerPermissions(cluster, runtimeSettings);
   expect(isPermitted).toEqual(testCase.expect);
 });
