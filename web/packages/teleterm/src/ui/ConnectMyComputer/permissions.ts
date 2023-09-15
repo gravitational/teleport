@@ -15,7 +15,6 @@
  */
 
 import { Cluster } from 'teleterm/services/tshd/types';
-import { ConfigService } from 'teleterm/services/config';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
 import * as tsh from 'teleterm/services/tshd/types';
@@ -29,11 +28,9 @@ import * as tsh from 'teleterm/services/tshd/types';
  * This will make it easier to understand what the user can and cannot do without having to jump around the code base.
  * https://github.com/gravitational/teleport/pull/28346#discussion_r1246653846
  * */
-export function canUseConnectMyComputer(
+export function hasConnectMyComputerPermissions(
   rootCluster: Cluster,
-  configService: ConfigService,
-  runtimeSettings: RuntimeSettings,
-  isAgentConfigured: boolean
+  runtimeSettings: RuntimeSettings
 ): boolean {
   if (rootCluster.leaf) {
     return false;
@@ -43,14 +40,9 @@ export function canUseConnectMyComputer(
     runtimeSettings.platform === 'darwin' ||
     runtimeSettings.platform === 'linux';
 
-  const hardRequirements =
+  return (
     isUnix &&
-    rootCluster.loggedInUser?.userType == tsh.UserType.USER_TYPE_LOCAL &&
-    configService.get('feature.connectMyComputer').value;
-
-  if (!hardRequirements) {
-    return false;
-  }
-
-  return rootCluster.loggedInUser?.acl?.tokens.create || isAgentConfigured;
+    rootCluster.loggedInUser?.acl?.tokens.create &&
+    rootCluster.loggedInUser?.userType == tsh.UserType.USER_TYPE_LOCAL
+  );
 }
