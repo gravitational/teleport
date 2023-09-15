@@ -67,6 +67,9 @@ function getMocksWithConnectMyComputerEnabled() {
       accessRequests: undefined,
     };
   });
+  appContext.configService = createMockConfigService({
+    'feature.connectMyComputer': true,
+  });
 
   return { appContext, rootCluster };
 }
@@ -167,9 +170,6 @@ test('killing the agent flips the workspace autoStart flag to false', async () =
 
 test('starts the agent automatically if the workspace autoStart flag is true', async () => {
   const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
-  appContext.configService = createMockConfigService({
-    'feature.connectMyComputer': true,
-  });
 
   const eventEmitter = new EventEmitter();
   let currentAgentProcessState: AgentProcessState = {
@@ -224,4 +224,63 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
     appContext.connectMyComputerService.downloadAgent
   ).toHaveBeenCalledTimes(1);
   expect(appContext.connectMyComputerService.runAgent).toHaveBeenCalledTimes(1);
+});
+
+describe('canUse', () => {
+  const cases = [
+    {
+      name: 'should be true when the user has permissions',
+      hasPermissions: true,
+      isAgentConfigured: false,
+      expected: true,
+    },
+    {
+      name: 'should be true when the user does not have permissions, but the agent has been configured',
+      hasPermissions: false,
+      isAgentConfigured: true,
+      expected: true,
+    },
+    {
+      name: 'should be false when the user does not have permissions and the agent has not been configured',
+      hasPermissions: false,
+      isAgentConfigured: false,
+      expected: false,
+    },
+  ];
+
+  test.each(cases)(
+    '$name',
+    async ({ hasPermissions, isAgentConfigured, expected }) => {
+      const { appContext, rootCluster } =
+        getMocksWithConnectMyComputerEnabled();
+      // update Connect My Computer permissions
+      appContext.clustersService.setState(draftState => {
+        draftState.clusters.get(
+          rootCluster.uri
+        ).loggedInUser.acl.tokens.create = hasPermissions;
+      });
+      const isAgentConfigFileCreated = Promise.resolve(isAgentConfigured);
+      jest
+        .spyOn(appContext.connectMyComputerService, 'isAgentConfigFileCreated')
+        .mockReturnValue(isAgentConfigFileCreated);
+
+      const { result } = renderHook(() => useConnectMyComputerContext(), {
+        wrapper: ({ children }) => (
+          <MockAppContextProvider appContext={appContext}>
+            <WorkspaceContextProvider value={null}>
+              <ConnectMyComputerContextProvider
+                rootClusterUri={rootCluster.uri}
+              >
+                {children}
+              </ConnectMyComputerContextProvider>
+            </WorkspaceContextProvider>
+          </MockAppContextProvider>
+        ),
+      });
+
+      await act(() => isAgentConfigFileCreated);
+
+      expect(result.current.canUse).toBe(expected);
+    }
+  );
 });

@@ -17,7 +17,7 @@
 import { spawn, fork, ChildProcess } from 'node:child_process';
 import os from 'node:os';
 
-import stripAnsiStream from 'strip-ansi-stream';
+import stripAnsi from 'strip-ansi';
 
 import Logger from 'teleterm/logger';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -98,8 +98,8 @@ export class AgentRunner {
       this.logger.warn(`Cannot get an agent to kill for ${rootClusterUri}`);
       return;
     }
+    this.logger.info(`Killing agent for ${rootClusterUri}`);
     await terminateWithTimeout(agent.process);
-    this.logger.info(`Killed agent for ${rootClusterUri}`);
   }
 
   async killAll(): Promise<void> {
@@ -114,9 +114,9 @@ export class AgentRunner {
     // Teleport logs output to stderr.
     let stderrOutput = '';
     process.stderr.setEncoding('utf-8');
-    process.stderr.pipe(stripAnsiStream()).on('data', (error: string) => {
+    process.stderr.on('data', (error: string) => {
       stderrOutput += error;
-      stderrOutput = limitProcessOutputLines(stderrOutput);
+      stderrOutput = processAgentOutput(stderrOutput);
     });
 
     const spawnHandler = () => {
@@ -127,6 +127,10 @@ export class AgentRunner {
 
     const errorHandler = (error: Error) => {
       process.off('spawn', spawnHandler);
+      // close is emitted both when the process ends _and_ after an error on spawn. We have to turn
+      // off closeHandler here to make sure that when the agent fails to spawn, we don't override
+      // the error state with the close state.
+      process.off('close', closeHandler);
 
       this.updateProcessState(rootClusterUri, {
         status: 'error',
@@ -134,18 +138,10 @@ export class AgentRunner {
       });
     };
 
-    const exitHandler = (
+    const closeHandler = (
       code: number | null,
       signal: NodeJS.Signals | null
     ) => {
-      // We don't have to worry about the exit event being emitted after an error event, because
-      // even if that happens, we do want the agent to be updated to the exited state and not remain
-      // in the error state.
-      //
-      // Still, guard against an inverse situation where error would be called after exit. It's
-      // unclear when that would happen, but it doesn't hurt to add this one line.
-      process.off('error', errorHandler);
-
       const exitedSuccessfully = code === 0 || signal === 'SIGTERM';
 
       this.updateProcessState(rootClusterUri, {
@@ -159,7 +155,8 @@ export class AgentRunner {
 
     process.once('spawn', spawnHandler);
     process.once('error', errorHandler);
-    process.once('exit', exitHandler);
+    // Using close instead of exit to ensure stderr has been closed and we captured all logs.
+    process.once('close', closeHandler);
   }
 
   private setupCleanupDaemon(
@@ -219,8 +216,13 @@ export class AgentRunner {
     rootClusterUri: RootClusterUri,
     state: AgentProcessState
   ): void {
+    let loggedState = state;
+    if (state.status === 'exited') {
+      const { logs, ...rest } = state; // eslint-disable-line @typescript-eslint/no-unused-vars
+      loggedState = rest;
+    }
     this.logger.info(
-      `Updating agent state ${rootClusterUri}: ${JSON.stringify(state)}`
+      `Updating agent state ${rootClusterUri}: ${JSON.stringify(loggedState)}`
     );
 
     const agent = this.agentProcesses.get(rootClusterUri);
@@ -229,6 +231,12 @@ export class AgentRunner {
   }
 }
 
-function limitProcessOutputLines(output: string): string {
-  return output.split(os.EOL).slice(-MAX_STDERR_LINES).join(os.EOL);
+/**
+ * processAgentOutput limits the output of the agent process to 10 lines and strips ANSI escape
+ * codes.
+ */
+function processAgentOutput(output: string): string {
+  // We specifically don't use strip-ansi-stream here because it chunks the output too heavily,
+  // resulting in cut off logs at the point of process termination or join timeout.
+  return stripAnsi(output).split(os.EOL).slice(-MAX_STDERR_LINES).join(os.EOL);
 }

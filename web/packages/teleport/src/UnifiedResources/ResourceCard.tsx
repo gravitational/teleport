@@ -87,6 +87,8 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   const [numMoreLabels, setNumMoreLabels] = useState(0);
   const [isNameOverflowed, setIsNameOverflowed] = useState(false);
 
+  const [hovered, setHovered] = useState(false);
+
   const innerContainer = useRef<Element | null>(null);
   const labelsInnerContainer = useRef(null);
   const nameText = useRef<HTMLDivElement | null>(null);
@@ -172,7 +174,10 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   };
 
   return (
-    <CardContainer>
+    <CardContainer
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <CardInnerContainer
         ref={innerContainer}
         p={3}
@@ -197,7 +202,7 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
                 </Text>
               )}
             </SingleLineBox>
-            <CopyButton name={name} />
+            {hovered && <CopyButton name={name} />}
             <ResourceActionButton resource={resource} />
           </Flex>
           <Flex flexDirection="row" alignItems="center">
@@ -319,6 +324,9 @@ function CopyButton({ name }: { name: string }) {
 }
 
 function resourceName(resource: UnifiedResource) {
+  if (resource.kind === 'app' && resource.friendlyName) {
+    return resource.friendlyName;
+  }
   return resource.kind === 'node' ? resource.hostname : resource.name;
 }
 
@@ -326,8 +334,8 @@ function resourceDescription(resource: UnifiedResource) {
   switch (resource.kind) {
     case 'app':
       return {
-        primary: resource.addrWithProtocol,
-        secondary: resource.description,
+        primary: resource.description,
+        secondary: resource.addrWithProtocol,
       };
     case 'db':
       return { primary: resource.type, secondary: resource.description };

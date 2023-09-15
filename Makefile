@@ -714,7 +714,7 @@ test-go: test-go-prepare test-go-unit test-go-libfido2 test-go-touch-id test-go-
 # target exists for local testing.
 #
 .PHONY: test-env-leakage
-test-env:
+test-env-leakage:
 	$(eval export BUILD_SECRET=FAKE_SECRET)
 	$(MAKE) full
 	failed=0; \

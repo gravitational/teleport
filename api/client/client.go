@@ -1040,16 +1040,6 @@ func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessReque
 	return reqs, nil
 }
 
-// CreateAccessRequest registers a new access request with the auth server.
-func (c *Client) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
-	r, ok := req.(*types.AccessRequestV3)
-	if !ok {
-		return trace.BadParameter("unexpected access request type %T", req)
-	}
-	_, err := c.grpc.CreateAccessRequest(ctx, r)
-	return trace.Wrap(err)
-}
-
 // CreateAccessRequestV2 registers a new access request with the auth server.
 func (c *Client) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	r, ok := req.(*types.AccessRequestV3)
