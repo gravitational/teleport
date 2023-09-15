@@ -298,9 +298,29 @@ func prepareQuery(params searchParams) (query string, execParams []string, err e
 	// Injection.
 	// Athena does not support passing table name as query parameters.
 	qb.Append(params.tablename)
-	qb.Append(` WHERE event_date BETWEEN date(?) AND date(?)`, withTicks(params.fromUTC.Format(time.DateOnly)), withTicks(params.toUTC.Format(time.DateOnly)))
+
+	from := params.fromUTC
+	to := params.toUTC
+	// If startKeyset is not nil, we can take shorten time range by taking value
+	// from key set. From ASC order we modify 'from', for desc - 'to'.
+	// This is useful because event-exporter plugin is using always quering with
+	// the same from value, and it's using keyset to query for further data.
+	// For example if exporter started 2023-01-01 and today is 2023-06-01, it will
+	// call with value from=2023-01-01, to=2023-06-01 and ketset.T = 2023-06-01.
+	// Values before 2023-06-01 will be filtered by athena engine, however
+	// it will cause data scans on large timerange.
+	if startKeyset != nil {
+		if params.order == types.EventOrderAscending && startKeyset.t.After(from) {
+			from = startKeyset.t.UTC()
+		}
+		if params.order == types.EventOrderDescending && startKeyset.t.Before(to) {
+			to = startKeyset.t.UTC()
+		}
+	}
+
+	qb.Append(` WHERE event_date BETWEEN date(?) AND date(?)`, withTicks(from.Format(time.DateOnly)), withTicks(to.Format(time.DateOnly)))
 	qb.Append(` AND event_time BETWEEN ? and ?`,
-		fmt.Sprintf("timestamp '%s'", params.fromUTC.Format(athenaTimestampFormat)), fmt.Sprintf("timestamp '%s'", params.toUTC.Format(athenaTimestampFormat)))
+		fmt.Sprintf("timestamp '%s'", from.Format(athenaTimestampFormat)), fmt.Sprintf("timestamp '%s'", to.Format(athenaTimestampFormat)))
 
 	if params.sessionID != "" {
 		qb.Append(" AND session_id = ?", withTicks(params.sessionID))

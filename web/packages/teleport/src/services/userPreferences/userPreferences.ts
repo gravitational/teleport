@@ -23,7 +23,6 @@ import { ViewMode } from 'teleport/Assist/types';
 import type {
   GetUserPreferencesResponse,
   UserPreferences,
-  UserPreferencesSubset,
 } from 'teleport/services/userPreferences/types';
 
 export async function getUserPreferences() {
@@ -34,7 +33,7 @@ export async function getUserPreferences() {
   return res;
 }
 
-export function updateUserPreferences(preferences: UserPreferencesSubset) {
+export function updateUserPreferences(preferences: Partial<UserPreferences>) {
   return api.put(cfg.api.userPreferencesPath, preferences);
 }
 

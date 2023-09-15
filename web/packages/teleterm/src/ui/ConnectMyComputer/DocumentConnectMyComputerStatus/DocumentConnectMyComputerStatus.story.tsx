@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-import React, { useMemo } from 'react';
+import React from 'react';
 
 import { wait } from 'shared/utils/wait';
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import AppContext from 'teleterm/ui/appContext';
-import * as types from 'teleterm/ui/services/workspacesService';
 
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -32,7 +31,7 @@ import { ConnectMyComputerContextProvider } from '../connectMyComputerContext';
 import { DocumentConnectMyComputerStatus } from './DocumentConnectMyComputerStatus';
 
 export default {
-  title: 'Teleterm/ConnectMyComputer/DocumentConnectMyComputerStatus',
+  title: 'Teleterm/ConnectMyComputer/Status',
 };
 
 export function NotStarted() {
@@ -96,29 +95,12 @@ export function FailedToReadAgentConfigFile() {
 }
 
 const cluster = makeRootCluster();
-const doc: types.DocumentConnectMyComputerStatus = {
-  title: 'Connect My Computer',
-  uri: '/docs/abcd',
-  rootClusterUri: cluster.uri,
-  kind: 'doc.connect_my_computer_status',
-};
 
 function ShowState(props: {
   agentProcessState: AgentProcessState;
   appContext?: AppContext;
 }) {
   const appContext = props.appContext || new MockAppContext();
-  // wrapped in a memo to prevent the creation of a new object with each render,
-  // which caused infinite rendering loops
-  const workspace = useMemo<types.Workspace>(
-    () => ({
-      localClusterUri: cluster.uri,
-      documents: [doc],
-      location: doc.uri,
-      accessRequests: undefined,
-    }),
-    []
-  );
 
   appContext.mainProcessClient.getAgentState = () => props.agentProcessState;
   appContext.mainProcessClient.subscribeToAgentUpdate = (
@@ -158,14 +140,13 @@ function ShowState(props: {
   appContext.clustersService.state.clusters.set(cluster.uri, cluster);
   appContext.workspacesService.setState(draftState => {
     draftState.rootClusterUri = cluster.uri;
-    draftState.workspaces[cluster.uri] = workspace;
   });
 
   return (
     <MockAppContextProvider appContext={appContext}>
       <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
         <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-          <DocumentConnectMyComputerStatus visible={true} doc={doc} />
+          <DocumentConnectMyComputerStatus />
         </ConnectMyComputerContextProvider>
       </MockWorkspaceContextProvider>
     </MockAppContextProvider>

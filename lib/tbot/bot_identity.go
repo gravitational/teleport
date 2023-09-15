@@ -222,7 +222,9 @@ func botIdentityFromToken(log logrus.FieldLogger, cfg *config.BotConfig) (*ident
 		Expires:            &expires,
 		FIPS:               cfg.FIPS,
 		CipherSuites:       cfg.CipherSuites(),
+		Insecure:           cfg.Insecure,
 	}
+
 	if params.JoinMethod == types.JoinMethodAzure {
 		params.AzureParams = auth.AzureParams{
 			ClientID: cfg.Onboarding.Azure.ClientID,
