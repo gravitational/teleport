@@ -29,41 +29,71 @@ const testCases: {
   platform: Platform;
   canCreateToken: boolean;
   isFeatureFlagEnabled: boolean;
+  isAgentConfigured: boolean;
   expect: boolean;
 }[] = [
   {
-    name: 'darwin, can create token, feature flag enabled',
+    name: 'darwin, can create token, feature flag enabled, agent not configured',
     platform: 'darwin',
     canCreateToken: true,
     isFeatureFlagEnabled: true,
+    isAgentConfigured: false,
     expect: true,
   },
   {
-    name: 'linux, can create token, feature flag enabled',
+    name: 'linux, can create token, feature flag enabled, agent not configured',
     platform: 'linux',
     canCreateToken: true,
     isFeatureFlagEnabled: true,
+    isAgentConfigured: false,
     expect: true,
   },
   {
-    name: 'windows, can create token, feature flag enabled',
+    name: 'windows, can create token, feature flag enabled, agent not configured',
     platform: 'win32',
     canCreateToken: true,
     isFeatureFlagEnabled: true,
+    isAgentConfigured: false,
     expect: false,
   },
   {
-    name: 'darwin, cannot create token, feature flag enabled',
+    name: 'darwin, cannot create token, feature flag enabled, agent not configured',
     platform: 'darwin',
     canCreateToken: false,
     isFeatureFlagEnabled: true,
+    isAgentConfigured: false,
     expect: false,
   },
   {
-    name: 'darwin, can create token, feature flag not enabled',
+    name: 'darwin, can create token, feature flag not enabled, agent not configured',
     platform: 'darwin',
     canCreateToken: true,
     isFeatureFlagEnabled: false,
+    isAgentConfigured: false,
+    expect: false,
+  },
+  {
+    name: 'darwin, cannot create token, feature flag enabled, agent configured',
+    platform: 'darwin',
+    canCreateToken: false,
+    isFeatureFlagEnabled: true,
+    isAgentConfigured: true,
+    expect: true,
+  },
+  {
+    name: 'darwin, cannot create token, feature flag not enabled, agent configured',
+    platform: 'darwin',
+    canCreateToken: false,
+    isFeatureFlagEnabled: false,
+    isAgentConfigured: true,
+    expect: false,
+  },
+  {
+    name: 'windows, cannot create token, feature flag enabled, agent configured',
+    platform: 'win32',
+    canCreateToken: false,
+    isFeatureFlagEnabled: true,
+    isAgentConfigured: true,
     expect: false,
   },
 ];
@@ -91,7 +121,8 @@ test.each(testCases)('$name', testCase => {
   const isPermitted = canUseConnectMyComputer(
     cluster,
     configService,
-    runtimeSettings
+    runtimeSettings,
+    testCase.isAgentConfigured
   );
   expect(isPermitted).toEqual(testCase.expect);
 });
