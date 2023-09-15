@@ -493,7 +493,7 @@ func itemFromAccessListSuggestion(req types.AccessRequest, suggestedItems *types
 	return backend.Item{
 		Key:     accessRequestSuggestionKey(req.GetName()),
 		Value:   value,
-		Expires: req.Expiry(),
+		Expires: req.Expiry(), // expire the suggestion at the same time as the access request
 		ID:      req.GetResourceID(),
 	}, nil
 }
