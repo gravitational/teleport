@@ -82,6 +82,7 @@ type Config struct {
 
 	AuthMode AuthMode `json:"auth_mode"`
 
+	ChangeFeedConnString   string         `json:"change_feed_conn_string"`
 	ChangeFeedPollInterval types.Duration `json:"change_feed_poll_interval"`
 	ChangeFeedBatchSize    int            `json:"change_feed_batch_size"`
 
@@ -95,6 +96,9 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	if c.ChangeFeedConnString == "" {
+		c.ChangeFeedConnString = c.ConnString
+	}
 	if c.ChangeFeedPollInterval < 0 {
 		return trace.BadParameter("change feed poll interval must be non-negative")
 	}
@@ -150,6 +154,10 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	feedConfig, err := pgxpool.ParseConfig(cfg.ChangeFeedConnString)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	log := logrus.WithField(trace.Component, componentName)
 
@@ -159,6 +167,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 			return nil, trace.Wrap(err)
 		}
 		poolConfig.BeforeConnect = bc
+		feedConfig.BeforeConnect = bc
 	}
 
 	const defaultTxIsoParamName = "default_transaction_isolation"
@@ -185,7 +194,9 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 
 	ctx, cancel := context.WithCancel(ctx)
 	b := &Backend{
-		cfg:    cfg,
+		cfg:        cfg,
+		feedConfig: feedConfig,
+
 		log:    log,
 		pool:   pool,
 		buf:    backend.NewCircularBuffer(),
@@ -211,7 +222,9 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 
 // Backend is a PostgreSQL-backed [backend.Backend].
 type Backend struct {
-	cfg  Config
+	cfg        Config
+	feedConfig *pgxpool.Config
+
 	log  logrus.FieldLogger
 	pool *pgxpool.Pool
 	buf  *backend.CircularBuffer
