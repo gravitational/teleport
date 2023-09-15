@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -96,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -3780,14 +3780,23 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	tc, err := main.NewClientWithCreds(helpers.ClientConfig{
+	// create client for leaf cluster through root cluster
+	leafTC, err := main.NewClientWithCreds(helpers.ClientConfig{
 		Login:   username,
 		Cluster: clusterAux,
 		Host:    aux.InstanceListeners.ReverseTunnel,
 	}, *creds)
 	require.NoError(t, err)
 
-	testAgentlessConn(t, tc, node)
+	// create client for root cluster
+	tc, err := main.NewClient(helpers.ClientConfig{
+		Login:   suite.Me.Username,
+		Cluster: clusterMain,
+		Host:    main.InstanceListeners.ReverseTunnel,
+	})
+	require.NoError(t, err)
+
+	testAgentlessConn(t, leafTC, tc, node)
 
 	// Stop clusters and remaining nodes.
 	require.NoError(t, main.StopAll())
@@ -6759,10 +6768,10 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	req, err := services.NewAccessRequest(suite.Me.Username, requestedRole.GetMetadata().Name)
 	require.NoError(t, err)
 
-	accessRequestID := req.GetName()
-
-	err = authServer.CreateAccessRequest(ctx, req, tlsca.Identity{})
+	req, err = authServer.CreateAccessRequestV2(ctx, req, tlsca.Identity{})
 	require.NoError(t, err)
+
+	accessRequestID := req.GetName()
 
 	err = authServer.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 		RequestID: accessRequestID,
@@ -7888,8 +7897,8 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	})
 
 	// get OpenSSH CA public key and create host certs
-	authClient := teleInst.Process.GetAuthServer()
-	node := createAgentlessNode(t, authClient, helpers.Site, "agentless-node")
+	authSrv := teleInst.Process.GetAuthServer()
+	node := createAgentlessNode(t, authSrv, helpers.Site, "agentless-node")
 
 	// create client
 	tc, err := teleInst.NewClient(helpers.ClientConfig{
@@ -7899,10 +7908,12 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	testAgentlessConn(t, tc, node)
+	testAgentlessConn(t, tc, tc, node)
 }
 
 func createAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nodeHostname string) *types.ServerV2 {
+	t.Helper()
+
 	ctx := context.Background()
 	openSSHCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.OpenSSHCA,
@@ -7987,6 +7998,8 @@ func createAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 // OpenSSH (agentless) server. The SSH server started only handles a small
 // subset of SSH requests necessary for testing.
 func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer) string {
+	t.Helper()
+
 	sshCfg := ssh.ServerConfig{
 		PublicKeyCallback: func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 			cert, ok := key.(*ssh.Certificate)
@@ -8032,7 +8045,7 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		go ssh.DiscardRequests(reqs)
 
 		var agentForwarded bool
-		var cmdRequested bool
+		var shellRequested bool
 		for channelReq := range channels {
 			assert.Equal(t, "session", channelReq.ChannelType())
 			channel, reqs, err := channelReq.Accept()
@@ -8048,25 +8061,24 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 				}
 				if req.Type == sshutils.AgentForwardRequest {
 					agentForwarded = true
-				} else if req.Type == sshutils.ExecRequest {
-					_, err = channel.SendRequest("exit-status", false, binary.BigEndian.AppendUint32(nil, 0))
-					assert.NoError(t, err)
-					err = channel.Close()
-					assert.NoError(t, err)
+				} else if req.Type == sshutils.ShellRequest {
+					assert.NoError(t, channel.Close())
 
-					cmdRequested = true
+					shellRequested = true
 					break
 				}
 			}
 		}
 		assert.True(t, agentForwarded)
-		assert.True(t, cmdRequested)
+		assert.True(t, shellRequested)
 	}()
 
 	return lis.Addr().String()
 }
 
-func testAgentlessConn(t *testing.T, tc *client.TeleportClient, node *types.ServerV2) {
+func testAgentlessConn(t *testing.T, tc, joinTC *client.TeleportClient, node *types.ServerV2) {
+	t.Helper()
+
 	// connect to cluster
 	ctx := context.Background()
 	clt, err := tc.ConnectToCluster(ctx)
@@ -8074,6 +8086,16 @@ func testAgentlessConn(t *testing.T, tc *client.TeleportClient, node *types.Serv
 	t.Cleanup(func() {
 		require.NoError(t, clt.Close())
 	})
+
+	// connect to other cluster if needed
+	joinClt := clt
+	if tc != joinTC {
+		joinClt, err = joinTC.ConnectToCluster(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, joinClt.Close())
+		})
+	}
 
 	// connect to node
 	_, port, err := net.SplitHostPort(node.Spec.Addr)
@@ -8128,9 +8150,26 @@ func testAgentlessConn(t *testing.T, tc *client.TeleportClient, node *types.Serv
 
 	require.NoError(t, agent.RequestAgentForwarding(session))
 
-	// run a command
-	err = session.Run("cmd")
-	require.NoError(t, err)
+	// request a shell so Teleport starts tracking this session
+	session.Stderr = io.Discard
+	session.Stdout = io.Discard
+	require.NoError(t, session.Shell())
+
+	var sessTracker types.SessionTracker
+	require.Eventually(t, func() bool {
+		trackers, err := joinClt.AuthClient.GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+		if len(trackers) == 1 {
+			sessTracker = trackers[0]
+			return true
+		}
+		return false
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// test that attempting to join the session returns an error
+	err = joinTC.Join(ctx, types.SessionPeerMode, tc.Namespace, rsession.ID(sessTracker.GetSessionID()), nil)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorContains(t, err, "session joining is only supported for Teleport nodes, not OpenSSH nodes")
 
 	// test that SSH agent channel is closed properly
 	select {

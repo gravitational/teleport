@@ -32,13 +32,16 @@ TF_VAR_route53_domain ?=
 TF_VAR_add_wildcard_route53_record ?= true
 
 # Enable adding MongoDB listeners in Teleport proxy, load balancer ports and security groups
-TF_VAR_enable_mongodb_listener ?= true
+# This will be ignored if TF_VAR_use_tls_routing=true
+TF_VAR_enable_mongodb_listener ?= false
 
 # Enable adding MySQL listeners in Teleport proxy, load balancer ports and security groups
-TF_VAR_enable_mysql_listener ?= true
+# This will be ignored if TF_VAR_use_tls_routing=true
+TF_VAR_enable_mysql_listener ?= false
 
 # Enable adding Postgres listeners in Teleport proxy, load balancer ports and security groups
-TF_VAR_enable_postgres_listener ?= true
+# This will be ignored if TF_VAR_use_tls_routing=true
+TF_VAR_enable_postgres_listener ?= false
 
 # Bucket name to store encrypted Let's Encrypt certificates.
 TF_VAR_s3_bucket_name ?=
@@ -52,7 +55,17 @@ TF_VAR_use_letsencrypt ?= true
 # Set to true to use ACM (Amazon Certificate Manager) to provision certificates
 # If you wish to use a pre-existing ACM certificate rather than having Terraform generate one for you, you can import it:
 # terraform import aws_acm_certificate.cert <certificate_arn>
+# Note that TLS routing is automatically enabled when using ACM with the starter-cluster Terraform, meaning:
+# - you must use Teleport and tsh v13+
+# - you must use `tsh proxy` commands for Kubernetes/database access
 TF_VAR_use_acm ?= false
+
+# Set to true to use TLS routing to multiplex all Teleport traffic over one port
+# See https://goteleport.com/docs/architecture/tls-routing for more information
+# Setting this will disable ALL separate listener ports.
+# This setting is automatically set to "true" when using ACM with the starter-cluster Terraform
+# and will be ignored.
+TF_VAR_use_tls_routing ?= true
 
 export
 
@@ -73,3 +86,9 @@ apply:
 destroy:
 	terraform init
 	terraform destroy
+
+# Destroy destroys the infrastructure, it doesn't ask for confirmation so be sure you actually want to
+.PHONY: destroy-yes-i-want-to-do-this
+destroy-yes-i-want-to-do-this:
+	terraform init
+	terraform destroy -auto-approve

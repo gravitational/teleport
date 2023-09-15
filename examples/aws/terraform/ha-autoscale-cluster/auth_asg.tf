@@ -68,6 +68,7 @@ resource "aws_launch_template" "auth" {
       telegraf_version         = var.telegraf_version
       teleport_uid             = var.teleport_uid
       use_acm                  = var.use_acm
+      use_tls_routing          = var.use_tls_routing
     }
   ))
 

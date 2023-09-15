@@ -4934,6 +4934,9 @@ message SessionTrackerSpecV1 {
   // It's useful for Kubernetes moderated sessions when running in high availabilty
   // otherwise kube proxy is not able to know which agent runs the session.
   string HostID = 21 [(gogoproto.jsontag) = "host_id,omitempty"];
+
+  // TargetSubKind is the sub kind of the target server.
+  string TargetSubKind = 22 [(gogoproto.jsontag) = "target_sub_kind,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker

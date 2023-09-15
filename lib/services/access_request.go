@@ -167,8 +167,6 @@ type AccessRequestGetter interface {
 // DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
 type DynamicAccessCore interface {
 	AccessRequestGetter
-	// CreateAccessRequest stores a new access request.
-	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
 	// CreateAccessRequestV2 stores a new access request.
 	CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error)
 	// DeleteAccessRequest deletes an access request.
@@ -261,6 +259,8 @@ func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resource
 // used to implement some auth server internals.
 type DynamicAccessExt interface {
 	DynamicAccessCore
+	// CreateAccessRequest stores a new access request.
+	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
 	// ApplyAccessReview applies a review to a request in the backend and returns the post-application state.
 	ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker ReviewPermissionChecker) (types.AccessRequest, error)
 	// UpsertAccessRequest creates or updates an access request.

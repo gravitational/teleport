@@ -6353,10 +6353,19 @@ func TestCreateAccessRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(test.user))
 			require.NoError(t, err)
 
-			test.errAssertionFunc(t, client.CreateAccessRequest(ctx, test.accessRequest))
+			req, err := client.CreateAccessRequestV2(ctx, test.accessRequest)
+			test.errAssertionFunc(t, err)
+
+			if err != nil {
+				require.Nil(t, test.expected, "erroring test-cases should not assert expectations (this is a bug)")
+				return
+			}
+
+			// id should be regenerated server-side
+			require.NotEqual(t, test.accessRequest.GetName(), req.GetName())
 
 			accessRequests, err := srv.Auth().GetAccessRequests(ctx, types.AccessRequestFilter{
-				ID: test.accessRequest.GetName(),
+				ID: req.GetName(),
 			})
 			require.NoError(t, err)
 

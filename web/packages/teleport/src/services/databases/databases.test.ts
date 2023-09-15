@@ -45,6 +45,7 @@ test('correct formatting of database fetch response', async () => {
           rds: {
             resourceId: 'resource-id',
             region: 'us-west-1',
+            vpcId: 'vpc-123',
             subnets: ['sn1', 'sn2'],
           },
           iamPolicyStatus: IamPolicyStatus.Success,
@@ -183,6 +184,7 @@ const mockResponse = {
         rds: {
           resource_id: 'resource-id',
           region: 'us-west-1',
+          vpc_id: 'vpc-123',
           subnets: ['sn1', 'sn2'],
         },
         iam_policy_status: 'IAM_POLICY_STATUS_SUCCESS',
