@@ -32,7 +32,32 @@ export default {
 
 export function Default() {
   const cluster = makeRootCluster();
-  const appContext = new MockAppContext();
+  const appContext = new MockAppContext({ appVersion: cluster.serverVersion });
+  appContext.clustersService.state.clusters.set(cluster.uri, cluster);
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = cluster.uri;
+    draftState.workspaces[cluster.uri] = {
+      localClusterUri: cluster.uri,
+      documents: [],
+      location: undefined,
+      accessRequests: undefined,
+    };
+  });
+
+  return (
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
+        <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
+          <DocumentConnectMyComputerSetup />
+        </ConnectMyComputerContextProvider>
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
+}
+
+export function NonCompatibleAgent() {
+  const cluster = makeRootCluster();
+  const appContext = new MockAppContext({ appVersion: '3.0.0' });
   appContext.clustersService.state.clusters.set(cluster.uri, cluster);
   appContext.workspacesService.setState(draftState => {
     draftState.rootClusterUri = cluster.uri;

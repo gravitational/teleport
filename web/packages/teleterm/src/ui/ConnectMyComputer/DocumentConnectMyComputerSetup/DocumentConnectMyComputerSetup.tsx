@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import styled from 'styled-components';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
@@ -34,6 +35,7 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
+import { CompatibilityError } from '../CompatibilityPromise';
 
 const logger = new Logger('DocumentConnectMyComputerSetup');
 
@@ -60,9 +62,16 @@ export function DocumentConnectMyComputerSetup() {
 function Information(props: { onSetUpAgentClick(): void }) {
   const { systemUsername, hostname, roleName, clusterName } =
     useAgentProperties();
+  const { isNonCompatibleAgent } = useConnectMyComputerContext();
 
   return (
     <>
+      {isNonCompatibleAgent && (
+        <>
+          <CompatibilityError />
+          <Separator mt={3} mb={2} />
+        </>
+      )}
       <Text>
         The setup process will download and launch the Teleport agent, making
         your computer available in the <strong>{clusterName}</strong> cluster as{' '}
@@ -84,6 +93,7 @@ function Information(props: { onSetUpAgentClick(): void }) {
         css={`
           display: block;
         `}
+        disabled={isNonCompatibleAgent}
         onClick={props.onSetUpAgentClick}
       >
         Connect
@@ -381,3 +391,8 @@ function StandardError(props: {
 function isAccessDeniedError(error: Error): boolean {
   return (error.message as string)?.includes('access denied');
 }
+
+const Separator = styled(Box)`
+  background: ${props => props.theme.colors.spotBackground[2]};
+  height: 1px;
+`;
