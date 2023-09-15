@@ -162,5 +162,5 @@ func IsHandshake(m Message) bool {
 	}
 
 	// Servers must accept alternative casing for IsMasterCommand.
-	return strings.ToLower(cmd) == strings.ToLower(IsMasterCommand) || cmd == HelloCommand
+	return strings.EqualFold(cmd, IsMasterCommand) || cmd == HelloCommand
 }
