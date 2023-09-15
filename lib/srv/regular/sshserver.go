@@ -371,11 +371,6 @@ func (s *Server) Start() error {
 			return trace.Wrap(err)
 		}
 	}
-	// clean up sudoers before starting, in case any were left behind
-	// due to a crash for example
-	if err := s.sudoers.CleanupSudoers(); err != nil {
-		return trace.Wrap(err)
-	}
 	// Heartbeat should start only after s.srv.Start.
 	// If the server is configured to listen on port 0 (such as in tests),
 	// it'll only populate its actual listening address during s.srv.Start.
@@ -387,11 +382,6 @@ func (s *Server) Start() error {
 
 // Serve servers service on started listener
 func (s *Server) Serve(l net.Listener) error {
-	// clean up sudoers before starting, in case any were left behind
-	// due to a crash for example
-	if err := s.sudoers.CleanupSudoers(); err != nil {
-		return trace.Wrap(err)
-	}
 	s.startPeriodicOperations()
 	return trace.Wrap(s.srv.Serve(l))
 }
@@ -1733,7 +1723,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			return nil
 		}
 		if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(serverContext); err != nil {
-			return trace.Wrap(err)
+			s.Logger.Warn(err)
+			return nil
 		}
 
 		// to maintain interoperability with OpenSSH, agent forwarding requests

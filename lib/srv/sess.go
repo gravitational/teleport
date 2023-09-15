@@ -256,7 +256,7 @@ func (s *SessionRegistry) TryWriteSudoersFile(ctx *ServerContext) error {
 
 func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) error {
 	if !ctx.srv.GetCreateHostUser() {
-		s.log.Debugf("not creating host users: node has disabled host user creation")
+		s.log.Debug("Not creating host user: node has disabled host user creation.")
 		return nil // not an error to not be able to create host users
 	}
 
