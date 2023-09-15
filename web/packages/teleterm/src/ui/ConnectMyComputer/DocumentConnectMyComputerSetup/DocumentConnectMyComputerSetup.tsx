@@ -45,7 +45,7 @@ export function DocumentConnectMyComputerSetup() {
   const { rootClusterUri } = useWorkspaceContext();
 
   return (
-    <Box maxWidth="590px" mx="auto" mt="4" px="5" width="100%">
+    <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
       <Text typography="h3" mb="4">
         Connect My Computer
       </Text>
