@@ -851,13 +851,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	groups := make(map[string]struct{})
 	var mode types.CreateHostUserMode
 
-	roleSet := make([]types.Role, len(a.RoleSet))
-	copy(roleSet, a.RoleSet)
-	slices.SortStableFunc(roleSet, func(a types.Role, b types.Role) int {
-		return strings.Compare(a.GetName(), b.GetName())
-	})
-
-	for _, role := range roleSet {
+	for _, role := range a.RoleSet {
 		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -895,7 +889,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		}
 	}
 
-	for _, role := range roleSet {
+	for _, role := range a.RoleSet {
 		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
