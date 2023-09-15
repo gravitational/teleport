@@ -1639,15 +1639,6 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		}
 	})
 
-	t.Run("We don't propagate IP to non Teleport nodes", func(t *testing.T) {
-		t.Run("connecting through root cluster", func(t *testing.T) {
-			testSSHUnregisteredNodeConnection(t, root, "root-test")
-		})
-		t.Run("connecting through leaf cluster", func(t *testing.T) {
-			testSSHUnregisteredNodeConnection(t, root, "leaf-test")
-		})
-	})
-
 	t.Run("Host Connections", func(t *testing.T) {
 		for _, test := range testNodeCases {
 			test := test
@@ -1662,6 +1653,16 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 				})
 			})
 		}
+	})
+
+	_, root2, _ := createTrustedClusterPair(t, suite, startNodes, withProxyRecordingMode)
+	t.Run("We don't propagate IP to non Teleport nodes", func(t *testing.T) {
+		t.Run("connecting through root cluster", func(t *testing.T) {
+			testSSHUnregisteredNodeConnection(t, root2, "root-test")
+		})
+		t.Run("connecting through leaf cluster", func(t *testing.T) {
+			testSSHUnregisteredNodeConnection(t, root2, "leaf-test")
+		})
 	})
 }
 
@@ -7378,7 +7379,15 @@ outer:
 	t.FailNow()
 }
 
-func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *helpers.TeleInstance, *helpers.TeleInstance)) (*client.TeleportClient, *helpers.TeleInstance, *helpers.TeleInstance) {
+type serviceCfgOpt func(*servicecfg.Config)
+
+func withProxyRecordingMode(cfg *servicecfg.Config) {
+	recCfg := types.DefaultSessionRecordingConfig()
+	recCfg.SetMode(types.RecordAtProxy)
+	cfg.Auth.SessionRecordingConfig = recCfg
+}
+
+func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *helpers.TeleInstance, *helpers.TeleInstance), cfgOpts ...serviceCfgOpt) (*client.TeleportClient, *helpers.TeleInstance, *helpers.TeleInstance) {
 	ctx := context.Background()
 	username := suite.Me.Username
 	name := "test"
@@ -7429,6 +7438,11 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 		tconf.Proxy.DisableWebInterface = true
 		tconf.SSH.Enabled = false
 		tconf.CachePolicy.MaxRetryPeriod = time.Millisecond * 500
+
+		for _, opt := range cfgOpts {
+			opt(tconf)
+		}
+
 		return t, nil, tconf
 	}
 
