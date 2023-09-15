@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -16,13 +17,15 @@ func replaceBackticks(source string) string {
 	return strings.ReplaceAll(source, "BACKTICK", "`")
 }
 
-func TestGenerate(t *testing.T) {
+func TestNewFromDecl(t *testing.T) {
 	cases := []struct {
 		description string
-		// Source fixture. Replace backticks with the "BACKTICK"
+		// Go source fixture. Replace backticks with the "BACKTICK"
 		// placeholder.
 		source   string
 		expected ReferenceEntry
+		// Go source fixtures that the test uses for named type fields.
+		declSources []string
 	}{
 		{
 			description: "scalar fields with one field ignored",
@@ -181,7 +184,6 @@ type Server struct {
     Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
 }
 `,
-
 			expected: ReferenceEntry{
 				SectionName: "Server",
 				Description: "Includes information about a server registered with Teleport.",
@@ -199,8 +201,7 @@ spec:
 					Field{
 						Name:        "spec",
 						Description: "Contains information about the server.",
-						Type:        "[Server Spec v1](#server-spec-v1)",
-					},
+						Type:        "[Server Spec v1](#server-spec-v1)"},
 				},
 			},
 		},
@@ -252,6 +253,46 @@ type Server struct {
 				t.Fatalf("test fixture contains invalid Go source: %v\n", err)
 			}
 
+			allDecls := make(map[PackageInfo]*ast.GenDecl)
+			// Assemble map of PackageInfo to *ast.GenDecl for
+			// source fixtures the test case depends on.
+			// TODO: This is getting lengthy, so consider extracting
+			// it into separate function--possibly to use in the
+			// program itself--or changing the function signature of
+			// NewFromDecl to make things less awkward.
+			for n, dep := range tc.declSources {
+				d, err := parser.ParseFile(fset,
+					fmt.Sprintf("myfile%v.go", n),
+					replaceBackticks(dep),
+					parser.ParseComments,
+				)
+				if err != nil {
+					t.Fatalf("test fixture contains invalid Go source: %v\n", err)
+				}
+
+				// Store type declarations in the map.
+				for _, def := range d.Decls {
+					l, ok := def.(*ast.GenDecl)
+					if !ok {
+						continue
+					}
+					if len(l.Specs) != 1 {
+						continue
+					}
+					spec, ok := l.Specs[0].(*ast.TypeSpec)
+					if !ok {
+						continue
+					}
+
+					allDecls[PackageInfo{
+						TypeName:    spec.Name.Name,
+						PackageName: d.Name.Name,
+					}] = l
+
+				}
+
+			}
+
 			if len(f.Decls) != 1 {
 				t.Fatalf("test fixture contains an unexpected number of declarations. want 1. got: %v", len(f.Decls))
 			}
@@ -261,7 +302,7 @@ type Server struct {
 				t.Fatalf("test fixture declaration is not a GenDecl")
 			}
 
-			r, err := NewFromDecl(gd, "myfile.go")
+			r, err := NewFromDecl(gd, "myfile.go", allDecls)
 			assert.NoError(t, err)
 
 			assert.Equal(t, tc.expected, r)
