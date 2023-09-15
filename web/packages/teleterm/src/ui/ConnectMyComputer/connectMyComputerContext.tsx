@@ -122,6 +122,8 @@ export const ConnectMyComputerContextProvider: FC<{
       mainProcessClient.getRuntimeSettings()
     );
 
+    // We check `isAgentConfigured`, because the user should always have access to the agent after configuring it.
+    // https://github.com/gravitational/teleport/blob/master/rfd/0133-connect-my-computer.md#access-to-ui-and-autostart
     return isFeatureFlagEnabled && (hasPermissions || isAgentConfigured);
   }, [configService, isAgentConfigured, mainProcessClient, rootCluster]);
 
