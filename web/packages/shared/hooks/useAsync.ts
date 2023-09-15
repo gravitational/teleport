@@ -93,8 +93,9 @@ export function useAsync<Args extends unknown[], AttemptData>(
   const run = useCallback(
     (...args: Args) => {
       setState(prevState => ({
-        ...prevState,
         status: 'processing',
+        data: prevState['data'],
+        statusText: prevState['statusText'],
       }));
 
       const promise = cb(...args);
@@ -125,10 +126,10 @@ export function useAsync<Args extends unknown[], AttemptData>(
             return [null, new CanceledError()] as [AttemptData, Error];
           }
 
-          setState(prevState => ({
-            ...prevState,
+          setState(() => ({
             status: 'error',
-            statusText: err?.message,
+            error: err,
+            statusText: err && err['message'],
             data: null,
           }));
 
@@ -163,13 +164,43 @@ export class CanceledError extends Error {
   }
 }
 
-export type AttemptStatus = 'processing' | 'success' | 'error' | '';
+export type AttemptStatus = Attempt<any>['status'];
 
-export type Attempt<T> = {
-  data?: T;
-  status: AttemptStatus;
-  statusText: string;
-};
+export type Attempt<T> =
+  | {
+      status: '';
+      data: null;
+      /**
+       * @deprecated statusText is present for compatibility purposes only. To use statusText, check
+       * if status equals 'error' first.
+       */
+      statusText: string;
+    }
+  | {
+      status: 'processing';
+      /** data is either null or contains data from the previous success attempt if the attempt was retried. */
+      data: null | T;
+      /**
+       * @deprecated statusText is present for compatibility purposes only. To use statusText, check
+       * if status equals 'error' first.
+       */
+      statusText: string;
+    }
+  | {
+      status: 'success';
+      data: T;
+      /**
+       * @deprecated statusText is present for compatibility purposes only. To use statusText, check
+       * if status equals 'error' first.
+       */
+      statusText: string;
+    }
+  | {
+      status: 'error';
+      data: null;
+      statusText: string;
+      error: any;
+    };
 
 export function hasFinished<T>(attempt: Attempt<T>): boolean {
   return attempt.status === 'success' || attempt.status === 'error';
@@ -199,11 +230,26 @@ export function makeProcessingAttempt<T>(): Attempt<T> {
   };
 }
 
-export function makeErrorAttempt<T>(statusText: string): Attempt<T> {
+export function makeErrorAttempt<T>(error: any): Attempt<T> {
+  return {
+    data: null,
+    status: 'error',
+    error: error,
+    statusText: error['message'],
+  };
+}
+
+/**
+ * @deprecated Use makeErrorAttempt instead.
+ */
+export function makeErrorAttemptWithStatusText<T>(
+  statusText: string
+): Attempt<T> {
   return {
     data: null,
     status: 'error',
     statusText,
+    error: new Error(statusText),
   };
 }
 
