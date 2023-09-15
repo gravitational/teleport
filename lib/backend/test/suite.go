@@ -141,10 +141,6 @@ func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
 		testDeleteRange(t, newBackend)
 	})
 
-	t.Run("PutRange", func(t *testing.T) {
-		testPutRange(t, newBackend)
-	})
-
 	t.Run("CompareAndSwap", func(t *testing.T) {
 		testCompareAndSwap(t, newBackend)
 	})
@@ -357,32 +353,6 @@ func testDeleteRange(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 
 	// make sure items with "/prefix/c" are gone
-	result, err := uut.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
-	require.NoError(t, err)
-	RequireItems(t, []backend.Item{a, b}, result.Items)
-}
-
-// testPutRange tests scenarios with put range
-func testPutRange(t *testing.T, newBackend Constructor) {
-	uut, _, err := newBackend()
-	require.NoError(t, err)
-	defer func() { require.NoError(t, uut.Close()) }()
-
-	batchUut, ok := uut.(backend.Batch)
-	if !ok {
-		t.Skip("Backend should support Batch interface for this test")
-	}
-
-	ctx := context.Background()
-	prefix := MakePrefix()
-	a := backend.Item{Key: prefix("/prefix/a"), Value: []byte("val a")}
-	b := backend.Item{Key: prefix("/prefix/b"), Value: []byte("val b")}
-
-	// add one element that should not show up (i.e. a duplicate `a`)
-	err = batchUut.PutRange(ctx, []backend.Item{a, b, a})
-	require.NoError(t, err)
-
-	// prefix range fetch
 	result, err := uut.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
 	require.NoError(t, err)
 	RequireItems(t, []backend.Item{a, b}, result.Items)

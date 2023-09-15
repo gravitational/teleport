@@ -100,7 +100,7 @@ type Config struct {
 	// Journal sets the journal_mode pragma
 	Journal string `json:"journal,omitempty"`
 	// Mirror turns on mirror mode for the backend,
-	// which will use record IDs for Put and PutRange passed from
+	// which will use record IDs for Put passed from
 	// the resources, not generate a new one
 	Mirror bool `json:"mirror"`
 }
@@ -576,23 +576,6 @@ func (l *Backend) Import(ctx context.Context, items []backend.Item) error {
 			return trace.Wrap(err)
 		}
 		return nil
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// PutRange puts range of items into backend (creates if items doe not
-// exists, updates it otherwise)
-func (l *Backend) PutRange(ctx context.Context, items []backend.Item) error {
-	for i := range items {
-		if items[i].Key == nil {
-			return trace.BadParameter("missing parameter key in item %v", i)
-		}
-	}
-	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
-		return l.putRangeInTransaction(ctx, tx, items, false)
 	})
 	if err != nil {
 		return trace.Wrap(err)
