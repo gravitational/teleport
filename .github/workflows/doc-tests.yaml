@@ -2,20 +2,35 @@ name: Lint (Docs)
 run-name: Lint (Docs)
 on:
   pull_request:
-    paths:
-      - 'CHANGELOG.md'
-      - 'docs/**'
-      - 'examples/**'
+
   merge_group:
-    paths:
-      - 'docs/**'
-      - 'examples/**'
-      - 'CHANGELOG.md'
+
 
 jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            changed:
+              - '.github/workflows/doc-tests.yaml'
+              - 'CHANGELOG.md'
+              - 'docs/**'
+              - 'examples/**'
+
   doc-tests:
     name: Lint (Docs)
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-latest
 
     permissions:
