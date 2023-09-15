@@ -80,9 +80,9 @@ type scriptSettings struct {
 	databaseInstallMode bool
 	installUpdater      bool
 
-	// automaticUpgradesVersionBaseURL is the base URL for getting the version when using the cloud/stable channel.
+	// automaticUpgradesVersionURL is the URL for getting the version when using the cloud/stable channel.
 	// Optional.
-	automaticUpgradesVersionBaseURL string
+	automaticUpgradesVersionURL string
 }
 
 // automaticUpgrades returns whether automaticUpgrades should be enabled.
@@ -398,7 +398,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	// This ensures the initial installed version is the same as the `teleport-ent-updater` would install.
 	if settings.installUpdater {
 		repoChannel = stableCloudChannelRepo
-		cloudStableVersion, err := automaticupgrades.Version(ctx, "")
+		cloudStableVersion, err := automaticupgrades.Version(ctx, settings.automaticUpgradesVersionURL)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

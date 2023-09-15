@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"testing"
 
@@ -942,7 +943,10 @@ func TestJoinScript(t *testing.T) {
 			}))
 			defer httpTestServer.Close()
 
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true, automaticUpgradesVersionBaseURL: httpTestServer.URL}, m)
+			versionURL, err := url.JoinPath(httpTestServer.URL, "/v1/stable/cloud/version")
+			require.NoError(t, err)
+
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true, automaticUpgradesVersionURL: versionURL}, m)
 			require.NoError(t, err)
 
 			// list of packages must include the updater
