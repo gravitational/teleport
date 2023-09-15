@@ -24,6 +24,7 @@ import {
   Link,
   MenuItem,
   Text,
+  ButtonSecondary,
 } from 'design';
 import styled, { css } from 'styled-components';
 import { Transition } from 'react-transition-group';
@@ -40,6 +41,8 @@ import {
 } from 'teleterm/ui/ConnectMyComputer';
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
+import { connectToServer } from 'teleterm/ui/services/workspacesService';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
@@ -49,6 +52,7 @@ import type { IconProps } from 'design/Icon/Icon';
 
 // TODO(gzdunek): Rename to `Status`
 export function DocumentConnectMyComputerStatus() {
+  const ctx = useAppContext();
   const {
     currentAction,
     agentNode,
@@ -65,6 +69,14 @@ export function DocumentConnectMyComputerStatus() {
     markAgentAsNotConfigured();
   }
 
+  function startSshSession(): void {
+    connectToServer(
+      ctx,
+      { uri: agentNode.uri, hostname, login: systemUsername },
+      { origin: 'resource_table' }
+    );
+  }
+
   const isRunning =
     currentAction.kind === 'observe-process' &&
     currentAction.agentProcessState.status === 'running';
@@ -78,12 +90,12 @@ export function DocumentConnectMyComputerStatus() {
     currentAction.kind === 'start' &&
     currentAction.attempt.status === 'processing';
 
-  const showDisconnectButton = isRunning || isKilling;
-  const disableDisconnectButton = isKilling;
-  const disableConnectButton = isDownloading || isStarting;
+  const showConnectAndStopAgentButtons = isRunning || isKilling;
+  const disableConnectAndStopAgentButtons = isKilling;
+  const disableStartAgentButton = isDownloading || isStarting;
 
   return (
-    <Box maxWidth="590px" mx="auto" mt="4" px="5" width="100%">
+    <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
       {isAgentConfiguredAttempt.status === 'error' && (
         <Alert
           css={`
@@ -146,9 +158,25 @@ export function DocumentConnectMyComputerStatus() {
           </LabelsContainer>
         )}
       </Transition>
-      <Flex mt={3} mb={2} gap={1} display="flex" alignItems="center">
+      <Flex
+        mt={3}
+        mb={2}
+        gap={1}
+        display="flex"
+        alignItems="center"
+        minHeight="32px"
+      >
         {prettyCurrentAction.Icon && <prettyCurrentAction.Icon size="medium" />}
         {prettyCurrentAction.title}
+        {showConnectAndStopAgentButtons && (
+          <ButtonSecondary
+            onClick={killAgent}
+            disabled={disableConnectAndStopAgentButtons}
+            ml={3}
+          >
+            Stop Agent
+          </ButtonSecondary>
+        )}
       </Flex>
       {prettyCurrentAction.error && (
         <Alert
@@ -165,23 +193,23 @@ export function DocumentConnectMyComputerStatus() {
         <strong>{roleName}</strong> to access it as an SSH resource with the
         user <strong>{systemUsername}</strong>.
       </Text>
-      {showDisconnectButton ? (
+      {showConnectAndStopAgentButtons ? (
         <ButtonPrimary
           block
-          disabled={disableDisconnectButton}
-          onClick={killAgent}
+          disabled={disableConnectAndStopAgentButtons}
+          onClick={startSshSession}
           size="large"
         >
-          Disconnect
+          Connect
         </ButtonPrimary>
       ) : (
         <ButtonPrimary
           block
-          disabled={disableConnectButton}
+          disabled={disableStartAgentButton}
           onClick={downloadAndStartAgent}
           size="large"
         >
-          Connect
+          Start Agent
         </ButtonPrimary>
       )}
     </Box>
