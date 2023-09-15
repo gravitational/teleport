@@ -75,12 +75,32 @@ the Teleport roles assigned to users through their group membership in the exter
 
 ## Listing available servers
 
-A server listing does not mean it is actually available. 
-A server will list ~10m and sometimes more after the last heartbeat.  
+In some cases,  running `tsh ls` or `tctl nodes ls` commands might include servers that are offline.
+For example, a server that has stopped sending a heartbeat to the Teleport Proxy Service
+might continue to be listed as available in the output of `tsh ls` or `tctl nodes ls` commands for
+10 minutes or more.
+
+## Symptom
+
+An unresponsive server is listed as available in the output of `tsh ls` or `tctl nodes ls` commands.
+
+## Solution
+
 If a server is coming back as unavailable the "tctl nodes ls --format json" or "tsh ls --format json" 
 will show the expiration date.  If the expiration is
 showing low numbers that means the heartbeat isn't coming through.  LIkely that the node has stopped heartbeating.
 
-## Attempts to join fail
+## Unable to join a shared session
 
-This operation requires role permission.
+This operation requires `join_session` role permission.
+
+    join_sessions:
+    - kinds:
+      - k8s
+      - ssh
+      modes:
+      - peer
+      name: Join allowed
+      roles:
+      - '*'
+
