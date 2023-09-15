@@ -4257,7 +4257,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	suggestions, err := modules.GetModules().GenerateAccessListSuggestions(ctx, a.Services, reqCopy)
 	if err != nil {
 		log.WithError(err).Warn("Failed to generate access list suggestions.")
-	} else if len(suggestions) > 0 {
+	} else if suggestions != nil && len(suggestions.Suggestions) > 0 {
 		// Spare the call if there is nothing to add.
 		if err := a.Services.UpsertAccessRequestSuggestions(ctx, reqCopy, suggestions); err != nil {
 			log.WithError(err).Warn("Failed to update access request with suggestions.")

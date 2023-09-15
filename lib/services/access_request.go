@@ -271,9 +271,9 @@ type DynamicAccessExt interface {
 	DeleteAllAccessRequests(ctx context.Context) error
 	// SetAccessRequestState updates the state of an existing access request.
 	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) (types.AccessRequest, error)
-
-	UpsertAccessRequestSuggestions(ctx context.Context, req types.AccessRequest, accessLists []string) error
-
+	// UpsertAccessRequestSuggestions creates access list suggestions for the given access request.
+	UpsertAccessRequestSuggestions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestSuggestions) error
+	// GetAccessRequestSuggestions returns suggested access lists for the given access request.
 	GetAccessRequestSuggestions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestSuggestions, error)
 }
 
@@ -1609,17 +1609,19 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 	}
 }
 
-func MarshalAccessRequestSuggestion(accessListIDs []string) ([]byte, error) {
+// MarshalAccessRequestSuggestion marshals the list of access list IDs to JSON.
+func MarshalAccessRequestSuggestion(accessListIDs *types.AccessRequestSuggestions) ([]byte, error) {
 	payload, err := utils.FastMarshal(accessListIDs)
 	return payload, trace.Wrap(err)
 }
 
-func UnmarshalAccessRequestSuggestion(data []byte) ([]string, error) {
-	var accessListIDs []string
+// UnmarshalAccessRequestSuggestion unmarshals the list of access list IDs from JSON.
+func UnmarshalAccessRequestSuggestion(data []byte) (*types.AccessRequestSuggestions, error) {
+	var accessListIDs types.AccessRequestSuggestions
 	if err := utils.FastUnmarshal(data, &accessListIDs); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return accessListIDs, nil
+	return &accessListIDs, nil
 }
 
 // pruneResourceRequestRoles takes an access request and does one of two things:

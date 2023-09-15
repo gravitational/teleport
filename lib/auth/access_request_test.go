@@ -727,3 +727,43 @@ func checkCerts(t *testing.T,
 	assert.ElementsMatch(t, resourceIDs, sshCertAllowedResources)
 	assert.ElementsMatch(t, resourceIDs, tlsIdentity.AllowedResourceIDs)
 }
+
+func TestCreateSuggestions(t *testing.T) {
+	t.Parallel()
+
+	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+	const username = "admin"
+
+	// Create the access request, so we can attach the suggestions to it.
+	adminRequest, err := services.NewAccessRequest(username, "admins")
+	require.NoError(t, err)
+
+	authSrvClient := testAuthServer.AuthServer
+	err = authSrvClient.UpsertAccessRequest(context.Background(), adminRequest)
+	require.NoError(t, err)
+
+	// Create the suggestions.
+	err = authSrvClient.UpsertAccessRequestSuggestions(context.Background(), adminRequest, &types.AccessRequestSuggestions{
+		Suggestions: []*types.AccessRequestSuggestion{
+			{AccessListName: "a"},
+			{AccessListName: "b"},
+			{AccessListName: "c"}},
+	})
+	require.NoError(t, err)
+
+	// Get the suggestions and verify them.
+	suggestions, err := authSrvClient.GetAccessRequestSuggestions(context.Background(), adminRequest)
+	require.NoError(t, err)
+	require.Len(t, suggestions.Suggestions, 3)
+	require.Equal(t, []string{"a", "b", "c"},
+		[]string{
+			suggestions.Suggestions[0].AccessListName,
+			suggestions.Suggestions[1].AccessListName,
+			suggestions.Suggestions[2].AccessListName,
+		})
+}

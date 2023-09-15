@@ -285,7 +285,7 @@ func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req type
 	return nil
 }
 
-func (s *DynamicAccessService) UpsertAccessRequestSuggestions(ctx context.Context, req types.AccessRequest, accessLists []string) error {
+func (s *DynamicAccessService) UpsertAccessRequestSuggestions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestSuggestions) error {
 	// create the new access request suggestion object
 	item, err := itemFromAccessListSuggestion(req, accessLists)
 	if err != nil {
@@ -315,17 +315,7 @@ func (s *DynamicAccessService) GetAccessRequestSuggestions(ctx context.Context, 
 		return nil, trace.Wrap(err)
 	}
 
-	accessReqSuggestions := &types.AccessRequestSuggestions{
-		Suggestions: make([]*types.AccessRequestSuggestion, 0, len(suggestions)),
-	}
-
-	for _, suggestion := range suggestions {
-		accessReqSuggestions.Suggestions = append(accessReqSuggestions.Suggestions, &types.AccessRequestSuggestion{
-			AccessListName: suggestion,
-		})
-	}
-
-	return accessReqSuggestions, nil
+	return suggestions, nil
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
@@ -495,7 +485,7 @@ func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 	}, nil
 }
 
-func itemFromAccessListSuggestion(req types.AccessRequest, suggestedItems []string) (backend.Item, error) {
+func itemFromAccessListSuggestion(req types.AccessRequest, suggestedItems *types.AccessRequestSuggestions) (backend.Item, error) {
 	value, err := services.MarshalAccessRequestSuggestion(suggestedItems)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)

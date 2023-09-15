@@ -322,8 +322,8 @@ func WithSSHLabel(key, value string) TestServerOptFunc {
 
 type cliModules struct{}
 
-func (p *cliModules) GenerateAccessListSuggestions(_ context.Context, _ modules.AccessListGetter, _ types.AccessRequest) ([]string, error) {
-	return []string{}, nil
+func (p *cliModules) GenerateAccessListSuggestions(_ context.Context, _ modules.AccessListGetter, _ types.AccessRequest) (*types.AccessRequestSuggestions, error) {
+	return &types.AccessRequestSuggestions{}, nil
 }
 
 // BuildType returns build type.
