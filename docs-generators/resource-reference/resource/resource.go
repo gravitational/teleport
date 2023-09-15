@@ -56,10 +56,10 @@ type rawField struct {
 	tags string
 }
 
-// rawNamedStruct contains information about a struct field required for
+// rawType contains information about a struct field required for
 // downstream processing. The intention is to limit raw AST handling to as small
 // a part of the source as possible.
-type rawNamedStruct struct {
+type rawType struct {
 	doc    string
 	name   string
 	fields []rawField
@@ -177,11 +177,11 @@ func (y yamlCustomType) formatForTable() string {
 	)
 }
 
-// getRawNamedStruct returns the type spec to use for further processing. Returns an
+// getRawTypes returns the type spec to use for further processing. Returns an
 // error if there is either no type spec or more than one.
-func getRawNamedStruct(decl *ast.GenDecl) (rawNamedStruct, error) {
+func getRawTypes(decl *ast.GenDecl) (rawType, error) {
 	if len(decl.Specs) == 0 {
-		return rawNamedStruct{}, errors.New("declaration has no specs")
+		return rawType{}, errors.New("declaration has no specs")
 	}
 
 	// Name the section after the first type declaration found. We expect
@@ -193,18 +193,18 @@ func getRawNamedStruct(decl *ast.GenDecl) (rawNamedStruct, error) {
 			continue
 		}
 		if t != nil {
-			return rawNamedStruct{}, errors.New("declaration contains more than one type spec")
+			return rawType{}, errors.New("declaration contains more than one type spec")
 		}
 		t = ts
 	}
 
 	if t == nil {
-		return rawNamedStruct{}, errors.New("no type spec found")
+		return rawType{}, errors.New("no type spec found")
 	}
 
 	str, ok := t.Type.(*ast.StructType)
 	if !ok {
-		return rawNamedStruct{}, errors.New("the declaration is not a struct")
+		return rawType{}, errors.New("the declaration is not a struct")
 	}
 
 	var rawFields []rawField
@@ -213,7 +213,7 @@ func getRawNamedStruct(decl *ast.GenDecl) (rawNamedStruct, error) {
 		f, err := makeRawField(field)
 
 		if err != nil {
-			return rawNamedStruct{}, err
+			return rawType{}, err
 		}
 
 		jsonName := getJSONTag(f.tags)
@@ -232,7 +232,7 @@ func getRawNamedStruct(decl *ast.GenDecl) (rawNamedStruct, error) {
 		rawFields = append(rawFields, f)
 	}
 
-	result := rawNamedStruct{
+	result := rawType{
 		name: t.Name.Name,
 		// Preserving newlines for downstream processing
 		doc:    decl.Doc.Text(),
@@ -289,8 +289,6 @@ func makeSectionName(original string) string {
 // single *ast.Expr into a single yamlKindNode, returning the new node.
 func getYAMLTypeForExpr(exp ast.Expr) (yamlKindNode, error) {
 	switch t := exp.(type) {
-	// TODO: Handle fields with manually overriden types per the
-	// "Predeclared scalar types" section of the RFD.
 	case *ast.Ident:
 		switch t.Name {
 		case "string":
@@ -428,7 +426,7 @@ const yamlExampleDelimeter string = "Example YAML:\n---\n"
 // the Go source file where the declaration was made, and is used only for
 // printing. NewFromDecl uses allResources to look up custom fields.
 func NewFromDecl(decl *ast.GenDecl, filepath string) (ReferenceEntry, error) {
-	rs, err := getRawNamedStruct(decl)
+	rs, err := getRawTypes(decl)
 	if err != nil {
 		return ReferenceEntry{}, err
 	}
