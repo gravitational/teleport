@@ -32,7 +32,8 @@ import * as tsh from 'teleterm/services/tshd/types';
 export function canUseConnectMyComputer(
   rootCluster: Cluster,
   configService: ConfigService,
-  runtimeSettings: RuntimeSettings
+  runtimeSettings: RuntimeSettings,
+  isAgentConfigured: boolean
 ): boolean {
   if (rootCluster.leaf) {
     return false;
@@ -42,10 +43,14 @@ export function canUseConnectMyComputer(
     runtimeSettings.platform === 'darwin' ||
     runtimeSettings.platform === 'linux';
 
-  return (
+  const hardRequirements =
     isUnix &&
-    rootCluster.loggedInUser?.acl?.tokens.create &&
     rootCluster.loggedInUser?.userType == tsh.UserType.USER_TYPE_LOCAL &&
-    configService.get('feature.connectMyComputer').value
-  );
+    configService.get('feature.connectMyComputer').value;
+
+  if (!hardRequirements) {
+    return false;
+  }
+
+  return rootCluster.loggedInUser?.acl?.tokens.create || isAgentConfigured;
 }

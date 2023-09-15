@@ -118,8 +118,9 @@ export const ConnectMyComputerContextProvider: FC<{
       canUseConnectMyComputer(
         rootCluster,
         configService,
-        mainProcessClient.getRuntimeSettings()
-      ) || isAgentConfigured,
+        mainProcessClient.getRuntimeSettings(),
+        isAgentConfigured
+      ),
     [configService, isAgentConfigured, mainProcessClient, rootCluster]
   );
 
