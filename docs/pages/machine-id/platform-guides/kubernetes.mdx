@@ -141,12 +141,13 @@ $ kubectl apply -f ./k8s-rbac.yaml
 (!docs/pages/includes/machine-id/blank-role.mdx!)
 
 Next, a join token needs to be configured. This will be used by `tbot` to join
-the cluster. As the `kubernetes` join method will be used, the JWKS of the
-Kubernetes Cluster must first be determined. This will allow the Teleport
-Auth Server to verify that the Service Account token presented by `tbot` is
-signed legitimately by the Kubernetes cluster.
+the cluster. As the `kubernetes` join method will be used, the public key of the
+Kubernetes cluster must first be determined. The public key used to sign JWTs
+is exposed on the "JWKS" endpoint of the Kubernetes API server. This public key
+can then be used by the Teleport Auth  to verify that the Service Account JWT
+presented by `tbot` is signed legitimately by the Kubernetes cluster.
 
-Run the following commands to determine the JWKS:
+Run the following commands to determine the JWKS formatted public key:
 
 ```code
 $ kubectl proxy -p 8080
@@ -161,18 +162,31 @@ in `spec.kubernetes.static_jwks.jwks`:
 kind: token
 version: v2
 metadata:
+  # name will be specified in the `tbot` to use this token
   name: example-bot
 spec:
   roles: [Bot]
+  # bot_name will match the name of the bot created later in this guide.
   bot_name: example
   join_method: kubernetes
   kubernetes:
+    # static_jwks configures the Auth Server to validate the JWT presented by
+    # `tbot` using the public key from a statically configured JWKS.
     type: static_jwks
     static_jwks:
       jwks: |
-        {"keys":[--snip--]} # Place the data returned by the curl command here
+        # Place the data returned by the curl command here
+        {"keys":[--snip--]}
+    # allow specifies the rules by which the Auth Server determines if `tbot`
+    # should be allowed to join.
     allow:
-    - service_account: "default:tbot" # In the format of `namespace:service_account_name`
+    - service_account: "default:tbot" # service_account
+```
+
+Use `tctl` to apply this file:
+
+```code
+$ tctl create -f bot-token.yaml
 ```
 
 Create the bot, specifying the token and role that you have created:
