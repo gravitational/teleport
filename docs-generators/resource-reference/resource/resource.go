@@ -425,7 +425,7 @@ const yamlExampleDelimeter string = "Example YAML:\n---\n"
 // NewFromDecl creates a Resource object from the provided *GenDecl. filepath is
 // the Go source file where the declaration was made, and is used only for
 // printing. NewFromDecl uses allResources to look up custom fields.
-func NewFromDecl(decl *ast.GenDecl, filepath string) (ReferenceEntry, error) {
+func NewFromDecl(decl *ast.GenDecl, filepath string, allDecls map[PackageInfo]*ast.GenDecl) (ReferenceEntry, error) {
 	rs, err := getRawTypes(decl)
 	if err != nil {
 		return ReferenceEntry{}, err
