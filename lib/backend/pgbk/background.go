@@ -171,12 +171,18 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	slotName := fmt.Sprintf("teleport_%x", [16]byte(uuid.New()))
 
 	b.log.WithField("slot_name", slotName).Info("Setting up change feed.")
-	if _, err := conn.Exec(ctx,
+
+	// be noisy about pg_create_logical_replication_slot taking too long, since
+	// hanging here leaves the backend non-functional
+	createCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	if _, err := conn.Exec(createCtx,
 		"SELECT * FROM pg_create_logical_replication_slot($1, 'wal2json', true)",
 		pgx.QueryExecModeExec, slotName,
 	); err != nil {
+		cancel()
 		return trace.Wrap(err)
 	}
+	cancel()
 
 	b.log.WithField("slot_name", slotName).Info("Change feed started.")
 	b.buf.SetInit()
