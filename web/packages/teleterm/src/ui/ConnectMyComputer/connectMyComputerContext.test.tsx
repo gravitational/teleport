@@ -117,7 +117,7 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
   expect(error).toBeInstanceOf(AgentProcessError);
   expect(result.current.currentAction).toStrictEqual({
     kind: 'start',
-    attempt: makeErrorAttempt(AgentProcessError.name),
+    attempt: makeErrorAttempt(new AgentProcessError()),
     agentProcessState: {
       status: 'error',
       message: 'ENOENT',
