@@ -1210,15 +1210,6 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	case !c.all && c.getSelectors().IsEmpty():
 		return trace.BadParameter("kube-cluster name is required. Check 'tsh kube ls' for a list of available clusters.")
 	}
-	// If --all, --query, or --labels and --set-context-name are set, ensure
-	// that the template is valid and can produce distinct context names for
-	// each cluster before proceeding.
-	if c.all || c.labels != "" || c.predicateExpression != "" {
-		err := kubeconfig.CheckContextOverrideTemplate(c.overrideContextName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
 
 	// NOTE: in case relogin-retry logic is used, we want to avoid having
 	// cf.KubernetesCluster set because kube cluster selection by discovered
@@ -1238,6 +1229,18 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	cf.disableAccessRequest = c.disableAccessRequest
 	cf.RequestReason = c.requestReason
 	cf.ListAll = c.all
+
+	// If --all, --query, or --labels and --set-context-name are set, multiple
+	// kube clusters may be logged into - in that case, ensure that the template
+	// is valid and can produce distinct context names for each cluster before
+	// proceeding.
+	if !shouldLoginToOneKubeCluster(cf) {
+		err := kubeconfig.CheckContextOverrideTemplate(c.overrideContextName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1531,7 +1534,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus, overrideCo
 			return nil, trace.NotFound("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
 		}
 		// If ListAll or labels/query is not enabled, update only cf.KubernetesCluster cluster.
-		if !cf.ListAll && cf.Labels == "" && cf.PredicateExpression == "" {
+		if shouldLoginToOneKubeCluster(cf) {
 			clusterNames = []string{cf.KubernetesCluster}
 		}
 	}
@@ -1636,7 +1639,7 @@ func (c *kubeLoginCommand) accessRequestForKubeCluster(ctx context.Context, cf *
 	defer clt.Close()
 
 	predicate := ""
-	if !c.all && c.labels == "" && c.predicateExpression == "" {
+	if shouldLoginToOneKubeCluster(cf) {
 		predicate = makeDiscoveredNameOrNamePredicate(c.kubeCluster)
 	}
 	kubes, err := apiclient.GetAllResources[types.KubeCluster](ctx, clt.AuthClient, &proto.ListResourcesRequest{
@@ -1684,6 +1687,18 @@ func (c *kubeLoginCommand) accessRequestForKubeCluster(ctx context.Context, cf *
 	req.SetRequestReason("")
 
 	return req, nil
+}
+
+// shouldLoginToOneKubeCluster returns whether a single kube cluster should be
+// logged into (meaning update the kube config for one kube cluster).
+// NOTE: it does not check `cf.KubernetesCluster != ""` because that flag is not
+// populated from the kubeLoginCommand flag until later
+// (due to the relogin-retry logic interaction with "discovered name" matching).
+// `tsh kube login` requires a kube cluster name arg when none of --all,
+// --labels, or --query are given, so when all of those flags are not set, it
+// implies that a kube cluster name was given.
+func shouldLoginToOneKubeCluster(cf *CLIConf) bool {
+	return !cf.ListAll && cf.Labels == "" && cf.PredicateExpression == ""
 }
 
 // formatAmbiguousKubeCluster is a helper func that formats an ambiguous kube
