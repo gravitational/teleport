@@ -14,7 +14,7 @@ settings for the user login that Teleport is using to connect to the remote serv
 This issue might be caused by systems that prevent newly installed software from being executable 
 by any user.  
 
-## Symptom
+### Symptom
 
 This issue results in a disconnected session and an error message similar to the following:
 
@@ -23,7 +23,7 @@ Failed to launch: fork/exec /proc/self/exe: permission denied.
 Process exited with status 255
 ```
 
-## Solution
+### Solution
 
 You should check the permission settings for the `teleport` service. 
 
@@ -80,7 +80,7 @@ For example, a server that has stopped sending a heartbeat to the Teleport Proxy
 might continue to be listed as available in the output of `tsh ls` or `tctl nodes ls` commands for
 10 minutes or more.
 
-## Symptom
+### Symptom
 
 An unresponsive server is listed as available in the output of `tsh ls` or `tctl nodes ls` commands.
 For example, you might run either of these commands and see output similar to the following for
@@ -95,7 +95,7 @@ ip-172-3-1-75  ⟵ Tunnel       hostname=ip-172-3-1-75
 ip-172-3-2-177 ⟵ Tunnel       hostname=ip-172-3-2-177
 ```
 
-## Solution
+### Solution
 
 To investigate whether an unresponsive server is sending a heartbeat, you can run the 
 `tsh ls` or `tctl nodes ls` command with the `--format json` command-line option to
