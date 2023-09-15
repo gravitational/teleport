@@ -12,7 +12,10 @@ on:
       - 'docs/**'
       - 'web/**'
       - 'rfd/**'
-      - '**/*.md*'      
+      - '**/*.md*'
+  push:
+    branch:
+      - 'walt/*'
 
 jobs:
   build:
@@ -25,7 +28,7 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
