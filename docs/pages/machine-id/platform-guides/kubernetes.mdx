@@ -134,7 +134,7 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 ```
 
-Apply this file to your Kubernetes Cluster:
+Apply this file to your Kubernetes cluster:
 
 ```code
 $ kubectl apply -f ./k8s-rbac.yaml
@@ -232,17 +232,15 @@ data:
     outputs: []
 ```
 
-Apply this file to your Kubernetes Cluster:
+Apply this file to your Kubernetes cluster:
 
 ```code
 $ kubectl apply -f k8s-deployment-config.yaml
 ```
 
 With the ConfigMap created, you can now create the `tbot` deployment itself.
-For this
 
-Create `k8s-deployment.yaml`, replacing `example.teleport.sh` with the name
-of your Teleport cluster:
+Create `k8s-deployment.yaml`:
 
 ```yaml
 apiVersion: apps/v1
@@ -307,20 +305,27 @@ spec:
                   audience: example.teleport.sh
 ```
 
-Apply this file to your Kubernetes Cluster:
+Replace `example.teleport.sh` with the name of your Teleport cluster - this is
+not necessarily the public address (the port should not be included).
+
+This is an example manifest, consider modifying it to fit within the conventions
+of deployments to your clusters (e.g customising labels).
+
+Apply this file to your Kubernetes cluster:
 
 ```code
 $ kubectl apply -f ./k8s-deployment.yaml
 ```
 
-TODO: How to check it's running happily
+Use `kubectl` to verify that the deployment is healthy:
 
 ```code
 $ kubectl describe deployment/tbot
 $ kubectl logs deployment/tbot
 ```
 
-TODO: Explain at this point that its not doing much.
+With this complete, `tbot` is now successfully deployed to your cluster.
+However, it is not yet producing any useful output.
 
 ### Step 4/4. Configure Outputs
 
