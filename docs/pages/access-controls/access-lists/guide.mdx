@@ -49,26 +49,31 @@ Try logging into the cluster with the test user to verify that no resources show
 ## Step 3/4. Create an Access List
 
 Next, we'll create a simple access list that will grant the `access` role to its members.
-Login as the editor user mentioned in the prerequisites. Navigate to the management pane and
+Login as the administrative user mentioned in the prerequisites. Navigate to the management pane and
 click on access lists. Click on "Create an Access List."
 
 ![Navigate to create new Access List](../../../img/access-controls/access-lists/create-new-access-list.png)
 
-Here, fill in a title, description, and grant the `access` role.
+Here, fill in a title, description, and grant the `access` role. Select a date in the future for the next
+review date.
 
 ![Fill out Access List Fields](../../../img/access-controls/access-lists/fill-out-access-list-fields.png)
 
 Under "List Owners" select `editor` as a required role, then add your administrative user under "Add
-Eligible List Owners."
+Eligible List Owners." By selecting `editor` as a required role, this will ensure that any owner of the list
+must have the `editor` role in order to actually manage the list. If the user loses this role later, they will
+not be able to manage the list, though they will still be reflected as an owne.
 
 ![Select an owner](../../../img/access-controls/access-lists/select-owner.png)
 
-Under "Members" select `requester` as a required role, then add your test user to the access list.
+Under "Members" select `requester` as a required role, then add your test user to the access list. Similar to
+the owner requirements, this will ensure that any member of the list must have the `requester` role in order to
+be granted the access described in this list. If the user loses this role later, they will no be granted the
+roles or traits described in the access list.
 
 ![Add a member](../../../img/access-controls/access-lists/add-member.png)
 
-We'll leave the the requirements fields blank and then click "Create Access List" at the bottom
-of the page.
+Finally, click "Create Access List" at the bottom of the page.
 
 ## Step 4/4. Login as the test user
 
