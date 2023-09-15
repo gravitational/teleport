@@ -172,6 +172,8 @@ You can restrict access to specific hosts by defining values for
 `windows_desktop_labels`, and adjust the array of usernames this role has access
 to in `windows_desktop_logins`.
 
+Teleport can automatically create users on Windows desktop, see the [Automatic User Creation page](./rbac/mdx#automatic-user-creation) to learn more.
+
 <Admonition type="warning" title="RBAC Configuration">
 Ensure that each Teleport user is only assigned Windows logins that they should
 be allowed to access.
@@ -190,8 +192,6 @@ $ tctl create -f windows-desktop-admins.yaml
 You can now connect to your Windows desktops from the Teleport Web UI:
 
 ![Connecting to a Windows desktop from the Web UI](../../img/desktop-access/non-ad-connect.png)
-
-Teleport can automatically create user on Windows desktop, see the [Automatic User Creation page](./rbac/mdx#automatic-user-creation) to learn more.
 
 ## Next Steps
 - See the [RBAC page](./rbac.mdx) for more information about setting up
