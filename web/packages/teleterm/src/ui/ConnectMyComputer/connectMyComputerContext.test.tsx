@@ -53,7 +53,9 @@ function getMocksWithConnectMyComputerEnabled() {
       },
     }),
   });
-  const appContext = new MockAppContext({});
+  const appContext = new MockAppContext({
+    appVersion: rootCluster.serverVersion,
+  });
 
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(rootCluster.uri, rootCluster);
