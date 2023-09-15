@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
 
@@ -75,7 +75,7 @@ jobs:
           private_key: ${{ secrets.PRIVATE_KEY }}
 
       - name: Checkout Release Branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ steps.get-branch.outputs.branch }}
 
