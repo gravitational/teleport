@@ -16,7 +16,7 @@ limitations under the License.
 
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { Box, Indicator, Flex, Text } from 'design';
+import { Box, Flex, Text } from 'design';
 import { Magnifier } from 'design/Icon';
 
 import { TextIcon } from 'teleport/Discover/Shared';
@@ -179,16 +179,7 @@ export function Resources() {
         style={{
           visibility: attempt.status === 'processing' ? 'visible' : 'hidden',
         }}
-      >
-        {(attempt.status === 'processing' || fetchedData.startKey) && (
-          <Box
-            textAlign="center"
-            style={{ visible: attempt.status === 'processing' }}
-          >
-            <Indicator />
-          </Box>
-        )}
-      </div>
+      />
       {noResults && isSearchEmpty && (
         <Empty
           clusterId={clusterId}
