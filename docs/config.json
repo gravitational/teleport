@@ -1042,6 +1042,10 @@
               "slug": "/database-access/guides/aws-cross-account/"
             },
             {
+              "title": "AWS Discovery",
+              "slug": "/database-access/guides/aws-discovery/"
+            },
+            {
               "title": "AWS DynamoDB",
               "slug": "/database-access/guides/aws-dynamodb/"
             },
