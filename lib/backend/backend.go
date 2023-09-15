@@ -139,14 +139,6 @@ func StreamRange(ctx context.Context, bk Backend, startKey, endKey []byte, pageS
 	})
 }
 
-// Batch implements some batch methods
-// that are not mandatory for all interfaces,
-// only the ones used in bulk operations.
-type Batch interface {
-	// PutRange puts range of items in one transaction
-	PutRange(ctx context.Context, items []Item) error
-}
-
 // Lease represents a lease on the item that can be used
 // to extend item's TTL without updating its contents.
 //
