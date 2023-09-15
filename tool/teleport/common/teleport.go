@@ -965,6 +965,10 @@ func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error 
 func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabasesIAM) error {
 	ctx := context.Background()
 
+	// Ensure we show progress to the user.
+	// LogLevel at this point is set to Error.
+	log.SetLevel(log.InfoLevel)
+
 	if params.Region == "" {
 		return trace.BadParameter("region is required")
 	}

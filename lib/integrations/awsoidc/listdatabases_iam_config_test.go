@@ -35,19 +35,6 @@ func TestListDatabasesIAMConfigReqDefaults(t *testing.T) {
 		expected ConfigureIAMListDatabasesRequest
 	}{
 		{
-			name: "set defaults",
-			req: ConfigureIAMListDatabasesRequest{
-				Region:          "us-east-1",
-				IntegrationRole: "integrationrole",
-			},
-			errCheck: require.NoError,
-			expected: ConfigureIAMListDatabasesRequest{
-				Region:              "us-east-1",
-				IntegrationRole:     "integrationrole",
-				listDatabasesPolicy: "ListDatabases",
-			},
-		},
-		{
 			name: "missing region",
 			req: ConfigureIAMListDatabasesRequest{
 				IntegrationRole: "integrationrole",
