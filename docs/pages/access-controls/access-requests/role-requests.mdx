@@ -219,5 +219,35 @@ elevated access. See the [CLI
 Reference](../../reference/cli/tsh.mdx#tsh-request-create) for more
 details.
 
+### Max duration for Access Requests
+
+By default, Teleport will allow users to request access to a role until the
+current session expires. This can be overridden by setting the `max_duration`
+when requesting access to a role. The `max_duration` option allows users to
+extend their access up to 7 days. The `max_duration` can be set in the Web UI
+or via the `--max-duration` flag when using the `tsh` CLI.
+
+To enable the `max_duration` feature, the `max_duration` option must be set in
+a user's role definition:
+```yaml
+kind: role
+version: v5
+metadata:
+  name: contractor
+spec:
+  allow:
+    request:
+      # Allow access to role `dba` for up to 4 days.
+      roles: ['dba']
+      max_duration: 4d
+```
+
+Max duration extends access to a role for the specified duration, but each
+session is still limited by the `max_session_ttl` option in the role definition.
+For example, if the `max_session_ttl` is set to 1 hour, the user will be able
+to request access to the role for up to 4 days, but each session will expire
+after 1 hour. The user will need to assume the role again to continue using it.
+If the `max_session_ttl` is not set, the session will expire after 12 hours.
+
 ## Next Steps
 - Learn more about [Access Lists](../access-lists.mdx)
