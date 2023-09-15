@@ -265,4 +265,4 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(user string, uidS, gi
 	}
 
 	return nil
-
+}

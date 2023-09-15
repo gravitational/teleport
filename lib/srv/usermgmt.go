@@ -75,8 +75,6 @@ type HostSudoersBackend interface {
 	WriteSudoersFile(user string, entries []byte) error
 	// RemoveSudoersFile deletes a user's sudoers file.
 	RemoveSudoersFile(user string) error
-	// RemoveAllSudoersFiles removes all presnt teleport managed sudoers files
-	RemoveAllSudoersFiles() error
 }
 
 type HostUsersBackend interface {
@@ -124,8 +122,6 @@ type HostSudoers interface {
 	WriteSudoers(name string, sudoers []string) error
 	// RemoveSudoers removes the users sudoer file
 	RemoveSudoers(name string) error
-	// CleanupSudoers removes all sudoers in /etc/sudoers.d/teleport-$HOSTUUID-*
-	CleanupSudoers() error
 }
 
 type HostUsers interface {
@@ -194,11 +190,6 @@ func (u *HostSudoersManagement) WriteSudoers(name string, sudoers []string) erro
 	}
 	err := u.backend.WriteSudoersFile(name, []byte(sudoersOut.String()))
 	return trace.Wrap(err)
-}
-
-// CleanupSudoers will remove all sudoers files managed by teleport
-func (u *HostSudoersManagement) CleanupSudoers() error {
-	return trace.Wrap(u.backend.RemoveAllSudoersFiles())
 }
 
 func (u *HostSudoersManagement) RemoveSudoers(name string) error {
