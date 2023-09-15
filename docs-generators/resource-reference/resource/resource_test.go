@@ -23,7 +23,7 @@ func TestNewFromDecl(t *testing.T) {
 		// Go source fixture. Replace backticks with the "BACKTICK"
 		// placeholder.
 		source   string
-		expected ReferenceEntry
+		expected []ReferenceEntry
 		// Go source fixtures that the test uses for named type fields.
 		declSources []string
 	}{
@@ -47,7 +47,7 @@ type Metadata struct {
     Active bool BACKTICKjson:"active"BACKTICK
 }
 `,
-			expected: ReferenceEntry{
+			expected: []ReferenceEntry{{
 				SectionName: "Metadata",
 				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
 				SourcePath:  "myfile.go",
@@ -79,7 +79,7 @@ active: true
 					},
 				},
 			},
-		},
+			}},
 		{
 			description: "sequences of scalars",
 			source: `
@@ -96,7 +96,7 @@ type Metadata struct {
     Booleans []bool BACKTICKjson:"booleans"BACKTICK
 }
 `,
-			expected: ReferenceEntry{
+			expected: []ReferenceEntry{{
 				SectionName: "Metadata",
 				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
 				SourcePath:  "myfile.go",
@@ -131,7 +131,7 @@ booleans:
 					},
 				},
 			},
-		},
+			}},
 		{
 			description: "a map of strings to sequences",
 			source: `
@@ -144,7 +144,7 @@ type Metadata struct {
   Attributes map[string][]string BACKTICKjson:"attributes"BACKTICK
 }
 `,
-			expected: ReferenceEntry{
+			expected: []ReferenceEntry{{
 				SectionName: "Metadata",
 				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
 				SourcePath:  "myfile.go",
@@ -170,7 +170,7 @@ type Metadata struct {
 					},
 				},
 			},
-		},
+			}},
 		{
 			description: "a custom type field with no override",
 			source: `
@@ -184,7 +184,7 @@ type Server struct {
     Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
 }
 `,
-			expected: ReferenceEntry{
+			expected: []ReferenceEntry{{
 				SectionName: "Server",
 				Description: "Includes information about a server registered with Teleport.",
 				SourcePath:  "myfile.go",
@@ -203,7 +203,7 @@ spec:
 						Description: "Contains information about the server.",
 						Type:        "[Server Spec v1](#server-spec-v1)"},
 				},
-			},
+			}},
 		},
 		{
 			description: "example YAML block",
@@ -224,7 +224,7 @@ type Server struct {
 }
 `,
 
-			expected: ReferenceEntry{
+			expected: []ReferenceEntry{{
 				SectionName: "Server",
 				Description: "Includes information about a server registered with Teleport.",
 				SourcePath:  "myfile.go",
@@ -242,7 +242,7 @@ type Server struct {
 					},
 				},
 			},
-		},
+			}},
 	}
 
 	for _, tc := range cases {
