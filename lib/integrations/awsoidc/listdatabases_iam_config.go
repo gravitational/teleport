@@ -18,11 +18,10 @@ package awsoidc
 
 import (
 	"context"
-	"log"
 
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
@@ -41,9 +40,9 @@ type ConfigureIAMListDatabasesRequest struct {
 	// IntegrationRole is the Integration's AWS Role used by the integration.
 	IntegrationRole string
 
-	// ListDatabasesPolicy is the Policy Name that is created to allow access to call AWS APIs.
+	// listDatabasesPolicy is the Policy Name that is created to allow access to call AWS APIs.
 	// Defaults to ListDatabases
-	ListDatabasesPolicy string
+	listDatabasesPolicy string
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -56,9 +55,7 @@ func (r *ConfigureIAMListDatabasesRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("integration role is required")
 	}
 
-	if r.ListDatabasesPolicy == "" {
-		r.ListDatabasesPolicy = defaultPolicyNameForListDatabases
-	}
+	r.listDatabasesPolicy = defaultPolicyNameForListDatabases
 
 	return nil
 }
@@ -67,20 +64,6 @@ func (r *ConfigureIAMListDatabasesRequest) CheckAndSetDefaults() error {
 type ListDatabasesIAMConfigureClient interface {
 	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
-}
-
-// NewListDatabasesIAMConfigureClient creates a new ListDatabasesIAMConfigureClient.
-func NewListDatabasesIAMConfigureClient(ctx context.Context, region string) (ListDatabasesIAMConfigureClient, error) {
-	if region == "" {
-		return nil, trace.BadParameter("region is required")
-	}
-
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return iam.NewFromConfig(cfg), nil
 }
 
 // ConfigureListDatabasesIAM set ups the policy required for accessing an RDS DB Instances and RDS DB Clusters.
@@ -103,7 +86,7 @@ func ConfigureListDatabasesIAM(ctx context.Context, clt ListDatabasesIAMConfigur
 	}
 
 	_, err = clt.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
-		PolicyName:     &req.ListDatabasesPolicy,
+		PolicyName:     &req.listDatabasesPolicy,
 		RoleName:       &req.IntegrationRole,
 		PolicyDocument: &listDatabasesPolicyDocument,
 	})
@@ -114,6 +97,6 @@ func ConfigureListDatabasesIAM(ctx context.Context, clt ListDatabasesIAMConfigur
 		return trace.Wrap(err)
 	}
 
-	log.Printf("IntegrationRole: IAM Policy %q added to Role %q\n", req.ListDatabasesPolicy, req.IntegrationRole)
+	log.Printf("IntegrationRole: IAM Policy %q added to Role %q\n", req.listDatabasesPolicy, req.IntegrationRole)
 	return nil
 }

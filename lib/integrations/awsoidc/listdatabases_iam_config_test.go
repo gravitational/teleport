@@ -44,7 +44,7 @@ func TestListDatabasesIAMConfigReqDefaults(t *testing.T) {
 			expected: ConfigureIAMListDatabasesRequest{
 				Region:              "us-east-1",
 				IntegrationRole:     "integrationrole",
-				ListDatabasesPolicy: "ListDatabases",
+				listDatabasesPolicy: "ListDatabases",
 			},
 		},
 		{
