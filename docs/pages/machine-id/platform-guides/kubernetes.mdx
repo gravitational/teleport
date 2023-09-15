@@ -26,8 +26,16 @@ recommendation.
 
 ### The `kubernetes` join method
 
-TODO: Brief overview of how the join method works for this platform. Explain
-TODO: JWKS
+The `kubernetes` join method, used by `tbot` to prove its identity to the
+Teleport Auth Server, identifies the bot using the Kubernetes Service Account
+that is associated with the Pod that `tbot` is running within.
+
+The Pod receives a JWT signed by the Kubernetes API server. This JWT contains
+claims that identify the service account, the pod and the namespace.
+
+In order to validate a presented JWT is legitimate, the Teleport Auth Server
+checks the signature of the JWT against the Kubernetes cluster's public signing
+key.
 
 ### Using a non-`kubernetes` join method
 
