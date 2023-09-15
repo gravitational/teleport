@@ -1516,7 +1516,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		sshListener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			sshListener.Close()
+			require.NoError(t, sshListener.Close())
 		})
 
 		resultChan := make(chan bool)
@@ -1537,7 +1537,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		}()
 
 		nodeAddr := sshListener.Addr().String()
-		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*5)
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
 		t.Cleanup(cancelFunc)
 
 		nodeHost, nodePortStr, err := net.SplitHostPort(nodeAddr)
@@ -1554,19 +1554,18 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		})
 		require.NoError(t, err)
 
-		clt, err := tc.ConnectToProxy(ctx)
+		clt, err := tc.ConnectToCluster(ctx)
 		require.NoError(t, err)
-		defer clt.Close()
+		t.Cleanup(func() {
+			require.NoError(t, clt.Close())
+		})
 
-		nodeClient, _ := clt.ConnectToNode(
-			ctx,
-			client.NodeDetails{Addr: nodeAddr, Namespace: tc.Namespace, Cluster: tc.SiteName},
-			tc.Config.HostLogin,
-			sshutils.ClusterDetails{},
-		)
-		if err != nil {
-			defer nodeClient.Close()
-		}
+		nodeDetails := client.NodeDetails{Addr: nodeAddr, Namespace: tc.Namespace, Cluster: tc.SiteName}
+		nodeClient, err := tc.ConnectToNode(ctx, clt, nodeDetails, tc.Config.HostLogin)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, nodeClient.Close())
+		})
 
 		select {
 		case res := <-resultChan:
@@ -7693,7 +7692,8 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 
 func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 	for _, proxyProtocolMode := range []multiplexer.PROXYProtocolMode{
-		multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff, multiplexer.PROXYProtocolUnspecified} {
+		multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff, multiplexer.PROXYProtocolUnspecified,
+	} {
 		t.Run(fmt.Sprintf("proxy protocol mode: %v", proxyProtocolMode), func(t *testing.T) {
 			lib.SetInsecureDevMode(true)
 			t.Cleanup(func() { lib.SetInsecureDevMode(false) })
