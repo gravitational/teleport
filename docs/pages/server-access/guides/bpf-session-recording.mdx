@@ -151,6 +151,9 @@ ssh_service:
     # Enable or disable enhanced auditing for this node. Default value: false.
     enabled: true
 
+    # Optional: Enable or disable auditing of UDP sends. Default value: false.
+    udp: true
+
     # Optional: command_buffer_size is optional with a default value of 8 pages.
     command_buffer_size: 8
 
@@ -381,6 +384,72 @@ ends will also include the `"enhanced_recording": true` field, similar to the fo
 ```
 </TabItem>
 </Tabs>
+
+## UDP audit events
+
+UDP audit events, due to the nature of UDP sockets, behave differently from TCP
+events.
+
+TCP issues audit events when a connection is established. UDP issues audit
+events when a send is made. This makes UDP sockets naturally more noisy, in
+terms of audit volume, when compared to their TCP counterpart.
+
+To mitigate the inherent UDP audit noise Teleport only issues one audit event,
+per UDP socket, during a certain time interval. The configuration shows how you
+may customize this behavior, or even turn it off entirely by setting said
+interval to zero (and, as a consequence, audit all sends).
+
+Snippet from `/etc/teleport.yaml`:
+
+```yaml
+ssh_service:
+  enabled: true
+  enhanced_recording:
+    enabled: true
+    udp: true
+
+    # Optional: Ignore period for UDP sends from the same socket.
+    # At most 1 audit event is issued every udp_silence_period.
+    # Set to zero to log all sends. Default value: 10s.
+    udp_silence_period: 10s
+
+    # Optional: Max number of concurrently silenced UDP sockets.
+    # Default value: 128.
+    udp_silence_buffer_size: 128
+```
+
+UDP audit events can be distinguished from TCP by a non-zero "udp_version".
+They are also logged using "operation: 1" (SEND), instead of "operation: 0"
+(CONNECT).
+
+UDP audit event example:
+
+```json
+{
+  "action": 0,
+  "cgroup_id": 26871,
+  "cluster_name": "purple",
+  "code": "T4002I",
+  "dst_addr": "5.9.243.187",
+  "dst_port": 443,
+  "ei": 0,
+  "event": "session.network",
+  "login": "ec2-user",
+  "namespace": "default",
+  "operation": 1,
+  "pid": 46915,
+  "program": "nc",
+  "server_hostname": "ip-172-31-34-128.us-east-2.compute.internal",
+  "server_id": "531dc1de-c2c9-49bd-a0e3-4f4f3a523f5f",
+  "sid": "71f51a63-d56f-4aff-85e9-2707f6c652b2",
+  "src_addr": "172.31.34.128",
+  "time": "2023-09-15T15:04:46.468Z",
+  "udp_version": 4,
+  "uid": "320dea92-bed9-412a-b40a-7cff7b037198",
+  "user": "alice@goteleport.com",
+  "version": 0
+}
+```
 
 ## Next steps
 

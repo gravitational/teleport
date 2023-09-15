@@ -54,6 +54,19 @@ ssh_service:
        # /cgroup2.
        cgroup_path: /cgroup2
 
+       # Optional: Enable or disable auditing of UDP sends.
+       # Default value: false.
+       udp: true
+
+       # Optional: Ignore period for UDP sends from the same socket.
+       # At most 1 audit event is issued every udp_silence_period.
+       # Set to zero to log all sends. Default value: 10s.
+       udp_silence_period: 10s
+
+       # Optional: Max number of concurrently silenced UDP sockets.
+       # Default value: 128.
+       udp_silence_buffer_size: 128
+
     # Configures PAM integration. See our PAM guide for more details
     # (https://goteleport.com/docs/features/ssh-pam/).
     pam:
