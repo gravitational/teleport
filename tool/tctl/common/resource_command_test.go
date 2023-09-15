@@ -247,8 +247,6 @@ func TestDatabaseServiceResource(t *testing.T) {
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 
-	var out []*types.DatabaseServiceV1
-
 	// Add a lot of DatabaseServices to test pagination
 	dbS, err := types.NewDatabaseServiceV1(
 		types.Metadata{Name: uuid.NewString()},
@@ -274,7 +272,7 @@ func TestDatabaseServiceResource(t *testing.T) {
 	t.Run("test pagination of database services ", func(t *testing.T) {
 		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseService, "--format=json"})
 		require.NoError(t, err)
-		mustDecodeJSON(t, buff, &out)
+		out := mustDecodeJSON[[]*types.DatabaseServiceV1](t, buff)
 		require.Len(t, out, totalDBServices)
 	})
 
@@ -283,7 +281,7 @@ func TestDatabaseServiceResource(t *testing.T) {
 	t.Run("get specific database service", func(t *testing.T) {
 		buff, err := runResourceCommand(t, fileConfig, []string{"get", service, "--format=json"})
 		require.NoError(t, err)
-		mustDecodeJSON(t, buff, &out)
+		out := mustDecodeJSON[[]*types.DatabaseServiceV1](t, buff)
 		require.Len(t, out, 1)
 		require.Equal(t, randomDBServiceName, out[0].GetName())
 	})
@@ -331,8 +329,6 @@ func TestIntegrationResource(t *testing.T) {
 
 	t.Run("get", func(t *testing.T) {
 
-		var out []types.IntegrationV1
-
 		// Add a lot of Integrations to test pagination
 		ig1, err := types.NewIntegrationAWSOIDC(
 			types.Metadata{Name: uuid.NewString()},
@@ -356,7 +352,7 @@ func TestIntegrationResource(t *testing.T) {
 		t.Run("test pagination of integrations ", func(t *testing.T) {
 			buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindIntegration, "--format=json"})
 			require.NoError(t, err)
-			mustDecodeJSON(t, buff, &out)
+			out := mustDecodeJSON[[]types.IntegrationV1](t, buff)
 			require.Len(t, out, totalIntegrations)
 		})
 
@@ -365,7 +361,7 @@ func TestIntegrationResource(t *testing.T) {
 		t.Run("get specific integration", func(t *testing.T) {
 			buff, err := runResourceCommand(t, fileConfig, []string{"get", igName, "--format=json"})
 			require.NoError(t, err)
-			mustDecodeJSON(t, buff, &out)
+			out := mustDecodeJSON[[]types.IntegrationV1](t, buff)
 			require.Len(t, out, 1)
 			require.Equal(t, randomIntegrationName, out[0].GetName())
 		})
@@ -450,12 +446,10 @@ func TestCreateLock(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var locks []*types.LockV2
-
 	// Ensure there are no locks to start
 	buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
 	require.NoError(t, err)
-	mustDecodeJSON(t, buf, &locks)
+	locks := mustDecodeJSON[[]*types.LockV2](t, buf)
 	require.Empty(t, locks)
 
 	// Create the locks
@@ -467,7 +461,7 @@ func TestCreateLock(t *testing.T) {
 	// Fetch the locks
 	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
 	require.NoError(t, err)
-	mustDecodeJSON(t, buf, &locks)
+	locks = mustDecodeJSON[[]*types.LockV2](t, buf)
 	require.Len(t, locks, 1)
 
 	expected, err := types.NewLock("test-lock", types.LockSpecV2{
@@ -705,8 +699,7 @@ version: v2`,
 			if tt.expectSecondFactor != nil {
 				buf, err := runResourceCommand(t, fileConfig, []string{"get", "cap", "--format=json"})
 				require.NoError(t, err)
-				var authPreferences []types.AuthPreferenceV2
-				mustDecodeJSON(t, buf, &authPreferences)
+				authPreferences := mustDecodeJSON[[]types.AuthPreferenceV2](t, buf)
 				require.NotZero(t, len(authPreferences))
 				tt.expectSecondFactor(t, authPreferences[0].Spec.SecondFactor)
 			}
@@ -808,8 +801,7 @@ spec:
 			if tt.expectEntityID != nil {
 				buf, err := runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("saml_sp/%s", tt.name), "--format=json"})
 				require.NoError(t, err)
-				sps := []*types.SAMLIdPServiceProviderV1{}
-				mustDecodeJSON(t, buf, &sps)
+				sps := mustDecodeJSON[[]*types.SAMLIdPServiceProviderV1](t, buf)
 				tt.expectEntityID(t, sps[0].GetEntityID())
 			}
 		})
@@ -902,14 +894,12 @@ func (test *dynamicResourceTest[T]) setup(t *testing.T) *config.FileConfig {
 func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	t.Helper()
 	fileConfig := test.setup(t)
-	var out []T
 
 	// Initially there are no resources.
 	buf, err := runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
 	require.NoError(t, err)
-	out = nil
-	mustDecodeJSON(t, buf, &out)
-	require.Len(t, out, 0)
+	resources := mustDecodeJSON[[]T](t, buf)
+	require.Len(t, resources, 0)
 
 	// Create the resources.
 	yamlPath := filepath.Join(t.TempDir(), "resources.yaml")
@@ -920,10 +910,9 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	// Fetch all resources.
 	buf, err = runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
 	require.NoError(t, err)
-	out = nil
-	mustDecodeJSON(t, buf, &out)
-	require.Len(t, out, 3)
-	require.Empty(t, cmp.Diff([]T{test.fooResource, test.fooBar1Resource, test.fooBar2Resource}, out,
+	resources = mustDecodeJSON[[]T](t, buf)
+	require.Len(t, resources, 3)
+	require.Empty(t, cmp.Diff([]T{test.fooResource, test.fooBar1Resource, test.fooBar2Resource}, resources,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
 
@@ -931,10 +920,9 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	buf, err = runResourceCommand(t, fileConfig,
 		[]string{"get", fmt.Sprintf("%v/%v", test.kind, test.fooResource.GetName()), "--format=json"})
 	require.NoError(t, err)
-	out = nil
-	mustDecodeJSON(t, buf, &out)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff([]T{test.fooResource}, out,
+	resources = mustDecodeJSON[[]T](t, buf)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff([]T{test.fooResource}, resources,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
 
@@ -945,10 +933,9 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	// Fetch all resources again.
 	buf, err = runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
 	require.NoError(t, err)
-	out = nil
-	mustDecodeJSON(t, buf, &out)
-	require.Len(t, out, 2)
-	require.Empty(t, cmp.Diff([]T{test.fooBar1Resource, test.fooBar2Resource}, out,
+	resources = mustDecodeJSON[[]T](t, buf)
+	require.Len(t, resources, 2)
+	require.Empty(t, cmp.Diff([]T{test.fooBar1Resource, test.fooBar2Resource}, resources,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
 
@@ -960,10 +947,9 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	// Fetching multiple resources ("foo-bar-1" and "foo-bar-2") by discovered name is ok.
 	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/%v", test.kind, "foo-bar"), "--format=json"})
 	require.NoError(t, err)
-	out = nil
-	mustDecodeJSON(t, buf, &out)
-	require.Len(t, out, 2)
-	require.Empty(t, cmp.Diff([]T{test.fooBar1Resource, test.fooBar2Resource}, out,
+	resources = mustDecodeJSON[[]T](t, buf)
+	require.Len(t, resources, 2)
+	require.Empty(t, cmp.Diff([]T{test.fooBar1Resource, test.fooBar2Resource}, resources,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
 
@@ -978,10 +964,9 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	// Fetch all resources again.
 	buf, err = runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
 	require.NoError(t, err)
-	out = nil
-	mustDecodeJSON(t, buf, &out)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff([]T{test.fooBar1Resource}, out,
+	resources = mustDecodeJSON[[]T](t, buf)
+	require.Len(t, resources, 1)
+	require.Empty(t, cmp.Diff([]T{test.fooBar1Resource}, resources,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
 }
@@ -1214,11 +1199,10 @@ func requireEqual(expected interface{}) require.ValueAssertionFunc {
 // the databases expected.
 func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Database) {
 	t.Helper()
-	var out []*types.DatabaseServerV3
-	mustDecodeJSON(t, buf, &out)
-	require.Len(t, out, len(want))
+	servers := mustDecodeJSON[[]*types.DatabaseServerV3](t, buf)
+	require.Len(t, servers, len(want))
 	databases := types.Databases{}
-	for _, server := range out {
+	for _, server := range servers {
 		databases = append(databases, server.GetDatabase())
 	}
 	require.Empty(t, cmp.Diff(types.Databases(want).ToMap(), databases.ToMap(),
