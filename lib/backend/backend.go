@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -37,6 +38,10 @@ import (
 const (
 	Forever time.Duration = 0
 )
+
+// ErrIncorrectRevision is returned from conditional operations when revisions
+// do not match the expected value.
+var ErrIncorrectRevision = &trace.CompareFailedError{Message: "resource revision does not match, it may have been concurrently created|modified|deleted; please work from the latest state, or use --force to overwrite"}
 
 // Backend implements abstraction over local or remote storage backend.
 // Item keys are assumed to be valid UTF8, which may be enforced by the
@@ -139,33 +144,23 @@ func StreamRange(ctx context.Context, bk Backend, startKey, endKey []byte, pageS
 	})
 }
 
-// Batch implements some batch methods
-// that are not mandatory for all interfaces,
-// only the ones used in bulk operations.
-type Batch interface {
-	// PutRange puts range of items in one transaction
-	PutRange(ctx context.Context, items []Item) error
-}
-
 // Lease represents a lease on the item that can be used
 // to extend item's TTL without updating its contents.
 //
 // Here is an example of renewing object TTL:
 //
-// item.Expires = time.Now().Add(10 * time.Second)
-// lease, err := backend.Create(ctx, item)
-// expires := time.Now().Add(20 * time.Second)
-// err = backend.KeepAlive(ctx, lease, expires)
+//	item.Expires = time.Now().Add(10 * time.Second)
+//	lease, err := backend.Create(ctx, item)
+//	expires := time.Now().Add(20 * time.Second)
+//	err = backend.KeepAlive(ctx, lease, expires)
 type Lease struct {
-	// Key is an object representing lease
+	// Key is the resource identifier.
 	Key []byte
-	// ID is a lease ID, could be empty
+	// ID is a lease ID, could be empty.
+	// Deprecated: use Revision instead
 	ID int64
-}
-
-// IsEmpty returns true if the lease is empty value
-func (l *Lease) IsEmpty() bool {
-	return l.ID == 0 && len(l.Key) == 0
+	// Revision is the last known version of the object.
+	Revision string
 }
 
 // Watch specifies watcher parameters
@@ -225,10 +220,13 @@ type Item struct {
 	// Expires is an optional record expiry time
 	Expires time.Time
 	// ID is a record ID, newer records have newer ids
+	// Deprecated: use Revision instead
 	ID int64
 	// LeaseID is a lease ID, could be set on objects
 	// with TTL
 	LeaseID int64
+	// Revision is the last known version of the object.
+	Revision string
 }
 
 func (e Event) String() string {
@@ -421,4 +419,20 @@ func ExactKey(parts ...string) []byte {
 
 func internalKey(internalPrefix string, parts ...string) []byte {
 	return []byte(strings.Join(append([]string{internalPrefix}, parts...), string(Separator)))
+}
+
+// CreateRevision generates a new identifier to be used
+// as a resource revision. Backend implementations that provide
+// their own mechanism for versioning resources should be
+// preferred.
+func CreateRevision() string {
+	return uuid.NewString()
+}
+
+// NewLease creates a lease for the provided [Item].
+func NewLease(item Item) *Lease {
+	return &Lease{
+		Key:      item.Key,
+		Revision: item.Revision,
+	}
 }
