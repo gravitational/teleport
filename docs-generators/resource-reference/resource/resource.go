@@ -75,6 +75,9 @@ type yamlKindNode interface {
 	// Generate an example YAML value for the type with the provided number
 	// of indendations.
 	formatForExampleYAML(indents int) string
+	// Get the custom children of this yamlKindNode. Must call
+	// customChildren on its own children before returning.
+	customChildren() []PackageInfo
 }
 
 type yamlSequence struct {
@@ -101,6 +104,10 @@ func (y yamlSequence) formatForExampleYAML(indents int) string {
 	)
 }
 
+func (y yamlSequence) customChildren() []PackageInfo {
+	return y.elementKind.customChildren()
+}
+
 type yamlMapping struct {
 	keyKind   yamlKindNode
 	valueKind yamlKindNode
@@ -122,6 +129,12 @@ func (y yamlMapping) formatForTable() string {
 	return fmt.Sprintf("map[%v]%v", y.keyKind.formatForTable(), y.valueKind.formatForTable())
 }
 
+func (y yamlMapping) customChildren() []PackageInfo {
+	k := y.keyKind.customChildren()
+	v := y.valueKind.customChildren()
+	return append(k, v...)
+}
+
 type yamlString struct{}
 
 func (y yamlString) formatForTable() string {
@@ -130,6 +143,10 @@ func (y yamlString) formatForTable() string {
 
 func (y yamlString) formatForExampleYAML(indents int) string {
 	return `"string"`
+}
+
+func (y yamlString) customChildren() []PackageInfo {
+	return []PackageInfo{}
 }
 
 type yamlNumber struct{}
@@ -142,6 +159,10 @@ func (y yamlNumber) formatForExampleYAML(indents int) string {
 	return "1"
 }
 
+func (y yamlNumber) customChildren() []PackageInfo {
+	return []PackageInfo{}
+}
+
 type yamlBool struct{}
 
 func (y yamlBool) formatForTable() string {
@@ -152,12 +173,22 @@ func (y yamlBool) formatForExampleYAML(indents int) string {
 	return "true"
 }
 
+func (y yamlBool) customChildren() []PackageInfo {
+	return []PackageInfo{}
+}
+
 // A type declared by the program, i.e., not one of Go's predeclared types.
 type yamlCustomType struct {
 	name string
 	// Used to look up more information about the declaration of the custom
 	// type so we can populate additional reference entries
 	declarationInfo PackageInfo
+}
+
+func (y yamlCustomType) customChildren() []PackageInfo {
+	return []PackageInfo{
+		y.declarationInfo,
+	}
 }
 
 func (y yamlCustomType) formatForExampleYAML(indents int) string {
@@ -425,10 +456,15 @@ const yamlExampleDelimeter string = "Example YAML:\n---\n"
 // NewFromDecl creates a Resource object from the provided *GenDecl. filepath is
 // the Go source file where the declaration was made, and is used only for
 // printing. NewFromDecl uses allResources to look up custom fields.
-func NewFromDecl(decl *ast.GenDecl, filepath string, allDecls map[PackageInfo]*ast.GenDecl) (ReferenceEntry, error) {
+func NewFromDecl(decl *ast.GenDecl, filepath string, allDecls map[PackageInfo]*ast.GenDecl) ([]ReferenceEntry, error) {
 	rs, err := getRawTypes(decl)
 	if err != nil {
-		return ReferenceEntry{}, err
+		return nil, err
+	}
+
+	deps := []PackageInfo{}
+	for _, f := range rs.fields {
+		deps = append(deps, f.kind.customChildren()...)
 	}
 
 	description := rs.doc
@@ -437,7 +473,7 @@ func NewFromDecl(decl *ast.GenDecl, filepath string, allDecls map[PackageInfo]*a
 	if strings.Contains(rs.doc, yamlExampleDelimeter) {
 		sides := strings.Split(rs.doc, yamlExampleDelimeter)
 		if len(sides) != 2 {
-			return ReferenceEntry{}, errors.New("malformed example YAML in description: " + rs.doc)
+			return nil, errors.New("malformed example YAML in description: " + rs.doc)
 		}
 		example = sides[1]
 		description = sides[0]
@@ -445,20 +481,39 @@ func NewFromDecl(decl *ast.GenDecl, filepath string, allDecls map[PackageInfo]*a
 
 		example, err = makeYAMLExample(rs.fields)
 		if err != nil {
-			return ReferenceEntry{}, err
+			return nil, err
 		}
 	}
 	fld, err := makeFieldTableInfo(rs.fields)
 	if err != nil {
-		return ReferenceEntry{}, err
+		return nil, err
 	}
 
 	description = strings.Trim(strings.ReplaceAll(description, "\n", " "), " ")
-	return ReferenceEntry{
-		SectionName: rs.name,
-		Description: descriptionWithoutName(description, rs.name),
-		SourcePath:  filepath,
-		Fields:      fld,
-		YAMLExample: example,
-	}, nil
+
+	refs := []ReferenceEntry{
+		ReferenceEntry{
+			SectionName: rs.name,
+			Description: descriptionWithoutName(description, rs.name),
+			SourcePath:  filepath,
+			Fields:      fld,
+			YAMLExample: example,
+		},
+	}
+
+	for _, d := range deps {
+		gd, ok := allDecls[d]
+		if !ok {
+			continue
+		}
+		// TODO: Figure out how to get the source path for dependencies!
+		r, err := NewFromDecl(gd, "", allDecls)
+
+		if err != nil {
+			return nil, err
+		}
+
+		refs = append(refs, r...)
+	}
+	return refs, nil
 }
