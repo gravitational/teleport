@@ -52,10 +52,9 @@ type DialParams struct {
 	// agentless node.
 	AgentlessSigner ssh.Signer
 
-	// IsUnknownNode indicates whether the node is not a known registered
+	// isNotInventoryNode indicates whether the node is not a known registered
 	// node that was directly dialed.
-	// DELETE IN 15.0.0: necessary for smoothing over v13 to v14 transition only.
-	IsUnknownNode bool
+	IsNotInventoryNode bool
 
 	// Address is used by the forwarding proxy to generate a host certificate for
 	// the target node. This is needed because while dialing occurs via IP

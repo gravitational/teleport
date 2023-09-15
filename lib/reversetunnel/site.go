@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Functions that are used in both local and remote sites.
 package reversetunnel
 
 import (
@@ -42,18 +41,44 @@ func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types
 	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
 		return true
 	}
-	// DELETE in 15.0.0
-	if params.IsUnknownNode {
+	// if the node was directly dialed and not in the inventory, the
+	// connection must be forwarded
+	if params.IsNotInventoryNode {
 		return true
 	}
 
 	return false
 }
 
+// shouldSendSignedPROXYHeader returns whether a connection should send
+// a signed PROXY header at the start of the connection or not.
 func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, useTunnel, isAgentlessNode bool, srcAddr, dstAddr net.Addr) bool {
-	return !(signer == nil ||
-		useTunnel ||
-		isAgentlessNode ||
-		srcAddr == nil ||
-		dstAddr == nil)
+	// nothing to sign with, can't send a signed header
+	if signer == nil {
+		return false
+	}
+	// signed PROXY headers aren't sent over a tunnel
+	if useTunnel {
+		return false
+	}
+	// we are connecting to an agentless node which won't understand the
+	// PROXY protocol
+	if isAgentlessNode {
+		return false
+	}
+	// we have to have both the source and destination to populate the
+	// signed PROXY header with if we want to send it
+	if srcAddr == nil || dstAddr == nil {
+		return false
+	}
+
+	return true
+}
+
+func isAgentlessNode(params reversetunnelclient.DialParams) bool {
+	// If the node is not in the inventory (was directly dialed) tell
+	// the forwarding server it isn't an agentless node so config checks
+	// pass. params.TargetServer will ensure the node is not treated as
+	// a Teleport node in this case.
+	return params.IsAgentlessNode && !params.IsNotInventoryNode
 }

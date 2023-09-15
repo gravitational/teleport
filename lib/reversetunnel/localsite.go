@@ -365,20 +365,13 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 		return nil, trace.Wrap(err)
 	}
 
-	// If the node is unknown (was directly dialed) tell the forwarding
-	// server it isn't an agentless node so config checks pass.
-	// params.TargetServer will ensure the node is not treated as a
-	// Teleport node in this case.
-	// DELETE in 15.0.0
-	isAgentlessNode := params.IsAgentlessNode && !params.IsUnknownNode
-
 	// Create a forwarding server that serves a single SSH connection on it. This
 	// server does not need to close, it will close and release all resources
 	// once conn is closed.
 	serverConfig := forward.ServerConfig{
 		AuthClient:      s.client,
 		UserAgent:       userAgent,
-		IsAgentlessNode: isAgentlessNode,
+		IsAgentlessNode: isAgentlessNode(params),
 		AgentlessSigner: params.AgentlessSigner,
 		TargetConn:      targetConn,
 		SrcAddr:         params.From,
