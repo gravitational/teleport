@@ -31,7 +31,8 @@ func getPlatformLockFilePath(path string) string {
 
 func getHardLinkCount(fi os.FileInfo) (uint64, bool) {
 	if statT, ok := fi.Sys().(*syscall.Stat_t); ok {
-		return statT.Nlink, true
+		// we must do a cast here because this will be uint16 on OSX
+		return uint64(statT.Nlink), true
 	} else {
 		return 0, false
 	}
