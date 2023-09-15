@@ -583,6 +583,7 @@ const testSetup = (
     leaf: false,
     proxyHost: 'localhost:3080',
     authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+    serverVersion: '1.0.0',
     loggedInUser: makeLoggedInUser(),
   };
   const leafCluster: tsh.Cluster = {
@@ -592,6 +593,7 @@ const testSetup = (
     leaf: true,
     proxyHost: '',
     authClusterId: '5408fc2f-a452-4bde-bda2-b3b918c635ad',
+    serverVersion: '',
     loggedInUser: makeLoggedInUser(),
   };
   const appContext = new MockAppContext();

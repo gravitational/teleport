@@ -165,7 +165,8 @@ proto.teleport.lib.teleterm.v1.Cluster.toObject = function(includeInstance, msg)
     leaf: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
     loggedInUser: (f = msg.getLoggedInUser()) && proto.teleport.lib.teleterm.v1.LoggedInUser.toObject(includeInstance, f),
     features: (f = msg.getFeatures()) && proto.teleport.lib.teleterm.v1.Features.toObject(includeInstance, f),
-    authClusterId: jspb.Message.getFieldWithDefault(msg, 9, "")
+    authClusterId: jspb.Message.getFieldWithDefault(msg, 9, ""),
+    serverVersion: jspb.Message.getFieldWithDefault(msg, 10, "")
   };
 
   if (includeInstance) {
@@ -235,6 +236,10 @@ proto.teleport.lib.teleterm.v1.Cluster.deserializeBinaryFromReader = function(ms
     case 9:
       var value = /** @type {string} */ (reader.readString());
       msg.setAuthClusterId(value);
+      break;
+    case 10:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setServerVersion(value);
       break;
     default:
       reader.skipField();
@@ -320,6 +325,13 @@ proto.teleport.lib.teleterm.v1.Cluster.serializeBinaryToWriter = function(messag
   if (f.length > 0) {
     writer.writeString(
       9,
+      f
+    );
+  }
+  f = message.getServerVersion();
+  if (f.length > 0) {
+    writer.writeString(
+      10,
       f
     );
   }
@@ -505,6 +517,24 @@ proto.teleport.lib.teleterm.v1.Cluster.prototype.getAuthClusterId = function() {
  */
 proto.teleport.lib.teleterm.v1.Cluster.prototype.setAuthClusterId = function(value) {
   return jspb.Message.setProto3StringField(this, 9, value);
+};
+
+
+/**
+ * optional string server_version = 10;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.Cluster.prototype.getServerVersion = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.Cluster} returns this
+ */
+proto.teleport.lib.teleterm.v1.Cluster.prototype.setServerVersion = function(value) {
+  return jspb.Message.setProto3StringField(this, 10, value);
 };
 
 
