@@ -216,7 +216,7 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
-		return nil, trace.BadParameter("invalid role")
+		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
 	taskRole := queryParams.Get("taskRole")
@@ -260,7 +260,7 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
-		return nil, trace.BadParameter("invalid role")
+		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
 	// The script must execute the following command:
@@ -472,7 +472,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
-		return nil, trace.BadParameter("invalid role")
+		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
 	// The script must execute the following command:
@@ -510,7 +510,7 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
-		return nil, trace.BadParameter("invalid role")
+		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
 	// The script must execute the following command:
