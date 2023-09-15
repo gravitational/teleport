@@ -386,7 +386,7 @@ func TestConfigReading(t *testing.T) {
 				{
 					Types:     []string{"gke"},
 					Locations: []string{"uswest1"},
-					Tags: map[string]apiutils.Strings{
+					Labels: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
 					ProjectIDs: []string{"p1", "p2"},
@@ -1513,7 +1513,7 @@ func makeConfigFixture() string {
 		{
 			Types:     []string{"gke"},
 			Locations: []string{"uswest1"},
-			Tags: map[string]apiutils.Strings{
+			Labels: map[string]apiutils.Strings{
 				"a": {"b"},
 			},
 			ProjectIDs: []string{"p1", "p2"},
