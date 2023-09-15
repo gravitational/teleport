@@ -29,6 +29,8 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	awsConfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -963,10 +965,16 @@ func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error 
 func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabasesIAM) error {
 	ctx := context.Background()
 
-	iamClient, err := awsoidc.NewListDatabasesIAMConfigureClient(ctx, params.Region)
+	if params.Region == "" {
+		return trace.BadParameter("region is required")
+	}
+
+	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	iamClient := iam.NewFromConfig(cfg)
 
 	err = awsoidc.ConfigureListDatabasesIAM(ctx, iamClient, awsoidc.ConfigureIAMListDatabasesRequest{
 		Region:          params.Region,
