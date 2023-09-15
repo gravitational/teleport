@@ -71,7 +71,6 @@ interface RadioProps {
   checked: boolean;
   autoFocus?: boolean;
   onChange?: (value: string) => void;
-  disabled?: boolean;
 }
 
 function Radio(props: RadioProps) {
@@ -99,10 +98,6 @@ function Radio(props: RadioProps) {
           margin: 0 ${props => props.theme.space[2]}px 0 0;
           accent-color: ${props => props.theme.colors.brand};
           cursor: inherit;
-
-          &:disabled {
-            cursor: not-allowed;
-          }
         `}
         type="radio"
         name={props.name}
