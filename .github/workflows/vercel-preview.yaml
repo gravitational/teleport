@@ -9,7 +9,7 @@ env:
 on:
   pull_request:
     paths: ['docs/**']
-    types: [opened, reopened, ready_for_review, review_requested]
+    types: [opened, reopened, ready_for_review]
   workflow_dispatch:
 
 jobs:
@@ -49,5 +49,6 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '🤖 Vercel preview here: ${{ steps.deploy.outputs.PREVIEW_URL }}/docs/ver/14.x'
+              body: '🤖 Vercel preview here: ${{ steps.deploy.outputs.PREVIEW_URL }}/docs/ver/14.x\n'+
+                'To trigger another preview, put this pull request in "Draft" mode and take it out again.'
             })
