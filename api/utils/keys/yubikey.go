@@ -61,6 +61,13 @@ func getOrGenerateYubiKeyPrivateKey(ctx context.Context, requiredKeyPolicy Priva
 		return nil, trace.Wrap(err)
 	}
 
+	// If PIN is required, check that PIN and PUK are not the defaults.
+	if requiredKeyPolicy.isHardwareKeyPINVerified() {
+		if err := y.checkOrSetPIN(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	promptOverwriteSlot := func(msg string) error {
 		promptQuestion := fmt.Sprintf("%v\nWould you like to overwrite this slot's private key and certificate?", msg)
 		if confirmed, confirmErr := prompt.Confirmation(ctx, os.Stderr, prompt.Stdin(), promptQuestion); confirmErr != nil {
@@ -118,7 +125,7 @@ func getOrGenerateYubiKeyPrivateKey(ctx context.Context, requiredKeyPolicy Priva
 		fallthrough
 	case trace.IsNotFound(err):
 		// no key found, generate a new key.
-		priv, err := y.generatePrivateKeyAndCert(pivSlot, requiredKeyPolicy)
+		priv, err = y.generatePrivateKeyAndCert(pivSlot, requiredKeyPolicy)
 		return priv, trace.Wrap(err)
 	case err != nil:
 		return nil, trace.Wrap(err)
@@ -277,7 +284,7 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
 			}
 		}
-		return y.promptPIN(signCtx)
+		return prompt.Password(signCtx, os.Stderr, prompt.Stdin(), "Enter your YubiKey PIV PIN")
 	}
 
 	auth := piv.KeyAuth{
@@ -514,6 +521,46 @@ func (y *YubiKey) getPrivateKey(slot piv.Slot) (*PrivateKey, error) {
 	return NewPrivateKey(priv, keyPEM)
 }
 
+// SetPin sets the YubiKey PIV PIN.
+func (y *YubiKey) SetPIN(oldPin, newPin string) error {
+	yk, err := y.open()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer yk.Close()
+
+	err = yk.SetPIN(oldPin, newPin)
+	return trace.Wrap(err)
+}
+
+// checkOrSetPIN prompts the user for PIN and verifies it with the YubiKey.
+// If the user provides the default PIN, they will be prompted to set a
+// non-default PIN and PUK before continuing.
+func (y *YubiKey) checkOrSetPIN(ctx context.Context) error {
+	pin, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your YubiKey PIV PIN [blank to set PIN from default]")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	yk, err := y.open()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer yk.Close()
+
+	switch pin {
+	case piv.DefaultPIN:
+		fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
+		fallthrough
+	case "":
+		if pin, err = setPINAndPUKFromDefault(ctx, yk); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(yk.VerifyPIN(pin))
+}
+
 // open a connection to YubiKey PIV module. The returned connection should be closed once
 // it's been used. The YubiKey PIV module itself takes some additional time to handle closed
 // connections, so we use a retry loop to give the PIV module time to close prior connections.
@@ -696,19 +743,98 @@ const (
 	signTouchPromptDelay = time.Millisecond * 200
 )
 
-// SetPin sets the YubiKey PIV PIN.
-func (y *YubiKey) SetPIN(oldPin, newPin string) error {
-	yk, err := y.open()
-	if err != nil {
-		return trace.Wrap(err)
+func setPINAndPUKFromDefault(ctx context.Context, yk *piv.YubiKey) (string, error) {
+	isValid := func(pin string) bool {
+		if len(pin) < 6 || len(pin) > 8 {
+			return false
+		}
+		for _, c := range pin {
+			if c < '0' || c > '9' {
+				return false
+			}
+		}
+		return true
 	}
-	defer yk.Close()
 
-	err = yk.SetPIN(oldPin, newPin)
-	return trace.Wrap(err)
-}
+	var pin string
+	for {
+		fmt.Fprintf(os.Stderr, "Please set a new 6-8 digit PIN.\n")
+		newPIN, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your new YubiKey PIV PIN")
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		newPINConfirm, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your new YubiKey PIV PIN again to confirm")
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
 
-// promptPIN prompts the user for PIN.
-func (y *YubiKey) promptPIN(ctx context.Context) (string, error) {
-	return prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your YubiKey PIV PIN")
+		if newPIN != newPINConfirm {
+			fmt.Fprintf(os.Stderr, "PINs do not match.\n")
+			continue
+		}
+
+		if newPIN == piv.DefaultPIN {
+			fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
+			continue
+		}
+
+		if !isValid(newPIN) {
+			fmt.Fprintf(os.Stderr, "PIN must be 6-8 digits.\n")
+			continue
+		}
+
+		pin = newPIN
+		break
+	}
+
+	puk, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your YubiKey PIV PUK to reset PIN [blank to set PUK from default]")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	switch puk {
+	case piv.DefaultPUK:
+		fmt.Fprintf(os.Stderr, "The default PUK %q is not supported.\n", piv.DefaultPUK)
+		fallthrough
+	case "":
+		for {
+			fmt.Fprintf(os.Stderr, "Please set a new 6-8 digit PUK (used to reset PIN).\n")
+			newPUK, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your new YubiKey PIV PUK")
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			newPUKConfirm, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your new YubiKey PIV PUK again to confirm")
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			if newPUK != newPUKConfirm {
+				fmt.Fprintf(os.Stderr, "PUKs do not match.\n")
+				continue
+			}
+
+			if newPUK == piv.DefaultPUK {
+				fmt.Fprintf(os.Stderr, "The default PUK %q is not supported.\n", piv.DefaultPUK)
+				continue
+			}
+
+			if !isValid(newPUK) {
+				fmt.Fprintf(os.Stderr, "PUK must be 6-8 digits.\n")
+				continue
+			}
+
+			if err := yk.SetPUK(piv.DefaultPUK, newPUK); err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			puk = newPUK
+			break
+		}
+	}
+
+	if err := yk.Unblock(puk, pin); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return pin, nil
 }
