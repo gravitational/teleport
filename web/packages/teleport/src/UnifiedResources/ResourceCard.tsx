@@ -87,6 +87,8 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   const [numMoreLabels, setNumMoreLabels] = useState(0);
   const [isNameOverflowed, setIsNameOverflowed] = useState(false);
 
+  const [hovered, setHovered] = useState(false);
+
   const innerContainer = useRef<Element | null>(null);
   const labelsInnerContainer = useRef(null);
   const nameText = useRef<HTMLDivElement | null>(null);
@@ -172,7 +174,10 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   };
 
   return (
-    <CardContainer>
+    <CardContainer
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <CardInnerContainer
         ref={innerContainer}
         p={3}
@@ -197,7 +202,7 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
                 </Text>
               )}
             </SingleLineBox>
-            <CopyButton name={name} />
+            {hovered && <CopyButton name={name} />}
             <ResourceActionButton resource={resource} />
           </Flex>
           <Flex flexDirection="row" alignItems="center">

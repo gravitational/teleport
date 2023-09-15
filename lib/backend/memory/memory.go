@@ -61,7 +61,7 @@ type Config struct {
 	// BufferSize sets up event buffer size
 	BufferSize int
 	// Mirror mode is used when the memory backend is used for caching. In mirror
-	// mode, record IDs for Put and PutRange requests are re-used (instead of
+	// mode, record IDs for Put requests are re-used (instead of
 	// generating fresh ones) and expiration is turned off.
 	Mirror bool
 }
@@ -241,33 +241,6 @@ func (m *Memory) Put(ctx context.Context, i backend.Item) (*backend.Lease, error
 		m.buf.Emit(event)
 	}
 	return m.newLease(i), nil
-}
-
-// PutRange puts range of items into backend (creates if items do not
-// exist, updates it otherwise)
-func (m *Memory) PutRange(ctx context.Context, items []backend.Item) error {
-	for i := range items {
-		if items[i].Key == nil {
-			return trace.BadParameter("missing parameter key in item %v", i)
-		}
-	}
-	m.Lock()
-	defer m.Unlock()
-	m.removeExpired()
-	for _, item := range items {
-		event := backend.Event{
-			Type: types.OpPut,
-			Item: item,
-		}
-		if !m.Mirror {
-			event.Item.ID = m.generateID()
-		}
-		m.processEvent(event)
-		if !m.EventsOff {
-			m.buf.Emit(event)
-		}
-	}
-	return nil
 }
 
 // Delete deletes item by key, returns NotFound error
