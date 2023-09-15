@@ -602,7 +602,7 @@ func unifiedNameCompare(a ResourceWithLabels, b ResourceWithLabels, isDesc bool)
 		nameB = b.GetName()
 	}
 
-	return stringCompare(nameA, nameB, isDesc)
+	return stringCompare(strings.ToLower(nameA), strings.ToLower(nameB), isDesc)
 }
 
 func (r ResourcesWithLabels) SortByCustom(by SortBy) error {
