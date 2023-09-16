@@ -206,6 +206,23 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 	return nil
 }
 
+func Delete(path string, traverse bool) error {
+	if traverse {
+		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			return os.RemoveAll(path)
+		})
+		if err != nil {
+			return err
+		}
+	} else {
+		return os.RemoveAll(path)
+	}
+	return nil
+}
+
 // Read reads the contents of the given file into memory.
 func Read(path string, symlinksMode SymlinksMode) ([]byte, error) {
 	file, err := openSymlinksMode(path, ReadMode, symlinksMode)

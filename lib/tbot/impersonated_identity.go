@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -38,8 +39,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/tshwrap"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -493,6 +496,25 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botR
 	return conditions.Roles, nil
 }
 
+func fetchAllKubernetesClusters(botConfig *config.BotConfig, destination *config.DestinationDirectory) ([]string, error) {
+	wrapper, err := tshwrap.New()
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := tshwrap.CheckTSHSupported(wrapper); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identityPath := filepath.Join(destination.Path, config.IdentityFilePath)
+	jsonOutput, err := tshwrap.GetAllClusters(wrapper, identityPath, botConfig.AuthServer)
+	if err != nil {
+		return nil, trace.Wrap(err, "executing `tsh kube ls`")
+	}
+	return jsonOutput, nil
+}
+
 // renewOutputs performs a single renewal
 func (b *Bot) renewOutputs(
 	ctx context.Context,
@@ -521,8 +543,64 @@ func (b *Bot) renewOutputs(
 		defaultRoles = []string{}
 	}
 
+	kubernetesWildcardIndex := -1
+	defaultIndex := -1
+	for i, output := range drc.cfg.Outputs { // quick check to see if kubernetes_cluster: "*" is defined
+		switch output := output.(type) {
+		case *config.KubernetesOutput:
+			if output.KubernetesCluster == "*" {
+				kubernetesWildcardIndex = i
+			}
+		case *config.IdentityOutput:
+			defaultIndex = i
+		}
+	}
+
+	if kubernetesWildcardIndex != -1 && defaultIndex == -1 {
+		b.log.Errorf("No default identity, unable to use wildcard cluster")
+	}
+
+	if kubernetesWildcardIndex != -1 && defaultIndex != -1 {
+		wildcardKubernetesOutput := b.cfg.Outputs[kubernetesWildcardIndex].(*config.KubernetesOutput)
+		// // remove wildcard from outputs since it won't find a cluster with that name
+		// drc.cfg.Outputs[kubernetesWildcardIndex] = drc.cfg.Outputs[len(drc.cfg.Outputs)-1]
+		// drc.cfg.Outputs = drc.cfg.Outputs[:len(drc.cfg.Outputs)-1]
+
+		defaultIdentityOutput := drc.cfg.Outputs[defaultIndex].(*config.IdentityOutput)
+		var clusters, err = fetchAllKubernetesClusters(drc.cfg, defaultIdentityOutput.Destination.(*config.DestinationDirectory))
+		if err != nil {
+			b.log.WithError(err).Errorf("Unable to load cluster names when using wildcard cluster names")
+		}
+		// remove all contents of the wildcard destination. We will replace
+		// TODO: verify whether i want to clean these up in case the k8s cluster is removed or leave the files there with old certs? Prob should delete
+		// err = botfs.Delete(wildcardKubernetesOutput.Destination.(*config.DestinationDirectory).Path+"/", true)
+		// if err != nil {
+		// 	b.log.Errorf("Unable to remove wildcard directories")
+		// }
+		for _, name := range clusters {
+			path := wildcardKubernetesOutput.Destination.(*config.DestinationDirectory).Path + "/" + name
+			o := &config.KubernetesOutput{
+				Destination: &config.DestinationDirectory{
+					Path: path,
+				},
+				KubernetesCluster: name,
+				Roles:             wildcardKubernetesOutput.Roles,
+			}
+			botfs.Create(path, true, botfs.SymlinksTrySecure)
+			b.cfg.Outputs = append(b.cfg.Outputs, o)
+		}
+	}
+
 	// Next, generate impersonated certs
 	for _, output := range b.cfg.Outputs {
+		// skip the wildcard entry. Don't remove because we need to repopulate latest clusters next time
+		switch output := output.(type) {
+		case *config.KubernetesOutput:
+			if output.KubernetesCluster == "*" {
+				continue
+			}
+		}
+
 		b.log.WithFields(logrus.Fields{
 			"output": output,
 		}).Info("Generating output.")

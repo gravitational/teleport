@@ -167,6 +167,27 @@ func CheckTSHSupported(w *Wrapper) error {
 	return nil
 }
 
+func GetAllClusters(w *Wrapper, identityFilePath string, proxy string) ([]string, error) {
+	rawVersion, err := w.capture(w.path, "-i", identityFilePath, "--proxy", proxy, "kube", "ls", "-f", "json")
+	if err != nil {
+		return nil, trace.Wrap(err, "querying tsh version")
+	}
+
+	allClusters := []struct {
+		ClusterName string `json:"kube_cluster_name"`
+	}{}
+	if err := json.Unmarshal(rawVersion, &allClusters); err != nil {
+		return nil, trace.Wrap(err, "error deserializing tsh version from string: %s", rawVersion)
+	}
+
+	var clusterNames []string
+	for _, c := range allClusters {
+		clusterNames = append(clusterNames, c.ClusterName)
+	}
+
+	return clusterNames, nil
+}
+
 // GetDestinationDirectory attempts to select an unambiguous destination, either from
 // CLI or YAML config. It returns an error if the selected destination is
 // invalid.
