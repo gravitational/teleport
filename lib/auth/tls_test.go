@@ -1486,7 +1486,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	require.NoError(t, err)
 	roleReq.SetState(types.RequestState_APPROVED)
 	roleReq.SetAccessExpiry(clock.Now().Add(8 * time.Hour))
-	err = clt.CreateAccessRequest(ctx, roleReq)
+	roleReq, err = clt.CreateAccessRequestV2(ctx, roleReq)
 	require.NoError(t, err)
 
 	// Create remote cluster so create access request doesn't err due to non existent cluster
@@ -1499,7 +1499,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	resourceReq, err := services.NewAccessRequestWithResources(username, []string{resourceRequestRoleName}, resourceIDs)
 	require.NoError(t, err)
 	resourceReq.SetState(types.RequestState_APPROVED)
-	err = clt.CreateAccessRequest(ctx, resourceReq)
+	resourceReq, err = clt.CreateAccessRequestV2(ctx, resourceReq)
 	require.NoError(t, err)
 
 	// Create a web session and client for the user.
@@ -1694,7 +1694,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	accessReq.SetAccessExpiry(clock.Now().Add(time.Minute * 10))
 	accessReq.SetState(types.RequestState_APPROVED)
 
-	err = clt.CreateAccessRequest(ctx, accessReq)
+	accessReq, err = clt.CreateAccessRequestV2(ctx, accessReq)
 	require.NoError(t, err)
 
 	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
@@ -1898,7 +1898,7 @@ func TestExtendWebSessionWithMaxDuration(t *testing.T) {
 			err = accessReq.SetState(types.RequestState_APPROVED)
 			require.NoError(t, err)
 
-			err = adminClient.CreateAccessRequest(ctx, accessReq)
+			accessReq, err = adminClient.CreateAccessRequestV2(ctx, accessReq)
 			require.NoError(t, err)
 
 			sess1, err := userClient.ExtendWebSession(ctx, WebSessionReq{
@@ -2055,7 +2055,8 @@ func TestPluginData(t *testing.T) {
 	req, err := services.NewAccessRequest(user, role)
 	require.NoError(t, err)
 
-	require.NoError(t, userClient.CreateAccessRequest(ctx, req))
+	req, err = userClient.CreateAccessRequestV2(ctx, req)
+	require.NoError(t, err)
 
 	err = pluginClient.UpdatePluginData(ctx, types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,

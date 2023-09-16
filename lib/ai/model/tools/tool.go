@@ -62,7 +62,7 @@ type AccessPoint interface {
 
 // AccessRequestClient abstracts away the access request client for testing purposes.
 type AccessRequestClient interface {
-	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
+	CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error)
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
 }
 

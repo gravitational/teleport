@@ -300,3 +300,37 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 		})
 	}
 }
+
+func TestBotConfig_InsecureWithCAPins(t *testing.T) {
+	cfg := &BotConfig{
+		Insecure: true,
+		Onboarding: OnboardingConfig{
+			CAPins: []string{"123"},
+		},
+	}
+
+	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "ca-pin")
+}
+
+func TestBotConfig_InsecureWithCAPath(t *testing.T) {
+	cfg := &BotConfig{
+		Insecure: true,
+		Onboarding: OnboardingConfig{
+			CAPath: "/tmp/invalid-path/some.crt",
+		},
+	}
+
+	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "ca-path")
+}
+
+func TestBotConfig_WithCAPathAndCAPins(t *testing.T) {
+	cfg := &BotConfig{
+		Insecure: false,
+		Onboarding: OnboardingConfig{
+			CAPath: "/tmp/invalid-path/some.crt",
+			CAPins: []string{"123"},
+		},
+	}
+
+	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "mutually exclusive")
+}

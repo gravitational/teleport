@@ -518,11 +518,11 @@ func (s *Server) GetClock() clockwork.Clock {
 	return s.clock
 }
 
-// GetUtmpPath returns the optional override of the utmp and wtmp path.
-// These values are never set for the forwarding server because utmp and wtmp
+// GetUserAccountingPaths returns the optional override of the utmp, wtmp, and btmp path.
+// These values are never set for the forwarding server because utmp, wtmp, and btmp
 // are updated by the target server and not the forwarding server.
-func (s *Server) GetUtmpPath() (string, string) {
-	return "", ""
+func (s *Server) GetUserAccountingPaths() (string, string, string) {
+	return "", "", ""
 }
 
 // GetLockWatcher gets the server's lock watcher.
@@ -591,7 +591,7 @@ func (s *Server) Serve() {
 
 	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
 		// OpenSSH nodes don't support moderated sessions, send an error to
-		// the user and gracefully fail the user is attempting to create one.
+		// the user and gracefully fail if the user is attempting to create one.
 		policySets := s.identityContext.AccessChecker.SessionPolicySets()
 		evaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, s.identityContext.TeleportUser)
 		if evaluator.IsModerated() {

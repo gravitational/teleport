@@ -86,3 +86,9 @@ func TestWindowsDesktopsSorter(t *testing.T) {
 	desktops := makeDesktops(testValsUnordered, "does-not-matter")
 	require.True(t, trace.IsNotImplemented(WindowsDesktops(desktops).SortByCustom(sortBy)))
 }
+
+func TestInvalidDesktopName(t *testing.T) {
+	_, err := NewWindowsDesktopV3("name-contains.period", nil,
+		WindowsDesktopSpecV3{Addr: "desktop.example.com:3389"})
+	require.True(t, trace.IsBadParameter(err), "want bad parameter error, got %v", err)
+}

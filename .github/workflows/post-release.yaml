@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
 
@@ -75,7 +75,7 @@ jobs:
           private_key: ${{ secrets.PRIVATE_KEY }}
 
       - name: Checkout Release Branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ steps.get-branch.outputs.branch }}
 
@@ -86,11 +86,16 @@ jobs:
           git config --global user.name "GitHub"
 
           # update versions in docs/config.json
+          # for docker images replace version number after <docker image name>:
           jq --arg major ${{ steps.get-branch.outputs.major }} \
              --arg version ${{ steps.get-branch.outputs.version }} \
-             '.variables.teleport.major_version |= $major |
-              .variables.teleport.version |= $version |
-              .variables.teleport.plugin.version |= $version' \
+             '.variables.teleport.major_version |= $major | 
+              .variables.teleport.version |= $version | 
+              .variables.teleport.plugin.version |= $version | 
+              .variables.teleport.latest_oss_docker_image |= sub(":.*";":")+$version | 
+              .variables.teleport.latest_oss_debug_docker_image |= sub(":.*";":")+$version | 
+              .variables.teleport.latest_ent_docker_image |= sub(":.*";":")+$version | 
+              .variables.teleport.latest_ent_debug_docker_image |= sub(":.*";":")+$version' \
               docs/config.json > docs/confignew.json
           cat docs/confignew.json
           mv docs/confignew.json docs/config.json
@@ -99,6 +104,6 @@ jobs:
           git switch -c $BRANCH_NAME
           git commit -am "[auto] docs: Update version to ${{ github.event.release.tag_name }}"
           git push --set-upstream origin $BRANCH_NAME
-          gh pr create --fill --label=automated --label=documentation
+          gh pr create --fill --label=automated --label=documentation --base=${{ steps.get-branch.outputs.branch }}
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}

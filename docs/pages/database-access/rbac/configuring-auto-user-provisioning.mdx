@@ -76,7 +76,7 @@ to ensure that your configuration is correct.
 </TabItem>
 </Tabs>
 
-Users created by Teleport will be placed in the `teleport-auto-users` group in
+Users created by Teleport will be placed in the `teleport-auto-user` group in
 the database, which will be created automatically if it doesn't exist.
 
 Teleport will not delete the automatically created user at the end of the session.
@@ -125,7 +125,7 @@ use the `db_roles` role option:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: auto-db-users
 spec:
@@ -151,7 +151,7 @@ that have database user provisioning enabled.
 User created within the database will:
 
 - Have the same name as Teleport username.
-- Be a part of the `teleport-auto-users` role.
+- Be a part of the `teleport-auto-user` role.
 - Be assigned all roles from the Teleport user's role set that match the database.
   The role names must be valid and exist in the database. See PostgreSQL
   [CREATE ROLE](https://www.postgresql.org/docs/current/sql-createrole.html)
@@ -159,7 +159,7 @@ User created within the database will:
 
 Note that in case of a name conflict where a user with the same name already
 exists in the database and is not managed by Teleport (i.e. not a part of the
-`teleport-auto-users` group), the connection will be aborted.
+`teleport-auto-user` group), the connection will be aborted.
 
 ## Step 3/3. Connect to the database
 

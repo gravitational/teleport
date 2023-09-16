@@ -404,7 +404,8 @@ func TestWatchers(t *testing.T) {
 	req, err := services.NewAccessRequest("alice", "dictator")
 	require.NoError(t, err)
 
-	require.NoError(t, p.dynamicAccessS.CreateAccessRequest(ctx, req))
+	req, err = p.dynamicAccessS.CreateAccessRequestV2(ctx, req)
+	require.NoError(t, err)
 
 	select {
 	case e := <-w.Events():
@@ -429,7 +430,8 @@ func TestWatchers(t *testing.T) {
 	require.NoError(t, err)
 
 	// create and then delete the non-matching request.
-	require.NoError(t, p.dynamicAccessS.CreateAccessRequest(ctx, req2))
+	req2, err = p.dynamicAccessS.CreateAccessRequestV2(ctx, req2)
+	require.NoError(t, err)
 	require.NoError(t, p.dynamicAccessS.DeleteAccessRequest(ctx, req2.GetName()))
 
 	// because our filter did not match the request, the create event should never
@@ -2885,22 +2887,6 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
-				},
-			},
-			Members: []accesslist.Member{
-				{
-					Name:    "member1",
-					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because",
-					AddedBy: "test-user1",
-				},
-				{
-					Name:    "member2",
-					Joined:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because again",
-					AddedBy: "test-user2",
 				},
 			},
 		},

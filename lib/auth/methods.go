@@ -149,7 +149,7 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		}
 	}
 
-	var user types.User
+	var userState services.UserState
 	if err != nil {
 		event.Code = events.UserLocalLoginFailureCode
 		event.Status.Success = false
@@ -159,7 +159,7 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		event.Status.Success = true
 
 		var err error
-		user, err = s.GetUser(username, false /* withSecrets */)
+		user, err := s.GetUser(username, false /* withSecrets */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -170,11 +170,17 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		if err := s.CallLoginHooks(ctx, user); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		userState, err = s.GetUserOrLoginState(ctx, username)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if err := s.emitter.EmitAuditEvent(s.closeCtx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit login event.")
 	}
-	return user, trace.Wrap(err)
+
+	return userState, trace.Wrap(err)
 }
 
 var (
@@ -614,7 +620,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		return nil, trace.Wrap(err)
 	}
 
-	userState, err := s.getUserOrLoginState(ctx, user.GetName())
+	userState, err := s.GetUserOrLoginState(ctx, user.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

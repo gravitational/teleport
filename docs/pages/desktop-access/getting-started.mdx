@@ -115,8 +115,12 @@ ssh_service:
 
 Note that without Active Directory, Teleport cannot automatically discover your
 Desktops. Instead you must define the Windows systems configured for access through
-Teleport in your config file, or use Teleport's [API](../api/introduction.mdx)
-to build your own integration. An example API integration is available on
+Teleport in your config file or manually register them.
+
+Manual registration can be done via
+[`tctl`](../reference/resources.mdx#windows-desktop) or by using Teleport's
+[API](../api/introduction.mdx) to build your own integration. An example API
+integration is available on
 [GitHub](https://github.com/gravitational/teleport/tree/master/examples/desktop-registration).
 
 <Details title="Add labels to hosts">
@@ -158,7 +162,7 @@ Create the file `windows-desktop-admins.yaml`:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: windows-desktop-admins
 spec:

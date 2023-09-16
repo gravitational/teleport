@@ -151,8 +151,10 @@ func TestListSecurityGroups(t *testing.T) {
 				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
 
 				sg := SecurityGroup{
-					Name: "MySG-123",
-					ID:   "sg-123",
+					Name:          "MySG-123",
+					ID:            "sg-123",
+					InboundRules:  []SecurityGroupRule{},
+					OutboundRules: []SecurityGroupRule{},
 				}
 				require.Empty(t, cmp.Diff(sg, ldr.SecurityGroups[0]))
 			},
@@ -174,6 +176,238 @@ func TestListSecurityGroups(t *testing.T) {
 			if tt.respCheck != nil {
 				tt.respCheck(t, resp)
 			}
+		})
+	}
+}
+
+func TestConvertSecurityGroup(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		input    []ec2Types.SecurityGroup
+		expected []SecurityGroup
+	}{
+		{
+			name: "no rules",
+			input: []ec2Types.SecurityGroup{{
+				GroupId:   aws.String("sg-123"),
+				GroupName: aws.String("my group"),
+			}},
+			expected: []SecurityGroup{{
+				ID:            "sg-123",
+				Name:          "my group",
+				InboundRules:  []SecurityGroupRule{},
+				OutboundRules: []SecurityGroupRule{},
+			}},
+		},
+		{
+			name: "inbound rule allows SSH, outbound allows everything",
+			input: []ec2Types.SecurityGroup{
+				{
+					GroupId:     aws.String("sg-123"),
+					GroupName:   aws.String("my group"),
+					Description: aws.String("my first vpc"),
+					IpPermissions: []ec2Types.IpPermission{{
+						FromPort:   aws.Int32(22),
+						ToPort:     aws.Int32(22),
+						IpProtocol: aws.String("tcp"),
+						IpRanges: []ec2Types.IpRange{{
+							CidrIp:      aws.String("0.0.0.0/0"),
+							Description: aws.String("Everything"),
+						}},
+					}},
+					IpPermissionsEgress: []ec2Types.IpPermission{{
+						FromPort:   aws.Int32(0),
+						ToPort:     aws.Int32(0),
+						IpProtocol: aws.String("-1"),
+						IpRanges: []ec2Types.IpRange{{
+							CidrIp:      aws.String("0.0.0.0/0"),
+							Description: aws.String("Everything"),
+						}},
+					}},
+				},
+			},
+			expected: []SecurityGroup{
+				{
+					ID:          "sg-123",
+					Name:        "my group",
+					Description: "my first vpc",
+					OutboundRules: []SecurityGroupRule{{
+						IPProtocol: "all",
+						FromPort:   0,
+						ToPort:     0,
+						CIDRs: []CIDR{{
+							CIDR:        "0.0.0.0/0",
+							Description: "Everything",
+						}},
+					}},
+					InboundRules: []SecurityGroupRule{{
+						IPProtocol: "tcp",
+						FromPort:   22,
+						ToPort:     22,
+						CIDRs: []CIDR{{
+							CIDR:        "0.0.0.0/0",
+							Description: "Everything",
+						}},
+					}},
+				},
+			},
+		},
+		{
+			name: "multiple inbound and outbound rules",
+			input: []ec2Types.SecurityGroup{
+				{
+					GroupId:   aws.String("sg-123"),
+					GroupName: aws.String("my group"),
+					IpPermissions: []ec2Types.IpPermission{
+						{
+							FromPort:   aws.Int32(3000),
+							ToPort:     aws.Int32(4000),
+							IpProtocol: aws.String("tcp"),
+							IpRanges:   []ec2Types.IpRange{{CidrIp: aws.String("0.0.0.0/0")}},
+						},
+						{
+							FromPort:   aws.Int32(443),
+							ToPort:     aws.Int32(443),
+							IpProtocol: aws.String("tcp"),
+							IpRanges:   []ec2Types.IpRange{{CidrIp: aws.String("0.0.0.0/0")}},
+						},
+						{
+							FromPort:   aws.Int32(80),
+							ToPort:     aws.Int32(80),
+							IpProtocol: aws.String("tcp"),
+							IpRanges:   []ec2Types.IpRange{{CidrIp: aws.String("0.0.0.0/0")}},
+						},
+						{
+							FromPort:   aws.Int32(22),
+							ToPort:     aws.Int32(22),
+							IpProtocol: aws.String("tcp"),
+							IpRanges:   []ec2Types.IpRange{{CidrIp: aws.String("0.0.0.0/0")}},
+						},
+					},
+					IpPermissionsEgress: []ec2Types.IpPermission{
+						{
+							FromPort:   aws.Int32(443),
+							ToPort:     aws.Int32(443),
+							IpProtocol: aws.String("tcp"),
+							IpRanges:   []ec2Types.IpRange{{CidrIp: aws.String("0.0.0.0/0")}},
+						},
+						{
+							FromPort:   aws.Int32(3080),
+							ToPort:     aws.Int32(3080),
+							IpProtocol: aws.String("tcp"),
+							IpRanges: []ec2Types.IpRange{{
+								CidrIp:      aws.String("0.0.0.0/0"),
+								Description: aws.String("Everything"),
+							}},
+						},
+					},
+				},
+			},
+			expected: []SecurityGroup{
+				{
+					ID:   "sg-123",
+					Name: "my group",
+					InboundRules: []SecurityGroupRule{
+						{
+							IPProtocol: "tcp",
+							FromPort:   3000,
+							ToPort:     4000,
+							CIDRs:      []CIDR{{CIDR: "0.0.0.0/0"}},
+						},
+						{
+							IPProtocol: "tcp",
+							FromPort:   443,
+							ToPort:     443,
+							CIDRs:      []CIDR{{CIDR: "0.0.0.0/0"}},
+						},
+						{
+							IPProtocol: "tcp",
+							FromPort:   80,
+							ToPort:     80,
+							CIDRs:      []CIDR{{CIDR: "0.0.0.0/0"}},
+						},
+						{
+							IPProtocol: "tcp",
+							FromPort:   22,
+							ToPort:     22,
+							CIDRs:      []CIDR{{CIDR: "0.0.0.0/0"}},
+						},
+					},
+					OutboundRules: []SecurityGroupRule{
+						{
+							IPProtocol: "tcp",
+							FromPort:   443,
+							ToPort:     443,
+							CIDRs: []CIDR{{
+								CIDR: "0.0.0.0/0",
+							}},
+						},
+						{
+							IPProtocol: "tcp",
+							FromPort:   3080,
+							ToPort:     3080,
+							CIDRs: []CIDR{{
+								CIDR:        "0.0.0.0/0",
+								Description: "Everything",
+							}},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple CIDRs",
+			input: []ec2Types.SecurityGroup{
+				{
+					GroupId:   aws.String("sg-123"),
+					GroupName: aws.String("my group"),
+					IpPermissions: []ec2Types.IpPermission{
+						{
+							FromPort:   aws.Int32(3000),
+							ToPort:     aws.Int32(4000),
+							IpProtocol: aws.String("tcp"),
+							IpRanges: []ec2Types.IpRange{
+								{
+									CidrIp:      aws.String("192.168.1.0/24"),
+									Description: aws.String("Subnet Mask 255.255.255.0"),
+								},
+								{
+									CidrIp:      aws.String("10.0.0.0/16"),
+									Description: aws.String("Subnet Mask 255.255.0.0"),
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []SecurityGroup{
+				{
+					ID:   "sg-123",
+					Name: "my group",
+					InboundRules: []SecurityGroupRule{
+						{
+							IPProtocol: "tcp",
+							FromPort:   3000,
+							ToPort:     4000,
+							CIDRs: []CIDR{
+								{
+									CIDR:        "192.168.1.0/24",
+									Description: "Subnet Mask 255.255.255.0",
+								},
+								{
+									CIDR:        "10.0.0.0/16",
+									Description: "Subnet Mask 255.255.0.0",
+								},
+							},
+						},
+					},
+					OutboundRules: []SecurityGroupRule{},
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, convertAWSSecurityGroups(tt.input))
 		})
 	}
 }

@@ -68,7 +68,7 @@ Click **Next**. Find the AWS-managed policy `AmazonDynamoDBFullAccess` and then 
 <Admonition type="note" title="Apply least-privilege permissions">
 The `AmazonDynamoDBFullAccess` policy may grant more permissions than desired.
 If you want to use a different IAM policy to reduce permissions, refer to
-[Managing access permissions to your Amazon DynamoDB 
+[Managing access permissions to your Amazon DynamoDB
 Resources](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-overview.html)
 for more information.
 </Admonition>
@@ -110,7 +110,7 @@ listing the IAM role ARN created in the previous step. Create a file called
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: aws-dynamodb-access
 spec:
@@ -226,7 +226,7 @@ Type "help", "copyright", "credits" or "license" for more information.
 >>> res = clt.list_tables()
 >>> print(res)
 {'TableNames': *snip output*}
->>> 
+>>>
 ```
 
 ## Next Steps

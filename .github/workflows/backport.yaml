@@ -27,12 +27,12 @@ jobs:
           app_id: ${{ secrets.REVIEWERS_APP_ID }}
           private_key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: master
       # Checkout main branch of shared-workflow repository.
       - name: Checkout shared-workflow
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows

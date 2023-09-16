@@ -249,10 +249,10 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         ports:
-          - name: operator-http-metrics
+          - name: op-metrics
             containerPort: 8080
             protocol: TCP
-          - name: operator-http-health
+          - name: op-health
             containerPort: 8081
             protocol: TCP
   {{- if .Values.operator.resources }}

@@ -218,6 +218,10 @@ func TestBot(t *testing.T) {
 			sshHostOutput,
 			kubeOutput,
 		},
+		testhelpers.DefaultBotConfigOpts{
+			UseAuthServer: true,
+			Insecure:      true,
+		},
 	)
 	b := New(botConfig, log)
 	require.NoError(t, b.Run(ctx))
@@ -369,7 +373,13 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	// Create bot user and join token
 	botParams := testhelpers.MakeBot(t, rootClient, "test", "access")
 
-	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{})
+	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
+		testhelpers.DefaultBotConfigOpts{
+			UseAuthServer: true,
+			Insecure:      true,
+		},
+	)
+
 	// Use a destination directory to ensure locking behaves correctly and
 	// the bot isn't left in a locked state.
 	directoryDest := &config.DestinationDirectory{
@@ -393,4 +403,37 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	botConfig.Onboarding.TokenValue = ""
 	thirdBot := New(botConfig, log)
 	require.NoError(t, thirdBot.Run(ctx))
+}
+
+func TestBot_InsecureViaProxy(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	log := utils.NewLoggerForTests()
+
+	// Make a new auth server.
+	fc, fds := testhelpers.DefaultConfig(t)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+
+	// Create bot user and join token
+	botParams := testhelpers.MakeBot(t, rootClient, "test", "access")
+
+	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
+		testhelpers.DefaultBotConfigOpts{
+			UseAuthServer: false,
+			Insecure:      true,
+		},
+	)
+	// Use a destination directory to ensure locking behaves correctly and
+	// the bot isn't left in a locked state.
+	directoryDest := &config.DestinationDirectory{
+		Path:     t.TempDir(),
+		Symlinks: botfs.SymlinksInsecure,
+		ACLs:     botfs.ACLOff,
+	}
+	botConfig.Storage.Destination = directoryDest
+
+	// Run the bot a first time
+	firstBot := New(botConfig, log)
+	require.NoError(t, firstBot.Run(ctx))
 }
