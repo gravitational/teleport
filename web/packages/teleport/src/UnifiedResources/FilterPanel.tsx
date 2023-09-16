@@ -15,6 +15,7 @@
  */
 
 import React, { useState } from 'react';
+import styled from 'styled-components';
 import { ButtonBorder, ButtonPrimary, ButtonSecondary } from 'design/Button';
 import { SortDir } from 'design/DataTable/types';
 import { Text } from 'design';
@@ -151,6 +152,14 @@ const FilterTypesMenu = ({
     setKinds(newKinds);
   };
 
+  const handleSelectAll = () => {
+    setKinds(kindOptions.map(k => k.value));
+  };
+
+  const handleClearAll = () => {
+    setKinds([]);
+  };
+
   const applyFilters = () => {
     onChange(kinds);
     handleClose();
@@ -169,6 +178,7 @@ const FilterTypesMenu = ({
       >
         Type
         <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
+        {kindsFromParams.length > 0 && <FiltersExistIndicator />}
       </ButtonSecondary>
       <Menu
         popoverCss={() => `margin-top: 36px;`}
@@ -184,6 +194,28 @@ const FilterTypesMenu = ({
         open={Boolean(anchorEl)}
         onClose={cancelUpdate}
       >
+        <Flex gap={2} p={2}>
+          <ButtonSecondary
+            size="small"
+            onClick={handleSelectAll}
+            css={`
+              background-color: transparent;
+            `}
+            px={2}
+          >
+            Select All
+          </ButtonSecondary>
+          <ButtonSecondary
+            size="small"
+            onClick={handleClearAll}
+            css={`
+              background-color: transparent;
+            `}
+            px={2}
+          >
+            Clear All
+          </ButtonSecondary>
+        </Flex>
         {kindOptions.map(kind => (
           <MenuItem
             px={2}
@@ -320,3 +352,14 @@ function kindArraysEqual(arr1: string[], arr2: string[]) {
 
   return true;
 }
+
+const FiltersExistIndicator = styled.div`
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  height: 12px;
+  width: 12px;
+  background-color: ${props => props.theme.colors.brand};
+  border-radius: 50%;
+  display: inline-block;
+`;
