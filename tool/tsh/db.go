@@ -897,7 +897,7 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		d.Username = tc.Username
 		needDBUser = false
 	}
-	if d.Username == "" {
+	if needDBUser {
 		switch d.Protocol {
 		// When generating certificate for MongoDB access, database username must
 		// be encoded into it. This is required to be able to tell which database
