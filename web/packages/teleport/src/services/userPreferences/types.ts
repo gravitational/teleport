@@ -48,8 +48,17 @@ export interface UserPreferences {
   theme: ThemePreference;
   assist: AssistUserPreferences;
   onboard: OnboardUserPreferences;
+  clusterPreferences: UserClusterPreferences;
 }
 
+// UserClusterPreferences are user preferences that are
+// different per cluster.
+export interface UserClusterPreferences {
+  // pinnedResources is an array of resource IDs.
+  pinnedResources: string[];
+}
+
+export type GetUserClusterPreferencesResponse = UserClusterPreferences;
 export type GetUserPreferencesResponse = UserPreferences;
 
 export function deprecatedThemeToThemePreference(
