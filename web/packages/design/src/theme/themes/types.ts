@@ -45,6 +45,12 @@ export type ThemeColors = {
 
   brand: string;
 
+  interactive: {
+    tonal: {
+      primary: string[];
+    };
+  };
+
   text: {
     /** The most important text. */
     main: string;

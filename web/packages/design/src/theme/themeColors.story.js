@@ -154,7 +154,7 @@ const ColorsComponent = () => {
         <Text mb="2" typography="h4">
           Text Colors
         </Text>
-        <Flex width="fit-content" flexDirection="row">
+        <Flex width="fit-content" flexDirection="row" mb={4}>
           <Flex
             flexDirection="column"
             border={`1px solid ${theme.colors.text.muted}`}
@@ -289,6 +289,29 @@ const ColorsComponent = () => {
             </Text>
           </Flex>
         </Flex>
+        <Text mb="2" typography="h3">
+          Interactive Colors
+        </Text>
+        <Text mb="2">
+          Interactive colors are used for hover states, indicators, etc. An
+          example of this in use currently would be unified resource cards in
+          the Pinned and Pinned(Hovered) states.
+        </Text>
+        <SingleColorBox
+          mb="2"
+          path="theme.colors.interactive.tonal.primary[0]"
+          color={theme.colors.interactive.tonal.primary[0]}
+        />
+        <SingleColorBox
+          mb="2"
+          path="theme.colors.interactive.tonal.primary[1]"
+          color={theme.colors.interactive.tonal.primary[1]}
+        />
+        <SingleColorBox
+          mb="2"
+          path="theme.colors.interactive.tonal.primary[2]"
+          color={theme.colors.interactive.tonal.primary[2]}
+        />
       </Flex>
     </Flex>
   );
