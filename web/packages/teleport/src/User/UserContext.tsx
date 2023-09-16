@@ -37,13 +37,24 @@ import {
   ThemePreference,
 } from 'teleport/services/userPreferences/types';
 
-import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+import {
+  makeDefaultUserClusterPreferences,
+  makeDefaultUserPreferences,
+} from 'teleport/services/userPreferences/userPreferences';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import type { UserPreferences } from 'teleport/services/userPreferences/types';
+import type {
+  UserClusterPreferences,
+  UserPreferences,
+} from 'teleport/services/userPreferences/types';
 
 export interface UserContextValue {
   preferences: UserPreferences;
+  clusterPreferences: UserClusterPreferences;
   updatePreferences: (preferences: Partial<UserPreferences>) => Promise<void>;
+  updateClusterPreferences: (
+    preferences: Partial<UserClusterPreferences>
+  ) => Promise<void>;
 }
 
 export const UserContext = createContext<UserContextValue>(null);
@@ -54,10 +65,27 @@ export function useUser(): UserContextValue {
 
 export function UserContextProvider(props: PropsWithChildren<unknown>) {
   const { attempt, run } = useAttempt('processing');
+  const { clusterId } = useStickyClusterId();
 
   const [preferences, setPreferences] = useState<UserPreferences>(
     makeDefaultUserPreferences()
   );
+
+  const [clusterPreferences, setClusterPreferences] =
+    useState<UserClusterPreferences>(makeDefaultUserClusterPreferences());
+
+  async function loadClusterPreferences() {
+    const storedPreferences = storage.getUserClusterPreferences();
+    try {
+      const preferences = await service.getUserClusterPreferences(clusterId);
+      storage.setUserClusterPreferences(preferences);
+      setClusterPreferences(preferences);
+    } catch (error) {
+      if (storedPreferences) {
+        setClusterPreferences(storedPreferences);
+      }
+    }
+  }
 
   async function loadUserPreferences() {
     const storedPreferences = storage.getUserPreferences();
@@ -65,7 +93,6 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
 
     try {
       const preferences = await service.getUserPreferences();
-
       if (!storedPreferences) {
         // there are no mirrored user preferences in local storage so this is the first time
         // the user has requested their preferences in this browser session
@@ -113,12 +140,33 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
         ...preferences.onboard,
         ...newPreferences.onboard,
       },
+      unifiedResourcePreferences: {
+        ...preferences.unifiedResourcePreferences,
+        ...newPreferences.unifiedResourcePreferences,
+      },
+      clusterPreferences,
     } as UserPreferences;
 
     setPreferences(nextPreferences);
     storage.setUserPreferences(nextPreferences);
 
     return service.updateUserPreferences(nextPreferences);
+  }
+
+  function updateClusterPreferences(
+    newPreferences: Partial<UserClusterPreferences>
+  ) {
+    const nextPreferences = {
+      ...clusterPreferences,
+      ...newPreferences,
+    };
+
+    setClusterPreferences(nextPreferences);
+    storage.setUserClusterPreferences(nextPreferences);
+    return service.updateUserClusterPreferences(clusterId, {
+      ...preferences,
+      clusterPreferences: nextPreferences,
+    });
   }
 
   useEffect(() => {
@@ -139,6 +187,10 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     run(loadUserPreferences);
   }, []);
 
+  useEffect(() => {
+    loadClusterPreferences();
+  }, [clusterId]);
+
   if (attempt.status === 'processing') {
     return (
       <StyledIndicator>
@@ -148,7 +200,14 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
   }
 
   return (
-    <UserContext.Provider value={{ preferences, updatePreferences }}>
+    <UserContext.Provider
+      value={{
+        preferences,
+        updatePreferences,
+        updateClusterPreferences,
+        clusterPreferences,
+      }}
+    >
       {props.children}
     </UserContext.Provider>
   );

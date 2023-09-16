@@ -26,7 +26,10 @@ import { ContextProvider } from 'teleport';
 
 import { UserContext } from 'teleport/User/UserContext';
 
-import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+import {
+  makeDefaultUserClusterPreferences,
+  makeDefaultUserPreferences,
+} from 'teleport/services/userPreferences/userPreferences';
 
 import {
   ClusterResource,
@@ -96,14 +99,23 @@ const Provider = ({
 }: ProviderProps) => {
   const ctx = createTeleportContext({ customAcl: customAcl });
   const updatePreferences = () => Promise.resolve();
+  const updateClusterPreferences = () => Promise.resolve();
   const preferences: UserPreferences = makeDefaultUserPreferences();
+  const clusterPreferences = makeDefaultUserClusterPreferences();
   preferences.onboard.preferredResources = resources;
 
   return (
     <MemoryRouter
       initialEntries={[{ pathname: '/test', state: { entity: entity } }]}
     >
-      <UserContext.Provider value={{ preferences, updatePreferences }}>
+      <UserContext.Provider
+        value={{
+          preferences,
+          updatePreferences,
+          updateClusterPreferences,
+          clusterPreferences,
+        }}
+      >
         <ContextProvider ctx={ctx}>{children}</ContextProvider>
       </UserContext.Provider>
     </MemoryRouter>

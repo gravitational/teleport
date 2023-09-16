@@ -22,6 +22,7 @@ import { OnboardDiscover } from 'teleport/services/user';
 import {
   OnboardUserPreferences,
   ThemePreference,
+  UserClusterPreferences,
   UserPreferences,
 } from 'teleport/services/userPreferences/types';
 
@@ -111,6 +112,29 @@ const storage = {
     return null;
   },
 
+  getUserClusterPreferences(): UserClusterPreferences {
+    const preferences = window.localStorage.getItem(
+      KeysEnum.USER_CLUSTER_PREFERENCES
+    );
+    if (preferences) {
+      return JSON.parse(preferences);
+    }
+    return null;
+  },
+
+  setUserClusterPreferences(preferences: UserClusterPreferences) {
+    const json = JSON.stringify(preferences);
+
+    window.localStorage.setItem(KeysEnum.USER_CLUSTER_PREFERENCES, json);
+
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: KeysEnum.USER_CLUSTER_PREFERENCES,
+        newValue: json,
+      })
+    );
+  },
+
   setUserPreferences(preferences: UserPreferences) {
     const json = JSON.stringify(preferences);
 
@@ -197,6 +221,13 @@ const storage = {
       KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED
     );
     return disabled !== 'true' && notSupported !== 'true';
+  },
+
+  arePinnedResourcesDisabled(): boolean {
+    return (
+      window.localStorage.getItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED) ===
+      'true'
+    );
   },
 
   broadcast(messageType, messageBody) {

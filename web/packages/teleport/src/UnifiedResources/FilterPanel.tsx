@@ -18,14 +18,15 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { ButtonBorder, ButtonPrimary, ButtonSecondary } from 'design/Button';
 import { SortDir } from 'design/DataTable/types';
-import { Text } from 'design';
+import { Text, Flex } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
-import Flex from 'design/Flex';
-import { CheckboxInput } from 'design/Checkbox';
+import { StyledCheckbox } from 'design/Checkbox';
 import { ArrowUp, ArrowDown, ChevronDown } from 'design/Icon';
 
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import { ResourceFilter, SortType } from 'teleport/services/agents';
+
+import { HoverTooltip } from './Resources';
 
 const kindOptions = [
   { label: 'Application', value: 'app' },
@@ -46,6 +47,9 @@ export interface FilterPanelProps {
   params: ResourceFilter;
   setParams: (params: ResourceFilter) => void;
   setSort: (sort: SortType) => void;
+  selectAll: () => void;
+  selected: boolean;
+  shouldUnpin: boolean;
 }
 
 export function FilterPanel({
@@ -54,6 +58,9 @@ export function FilterPanel({
   params,
   setParams,
   setSort,
+  selectAll,
+  selected,
+  shouldUnpin,
 }: FilterPanelProps) {
   const { sort, kinds } = params;
 
@@ -72,7 +79,8 @@ export function FilterPanel({
         params.search ?? params.query,
         params.sort,
         newKinds,
-        isAdvancedSearch
+        isAdvancedSearch,
+        params.pinnedOnly
       )
     );
   };
@@ -86,22 +94,26 @@ export function FilterPanel({
   };
 
   return (
-    <Flex justifyContent="space-between" mb={2}>
-      <FilterTypesMenu
-        onChange={onKindsChanged}
-        kindsFromParams={kinds || []}
-      />
-      <Flex alignItems="start">
-        <SortMenu
-          onDirChange={onSortOrderButtonClicked}
-          onChange={onSortFieldChange}
-          sortType={activeSortFieldOption.label}
-          sortDir={sort.dir}
+    <Flex mb={2} justifyContent="space-between">
+      <Flex gap={2}>
+        <HoverTooltip
+          tipContent={<>{shouldUnpin ? 'Deselect all' : 'Select all'}</>}
+        >
+          <StyledCheckbox checked={selected} onChange={selectAll} />
+        </HoverTooltip>
+        <FilterTypesMenu
+          onChange={onKindsChanged}
+          kindsFromParams={kinds || []}
         />
       </Flex>
+      <SortMenu
+        onDirChange={onSortOrderButtonClicked}
+        onChange={onSortFieldChange}
+        sortType={activeSortFieldOption.label}
+        sortDir={sort.dir}
+      />
     </Flex>
   );
-  return null;
 }
 
 function oppositeSort(sort: SortType): SortType {
@@ -166,20 +178,23 @@ const FilterTypesMenu = ({
   };
 
   return (
-    <Flex textAlign="center" alignItems="center" mt={1}>
-      <ButtonSecondary
-        px={2}
-        css={`
-          border-color: ${props => props.theme.colors.spotBackground[0]};
-        `}
-        textTransform="none"
-        size="small"
-        onClick={handleOpen}
-      >
-        Types {kindsFromParams.length > 0 ? `(${kindsFromParams.length})` : ''}
-        <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
-        {kindsFromParams.length > 0 && <FiltersExistIndicator />}
-      </ButtonSecondary>
+    <Flex textAlign="center" alignItems="center">
+      <HoverTooltip tipContent={<>Filter types</>}>
+        <ButtonSecondary
+          px={2}
+          css={`
+            border-color: ${props => props.theme.colors.spotBackground[0]};
+          `}
+          textTransform="none"
+          size="small"
+          onClick={handleOpen}
+        >
+          Types{' '}
+          {kindsFromParams.length > 0 ? `(${kindsFromParams.length})` : ''}
+          <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
+          {kindsFromParams.length > 0 && <FiltersExistIndicator />}
+        </ButtonSecondary>
+      </HoverTooltip>
       <Menu
         popoverCss={() => `margin-top: 36px;`}
         transformOrigin={{
@@ -224,7 +239,7 @@ const FilterTypesMenu = ({
             key={kind.value}
             onClick={() => handleSelect(kind.value)}
           >
-            <CheckboxInput
+            <StyledCheckbox
               type="checkbox"
               name={kind.label}
               onChange={() => {
@@ -233,7 +248,7 @@ const FilterTypesMenu = ({
               id={kind.value}
               checked={kinds.includes(kind.value)}
             />
-            <Text fontWeight={300} fontSize={2}>
+            <Text ml={2} fontWeight={300} fontSize={2}>
               {kind.label}
             </Text>
           </MenuItem>
@@ -289,21 +304,23 @@ const SortMenu: React.FC<SortMenuProps> = props => {
   };
 
   return (
-    <Flex textAlign="center" alignItems="center">
-      <ButtonBorder
-        css={`
-          border-right: none;
-          border-top-right-radius: 0;
-          border-bottom-right-radius: 0;
-          border-color: ${props => props.theme.colors.spotBackground[0]};
-        `}
-        textTransform="none"
-        size="small"
-        px={2}
-        onClick={handleOpen}
-      >
-        {sortType}
-      </ButtonBorder>
+    <Flex textAlign="center">
+      <HoverTooltip tipContent={<>Sort by</>}>
+        <ButtonBorder
+          css={`
+            border-right: none;
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+            border-color: ${props => props.theme.colors.spotBackground[0]};
+          `}
+          textTransform="none"
+          size="small"
+          px={2}
+          onClick={handleOpen}
+        >
+          {sortType}
+        </ButtonBorder>
+      </HoverTooltip>
       <Menu
         popoverCss={() => `margin-top: 36px;`}
         transformOrigin={{
@@ -321,19 +338,21 @@ const SortMenu: React.FC<SortMenuProps> = props => {
         <MenuItem onClick={() => handleSelect('name')}>Name</MenuItem>
         <MenuItem onClick={() => handleSelect('kind')}>Type</MenuItem>
       </Menu>
-      <ButtonBorder
-        onClick={onDirChange}
-        textTransform="none"
-        css={`
-          width: 0px; // remove extra width around the button icon
-          border-top-left-radius: 0;
-          border-bottom-left-radius: 0;
-          border-color: ${props => props.theme.colors.spotBackground[0]};
-        `}
-        size="small"
-      >
-        {sortDir === 'ASC' ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
-      </ButtonBorder>
+      <HoverTooltip tipContent={<>Sort direction</>}>
+        <ButtonBorder
+          onClick={onDirChange}
+          textTransform="none"
+          css={`
+            width: 0px; // remove extra width around the button icon
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            border-color: ${props => props.theme.colors.spotBackground[0]};
+          `}
+          size="small"
+        >
+          {sortDir === 'ASC' ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+        </ButtonBorder>
+      </HoverTooltip>
     </Flex>
   );
 };
