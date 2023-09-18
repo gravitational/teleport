@@ -1,4 +1,4 @@
-.version: &version "15.0.0-dev"
+.version: &version "15.0.0-dev-walt-gha.1"
 
 name: teleport-cluster
 apiVersion: v2
