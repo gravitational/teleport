@@ -374,13 +374,21 @@ export class NodeWaitJoinTimeout extends Error {
  * See the comment in createAbortController for more details.
  */
 function wait(ms: number, abortSignal: TshAbortSignal): Promise<void> {
+  if (abortSignal.aborted) {
+    return Promise.reject(new DOMException('Wait was aborted.', 'AbortError'));
+  }
+
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(resolve, ms);
-    if (abortSignal) {
-      abortSignal.addEventListener(() => {
-        clearTimeout(timeout);
-        reject(new DOMException('Wait was aborted.', 'AbortError'));
-      });
-    }
+    const abort = () => {
+      clearTimeout(timeout);
+      reject(new DOMException('Wait was aborted.', 'AbortError'));
+    };
+    const done = () => {
+      abortSignal.removeEventListener(abort);
+      resolve();
+    };
+
+    const timeout = setTimeout(done, ms);
+    abortSignal.addEventListener(abort);
   });
 }
