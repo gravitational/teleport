@@ -45,7 +45,7 @@ use rdpdr::tdp::{
 };
 use util::{encode_png, from_c_string, from_go_array};
 
-use crate::client::TdpMessage;
+use crate::client::{Client, ClientFunction};
 
 pub mod client;
 mod cliprdr;
@@ -69,7 +69,7 @@ pub extern "C" fn init() {
 /// The caller mmust ensure that go_addr, go_username, cert_der, key_der point to valid buffers in respect
 /// to their corresponding parameters.
 #[no_mangle]
-pub unsafe extern "C" fn client_connect(cgo_ref: usize, params: CGOConnectParams) {
+pub unsafe extern "C" fn client_connect(cgo_ref: usize, params: CGOConnectParams) -> CGOErrCode {
     trace!("client_connect");
     // Convert from C to Rust types.
     let addr = from_c_string(params.go_addr);
@@ -77,7 +77,7 @@ pub unsafe extern "C" fn client_connect(cgo_ref: usize, params: CGOConnectParams
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
-    client::connect(
+    match Client::run(
         cgo_ref,
         ConnectParams {
             addr,
@@ -90,7 +90,10 @@ pub unsafe extern "C" fn client_connect(cgo_ref: usize, params: CGOConnectParams
             allow_directory_sharing: params.allow_directory_sharing,
             show_desktop_wallpaper: params.show_desktop_wallpaper,
         },
-    )
+    ) {
+        Ok(_) => CGOErrCode::ErrCodeSuccess,
+        Err(_) => CGOErrCode::ErrCodeFailure,
+    }
 }
 
 /// `client_update_clipboard` is called from Go, and caches data that was copied
@@ -265,8 +268,9 @@ pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
     res_len: u32,
 ) {
     let res = from_go_array(res, res_len);
-    if let Some(tx) = client::get_channels(index) {
-        tx.blocking_send(TdpMessage::PDU(res)).unwrap();
+    if let Some(tx) = client::get_client_handle(index) {
+        tx.blocking_send(ClientFunction::HandleResponsePdu(res))
+            .unwrap();
     }
 }
 
@@ -276,8 +280,9 @@ pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn client_write_rdp_pointer(index: usize, pointer: CGOMousePointerEvent) {
-    if let Some(tx) = client::get_channels(index) {
-        tx.blocking_send(TdpMessage::Pointer(pointer)).unwrap();
+    if let Some(tx) = client::get_client_handle(index) {
+        tx.blocking_send(ClientFunction::WriteRdpPointer(pointer))
+            .unwrap();
     }
 }
 
@@ -287,8 +292,8 @@ pub unsafe extern "C" fn client_write_rdp_pointer(index: usize, pointer: CGOMous
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn client_write_rdp_keyboard(index: usize, key: CGOKeyboardEvent) {
-    if let Some(tx) = client::get_channels(index) {
-        tx.blocking_send(TdpMessage::Key(key)).unwrap();
+    if let Some(tx) = client::get_client_handle(index) {
+        tx.blocking_send(ClientFunction::WriteRdpKey(key)).unwrap();
     }
 }
 
