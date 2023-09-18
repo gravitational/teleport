@@ -143,10 +143,11 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 		return []backend.Event{{
 			Type: types.OpPut,
 			Item: backend.Item{
-				Key:     key,
-				Value:   value,
-				Expires: expires.UTC(),
-				ID:      idFromRevision(revision),
+				Key:      key,
+				Value:    value,
+				Expires:  expires.UTC(),
+				ID:       idFromRevision(revision),
+				Revision: revisionToString(revision),
 			},
 		}}, nil
 
@@ -213,10 +214,11 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 			}, {
 				Type: types.OpPut,
 				Item: backend.Item{
-					Key:     key,
-					Value:   value,
-					Expires: expires.UTC(),
-					ID:      idFromRevision(revision),
+					Key:      key,
+					Value:    value,
+					Expires:  expires.UTC(),
+					ID:       idFromRevision(revision),
+					Revision: revisionToString(revision),
 				},
 			}}, nil
 		}
@@ -224,10 +226,11 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 		return []backend.Event{{
 			Type: types.OpPut,
 			Item: backend.Item{
-				Key:     key,
-				Value:   value,
-				Expires: expires.UTC(),
-				ID:      idFromRevision(revision),
+				Key:      key,
+				Value:    value,
+				Expires:  expires.UTC(),
+				ID:       idFromRevision(revision),
+				Revision: revisionToString(revision),
 			},
 		}}, nil
 	}
