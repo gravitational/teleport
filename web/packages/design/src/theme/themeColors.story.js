@@ -297,21 +297,23 @@ const ColorsComponent = () => {
           example of this in use currently would be unified resource cards in
           the Pinned and Pinned(Hovered) states.
         </Text>
-        <SingleColorBox
-          mb="2"
-          path="theme.colors.interactive.tonal.primary[0]"
-          color={theme.colors.interactive.tonal.primary[0]}
-        />
-        <SingleColorBox
-          mb="2"
-          path="theme.colors.interactive.tonal.primary[1]"
-          color={theme.colors.interactive.tonal.primary[1]}
-        />
-        <SingleColorBox
-          mb="2"
-          path="theme.colors.interactive.tonal.primary[2]"
-          color={theme.colors.interactive.tonal.primary[2]}
-        />
+        <Flex gap={4}>
+          <SingleColorBox
+            mb="2"
+            path="theme.colors.interactive.tonal.primary[0]"
+            color={theme.colors.interactive.tonal.primary[0]}
+          />
+          <SingleColorBox
+            mb="2"
+            path="theme.colors.interactive.tonal.primary[1]"
+            color={theme.colors.interactive.tonal.primary[1]}
+          />
+          <SingleColorBox
+            mb="2"
+            path="theme.colors.interactive.tonal.primary[2]"
+            color={theme.colors.interactive.tonal.primary[2]}
+          />
+        </Flex>
       </Flex>
     </Flex>
   );
