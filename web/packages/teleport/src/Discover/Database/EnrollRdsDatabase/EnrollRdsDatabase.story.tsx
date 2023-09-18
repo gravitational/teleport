@@ -16,40 +16,12 @@
 
 import React from 'react';
 
-import { AwsRegionSelector } from './AwsRegionSelector';
 import { DatabaseList } from './RdsDatabaseList';
 import { CheckedAwsRdsDatabase } from './EnrollRdsDatabase';
 
 export default {
   title: 'Teleport/Discover/Database/EnrollRds',
 };
-
-export const AwsRegionsSelectorDisabled = () => (
-  <AwsRegionSelector
-    onFetch={() => null}
-    onRefresh={() => null}
-    disableSelector={true}
-    clear={() => null}
-  />
-);
-
-export const AwsRegionsSelectorEnabled = () => (
-  <AwsRegionSelector
-    onFetch={() => null}
-    onRefresh={() => null}
-    disableSelector={false}
-    clear={() => null}
-  />
-);
-
-export const AwsRegionsSelectorRefreshEnabled = () => (
-  <AwsRegionSelector
-    onFetch={() => null}
-    onRefresh={() => null}
-    disableSelector={false}
-    clear={() => null}
-  />
-);
 
 export const RdsDatabaseList = () => (
   <DatabaseList
