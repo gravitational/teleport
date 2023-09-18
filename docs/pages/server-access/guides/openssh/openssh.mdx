@@ -30,6 +30,19 @@ a certificate signed by a Teleport CA that only the Auth Service possesses.
 
 In this setup, the Teleport SSH Service performs RBAC checks as well as audits and records sessions on its host, which eliminates the need for connection termination when recording SSH sessions.
 
+<Admonition
+  type="tip"
+  title="Note"
+>
+
+  Registering an OpenSSH node with Teleport involves copying the `teleport` binary
+  onto your `sshd` host. The `teleport` binary will handle registering the node
+  with your cluster, generating certificates, modifying your OpenSSH `sshd` config,
+  and more. If copying the `teleport` binary onto your `sshd` and running it isn't
+  an option, you can [register your node manually instead](openssh-manual-install.mdx).
+
+</Admonition>
+
 ## Prerequisites
 
 - OpenSSH version 6.9 or above on your local machine. View your OpenSSH version
@@ -78,7 +91,8 @@ Change the command-line options to assign the following values:
 
 Check that your new node is listed with `tsh ls` or in the Web UI. You can edit the
 hostname and labels with `tctl edit nodes/<hostname>`.  If the hostname isn't unique, get the UUID
-from `tctl nodes ls -v` and edit with `tctl edit nodes/<uuid>`.
+from `tctl nodes ls -v` and edit with `tctl edit nodes/<uuid>`. After you've confirmed the node
+was registered successfully you can delete the copied `teleport` binary.
 
 ## Step 2/3. Generate an SSH client configuration
 
