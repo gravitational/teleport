@@ -176,7 +176,7 @@ const FilterTypesMenu = ({
         size="small"
         onClick={handleOpen}
       >
-        Type
+        Types {kindsFromParams.length > 0 ? `(${kindsFromParams.length})` : ''}
         <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
         {kindsFromParams.length > 0 && <FiltersExistIndicator />}
       </ButtonSecondary>
@@ -198,6 +198,7 @@ const FilterTypesMenu = ({
           <ButtonSecondary
             size="small"
             onClick={handleSelectAll}
+            textTransform="none"
             css={`
               background-color: transparent;
             `}
@@ -208,6 +209,7 @@ const FilterTypesMenu = ({
           <ButtonSecondary
             size="small"
             onClick={handleClearAll}
+            textTransform="none"
             css={`
               background-color: transparent;
             `}
