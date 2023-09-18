@@ -75,17 +75,44 @@ authenticate with the Teleport Auth Server.
 
 ## Step 3/3. Use `tctl` with the identity output
 
+As an example, `tctl` will be used to apply a directory of YAML files that
+define Teleport roles. If these were stored in version control (e.g git) and
+this was executed on change, this would form the basis for managing Teleport
+roles in a GitOps style.
+
+The example role will not be useful within the context of your Teleport cluster
+and should be modified once you have completed this guide.
+
+Create a directory called `roles/` and within it create `example.yaml`:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: example-role
+spec:
+  allow:
+    logins: ['root']
+    node_labels:
+      'key': 'value'
+```
+
 To configure `tctl` to use the identity file, the `-i` flag is used. As the
 identity file does not specify the address of Teleport, `--auth-server` must
 also be specified with the address of your Teleport Proxy or Teleport Auth
 Server.
 
-In this example, `tctl` is used to apply each role YAML file within a directory.
-This could be used as part of a CI/CD process to manage Teleport configuration
-in a GitOps manner:
+Run `tctl`, replacing `example.teleport.sh:443` with the address of your
+Teleport Proxy or Auth Server and `/opt/machine-id/identity` with the path to
+the generated identity file if you have modified this:
 
 ```code
 $ tctl --auth-server example.teleport.sh:443 -i /opt/machine-id/identity create -f roles/*.yaml
 ```
 
+Check your Teleport cluster, ensuring the role has been created.
+
 ## Next steps
+
+- Explore the [`tctl` reference](../../reference/cli/tctl.mdx) to discover all
+  `tctl` can do.
