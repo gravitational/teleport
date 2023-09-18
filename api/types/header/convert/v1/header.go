@@ -50,7 +50,7 @@ func ToResourceHeaderProto(resourceHeader header.ResourceHeader) *headerv1.Resou
 func FromMetadataProto(msg *headerv1.Metadata) header.Metadata {
 	// We map the Zero protobuf time to the zero go time.
 	// We have to do this because protobuf's zero is epoch and std's zero time
-	// is yeah 1 of the gregorian calendar.
+	// is year 1 of the gregorian calendar.
 	expires := msg.Expires.AsTime()
 	if expires.Unix() == 0 {
 		expires = time.Time{}
