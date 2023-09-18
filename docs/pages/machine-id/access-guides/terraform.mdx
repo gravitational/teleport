@@ -15,6 +15,13 @@ Terraform Provider and use Terraform to configure a Teleport role.
 
 ## Step 1/3. Configure RBAC
 
+First, Teleport must be configured to allow the credentials produced by the bot
+to modify the Teleport configuration.
+
+If you have followed an access guide, you will have created a role and granted
+the bot the ability to impersonate it already. This role just needs to have the
+additional privileges added to it.
+
 Use `tctl edit role/example-bot` to add the following rule to the role:
 
 ```yaml
@@ -22,9 +29,24 @@ spec:
   allow:
     rules:
     - resources:
-      # Specify the names of resources you wish to manage with Terraform.
-      # For this guide, we will only manage roles.
+      # These currently represent all the resources that can be configured by
+      # Terraform. You may wish to remove resources that you do not intend to
+      # configure with Terraform from this list to reduce blast radius.
+      - app
+      - cluster_auth_preference
+      - cluster_networking_config
+      - db
+      - device
+      - github
+      - login_rule
+      - oidc
+      - okta_import_rule
       - role
+      - saml
+      - session_recording_config
+      - token
+      - trusted_cluster
+      - user
       verbs:
       - create
       - read
