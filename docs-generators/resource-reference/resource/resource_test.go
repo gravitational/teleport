@@ -329,7 +329,7 @@ is_active: true
 				t.Fatalf("test fixture contains invalid Go source: %v\n", err)
 			}
 
-			allDecls := make(map[PackageInfo]*ast.GenDecl)
+			allDecls := make(map[PackageInfo]DeclarationInfo)
 			// Assemble map of PackageInfo to *ast.GenDecl for
 			// source fixtures the test case depends on.
 			// TODO: This is getting lengthy, so consider extracting
@@ -363,7 +363,10 @@ is_active: true
 					allDecls[PackageInfo{
 						TypeName:    spec.Name.Name,
 						PackageName: d.Name.Name,
-					}] = l
+					}] = DeclarationInfo{
+						Decl:     l,
+						FilePath: fmt.Sprintf("myfile%v.go", n),
+					}
 
 				}
 
@@ -378,7 +381,10 @@ is_active: true
 				t.Fatalf("test fixture declaration is not a GenDecl")
 			}
 
-			r, err := NewFromDecl(gd, "myfile.go", allDecls)
+			r, err := NewFromDecl(DeclarationInfo{
+				FilePath: "myfile.go",
+				Decl:     gd,
+			}, allDecls)
 			assert.NoError(t, err)
 
 			assert.Equal(t, tc.expected, r)
