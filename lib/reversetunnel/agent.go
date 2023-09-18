@@ -369,7 +369,7 @@ func (a *agent) connect() error {
 		a.client.Close()
 		// the error message must end with [alreadyClaimedErrorMessage] to be
 		// recognized by [isAlreadyClaimed]
-		return trace.Errorf("failed to claim proxy %v: "+alreadyClaimedErrorMessage, a.client.Principals())
+		return trace.Errorf("failed to claim proxy %v: "+proxyAlreadyClaimedError, a.client.Principals())
 	}
 
 	startupCtx, cancel := context.WithCancel(a.ctx)
