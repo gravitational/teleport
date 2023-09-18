@@ -32,21 +32,46 @@ spec:
   allow:
     rules:
     - resources:
+      # Specify the names of resources you wish to manage with tctl.
+      # For this guide, we will only manage roles.
       - role
       verbs:
       - create
+      - read
       - update
+      - delete
+      - list
 ```
 
 ## Step 2/3. Configure `tbot` output
+
+Now, `tbot` needs to be configured with an output that will produce the
+credentials needed by `tctl`. As `tctl` will be accessing the Teleport API, the
+correct output type to use is `identity`.
+
+For this guide, the `directory` destination will be used. This will write these
+credentials to a specified directory on disk.
+
+Modify your `tbot` configuration to add an `identity` output:
 
 ```yaml
 outputs:
 - type: identity
   destination:
     type: directory
-    path: ./tbot-output
+    # For this guide, /opt/machine-id is used as the destination directory.
+    # You may wish to customise this. Multiple outputs cannot share the same
+    # destination.
+    path: /opt/machine-id
 ```
+
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode, it must be executed before you attempt to execute the Terraform
+plan later.
+
+You should now see an `identity` file under `/opt/machine-id`. This contains
+the private key and signed certificates needed by `tctl` to
+authenticate with the Teleport Auth Server.
 
 ## Step 3/3. Use `tctl` with the identity output
 
@@ -60,7 +85,7 @@ This could be used as part of a CI/CD process to manage Teleport configuration
 in a GitOps manner:
 
 ```code
-$ tctl --auth-server example.teleport.sh:443 -i ./tbot-output/identity create -f roles/*.yaml
+$ tctl --auth-server example.teleport.sh:443 -i /opt/machine-id/identity create -f roles/*.yaml
 ```
 
 ## Next steps
