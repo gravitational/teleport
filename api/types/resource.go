@@ -588,18 +588,30 @@ func unifiedKindCompare(a, b ResourceWithLabels, isDesc bool) bool {
 
 func unifiedNameCompare(a ResourceWithLabels, b ResourceWithLabels, isDesc bool) bool {
 	var nameA, nameB string
-	resourceA, ok := a.(Server)
-	if ok {
-		nameA = resourceA.GetHostname()
-	} else {
+	switch r := a.(type) {
+	case AppServer:
+		nameA = r.GetApp().GetName()
+	case DatabaseServer:
+		nameA = r.GetDatabase().GetName()
+	case KubeServer:
+		nameA = r.GetCluster().GetName()
+	case Server:
+		nameA = r.GetHostname()
+	default:
 		nameA = a.GetName()
 	}
 
-	resourceB, ok := b.(Server)
-	if ok {
-		nameB = resourceB.GetHostname()
-	} else {
-		nameB = b.GetName()
+	switch r := b.(type) {
+	case AppServer:
+		nameB = r.GetApp().GetName()
+	case DatabaseServer:
+		nameB = r.GetDatabase().GetName()
+	case KubeServer:
+		nameB = r.GetCluster().GetName()
+	case Server:
+		nameB = r.GetHostname()
+	default:
+		nameB = a.GetName()
 	}
 
 	return stringCompare(strings.ToLower(nameA), strings.ToLower(nameB), isDesc)
