@@ -17,14 +17,7 @@ limitations under the License.
 import React, { useEffect, useState } from 'react';
 
 import styled from 'styled-components';
-import {
-  Box,
-  Indicator,
-  Flex,
-  ButtonLink,
-  ButtonSecondary,
-  Text,
-} from 'design';
+import { Box, Flex, ButtonLink, ButtonSecondary, Text } from 'design';
 import { Magnifier } from 'design/Icon';
 
 import { Danger } from 'design/Alert';
