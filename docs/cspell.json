@@ -701,6 +701,7 @@
     "skipreconcile",
     "slacktokenfromsecret",
     "snowsql",
+    "spfile",
     "splunkd",
     "splunkd",
     "splunkforwarder",
