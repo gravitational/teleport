@@ -298,7 +298,11 @@ func (m *kubernetesResourceMatcher) Match(role types.Role, condition types.RoleC
 		if name == "" && namespace == "" {
 			return true, nil
 		}
-		if name != "" {
+		// If the resource name isn't empty but the resource kind is a namespace scope
+		// match - i.e. the resource.Kind==types.KindKubeNamespace and the desired
+		// resource kind is not a cluster-wide resource - we should skip the resource
+		// name validation.
+		if name != "" && !namespaceScopeMatch {
 			switch ok, err := utils.SliceMatchesRegex(name, []string{resource.Name}); {
 			case err != nil:
 				return false, trace.Wrap(err)

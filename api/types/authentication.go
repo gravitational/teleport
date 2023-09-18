@@ -853,7 +853,7 @@ func (d *MFADevice) UnmarshalJSON(buf []byte) error {
 
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.
 func (r RequireMFAType) IsSessionMFARequired() bool {
-	return r == RequireMFAType_SESSION || r == RequireMFAType_SESSION_AND_HARDWARE_KEY
+	return r != RequireMFAType_OFF
 }
 
 // MarshalJSON marshals RequireMFAType to boolean or string.
