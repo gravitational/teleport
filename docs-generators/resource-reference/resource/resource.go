@@ -400,8 +400,10 @@ func makeRawField(field *ast.Field) (rawField, error) {
 		return rawField{}, fmt.Errorf("field %+v contains more than one name", field)
 	}
 
-	if len(field.Names) == 0 {
-		return rawField{}, fmt.Errorf("field %+v has no names", field)
+	var name string
+	// Otherwise, the field is likely an embedded struct.
+	if len(field.Names) == 1 {
+		name = field.Names[0].Name
 	}
 
 	tn, err := getYAMLType(field)
@@ -412,7 +414,7 @@ func makeRawField(field *ast.Field) (rawField, error) {
 	return rawField{
 		doc:      doc,
 		kind:     tn,
-		name:     field.Names[0].Name,
+		name:     name,
 		jsonName: getJSONTag(field.Tag.Value),
 		tags:     field.Tag.Value,
 	}, nil
@@ -481,9 +483,9 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		deps = append(deps, f.kind.customFieldData()...)
 	}
 
+	// Handle example YAML within the declaration's GoDoc.
 	description := rs.doc
 	var example string
-
 	if strings.Contains(rs.doc, yamlExampleDelimeter) {
 		sides := strings.Split(rs.doc, yamlExampleDelimeter)
 		if len(sides) != 2 {
@@ -502,6 +504,7 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 			return nil, err
 		}
 	}
+
 	fld, err := makeFieldTableInfo(rs.fields)
 	if err != nil {
 		return nil, err
@@ -524,7 +527,6 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		if !ok {
 			continue
 		}
-		// TODO: Figure out how to get the source path for dependencies!
 		r, err := NewFromDecl(gd, allDecls)
 
 		if err != nil {
