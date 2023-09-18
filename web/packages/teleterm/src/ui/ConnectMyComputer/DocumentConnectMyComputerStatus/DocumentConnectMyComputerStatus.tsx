@@ -272,7 +272,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
           };
         }
         case 'error': {
-          if (currentAction.attempt.statusText !== AgentProcessError.name) {
+          if (!(currentAction.attempt.error instanceof AgentProcessError)) {
             return {
               Icon: StyledWarning,
               title: 'Failed to start agent',
