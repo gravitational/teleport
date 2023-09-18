@@ -411,6 +411,57 @@ label_maps:
 				},
 			},
 		},
+		{
+			description: "embedded struct",
+			source: `package mypkg
+// MyResource is a resource declared for testing.
+type MyResource struct{
+  // Alias is another name to call the resource.
+  Alias string BACKTICKalias:"json"BACKTICK
+  types.Metadata
+}
+`,
+			declSources: []string{
+				`package types
+
+// Metadata describes information about a dynamic resource. Every dynamic
+// resource in Teleport has a metadata object.
+type Metadata struct {
+    // Name is the name of the resource.
+    Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
+    // Active indicates whether the resource is currently in use.
+    Active bool BACKTICKjson:"active"BACKTICK
+}`,
+			},
+			expected: []ReferenceEntry{
+				{
+					SectionName: "My Resource",
+					Description: "A resource declared for testing.",
+					SourcePath:  "myfile.go",
+					Fields: []Field{
+						{
+							Name:        "alias",
+							Description: "Another name to call the resource.",
+							Type:        "string",
+						},
+						{
+							Name:        "name",
+							Description: "The name of the resource",
+							Type:        "string",
+						},
+						{
+							Name:        "active",
+							Description: "Indicates whether the resource is currently in use.",
+							Type:        "Boolean",
+						},
+					},
+					YAMLExample: `alias: "string"
+name: "string"
+active: true
+`,
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
