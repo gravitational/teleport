@@ -299,7 +299,7 @@ teleport:
     # use a different user or different settings for the connection used
     # to set up and make use of logical decoding. If specified, Teleport
     # will use the connection string in change_feed_conn_string for that,
-    # instead of the one in conn_string.
+    # instead of the one in conn_string. Available in Teleport 13.3.10 and later.
     change_feed_conn_string: postgresql://replication_user_name@database-address/teleport_backend?sslmode=verify-full
 
     # An audit_events_uri with a scheme of postgresql:// will use the
