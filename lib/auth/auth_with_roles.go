@@ -5447,6 +5447,12 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 	if !hasLocalUserRole(a.context) && !hasRemoteUserRole(a.context) {
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
 	}
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if a.context.Identity.GetIdentity().PrivateKeyPolicy.MFAVerified() {
+		return &proto.IsMFARequiredResponse{
+			Required: false,
+		}, nil
+	}
 	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
 }
 

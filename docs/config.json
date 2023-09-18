@@ -240,11 +240,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Headless WebAuthn (Preview)",
+              "title": "Headless WebAuthn",
               "slug": "/access-controls/guides/headless/"
             },
             {
-              "title": "IP Pinning (Preview)",
+              "title": "IP Pinning ",
               "slug": "/access-controls/guides/ip-pinning/",
               "forScopes": ["enterprise", "cloud"]
             }
@@ -833,7 +833,7 @@
           ]
         },
         {
-          "title": "Protect Okta Applications and Groups (Preview)",
+          "title": "Protect Okta Applications and Groups ",
           "slug": "/application-access/okta/",
           "forScopes": ["enterprise", "cloud"],
           "entries": [
@@ -1042,6 +1042,10 @@
               "slug": "/database-access/guides/aws-cross-account/"
             },
             {
+              "title": "AWS Discovery",
+              "slug": "/database-access/guides/aws-discovery/"
+            },
+            {
               "title": "AWS DynamoDB",
               "slug": "/database-access/guides/aws-dynamodb/"
             },
@@ -1169,7 +1173,7 @@
               "slug": "/database-access/rbac/configuring-access/"
             },
             {
-              "title": "Automatic User Provisioning (Preview)",
+              "title": "Automatic User Provisioning ",
               "slug": "/database-access/rbac/configuring-auto-user-provisioning/"
             }
           ]
