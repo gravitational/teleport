@@ -755,15 +755,21 @@ func (s *remoteSite) DialAuthServer(params reversetunnelclient.DialParams) (net.
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
 func (s *remoteSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
-	recConfig, err := s.localAccessPoint.GetSessionRecordingConfig(s.ctx)
+	localRecCfg, err := s.localAccessPoint.GetSessionRecordingConfig(s.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	remoteRecCfg, err := s.remoteAccessPoint.GetSessionRecordingConfig(s.ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	remoteProxyRec := services.IsRecordAtProxy(remoteRecCfg.GetMode())
 
-	// If the proxy is in recording mode and a SSH connection is being
-	// requested or the target server is a registered OpenSSH node, build
-	// an in-memory forwarding server.
-	if shouldDialAndForward(params, recConfig) {
+	// If the remote cluster is recording at the proxy we need to respect
+	// that and forward and record the session. We will be connecting
+	// to the node without connecting through the remote Proxy, so the
+	// session won't have a chance to get recorded at the remote Proxy.
+	if remoteProxyRec || shouldDialAndForward(params, localRecCfg) {
 		return s.dialAndForward(params)
 	}
 
