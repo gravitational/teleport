@@ -3,7 +3,26 @@ title: Reference
 description: This guide is a comprehensive reference of configuration options for automatically enrolling Kubernetes applications with Teleport.
 ---
 
-## Configuring Teleport agents
+## Configuring Teleport agent Helm chart
+
+You can configure scope of services discovery by setting value `kubernetesDiscovery` of the chart. For more information
+please see [helm chart documentation](../reference/helm-reference/teleport-kube-agent.mdx#kubernetesdiscovery).
+
+`values.yaml` example:
+
+```yaml
+kubernetesDiscovery:
+- types: ["app"]
+  namespaces: [ "toronto", "porto" ]
+  labels:
+    env: staging
+- types: ["app"]
+  namespaces: [ "seattle", "oakland" ]
+  labels:
+    env: testing
+```
+
+## Configuring Kubernetes Apps Discovery manually
 
 While the `teleport-kube-agent` Helm chart will set up configuration for you
 automatically, you can also configure the required services manually. To do so,
@@ -19,14 +38,14 @@ discovery_service:
   enabled: yes
   discovery_group: main-cluster
   kubernetes:
-    - types: ["app"] 
-      namespaces: [ "toronto", "porto" ]
-      labels:
-        env: staging
-    - types: ["app"]
-      namespaces: [ "seattle", "oakland" ]
-      labels:
-        env: testing
+  - types: ["app"]
+    namespaces: [ "toronto", "porto" ]
+    labels:
+      env: staging
+  - types: ["app"]
+    namespaces: [ "seattle", "oakland" ]
+    labels:
+      env: testing
 ```
 
 Configuration for the Application Service is controlled by the `resources` field, example:
@@ -35,9 +54,9 @@ Configuration for the Application Service is controlled by the `resources` field
 app_service:
   enabled: yes
   resources:
-    - labels:
-        "teleport.dev/kubernetes-cluster": "main-cluster"
-        "teleport.dev/origin": "discovery-kubernetes"
+  - labels:
+    "teleport.dev/kubernetes-cluster": "main-cluster"
+    "teleport.dev/origin": "discovery-kubernetes"
 ```
 
 Label `teleport.dev/kubernetes-cluster` should match value of `discovery_group` field in the Discovery Service config.
