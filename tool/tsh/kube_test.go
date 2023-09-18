@@ -19,12 +19,11 @@ package main
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -35,6 +34,7 @@ import (
 	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 func TestKube(t *testing.T) {
@@ -54,8 +54,6 @@ type kubeTestPack struct {
 	rootKubeCluster1 string
 	rootKubeCluster2 string
 	leafKubeCluster  string
-	serviceLabels    map[string]string
-	formatedLabels   string
 }
 
 func setupKubeTestPack(t *testing.T) *kubeTestPack {
@@ -64,12 +62,18 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 	ctx := context.Background()
 	rootKubeCluster1 := "root-cluster"
 	rootKubeCluster2 := "first-cluster"
-	leafKubeCluster := "leaf-cluster"
-	serviceLabels := map[string]string{
+	// mock a discovered kube cluster name in the leaf Teleport cluster.
+	leafKubeCluster := "leaf-cluster-some-suffix-added-by-discovery-service"
+	rootLabels := map[string]string{
 		"label1": "val1",
 		"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
 	}
-	formatedLabels := formatServiceLabels(serviceLabels)
+	leafLabels := map[string]string{
+		"label1": "val1",
+		"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
+		// mock a discovered kube cluster in the leaf Teleport cluster.
+		types.DiscoveredNameLabel: "leaf-cluster",
+	}
 
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
@@ -77,7 +81,7 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 			cfg.Kube.Enabled = true
 			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
-			cfg.Kube.StaticLabels = serviceLabels
+			cfg.Kube.StaticLabels = rootLabels
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(
@@ -86,6 +90,7 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 				cfg.Kube.Enabled = true
 				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
+				cfg.Kube.StaticLabels = leafLabels
 			},
 		),
 		withValidationFunc(func(s *suite) bool {
@@ -105,12 +110,18 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 		rootKubeCluster1: rootKubeCluster1,
 		rootKubeCluster2: rootKubeCluster2,
 		leafKubeCluster:  leafKubeCluster,
-		serviceLabels:    serviceLabels,
-		formatedLabels:   formatedLabels,
 	}
 }
 
 func (p *kubeTestPack) testListKube(t *testing.T) {
+	staticRootLabels := p.suite.root.Config.Kube.StaticLabels
+	formattedRootLabels := common.FormatLabels(staticRootLabels, false)
+	formattedRootLabelsVerbose := common.FormatLabels(staticRootLabels, true)
+
+	staticLeafLabels := p.suite.leaf.Config.Kube.StaticLabels
+	formattedLeafLabels := common.FormatLabels(staticLeafLabels, false)
+	formattedLeafLabelsVerbose := common.FormatLabels(staticLeafLabels, true)
+
 	tests := []struct {
 		name      string
 		args      []string
@@ -124,7 +135,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 				// p.rootKubeCluster1 ("root-cluster") after sorting.
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Kube Cluster Name", "Labels", "Selected"},
-					[][]string{{p.rootKubeCluster2, p.formatedLabels, ""}, {p.rootKubeCluster1, p.formatedLabels, ""}},
+					[][]string{
+						{p.rootKubeCluster2, formattedRootLabels, ""},
+						{p.rootKubeCluster1, formattedRootLabels, ""},
+					},
 					"Labels")
 				return table.AsBuffer().String()
 			},
@@ -135,8 +149,8 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			wantTable: func() string {
 				table := asciitable.MakeTable(
 					[]string{"Kube Cluster Name", "Labels", "Selected"},
-					[]string{p.rootKubeCluster2, p.formatedLabels, ""},
-					[]string{p.rootKubeCluster1, p.formatedLabels, ""})
+					[]string{p.rootKubeCluster2, formattedRootLabelsVerbose, ""},
+					[]string{p.rootKubeCluster1, formattedRootLabelsVerbose, ""})
 				return table.AsBuffer().String()
 			},
 		},
@@ -145,8 +159,8 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--quiet"},
 			wantTable: func() string {
 				table := asciitable.MakeHeadlessTable(2)
-				table.AddRow([]string{p.rootKubeCluster2, p.formatedLabels, ""})
-				table.AddRow([]string{p.rootKubeCluster1, p.formatedLabels, ""})
+				table.AddRow([]string{p.rootKubeCluster2, formattedRootLabels, ""})
+				table.AddRow([]string{p.rootKubeCluster1, formattedRootLabels, ""})
 
 				return table.AsBuffer().String()
 			},
@@ -155,13 +169,43 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			name: "list all clusters including leaf clusters",
 			args: []string{"--all"},
 			wantTable: func() string {
+				table := asciitable.MakeTableWithTruncatedColumn(
+					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
+					[][]string{
+						// "leaf-cluster" should be displayed instead of the
+						// full leaf cluster name, since it is mocked as a
+						// discovered resource and the discovered resource name
+						// is displayed in non-verbose mode.
+						{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels},
+						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels},
+						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels},
+					},
+					"Labels",
+				)
+				return table.AsBuffer().String()
+			},
+		},
+		{
+			name: "list all clusters including leaf clusters with complete list of labels",
+			args: []string{"--all", "--verbose"},
+			wantTable: func() string {
 				table := asciitable.MakeTable(
 					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
-
-					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, ""},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, p.formatedLabels},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, p.formatedLabels},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, formattedLeafLabelsVerbose},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabelsVerbose},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabelsVerbose},
 				)
+				return table.AsBuffer().String()
+			},
+		},
+		{
+			name: "list all clusters including leaf clusters in headless table",
+			args: []string{"--all", "--quiet"},
+			wantTable: func() string {
+				table := asciitable.MakeHeadlessTable(4)
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels})
 				return table.AsBuffer().String()
 			},
 		},
@@ -190,7 +234,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 				setKubeConfigPath(filepath.Join(t.TempDir(), "kubeconfig")),
 			)
 			require.NoError(t, err)
-			require.Contains(t, captureStdout.String(), tc.wantTable())
+			got := strings.TrimSpace(captureStdout.String())
+			want := strings.TrimSpace(tc.wantTable())
+			diff := cmp.Diff(want, got)
+			require.Empty(t, diff)
 		})
 	}
 }
@@ -215,16 +262,6 @@ func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
 	err := clientcmd.WriteToFile(*kubeConf, kubeConfigLocation)
 	require.NoError(t, err)
 	return kubeConfigLocation
-}
-
-func formatServiceLabels(labels map[string]string) string {
-	labelSlice := make([]string, 0, len(labels))
-	for key, value := range labels {
-		labelSlice = append(labelSlice, fmt.Sprintf("%s=%s", key, value))
-	}
-
-	sort.Strings(labelSlice)
-	return strings.Join(labelSlice, ",")
 }
 
 func newKubeSelfSubjectServer(t *testing.T) string {

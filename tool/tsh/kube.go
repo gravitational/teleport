@@ -975,49 +975,69 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	}
 
 	selectedCluster := selectedKubeCluster(currentTeleportCluster, getKubeConfigPath(cf, ""))
+	err = c.showKubeClusters(cf.Stdout(), kubeClusters, selectedCluster)
+	return trace.Wrap(err)
+}
+
+func (c *kubeLSCommand) showKubeClusters(w io.Writer, kubeClusters types.KubeClusters, selectedCluster string) error {
 	format := strings.ToLower(c.format)
 	switch format {
 	case teleport.Text, "":
-		var (
-			t       asciitable.Table
-			columns = []string{"Kube Cluster Name", "Labels", "Selected"}
-			rows    [][]string
-		)
-
-		for _, cluster := range kubeClusters {
-			var selectedMark string
-			if cluster.GetName() == selectedCluster {
-				selectedMark = "*"
-			}
-			rows = append(rows, []string{
-				cluster.GetName(),
-				common.FormatLabels(cluster.GetAllLabels(), c.verbose),
-				selectedMark,
-			})
-		}
-
-		if c.quiet {
-			t = asciitable.MakeHeadlessTable(2)
-			for _, row := range rows {
-				t.AddRow(row[:2])
-			}
-		} else if c.verbose {
-			t = asciitable.MakeTable(columns, rows...)
-		} else {
-			t = asciitable.MakeTableWithTruncatedColumn(columns, rows, "Labels")
-		}
-		fmt.Fprintln(cf.Stdout(), t.AsBuffer().String())
+		out := formatKubeClustersAsText(kubeClusters, selectedCluster, c.quiet, c.verbose)
+		fmt.Fprintln(w, out)
 	case teleport.JSON, teleport.YAML:
+		sort.Sort(kubeClusters)
 		out, err := serializeKubeClusters(kubeClusters, selectedCluster, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Fprintln(cf.Stdout(), out)
+		fmt.Fprintln(w, out)
 	default:
-		return trace.BadParameter("unsupported format %q", cf.Format)
+		return trace.BadParameter("unsupported format %q", c.format)
+	}
+	return nil
+}
+
+func getKubeClusterTextRow(kc types.KubeCluster, selectedCluster string, verbose bool) []string {
+	var selectedMark string
+	var row []string
+	if selectedCluster != "" && kc.GetName() == selectedCluster {
+		selectedMark = "*"
+	}
+	displayName := common.FormatResourceName(kc, verbose)
+	labels := common.FormatLabels(kc.GetAllLabels(), verbose)
+	row = append(row, displayName, labels, selectedMark)
+	return row
+}
+
+func formatKubeClustersAsText(kubeClusters types.KubeClusters, selectedCluster string, quiet, verbose bool) string {
+	var (
+		columns = []string{"Kube Cluster Name", "Labels", "Selected"}
+		t       asciitable.Table
+		rows    [][]string
+	)
+
+	for _, cluster := range kubeClusters {
+		r := getKubeClusterTextRow(cluster, selectedCluster, verbose)
+		rows = append(rows, r)
 	}
 
-	return nil
+	switch {
+	case quiet:
+		// no column headers and only include the cluster name and labels.
+		t = asciitable.MakeHeadlessTable(2)
+		for _, row := range rows {
+			t.AddRow(row)
+		}
+	case verbose:
+		t = asciitable.MakeTable(columns, rows...)
+	default:
+		t = asciitable.MakeTableWithTruncatedColumn(columns, rows, "Labels")
+	}
+
+	// stable sort by kube cluster name.
+	t.SortRowsBy([]int{0}, true)
+	return t.AsBuffer().String()
 }
 
 func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, format string) (string, error) {
@@ -1077,27 +1097,13 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	sort.Sort(listings)
-
 	format := strings.ToLower(c.format)
 	switch format {
 	case teleport.Text, "":
-		var t asciitable.Table
-		if cf.Quiet {
-			t = asciitable.MakeHeadlessTable(3)
-		} else {
-			t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"})
-		}
-		for _, listing := range listings {
-			t.AddRow([]string{
-				listing.Proxy,
-				listing.Cluster,
-				listing.KubeCluster.GetName(),
-				common.FormatLabels(listing.KubeCluster.GetAllLabels(), c.verbose),
-			})
-		}
-		fmt.Fprintln(cf.Stdout(), t.AsBuffer().String())
+		out := formatKubeListingsAsText(listings, c.quiet, c.verbose)
+		fmt.Fprintln(cf.Stdout(), out)
 	case teleport.JSON, teleport.YAML:
+		sort.Sort(listings)
 		out, err := serializeKubeListings(listings, format)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1108,6 +1114,37 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 	}
 
 	return nil
+}
+
+func formatKubeListingsAsText(listings kubeListings, quiet, verbose bool) string {
+	var (
+		columns = []string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"}
+		t       asciitable.Table
+		rows    [][]string
+	)
+	for _, listing := range listings {
+		r := append([]string{
+			listing.Proxy,
+			listing.Cluster,
+		}, getKubeClusterTextRow(listing.KubeCluster, "", verbose)...)
+		rows = append(rows, r)
+	}
+
+	switch {
+	case quiet:
+		// quiet, so no column headers.
+		t = asciitable.MakeHeadlessTable(4)
+		for _, row := range rows {
+			t.AddRow(row)
+		}
+	case verbose:
+		t = asciitable.MakeTable(columns, rows...)
+	default:
+		t = asciitable.MakeTableWithTruncatedColumn(columns, rows, "Labels")
+	}
+	// stable sort by proxy, then cluster, then kube cluster name.
+	t.SortRowsBy([]int{0, 1, 2}, true)
+	return t.AsBuffer().String()
 }
 
 func serializeKubeListings(kubeListings []kubeListing, format string) (string, error) {
