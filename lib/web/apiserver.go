@@ -174,6 +174,10 @@ type proxySettingsGetter interface {
 	GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error)
 }
 
+// PresenceChecker is a function that executes an mfa prompt to enforce
+// that a user is present.
+type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, promptMFA client.PromptMFAFunc, opts ...client.PresenceOption) error
+
 // Config represents web handler configuration parameters
 type Config struct {
 	// PluginRegistry handles plugin registration
@@ -271,6 +275,10 @@ type Config struct {
 	// NodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
 	NodeWatcher *services.NodeWatcher
+
+	// PresenceChecker periodically runs the mfa ceremony for moderated
+	// sessions.
+	PresenceChecker PresenceChecker
 }
 
 // SetDefaults ensures proper default values are set if
@@ -280,6 +288,10 @@ func (c *Config) SetDefaults() {
 
 	if c.TracerProvider == nil {
 		c.TracerProvider = tracing.NoopProvider()
+	}
+
+	if c.PresenceChecker == nil {
+		c.PresenceChecker = client.RunPresenceTask
 	}
 }
 
@@ -2932,7 +2944,7 @@ func (h *Handler) siteNodeConnect(
 		ParticipantMode:    req.ParticipantMode,
 		PROXYSigner:        h.cfg.PROXYSigner,
 		Tracker:            tracker,
-		Clock:              h.clock,
+		PresenceChecker:    h.cfg.PresenceChecker,
 	}
 
 	term, err := NewTerminal(ctx, terminalConfig)
