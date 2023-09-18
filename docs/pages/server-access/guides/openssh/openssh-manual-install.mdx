@@ -89,8 +89,8 @@ $ export KEY=$(curl 'https://<Var name="proxy"/>/webapi/auth/export?type=openssh
 Make the public key accessible to `sshd`:
 
 ```code
-$ sudo bash -c "echo \"$KEY\" > /etc/ssh/teleport_user_ca.pub"
-$ sudo bash -c "echo 'TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub' >> /etc/ssh/sshd_config"
+$ sudo bash -c "echo \"$KEY\" > /etc/ssh/teleport_openssh_ca.pub"
+$ sudo bash -c "echo 'TrustedUserCAKeys /etc/ssh/teleport_openssh_ca.pub' >> /etc/ssh/sshd_config"
 ```
 
 Restart `sshd`. For systemd-enabled hosts, run the following command:
@@ -494,3 +494,19 @@ $ ssh -F ssh_config_teleport ${USER?}@node2.leafcluster.${CLUSTER}
   qualified domain name, rather than an IP address.
 
 </Admonition>
+
+### Upgrading to Teleport 14 and migrating from legacy OpenSSH nodes
+
+If you have previously configured OpenSSH nodes to trust a Teleport CA without
+registering them and you upgrade your Teleport cluster to Teleport 14, you won't
+be able to connect to them anymore by default. This is because open dialing to
+OpenSSH servers not registered with the cluster is no longer allowed in Teleport 14.
+To ensure that you will retain access to your OpenSSH nodes you will need to follow
+the above guide to register every OpenSSH node with Teleport that you previously
+configured. This must be done *before* your Teleport cluster is upgraded to Teleport 14.
+
+If you are having issues registering OpenSSH nodes or need to upgrade your
+Teleport cluster to Teleport 14 before registering all of your OpenSSH nodes, you can 
+pass the `TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING` environment variable to your
+Proxy Service and set it to `yes`. This will allow connections to unregistered
+OpenSSH nodes but will be removed in Teleport v15.
