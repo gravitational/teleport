@@ -96,6 +96,10 @@ export class MockMainProcessClient implements MainProcessClient {
     return Promise.resolve(false);
   }
 
+  openAgentLogsDirectory() {
+    return Promise.resolve();
+  }
+
   killAgent(): Promise<void> {
     return Promise.resolve();
   }
