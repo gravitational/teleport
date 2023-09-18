@@ -596,6 +596,9 @@ func TestHostUniqueCheck(t *testing.T) {
 				types.RoleDatabase,
 				types.RoleApp,
 				types.RoleWindowsDesktop,
+				types.RoleMDM,
+				types.RoleDiscovery,
+				types.RoleOkta,
 			},
 			Allow: []*types.TokenRule{
 				{
@@ -739,6 +742,39 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 		},
+		{
+			role: types.RoleOkta,
+			upserter: func(name string) {
+				app, err := types.NewAppV3(
+					types.Metadata{
+						Name:      "test-app",
+						Namespace: defaults.Namespace,
+					},
+					types.AppSpecV3{
+						URI: "https://app.localhost",
+					})
+				require.NoError(t, err)
+				appServer, err := types.NewAppServerV3(
+					types.Metadata{
+						Name:      name,
+						Namespace: defaults.Namespace,
+					},
+					types.AppServerSpecV3{
+						HostID: name,
+						App:    app,
+					})
+				require.NoError(t, err)
+				appServer.SetOrigin(types.OriginOkta)
+				_, err = a.UpsertApplicationServer(context.Background(), appServer)
+				require.NoError(t, err)
+			},
+		},
+		{
+			role: types.RoleDiscovery,
+		},
+		{
+			role: types.RoleMDM,
+		},
 	}
 
 	ctx = context.WithValue(ctx, ec2ClientKey{}, ec2ClientRunning{})
@@ -759,14 +795,16 @@ func TestHostUniqueCheck(t *testing.T) {
 			_, err = a.RegisterUsingToken(ctx, &request)
 			require.NoError(t, err)
 
-			// add the server
-			name := instance1.account + "-" + instance1.instanceID
-			tc.upserter(name)
+			if tc.upserter != nil {
+				// add the server
+				name := instance1.account + "-" + instance1.instanceID
+				tc.upserter(name)
 
-			// request should fail
-			_, err = a.RegisterUsingToken(ctx, &request)
-			expectedErr := &trace.AccessDeniedError{}
-			require.ErrorAs(t, err, &expectedErr)
+				// request should fail
+				_, err = a.RegisterUsingToken(ctx, &request)
+				expectedErr := &trace.AccessDeniedError{}
+				require.ErrorAs(t, err, &expectedErr)
+			}
 		})
 	}
 }
