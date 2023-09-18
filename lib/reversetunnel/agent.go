@@ -370,7 +370,9 @@ func (a *agent) connect() error {
 	unclaim, ok := a.tracker.Claim(a.client.Principals()...)
 	if !ok {
 		a.client.Close()
-		return trace.Errorf("Failed to claim proxy: %v claimed by another agent", a.client.Principals())
+		// the error message must end with [alreadyClaimedErrorMessage] to be
+		// recognized by [isAlreadyClaimed]
+		return trace.Errorf("failed to claim proxy %v: "+alreadyClaimedErrorMessage, a.client.Principals())
 	}
 	a.unclaim = unclaim
 
