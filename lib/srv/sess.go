@@ -164,6 +164,10 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	sudoers, err := cfg.Srv.GetHostSudoers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &SessionRegistry{
 		SessionRegistryConfig: cfg,
 		log: log.WithFields(log.Fields{
@@ -171,7 +175,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 		}),
 		sessions: make(map[rsession.ID]*session),
 		users:    cfg.Srv.GetHostUsers(),
-		sudoers:  cfg.Srv.GetHostSudoers(),
+		sudoers:  sudoers,
 		sessionsByUser: &userSessions{
 			sessionsByUser: make(map[string]int),
 		},

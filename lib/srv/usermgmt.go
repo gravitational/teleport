@@ -163,8 +163,10 @@ type HostSudoersManagement struct {
 	backend HostSudoersBackend
 }
 
-var _ HostUsers = &HostUserManagement{}
-var _ HostSudoers = &HostSudoersManagement{}
+var (
+	_ HostUsers   = &HostUserManagement{}
+	_ HostSudoers = &HostSudoersManagement{}
+)
 
 // Under the section "Including other files from within sudoers":
 //

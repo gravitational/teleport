@@ -316,8 +316,8 @@ func (s *Server) GetHostUsers() srv.HostUsers {
 
 // GetHostSudoers returns the HostSudoers instance being used to manage
 // sudoers file provisioning
-func (s *Server) GetHostSudoers() srv.HostSudoers {
-	return s.sudoers
+func (s *Server) GetHostSudoers() (srv.HostSudoers, error) {
+	return s.sudoers, nil
 }
 
 // ServerOption is a functional option passed to the server

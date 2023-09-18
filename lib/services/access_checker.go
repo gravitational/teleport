@@ -928,7 +928,7 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 
 	roleSet := make([]types.Role, len(a.RoleSet))
 	copy(roleSet, a.RoleSet)
-	slices.SortStableFunc(roleSet, func(a types.Role, b types.Role) int {
+	slices.SortFunc(roleSet, func(a types.Role, b types.Role) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 
