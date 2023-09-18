@@ -90,7 +90,7 @@ If type of a service doesn't equal the one specified in the matcher, service is 
 
 By default name of the created Teleport app will consist of Kubernetes service name, namespace and 
 Kubernetes cluster name: `$SERVICE_NAME-$NAMESPACE-$KUBE_CLUSTER_NAME`. That name can be changed by Kubernetes annotation 
-"teleport.dev/name".
+[`teleport.dev/name`](#teleportdevname).
 
 Every port that is exposed by the service is considered separately, so one Kubernetes service can result in creation of multiple Teleport app resources, 
 if more than one port is exposed on the service. In that case port name will be added to the app name.
