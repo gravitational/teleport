@@ -288,6 +288,13 @@ teleport:
     # sslrootcert parameters.
     conn_string: postgresql://user_name@database-address/teleport_backend?sslmode=verify-full&pool_max_conns=20
 
+    # In certain managed environments it can be necessary or convenient to
+    # use a different user or different settings for the connection used
+    # to set up and make use of logical decoding. If specified, Teleport
+    # will use the connection string in change_feed_conn_string for that,
+    # instead of the one in conn_string.
+    change_feed_conn_string: postgresql://replication_user_name@database-address/teleport_backend?sslmode=verify-full
+
     # An audit_events_uri with a scheme of postgresql:// will use the
     # PostgreSQL backend for audit log storage; the URI is a libpq-compatible
     # connection string just like the cluster state conn_string, but cannot be
