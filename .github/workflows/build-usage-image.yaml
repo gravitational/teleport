@@ -16,7 +16,7 @@ jobs:
           echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v2
-      - uses: aws-actions/configure-aws-credentials@04b98b3f9e85f563fb061be8751a0352327246b0 # v3.0.1
+      - uses: aws-actions/configure-aws-credentials@8c3f20df09ac63af7b3ae3d7c91f105f857d8497 # v4.0.0
         with:
           role-to-assume: ${{ secrets.TELEPORT_USAGE_IAM_ROLE_ARN }}
           aws-region: us-east-1
