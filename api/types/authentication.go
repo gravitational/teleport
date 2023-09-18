@@ -96,6 +96,8 @@ type AuthPreference interface {
 	GetRequireMFAType() RequireMFAType
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
+	// GetPIVSlot returns the configured piv slot for the cluster.
+	GetPIVSlot() string
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -390,6 +392,11 @@ func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	default:
 		return keys.PrivateKeyPolicyNone
 	}
+}
+
+// GetPIVSlot returns the configured piv slot for the cluster.
+func (c *AuthPreferenceV2) GetPIVSlot() string {
+	return c.Spec.PIVSlot
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
