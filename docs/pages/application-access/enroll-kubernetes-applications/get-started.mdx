@@ -30,7 +30,7 @@ Create a join token for a new Teleport agent that will run the Teleport
 Kubernetes Service, Application Service, and Discovery Service:
 
 ```code
-$ tctl tokens add --type=kube,app,discovery 
+$ tctl tokens add --type=kube,app,discovery
 ```
 
 Enabling the `discovery` role by default will automatically start the discovery
@@ -39,6 +39,14 @@ enabling `app` role on the chart will start the process of proxying all new
 Teleport applications created from discovered Kubernetes services.
 
 ## Step 2/2. Deploy the agent
+
+If you want to install a new Teleport agent in your Kubernetes cluster, you can
+use the `teleport-kube-agent` Helm chart. If you already have a Teleport agent
+installed, you can upgrade it to enable the Kubernetes Application Discovery
+by adding the `kube`, `app`, and `discovery` to roles as shown below.
+
+<Tabs>
+<TabItem label="Install a new agent">
 
 Deploy a new Teleport agent running your configured services by installing the
 `teleport-kube-agent` Helm chart:
@@ -53,10 +61,13 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --namespace=teleport
 ```
 
-<Admonition type="tip">
+</TabItem>
 
-If you have an existing teleport-kube-agent installation and want to enable Kubernetes App Discovery,
-you need to update `roles` Helm value and set new auth token, which includes "app" and "discovery" roles (see Step 1)
+<TabItem label="Upgrade an existing agent">
+
+If you want to have an existing `teleport-kube-agent` installation and want to enable
+Kubernetes App Discovery, you need to update the existing installation role to
+include `kube`, `app`, and `discovery` roles:
 
 ```code
 $ helm upgrade teleport-agent teleport/teleport-kube-agent \
@@ -65,7 +76,9 @@ $ helm upgrade teleport-agent teleport/teleport-kube-agent \
   --set authToken=<Var name="token" /> \
   --namespace=teleport
 ```
-</Admonition>
+</TabItem>
+
+</Tabs>
 
 ## Troubleshooting
 
@@ -82,7 +95,7 @@ Make sure that Kubernetes service account under which the Discovery Service is
 running has enough permissions to list the cluster's services. Also make sure
 that labels and namespaces configuration is correct.
 
-For the Application Service, make sure that labels in `resources` field are defined correctly, specifically that label 
+For the Application Service, make sure that labels in `resources` field are defined correctly, specifically that label
 `teleport.dev/kubernetes-cluster` matches `discovery_group` field of the Discovery Service running in the Kubernetes cluster.
 
 ## Next steps
