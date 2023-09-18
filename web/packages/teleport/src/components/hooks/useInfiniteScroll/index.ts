@@ -14,6 +14,4 @@
  * limitations under the License.
  */
 
-export { useUrlFiltering } from './useUrlFiltering';
-export { useServerSidePagination } from './useServersidePagination';
 export { useInfiniteScroll } from './useInfiniteScroll';
