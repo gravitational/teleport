@@ -95,7 +95,7 @@ Kubernetes cluster name: `$SERVICE_NAME-$NAMESPACE-$KUBE_CLUSTER_NAME`. That nam
 Every port that is exposed by the service is considered separately, so one Kubernetes service can result in creation of multiple Teleport app resources, 
 if more than one port is exposed on the service. In that case port name will be added to the app name.
 
-Discovery service by default will only try to expose ports that serve HTTP/HTTPS. To understand if this port serves HTTP, discovery 
+By default, the Discovery Service will only try to expose ports that serve HTTP/HTTPS. To understand if this port serves HTTP, discovery 
 will use several heuristics or will try to probe exposed port with a HEAD HTTP request.
 
 Heuristics for determining if port serves HTTP/HTTPS are:
