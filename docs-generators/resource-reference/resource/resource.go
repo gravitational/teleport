@@ -24,6 +24,13 @@ type ReferenceEntry struct {
 	YAMLExample string
 }
 
+// DeclarationInfo includes data about a declaration so the generator can
+// convert it into a ReferenceEntry.
+type DeclarationInfo struct {
+	FilePath string
+	Decl     *ast.GenDecl
+}
+
 type Field struct {
 	Name        string
 	Description string
@@ -456,8 +463,8 @@ const yamlExampleDelimeter string = "Example YAML:\n---\n"
 // NewFromDecl creates a Resource object from the provided *GenDecl. filepath is
 // the Go source file where the declaration was made, and is used only for
 // printing. NewFromDecl uses allResources to look up custom fields.
-func NewFromDecl(decl *ast.GenDecl, filepath string, allDecls map[PackageInfo]*ast.GenDecl) ([]ReferenceEntry, error) {
-	rs, err := getRawTypes(decl)
+func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) ([]ReferenceEntry, error) {
+	rs, err := getRawTypes(decl.Decl)
 	if err != nil {
 		return nil, err
 	}
@@ -495,7 +502,7 @@ func NewFromDecl(decl *ast.GenDecl, filepath string, allDecls map[PackageInfo]*a
 		ReferenceEntry{
 			SectionName: makeSectionName(rs.name),
 			Description: descriptionWithoutName(description, rs.name),
-			SourcePath:  filepath,
+			SourcePath:  decl.FilePath,
 			Fields:      fld,
 			YAMLExample: example,
 		},
@@ -507,7 +514,7 @@ func NewFromDecl(decl *ast.GenDecl, filepath string, allDecls map[PackageInfo]*a
 			continue
 		}
 		// TODO: Figure out how to get the source path for dependencies!
-		r, err := NewFromDecl(gd, "", allDecls)
+		r, err := NewFromDecl(gd, allDecls)
 
 		if err != nil {
 			return nil, err
