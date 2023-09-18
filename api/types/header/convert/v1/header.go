@@ -17,6 +17,8 @@ limitations under the License.
 package headerv1
 
 import (
+	"time"
+
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -46,11 +48,19 @@ func ToResourceHeaderProto(resourceHeader header.ResourceHeader) *headerv1.Resou
 
 // FromMetadataProto converts v1 metadata into an internal metadata object.
 func FromMetadataProto(msg *headerv1.Metadata) header.Metadata {
+	// We map the Zero protobuf time to the zero go time.
+	// We have to do this because protobuf's zero is epoch and std's zero time
+	// is yeah 1 of the gregorian calendar.
+	expires := msg.Expires.AsTime()
+	if expires.Unix() == 0 {
+		expires = time.Time{}
+	}
+
 	return header.Metadata{
 		Name:        msg.Name,
 		Description: msg.Description,
 		Labels:      msg.Labels,
-		Expires:     msg.Expires.AsTime(),
+		Expires:     expires,
 		ID:          msg.Id,
 	}
 }
