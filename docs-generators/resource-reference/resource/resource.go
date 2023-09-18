@@ -76,8 +76,8 @@ type yamlKindNode interface {
 	// of indendations.
 	formatForExampleYAML(indents int) string
 	// Get the custom children of this yamlKindNode. Must call
-	// customChildren on its own children before returning.
-	customChildren() []PackageInfo
+	// customFieldData on its own children before returning.
+	customFieldData() []PackageInfo
 }
 
 type yamlSequence struct {
@@ -104,8 +104,8 @@ func (y yamlSequence) formatForExampleYAML(indents int) string {
 	)
 }
 
-func (y yamlSequence) customChildren() []PackageInfo {
-	return y.elementKind.customChildren()
+func (y yamlSequence) customFieldData() []PackageInfo {
+	return y.elementKind.customFieldData()
 }
 
 type yamlMapping struct {
@@ -129,9 +129,9 @@ func (y yamlMapping) formatForTable() string {
 	return fmt.Sprintf("map[%v]%v", y.keyKind.formatForTable(), y.valueKind.formatForTable())
 }
 
-func (y yamlMapping) customChildren() []PackageInfo {
-	k := y.keyKind.customChildren()
-	v := y.valueKind.customChildren()
+func (y yamlMapping) customFieldData() []PackageInfo {
+	k := y.keyKind.customFieldData()
+	v := y.valueKind.customFieldData()
 	return append(k, v...)
 }
 
@@ -145,7 +145,7 @@ func (y yamlString) formatForExampleYAML(indents int) string {
 	return `"string"`
 }
 
-func (y yamlString) customChildren() []PackageInfo {
+func (y yamlString) customFieldData() []PackageInfo {
 	return []PackageInfo{}
 }
 
@@ -159,7 +159,7 @@ func (y yamlNumber) formatForExampleYAML(indents int) string {
 	return "1"
 }
 
-func (y yamlNumber) customChildren() []PackageInfo {
+func (y yamlNumber) customFieldData() []PackageInfo {
 	return []PackageInfo{}
 }
 
@@ -173,7 +173,7 @@ func (y yamlBool) formatForExampleYAML(indents int) string {
 	return "true"
 }
 
-func (y yamlBool) customChildren() []PackageInfo {
+func (y yamlBool) customFieldData() []PackageInfo {
 	return []PackageInfo{}
 }
 
@@ -185,7 +185,7 @@ type yamlCustomType struct {
 	declarationInfo PackageInfo
 }
 
-func (y yamlCustomType) customChildren() []PackageInfo {
+func (y yamlCustomType) customFieldData() []PackageInfo {
 	return []PackageInfo{
 		y.declarationInfo,
 	}
@@ -464,7 +464,7 @@ func NewFromDecl(decl *ast.GenDecl, filepath string, allDecls map[PackageInfo]*a
 
 	deps := []PackageInfo{}
 	for _, f := range rs.fields {
-		deps = append(deps, f.kind.customChildren()...)
+		deps = append(deps, f.kind.customFieldData()...)
 	}
 
 	description := rs.doc
