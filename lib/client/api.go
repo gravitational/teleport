@@ -705,6 +705,7 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.AuthConnector = profile.AuthConnector
 	c.LoadAllCAs = profile.LoadAllCAs
 	c.PrivateKeyPolicy = profile.PrivateKeyPolicy
+	c.PIVSlot = profile.PIVSlot
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
 		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
@@ -752,6 +753,7 @@ func (c *Config) Profile() *profile.Profile {
 		MFAMode:                       c.AuthenticatorAttachment.String(),
 		LoadAllCAs:                    c.LoadAllCAs,
 		PrivateKeyPolicy:              c.PrivateKeyPolicy,
+		PIVSlot:                       c.PIVSlot,
 	}
 }
 
@@ -4446,6 +4448,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 // authentication settings, overriding existing fields in tc.
 func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) {
 	tc.LoadAllCAs = authSettings.LoadAllCAs
+	tc.PIVSlot = authSettings.PIVSlot
 
 	// Update the private key policy from auth settings if it is stricter than the saved setting.
 	if authSettings.PrivateKeyPolicy != "" && authSettings.PrivateKeyPolicy.VerifyPolicy(tc.PrivateKeyPolicy) != nil {
