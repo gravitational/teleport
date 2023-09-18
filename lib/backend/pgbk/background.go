@@ -16,17 +16,16 @@ package pgbk
 
 import (
 	"context"
-	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype/zeronull"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -57,9 +56,9 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 				// or skipped, and it's not necessary but it's a nice touch that
 				// we'll be deleting expired items in expiration order
 				tag, err := b.pool.Exec(ctx,
-					"DELETE FROM kv WHERE key IN (SELECT key FROM kv"+
-						" WHERE expires IS NOT NULL AND expires <= now()"+
-						" ORDER BY expires LIMIT $1 FOR UPDATE)",
+					"DELETE FROM kv WHERE kv.key IN (SELECT kv_inner.key FROM kv AS kv_inner"+
+						" WHERE kv_inner.expires IS NOT NULL AND kv_inner.expires <= now()"+
+						" ORDER BY kv_inner.expires LIMIT $1 FOR UPDATE)",
 					b.cfg.ExpiryBatchSize,
 				)
 				if err != nil {
@@ -116,26 +115,30 @@ func (b *Backend) backgroundChangeFeed(ctx context.Context) {
 // events. Assumes that b.buf is not initialized but not closed, and will reset
 // it before returning.
 func (b *Backend) runChangeFeed(ctx context.Context) error {
-	// we manually copy the pool configuration and connect because we don't want
-	// to hit a connection limit or mess with the connection pool stats; we need
-	// a separate, long-running connection here anyway.
-	poolConfig := b.pool.Config()
-	if poolConfig.BeforeConnect != nil {
-		if err := poolConfig.BeforeConnect(ctx, poolConfig.ConnConfig); err != nil {
+	connConfig := b.feedConfig.ConnConfig.Copy()
+	if bc := b.feedConfig.BeforeConnect; bc != nil {
+		if err := bc(ctx, connConfig); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	conn, err := pgx.ConnectConfig(ctx, poolConfig.ConnConfig)
+	// TODO(espadolini): use a replication connection if
+	// connConfig.RuntimeParams["replication"] == "database"
+	conn, err := pgx.ConnectConfig(ctx, connConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		closeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
-		if err := conn.Close(ctx); err != nil && ctx.Err() != nil {
+		if err := conn.Close(closeCtx); err != nil && closeCtx.Err() != nil {
 			b.log.WithError(err).Warn("Error closing change feed connection.")
 		}
 	}()
+	if ac := b.feedConfig.AfterConnect; ac != nil {
+		if err := ac(ctx, conn); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	// reading from a replication slot adds to the postgres log at "log" level
 	// (right below "fatal") for every poll, and we poll every second here, so
@@ -146,39 +149,53 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 		b.log.WithError(err).Debug("Failed to silence log messages for change feed session.")
 	}
 
-	// this can be useful if we're some sort of admin but we haven't gotten the
-	// REPLICATION attribute yet
-	// HACK(espadolini): ALTER ROLE CURRENT_USER REPLICATION just crashes postgres on Azure
-	if _, err := conn.Exec(ctx,
-		fmt.Sprintf("ALTER ROLE \"%v\" REPLICATION", poolConfig.ConnConfig.User),
-		pgx.QueryExecModeExec,
-	); err != nil {
-		b.log.WithError(err).Debug("Failed to enable replication for the current user.")
+	// this can be useful on Azure if we have azure_pg_admin permissions but not
+	// the REPLICATION attribute; in vanilla Postgres you have to be SUPERUSER
+	// to grant REPLICATION, and if you are SUPERUSER you can do replication
+	// things even without the attribute anyway
+	//
+	// HACK(espadolini): ALTER ROLE CURRENT_USER crashes Postgres on Azure, so
+	// we have to use an explicit username
+	if b.cfg.AuthMode == AzureADAuth && connConfig.User != "" {
+		if _, err := conn.Exec(ctx,
+			fmt.Sprintf("ALTER ROLE %v REPLICATION", pgx.Identifier{connConfig.User}.Sanitize()),
+			pgx.QueryExecModeExec,
+		); err != nil {
+			b.log.WithError(err).Debug("Failed to enable replication for the current user.")
+		}
 	}
 
-	u := uuid.New()
-	slotName := hex.EncodeToString(u[:])
+	// a replication slot must be 1-63 lowercase letters, numbers and
+	// underscores, as per
+	// https://github.com/postgres/postgres/blob/b0ec61c9c27fb932ae6524f92a18e0d1fadbc144/src/backend/replication/slot.c#L193-L194
+	slotName := fmt.Sprintf("teleport_%x", [16]byte(uuid.New()))
 
 	b.log.WithField("slot_name", slotName).Info("Setting up change feed.")
-	if _, err := conn.Exec(ctx,
+
+	// be noisy about pg_create_logical_replication_slot taking too long, since
+	// hanging here leaves the backend non-functional
+	createCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	if _, err := conn.Exec(createCtx,
 		"SELECT * FROM pg_create_logical_replication_slot($1, 'wal2json', true)",
 		pgx.QueryExecModeExec, slotName,
 	); err != nil {
+		cancel()
 		return trace.Wrap(err)
 	}
+	cancel()
 
 	b.log.WithField("slot_name", slotName).Info("Change feed started.")
 	b.buf.SetInit()
 	defer b.buf.Reset()
 
 	for ctx.Err() == nil {
-		events, err := b.pollChangeFeed(ctx, conn, slotName)
+		messages, err := b.pollChangeFeed(ctx, conn, slotName, b.cfg.ChangeFeedBatchSize)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// tight loop if we hit the batch size
-		if events >= int64(b.cfg.ChangeFeedBatchSize) {
+		if messages >= int64(b.cfg.ChangeFeedBatchSize) {
 			continue
 		}
 
@@ -192,85 +209,44 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 }
 
 // pollChangeFeed will poll the change feed and emit any fetched events, if any.
-// It returns the count of received/emitted events.
-func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, slotName string) (int64, error) {
+// It returns the count of received messages.
+func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, slotName string, batchSize int) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	t0 := time.Now()
 
-	// TODO(espadolini): it might be better to do the JSON deserialization
-	// (potentially with additional checks for the schema) on the auth side
 	rows, _ := conn.Query(ctx,
-		`WITH jdata AS (
-  SELECT
-    data::jsonb AS data
-  FROM pg_logical_slot_get_changes($1, NULL, $2,
-    'format-version', '2', 'add-tables', 'public.kv', 'include-transaction', 'false')
-)
-SELECT
-  data->>'action',
-  decode(COALESCE(data->'columns'->0->>'value', data->'identity'->0->>'value'), 'hex'),
-  decode(data->'columns'->1->>'value', 'hex'),
-  (data->'columns'->2->>'value')::timestamptz,
-  (data->'columns'->3->>'value')::uuid
-FROM jdata`, slotName, b.cfg.ChangeFeedBatchSize)
+		"SELECT data FROM pg_logical_slot_get_changes($1, NULL, $2, "+
+			"'format-version', '2', 'add-tables', 'public.kv', 'include-transaction', 'false')",
+		slotName, batchSize)
 
-	var action string
-	var key []byte
-	var value []byte
-	var expires zeronull.Timestamptz
-	var revision zeronull.UUID
-	tag, err := pgx.ForEachRow(rows, []any{&action, &key, &value, &expires, &revision}, func() error {
-		switch action {
-		case "I", "U":
-			b.buf.Emit(backend.Event{
-				Type: types.OpPut,
-				Item: backend.Item{
-					Key:     key,
-					Value:   value,
-					Expires: time.Time(expires),
-				},
-			})
-			return nil
-		case "D":
-			b.buf.Emit(backend.Event{
-				Type: types.OpDelete,
-				Item: backend.Item{
-					Key: key,
-				},
-			})
-			return nil
-		case "M":
-			b.log.Debug("Received WAL message.")
-			return nil
-		case "B", "C":
-			b.log.Debug("Received transaction message in change feed (should not happen).")
-			return nil
-		case "T":
-			// it could be possible to just reset the event buffer and
-			// continue from the next row but it's not worth the effort
-			// compared to just killing this connection and reconnecting,
-			// and this should never actually happen anyway - deleting
-			// everything from the backend would leave Teleport in a very
-			// broken state
-			return trace.BadParameter("received truncate WAL message, can't continue")
-		default:
-			return trace.BadParameter("received unknown WAL message %q", action)
+	var data []byte
+	tag, err := pgx.ForEachRow(rows, []any{(*pgtype.DriverBytes)(&data)}, func() error {
+		var w wal2jsonMessage
+		if err := json.Unmarshal(data, &w); err != nil {
+			return trace.Wrap(err, "unmarshaling wal2json message")
 		}
+
+		events, err := w.Events()
+		if err != nil {
+			return trace.Wrap(err, "processing wal2json message")
+		}
+
+		b.buf.Emit(events...)
+		return nil
 	})
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
 
-	events := tag.RowsAffected()
-
-	if events > 0 {
+	messages := tag.RowsAffected()
+	if messages > 0 {
 		b.log.WithFields(logrus.Fields{
-			"events":  events,
-			"elapsed": time.Since(t0).String(),
+			"messages": messages,
+			"elapsed":  time.Since(t0).String(),
 		}).Debug("Fetched change feed events.")
 	}
 
-	return events, nil
+	return messages, nil
 }

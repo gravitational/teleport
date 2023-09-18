@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout base
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           ref: ${{ github.event.push.before }}
 
@@ -37,7 +37,7 @@ jobs:
         uses: ./.github/actions/prepare-workspace
 
       - name: Checkout shared-workflow
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
@@ -82,21 +82,33 @@ jobs:
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
 
       - name: Checkout branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           clean: false
           ref: ${{ github.event.push.after }}
 
       - name: Checkout shared-workflow
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: tross/skip_items_on_pr
+          ref: main
 
-      - name: Check branch for bloat
+      - name: Build Binaries
         id: build_branch
         run: |
-          make WEBASSETS_SKIP_BUILD=1 binaries
+          BUILD_SECRET=FAKE_SECRET make WEBASSETS_SKIP_BUILD=1 binaries
+      - name: Check for Environment Leak
+        id: check_branch_env_leak
+        run: |
+          for binary in $(pwd)/build/*; do \
+            if strings $binary | grep -q 'FAKE_SECRET'; then \
+              echo "Error: $binary contains FAKE_SECRET"; \
+              exit 1; \
+            fi; \
+          done
+      - name: Check for bloat
+        id: check_branch_bloat
+        run: |
           current=$(pwd)/build
           cd .github/shared-workflows/bot && go run main.go -workflow=bloat --artifacts="tbot,tctl,teleport,tsh" --base="${base_stats}" --builddir="${current}" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}" > $GITHUB_STEP_SUMMARY

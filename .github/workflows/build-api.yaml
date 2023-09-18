@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Go
         uses: actions/setup-go@v4
@@ -38,8 +38,5 @@ jobs:
           go-version-file: api/go.mod
           cache-dependency-path: api/go.sum
 
-      - name: Init workspace
-        run: go work init . ./api/
-        
       - name: Build
-        run: go build ./api/...
+        run: cd api; go build ./...

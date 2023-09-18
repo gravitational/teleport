@@ -201,7 +201,7 @@ func (s *clusterPeer) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) 
 }
 
 func (s *clusterPeer) NodeWatcher() (*services.NodeWatcher, error) {
-	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later", s)
+	return nil, trace.ConnectionProblem(nil, "unable to fetch node watcher, this proxy %v has not been discovered yet, try again later", s)
 }
 
 func (s *clusterPeer) GetClient() (auth.ClientI, error) {

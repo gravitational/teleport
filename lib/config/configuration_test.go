@@ -386,7 +386,7 @@ func TestConfigReading(t *testing.T) {
 				{
 					Types:     []string{"gke"},
 					Locations: []string{"uswest1"},
-					Tags: map[string]apiutils.Strings{
+					Labels: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
 					ProjectIDs: []string{"p1", "p2"},
@@ -1513,7 +1513,7 @@ func makeConfigFixture() string {
 		{
 			Types:     []string{"gke"},
 			Locations: []string{"uswest1"},
-			Tags: map[string]apiutils.Strings{
+			Labels: map[string]apiutils.Strings{
 				"a": {"b"},
 			},
 			ProjectIDs: []string{"p1", "p2"},
@@ -1739,7 +1739,6 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 				ReverseTunnelListenAddr: *utils.MustParseAddr("0.0.0.0:3024"),
 				SSHAddr:                 *utils.MustParseAddr("0.0.0.0:3023"),
 				Enabled:                 true,
-				EnableProxyProtocol:     true,
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: false,
 				},
@@ -1766,9 +1765,8 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 				},
 			},
 			want: servicecfg.ProxyConfig{
-				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
-				Enabled:             true,
-				EnableProxyProtocol: true,
+				WebAddr: *utils.MustParseAddr("0.0.0.0:9999"),
+				Enabled: true,
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: true,
 				},
@@ -2069,9 +2067,8 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				},
 			},
 			want: servicecfg.ProxyConfig{
-				WebAddr:             *utils.MustParseAddr("0.0.0.0:3080"),
-				Enabled:             true,
-				EnableProxyProtocol: true,
+				WebAddr: *utils.MustParseAddr("0.0.0.0:3080"),
+				Enabled: true,
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: true,
 				},
@@ -2099,9 +2096,8 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				},
 			},
 			want: servicecfg.ProxyConfig{
-				Enabled:             true,
-				EnableProxyProtocol: true,
-				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
+				Enabled: true,
+				WebAddr: *utils.MustParseAddr("0.0.0.0:9999"),
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: true,
 				},

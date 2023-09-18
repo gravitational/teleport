@@ -15,7 +15,7 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Text, Flex, ButtonSecondary, LabelInput } from 'design';
+import { Box, Flex, ButtonSecondary, LabelInput } from 'design';
 import Select, { Option } from 'shared/components/Select';
 import { Refresh as RefreshIcon } from 'design/Icon';
 
@@ -42,9 +42,6 @@ export function AwsRegionSelector({
 
   return (
     <Box>
-      <Text mt={4}>
-        Select the AWS Region you would like to see databases for:
-      </Text>
       <Flex alignItems="center" gap={3} mt={2} mb={3}>
         <Box width="320px" mb={4}>
           <LabelInput htmlFor={'select'}>AWS Region</LabelInput>

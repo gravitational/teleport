@@ -129,6 +129,11 @@
               "forScopes": ["oss", "enterprise"]
             },
             {
+              "title": "Azure AKS Cluster",
+              "slug": "/deploy-a-cluster/helm-deployments/azure/",
+              "forScopes": ["oss", "enterprise"]
+            },
+            {
               "title": "DigitalOcean Kubernetes Cluster",
               "slug": "/deploy-a-cluster/helm-deployments/digitalocean/",
               "forScopes": ["oss", "enterprise"]
@@ -235,11 +240,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Headless WebAuthn (Preview)",
+              "title": "Headless WebAuthn",
               "slug": "/access-controls/guides/headless/"
             },
             {
-              "title": "IP Pinning (Preview)",
+              "title": "IP Pinning ",
               "slug": "/access-controls/guides/ip-pinning/",
               "forScopes": ["enterprise", "cloud"]
             }
@@ -383,6 +388,23 @@
                 "enterprise",
                 "cloud"
               ]
+            }
+          ]
+        },
+        {
+          "title": "Access Lists",
+          "slug": "/access-controls/access-lists/",
+          "forScopes": ["enterprise", "cloud"],
+          "entries": [
+            {
+              "title": "Getting Started with Access Lists",
+              "slug": "/access-controls/access-lists/guide/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Reference",
+              "slug": "/access-controls/access-lists/reference/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
@@ -744,6 +766,24 @@
           "title": "Getting Started",
           "slug": "/application-access/getting-started/"
         },
+	{
+	    "title": "Enroll Kubernetes Applications",
+	    "slug": "/application-access/enroll-kubernetes-applications/",
+	    "entries":[
+		{
+		    "title": "Get Started",
+		    "slug": "/application-access/enroll-kubernetes-applications/get-started/"
+		},
+		{
+		    "title": "Architecture",
+		    "slug": "/application-access/enroll-kubernetes-applications/architecture/"
+		},
+		{
+		    "title": "Reference",
+		    "slug": "/application-access/enroll-kubernetes-applications/reference/"
+		}
+	    ]
+	},
         {
           "title": "Securing Cloud Provider APIs",
           "slug": "/application-access/cloud-apis/",
@@ -811,7 +851,7 @@
           ]
         },
         {
-          "title": "Protect Okta Applications and Groups (Preview)",
+          "title": "Protect Okta Applications and Groups ",
           "slug": "/application-access/okta/",
           "forScopes": ["enterprise", "cloud"],
           "entries": [
@@ -836,6 +876,10 @@
           "title": "Access Controls",
           "slug": "/application-access/controls/"
         },
+        {
+          "title": "Troubleshooting Application Access",
+          "slug": "/application-access/troubleshooting-apps/"
+        },           
         {
           "title": "Reference",
           "slug": "/application-access/reference/"
@@ -1016,6 +1060,10 @@
               "slug": "/database-access/guides/aws-cross-account/"
             },
             {
+              "title": "AWS Discovery",
+              "slug": "/database-access/guides/aws-discovery/"
+            },
+            {
               "title": "AWS DynamoDB",
               "slug": "/database-access/guides/aws-dynamodb/"
             },
@@ -1092,6 +1140,10 @@
               "slug": "/database-access/guides/cassandra-self-hosted/"
             },
             {
+              "title": "Self-Hosted ClickHouse",
+              "slug": "/database-access/guides/clickhouse-self-hosted/"
+            },
+            {
               "title": "Self-Hosted CockroachDB",
               "slug": "/database-access/guides/cockroachdb-self-hosted/"
             },
@@ -1139,7 +1191,7 @@
               "slug": "/database-access/rbac/configuring-access/"
             },
             {
-              "title": "Automatic User Provisioning (Preview)",
+              "title": "Automatic User Provisioning ",
               "slug": "/database-access/rbac/configuring-auto-user-provisioning/"
             }
           ]
@@ -1193,7 +1245,7 @@
           "slug": "/desktop-access/introduction/"
         },
         {
-          "title": "Getting Started",
+          "title": "Configure local Windows users",
           "slug": "/desktop-access/getting-started/",
           "forScopes": ["enterprise", "cloud"]
         },
@@ -1576,7 +1628,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.3.7",
+      "version": "13.3.9",
       "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1619,19 +1671,19 @@
       "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
     },
     "teleport": {
-      "major_version": "14",
-      "version": "14.0.0-dev",
       "git": "api/14.0.0-gd1e081e",
+      "major_version": "15",
+      "version": "15.0.0-dev",
       "url": "teleport.example.com",
       "golang": "1.21",
       "plugin": {
-        "version": "12.1.1"
+        "version": "13.3.7"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:12.1.5",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:12.1.5",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:12.1.5",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:12.1.5"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:13.3.7",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:13.3.7",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:13.3.7",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.3.7"
     },
     "terraform": {
       "version": "1.0.0"

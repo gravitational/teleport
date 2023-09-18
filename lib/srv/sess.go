@@ -1981,7 +1981,8 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 				LastActive: s.registry.clock.Now().UTC(),
 			},
 		},
-		HostID: s.registry.Srv.ID(),
+		HostID:        s.registry.Srv.ID(),
+		TargetSubKind: s.serverMeta.ServerSubKind,
 	}
 
 	if s.scx.env[teleport.EnvSSHSessionInvited] != "" {

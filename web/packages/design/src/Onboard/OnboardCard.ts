@@ -22,7 +22,8 @@ export const OnboardCard = styled(Card)<{ center: boolean }>`
   width: 600px;
   padding: ${props => props.theme.space[4]}px;
   text-align: ${props => (props.center ? 'center' : 'left')};
-  margin: ${props => props.theme.space[6]}px auto auto auto;
+  margin: ${props => props.theme.space[3]}px auto
+    ${props => props.theme.space[3]}px auto;
   overflow-y: auto;
 
   @media screen and (max-width: 800px) {
