@@ -22,17 +22,17 @@ import { TshAbortController } from './types';
  * Creates a version of AbortController that can be passed through Electron contextBridge
  */
 export default function createAbortController(): TshAbortController {
-  let hasBeenAborted = false;
   const emitter = new EventEmitter();
 
   const signal = {
+    aborted: false,
     // TODO(ravicious): Consider aligning the interface of TshAbortSignal with the interface of
     // browser's AbortSignal so that those two can be used interchangeably, for example in the wait
     // function from the shared package.
     //
     // TshAbortSignal doesn't accept the event name as the first argument.
     addEventListener(cb: (...args: any[]) => void) {
-      emitter.addListener('abort', cb);
+      emitter.once('abort', cb);
     },
 
     removeEventListener(cb: (...args: any[]) => void) {
@@ -43,11 +43,13 @@ export default function createAbortController(): TshAbortController {
   return {
     signal,
     abort() {
-      if (hasBeenAborted) {
+      // Once abort() has been called and the signal becomes aborted, it cannot be reused.
+      // https://dom.spec.whatwg.org/#abortsignal-signal-abort
+      if (signal.aborted) {
         return;
       }
 
-      hasBeenAborted = true;
+      signal.aborted = true;
       emitter.emit('abort');
     },
   };
