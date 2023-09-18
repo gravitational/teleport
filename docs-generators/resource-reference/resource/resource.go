@@ -241,8 +241,15 @@ func getRawTypes(decl *ast.GenDecl) (rawType, error) {
 	}
 
 	str, ok := t.Type.(*ast.StructType)
+	// The declaration is not a struct, but we may still want to include it
+	// in the reference. Return a rawType with no fields.
 	if !ok {
-		return rawType{}, errors.New("the declaration is not a struct")
+		return rawType{
+			name: t.Name.Name,
+			// Preserving newlines for downstream processing
+			doc:    decl.Doc.Text(),
+			fields: []rawField{},
+		}, nil
 	}
 
 	var rawFields []rawField
@@ -485,6 +492,10 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		example = sides[1]
 		description = sides[0]
 	} else {
+
+		if len(rs.fields) == 0 {
+			return nil, fmt.Errorf("declaration %v has no fields and no example YAML in the GoDoc", rs.name)
+		}
 
 		example, err = makeYAMLExample(rs.fields)
 		if err != nil {
