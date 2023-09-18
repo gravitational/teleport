@@ -119,28 +119,26 @@ There are three keys to writing content that engages the audience:
 
 ### Point of view
 
-In most cases, address the reader directly. For tutorials, use either first person 
-plural—we, us, our, ours—or second person point of view. Because tutorials provide a 
-more guided approach to a topic, using the first person plural is a more natural and 
-commonly-accepted practice than in other types of documentation.
-
-Use the first person point of view sparingly and with intention. When overused, the 
-first person narrative can overwhelm the sense of a shared experience and obscure the 
-reader's journey.
+In most cases, address the reader directly. Because tutorials provide a more guided approach 
+to a topic, using the first person plural—we, us, our, ours—is a more commonly-accepted 
+practice than in other types of documentation. Use the first person point of view sparingly 
+and with intention. When overused, the first person narrative can overwhelm the sense of 
+a shared experience and obscure the reader's journey.
 
 Don't use “I” or “me” unless it appears in the text of a user interface element.
 
-Avoid using “we” unless you have a really good rationale for it. For example, if you 
-are documenting a recommended setting or practice, using “We recommend...” is ambiguous
-("we" being who exactly?) and potentially dangerous if something goes wrong. If there
-are industry best practices or recommendations, it's okay to indicate that instead of 
+Avoid using “we” in documenting a recommended setting or practice. Using “We recommend...” 
+is ambiguous ("we" being who exactly?) and potentially dangerous if something goes wrong. 
+If there are industry best practices or recommendations, it's okay to indicate that instead of 
 using the royal or editorial "we" in documentation.
 
 ### Passive constructions
 
-In spite of the axiom to never use the passive voice, there are situations where a 
-passive sentence structure might be appropriate. Don't twist a sentence into knots just 
-to avoid a passive construction. Passive voice does have its place, but be wary of using it.
+In passive constructions, the object on the receiving end of an action is the subject of the sentence:
+**This value is used** for the `sid` field in the `ldap` section of the configuration file.
+
+In active constructions, the person or object performing an action is the subject of the sentence:
+**You use this value** for the `sid` field in the `ldap` section of the configuration file.
 
 When writing about software, it's often tempting to describe what's happening from the 
 code point of view. However, there's almost always a human being with a goal or task to 
@@ -148,30 +146,25 @@ complete who is initiating the activity that the software is executing. If you k
 human presence in mind, your writing will be more dynamic, easier to follow, and more 
 interesting to read.
 
+There are situations where a passive sentence structure might be appropriate, but be 
+wary of using it.
+
 ### Contractions and conversational tone
 
 Contractions are generally acceptable because they give documentation a more natural 
 conversational tone—at least for English speakers. Be conscious of when and why you use 
 contractions.
 
-To keep the tone conversational but concise, adhere to the following common-sense guidelines:
+To keep the tone conversational but concise, adhere to the following guidelines:
 
-- Use common, well-known words whenever possible.
-
-- Don't use flowery language or literary flourish words and phrases like “and so forth”, 
-  “albeit”, “heretofore”, or “thus”.
-
-- Try to be precise in word choice. For example:
-
-  - Don't use “when”—implying eventuality and time—as interchangeable with “if”, which implies 
-    the possibility of something happening.
-  - Don't use phrases that introduce ambiguity. For example, instead of “When the process completes…” 
-    use “After the process completes…”.
-  - Think carefully about word choices like using “since” (implying a period of time) instead 
-    of “because” (implying cause and result) or using “once” (single occurrence) instead of 
-    “after” (each time).
-
-- Avoid using dead language words and phrases even if they are generally accepted as English 
+- Use simple English words instead of flowery or literary language.
+- Use “when” to imply **eventuality** and time. 
+- Use "if” to imply the **possibility** of something happening.
+- Use “since” to imply a period of time.
+- Use “because” to imply cause and result
+- Use “once” to imply something that occurs a single time.
+- Use “after” to imply something that occurs each time.
+- Avoid dead language words and phrases even if they are generally accepted as English 
   words in practice. For example:
 
   - Instead of “i.e.”, use “that is” or rewrite the sentence to make the meaning clear without 
@@ -191,11 +184,11 @@ To keep the tone conversational but concise, adhere to the following common-sens
   - Instead of “and then”, just use “then”.
   - Avoid jargon, colloquialisms, and idiomatic phrases.
 
-- Avoid adverbs and subjective statements. For example, don't use words and phrases like 
-  easily, rapidly, simply, quickly.
+- Avoid adverbs and subjective statements. For example:
 
   - Experienced developers who ~~truly~~ prefer to skip the tutorial...
-  - We can ~~quickly~~ test this code is functioning as expected...
+  - You can ~~quickly~~ test this code is functioning as expected...
+  - You can run the following script to ~~easily~~ deploy a cluster...
 
 ### Headings
 
@@ -206,8 +199,8 @@ All heading levels should use the following conventions:
 - Use active, present tense verbs in headings wherever appropriate, especially in the 
   context of tutorials and how-to guides.
 - Use noun phrases for conceptual and reference topics whenever possible.
-- Summarize as succinctly as possible the content they contain.
-- Avoid generic headings like overview and introduction, if possible. While generic 
+- Summarize as succinctly as possible the section they introduce.
+- Avoid generic headings like "Overview" and "Introduction", if possible. While generic 
   headings can be conceptually useful, they add no value to the content or the navigational 
   experience.
 - Always contain content. A heading should never be immediately followed by another 
@@ -221,11 +214,12 @@ it easier to navigate and scan for relevant topics.
 
 ### Topic titles
 
-Avoid using gerunds (verbs ending in -ing) in titles and headings. Procedure titles and 
-headings should answer the question: *What are you trying to do?* For example, if the answer 
-to *What are you trying to do?* is *I want to create an account*, the article heading 
-should be *Create an account*. In most cases, concept and reference topics that aren't 
-related to tasks are named with a noun phrase, such as *Trusted clusters*. 
+Avoid using gerunds (verbs ending in "-ing") in titles and headings. Procedure titles and 
+headings should answer the question: *What are you trying to do?*
+
+For example, if the answer to *What are you trying to do?* is *I want to create an account*, 
+the article heading should be *Create an account*. In most cases, concept and reference 
+topics that aren't related to tasks are named with a noun phrase, such as *Trusted clusters*. 
 
 ### Lists
 
