@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::io::Error as IoError;
 use std::net::ToSocketAddrs;
 
-use bitflags::Flags;
-use bytes::BytesMut;
 use ironrdp_connector::{Config, ConnectorError};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
 use ironrdp_pdu::input::mouse::PointerFlags;
@@ -29,10 +27,16 @@ use crate::{
 
 /// Creates a single, static tokio runtime for use by all clients.
 #[dynamic]
-pub static TOKIO_RT: tokio::runtime::Runtime = tokio::runtime::Runtime::new().unwrap();
+static TOKIO_RT: tokio::runtime::Runtime = tokio::runtime::Runtime::new().unwrap();
 
 #[dynamic]
 static CHANNELS: RwLock<HashMap<usize, Sender<TdpMessage>>> = RwLock::new(HashMap::new());
+
+const _: () = {
+    const fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<tokio::runtime::Runtime>();
+    assert_send_sync::<RwLock<HashMap<usize, Sender<TdpMessage>>>>();
+};
 
 #[derive(Debug)]
 pub enum TdpMessage {
@@ -41,25 +45,30 @@ pub enum TdpMessage {
     PDU(Vec<u8>),
 }
 
-pub fn connect(cgo_ref: usize, params: ConnectParams) {
-    let (tdp_sender, tdp_reader) = mpsc::channel(100);
-    let (frame_sender, mut frame_reader) = mpsc::channel(100);
-    add_channels(cgo_ref, tdp_sender);
-    TOKIO_RT.spawn(async move {
-        if let Err(e) = inner_connect(params, tdp_reader, frame_sender).await {
-            error!("inner_connect error: {:?}", e);
-        }
-        CHANNELS.write().remove(&cgo_ref);
+pub fn connect(go_client_ref: usize, params: ConnectParams) {
+    TOKIO_RT.block_on(async {
+        // Create channel for sending and receiving TDP messages.
+        let (tdp_sender, tdp_reader) = mpsc::channel(100);
+        // Add tdp_sender to the global map. When the client at go_client_ref needs to send a TDP message for translation
+        // into an RDP message to be sent to the server, it will use this channel.
+        add_channels(go_client_ref, tdp_sender);
+
+        // Spawn a task to handle the connection to the RDP server.
+        TOKIO_RT
+            .spawn(async move {
+                if let Err(e) = inner_connect(go_client_ref, params, tdp_reader).await {
+                    error!("inner_connect error: {:?}", e);
+                }
+                CHANNELS.write().remove(&go_client_ref);
+            })
+            .await;
     });
-    while let Some(mut frame) = frame_reader.blocking_recv() {
-        unsafe { handle_remote_fx_frame(cgo_ref, frame.as_mut_ptr(), frame.len() as u32) }
-    }
 }
 
 async fn inner_connect(
+    go_client_ref: usize,
     params: ConnectParams,
     mut tdp_reader: Receiver<TdpMessage>,
-    frame_sender: Sender<BytesMut>,
 ) -> Result<(), ConnectError> {
     let server_addr = params.addr.clone();
     let server_socket_addr = server_addr.to_socket_addrs().unwrap().next().unwrap();
@@ -114,7 +123,9 @@ async fn inner_connect(
                             })?;
                     },
                     ironrdp_pdu::Action::FastPath => {
-                            frame_sender.send(frame).await;
+                        unsafe {
+                            handle_remote_fx_frame(go_client_ref, frame.as_mut_ptr(), frame.len() as u32);
+                        }
                     },
                 };
              }

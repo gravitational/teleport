@@ -70,7 +70,7 @@ pub extern "C" fn init() {
 /// to their corresponding parameters.
 #[no_mangle]
 pub unsafe extern "C" fn client_connect(cgo_ref: usize, params: CGOConnectParams) {
-    info!("client_connect");
+    trace!("client_connect");
     // Convert from C to Rust types.
     let addr = from_c_string(params.go_addr);
     let username = from_c_string(params.go_username);
