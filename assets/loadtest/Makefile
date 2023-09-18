@@ -81,14 +81,14 @@ create-rds-database:
 	$(MAKE) -C databases/rds apply
 
 .PHONY: deploy-database-agents
-deploy-database-agents: POSTGRES_NAME ?= rdspostgres
-deploy-database-agents: POSTGRES_URL ?=
-deploy-database-agents: MYSQL_NAME ?= rdsmysql
-deploy-database-agents: MYSQL_URL ?=
-deploy-database-agents: DATABASE_ROLE_ARN ?=
+deploy-database-agents: LOADTEST_TAG_VALUE ?= loadtest
 deploy-database-agents:
 ifndef TELEPORT_VERSION
 	@echo "TELEPORT_VERSION is required but not provided"
+	@exit 1
+endif
+ifndef DATABASE_ROLE_ARN
+	@echo "DATABASE_ROLE_ARN is required but not provided"
 	@exit 1
 endif
 
@@ -103,11 +103,8 @@ endif
 		--set proxyAddr=${PROXY_SERVER} \
 		--set authToken=${NODE_TOKEN} \
 		--set annotations.serviceAccount."eks\.amazonaws\.com/role-arn"=${DATABASE_ROLE_ARN} \
-		--set databases[0].name=${POSTGRES_NAME} \
-		--set databases[0].protocol=postgres \
-		--set databases[0].uri=${POSTGRES_URL} \
-		--set databases[1].name=${MYSQL_NAME} \
-		--set databases[1].protocol=mysql \
-		--set databases[1].uri=${MYSQL_URL}
+		--set awsDatabases[0].types[0]=rdsproxy \
+		--set awsDatabases[0].regions[0]=us-east-1 \
+		--set awsDatabases[0].tags."loadtest"="${LOADTEST_TAG_VALUE}"
 
 	$(MAKE) -C control-plane enable-database-agents-monitoring
