@@ -71,7 +71,7 @@ func TestDeployServiceIAMConfigReqDefaults(t *testing.T) {
 				partitionID:                        "aws",
 				IntegrationRoleDeployServicePolicy: "DeployService",
 				TaskRoleBoundaryPolicyName:         "taskroleBoundary",
-				ResourceCreationTags: awsTags{
+				ResourceCreationTags: AWSTags{
 					"teleport.dev/cluster":     "mycluster",
 					"teleport.dev/integration": "myintegration",
 					"teleport.dev/origin":      "integration_awsoidc",
@@ -235,8 +235,8 @@ func (m *mockDeployServiceIAMConfigClient) CreateRole(ctx context.Context, param
 
 // PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 func (m *mockDeployServiceIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
-	noSuchEntityMessage := fmt.Sprintf("Role %q does not exist.", *params.RoleName)
 	if !slices.Contains(m.existingRoles, *params.RoleName) {
+		noSuchEntityMessage := fmt.Sprintf("Role %q does not exist.", *params.RoleName)
 		return nil, &iamTypes.NoSuchEntityException{
 			Message: &noSuchEntityMessage,
 		}

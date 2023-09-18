@@ -37,11 +37,11 @@
     "@opentelemetry/sdk-trace-web": "1.8.0",
     "@opentelemetry/semantic-conventions": "1.8.0",
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.7",
+    "@storybook/addon-toolbars": "^6.5.16",
     "@storybook/builder-webpack5": "^6.5.16",
+    "@storybook/components": "^6.5.16",
     "@storybook/manager-webpack5": "^6.5.16",
     "@storybook/react": "^6.5.16",
-    "@storybook/addon-toolbars": "^6.5.16",
-    "@storybook/components": "^6.5.16",
     "@swc/plugin-styled-components": "1.5.41",
     "@testing-library/jest-dom": "^5.15.1",
     "@testing-library/react": "^12.1.2",
@@ -49,7 +49,7 @@
     "@testing-library/user-event": "^14.4.3",
     "@types/jest": "^27.3.1",
     "@types/jsdom": "^21.1.0",
-    "@types/node": "^16.11.10",
+    "@types/node": "^18.17.1",
     "@types/react": "^16.8.19",
     "@types/react-router-dom": "^5.1.1",
     "@types/react-transition-group": "^4.4.5",
@@ -72,14 +72,15 @@
     "eslint-plugin-jest": "^25.3.0",
     "eslint-plugin-jest-dom": "^4.0.2",
     "eslint-plugin-react": "^7.27.1",
-    "eslint-plugin-testing-library": "^5.6.0",
     "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-testing-library": "^5.6.0",
     "events": "1.0.2",
     "fork-ts-checker-webpack-plugin": "^8.0.0",
     "html-webpack-plugin": "^5.5.0",
     "jest": "^27.3.1",
     "jest-styled-components": "^7.0.8",
     "jsdom": "^21.1.0",
+    "jsdom-testing-mocks": "^1.9.0",
     "msw": "^0.47.4",
     "optimist": "^0.6.1",
     "react": "^16.8.4",
@@ -96,5 +97,8 @@
     "webpack-bundle-analyzer": "^4.6.1",
     "webpack-cli": "^4.10.0",
     "webpack-dev-server": "^4.9.3"
+  },
+  "devDependencies": {
+    "msw-storybook-addon": "^1.8.0"
   }
 }

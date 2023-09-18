@@ -123,10 +123,17 @@ const LoginItemList = ({
   const content = getLoginItemListContent(getLoginItemsAttempt, onClick);
 
   return (
-    <Flex flexDirection="column" width={width}>
+    <Flex flexDirection="column" minWidth={width}>
       <Input
         p="2"
         m="2"
+        // this prevents safari from adding the autofill options which would cover the available logins and make it
+        // impossible to select. "But why would it do that? this isn't a username or password field?".
+        // Safari includes parsed words in the placeholder as well to determine if that autofill should show.
+        // Since our placeholder has the word "login" in it, it thinks its a login form.
+        // https://github.com/gravitational/teleport/pull/31600
+        // https://stackoverflow.com/questions/22661977/disabling-safari-autofill-on-usernames-and-passwords
+        name="notsearch_password"
         onKeyPress={onKeyPress}
         type="text"
         autoFocus

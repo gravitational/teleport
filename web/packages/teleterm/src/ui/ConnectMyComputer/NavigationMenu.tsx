@@ -21,8 +21,6 @@ import { Laptop, Warning } from 'design/Icon';
 
 import { Attempt, AttemptStatus } from 'shared/hooks/useAsync';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { ClusterUri } from 'teleterm/ui/uri';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
@@ -31,32 +29,24 @@ import {
   useConnectMyComputerContext,
 } from './connectMyComputerContext';
 
-interface NavigationMenuProps {
-  clusterUri: ClusterUri;
-}
-
 /**
  * IndicatorStatus combines a couple of different states into a single enum which dictates the
  * decorative look of NavigationMenu.
  */
 type IndicatorStatus = AttemptStatus;
 
-export function NavigationMenu(props: NavigationMenuProps) {
+export function NavigationMenu() {
   const iconRef = useRef();
   const [isMenuOpened, setIsMenuOpened] = useState(false);
-  const appCtx = useAppContext();
   const { documentsService, rootClusterUri } = useWorkspaceContext();
   const { isAgentConfiguredAttempt, currentAction, canUse } =
     useConnectMyComputerContext();
-  // DocumentCluster renders this component only if the cluster exists.
-  const cluster = appCtx.clustersService.findCluster(props.clusterUri);
   const indicatorStatus = getIndicatorStatus(
     currentAction,
     isAgentConfiguredAttempt
   );
 
-  // Don't show the navigation icon for leaf clusters.
-  if (cluster.leaf || !canUse) {
+  if (!canUse) {
     return null;
   }
 
@@ -64,25 +54,18 @@ export function NavigationMenu(props: NavigationMenuProps) {
     setIsMenuOpened(wasOpened => !wasOpened);
   }
 
-  function openSetupDocument(): void {
-    documentsService.openConnectMyComputerSetupDocument({
-      rootClusterUri,
-    });
-    setIsMenuOpened(false);
-  }
-
-  function openStatusDocument(): void {
-    documentsService.openConnectMyComputerStatusDocument({
+  function openDocument(): void {
+    documentsService.openConnectMyComputerDocument({
       rootClusterUri,
     });
     setIsMenuOpened(false);
   }
 
   const setupMenuItem = (
-    <MenuItem onClick={openSetupDocument}>Connect computer</MenuItem>
+    <MenuItem onClick={openDocument}>Connect My Computer</MenuItem>
   );
   const statusMenuItem = (
-    <MenuItem onClick={openStatusDocument}>
+    <MenuItem onClick={openDocument}>
       {indicatorStatus === 'error' && (
         <Warning size="small" color="error.main" mr={1} />
       )}
@@ -101,12 +84,11 @@ export function NavigationMenu(props: NavigationMenuProps) {
         getContentAnchorEl={null}
         open={isMenuOpened}
         anchorEl={iconRef.current}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         onClose={() => setIsMenuOpened(false)}
         menuListCss={() =>
           css`
-            width: 150px;
             display: flex;
             flex-direction: column;
           `
@@ -186,40 +168,44 @@ export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
 const indicatorStatusToStyledStatus = (
   indicatorStatus: IndicatorStatus
 ): JSX.Element => {
-  switch (indicatorStatus) {
-    case '': {
-      return null;
-    }
-    case 'processing': {
-      return (
-        <StyledStatus
-          bg="success"
-          css={`
-            @keyframes blink {
-              0% {
-                opacity: 0;
-              }
-              50% {
-                opacity: 100%;
-              }
-              100% {
-                opacity: 0;
-              }
-            }
+  return (
+    <StyledStatus
+      status={indicatorStatus}
+      css={`
+        @keyframes blink {
+          0% {
+            opacity: 0;
+          }
+          50% {
+            opacity: 100%;
+          }
+          100% {
+            opacity: 0;
+          }
+        }
 
-            animation: blink 1.4s ease-in-out infinite;
-          `}
-        />
-      );
-    }
-    case 'error': {
-      return <StyledStatus bg="error.main" />;
-    }
-    case 'success': {
-      return <StyledStatus bg="success" />;
-    }
-  }
+        animation: blink 1.4s ease-in-out;
+        animation-iteration-count: ${props => {
+          const hasFinished =
+            props.status === 'success' || props.status === 'error';
+          return hasFinished ? '0' : 'infinite';
+        }};
+        visibility: ${props => (props.status === '' ? 'hidden' : 'visible')};
+        background: ${props => getIndicatorColor(props.status, props.theme)};
+      `}
+    />
+  );
 };
+
+function getIndicatorColor(status: IndicatorStatus, theme: any): string {
+  switch (status) {
+    case 'processing':
+    case 'success':
+      return theme.colors.success;
+    case 'error':
+      return theme.colors.error.main;
+  }
+}
 
 const StyledButton = styled(Button)`
   position: relative;

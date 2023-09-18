@@ -53,6 +53,9 @@ type AccessLists interface {
 	DeleteAccessList(context.Context, string) error
 	// DeleteAllAccessLists removes all access lists.
 	DeleteAllAccessLists(context.Context) error
+
+	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
+	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
 }
 
 // MarshalAccessList marshals the access list resource to JSON.
@@ -115,7 +118,7 @@ type AccessListMembers interface {
 	UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
 	// DeleteAccessListMember hard deletes the specified access list member resource.
 	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
-	// DeleteAllAccessListMembers hard deletes all access list members for an access list.
+	// DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.
 	DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error
 	// DeleteAllAccessListMembers hard deletes all access list members.
 	DeleteAllAccessListMembers(ctx context.Context) error
@@ -165,8 +168,8 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 	return member, nil
 }
 
-// IsOwner will return true if the user is an owner for the current list.
-func IsOwner(identity tlsca.Identity, accessList *accesslist.AccessList) error {
+// IsAccessListOwner will return true if the user is an owner for the current list.
+func IsAccessListOwner(identity tlsca.Identity, accessList *accesslist.AccessList) error {
 	isOwner := false
 	for _, owner := range accessList.Spec.Owners {
 		if owner.Name == identity.Username {
@@ -183,7 +186,7 @@ func IsOwner(identity tlsca.Identity, accessList *accesslist.AccessList) error {
 		return accessDenied
 	}
 
-	if !userMeetsRequirements(identity, accessList.Spec.OwnershipRequires) {
+	if !UserMeetsRequirements(identity, accessList.Spec.OwnershipRequires) {
 		return accessDenied
 	}
 
@@ -191,22 +194,36 @@ func IsOwner(identity tlsca.Identity, accessList *accesslist.AccessList) error {
 	return nil
 }
 
-// IsMember will return true if the user is a member for the current list.
-func IsMember(identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList) error {
+// IsAccessListMember will return true if the user is a member for the current list.
+func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, memberGetter AccessListMembersGetter) error {
 	username := identity.Username
-	for _, member := range accessList.Spec.Members {
-		if member.Name == username && clock.Now().Before(member.Expires) {
-			if !userMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
-				return trace.AccessDenied("user %s does not meet membership requirements", username)
-			}
-			return nil
-		}
+
+	member, err := memberGetter.GetAccessListMember(ctx, accessList.GetName(), username)
+	if trace.IsNotFound(err) {
+		// The member has not been found, so we know they're not a member of this list.
+		return trace.NotFound("user %s is not a member of the access list", username)
+	} else if err != nil {
+		// Some other error has occurred
+		return trace.Wrap(err)
 	}
 
-	return trace.NotFound("user %s is not a member of the access list", username)
+	expires := member.Spec.Expires
+	if expires.IsZero() || accessList.Spec.Audit.NextAuditDate.Before(expires) {
+		expires = accessList.Spec.Audit.NextAuditDate
+	}
+
+	if !clock.Now().Before(expires) {
+		return trace.AccessDenied("user %s's membership has expired in the access list", username)
+	}
+
+	if !UserMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
+		return trace.AccessDenied("user %s is a member, but does not have the roles or traits required to be a member of this list", username)
+	}
+	return nil
 }
 
-func userMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires) bool {
+// UserMeetsRequirements will return true if the user meets the requirements for the access list.
+func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires) bool {
 	// Assemble the user's roles for easy look up.
 	userRolesMap := map[string]struct{}{}
 	for _, role := range identity.Groups {

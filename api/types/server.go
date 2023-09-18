@@ -83,6 +83,8 @@ type Server interface {
 
 	// GetCloudMetadata gets the cloud metadata for the server.
 	GetCloudMetadata() *CloudMetadata
+	// GetAWSInfo returns the AWSInfo for the server.
+	GetAWSInfo() *AWSInfo
 	// SetCloudMetadata sets the server's cloud metadata.
 	SetCloudMetadata(meta *CloudMetadata)
 
@@ -168,6 +170,16 @@ func (s *ServerV2) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (s *ServerV2) SetResourceID(id int64) {
 	s.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (s *ServerV2) GetRevision() string {
+	return s.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (s *ServerV2) SetRevision(rev string) {
+	s.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns metadata
@@ -518,6 +530,15 @@ func (s *ServerV2) CloneResource() ResourceWithLabels {
 // GetCloudMetadata gets the cloud metadata for the server.
 func (s *ServerV2) GetCloudMetadata() *CloudMetadata {
 	return s.Spec.CloudMetadata
+}
+
+// GetAWSInfo gets the AWS Cloud metadata for the server.
+func (s *ServerV2) GetAWSInfo() *AWSInfo {
+	if s.Spec.CloudMetadata == nil {
+		return nil
+	}
+
+	return s.Spec.CloudMetadata.AWS
 }
 
 // SetCloudMetadata sets the server's cloud metadata.

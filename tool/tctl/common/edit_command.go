@@ -153,7 +153,7 @@ func editor() string {
 }
 
 func checksum(filename string) (string, error) {
-	f, err := utils.OpenFile(filename)
+	f, err := utils.OpenFileAllowingUnsafeLinks(filename)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -168,7 +168,7 @@ func checksum(filename string) (string, error) {
 }
 
 func resourceName(filename string) (string, error) {
-	f, err := utils.OpenFile(filename)
+	f, err := utils.OpenFileAllowingUnsafeLinks(filename)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

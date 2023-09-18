@@ -33,6 +33,8 @@ func TestAuditMarshaling(t *testing.T) {
 	data, err := json.Marshal(&audit)
 	require.NoError(t, err)
 
+	require.Equal(t, `{"frequency":"1h0m0s","next_audit_date":"2023-02-02T00:00:00Z"}`, string(data))
+
 	raw := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal(data, &raw))
 

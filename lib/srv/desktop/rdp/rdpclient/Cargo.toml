@@ -13,7 +13,7 @@ byteorder = "1.4.3"
 env_logger = "0.10.0"
 iso7816 = "0.1.1"
 iso7816-tlv = "0.4.3"
-libc = "0.2.147"
+libc = "0.2.148"
 log = "0.4.20"
 num-derive = "0.4.0"
 num-traits = "0.2.16"
@@ -26,7 +26,7 @@ utf16string = "0.2.0"
 png = "0.17.10"
 
 [build-dependencies]
-cbindgen = "0.24.5"
+cbindgen = "0.26.0"
 tempfile = "3.8.0"
 
 [features]

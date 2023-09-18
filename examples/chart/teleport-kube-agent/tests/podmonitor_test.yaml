@@ -1,0 +1,43 @@
+suite: PodMonitor
+templates:
+  - podmonitor.yaml
+tests:
+  - it: does not create a PodMonitor by default
+    set:
+      proxyAddr: proxy.example.com:3080
+      kubeClusterName: test-kube-cluster-name
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: creates a PodMonitor when enabled
+    set:
+      proxyAddr: proxy.example.com:3080
+      kubeClusterName: test-kube-cluster-name
+      podMonitor:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PodMonitor
+
+  - it: configures scrape interval if provided
+    set:
+      proxyAddr: proxy.example.com:3080
+      kubeClusterName: test-kube-cluster-name
+      podMonitor:
+        enabled: true
+        interval: 2m
+    asserts:
+      - equal:
+          path: spec.podMetricsEndpoints[0].interval
+          value: 2m
+
+  - it: wears additional labels if provided
+    asserts:
+      - equal:
+          path: metadata.labels.prometheus
+          value: default
+    values:
+      - ../.lint/podmonitor.yaml

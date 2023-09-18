@@ -1,5 +1,5 @@
 ---
-title: Automatically Discover Azure Virtual Machines (Preview)
+title: Automatically Discover Azure Virtual Machines 
 description: How to configure Teleport to automatically enroll Azure virtual machines.
 ---
 
@@ -153,7 +153,7 @@ virtual machines:
         "permissions": [
             {
                 "actions": [
-                    "Microsoft.Compute/virtualMachines/read`",
+                    "Microsoft.Compute/virtualMachines/read",
                     "Microsoft.Compute/virtualMachines/runCommand/action"
                 ],
                 "notActions": [],
@@ -270,4 +270,4 @@ for more information.
 - Full documentation on Azure discovery configuration can be found through the [
   config file reference documentation](../../reference/config.mdx).
 - The complete default installer can be found [with the Teleport source
-](https://github.com/gravitational/teleport/blob/master/api/types/installers/installer.sh.tmpl).
+](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/api/types/installers/installer.sh.tmpl).

@@ -1,6 +1,6 @@
 ---
 authors: Isaiah Becker-Mayer (isaiah@goteleport.com)
-state: implmented (v10.2.0)
+state: implemented (v10.2.0)
 ---
 
 The next major feature for Teleport Desktop Access is referred to as "file

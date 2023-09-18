@@ -3,16 +3,6 @@ title: Database Access with Snowflake
 description: How to configure Teleport database access with Snowflake.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="10.0"
->
-  Database access for Snowflake is available starting from Teleport `10.0`.
-</Details>
-
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="Snowflake" dbConfigure="Snowflake database with key pair authentication" dbName="Snowflake" !)
 
 <Tabs>
@@ -79,7 +69,6 @@ $ tctl auth sign --format=snowflake --out=server
 The command will create a `server.pub` file with Teleport's public key. Teleport will use the corresponding private key to
 generate a JWT (JSON Web Token) that will be used to authenticate to Snowflake.
 
-(!docs/pages/includes/database-access/rotation-note.mdx!)
 
 ## Step 4/5. Add the public key to your Snowflake user
 

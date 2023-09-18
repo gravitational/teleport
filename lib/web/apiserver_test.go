@@ -1107,6 +1107,7 @@ func TestClusterNodesGet(t *testing.T) {
 	require.ElementsMatch(t, res.Items, []ui.Server{
 		{
 			Kind:        types.KindNode,
+			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
 			Name:        server1.GetName(),
 			Hostname:    server1.GetHostname(),
@@ -1117,6 +1118,7 @@ func TestClusterNodesGet(t *testing.T) {
 		},
 		{
 			Kind:        types.KindNode,
+			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
 			Name:        "server2",
 			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
@@ -6014,7 +6016,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
-					Error:   "Teleport proxy failed to connect to",
+					Error:   "direct dialing to nodes not found in inventory is not supported",
 				},
 			},
 		},
@@ -7563,7 +7565,10 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	require.NoError(t, err)
 
 	require.NoError(t, node.Start())
-	t.Cleanup(func() { require.NoError(t, node.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, node.Close())
+		node.Wait()
+	})
 
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
@@ -7690,9 +7695,9 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 
 	mux, err := multiplexer.New(multiplexer.Config{
-		Listener:                    proxyListener,
-		EnableExternalProxyProtocol: false,
-		ID:                          teleport.Component(teleport.ComponentProxy, "ssh"),
+		Listener:          proxyListener,
+		PROXYProtocolMode: multiplexer.PROXYProtocolOff,
+		ID:                teleport.Component(teleport.ComponentProxy, "ssh"),
 		CertAuthorityGetter: func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 			return client.GetCertAuthority(ctx, id, loadKeys)
 		},
@@ -8229,7 +8234,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	accessReq, err := services.NewAccessRequest(username, requestableRolename)
 	require.NoError(t, err)
 	accessReq.SetState(types.RequestState_APPROVED)
-	err = env.server.Auth().CreateAccessRequest(ctx, accessReq, identity)
+	accessReq, err = env.server.Auth().CreateAccessRequestV2(ctx, accessReq, identity)
 	require.NoError(t, err)
 
 	// Get the ID of the created and approved access request.

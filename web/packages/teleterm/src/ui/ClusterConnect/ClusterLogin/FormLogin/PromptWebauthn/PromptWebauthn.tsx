@@ -25,8 +25,6 @@ import svgHardwareKey from './hardware.svg';
 
 import type { WebauthnLogin } from '../../useClusterLogin';
 
-// PromptWebauthn is reused in HeadlessPrompt as well.
-// TODO(ravicious): Extract PromptWebauthn to a better location.
 export function PromptWebauthn(props: Props) {
   const { prompt } = props;
   return (
@@ -100,7 +98,7 @@ function PromptCredential({
                 &:hover,
                 &:focus {
                   cursor: pointer;
-                  background: ${props => props.theme.colors.action.hover};
+                  background: ${props => props.theme.colors.spotBackground[0]};
                 }
               `}
               onClick={() => onUserResponse(index)}
