@@ -367,8 +367,8 @@ func (a *agent) connect() error {
 
 	if !a.lease.Claim(a.client.Principals()...) {
 		a.client.Close()
-		// the error message must end with [alreadyClaimedErrorMessage] to be
-		// recognized by [isAlreadyClaimed]
+		// the error message must end with [proxyAlreadyClaimedError] to be
+		// recognized by [isProxyAlreadyClaimed]
 		return trace.Errorf("failed to claim proxy %v: "+proxyAlreadyClaimedError, a.client.Principals())
 	}
 
