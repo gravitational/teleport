@@ -53,6 +53,20 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --namespace=teleport
 ```
 
+<Admonition type="tip">
+
+If you have an existing teleport-kube-agent installation and want to enable Kubernetes App Discovery,
+you need to update `roles` Helm value and set new auth token, which includes "app" and "discovery" roles (see Step 1)
+
+```code
+$ helm upgrade teleport-agent teleport/teleport-kube-agent \
+  --reuse-values \
+  --set roles=kube\,app\,discovery \
+  --set authToken=<Var name="token" /> \
+  --namespace=teleport
+```
+</Admonition>
+
 ## Troubleshooting
 
 First, make sure that all expected agents for the Teleport Discovery,
