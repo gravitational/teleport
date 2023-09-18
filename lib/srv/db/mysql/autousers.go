@@ -59,14 +59,8 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	defer conn.Close()
 
 	// Setup "teleport-auto-user" and stored procedures.
-	switch {
-	case isMariaDB(conn):
-		return trace.NotImplemented("auto user provisioning is not supported for MariaDB yet")
-
-	default:
-		if err := e.setupDatabaseForAutoUsers(conn, sessionCtx); err != nil {
-			return trace.Wrap(err)
-		}
+	if err := e.setupDatabaseForAutoUsers(conn, sessionCtx); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Use "teleport-<hash>" in case DatabaseUser is over max username length.
@@ -190,7 +184,7 @@ func makeActivateUserDetails(sessionCtx *common.Session, teleportUsername string
 func authOptions(sessionCtx *common.Session) string {
 	switch sessionCtx.Database.GetType() {
 	case types.DatabaseTypeRDS:
-		return fmt.Sprintf(`IDENTIFIED WITH AWSAuthenticationPlugin AS "RDS"`)
+		return `IDENTIFIED WITH AWSAuthenticationPlugin AS "RDS"`
 
 	case types.DatabaseTypeSelfHosted:
 		return fmt.Sprintf(`REQUIRE SUBJECT "/CN=%s"`, sessionCtx.DatabaseUser)
@@ -201,6 +195,16 @@ func authOptions(sessionCtx *common.Session) string {
 }
 
 func (e *Engine) setupDatabaseForAutoUsers(conn *client.Conn, sessionCtx *common.Session) error {
+	// TODO MariaDB requires separate stored procedures to handle auto user:
+	// - Max user length is different.
+	// - MariaDB uses mysql.roles_mapping instead of mysql.role_edges.
+	// - MariaDB cannot set all roles as default role at the same time.
+	// - MariaDB does not have user attributes. Will need another way for
+	//   saving original Teleport user names.
+	if isMariaDB(conn) {
+		return trace.NotImplemented("auto user provisioning is not supported for MariaDB yet")
+	}
+
 	_, err := conn.Execute(fmt.Sprintf("CREATE ROLE IF NOT EXISTS %q", teleportAutoUserRole))
 	if err != nil {
 		return trace.Wrap(err)

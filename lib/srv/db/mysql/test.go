@@ -18,7 +18,9 @@ package mysql
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -66,6 +68,18 @@ func MakeTestClientWithoutTLS(addr string, routeToDatabase tlsca.RouteToDatabase
 		return nil, trace.Wrap(err)
 	}
 	return conn, nil
+}
+
+// UserEvent represents a user activation/deactivation event.
+type UserEvent struct {
+	// TeleportUser is the Teleport username.
+	TeleportUser string
+	// DatabaseUser is the in-database username.
+	DatabaseUser string
+	// Roles are the user Roles.
+	Roles []string
+	// Active is whether user activated or deactivated.
+	Active bool
 }
 
 // TestServer is a test MySQL server used in functional database
@@ -127,7 +141,11 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 		listener: listener,
 		port:     port,
 		log:      log,
-		handler:  &testHandler{log: log},
+		handler: &testHandler{
+			log:          log,
+			userEventsCh: make(chan UserEvent, 100),
+			usersMapping: make(map[string]string),
+		},
 	}
 
 	if !config.ListenTLS {
@@ -251,19 +269,31 @@ func (s *TestServer) ConnsClosed() bool {
 	return true
 }
 
+// UserEventsCh returns channel that receives user activate/deactivate events.
+func (s *TestServer) UserEventsCh() <-chan UserEvent {
+	return s.handler.userEventsCh
+}
+
 type testHandler struct {
 	server.EmptyHandler
 	log logrus.FieldLogger
 	// queryCount keeps track of the number of queries the server has received.
 	queryCount uint32
+
+	userEventsCh chan UserEvent
+	// usersMapping maps in-database username to Teleport username.
+	usersMapping   map[string]string
+	usersMappingMu sync.Mutex
 }
 
 func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
 	h.log.Debugf("Received query %q.", query)
 	atomic.AddUint32(&h.queryCount, 1)
+
+	switch {
 	// When getting a "show tables" query, construct the response in a way
 	// which previously caused server packets parsing logic to fail.
-	if query == "show tables" {
+	case query == "show tables":
 		resultSet, err := mysql.BuildSimpleTextResultset(
 			[]string{"Tables_in_test"},
 			[][]interface{}{
@@ -278,6 +308,61 @@ func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
 		return &mysql.Result{
 			Resultset: resultSet,
 		}, nil
+
+	case strings.HasPrefix(query, "CALL "):
+		return h.handleCallProcedure(query)
+	}
+	return TestQueryResponse, nil
+}
+
+func (h *testHandler) handleCallProcedure(query string) (*mysql.Result, error) {
+	query = strings.TrimSpace(strings.TrimPrefix(query, "CALL"))
+	openBracketIndex := strings.IndexByte(query, '(')
+	endBracketIndex := strings.LastIndexByte(query, ')')
+	if openBracketIndex < 0 || endBracketIndex < 0 {
+		return nil, trace.BadParameter("invalid query: %v", query)
+	}
+
+	procedureName := query[:openBracketIndex]
+	parameters := query[openBracketIndex+1 : endBracketIndex]
+	switch procedureName {
+	case activateUserProcedureName:
+		databaseUser, detailsJSON, ok := strings.Cut(parameters, ",")
+		if !ok {
+			return nil, trace.BadParameter("invalid parameters: %v", parameters)
+		}
+		databaseUser = strings.Trim(databaseUser, "'")
+
+		// Trim and de-escape.
+		detailsJSON = strings.ReplaceAll(strings.Trim(strings.TrimSpace(detailsJSON), "'"), "\\\\", "\\")
+		details := activateUserDetails{}
+		err := json.Unmarshal([]byte(detailsJSON), &details)
+		if err != nil {
+			return nil, trace.BadParameter("invalid JSON: %v", err)
+		}
+
+		// Update mapping and send event.
+		h.usersMappingMu.Lock()
+		defer h.usersMappingMu.Unlock()
+		h.usersMapping[databaseUser] = details.Attributes.User
+		h.userEventsCh <- UserEvent{
+			DatabaseUser: databaseUser,
+			TeleportUser: h.usersMapping[databaseUser],
+			Roles:        details.Roles,
+			Active:       true,
+		}
+
+	case deactivateUserProcedureName:
+		databaseUser := strings.Trim(parameters, "'")
+
+		// Send event.
+		h.usersMappingMu.Lock()
+		defer h.usersMappingMu.Unlock()
+		h.userEventsCh <- UserEvent{
+			DatabaseUser: databaseUser,
+			TeleportUser: h.usersMapping[databaseUser],
+			Active:       false,
+		}
 	}
 	return TestQueryResponse, nil
 }

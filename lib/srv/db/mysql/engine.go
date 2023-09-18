@@ -188,11 +188,12 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	}
 
 	state := sessionCtx.GetAccessState(authPref)
-	dbRoleMatchers := role.DatabaseRoleMatchers(
-		sessionCtx.Database,
-		sessionCtx.DatabaseUser,
-		sessionCtx.DatabaseName,
-	)
+	dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+		Database:       sessionCtx.Database,
+		DatabaseUser:   sessionCtx.DatabaseUser,
+		DatabaseName:   sessionCtx.DatabaseName,
+		AutoCreateUser: sessionCtx.AutoCreateUser,
+	})
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
 		state,
