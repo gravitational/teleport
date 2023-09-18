@@ -9,8 +9,8 @@ with Teleport and how to work around or resolve them.
 ## Starting SSH sessions fails
 
 By default, if you use SSH to connect to a server, Teleport runs as the user login that starts 
-the SSH session. If starting the session fails, it might be due to the Teleport file permission
-settings for the user login that Teleport is using to connect to the remote servr.
+the SSH session. If starting the session fails, it might be because the file system permissions
+for the Teleport binary don't allow other user logins to connect to the remote server.
 This issue might be caused by systems that prevent newly installed software from being executable 
 by any user.  
 
@@ -27,7 +27,7 @@ Process exited with status 255
 
 You should check the permission settings for the `teleport` service. 
 
-To check the permissions on the teleport service:
+To check the permissions on the `teleport` service:
 
 1. Open a terminal shell on the computer where you have installed the `teleport` service.
 
@@ -72,6 +72,7 @@ provider don't see any of the logins they need to access remote resources.
 
 To fix this issue, you can assign logins to your single sign-on users or modify the traits in 
 the Teleport roles assigned to users through their group membership in the external identity provider.
+For more information about using traits in roles, see [Role Templates](../access-controls/guides/role-templates/).
 
 ## Listing available servers
 
