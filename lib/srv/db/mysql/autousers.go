@@ -33,17 +33,35 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
-func (e Engine) connectAsAdminUser(ctx context.Context, sessionCtx *common.Session) (*client.Conn, error) {
-	adminSessionCtx := sessionCtx.WithUserAndDatabase(
-		sessionCtx.Database.GetAdminUser(),
-		// Always use "mysql" as database name to make sure procedures are
-		// created and called from there.
-		// This also avoids "No database selected" errors if client doesn't
-		// provide one.
-		"mysql",
-	)
-	conn, err := e.connect(ctx, adminSessionCtx)
-	return conn, trace.Wrap(err)
+// activateUserDetails contains details about the user activation request and
+// will be marshaled into a JSON parameter for the stored procedure.
+type activateUserDetails struct {
+	// Roles is a list of roles to be assigned to the user.
+	//
+	// MySQL stored procedure does not accept array of strings thus using a
+	// JSON to bypass this limit.
+	Roles []string `json:"roles"`
+	// AuthOptions specifies auth options like "IDENTIFIED xxx" used when
+	// creating a new user.
+	//
+	// Using a JSON string can bypass VARCHAR character limit.
+	AuthOptions string `json:"auth_options"`
+	// Attributes specifies user attributes used when creating a new user.
+	//
+	// User attributes is a MySQL JSON in MySQL databases.
+	//
+	// To check current user's attribute:
+	// SELECT * FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE CONCAT(USER, '@', HOST) = current_user()
+	//
+	// Reference:
+	// https://dev.mysql.com/doc/refman/8.0/en/information-schema-user-attributes-table.html
+	Attributes struct {
+		// User is the original Teleport user name.
+		//
+		// Find a Teleport user (with "admin" privilege):
+		// SELECT * FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE ATTRIBUTE->"$.user" = "teleport-user-name";
+		User string `json:"user"`
+	} `json:"attributes"`
 }
 
 // ActivateUser creates or enables the database user.
@@ -103,6 +121,88 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 	return trace.Wrap(err)
 }
 
+func (e *Engine) connectAsAdminUser(ctx context.Context, sessionCtx *common.Session) (*client.Conn, error) {
+	adminSessionCtx := sessionCtx.WithUserAndDatabase(
+		sessionCtx.Database.GetAdminUser(),
+		defaultDatabase(sessionCtx),
+	)
+	conn, err := e.connect(ctx, adminSessionCtx)
+	return conn, trace.Wrap(err)
+}
+
+func (e *Engine) setupDatabaseForAutoUsers(conn *client.Conn, sessionCtx *common.Session) error {
+	// TODO MariaDB requires separate stored procedures to handle auto user:
+	// - Max user length is different.
+	// - MariaDB uses mysql.roles_mapping instead of mysql.role_edges.
+	// - MariaDB cannot set all roles as default role at the same time.
+	// - MariaDB does not have user attributes. Will need another way for
+	//   saving original Teleport user names. For example, a separate table can
+	//   be used to track User -> JSON attribute mapping (protected view with
+	//   row level security can be used in addition so each user can only read
+	//   their own attributes, if needed).
+	if isMariaDB(conn) {
+		return trace.NotImplemented("auto user provisioning is not supported for MariaDB yet")
+	}
+
+	// Create "teleport-auto-user".
+	_, err := conn.Execute(fmt.Sprintf("CREATE ROLE IF NOT EXISTS %q", teleportAutoUserRole))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// There is no single command in MySQL to "CREATE OR REPLACE". Instead,
+	// have to DROP first before CREATE.
+	//
+	// To speed up the setup, the procedure "version" is stored as the
+	// procedure comment. So check if an update is necessary first by checking
+	// these comments.
+	//
+	// To force an update, drop one of the procedures or update the comment:
+	// ALTER PROCEDURE teleport_activate_user COMMENT 'need update'
+	if required, err := isProcedureUpdateRequired(conn, defaultDatabase(sessionCtx), procedureVersion); err != nil {
+		return trace.Wrap(err)
+	} else if !required {
+		return nil
+	}
+
+	// If update is necessary, do a transaction.
+	e.Log.Debugf("Updating stored procedures for MySQL server %s.", sessionCtx.Database.GetName())
+	return trace.Wrap(doTransaction(conn, func() error {
+		for _, procedure := range allProcedures {
+			_, err := conn.Execute(fmt.Sprintf("DROP PROCEDURE IF EXISTS %s", procedure.name))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			_, err = conn.Execute(procedure.createCommand)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			_, err = conn.Execute(fmt.Sprintf("ALTER PROCEDURE %s COMMENT %q", procedure.name, procedureVersion))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}))
+}
+
+// defaultDatabase returns the default database to log into as the admin user.
+//
+// Use a default database name to make sure procedures are always created and
+// called from there (and possibly store other data there in the future).
+//
+// This also avoids "No database selected" errors if client doesn't provide
+// one.
+func defaultDatabase(_ *common.Session) string {
+	// Use "mysql" as the default database as all MySQL/mariadb has it.
+	//
+	// TODO consider allowing user to specify the default database through database
+	// definition.
+	return "mysql"
+}
+
 func isMariaDB(conn *client.Conn) bool {
 	return strings.Contains(strings.ToLower(conn.GetServerVersion()), "mariadb")
 }
@@ -127,58 +227,8 @@ func maybeHashUsername(username string, maxUsernameLength int) string {
 	hash := fnv.New64()
 	hash.Write([]byte(username))
 
-	// Use a prefix to identify the user is managed by teleport.
+	// Use a prefix to identify the user is managed by Teleport.
 	return "teleport-" + hex.EncodeToString(hash.Sum(nil))
-}
-
-// activateUserDetails contains details for activating an user.
-type activateUserDetails struct {
-	// Roles is a list of roles to be assigned to the user.
-	//
-	// MySQL stored procedure does not accept array of strings thus using a
-	// JSON to bypass this limit.
-	Roles []string `json:"roles"`
-	// AuthOptions specifies auth options like "IDENTIFIED xxx" used when
-	// creating a new user.
-	//
-	// Using a JSON string can bypass VARCHAR character limit.
-	AuthOptions string `json:"auth_options"`
-	// Attributes specifies user attributes used when creating a new user.
-	//
-	// User attributes is a MySQL JSON in MySQL databases.
-	//
-	// To check current user's attribute:
-	// SELECT * FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE CONCAT(USER, '@', HOST) = current_user()
-	//
-	// Find a Teleport user (with "admin" privilege):
-	// SELECT * FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE ATTRIBUTE->"$.user" = "teleport-user-name";
-	//
-	// Reference:
-	// https://dev.mysql.com/doc/refman/8.0/en/information-schema-user-attributes-table.html
-	Attributes struct {
-		// User is the original Teleport user name.
-		User string `json:"user"`
-	} `json:"attributes"`
-}
-
-// makeActivateUserDetails creates a MySQL JSON string that can be single
-// quoted and used for a stored procedure.
-func makeActivateUserDetails(sessionCtx *common.Session, teleportUsername string) (string, error) {
-	details := activateUserDetails{
-		Roles:       sessionCtx.DatabaseRoles,
-		AuthOptions: authOptions(sessionCtx),
-	}
-
-	// Save original username as user attributes in case the name is hashed.
-	details.Attributes.User = teleportUsername
-
-	json, err := json.Marshal(details)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// Escape "\".
-	return strings.ReplaceAll(string(json), "\\", "\\\\"), nil
 }
 
 func authOptions(sessionCtx *common.Session) string {
@@ -194,60 +244,30 @@ func authOptions(sessionCtx *common.Session) string {
 	}
 }
 
-func (e *Engine) setupDatabaseForAutoUsers(conn *client.Conn, sessionCtx *common.Session) error {
-	// TODO MariaDB requires separate stored procedures to handle auto user:
-	// - Max user length is different.
-	// - MariaDB uses mysql.roles_mapping instead of mysql.role_edges.
-	// - MariaDB cannot set all roles as default role at the same time.
-	// - MariaDB does not have user attributes. Will need another way for
-	//   saving original Teleport user names.
-	if isMariaDB(conn) {
-		return trace.NotImplemented("auto user provisioning is not supported for MariaDB yet")
+func makeActivateUserDetails(sessionCtx *common.Session, teleportUser string) (string, error) {
+	details := activateUserDetails{
+		Roles:       sessionCtx.DatabaseRoles,
+		AuthOptions: authOptions(sessionCtx),
 	}
 
-	_, err := conn.Execute(fmt.Sprintf("CREATE ROLE IF NOT EXISTS %q", teleportAutoUserRole))
+	// Save original username as user attributes in case the name is hashed.
+	details.Attributes.User = teleportUser
+
+	json, err := json.Marshal(details)
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
-	// There is no single command in MySQL to "CREATE OR REPLACE". Instead,
-	// have to DROP first before CREATE.
-	//
-	// To speed up the setup, the "version" is stored as the procedure comment.
-	// So check if an update is necessary first by checking these comments.
-	//
-	// To force an update, drop one of the procedures or update the comment:
-	// ALTER PROCEDURE teleport_activate_user COMMENT 'need update'
-	if required, err := isProcedureUpdateRequired(conn, procedureVersion); err != nil {
-		return trace.Wrap(err)
-	} else if !required {
-		return nil
-	}
-
-	// If update is necessary, do a transaction.
-	e.Log.Debugf("Updating stored procedures for MySQL server %s.", sessionCtx.Database.GetName())
-	return trace.Wrap(doTransaction(conn, func() error {
-		for _, procedure := range allProcedures {
-			_, err := conn.Execute(fmt.Sprintf("DROP PROCEDURE IF EXISTS %s", procedure.name))
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			_, err = conn.Execute(procedure.createCommand)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		return nil
-	}))
+	// MySQL requires additional escape for "\".
+	return strings.ReplaceAll(string(json), "\\", "\\\\"), nil
 }
 
-func isProcedureUpdateRequired(conn *client.Conn, wantVersion string) (bool, error) {
+func isProcedureUpdateRequired(conn *client.Conn, wantDatabase, wantVersion string) (bool, error) {
 	// information_schema.routines is accessible for users/roles with EXECUTE
 	// permission.
 	result, err := conn.Execute(fmt.Sprintf(
 		"SELECT ROUTINE_NAME FROM information_schema.routines WHERE ROUTINE_SCHEMA = %q AND ROUTINE_COMMENT = %q",
-		"mysql",
+		wantDatabase,
 		wantVersion,
 	))
 	if err != nil {

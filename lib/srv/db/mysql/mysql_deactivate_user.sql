@@ -1,5 +1,4 @@
 CREATE PROCEDURE teleport_deactivate_user(IN username VARCHAR(32))
-COMMENT 'teleport-auto-user-v1'
 BEGIN
     DECLARE is_active INT DEFAULT 0;
     SELECT COUNT(USER) INTO is_active FROM information_schema.processlist WHERE USER = username;

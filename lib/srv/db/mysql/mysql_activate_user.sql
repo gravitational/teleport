@@ -1,5 +1,4 @@
 CREATE PROCEDURE teleport_activate_user(IN username VARCHAR(32), IN details JSON)
-COMMENT 'teleport-auto-user-v1'
 proc_label:BEGIN
     DECLARE is_auto_user INT DEFAULT 0;
     DECLARE is_active INT DEFAULT 0;

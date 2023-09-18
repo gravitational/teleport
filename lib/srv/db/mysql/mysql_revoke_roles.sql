@@ -1,5 +1,4 @@
 CREATE PROCEDURE teleport_revoke_roles(IN username VARCHAR(32))
-COMMENT 'teleport-auto-user-v1'
 BEGIN
     DECLARE role VARCHAR(32) DEFAULT '';
     DECLARE done INT DEFAULT 0;
