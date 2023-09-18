@@ -28,12 +28,14 @@ export const WelcomeWrapper = ({ children }) => {
   return (
     <OnboardWrapper>
       <Flex flexDirection="column" justifyContent="space-between" height="100%">
-        <span>
+        {/* Flexing column here to prevent margin collapse
+        between WelcomeHeader and chidlren */}
+        <Flex flexDirection="column">
           <WelcomeHeader>
             <TeleportLogoII />
           </WelcomeHeader>
           {children}
-        </span>
+        </Flex>
         <OnboardFooter />
       </Flex>
     </OnboardWrapper>

@@ -16,13 +16,10 @@
 
 import React from 'react';
 
-import { Flex } from 'design';
-
 import { wait } from 'shared/utils/wait';
 
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-import * as types from 'teleterm/ui/services/workspacesService';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 
@@ -123,20 +120,6 @@ function ShowState({
   const cluster = makeRootCluster({
     features: { isUsageBasedBilling: true, advancedAccessWorkflows: false },
   });
-  cluster.loggedInUser.acl.tokens = {
-    create: true,
-    use: true,
-    read: true,
-    list: true,
-    edit: true,
-    pb_delete: true,
-  };
-  const doc: types.DocumentConnectMyComputer = {
-    kind: 'doc.connect_my_computer',
-    rootClusterUri: cluster.uri,
-    title: 'Connect My Computer',
-    uri: '/docs/123',
-  };
   const appContext = new MockAppContext();
   appContext.clustersService.state.clusters.set(cluster.uri, cluster);
   appContext.configService = createMockConfigService({
@@ -146,8 +129,8 @@ function ShowState({
     draftState.rootClusterUri = cluster.uri;
     draftState.workspaces[cluster.uri] = {
       localClusterUri: cluster.uri,
-      documents: [doc],
-      location: doc.uri,
+      documents: [],
+      location: undefined,
       accessRequests: undefined,
     };
   });
@@ -160,9 +143,7 @@ function ShowState({
     <MockAppContextProvider appContext={appContext}>
       <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
         <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-          <Flex justifyContent="flex-end">
-            <NavigationMenu clusterUri={cluster.uri} />
-          </Flex>
+          <NavigationMenu />
         </ConnectMyComputerContextProvider>
       </MockWorkspaceContextProvider>
     </MockAppContextProvider>

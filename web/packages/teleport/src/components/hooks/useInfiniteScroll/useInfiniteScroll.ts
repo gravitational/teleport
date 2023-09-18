@@ -66,8 +66,9 @@ export function useInfiniteScroll<T extends UnifiedResource>(
   // conditions. If we used a regular effect, the observer may be recreated
   // after the current one (which, by now, may be tied to a stale state)
   // triggers a fetch. Thus, the fetch would use stale state and may ultimately
-  // cause us to display incorrect data. (This issue can be reproduced by switching this to 
-  // `useEffect` and rapidly changing filtering data on the resources list page).
+  // cause us to display incorrect data. (This issue can be reproduced by
+  // switching this to `useEffect` and rapidly changing filtering data on the
+  // resources list page).
   useLayoutEffect(() => {
     recreateObserver();
     return () => {

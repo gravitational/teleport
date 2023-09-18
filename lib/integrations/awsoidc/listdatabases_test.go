@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdsTypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/google/go-cmp/cmp"
@@ -295,6 +296,12 @@ func TestListDatabases(t *testing.T) {
 				Port:                &clusterPort,
 				DBClusterArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
 			}},
+			mockInstances: []rdsTypes.DBInstance{{
+				DBSubnetGroup: &rdsTypes.DBSubnetGroup{
+					Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String("subnet-999")}},
+					VpcId:   aws.String("vpc-999"),
+				},
+			}},
 			respCheck: func(t *testing.T, ldr *ListDatabasesResponse) {
 				require.Len(t, ldr.Databases, 1, "expected 1 database, got %d", len(ldr.Databases))
 				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
@@ -321,6 +328,8 @@ func TestListDatabases(t *testing.T) {
 								ClusterID:  "my-dbc",
 								InstanceID: "aurora-instance-1",
 								ResourceID: "db-123",
+								Subnets:    []string{"subnet-999"},
+								VPCID:      "vpc-999",
 							},
 						},
 					},
@@ -329,6 +338,26 @@ func TestListDatabases(t *testing.T) {
 				require.Empty(t, cmp.Diff(expectedDB, ldr.Databases[0]))
 			},
 			errCheck: noErrorFunc,
+		},
+
+		{
+			name: "cluster exists but no instance exists, returns an error",
+			req: ListDatabasesRequest{
+				Region:    "us-east-1",
+				RDSType:   "cluster",
+				Engines:   []string{"postgres"},
+				NextToken: "",
+			},
+			mockClusters: []rdsTypes.DBCluster{{
+				Status:              stringPointer("available"),
+				DBClusterIdentifier: stringPointer("my-dbc"),
+				DbClusterResourceId: stringPointer("db-123"),
+				Engine:              stringPointer("aurora-postgresql"),
+				Endpoint:            stringPointer("aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com"),
+				Port:                &clusterPort,
+				DBClusterArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+			}},
+			errCheck: trace.IsBadParameter,
 		},
 		{
 			name: "no region",

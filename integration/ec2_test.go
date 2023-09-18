@@ -87,7 +87,6 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.Proxy.Enabled = true
 	config.Proxy.DisableWebInterface = true
 	config.Proxy.WebAddr.Addr = proxyAddr
-	config.Proxy.EnableProxyProtocol = true
 
 	config.DataDir = t.TempDir()
 	config.SetAuthServerAddress(authAddr)

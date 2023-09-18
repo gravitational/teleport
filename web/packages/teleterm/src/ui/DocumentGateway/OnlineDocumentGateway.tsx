@@ -76,7 +76,7 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
   );
 
   return (
-    <Box maxWidth="590px" width="100%" mx="auto" mt="4" px="5">
+    <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="4" flexWrap="wrap" gap={2}>
         <Text typography="h3">Database Connection</Text>
         <ButtonSecondary size="small" onClick={props.disconnect}>

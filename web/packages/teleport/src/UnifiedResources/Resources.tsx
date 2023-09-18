@@ -48,11 +48,18 @@ import { useUrlFiltering, useInfiniteScroll } from 'teleport/components/hooks';
 
 import { UnifiedResource } from 'teleport/services/agents';
 
-import { ResourceCard, resourceName } from './ResourceCard';
+import { ResourceCard, LoadingCard, resourceName } from './ResourceCard';
 import SearchPanel from './SearchPanel';
 import { FilterPanel } from './FilterPanel';
+import './unifiedStyles.css';
 
 const RESOURCES_MAX_WIDTH = '1800px';
+// get 48 resources to start
+const INITIAL_FETCH_SIZE = 48;
+// increment by 24 every fetch
+const FETCH_MORE_SIZE = 24;
+
+const loadingCardArray = new Array(FETCH_MORE_SIZE).fill(undefined);
 
 export function Resources() {
   const { isLeafCluster } = useStickyClusterId();
@@ -76,6 +83,8 @@ export function Resources() {
     fetchFunc: teleCtx.resourceService.fetchUnifiedResources,
     clusterId,
     filter: params,
+    initialFetchSize: INITIAL_FETCH_SIZE,
+    fetchMoreSize: FETCH_MORE_SIZE,
   });
 
   const noResults = attempt.status === 'success' && resources.length === 0;
@@ -98,6 +107,8 @@ export function Resources() {
 
   return (
     <FeatureBox
+      className="ContainerContext"
+      px={4}
       css={`
         max-width: ${RESOURCES_MAX_WIDTH};
         margin: auto;
@@ -146,14 +157,17 @@ export function Resources() {
         pathname={pathname}
         replaceHistory={replaceHistory}
       />
-      <ResourcesContainer gap={2}>
+      <ResourcesContainer className="ResourcesContainer" gap={2}>
         {resources.map(res => (
           <ResourceCard
             key={resourceKey(res)}
-            onLabelClick={onLabelClick}
             resource={res}
+            onLabelClick={onLabelClick}
           />
         ))}
+        {/* Using index as key here is ok because these elements never change order */}
+        {attempt.status === 'processing' &&
+          loadingCardArray.map((_, i) => <LoadingCard key={i} />)}
       </ResourcesContainer>
       <div ref={setScrollDetector} />
       <ListFooter>
@@ -211,9 +225,6 @@ function NoResults({ query }: { query: string }) {
 const ResourcesContainer = styled(Flex)`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  @media (min-width: ${RESOURCES_MAX_WIDTH}) {
-    grid-template-columns: repeat(4, minmax(400px, 1fr));
-  }
 `;
 
 const ErrorBox = styled(Box)`

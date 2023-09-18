@@ -311,8 +311,8 @@ should be prepared to run more than once.
     * Connect must add the current system username if the role already exists but the current system
       username is not included in allowed logins.
        * This is to accommodate the same cluster user using Connect My Computer on two different
-         devices using differenc system usernames. Since there's only one role per cluster user,
-         both usernames needs to be addded to the role.
+         devices using different system usernames. Since there's only one role per cluster user,
+         both usernames needs to be added to the role.
     * Connect must skip calling `UpdateUser` if the user already has the role.
 * Downloading the agent
     * Connect must skip redownloading the binary if it exists in the sessionData directory.

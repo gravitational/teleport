@@ -1737,6 +1737,39 @@ export namespace DeviceAuthenticateEvent {
     }
 }
 
+export class DeviceEnrollEvent extends jspb.Message { 
+    getDeviceId(): string;
+    setDeviceId(value: string): DeviceEnrollEvent;
+
+    getUserName(): string;
+    setUserName(value: string): DeviceEnrollEvent;
+
+    getDeviceOsType(): string;
+    setDeviceOsType(value: string): DeviceEnrollEvent;
+
+    getDeviceOrigin(): string;
+    setDeviceOrigin(value: string): DeviceEnrollEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeviceEnrollEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: DeviceEnrollEvent): DeviceEnrollEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeviceEnrollEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeviceEnrollEvent;
+    static deserializeBinaryFromReader(message: DeviceEnrollEvent, reader: jspb.BinaryReader): DeviceEnrollEvent;
+}
+
+export namespace DeviceEnrollEvent {
+    export type AsObject = {
+        deviceId: string,
+        userName: string,
+        deviceOsType: string,
+        deviceOrigin: string,
+    }
+}
+
 export class FeatureRecommendationEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): FeatureRecommendationEvent;
@@ -1763,6 +1796,27 @@ export namespace FeatureRecommendationEvent {
         userName: string,
         feature: Feature,
         featureRecommendationStatus: FeatureRecommendationStatus,
+    }
+}
+
+export class LicenseLimitEvent extends jspb.Message { 
+    getLicenseLimit(): LicenseLimit;
+    setLicenseLimit(value: LicenseLimit): LicenseLimitEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): LicenseLimitEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: LicenseLimitEvent): LicenseLimitEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: LicenseLimitEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): LicenseLimitEvent;
+    static deserializeBinaryFromReader(message: LicenseLimitEvent, reader: jspb.BinaryReader): LicenseLimitEvent;
+}
+
+export namespace LicenseLimitEvent {
+    export type AsObject = {
+        licenseLimit: LicenseLimit,
     }
 }
 
@@ -2089,6 +2143,18 @@ export class SubmitEventRequest extends jspb.Message {
     setAssistAction(value?: AssistActionEvent): SubmitEventRequest;
 
 
+    hasDeviceEnrollEvent(): boolean;
+    clearDeviceEnrollEvent(): void;
+    getDeviceEnrollEvent(): DeviceEnrollEvent | undefined;
+    setDeviceEnrollEvent(value?: DeviceEnrollEvent): SubmitEventRequest;
+
+
+    hasLicenseLimitEvent(): boolean;
+    clearLicenseLimitEvent(): void;
+    getLicenseLimitEvent(): LicenseLimitEvent | undefined;
+    setLicenseLimitEvent(value?: LicenseLimitEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2157,6 +2223,8 @@ export namespace SubmitEventRequest {
         featureRecommendationEvent?: FeatureRecommendationEvent.AsObject,
         assistAccessRequest?: AssistAccessRequestEvent.AsObject,
         assistAction?: AssistActionEvent.AsObject,
+        deviceEnrollEvent?: DeviceEnrollEvent.AsObject,
+        licenseLimitEvent?: LicenseLimitEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2265,6 +2333,10 @@ export namespace SubmitEventRequest {
     ASSIST_ACCESS_REQUEST = 54,
 
     ASSIST_ACTION = 55,
+
+    DEVICE_ENROLL_EVENT = 56,
+
+    LICENSE_LIMIT_EVENT = 57,
 
     }
 
@@ -2468,4 +2540,10 @@ export enum FeatureRecommendationStatus {
     FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0,
     FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1,
     FEATURE_RECOMMENDATION_STATUS_DONE = 2,
+}
+
+export enum LicenseLimit {
+    LICENSE_LIMIT_UNSPECIFIED = 0,
+    LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF = 1,
+    LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2,
 }
