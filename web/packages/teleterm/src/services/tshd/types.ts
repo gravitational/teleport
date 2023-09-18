@@ -264,6 +264,7 @@ export type TshAbortController = {
 };
 
 export type TshAbortSignal = {
+  readonly aborted: boolean;
   addEventListener(cb: (...args: any[]) => void): void;
   removeEventListener(cb: (...args: any[]) => void): void;
 };
