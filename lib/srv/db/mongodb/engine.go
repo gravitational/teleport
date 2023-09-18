@@ -175,6 +175,11 @@ func (e *Engine) processHandshakeResponse(ctx context.Context, respMessage proto
 	switch resp := respMessage.(type) {
 	// OP_REPLY is used on legacy handshake messages (deprecated on MongoDB 5.0)
 	case *protocol.MessageOpReply:
+		if len(resp.Documents) == 0 {
+			e.Log.Warn("Empty MongoDB handshake response.")
+			return
+		}
+
 		// Handshake messages are always the first document on a reply.
 		rawMessage = bson.Raw(resp.Documents[0])
 	// OP_MSG is used on modern handshake messages.
