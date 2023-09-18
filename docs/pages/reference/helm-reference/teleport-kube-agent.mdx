@@ -89,7 +89,7 @@ This parameter is not mandatory to preserve backwards compatibility with older c
   ```yaml
   roles: kube,app,db
   ```
-  
+
 ## `enterprise`
 
 | Type     | Default value |
@@ -99,19 +99,19 @@ This parameter is not mandatory to preserve backwards compatibility with older c
 When `enterprise` is set to `true`, the container image used for Teleport agent
 pods run by the `teleport-kube-agent` chart will be the enterprise version.
 This should be set to `true` for connecting to Teleport Cloud and self-hosted
-Teleport Enterprise clusters to use enterprise features within the Kube Agent. 
+Teleport Enterprise clusters to use enterprise features within the Kube Agent.
 
 `values.yaml` example:
 
   ```yaml
   enterprise: true
-  ```  
-  
+  ```
+
 ## `updater`
 
 `updater` controls whether the Kube Agent Updater should be deployed alongside
 the `teleport-kube-agent`. The updater fetches the target version, validates the
-image signature, and updates the teleport deployment. The `enterprise` value should 
+image signature, and updates the teleport deployment. The `enterprise` value should
 have been set to `true`.
 
 All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
@@ -376,6 +376,56 @@ connecting to the cluster.
   ```yaml
   kubeClusterName: my-gke-cluster
   ```
+
+## `kubernetesDiscovery`
+
+| Type   | Required? |
+|--------|-----------|
+| `list` | No |
+
+`kubernetesDiscovery` is a YAML list object detailing the Kubernetes App Discovery Configuration
+
+You can specify multiple discovery configurations by adding additional list elements.
+
+`values.yaml` example:
+
+  ```yaml
+  kubernetesDiscovery:
+  - types: ["app"]
+    namespaces: [ "toronto", "porto" ]
+    labels:
+      env: staging
+  - types: ["app"]
+    namespaces: [ "seattle", "oakland" ]
+    labels:
+      env: testing
+  ```
+
+### `kubernetesDiscovery.types`
+
+| Type   | Required? |
+|--------|-----------|
+| `list` | Yes |
+
+`kubernetesDiscovery.types` is a list of Teleport resource types to be created
+from the discovered Kubernetes Services. Currently only supports `app`.
+
+### `kubernetesDiscovery.namespaces`
+
+| Type  | Default | Required? |
+|-------| ------- |-----------|
+| `list`| All Namespaces | No |
+
+`kubernetesDiscovery.namespaces` is a list of Kubernetes namespaces to be scanned for resources.
+
+### `kubernetesDiscovery.labels`
+
+| Type  | Default | Required? |
+|-------| ------- |-----------|
+| `map` | `{"*":"*"}` | No |
+
+`kubernetesDiscovery.labels` is a map of labels to be matched against the Kubernetes Services.
+Only Services with matching labels will be imported to Teleport.
 
 ## `apps`
 
