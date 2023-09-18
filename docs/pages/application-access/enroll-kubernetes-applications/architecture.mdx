@@ -1,5 +1,5 @@
 ---
-title: Kubernetes Application Discovery Architecture
+title: Kubernetes App Discovery Architecture
 description: Learn how Teleport automatically discovers applications running on Kubernetes.
 ---
 
@@ -7,6 +7,10 @@ Kubernetes application auto-discovery consists of two parts:
 
 - Periodically polling list of services in a Kubernetes cluster
 - Creating Teleport apps based on that list and proxying requests to them.
+
+<Admonition type="note">
+  This will only work when the Teleport agent runs inside the target Kubernetes cluster
+</Admonition>
 
 ### Polling Kubernetes services
 
