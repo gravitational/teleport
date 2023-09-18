@@ -1,0 +1,182 @@
+---
+title: Kubernetes Apps Discovery
+description: Detailed guide for configuring Kubernetes Apps Discovery.
+layout: tocless-doc
+---
+
+Kubernetes Apps Discovery allows you to discover Kubernetes services and automatically 
+enroll them as Teleport apps.
+
+Teleport `discovery` and `app` services are required to run in the same Kubernetes cluster which services are being discovered.
+
+## Enabling Kubernetes Apps Discovery
+
+You can easily enable Kubernetes Apps Discovery just by installing `teleport-kube-agent` helm chart and enabling `discovery` and `app` roles.
+Enabling `discovery` role by default will automatically start the discovery of Kubernetes services and creation of Teleport apps from them. And enabling
+`app` role on the chart will start the process of proxying all new Teleport apps created from discovered Kubernetes services.
+
+### Step 1/2. Add token, allowing for required roles
+
+```code
+$ tctl tokens add --type=kube,app,discovery 
+```
+
+### Step 2/2. Install helm chart, using token added in previous step
+
+```code
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  --set roles=kube\,app\,discovery \
+  --set kubeClusterName=minikube \
+  --set proxyAddr=<Var name="proxy-address" /> \
+  --set authToken=<Var name="token" /> \
+  --create-namespace \
+  --namespace=teleport
+```
+
+You can configure scope of services discovery by setting value `kubernetesDiscovery` of the chart. For more information
+please see [helm chart documentation](../reference/helm-reference/teleport-kube-agent.mdx#kubernetesdiscovery).
+
+## Configuring Kubernetes Apps Discovery manually
+
+Helm chart will set up configuration for you automatically, but you can also configure required services manually.
+You will need to start `discovery` and `app` services inside target Kubernetes cluster.
+
+Configuration for the `discovery` service is controlled by the `kubernetes` field, example:
+
+```yaml
+## This section configures the Discovery Service
+discovery_service:
+  enabled: yes
+  discovery_group: main-cluster
+  kubernetes:
+    - types: ["app"] 
+      namespaces: [ "toronto", "porto" ]
+      labels:
+        env: staging
+    - types: ["app"]
+      namespaces: [ "seattle", "oakland" ]
+      labels:
+        env: testing
+```
+
+Configuration for the `app` service is controlled by the `resources` field, example:
+
+```yaml
+app_service:
+  enabled: yes
+  resources:
+    - labels:
+        "teleport.dev/kubernetes-cluster": "main-cluster"
+        "teleport.dev/origin": "discovery-kubernetes"
+```
+
+Label `teleport.dev/kubernetes-cluster` should match value of `discovery_group` field in the Discovery Service config.
+
+For more information you can take a look at [`discovery_service`](../reference/config.mdx#discovery-service) and [`app_service`](../reference/config.mdx#application-service) configuration references.
+
+## How Kubernetes Apps Discovery works
+
+It consists of 2 parts:
+- Periodically polling list of services in a Kubernetes cluster
+- Creating Teleport apps based on that list and proxying requests to them.
+
+### Polling Kubernetes services
+
+The Discovery Service running in a Kubernetes cluster will periodically list services and filter them out
+according to the matchers specified in `kubernetes` filed of the service config. You can filter services based on
+types, namespaces and service labels. All services by default currently 
+are considered of an "app" type, but it can be changed for a service by Kubernetes annotation [`teleport.dev/discovery-type`](#teleportdevdiscovery-type).
+If type of a service doesn't equal the one specified in the matcher, service is ignored.
+
+By default name of the created Teleport app will consist of Kubernetes service name, namespace and 
+Kubernetes cluster name: `$SERVICE_NAME-$NAMESPACE-$KUBE_CLUSTER_NAME`. That name can be changed by Kubernetes annotation 
+"teleport.dev/name".
+
+Every port that is exposed by the service is considered separately, so one Kubernetes service can result in creation of multiple Teleport app resources, 
+if more than one port is exposed on the service. In that case port name will be added to the app name.
+
+Discovery service by default will only try to expose ports that serve HTTP/HTTPS. To understand if this port serves HTTP, discovery 
+will use several heuristics or will try to probe exposed port with a HEAD HTTP request.
+
+Heuristics for determining if port serves HTTP/HTTPS are:
+- if Kubernetes service port definition has `appProtocol` field, and it contains
+values `http`/`https` it will be used in the URI.
+- if exposed port's name is `https` or it has numeric value 443, `https` will be used.
+- Teleport will perform HTTP request to the port to see if it serves HTTP/HTTPS requests
+- if exposed port's name is `http` or it has numeric value 80 or 8080, `http` will be used.
+
+Otherwise, this port is ignored. But if annotation [`teleport.dev/protocol`](#teleportdevprotocol) is used on the service and its value is
+"tcp", then this port will be exposed as a TCP app. 
+
+### Creating Teleport apps and proxying requests to them
+
+After relevant Kubernetes services were listed and filtered, the Discovery Service will create Teleport apps, reconciling
+existing and new ones: 
+- If a discovered app was not present at the Teleport backend, it will be created
+- If a discovered app was already present at the backend, it will be updated
+- If a discovered app was already present at the backend, but it was not found in the Kubernetes cluster anymore, it will be deleted.
+
+App service runs on the Kubernetes cluster and proxies apps based on labels specified in the `resources` field. All apps created by the
+Discovery Service will have labels copied from the service of origin. In addition, label `teleport.dev/kubernetes-cluster` will be set for
+the app and it will be equal to the name of the Kubernetes cluster of origin. Discovery service uses `discovery_group` property to get Kubernetes
+cluster name.
+
+## Annotations
+
+Kubernetes annotations on services can be used to fine tune transformation of services to apps.
+All annotations are optional - they will override default behaviour, but they are not required for import of services. 
+
+### `teleport.dev/discovery-type`
+
+Controls what type this service is considered to be. If annotation is missing,
+by default all services are considered to be of "app" type. If matchers in the Discovery Service
+config match service type it will be imported. Currently the only supported value is
+`app`, which means Teleport application will be imported from this service. In the future there are plans to expand to database importing.
+
+### `teleport.dev/protocol` 
+
+Controls protocol for the uri of the Teleport app we create. If annotation is not set,
+heuristics will be used to try to determine protocol of an exposed port.
+If all heuristics didn't work, the port will be skipped. For app to be imported with `tcp` protocol, the
+service should have explicit annotation `teleport.dev/protocol: "tcp"`
+
+### `teleport.dev/port` 
+
+Controls preferred port for the Kubernetes service, only this one will be used even if service
+has multiple exposed ports. Its value should be one of the exposed service ports; otherwise, the app will not be imported. 
+Value can be matched either by numeric value or by the name of the port defined on the service.
+
+### `teleport.dev/name` 
+
+Controls resulting app name. If present it will override default app name pattern
+`$SERVICE_NAME-$NAMESPACE-$KUBE_CLUSTER_NAME`. If multiple ports are exposed, resulting apps will have port names added
+as a suffix to the annotation value, as `$APP_NAME-$PORT1_NAME`, `$APP_NAME-$PORT2_NAME` etc, where `$APP_NAME` is the name
+set by the annotation.
+
+### `teleport.dev/app-rewrite` 
+
+Controls rewrite configuration for Teleport app, if needed. It should
+contain full rewrite configuration in YAML format, same as one would put into `rewrite` config section of an 
+app (see [documentation](https://goteleport.com/docs/application-access/guides/connecting-apps/#rewrite-redirect)).
+```yaml
+annotations:
+  teleport.dev/app-rewrite: |
+    redirect:
+    - "localhost"
+    - "jenkins.internal.dev"
+    headers:
+    - "X-Custom-Header: example"
+    - "Authorization: Bearer {{internal.jwt}}"
+```
+
+## Troubleshooting
+First, make sure that your discovery and services are running, that token has required roles.
+
+If agents are running, but you don't see expected apps appearing in Teleport, there could be 2 main reasons - 
+either the Discovery Service can't find relevant Kubernetes services or the App Service can't proxy discovered apps.
+
+Make sure that Kubernetes service account under which the Discovery Service is running has enough permissions to list
+cluster's services. Also make sure that labels and namespaces configuration is correct.
+
+For the App Service, make sure that labels in `resources` field are defined correctly, specifically that label 
+`teleport.dev/kubernetes-cluster` matches `discovery_group` field of the Discovery Service running in the Kubernetes cluster.

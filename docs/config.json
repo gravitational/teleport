@@ -958,7 +958,11 @@
           "slug": "/kubernetes-access/getting-started/"
         },
         {
-          "title": "Kubernetes Discovery",
+          "title": "Kubernetes Apps Discovery",
+          "slug": "/kubernetes-access/discovery-apps/"
+        },
+        {
+          "title": "Kubernetes Clusters Discovery",
           "slug": "/kubernetes-access/discovery/",
           "entries": [
             {
