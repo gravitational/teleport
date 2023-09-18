@@ -98,7 +98,7 @@ function PromptCredential({
                 &:hover,
                 &:focus {
                   cursor: pointer;
-                  background: ${props => props.theme.colors.action.hover};
+                  background: ${props => props.theme.colors.spotBackground[0]};
                 }
               `}
               onClick={() => onUserResponse(index)}

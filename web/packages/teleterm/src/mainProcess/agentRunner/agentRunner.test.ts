@@ -141,6 +141,16 @@ test('status updates are sent on a successful start', async () => {
     expect(updateSender).toHaveBeenCalledWith(rootClusterUri, runningState);
 
     await agentRunner.kill(rootClusterUri);
+
+    // Since the agent changes status on the close event and not the exit event, we must wait for
+    // this to occur.
+    await expect(
+      () => agentRunner.getState(rootClusterUri).status === 'exited'
+    ).toEventuallyBeTrue({
+      waitFor: 2000,
+      tick: 10,
+    });
+
     const exitedState: AgentProcessState = {
       status: 'exited',
       code: null,

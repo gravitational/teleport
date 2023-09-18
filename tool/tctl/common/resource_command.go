@@ -270,7 +270,7 @@ func (rc *ResourceCommand) Create(ctx context.Context, client auth.ClientI) (err
 	if rc.filename == "" {
 		reader = os.Stdin
 	} else {
-		f, err := utils.OpenFile(rc.filename)
+		f, err := utils.OpenFileAllowingUnsafeLinks(rc.filename)
 		if err != nil {
 			return trace.Wrap(err)
 		}
