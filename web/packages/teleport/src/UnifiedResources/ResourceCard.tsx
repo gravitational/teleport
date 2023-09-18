@@ -323,7 +323,7 @@ function CopyButton({ name }: { name: string }) {
   );
 }
 
-function resourceName(resource: UnifiedResource) {
+export function resourceName(resource: UnifiedResource) {
   if (resource.kind === 'app' && resource.friendlyName) {
     return resource.friendlyName;
   }
