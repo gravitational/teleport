@@ -129,7 +129,7 @@ export function useAsync<Args extends unknown[], AttemptData>(
           setState(() => ({
             status: 'error',
             error: err,
-            statusText: err && err['message'],
+            statusText: err?.message,
             data: null,
           }));
 
@@ -230,12 +230,12 @@ export function makeProcessingAttempt<T>(): Attempt<T> {
   };
 }
 
-export function makeErrorAttempt<T>(error: any): Attempt<T> {
+export function makeErrorAttempt<T>(error: Error): Attempt<T> {
   return {
     data: null,
     status: 'error',
     error: error,
-    statusText: error['message'],
+    statusText: error.message,
   };
 }
 
