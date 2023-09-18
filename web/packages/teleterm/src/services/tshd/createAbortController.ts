@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+// This file works both in the browser and Node.js.
+// In Node environment, it imports the built-in events module.
+// In browser environment, it imports the events package.
 import { EventEmitter } from 'events';
 
 import { TshAbortController } from './types';
