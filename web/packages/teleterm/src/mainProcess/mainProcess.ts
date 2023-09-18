@@ -369,6 +369,13 @@ export default class MainProcess {
 
   private _setAppMenu() {
     const isMac = this.settings.platform === 'darwin';
+    const commonHelpTemplate: MenuItemConstructorOptions[] = [
+      { label: 'Learn More', click: openDocsUrl },
+      {
+        label: 'Open Logs Directory',
+        click: () => openLogsDirectory(this.settings),
+      },
+    ];
 
     // Enable actions like reload or toggle dev tools only in dev mode.
     const viewMenuTemplate: MenuItemConstructorOptions = this.settings.dev
@@ -394,7 +401,7 @@ export default class MainProcess {
       },
       {
         role: 'help',
-        submenu: [{ label: 'Learn More', click: openDocsUrl }],
+        submenu: commonHelpTemplate,
       },
     ];
 
@@ -406,7 +413,8 @@ export default class MainProcess {
       {
         role: 'help',
         submenu: [
-          { label: 'Learn More', click: openDocsUrl },
+          ...commonHelpTemplate,
+          { type: 'separator' },
           { role: 'about' },
         ],
       },
@@ -484,6 +492,10 @@ const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
 
 function openDocsUrl() {
   shell.openExternal(DOCS_URL);
+}
+
+function openLogsDirectory(settings: RuntimeSettings) {
+  shell.openPath(settings.logsDir);
 }
 
 /** Shares promise returned from `promiseFn` across multiple concurrent callers. */
