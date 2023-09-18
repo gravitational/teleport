@@ -133,5 +133,7 @@ message Event {
     teleport.userloginstate.v1.UserLoginState UserLoginState = 46;
     // AccessListMember is an access list member resource.
     teleport.accesslist.v1.Member AccessListMember = 47;
+    // DiscoveryConfig contains a list of matchers to be loaded dynamically by Discovery Services.
+    types.DiscoveryConfigV1 DiscoveryConfig = 48;
   }
 }

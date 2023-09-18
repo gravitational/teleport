@@ -6109,6 +6109,46 @@ message MessageWithHeader {
   ];
 }
 
+// DiscoveryConfigV1 is a resource that has Discovery Resource Matchers and a Discovery Group.
+//
+// Each Discovery Config has a set of matchers and a DiscoveryGroup.
+// DiscoveryServices also have a DiscoveryGroup which will be used to load all the matchers from
+// all the DiscoveryConfigs that have the same Group.
+message DiscoveryConfigV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+
+  // Spec is an DiscoveryConfig specification.
+  DiscoveryConfigSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// DiscoveryConfigSpecV1 contains properties required to create matchers to be used by discovery_service.
+// Those matchers are used by discovery_service to watch for cloud resources and create them in Teleport.
+message DiscoveryConfigSpecV1 {
+  // DiscoveryGroup is used by discovery_service to add extra matchers.
+  // All the discovery_services that have the same discovery_group, will load the matchers of this resource.
+  string DiscoveryGroup = 1 [(gogoproto.jsontag) = "discovery_group,omitempty"];
+
+  // AWS is a list of AWS Matchers.
+  repeated AWSMatcher AWS = 2 [(gogoproto.jsontag) = "aws,omitempty"];
+  // Azure is a list of Azure Matchers.
+  repeated AzureMatcher Azure = 3 [(gogoproto.jsontag) = "azure,omitempty"];
+  // GCP is a list of GCP Matchers.
+  repeated GCPMatcher GCP = 4 [(gogoproto.jsontag) = "gcp,omitempty"];
+  // Kube is a list of Kubernetes Matchers.
+  repeated KubernetesMatcher Kube = 5 [(gogoproto.jsontag) = "kube,omitempty"];
+}
+
 // AWSMatcher matches AWS EC2 instances and AWS Databases
 message AWSMatcher {
   // Types are AWS database types to match, "ec2", "rds", "redshift", "elasticache",
