@@ -91,7 +91,7 @@ func TestRewriter(t *testing.T) {
 		{
 			desc: "set x-real-ip",
 			reqHeaders: http.Header{
-				XForwardedFor: []string{"1.2.3.5"},
+				XForwardedFor: []string{"1.2.3.4"},
 			},
 			tlsReq:     true,
 			hostReq:    "teleport.dev:3543",
