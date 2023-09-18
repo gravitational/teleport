@@ -84,6 +84,24 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				return nil
 			case syscall.SIGTERM, syscall.SIGKILL, syscall.SIGINT:
 				timeout := time.Second * 3
+
+				// read undocumented env var TELEPORT_UNSTABLE_SHUTDOWN_TIMEOUT.
+				// TODO(Tener): DELETE IN 15.0. after ironing out all possible shutdown bugs.
+				override := os.Getenv("TELEPORT_UNSTABLE_SHUTDOWN_TIMEOUT")
+				if override != "" {
+					t, err := time.ParseDuration(override)
+					if err != nil {
+						process.log.Warnf("Cannot parse timeout override %q, using default instead.", override)
+					}
+					if err == nil {
+						if t > time.Minute*10 {
+							process.log.Warnf("Timeout override %q exceeds maximum value, reducing.", override)
+							t = time.Minute * 10
+						}
+						timeout = t
+					}
+				}
+
 				cancelCtx, cancelFunc := context.WithTimeout(ctx, timeout)
 				process.log.Infof("Got signal %q, exiting within %vs.", signal, timeout.Seconds())
 				go func() {
