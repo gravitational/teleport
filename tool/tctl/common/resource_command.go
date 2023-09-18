@@ -1012,6 +1012,9 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client auth.Cl
 		if _, err := client.UpdateIntegration(ctx, existingIntegration); err != nil {
 			return trace.Wrap(err)
 		}
+		fmt.Printf("integration %q has been %s\n", integration.GetName(), UpsertVerb(exists, rc.force))
+
+		return nil
 	}
 
 	igV1, ok := integration.(*types.IntegrationV1)
