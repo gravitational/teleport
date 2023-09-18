@@ -268,7 +268,11 @@ func (p *AgentPool) run() error {
 
 		agent, err := p.connectAgent(p.ctx, p.events)
 		if err != nil {
-			p.log.WithError(err).Debugf("Failed to connect agent.")
+			if isProxyAlreadyClaimed(err) {
+				p.log.Debugf("Failed to connect agent: %v", err)
+			} else {
+				p.log.WithError(err).Debugf("Failed to connect agent.")
+			}
 		} else {
 			p.wg.Add(1)
 			p.active.add(agent)

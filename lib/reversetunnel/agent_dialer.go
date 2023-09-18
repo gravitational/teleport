@@ -18,6 +18,7 @@ package reversetunnel
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -44,6 +45,12 @@ type agentDialer struct {
 	isClaimed   func(principals ...string) bool
 }
 
+var errProxyAlreadyClaimed = trace.Errorf("proxy already claimed")
+
+func isProxyAlreadyClaimed(err error) bool {
+	return strings.HasSuffix(err.Error(), errProxyAlreadyClaimed.Error())
+}
+
 // DialContext creates an ssh connection to the given address.
 func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHClient, error) {
 	// Create a dialer (that respects HTTP proxies) and connect to remote host.
@@ -61,7 +68,7 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 			OnCheckCert: func(c *ssh.Certificate) error {
 				if d.isClaimed != nil && d.isClaimed(c.ValidPrincipals...) {
 					d.log.Debugf("Aborting SSH handshake because the proxy %q is already claimed by some other agent.", c.ValidPrincipals[0])
-					return trace.Errorf("proxy already claimed")
+					return errProxyAlreadyClaimed
 				}
 
 				principals = c.ValidPrincipals
@@ -83,6 +90,10 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 		Timeout:         apidefaults.DefaultIOTimeout,
 	})
 	if err != nil {
+		if isProxyAlreadyClaimed(err) {
+			d.log.Debugf("Failed to create client to %v: %v", addr.Addr, err)
+			return nil, trace.Wrap(err)
+		}
 		d.log.WithError(err).Debugf("Failed to create client to %v.", addr.Addr)
 		return nil, trace.Wrap(err)
 	}
