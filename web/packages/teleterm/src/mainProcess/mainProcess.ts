@@ -51,6 +51,7 @@ import { downloadAgent, FileDownloader } from './agentDownloader';
 import {
   createAgentConfigFile,
   isAgentConfigFileCreated,
+  generateAgentConfigPaths,
 } from './createAgentConfigFile';
 import { AgentRunner } from './agentRunner';
 import { terminateWithTimeout } from './terminateWithTimeout';
@@ -358,6 +359,25 @@ export default class MainProcess {
         }
       ) => {
         event.returnValue = this.agentRunner.getState(args.rootClusterUri);
+      }
+    );
+
+    ipcMain.handle(
+      'main-process-open-agent-logs-directory',
+      async (
+        _,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => {
+        const { logsDirectory } = generateAgentConfigPaths(
+          this.settings,
+          args.rootClusterUri
+        );
+        const error = await shell.openPath(logsDirectory);
+        if (error) {
+          throw new Error(error);
+        }
       }
     );
 

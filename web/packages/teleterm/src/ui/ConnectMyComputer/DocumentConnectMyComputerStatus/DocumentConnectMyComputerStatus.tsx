@@ -43,6 +43,7 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
 import { connectToServer } from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
@@ -61,6 +62,7 @@ export function DocumentConnectMyComputerStatus() {
     isAgentConfiguredAttempt,
     markAgentAsNotConfigured,
   } = useConnectMyComputerContext();
+  const { rootClusterUri } = useWorkspaceContext();
   const { roleName, systemUsername, hostname } = useAgentProperties();
 
   const prettyCurrentAction = prettifyCurrentAction(currentAction);
@@ -75,6 +77,17 @@ export function DocumentConnectMyComputerStatus() {
       { uri: agentNode.uri, hostname, login: systemUsername },
       { origin: 'resource_table' }
     );
+  }
+
+  async function openAgentLogs(): Promise<void> {
+    try {
+      await ctx.mainProcessClient.openAgentLogsDirectory({ rootClusterUri });
+    } catch (e) {
+      ctx.notificationsService.notifyError({
+        title: 'Failed to open agent logs directory',
+        description: e.message,
+      });
+    }
   }
 
   const isRunning =
@@ -145,6 +158,7 @@ export function DocumentConnectMyComputerStatus() {
             },
           }}
         >
+          <MenuItem onClick={openAgentLogs}>Open agent logs directory</MenuItem>
           <MenuItem onClick={() => alert('Not implemented')}>
             Remove agent
           </MenuItem>
