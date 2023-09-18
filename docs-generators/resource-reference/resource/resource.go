@@ -493,7 +493,7 @@ func NewFromDecl(decl *ast.GenDecl, filepath string, allDecls map[PackageInfo]*a
 
 	refs := []ReferenceEntry{
 		ReferenceEntry{
-			SectionName: rs.name,
+			SectionName: makeSectionName(rs.name),
 			Description: descriptionWithoutName(description, rs.name),
 			SourcePath:  filepath,
 			Fields:      fld,
