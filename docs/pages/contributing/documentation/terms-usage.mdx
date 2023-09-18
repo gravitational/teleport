@@ -23,7 +23,7 @@ In body text, spell out whole numbers from zero through nine. Use numerals for 1
 Use commas in numbers with four or more digits. Use *more than* instead of *over* 
 (over is a spatial term). 
 
-### Emphasis and special notices
+### Emphasis and user interaction
 
 Use bold formatting for user interface elements that the user interacts with, including:
 
@@ -31,33 +31,10 @@ Use bold formatting for user interface elements that the user interacts with, in
 - Field and button labels.
 - Options that can be selected in the user interface.
 
-If there's text that requires more attention than the surrounding body, consider isolating 
-it as a standalone note or tip. However, **think twice** before adding any type of special 
-notice, embedding details, or using tabbed boxes. These elements can all be distracting and 
-too many of them make text unreadable. 
-
-Because they are generally **disruptive** to the reader's experience, ask yourself if it is 
-really necessary to stop the reader's forward progress by adding a Note, Caution, Tip, or 
-any other special component. In most cases, it's more effective to integrate the information 
-in the main body of the text. If you use these types of components at all, use them sparingly! 
-
-**Note**—Indicates neutral or positive information that emphasizes or supplements important 
-points of the main text. A note supplies information that may apply only in special cases. 
-Examples are memory limitations, equipment configurations, or details that apply to specific 
-versions of a program.
-
-**Tip**—Helps users apply the techniques and procedures described in the text to their specific 
-needs. A tip suggests alternative methods that may not be obvious and helps users understand 
-the benefits and capabilities of the product. A tip is not essential to the basic understanding 
-of the text.
-
-**Caution**—Advises users that failure to take or avoid a specific action could result in 
-loss of data.
-
 ### Images
 
 Diagrams and illustrations can help readers visualize and internalize complex ideas and 
-processes. So, use them liberally but with intention. Images also help to break up long text 
+processes, so use them liberally but with intention. Images also help to break up long text 
 flows, but they should always reinforce and reflect the text immediately preceding or 
 immediately following the image.
 
@@ -67,41 +44,39 @@ to highlight how what is captured in the image is relevant to the text.
 Be wary of using diagrams or illustrations that include any information—visual or textual—that 
 is likely to get stale.
 
-### Log in and sign in formats
+### "Log in" and "sign in" terminology
 
 Most Linux distributions and macOS use *log in* to describe how a user initiates an interactive 
 session. Windows uses *log on*. Many modern web-based applications—including the Teleport Web 
 UI—use *sign in*.
 
-- Use sign in or log in as two words with no hyphen when describing an action (verb usage).
-- Use sign in and sign out as the preferred terminology when referring to actions involving 
+- Use *sign in* or *log in* as two words with no hyphen when describing an action (verb usage).
+- Use *sign in* and *sign out* as the preferred terminology when referring to actions involving 
   the Teleport Web UI.
-- Use login as one word only when used as a noun, for example, when using login to mean user 
+- Use *login* as one word only when it's used as a noun, for example, when using *login* to mean a user 
   profile or an identity.
-- Use log-in with a hyphen when modifying a noun (adjective usage).
+- Use *log-in* with a hyphen when modifying a noun (adjective usage).
 
 ### Optional steps
 
-Use (Optional) at the beginning of steps that are optional. For example:
+Use *(Optional)* at the beginning of steps that are optional. For example:
 
 - (Optional) Add a custom field.
 
-### Punctuation
+### Punctuation and writing mechanics
 
 Use the guidelines in this section for punctuation marks.
 
 | Punctuation	| Usage
 | ----------- | -----
 | apostrophe (') | Use in contractions for a conversational tone. Avoid using the possessive form.
-| capitalization | Use sentence style capitalization for all headings. 
+| capitalization | Use sentence-style capitalization for all headings. 
 | colon (:) | Use a colon at the end of the statement that introduces a procedure, bulleted list, or table.
 | comma (,)	| Use a serial comma to separate three or more items in a series, including the item before the conjunction. For example: She bought apples, oranges, and bananas.
 | em dash (—)	| Use an em dash (—) to set off a clarifying or parenthetical phrase with more emphasis than parentheses provide. Don't add spaces around an em dash. Don't capitalize the first word after an em dash unless the word is a proper noun.
 | exclamation point (!) | Avoid using exclamation points in general and never use more than one.
-| hyphenation (-)	| Avoid using hyphenated compound words. Use hyphens only if the meaning is unclear without them or if the only recognized form of the word includes a hyphen.
-| quotation marks (“ “)	| Avoid using quotation marks unless you need to quote a message or as string that would otherwise be confusing given its surrounding context.
 | semicolons (;) | Don't use semicolons instead of commas to separate items in a list. If you think the content should use semicolons, consider rewriting it into subtopics or an unordered bullet list.
-| slashes (/) and backslashes (\)	| Avoid using slashes or backslashes except when documenting paths that require either forward or backward slashes. Never use and/or in documentation.
+| slashes (/) and backslashes (\)	| Avoid using slashes or backslashes except when documenting paths that require either forward or backward slashes. Never use *and/or* in documentation.
 
 ### Software versions
 
@@ -109,6 +84,19 @@ Use *or later* or *and later* to refer to multiple versions of software. For exa
 
 - Firefox 3.6 or later
 - Rust compiler, version 1.55.0 and later
+
+### Special notice paragraphs
+
+If there's text that requires more attention than the surrounding body, consider isolating 
+it as a standalone note or tip. However, **think twice** before adding any type of special 
+notice, embedding details, or using tabbed boxes. These elements can all be distracting and 
+too many of them make text unreadable. 
+
+Because they are generally **disruptive** to the reader's experience, ask yourself if it is 
+really necessary to stop the reader's forward progress by adding `Admonition`, `Notice`, `Tabs`,
+`Details`, or any other special component. In most cases, it's more effective to integrate the 
+information in the main body of the text. If you use these types of components at all, use 
+them sparingly.
 
 ### Tense
 
@@ -127,15 +115,15 @@ When referring to interactions in the user interface, you should generally follo
 capitalization that is used for the element unless it is rendered as all capital letters. 
 Because using all capitals is typically considered aggressive in text and most
 user interface elements that use all capital letters are also text that the user interacts
-with, you can break the "follow the UI rule" and use an initial capital letter.
+with, you can break the *follow the UI* rule and use an initial capital letter.
 
 | Element	| How to use it
 | ------- | -------------
-| button	| Use bold for the button label. Don't include "button" in the description. For example: Click **Submit**.
-| checkbox	| Use checkbox, not box or check box, if you need to refer to a checkbox in the user interface. Use select and clear with checkboxes, not turn on and turn off, check and uncheck, or unselect and deselect.
-| click	| Use click to describe taking action on a standalone button. Do not use click on. Click and select are not interchangeable.
-| dialog	| If you need to refer to a dialog box, use dialog. Don't use pop-up window, dialog box, or dialogue box.
-| dropdown	| Use dropdown as an adjective, not as a noun. For example, use dropdown list.
+| button	| Use bold for the button label. Don't include *button* in the description. For example: Click **Submit**.
+| checkbox	| Use *checkbox*, not *box* or *check box*, if you need to refer to a checkbox in the user interface. Use *select* and *clear* with checkboxes, not turn on and turn off, check and uncheck, or unselect and deselect.
+| click	| Use *click* to describe taking action on a standalone button. Do not use *click on*. *Click* and *select* are not interchangeable.
+| dialog	| If you need to refer to a dialog box, use *dialog*. Don't use *pop-up window*, *dialog box*, or *dialogue box*.
+| dropdown	| Use *dropdown* as an adjective, not as a noun. For example, use *dropdown list*.
 | menu | Use bold for the menu name and menu item names if the user interacts with them.
 
 ### Verb usage
@@ -144,28 +132,27 @@ Use the following guidelines for common verbs.
 
 | Verb | How to use it
 | ---- | -------------
-| can, may, might	| Use the verb can when describing ability, capability, or capacity. Avoid using the verb may because it implies permission. Use the past tense might when describing the possibility or eventuality of an outcome.
-| clear	| Use clear rather than deselect or unselect if you have to describe removing a selection from a checkbox.
-| displays	| Use the transitive verb displays rather than the intransitive verb appears. Use displays with a direct object. For example, The command displays log messages.
-| ensure	| Use ensure to mean to make sure or to guarantee. Remember that this is not interchangeable with assure (to make confident) and insure (to provide insurance).
-| enter, type	| Use enter to instruct the user to input a value by pressing the Enter or Return key. Use type to instruct the user to type a value in a field.
-| select	| Use select to describe taking action on a menu item, checkbox, or radio button. Note that click and select are not interchangeable.
-| set up, setup	| Use set up—two words, no hyphen—when used as a verb. Don't hyphenate. Use setup—one word, no hyphen—when used as an adjective or as a noun.
-| want, wish	| Use want instead of wish or desire when the user has a choice of actions.
+| can, may, might	| Use the verb *can* when describing ability, capability, or capacity. Avoid using the verb *may* because it implies permission. Use the past tense *might* when describing the possibility or eventuality of an outcome.
+| clear	| Use *clear* rather than *deselect* or *unselect* if you have to describe removing a selection from a checkbox.
+| displays	| Use the transitive verb *displays* rather than the intransitive verb *appears*. Use displays with a direct object. For example, The command *displays* log messages.
+| ensure	| Use *ensure* to mean to make sure or to guarantee. Remember that this is not interchangeable with *assure* (to make confident) and *insure* (to provide insurance).
+| enter, type	| Use *enter* to instruct the user to input a value by pressing the Enter or Return key. Use *type* to instruct the user to type a value in a field.
+| select	| Use *select* to describe taking action on a menu item, checkbox, or radio button. Note that *click* and *select* are not interchangeable.
+| set up, setup	| Use *set up*—two words, no hyphen—when used as a verb. Don't hyphenate. Use *setup*—one word, no hyphen—when used as an adjective or as a noun.
+| want, wish	| Use *want* instead of *wish* or *desire* when the user has a choice of actions.
 
 ### Word choice
 
 | Word in question | How to use it
 | ---------------- | -------------
-| affect, effect	| Use affect as a verb and use effect as a noun.
+| affect, effect	| Use *affect* as a verb and use *effect* as a noun.
 | allow, enable	| Avoid using software as a point of view and consider rewriting to focus on the human interacting with the software.
-| app, application	| Use application or applications unless there's a specific reason for using the shorthand term app or apps.
+| app, application	| Use *application* or *applications* unless there's a specific reason for using the shorthand term *app* or *apps*.
 | back-end, front-end	| Using the hyphen in these terms is still more common than not using it. Both forms are acceptable, but for consistency use the hyphen.
-| email	| It hasn't been e-mail for thirty-plus years. Never use emails. Don't use email as a verb.
-| file name	| Use file name as two words, not filename.
-| its, it's	| Use its as a possessive meaning belonging to or associated with an object or idea previously mentioned. Because it is a vague pronoun, be sure to check that what it refers to can be easily identified. Use it's only as a contraction for it is or it has.
-| multifactor	| Use multifactor without the hyphen for multifactor authentication.
-| please	| Avoid using please in documentation unless there's a specific reason for using it. For example, you might use please if quoting the content of a message that asks the user to do something inconvenient.
-| prerequisite | As a section title, it's a bit stuffy and old-fashioned. Use Before you begin instead. If you use prerequisite in the text, there's no hyphen.
-| that, which	| Use that at the beginning of a clause that's necessary for the sentence to make sense. Don't put a comma before that. Don't use that when introducing a clause referring to people. Use who. Use which at the beginning of a clause that adds supporting or parenthetical information to a sentence. If you can omit the clause and the sentence still makes sense, use which, and put a comma before it.
-| user name, username |	Use user name as two words in most cases. However, username is acceptable to indicate a user identity profile name.
+| email	| It hasn't been *e-mail* for thirty-plus years. Never use *emails*. Don't use *email* as a verb.
+| file name	| Use *file name* as two words, not *filename* unless there's a specific reason for using as one word.
+| its, it's	| Use *its* as a possessive meaning belonging to or associated with an object or idea previously mentioned. Because *it* is a vague pronoun, be sure to check that what *it* refers to can be easily identified. Use *it's* only as a contraction for *it is* or *it has*.
+| multifactor	| Use *multifactor* without the hyphen for *multifactor authentication*.
+| please	| Avoid using *please* in documentation unless there's a specific reason for using it. For example, you might use *please* if quoting the content of a message that asks the user to do something inconvenient.
+| that, which	| Use *that* at the beginning of a clause that's necessary for the sentence to make sense. Don't put a comma before that. Don't use *that* when introducing a clause referring to people. Use *who*. Use *which* at the beginning of a clause that adds supporting or parenthetical information to a sentence. If you can omit the clause and the sentence still makes sense, use *which*, and put a comma before it.
+| user name, username |	Use *user name* as two words in most cases. However, *username* is acceptable to indicate a user identity profile name.
