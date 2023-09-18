@@ -318,7 +318,6 @@ func TestDatabaseFromAzureDBServer(t *testing.T) {
 			types.DiscoveryLabelEngine:              "Microsoft.DBforMySQL/servers",
 			types.DiscoveryLabelEngineVersion:       "5.7",
 			types.DiscoveryLabelAzureResourceGroup:  "defaultRG",
-			types.OriginLabel:                       types.OriginCloud,
 			types.CloudLabel:                        types.CloudAzure,
 			types.DiscoveryLabelAzureSubscriptionID: "sub1",
 			"foo":                                   "bar",
@@ -367,7 +366,6 @@ func TestDatabaseFromAzureRedis(t *testing.T) {
 			types.DiscoveryLabelEngine:              "Microsoft.Cache/Redis",
 			types.DiscoveryLabelEngineVersion:       "6.0",
 			types.DiscoveryLabelAzureResourceGroup:  group,
-			types.OriginLabel:                       types.OriginCloud,
 			types.CloudLabel:                        types.CloudAzure,
 			types.DiscoveryLabelAzureSubscriptionID: subscription,
 			"foo":                                   "bar",
@@ -426,7 +424,6 @@ func TestDatabaseFromAzureRedisEnterprise(t *testing.T) {
 			types.DiscoveryLabelEngine:              "Microsoft.Cache/redisEnterprise",
 			types.DiscoveryLabelEngineVersion:       "6.0",
 			types.DiscoveryLabelAzureResourceGroup:  group,
-			types.OriginLabel:                       types.OriginCloud,
 			types.CloudLabel:                        types.CloudAzure,
 			types.DiscoveryLabelAzureSubscriptionID: subscription,
 			types.DiscoveryLabelEndpointType:        "OSSCluster",
@@ -474,7 +471,6 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 		Description: "RDS instance in us-west-1",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:     "123456789012",
-			types.OriginLabel:                 types.OriginCloud,
 			types.CloudLabel:                  types.CloudAWS,
 			types.DiscoveryLabelRegion:        "us-west-1",
 			types.DiscoveryLabelEngine:        RDSEnginePostgres,
@@ -527,7 +523,6 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 		Description: "RDS instance in us-west-1",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:     "123456789012",
-			types.OriginLabel:                 types.OriginCloud,
 			types.CloudLabel:                  types.CloudAWS,
 			types.DiscoveryLabelRegion:        "us-west-1",
 			types.DiscoveryLabelEngine:        RDSEnginePostgres,
@@ -600,7 +595,6 @@ func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 				Description: "RDS instance in us-west-1",
 				Labels: map[string]string{
 					types.DiscoveryLabelAccountID:     "123456789012",
-					types.OriginLabel:                 types.OriginCloud,
 					types.CloudLabel:                  types.CloudAWS,
 					types.DiscoveryLabelRegion:        "us-west-1",
 					types.DiscoveryLabelEngine:        RDSEnginePostgres,
@@ -669,7 +663,6 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			Description: "Aurora cluster in us-east-1",
 			Labels: map[string]string{
 				types.DiscoveryLabelAccountID:     "123456789012",
-				types.OriginLabel:                 types.OriginCloud,
 				types.CloudLabel:                  types.CloudAWS,
 				types.DiscoveryLabelRegion:        "us-east-1",
 				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
@@ -694,7 +687,6 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			Description: "Aurora cluster in us-east-1 (reader endpoint)",
 			Labels: map[string]string{
 				types.DiscoveryLabelAccountID:     "123456789012",
-				types.OriginLabel:                 types.OriginCloud,
 				types.CloudLabel:                  types.CloudAWS,
 				types.DiscoveryLabelRegion:        "us-east-1",
 				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
@@ -716,7 +708,6 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 	t.Run("custom endpoints", func(t *testing.T) {
 		expectedLabels := map[string]string{
 			types.DiscoveryLabelAccountID:     "123456789012",
-			types.OriginLabel:                 types.OriginCloud,
 			types.CloudLabel:                  types.CloudAWS,
 			types.DiscoveryLabelRegion:        "us-east-1",
 			types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
@@ -809,7 +800,6 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 			Description: "Aurora cluster in us-east-1",
 			Labels: map[string]string{
 				types.DiscoveryLabelAccountID:     "123456789012",
-				types.OriginLabel:                 types.OriginCloud,
 				types.CloudLabel:                  types.CloudAWS,
 				types.DiscoveryLabelRegion:        "us-east-1",
 				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
@@ -887,7 +877,6 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 				Description: "Aurora cluster in us-east-1",
 				Labels: map[string]string{
 					types.DiscoveryLabelAccountID:     "123456789012",
-					types.OriginLabel:                 types.OriginCloud,
 					types.CloudLabel:                  types.CloudAWS,
 					types.DiscoveryLabelRegion:        "us-east-1",
 					types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
@@ -913,7 +902,6 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 				Description: "Aurora cluster in us-east-1 (reader endpoint)",
 				Labels: map[string]string{
 					types.DiscoveryLabelAccountID:     "123456789012",
-					types.OriginLabel:                 types.OriginCloud,
 					types.CloudLabel:                  types.CloudAWS,
 					types.DiscoveryLabelRegion:        "us-east-1",
 					types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
@@ -936,7 +924,6 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 		t.Run("custom endpoints", func(t *testing.T) {
 			expectedLabels := map[string]string{
 				types.DiscoveryLabelAccountID:     "123456789012",
-				types.OriginLabel:                 types.OriginCloud,
 				types.CloudLabel:                  types.CloudAWS,
 				types.DiscoveryLabelRegion:        "us-east-1",
 				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
@@ -1021,7 +1008,6 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 			Labels: map[string]string{
 				"key":                         "val",
 				types.DiscoveryLabelAccountID: "123456789012",
-				types.OriginLabel:             types.OriginCloud,
 				types.CloudLabel:              types.CloudAWS,
 				types.DiscoveryLabelRegion:    "ca-central-1",
 				types.DiscoveryLabelEngine:    "MYSQL",
@@ -1053,7 +1039,6 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 			Labels: map[string]string{
 				"key":                            "val",
 				types.DiscoveryLabelAccountID:    "123456789012",
-				types.OriginLabel:                types.OriginCloud,
 				types.CloudLabel:                 types.CloudAWS,
 				types.DiscoveryLabelRegion:       "ca-central-1",
 				types.DiscoveryLabelEngine:       "MYSQL",
@@ -1216,11 +1201,10 @@ func TestAzureTagsToLabels(t *testing.T) {
 	}
 	labels := azureTagsToLabels(azureTags)
 	wantLabels := map[string]string{
-		"Name":            "test",
-		"Env":             "dev",
-		"foo:bar":         "some-id",
-		types.OriginLabel: types.OriginCloud,
-		types.CloudLabel:  types.CloudAzure,
+		"Name":           "test",
+		"Env":            "dev",
+		"foo:bar":        "some-id",
+		types.CloudLabel: types.CloudAzure,
 	}
 	require.Equal(t, wantLabels, labels)
 }
@@ -1251,7 +1235,6 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 			Description: "Redshift cluster in us-east-1",
 			Labels: map[string]string{
 				types.DiscoveryLabelAccountID:     "123456789012",
-				types.OriginLabel:                 types.OriginCloud,
 				types.CloudLabel:                  types.CloudAWS,
 				types.DiscoveryLabelRegion:        "us-east-1",
 				"key":                             "val",
@@ -1305,7 +1288,6 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 				Description: "Redshift cluster in us-east-1",
 				Labels: map[string]string{
 					types.DiscoveryLabelAccountID:     "123456789012",
-					types.OriginLabel:                 types.OriginCloud,
 					types.CloudLabel:                  types.CloudAWS,
 					types.DiscoveryLabelRegion:        "us-east-1",
 					overrideLabel:                     "mycluster-override-2",
@@ -1385,7 +1367,6 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 		Description: "ElastiCache cluster in us-east-1 (configuration endpoint)",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:    "123456789012",
-			types.OriginLabel:                types.OriginCloud,
 			types.CloudLabel:                 types.CloudAWS,
 			types.DiscoveryLabelRegion:       "us-east-1",
 			types.DiscoveryLabelEndpointType: "configuration",
@@ -1461,7 +1442,6 @@ func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) 
 				Description: "ElastiCache cluster in us-east-1 (configuration endpoint)",
 				Labels: map[string]string{
 					types.DiscoveryLabelAccountID:    "123456789012",
-					types.OriginLabel:                types.OriginCloud,
 					types.CloudLabel:                 types.CloudAWS,
 					types.DiscoveryLabelRegion:       "us-east-1",
 					types.DiscoveryLabelEndpointType: "configuration",
@@ -1520,7 +1500,6 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 		Description: "ElastiCache cluster in us-east-1 (primary endpoint)",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:    "123456789012",
-			types.OriginLabel:                types.OriginCloud,
 			types.CloudLabel:                 types.CloudAWS,
 			types.DiscoveryLabelRegion:       "us-east-1",
 			types.DiscoveryLabelEndpointType: "primary",
@@ -1547,7 +1526,6 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 		Description: "ElastiCache cluster in us-east-1 (reader endpoint)",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:    "123456789012",
-			types.OriginLabel:                types.OriginCloud,
 			types.CloudLabel:                 types.CloudAWS,
 			types.DiscoveryLabelRegion:       "us-east-1",
 			types.DiscoveryLabelEndpointType: "reader",
@@ -1608,7 +1586,6 @@ func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 				Description: "ElastiCache cluster in us-east-1 (primary endpoint)",
 				Labels: map[string]string{
 					types.DiscoveryLabelAccountID:    "123456789012",
-					types.OriginLabel:                types.OriginCloud,
 					types.CloudLabel:                 types.CloudAWS,
 					types.DiscoveryLabelRegion:       "us-east-1",
 					types.DiscoveryLabelEndpointType: "primary",
@@ -1636,7 +1613,6 @@ func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 				Description: "ElastiCache cluster in us-east-1 (reader endpoint)",
 				Labels: map[string]string{
 					types.DiscoveryLabelAccountID:    "123456789012",
-					types.OriginLabel:                types.OriginCloud,
 					types.CloudLabel:                 types.CloudAWS,
 					types.DiscoveryLabelRegion:       "us-east-1",
 					types.DiscoveryLabelEndpointType: "reader",
@@ -1685,7 +1661,6 @@ func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 		Description: "MemoryDB cluster in us-east-1",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:    "123456789012",
-			types.OriginLabel:                types.OriginCloud,
 			types.CloudLabel:                 types.CloudAWS,
 			types.DiscoveryLabelRegion:       "us-east-1",
 			types.DiscoveryLabelEndpointType: "cluster",
@@ -1720,7 +1695,6 @@ func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
 		Description: "Redshift Serverless workgroup in eu-west-2",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:    "123456789012",
-			types.OriginLabel:                types.OriginCloud,
 			types.CloudLabel:                 types.CloudAWS,
 			types.DiscoveryLabelRegion:       "eu-west-2",
 			types.DiscoveryLabelEndpointType: "workgroup",
@@ -1756,7 +1730,6 @@ func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 		Description: "Redshift Serverless endpoint in eu-west-2",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:    "123456789012",
-			types.OriginLabel:                types.OriginCloud,
 			types.CloudLabel:                 types.CloudAWS,
 			types.DiscoveryLabelRegion:       "eu-west-2",
 			types.DiscoveryLabelEndpointType: "vpc-endpoint",
@@ -1812,7 +1785,6 @@ func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
 				Description: "MemoryDB cluster in us-east-1",
 				Labels: map[string]string{
 					types.DiscoveryLabelAccountID:    "123456789012",
-					types.OriginLabel:                types.OriginCloud,
 					types.CloudLabel:                 types.CloudAWS,
 					types.DiscoveryLabelRegion:       "us-east-1",
 					types.DiscoveryLabelEndpointType: "cluster",
@@ -2206,7 +2178,6 @@ func TestDatabaseFromAzureMySQLFlexServer(t *testing.T) {
 				types.DiscoveryLabelEngine:              provider,
 				types.DiscoveryLabelEngineVersion:       "8.0.21",
 				types.DiscoveryLabelAzureResourceGroup:  group,
-				types.OriginLabel:                       types.OriginCloud,
 				types.CloudLabel:                        types.CloudAzure,
 				types.DiscoveryLabelAzureSubscriptionID: subID,
 				"foo":                                   "bar",
@@ -2283,7 +2254,6 @@ func TestDatabaseFromAzurePostgresFlexServer(t *testing.T) {
 				types.DiscoveryLabelEngine:              provider,
 				types.DiscoveryLabelEngineVersion:       "14",
 				types.DiscoveryLabelAzureResourceGroup:  group,
-				types.OriginLabel:                       types.OriginCloud,
 				types.CloudLabel:                        types.CloudAzure,
 				types.DiscoveryLabelAzureSubscriptionID: subID,
 				"foo":                                   "bar",
@@ -2381,7 +2351,6 @@ func TestMakeAzureDatabaseLoginUsername(t *testing.T) {
 					types.DiscoveryLabelEngine:              tt.engine,
 					types.DiscoveryLabelEngineVersion:       "1.2.3",
 					types.DiscoveryLabelAzureResourceGroup:  group,
-					types.OriginLabel:                       types.OriginCloud,
 					types.CloudLabel:                        types.CloudAzure,
 					types.DiscoveryLabelAzureSubscriptionID: subID,
 					"foo":                                   "bar",
