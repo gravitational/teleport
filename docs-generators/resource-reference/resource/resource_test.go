@@ -267,7 +267,83 @@ type ServerSpecV1 struct {
     TTL int BACKTICKjson:"ttl"BACKTICK
     // Whether the server is active.
     IsActive bool BACKTICKjson:"is_active"BACKTICK
+}`,
+			},
+			expected: []ReferenceEntry{
+				{
+					SectionName: "Server",
+					Description: "Includes information about a server registered with Teleport.",
+					SourcePath:  "myfile.go",
+					YAMLExample: `name: "string"
+spec: 
+# [...]
+`,
+					Fields: []Field{
+						Field{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
+						},
+						Field{
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "[Server Spec v1](#server-spec-v1)"},
+					},
+				},
+				{
+					SectionName: "Server Spec v1",
+					Description: "Includes aspects of a proxied server.",
+					SourcePath:  "myfile0.go",
+					YAMLExample: `address: "string"
+ttl: 1
+is_active: true
+`,
+					Fields: []Field{
+						Field{
+							Name:        "address",
+							Description: "The address of the server.",
+							Type:        "string",
+						},
+						Field{
+							Name:        "ttl",
+							Description: "How long the resource is valid.",
+							Type:        "number",
+						},
+						Field{
+							Name:        "is_active",
+							Description: "Whether the server is active.",
+							Type:        "Boolean",
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "a composite field type with a custom type and an override",
+			source: `
+package mypkg
+
+// Server includes information about a server registered with Teleport.
+type Server struct {
+    // Spec contains information about the server.
+    Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
+    // LabelMap includes a map of strings to labels.
+    LabelMap []map[string]types.Label BACKTICKjson:"label_maps"BACKTICK
 }
+`,
+			declSources: []string{`package types
+// ServerSpecV1 includes aspects of a proxied server.
+type ServerSpecV1 struct {
+    // The address of the server.
+    Address string BACKTICKjson:"address"BACKTICK
+}`,
+				`package types
+
+// Label is a custom type that we unmarshal in a non-default way.
+// Example YAML:
+// ---
+// ["my_value0", "my_value1", "my_value2"]
+type Label string
 `,
 			},
 			expected: []ReferenceEntry{
