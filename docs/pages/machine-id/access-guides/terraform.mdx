@@ -35,7 +35,14 @@ spec:
 
 ## Step 2/3. Configure `tbot` output
 
-Modify your `tbot` configuration to include an `identity` output:
+Now, `tbot` needs to be configured with an output that will produce the
+credentials needed by the Terraform provider. As the Terraform provider will be
+accessing the Teleport API, the correct output type to use is `identity`.
+
+For this guide, the `directory` destination will be used. This will write these
+credentials to a specified directory on disk.
+
+Modify your `tbot` configuration to add an `identity` output:
 
 ```yaml
 outputs:
@@ -47,6 +54,14 @@ outputs:
     # destination.
     path: /opt/machine-id
 ```
+
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode, it must be executed before you attempt to execute the Terraform
+plan later.
+
+You should now see an `identity` file under `/opt/machine-id`. This contains
+the private key and signed certificates needed by the Terraform provider to
+authenticate with the Teleport Auth Server.
 
 ## Step 3/3. Use Terraform with the identity output
 
