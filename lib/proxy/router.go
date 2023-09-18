@@ -45,6 +45,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const errDirectDialing = `Direct dialing to nodes not found in the inventory is not supported.
+If you want to connect to a node without installing Teleport on it, consider registering it with
+your cluster with 'teleport join openssh'.
+
+See https://goteleport.com/docs/ver/14.x/server-access/guides/openssh/ for more details.`
+
 var (
 	// proxiedSessions counts successful connections to nodes
 	proxiedSessions = prometheus.NewGauge(
@@ -285,7 +291,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		}
 	} else {
 		if !r.permitUnlistedDialing {
-			return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
+			return nil, trace.ConnectionProblem(errors.New("connection problem"), errDirectDialing)
 		}
 
 		// Prepare a dummy server resource so this connection will not be
