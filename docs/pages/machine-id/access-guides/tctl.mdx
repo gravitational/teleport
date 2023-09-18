@@ -5,11 +5,11 @@ description: How to use Machine ID with `tctl` to manage your Teleport configura
 
 `tctl` is the Teleport cluster management CLI tool. Whilst it usually uses the
 credentials from the locally logged in user, it is also possible to use
-Machine ID credentials. This allows `tctl` to be leveraged in scripts as part
-of custom automations.
+Machine ID credentials. This allows `tctl` to be leveraged as part of a custom
+automation deployed in a non-interactive environment (e.g CI/CD).
 
 In this guide, you will configure `tbot` to produce credentials for `tctl`, and
-then use `tctl` to create and update Teleport configuration.
+then use `tctl` to deploy Teleport roles defined in files.
 
 ## Prerequisites
 
@@ -66,7 +66,7 @@ outputs:
   destination:
     type: directory
     # For this guide, /opt/machine-id is used as the destination directory.
-    # You may wish to customise this. Multiple outputs cannot share the same
+    # You may wish to customize this. Multiple outputs cannot share the same
     # destination.
     path: /opt/machine-id
 ```
