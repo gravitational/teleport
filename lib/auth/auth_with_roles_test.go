@@ -2050,6 +2050,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		Status: aws.String(eks.ClusterStatusActive),
 	})
 	require.NoError(t, err)
+	eksCluster.SetOrigin(types.OriginCloud)
 
 	// Discovery service must not have access to non-cloud cluster (cluster
 	// without "cloud" origin label).
@@ -2069,6 +2070,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		Status: aws.String(eks.ClusterStatusActive),
 	})
 	require.NoError(t, err)
+	clusterWithDynamicLabels.SetOrigin(types.OriginCloud)
 	clusterWithDynamicLabels.SetDynamicLabels(map[string]types.CommandLabel{
 		"hostname": &types.CommandLabelV2{
 			Period:  types.Duration(time.Hour),
@@ -2084,7 +2086,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	t.Run("Read", func(t *testing.T) {
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Equal(t, clusters, []types.KubeCluster{eksCluster})
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters))
 	})
 	t.Run("Update", func(t *testing.T) {
 		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
