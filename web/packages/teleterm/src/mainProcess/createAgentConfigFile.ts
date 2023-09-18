@@ -97,6 +97,7 @@ export function generateAgentConfigPaths(
   rootClusterUri: RootClusterUri
 ): {
   configFile: string;
+  logsDirectory: string;
   dataDirectory: string;
 } {
   const parsed = routing.parseClusterUri(rootClusterUri);
@@ -110,10 +111,12 @@ export function generateAgentConfigPaths(
   );
   const configFile = path.resolve(agentDirectory, 'config.yaml');
   const dataDirectory = path.resolve(agentDirectory, 'data');
+  const logsDirectory = path.resolve(agentDirectory, 'logs');
 
   return {
     configFile,
     dataDirectory,
+    logsDirectory,
   };
 }
 
