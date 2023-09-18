@@ -77,7 +77,6 @@ func pluginDetails(p types.Plugin) string {
 		return "Teleport access requests will be created in the Opsgenie schedule indicated by opsgenie_notify_services annotation on the access request"
 	case *types.PluginSpecV1_PagerDuty:
 		return fmt.Sprintf(`Incidents will be created by PagerDuty user %q`, settings.PagerDuty.UserEmail)
-
 	case *types.PluginSpecV1_Discord:
 		channels := settings.Discord.RoleToRecipients[types.Wildcard]
 		suffix := ""
@@ -86,7 +85,8 @@ func pluginDetails(p types.Plugin) string {
 		}
 		combinedChannels := strings.Join(channels.ChannelIds, ", ")
 		return fmt.Sprintf(`Messages will be sent to Discord channel%s %s`, suffix, combinedChannels)
-
+	case *types.PluginSpecV1_ServiceNow:
+		return fmt.Sprintf(`Incidents will be created at %q`, settings.ServiceNow.ApiEndpoint)
 	default:
 		return ""
 	}

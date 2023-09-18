@@ -38,6 +38,7 @@ func getStaticPlugins() []types.PluginType {
 		types.PluginTypeJamf,
 		types.PluginTypeJira,
 		types.PluginTypeMattermost,
+		types.PluginTypeServiceNow,
 	}
 }
 

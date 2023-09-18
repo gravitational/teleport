@@ -7,6 +7,7 @@ import CardError from 'design/CardError';
 import * as Icons from 'design/Icon';
 import oktaIcon from 'design/assets/images/icons/okta.svg';
 import opsgenieIcon from 'design/assets/images/icons/opsgenie.svg';
+import serviceNowIcon from 'design/assets/images/icons/servicenow.svg';
 import slackIcon from 'design/assets/images/icons/slack.svg';
 import pagerdutyIcon from 'design/assets/images/icons/pagerduty.svg';
 import emailIcon from 'design/assets/images/icons/email.svg';
@@ -419,6 +420,90 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
           in Teleport.
         </Text>
       );
+    },
+  },
+  {
+    type: 'servicenow',
+    name: 'ServiceNow',
+    icon: serviceNowIcon,
+    url: 'https://goteleport.com/docs/access-controls/access-requests/resource-requests/',
+    hosted: true,
+    fullName: 'ServiceNow Integration',
+    Description: () => (
+      <Text>
+        <p>
+          ServiceNow plugin creates ServiceNow incidents for Teleport access
+          requests.
+        </p>
+      </Text>
+    ),
+    permissions: [
+      {
+        category: 'Creating Alerts',
+        permissions: [
+          {
+            title: 'Read and write access to ServiceNow API.',
+            description:
+              'Teleport will authenticate to ServiceNow API using ServiceNow account credential (username + password).',
+          },
+        ],
+      },
+    ],
+    FormMixin: () => {
+      const [username, setUsername] = useState('');
+      const [password, setPassword] = useState('');
+      const [apiEndpoint, setApiEndpoint] = useState('');
+      const [closeCode, setCloseCode] = useState('');
+      return (
+        <InputIconContainer style={{ position: 'relative' }}>
+          <StyledFieldInput
+            width="500px"
+            label="ServiceNow API Endpoint"
+            name="apiEndpoint" // must be the same name as expected by the backend as form value
+            rule={requiredField('API endpoint must be specified')}
+            value={apiEndpoint}
+            onChange={e => setApiEndpoint(e.target.value)}
+            autoFocus
+            placeholder="yourserver.servicenowcloud.com"
+            toolTipContent="URL of ServiceNow API. (e.g. https://example-servicenow-instance.com)"
+          />
+          <StyledFieldInput
+            width="500px"
+            label="ServiceNow Account Username"
+            name="username" // must be the same name as expected by the backend as form value
+            rule={requiredField('Username must be specified')}
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            placeholder="Username"
+            toolTipContent="Username of the account that will be used to authenticate with Servicenow API."
+          />
+          <StyledFieldInput
+            width="500px"
+            label="ServiceNow Account Password"
+            name="password" // must be the same name as expected by the backend as form value
+            rule={requiredField('Password must be specified')}
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="Password"
+            type="password"
+            toolTipContent="Password of the account that will be used to authenticate with ServiceNow API."
+          />
+          <StyledFieldInput
+            width="500px"
+            label="ServiceNow Close Code"
+            name="closeCode" // must be the same name as expected by the backend as form value
+            rule={requiredField('Close code must be specified')}
+            value={closeCode}
+            onChange={e => setCloseCode(e.target.value)}
+            autoFocus
+            placeholder="Resolved"
+            toolTipContent="ServiceNow Close code to resolve incidents with."
+          />
+        </InputIconContainer>
+      );
+    },
+    NextSteps: () => {
+      return null;
     },
   },
   {
@@ -887,6 +972,8 @@ export function pluginTypeToIntegrationEnrollKind(p: PluginKind) {
       return IntegrationEnrollKind.Slack;
     case 'okta':
       return IntegrationEnrollKind.Okta;
+    case 'servicenow':
+      return IntegrationEnrollKind.ServiceNow;
     case 'jamf':
       return IntegrationEnrollKind.Jamf;
     case 'opsgenie':

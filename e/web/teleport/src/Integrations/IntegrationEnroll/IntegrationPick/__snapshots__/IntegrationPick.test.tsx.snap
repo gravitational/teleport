@@ -1897,6 +1897,32 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
           </div>
           <div
             class="c12"
+            data-testid="tile-servicenow"
+            disabled=""
+          >
+            <img
+              class="c13 c14"
+              src="file_stub"
+            />
+            <div
+              class="c15"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
+            >
+              <div
+                class="c11"
+              >
+                ServiceNow
+              </div>
+            </div>
+            <div
+              class="c16"
+              data-testid="tooltip"
+            >
+              Lacking Permissions
+            </div>
+          </div>
+          <div
+            class="c12"
             data-testid="tile-jira"
             disabled=""
           >

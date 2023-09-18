@@ -14,6 +14,7 @@ import (
 	jamf "github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/integrations/access/servicenow"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -80,6 +81,7 @@ var pluginDescriptors map[types.PluginType]pluginDescriptor = map[types.PluginTy
 	types.PluginTypeOpsgenie:   pluginInstallerFn(installOpsgeniePlugin),
 	types.PluginTypePagerDuty:  pluginInstallerFn(installPagerdutyPlugin),
 	types.PluginTypeMattermost: pluginInstallerFn(installMattermostPlugin),
+	types.PluginTypeServiceNow: pluginInstallerFn(installServiceNowPlugin),
 	types.PluginTypeSlack:      slackDescriptor{},
 }
 
@@ -307,6 +309,68 @@ func installJamfPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 		APIURL:   apiEndpoint,
 		Username: username,
 		Password: password,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ui, err := installPlugin(ctx, sessCtx, pluginReq, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ui, nil
+}
+
+func installServiceNowPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	apiEndpoint := r.FormValue("apiEndpoint")
+	username := r.FormValue("username")
+	password := r.FormValue("password")
+	closeCode := r.FormValue("closeCode")
+
+	pluginReq := &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindAccess,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: types.PluginTypeServiceNow,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_ServiceNow{
+					ServiceNow: &types.PluginServiceNowSettings{
+						ApiEndpoint: apiEndpoint,
+						CloseCode:   closeCode,
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"servicenow/api-endpoint": apiEndpoint,
+					},
+					Name: types.PluginTypeServiceNow,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_BasicAuth{
+					BasicAuth: &types.PluginStaticCredentialsBasicAuth{
+						Username: username,
+						Password: password,
+					},
+				},
+			},
+		},
+	}
+
+	// Verify ServiceNow credential and API endpoint.
+	_, err := servicenow.NewClient(servicenow.ClientConfig{
+		APIEndpoint: apiEndpoint,
+		Username:    username,
+		APIToken:    password,
+		CloseCode:   closeCode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

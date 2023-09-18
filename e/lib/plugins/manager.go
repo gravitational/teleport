@@ -67,6 +67,7 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			types.PluginTypeOkta:       oktaInstanceFactory,
 			types.PluginTypeSlack:      slackInstanceFactory,
 			types.PluginTypeOpsgenie:   opsgenieInstanceFactory,
+			types.PluginTypeServiceNow: serviceNowInstanceFactory,
 			types.PluginTypePagerDuty:  pagerDutyInstanceFactory,
 			types.PluginTypeJamf:       jamfInstanceFactory,
 			types.PluginTypeJira:       jiraInstanceFactory,
