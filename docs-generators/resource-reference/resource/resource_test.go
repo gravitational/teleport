@@ -327,8 +327,8 @@ package mypkg
 type Server struct {
     // Spec contains information about the server.
     Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
-    // LabelMap includes a map of strings to labels.
-    LabelMap []map[string]types.Label BACKTICKjson:"label_maps"BACKTICK
+    // LabelMaps includes a map of strings to labels.
+    LabelMaps []map[string]types.Label BACKTICKjson:"label_maps"BACKTICK
 }
 `,
 			declSources: []string{`package types
@@ -351,20 +351,41 @@ type Label string
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
 					SourcePath:  "myfile.go",
-					YAMLExample: `name: "string"
-spec: 
+					YAMLExample: `spec: 
 # [...]
+label_maps: 
+- 
+    "string": 
+      # [...]
+    "string": 
+      # [...]
+    "string": 
+      # [...]
+- 
+    "string": 
+      # [...]
+    "string": 
+      # [...]
+    "string": 
+      # [...]
+- 
+    "string": 
+      # [...]
+    "string": 
+      # [...]
+    "string": 
+      # [...]
 `,
 					Fields: []Field{
-						Field{
-							Name:        "name",
-							Description: "The name of the resource.",
-							Type:        "string",
-						},
 						Field{
 							Name:        "spec",
 							Description: "Contains information about the server.",
 							Type:        "[Server Spec v1](#server-spec-v1)"},
+						Field{
+							Name:        "label_maps",
+							Description: "Includes a map of strings to labels.",
+							Type:        "[]map[string][Label](#label)",
+						},
 					},
 				},
 				{
@@ -372,8 +393,6 @@ spec:
 					Description: "Includes aspects of a proxied server.",
 					SourcePath:  "myfile0.go",
 					YAMLExample: `address: "string"
-ttl: 1
-is_active: true
 `,
 					Fields: []Field{
 						Field{
@@ -381,17 +400,14 @@ is_active: true
 							Description: "The address of the server.",
 							Type:        "string",
 						},
-						Field{
-							Name:        "ttl",
-							Description: "How long the resource is valid.",
-							Type:        "number",
-						},
-						Field{
-							Name:        "is_active",
-							Description: "Whether the server is active.",
-							Type:        "Boolean",
-						},
 					},
+				},
+				{
+					SectionName: "Label",
+					Description: "A custom type that we unmarshal in a non-default way.",
+					SourcePath:  "myfile1.go",
+					YAMLExample: `["my_value0", "my_value1", "my_value2"]
+`,
 				},
 			},
 		},
