@@ -27,7 +27,7 @@ description: How to configure Teleport database access with Oracle.
 - The `sqlcl` [Oracle client](https://www.oracle.com/pl/database/sqldeveloper/technologies/sqlcl/) installed and added to your system's `PATH` environment variable or any GUI client that supports JDBC
   Oracle thin client.
 
-## Step 1/5. Create a Teleport token and user
+## Step 1/6. Create a Teleport token and user
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -60,7 +60,7 @@ $ tctl users add \
 For more detailed information about database access controls and how to restrict
 access see [RBAC](../../database-access/rbac.mdx) documentation.
 
-## Step 2/5. Create a certificate/key pair and Teleport Oracle Wallet
+## Step 2/6. Create a certificate/key pair and Teleport Oracle Wallet
 
 (!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
 
@@ -80,7 +80,7 @@ Service can reach the Oracle server.
 If `tctl` finds the Orapki tool in your local environment, the `tctl auth sign --format=oracle --host=db.example.com --out=server --ttl=2190h` command will produce an Oracle Wallet and
 instructions how to configure the Oracle TCPS listener with Teleport Oracle Wallet. Otherwise the `tctl auth sign --format=oracle` command  will produce a `p12` certificate and instructions on how to create an Oracle Wallet on your Oracle Database instance.
 
-## Step 3/5. Configure Oracle Database
+## Step 3/6. Configure Oracle Database
 
 In order to enable the Teleport Oracle integration you will need to configure the TCPS Oracle listener and use the Teleport Oracle Wallet created in the previous step.
 
@@ -116,7 +116,7 @@ Additionally, your Oracle Database user accounts must be configured to require a
 CREATE USER alice IDENTIFIED EXTERNALLY AS 'CN=alice';
 GRANT CREATE SESSION TO alice;
 ```
-## Step 4/5. Configure and Start the Database Service
+## Step 4/6. Configure and Start the Database Service
 Install and configure Teleport where you will run the Teleport Database Service:
 
 <Tabs>
@@ -188,7 +188,79 @@ NAME                    READY   STATUS    RESTARTS   AGE
 teleport-kube-agent-0   1/1     Running   0          32s
 ```
 
-## Step 5/5. Connect
+## Step 5/6. Configure Teleport Oracle Audit Logs Puller (Optional).
+
+Teleport can pull audit logs from Oracle Audit Trail.
+In order to enable this feature, you will need to configure Oracle Audit Trail and create a dedicated Teleport
+user that will be used to fetch audit events from Oracle Audit Trail.
+
+Create a internal Oracle `teleport` user that will be used as db user that will be used to fetch
+audit events from Oracle Audit Trail:
+
+```sql
+CREATE USER teleport IDENTIFIED EXTERNALLY AS 'CN=teleport';
+GRANT CREATE SESSION TO teleport;
+GRANT SELECT ON dba_audit_trail TO teleport;
+GRANT SELECT ON V_$SESSION TO teleport;
+```
+
+Enable table Oracle Audit Trail:
+```
+ALTER system SET audit_trail=db,extended scope=spfile;
+```
+
+<Admonition type="info" title="audit_trait">
+In order to propagate audit_trail changes, Oracle instance needs to be restarted.
+</Admonition>
+
+Enable Audit Oracle activity for the `alice` user:
+```sql
+AUDIT ALL BY alice BY ACCESS;
+AUDIT SELECT TABLE, UPDATE TABLE, INSERT TABLE, DELETE TABLE BY alice BY ACCESS;
+```
+
+<Admonition type="info" title="Audit Oracle user activity ">
+Enabling Audit needs to be done for each user Teleport user that will be used to connect to Oracle.
+Additionally you create different audit policy for each user.
+</Admonition>
+
+Configure Teleport DB Service to pull audit logs from Oracle Audit Trail:
+
+<Tabs>
+<TabItem label="Static config">
+```yaml
+db_service:
+  enabled: "yes"
+  databases:
+  - name: "oracle"
+    protocol: "oracle"
+    uri: oracle.example.com:2484"
+    oracle:
+      audit_user: "teleport"
+```
+</TabItem>
+<TabItem label="Dynamic resource">
+```yaml
+kind: db
+version: v3
+metadata:
+  name: oracle
+spec:
+  protocol: "oracle"
+  uri: "oracle.example.com:2484"
+  oracle:
+    audit_user: "teleport"
+```
+</TabItem>
+</Tabs>
+
+
+<Admonition type="warning" title="Audit Trail Cleanup">
+Teleport doesn't clean up audit trail events from Oracle Audit Trail.
+Make sure to configure Oracle Audit Trail cleanup policy to avoid running out of disk space.
+</Admonition>
+
+## Step 5/6. Connect
 
 Once the Database Service has joined the cluster, log in to see the available
 databases:
