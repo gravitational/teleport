@@ -1,11 +1,11 @@
 ---
 title: Configure access for Active Directory with scripts
-description: Demonstrates how to integrate the Teleport Windows Desktop Service with your Active Directory domain using predefined scripts.
+description: Demonstrates how to integrate the Teleport Windows Desktop Service with your Active Directory domain using scripts.
 videoBanner: v36tlB8D5kk
 ---
 
-This guide demonstrates how to use predefined scripts to configure Teleport and Active Directory 
-to provide secure, passwordless access to Windows computers.
+This guide demonstrates how to use scripts available in the Teleport Web UI to configure 
+Teleport and Active Directory for passwordless access to Windows computers.
 
 You should note that Teleport requires the Kerberos authentication protocol to support 
 certificate-based authentication for Active Directory. Because Azure Active Directory
@@ -35,7 +35,7 @@ Azure Active Directory.
   install Active Directory services.
 
 - A Linux host to run the Teleport Windows Desktop Service.
-  You can use an existing server that runs Teleport for other resources.
+  You can use an existing server that runs the Teleport agent for other resources.
 
 ## Step 1/3. Install and configure Active Directory
 
@@ -54,9 +54,8 @@ domain controller:
 Installing Active Directory Certificate Services is optional. However, Teleport requires secure LDAP 
 connections for certificate-based authentication, and LDAP traffic is not encrypted by default. 
 To provide secure LDAP connections (LDAPS), you must have a certificate authority that issues properly 
-formatted and encrypted certificates. By installing the [Active Directory Certificate 
-Services](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/) on the Active Directory
-domain controller, you can ensure that the domain issues certificates configured for LDAPS. 
+formatted and encrypted certificates. You can install Active Directory Certificate Services on the 
+domain controller to ensure that the domain issues certificates configured for LDAPS. 
 
 If you already have Active Directory installed and the domain is configured for encrypted LDAPS
 communication, you can skip running the first two scripts.
