@@ -54,7 +54,9 @@ credentials needed by `tctl`. As `tctl` will be accessing the Teleport API, the
 correct output type to use is `identity`.
 
 For this guide, the `directory` destination will be used. This will write these
-credentials to a specified directory on disk.
+credentials to a specified directory on disk. Ensure that this directory can
+be written to by the Linux user that `tbot` runs as, and that it can be read by
+the Linux user that `tctl` will run as.
 
 Modify your `tbot` configuration to add an `identity` output:
 

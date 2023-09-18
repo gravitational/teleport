@@ -68,7 +68,9 @@ credentials needed by the Terraform provider. As the Terraform provider will be
 accessing the Teleport API, the correct output type to use is `identity`.
 
 For this guide, the `directory` destination will be used. This will write these
-credentials to a specified directory on disk.
+credentials to a specified directory on disk. Ensure that this directory can
+be written to by the Linux user that `tbot` runs as, and that it can be read by
+the Linux user that Terraform will run as.
 
 Modify your `tbot` configuration to add an `identity` output:
 
@@ -150,9 +152,9 @@ resource "teleport_role" "terraform-test" {
 }
 ```
 
-Replace the address within the Teleport provider with that of your Teleport
-Proxy or Auth Server and if you have modified the identity output directory,
-adjust that here also.
+Replace `teleport.example.com:443` with the address of your Teleport Proxy or
+Auth Server. If you modified the destination directory from `/opt/machine-id`,
+then this should also be replaced.
 
 Now, execute Terraform to test the configuration:
 
