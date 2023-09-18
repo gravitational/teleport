@@ -974,7 +974,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	selectedCluster := selectedKubeCluster(currentTeleportCluster)
+	selectedCluster := selectedKubeCluster(currentTeleportCluster, getKubeConfigPath(cf, ""))
 	format := strings.ToLower(c.format)
 	switch format {
 	case teleport.Text, "":
@@ -1121,8 +1121,9 @@ func serializeKubeListings(kubeListings []kubeListing, format string) (string, e
 	return string(out), trace.Wrap(err)
 }
 
-func selectedKubeCluster(currentTeleportCluster string) string {
-	kc, err := kubeconfig.Load("")
+// selectedKubeCluster determines which kube cluster, if any, is selected.
+func selectedKubeCluster(currentTeleportCluster string, kubeconfgPath string) string {
+	kc, err := kubeconfig.Load(kubeconfgPath)
 	if err != nil {
 		log.WithError(err).Warning("Failed parsing existing kubeconfig")
 		return ""

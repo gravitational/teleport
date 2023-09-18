@@ -385,7 +385,7 @@ func onRequestSearch(cf *CLIConf) error {
 
 	// If KubeCluster not provided try to read it from kubeconfig.
 	if cf.KubernetesCluster == "" {
-		cf.KubernetesCluster = selectedKubeCluster(tc.SiteName)
+		cf.KubernetesCluster = selectedKubeCluster(tc.SiteName, getKubeConfigPath(cf, ""))
 	}
 	if cf.ResourceKind == types.KindKubePod && cf.KubernetesCluster == "" {
 		return trace.BadParameter("when searching for Pods, --kube-cluster cannot be empty")
