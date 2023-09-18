@@ -224,25 +224,101 @@ type Server struct {
 }
 `,
 
-			expected: []ReferenceEntry{{
-				SectionName: "Server",
-				Description: "Includes information about a server registered with Teleport.",
-				SourcePath:  "myfile.go",
-				YAMLExample: `qualities:
+			expected: []ReferenceEntry{
+				{
+					SectionName: "Server",
+					Description: "Includes information about a server registered with Teleport.",
+					SourcePath:  "myfile.go",
+					YAMLExample: `qualities:
    - "region:us-east-1"
    - team:security
      env:dev
      role:primary
 `,
-				Fields: []Field{
-					Field{
-						Name:        "qualities",
-						Description: "A list of either maps or \"key:value\" strings.",
-						Type:        "[Custom Attributes](#custom-attributes)",
+					Fields: []Field{
+						Field{
+							Name:        "qualities",
+							Description: "A list of either maps or \"key:value\" strings.",
+							Type:        "[Custom Attributes](#custom-attributes)",
+						},
 					},
 				},
 			},
-			}},
+		},
+		{
+			description: "a custom type field with no override and a second source file",
+			source: `
+package mypkg
+
+// Server includes information about a server registered with Teleport.
+type Server struct {
+    // Name is the name of the resource.
+    Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
+    // Spec contains information about the server.
+    Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
+}
+`,
+			declSources: []string{`package types
+// ServerSpecV1 includes aspects of a proxied server.
+type ServerSpecV1 struct {
+    // The address of the server.
+    Address string BACKTICKjson:"address"BACKTICK
+    // How long the resource is valid.
+    TTL int BACKTICKjson:"ttl"BACKTICK
+    // Whether the server is active.
+    IsActive bool BACKTICKjson:"is_active"BACKTICK
+}
+`,
+			},
+			expected: []ReferenceEntry{
+				{
+					SectionName: "Server",
+					Description: "Includes information about a server registered with Teleport.",
+					SourcePath:  "myfile.go",
+					YAMLExample: `name: "string"
+spec: 
+# [...]
+`,
+					Fields: []Field{
+						Field{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
+						},
+						Field{
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "[Server Spec v1](#server-spec-v1)"},
+					},
+				},
+				{
+					SectionName: "Server Spec v1",
+					Description: "Includes aspects of a proxied server.",
+					SourcePath:  "myfile0.go",
+					YAMLExample: `address: "string"
+ttl: 1
+is_active: true
+`,
+					Fields: []Field{
+						Field{
+							Name:        "address",
+							Description: "The address of the server.",
+							Type:        "string",
+						},
+						Field{
+							Name:        "ttl",
+							Description: "How long the resource is valid.",
+							Type:        "number",
+						},
+						Field{
+							Name:        "is_active",
+							Description: "Whether the server is active.",
+							Type:        "Boolean",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
