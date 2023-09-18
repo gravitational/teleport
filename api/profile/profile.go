@@ -103,6 +103,9 @@ type Profile struct {
 
 	// PrivateKeyPolicy is a key policy enforced for this profile.
 	PrivateKeyPolicy keys.PrivateKeyPolicy `yaml:"private_key_policy"`
+
+	// PIVSlot is a specific piv slot that Teleport clients should use for hardware key support.
+	PIVSlot string `yaml:"piv_slot"`
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.
