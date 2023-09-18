@@ -8,8 +8,8 @@ credentials from the locally logged in user, it is also possible to use
 Machine ID credentials. This allows `tctl` to be leveraged in scripts as part
 of custom automations.
 
-In this guide, we will configure `tbot` to produce an output which can be used
-with `tctl` to manage Teleport roles programatically.
+In this guide, you will configure `tbot` to produce credentials for `tctl`, and
+then use `tctl` to create and update Teleport configuration.
 
 ## Before you start
 
@@ -19,16 +19,33 @@ with `tctl` to manage Teleport roles programatically.
 
 ## Step 1/3. Configure RBAC
 
-TODO: Modify the role assigned to your bot to grant it privileges to create/update roles.
+In this guide, the output credentials will be used to create and update roles,
+so we will grant only the privileges to do this.
+
+As a role was already created for the output credentials during the platform
+guide, we will modify this role to add these privileges.
+
+Use `tctl edit role/example-bot` to add the following rule to the role:
+
+```yaml
+spec:
+  allow:
+    rules:
+    - resources:
+      - role
+      verbs:
+      - create
+      - update
+```
 
 ## Step 2/3. Configure `tbot` output
 
 ```yaml
 outputs:
-  - type: identity
-    destination:
-      type: directory
-      path: ./tbot-output
+- type: identity
+  destination:
+    type: directory
+    path: ./tbot-output
 ```
 
 ## Step 3/3. Use `tctl` with the identity output
