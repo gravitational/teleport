@@ -39,9 +39,6 @@ impl Client {
     /// the global client handle map, and creates a task for reading frames from the  RDP
     /// server and sending them back to Go, and receiving function calls via the client handle
     /// map and executing them.
-    ///
-    /// The caller is responsible for ensuring TODO gets called to break the Client's loop
-    /// and clean it from the client handle map. Failure to do so will result in a memory leak.
     pub fn run(cgo_handle: CgoHandle, params: ConnectParams) -> Result<(), ClientError> {
         tokio_block_on(async {
             if let Some(error) = Self::connect(cgo_handle, params)

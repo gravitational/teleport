@@ -60,17 +60,18 @@ pub extern "C" fn init() {
     env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {e}"));
 }
 
-/// client_connect establishes an RDP connection to go_addr with the provided credentials and screen
-/// size. If succeeded, the client is internally registered under client_ref. When done with the
-/// connection, the caller must call client_close_rdp.
+/// client_run establishes an RDP connection with the provided `params`.
+/// If the call succeeds, the client is internally registered in the global
+/// client handle map. When done with the connection, the caller must call
+/// [`client_stop`]. Failure to do so may result in a memory leak.
 ///
 /// # Safety
 ///
-/// The caller mmust ensure that go_addr, go_username, cert_der, key_der point to valid buffers in respect
-/// to their corresponding parameters.
+/// The caller must ensure that cgo_handle is a valid handle and that
+/// go_addr, go_username, cert_der, key_der point to valid buffers.
 #[no_mangle]
-pub unsafe extern "C" fn client_connect(cgo_ref: usize, params: CGOConnectParams) -> CGOErrCode {
-    trace!("client_connect");
+pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectParams) -> CGOErrCode {
+    trace!("client_run");
     // Convert from C to Rust types.
     let addr = from_c_string(params.go_addr);
     let username = from_c_string(params.go_username);
@@ -78,7 +79,7 @@ pub unsafe extern "C" fn client_connect(cgo_ref: usize, params: CGOConnectParams
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
     match Client::run(
-        cgo_ref,
+        cgo_handle,
         ConnectParams {
             addr,
             username,
@@ -96,6 +97,17 @@ pub unsafe extern "C" fn client_connect(cgo_ref: usize, params: CGOConnectParams
     }
 }
 
+/// client_stop ensures
+///
+/// # Safety
+///
+/// The caller must ensure that cgo_handle is a valid handle.
+#[no_mangle]
+pub unsafe extern "C" fn client_stop(cgo_handle: CgoHandle) -> CGOErrCode {
+    trace!("client_stop");
+    call_function_on_handle(cgo_handle, ClientFunction::Stop)
+}
+
 /// `client_update_clipboard` is called from Go, and caches data that was copied
 /// client-side while notifying the RDP server that new clipboard data is available.
 ///
@@ -108,7 +120,7 @@ pub unsafe extern "C" fn client_connect(cgo_ref: usize, params: CGOConnectParams
 /// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
 #[no_mangle]
 pub unsafe extern "C" fn client_update_clipboard(
-    cgo_ref: usize,
+    cgo_handle: CgoHandle,
     data: *mut u8,
     len: u32,
 ) -> CGOErrCode {
@@ -128,7 +140,7 @@ pub unsafe extern "C" fn client_update_clipboard(
 /// sd_announce.name MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_announce(
-    cgo_ref: usize,
+    cgo_handle: CgoHandle,
     sd_announce: CGOSharedDirectoryAnnounce,
 ) -> CGOErrCode {
     warn!("unimplemented: client_handle_tdp_sd_announce");
@@ -146,7 +158,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_announce(
 /// res.fso.path MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_info_response(
-    cgo_ref: usize,
+    cgo_handle: CgoHandle,
     res: CGOSharedDirectoryInfoResponse,
 ) -> CGOErrCode {
     warn!("unimplemented: client_handle_tdp_sd_info_response");
@@ -162,7 +174,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_info_response(
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
-    cgo_ref: usize,
+    cgo_handle: CgoHandle,
     res: CGOSharedDirectoryCreateResponse,
 ) -> CGOErrCode {
     warn!("unimplemented: client_handle_tdp_sd_create_response");
@@ -178,7 +190,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
-    cgo_ref: usize,
+    cgo_handle: CgoHandle,
     res: CGOSharedDirectoryDeleteResponse,
 ) -> CGOErrCode {
     warn!("unimplemented: client_handle_tdp_sd_delete_response");
@@ -198,7 +210,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
 /// each res.fso_list[i].path MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_list_response(
-    cgo_ref: usize,
+    cgo_handle: CgoHandle,
     res: CGOSharedDirectoryListResponse,
 ) -> CGOErrCode {
     warn!("unimplemented: client_handle_tdp_sd_list_response");
@@ -213,7 +225,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_list_response(
 /// client_ptr must be a valid pointer
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_read_response(
-    cgo_ref: usize,
+    cgo_handle: CgoHandle,
     res: CGOSharedDirectoryReadResponse,
 ) -> CGOErrCode {
     warn!("unimplemented: client_handle_tdp_sd_read_response");
@@ -228,7 +240,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_read_response(
 /// client_ptr must be a valid pointer
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
-    cgo_ref: usize,
+    cgo_handle: CgoHandle,
     res: CGOSharedDirectoryWriteResponse,
 ) -> CGOErrCode {
     warn!("unimplemented: client_handle_tdp_sd_write_response");
@@ -244,7 +256,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_move_response(
-    cgo_ref: usize,
+    cgo_handle: CgoHandle,
     res: CGOSharedDirectoryMoveResponse,
 ) -> CGOErrCode {
     warn!("unimplemented: client_handle_tdp_sd_move_response");
