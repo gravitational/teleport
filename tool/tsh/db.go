@@ -1525,7 +1525,8 @@ func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs type
 	showDatabasesAsText(&sb, cf.SiteName, matchedDBs, activeDBs, checker, verbose)
 
 	listCommand := formatDatabaseListCommand(cf.SiteName)
-	return formatAmbiguityErrTemplate(cf, selectors, listCommand, sb.String())
+	fullNameExample := matchedDBs[0].GetName()
+	return formatAmbiguityErrTemplate(cf, selectors, listCommand, sb.String(), fullNameExample)
 }
 
 // resourceSelectors is a helper struct for gathering up the selectors for a
@@ -1562,12 +1563,13 @@ func (r resourceSelectors) IsEmpty() bool {
 
 // formatAmbiguityErrTemplate is a helper func that formats an ambiguous
 // resource error message.
-func formatAmbiguityErrTemplate(cf *CLIConf, selectors resourceSelectors, listCommand, matchTable string) string {
+func formatAmbiguityErrTemplate(cf *CLIConf, selectors resourceSelectors, listCommand, matchTable, fullNameExample string) string {
 	data := map[string]any{
 		"command":     cf.CommandWithBinary(),
 		"listCommand": strings.TrimSpace(listCommand),
 		"kind":        strings.TrimSpace(selectors.kind),
 		"matchTable":  strings.TrimSpace(matchTable),
+		"example":     strings.TrimSpace(fullNameExample),
 	}
 	if !selectors.IsEmpty() {
 		data["selectors"] = strings.TrimSpace(selectors.String())
@@ -1642,7 +1644,7 @@ multiple {{ .kind }}s are available:
 {{ .matchTable }}
 
 Hint: use '{{ .listCommand }} -v' or '{{ .listCommand }} --format=[json|yaml]' to list all {{ .kind }}s with full details.
-Hint: try selecting the {{ .kind }} with a more specific name (ex: {{ .command }} full-{{ .kind }}-name).
+Hint: try selecting the {{ .kind }} with a more specific name (ex: {{ .command }} {{ .example }}).
 Hint: try selecting the {{ .kind }} with additional --labels or --query predicate.
 `))
 )
