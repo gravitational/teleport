@@ -69,12 +69,12 @@ users can't spoof their IP address by connecting directly and sending custom PRO
 Teleport only allows one PROXY protocol header for an incoming connection - that makes sure any client connecting through 
 PROXY enabled L4 load balancer will not be able to send their own PROXY header to the connection.
 
-PROXY protocol behavior is controlled separately for Auth service and Proxy service. So you should make sure both have correct 
-setting. If there's PROXY-enabled L4 load balancer between your Proxy and Auth services, you should set `proxy_protocol: on` on the Auth,
+PROXY protocol behavior is controlled separately for Auth service and Proxy service. So you should ensure both have the correct 
+setting. If there's a PROXY-enabled L4 load balancer between your Proxy and Auth services, you should set `proxy_protocol: on` on the Auth,
 otherwise set it to `off`.
 
-You can also have Teleport Proxies to have different PROXY protocol settings, if you run some of them behind load balancer and some not, for
+You can also have Teleport Proxies have different PROXY protocol settings, if you run some of them behind a load balancer and some not, for
 example if you have dedicated Proxies for private and public networks.
 
-Running Teleport behind L4 load balancer that doesn't send PROXY protocol headers will lead to all incoming connections seemingly
-coming from the same IP address from Teleport's point of view, making audit trail less useful and IP pinning feature not helpful.
+Running Teleport behind an L4 load balancer that doesn't send PROXY protocol headers will lead to all incoming connections seemingly
+coming from the same IP address from Teleport's point of view, making the audit trail less useful and the IP pinning feature not helpful.
