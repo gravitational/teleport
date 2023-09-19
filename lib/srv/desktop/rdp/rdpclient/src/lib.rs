@@ -99,11 +99,13 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
     }
 }
 
-/// client_stop ensures
+/// client_stop ensures that a connection started by [`client_run`] is stopped
+/// and that all related memory is cleaned up. Calling [`client_stop`] on a handle
+/// that's already been dropped is safe and will result in a no-op.
 ///
 /// # Safety
 ///
-/// The caller must ensure that cgo_handle is a valid handle.
+/// All values of `cgo_handle` are safe to use.
 #[no_mangle]
 pub unsafe extern "C" fn client_stop(cgo_handle: CgoHandle) -> CGOErrCode {
     trace!("client_stop");

@@ -33,7 +33,10 @@ pub fn call_function_on_handle(cgo_handle: CgoHandle, func: ClientFunction) -> C
     if let Some(handle) = CLIENT_HANDLES.get(cgo_handle) {
         match handle.blocking_send(func) {
             Ok(_) => return CGOErrCode::ErrCodeSuccess,
-            Err(_) => return CGOErrCode::ErrCodeFailure,
+            Err(e) => {
+                warn!("call_function_on_handle failed: {}", e);
+                return CGOErrCode::ErrCodeFailure;
+            }
         }
     }
 
