@@ -61,7 +61,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			expected:    nil,
 		},
 		{
-			name: "editor",
+			name: "editor (default rules match preset rules)",
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetEditorRoleName,
@@ -80,7 +80,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						Rules: defaultAllowRules()[teleport.PresetEditorRoleName],
+						Rules: NewPresetEditorRole().GetRules(types.Allow),
 					},
 				},
 			},
@@ -108,6 +108,33 @@ func TestAddRoleDefaults(t *testing.T) {
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						Rules: defaultAllowRules()[teleport.PresetEditorRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "access (default rules match preset rules)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						DatabaseServiceLabels: defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseRoles,
+						Rules:                 NewPresetAccessRole().GetRules(types.Allow),
 					},
 				},
 			},
@@ -176,7 +203,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "auditor",
+			name: "auditor (default rules match preset rules)",
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetAuditorRoleName,
@@ -211,7 +238,7 @@ func TestAddRoleDefaults(t *testing.T) {
 						},
 					},
 					Allow: types.RoleConditions{
-						Rules: defaultAllowRules()[teleport.PresetAuditorRoleName],
+						Rules: NewPresetAuditorRole().GetRules(types.Allow),
 					},
 				},
 			},
