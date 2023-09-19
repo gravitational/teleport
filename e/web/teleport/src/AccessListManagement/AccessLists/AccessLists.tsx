@@ -159,7 +159,7 @@ export function AccessLists() {
           <ButtonPrimary
             title={
               noPermToCreate
-                ? `Only Teleport Administrator's can create new Access Lists`
+                ? `Only Teleport administrators can create new Access Lists`
                 : ''
             }
             disabled={noPermToCreate || attempt.status === 'processing'}

@@ -33,8 +33,9 @@ export function EmptyState() {
           <ButtonBorder
             size="medium"
             as="a"
-            // TODO(lisa): replace with Teleport's documentation when available.
-            href="https://github.com/gravitational/teleport.e/blob/281a8677862a4b9c418519a02eacc3bed0c7fd0e/rfd/0006e-access-lists.md"
+            // TODO(lisa): replace with non version prefixed link when updating
+            // empty state to latest design.
+            href="https://goteleport.com/docs/ver/14.x/access-controls/access-lists/"
             target="_blank"
             width="224px"
             ml={4}
