@@ -58,7 +58,7 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
@@ -71,7 +71,7 @@ jobs:
         continue-on-error: true
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@04b98b3f9e85f563fb061be8751a0352327246b0 # v3.0.1
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.GHA_ASSUME_ROLE }}

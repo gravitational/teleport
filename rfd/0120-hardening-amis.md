@@ -104,7 +104,7 @@ The decision to go with STIG is based on being able to improve the situation
 for our customers *now*, while still being able to add CIS hardening tools as
 we develop that relationship in the future.
 
-#### **How do security benchmarks realate to AMIs?**
+#### **How do security benchmarks relate to AMIs?**
 
 Both the CIS Benchmarks and STIG e es
 

@@ -1974,7 +1974,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 						Types:      []string{"gce"},
 						ProjectIDs: []string{"myproject"},
 						Locations:  []string{"myzone"},
-						Tags:       types.Labels{"teleport": {"yes"}},
+						Labels:     types.Labels{"teleport": {"yes"}},
 					}},
 				},
 				Emitter: emitter,

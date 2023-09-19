@@ -207,7 +207,7 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 	// wait for events received from upstream until the connection is terminated.
 	for {
 		eventType, obj, err := w.decodeStreamingMessage(streamingDecoder, objectDecoder)
-		if errors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
 			return nil
 		} else if err != nil {
 			return trace.Wrap(err)

@@ -466,7 +466,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 						fetcher, err := fetchers.NewGKEFetcher(fetchers.GKEFetcherConfig{
 							Client:       kubeClient,
 							Location:     location,
-							FilterLabels: matcher.Tags,
+							FilterLabels: matcher.GetLabels(),
 							ProjectID:    projectID,
 							Log:          s.Log,
 						})

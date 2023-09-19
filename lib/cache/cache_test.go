@@ -404,7 +404,8 @@ func TestWatchers(t *testing.T) {
 	req, err := services.NewAccessRequest("alice", "dictator")
 	require.NoError(t, err)
 
-	require.NoError(t, p.dynamicAccessS.CreateAccessRequest(ctx, req))
+	req, err = p.dynamicAccessS.CreateAccessRequestV2(ctx, req)
+	require.NoError(t, err)
 
 	select {
 	case e := <-w.Events():
@@ -429,7 +430,8 @@ func TestWatchers(t *testing.T) {
 	require.NoError(t, err)
 
 	// create and then delete the non-matching request.
-	require.NoError(t, p.dynamicAccessS.CreateAccessRequest(ctx, req2))
+	req2, err = p.dynamicAccessS.CreateAccessRequestV2(ctx, req2)
+	require.NoError(t, err)
 	require.NoError(t, p.dynamicAccessS.DeleteAccessRequest(ctx, req2.GetName()))
 
 	// because our filter did not match the request, the create event should never
