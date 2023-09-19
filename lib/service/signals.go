@@ -83,25 +83,7 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				process.log.Infof("All services stopped, exiting.")
 				return nil
 			case syscall.SIGTERM, syscall.SIGKILL, syscall.SIGINT:
-				timeout := time.Second * 3
-
-				// read undocumented env var TELEPORT_UNSTABLE_SHUTDOWN_TIMEOUT.
-				// TODO(Tener): DELETE IN 15.0. after ironing out all possible shutdown bugs.
-				override := os.Getenv("TELEPORT_UNSTABLE_SHUTDOWN_TIMEOUT")
-				if override != "" {
-					t, err := time.ParseDuration(override)
-					if err != nil {
-						process.log.Warnf("Cannot parse timeout override %q, using default instead.", override)
-					}
-					if err == nil {
-						if t > time.Minute*10 {
-							process.log.Warnf("Timeout override %q exceeds maximum value, reducing.", override)
-							t = time.Minute * 10
-						}
-						timeout = t
-					}
-				}
-
+				timeout := getShutdownTimeout(process.log)
 				cancelCtx, cancelFunc := context.WithTimeout(ctx, timeout)
 				process.log.Infof("Got signal %q, exiting within %vs.", signal, timeout.Seconds())
 				go func() {
@@ -174,6 +156,31 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 			process.log.Warningf("Non-critical service %v has exited with error %v, continuing to operate.", se.Service, se.Error)
 		}
 	}
+}
+
+const defaultShutdownTimeout = time.Second * 3
+const maxShutdownTimeout = time.Minute * 10
+
+func getShutdownTimeout(log logrus.FieldLogger) time.Duration {
+	timeout := defaultShutdownTimeout
+
+	// read undocumented env var TELEPORT_UNSTABLE_SHUTDOWN_TIMEOUT.
+	// TODO(Tener): DELETE IN 15.0. after ironing out all possible shutdown bugs.
+	override := os.Getenv("TELEPORT_UNSTABLE_SHUTDOWN_TIMEOUT")
+	if override != "" {
+		t, err := time.ParseDuration(override)
+		if err != nil {
+			log.Warnf("Cannot parse timeout override %q, using default instead.", override)
+		}
+		if err == nil {
+			if t > maxShutdownTimeout {
+				log.Warnf("Timeout override %q exceeds maximum value, reducing.", override)
+				t = maxShutdownTimeout
+			}
+			timeout = t
+		}
+	}
+	return timeout
 }
 
 // ErrTeleportReloading is returned when signal waiter exits
