@@ -38,6 +38,9 @@ import {
   useConnectMyComputerContext,
 } from './connectMyComputerContext';
 
+import type { IAppContext } from 'teleterm/ui/types';
+import type { Cluster } from 'teleterm/services/tshd/types';
+
 function getMocksWithConnectMyComputerEnabled() {
   const rootCluster = makeRootCluster({
     loggedInUser: makeLoggedInUser({
@@ -74,6 +77,23 @@ function getMocksWithConnectMyComputerEnabled() {
   return { appContext, rootCluster };
 }
 
+function renderUseConnectMyComputerContextHook(
+  appContext: IAppContext,
+  rootCluster: Cluster
+) {
+  return renderHook(() => useConnectMyComputerContext(), {
+    wrapper: ({ children }) => (
+      <MockAppContextProvider appContext={appContext}>
+        <WorkspaceContextProvider value={null}>
+          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
+            {children}
+          </ConnectMyComputerContextProvider>
+        </WorkspaceContextProvider>
+      </MockAppContextProvider>
+    ),
+  });
+}
+
 test('startAgent re-throws errors that are thrown while spawning the process', async () => {
   const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
   const eventEmitter = new EventEmitter();
@@ -106,17 +126,10 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
       return { cleanup: () => eventEmitter.off('', listener) };
     });
 
-  const { result } = renderHook(() => useConnectMyComputerContext(), {
-    wrapper: ({ children }) => (
-      <MockAppContextProvider appContext={appContext}>
-        <WorkspaceContextProvider value={null}>
-          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-            {children}
-          </ConnectMyComputerContextProvider>
-        </WorkspaceContextProvider>
-      </MockAppContextProvider>
-    ),
-  });
+  const { result } = renderUseConnectMyComputerContextHook(
+    appContext,
+    rootCluster
+  );
 
   let error: Error;
   await act(async () => {
@@ -140,17 +153,10 @@ test('starting the agent flips the workspace autoStart flag to true', async () =
     .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
     .mockResolvedValue(makeServer());
 
-  const { result } = renderHook(() => useConnectMyComputerContext(), {
-    wrapper: ({ children }) => (
-      <MockAppContextProvider appContext={appContext}>
-        <WorkspaceContextProvider value={null}>
-          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-            {children}
-          </ConnectMyComputerContextProvider>
-        </WorkspaceContextProvider>
-      </MockAppContextProvider>
-    ),
-  });
+  const { result } = renderUseConnectMyComputerContextHook(
+    appContext,
+    rootCluster
+  );
 
   await act(async () => {
     const [, error] = await result.current.startAgent();
@@ -165,17 +171,10 @@ test('starting the agent flips the workspace autoStart flag to true', async () =
 test('killing the agent flips the workspace autoStart flag to false', async () => {
   const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
 
-  const { result } = renderHook(() => useConnectMyComputerContext(), {
-    wrapper: ({ children }) => (
-      <MockAppContextProvider appContext={appContext}>
-        <WorkspaceContextProvider value={null}>
-          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-            {children}
-          </ConnectMyComputerContextProvider>
-        </WorkspaceContextProvider>
-      </MockAppContextProvider>
-    ),
-  });
+  const { result } = renderUseConnectMyComputerContextHook(
+    appContext,
+    rootCluster
+  );
 
   await act(() => result.current.killAgent());
 
@@ -218,17 +217,10 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
     .spyOn(appContext.workspacesService, 'getConnectMyComputerAutoStart')
     .mockReturnValue(true);
 
-  const { result, waitFor } = renderHook(() => useConnectMyComputerContext(), {
-    wrapper: ({ children }) => (
-      <MockAppContextProvider appContext={appContext}>
-        <WorkspaceContextProvider value={null}>
-          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-            {children}
-          </ConnectMyComputerContextProvider>
-        </WorkspaceContextProvider>
-      </MockAppContextProvider>
-    ),
-  });
+  const { result, waitFor } = renderUseConnectMyComputerContextHook(
+    appContext,
+    rootCluster
+  );
 
   await waitFor(
     () =>
