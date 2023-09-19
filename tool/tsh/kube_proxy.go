@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -58,6 +59,9 @@ type proxyKubeCommand struct {
 	namespace         string
 	port              string
 	format            string
+
+	labels              string
+	predicateExpression string
 }
 
 func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
@@ -73,10 +77,15 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("port", "Specifies the source port used by the proxy listener").Short('p').StringVar(&c.port)
 	c.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&c.format, envVarFormats...)
+	c.Flag("labels", labelHelp).StringVar(&c.labels)
+	c.Flag("query", queryHelp).StringVar(&c.predicateExpression)
 	return c
 }
 
 func (c *proxyKubeCommand) run(cf *CLIConf) error {
+	cf.Labels = c.labels
+	cf.PredicateExpression = c.predicateExpression
+	cf.SiteName = c.siteName
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -111,22 +120,36 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 }
 
 func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*clientcmdapi.Config, kubeconfig.LocalProxyClusters, error) {
-	defaultConfig, err := kubeconfig.Load("")
+	defaultConfig, err := kubeconfig.Load(getKubeConfigPath(cf, ""))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	// Use kube clusters from arg.
-	if len(c.kubeClusters) > 0 {
-		if c.siteName == "" {
-			c.siteName = tc.SiteName
+	if len(c.kubeClusters) > 0 || cf.Labels != "" || cf.PredicateExpression != "" {
+		_, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
 		}
-
+		switch len(c.kubeClusters) {
+		case 0:
+			// if no names are given, check just the labels/predicate selection.
+			if err := checkClusterSelection(cf, kubeClusters, ""); err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+		default:
+			// otherwise, check that each name matches exactly one kube cluster.
+			matchMap := matchClustersByNames(kubeClusters, c.kubeClusters...)
+			if err := checkMultipleClusterSelections(cf, matchMap); err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			kubeClusters = combineMatchedClusters(matchMap)
+		}
 		var clusters kubeconfig.LocalProxyClusters
-		for _, kubeCluster := range c.kubeClusters {
+		for _, kc := range kubeClusters {
 			clusters = append(clusters, kubeconfig.LocalProxyCluster{
-				TeleportCluster:   c.siteName,
-				KubeCluster:       kubeCluster,
+				TeleportCluster:   tc.SiteName,
+				KubeCluster:       kc.GetName(),
 				Impersonate:       c.impersonateUser,
 				ImpersonateGroups: c.impersonateGroups,
 				Namespace:         c.namespace,
@@ -522,6 +545,39 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client
 	cert.Leaf = leaf
 
 	return cert, nil
+}
+
+// checkMultipleClusterSelections takes a map of name selectors to matched
+// clusters and checks that each matching is valid.
+func checkMultipleClusterSelections(cf *CLIConf, matchMap map[string]types.KubeClusters) error {
+	for name, clusters := range matchMap {
+		err := checkClusterSelection(cf, clusters, name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// combineMatchedClusters combineMatchedClusters takes a map from name selector
+// to matched clusters and combines all the matched clusters into a deduplicated
+// slice.
+func combineMatchedClusters(matchMap map[string]types.KubeClusters) types.KubeClusters {
+	var out types.KubeClusters
+	for _, clusters := range matchMap {
+		out = append(out, clusters...)
+	}
+	return types.DeduplicateKubeClusters(out)
+}
+
+// matchClustersByNames maps each name to the clusters it matches by exact name
+// or by prefix.
+func matchClustersByNames(clusters types.KubeClusters, names ...string) map[string]types.KubeClusters {
+	matchesForNames := make(map[string]types.KubeClusters)
+	for _, name := range names {
+		matchesForNames[name] = matchClustersByName(name, clusters)
+	}
+	return matchesForNames
 }
 
 // proxyKubeTemplate is the message that gets printed to a user when a kube proxy is started.

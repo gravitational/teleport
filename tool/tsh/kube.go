@@ -1264,11 +1264,12 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 
 // checkClusterSelection checks the kube clusters selected by user input.
 func (c *kubeLoginCommand) checkClusterSelection(cf *CLIConf, tc *client.TeleportClient, clusters types.KubeClusters) error {
-	clusters = filterKubeClusters(c.kubeCluster, clusters)
-	switch {
-	// If the user is trying to login to a specific cluster, check that it
-	// exists and that a cluster matched the name/prefix unambiguously.
-	case c.kubeCluster != "" && len(clusters) == 1:
+	clusters = matchClustersByName(c.kubeCluster, clusters)
+	err := checkClusterSelection(cf, clusters, c.kubeCluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if c.kubeCluster != "" && len(clusters) == 1 {
 		// Populate settings using the selected kube cluster, which contains
 		// the full cluster name.
 		c.kubeCluster = clusters[0].GetName()
@@ -1276,14 +1277,28 @@ func (c *kubeLoginCommand) checkClusterSelection(cf *CLIConf, tc *client.Telepor
 		// is automatically selected.
 		cf.KubernetesCluster = c.kubeCluster
 		tc.KubernetesCluster = c.kubeCluster
+	}
+	return nil
+}
+
+func checkClusterSelection(cf *CLIConf, clusters types.KubeClusters, name string) error {
+	switch {
+	// If the user is trying to login to a specific cluster, check that it
+	// exists and that a cluster matched the name/prefix unambiguously.
+	case name != "" && len(clusters) == 1:
 		return nil
 	// allow multiple selection without a name.
-	case c.kubeCluster == "" && len(clusters) > 0:
+	case name == "" && len(clusters) > 0:
 		return nil
 	}
 
 	// anything else is an error.
-	selectors := c.getSelectors()
+	selectors := resourceSelectors{
+		kind:   "kubernetes cluster",
+		name:   name,
+		labels: cf.Labels,
+		query:  cf.PredicateExpression,
+	}
 	if len(clusters) == 0 {
 		if selectors.IsEmpty() {
 			return trace.NotFound("no kubernetes clusters found, check 'tsh kube ls' for a list of known clusters")
@@ -1303,7 +1318,7 @@ func (c *kubeLoginCommand) getSelectors() resourceSelectors {
 	}
 }
 
-func filterKubeClusters(nameOrPrefix string, clusters types.KubeClusters) types.KubeClusters {
+func matchClustersByName(nameOrPrefix string, clusters types.KubeClusters) types.KubeClusters {
 	if nameOrPrefix == "" {
 		return clusters
 	}
