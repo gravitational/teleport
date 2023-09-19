@@ -389,7 +389,7 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 	}
 
 	if !updated {
-		return nil, trace.NotFound("key %q does not exist", i.Key)
+		return nil, trace.Wrap(backend.ErrIncorrectRevision)
 	}
 
 	i.Revision = revisionToString(newRevision)
