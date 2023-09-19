@@ -291,10 +291,13 @@ type Config struct {
 
 // AccessGraphConfig represents TAG server config
 type AccessGraphConfig struct {
-	// Enabled predicate reporting enabled
+	// Enabled Access Graph reporting enabled
 	Enabled bool
 
-	// Addr predicate service addr
+	// When enabled, the TAG server will be used to evaluate access requests
+	UseAuth bool
+
+	// Addr of the Access Graph service addr
 	Addr string
 }
 
