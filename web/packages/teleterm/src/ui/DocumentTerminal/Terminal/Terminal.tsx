@@ -21,7 +21,7 @@ import { debounce } from 'shared/utils/highbar';
 import {
   Attempt,
   makeEmptyAttempt,
-  makeErrorAttempt,
+  makeErrorAttemptWithStatusText,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
 
@@ -58,7 +58,7 @@ export function Terminal(props: TerminalProps) {
   useEffect(() => {
     const removeOnStartErrorListener = props.ptyProcess.onStartError(
       message => {
-        setStartPtyProcessAttempt(makeErrorAttempt(message));
+        setStartPtyProcessAttempt(makeErrorAttemptWithStatusText(message));
       }
     );
 
