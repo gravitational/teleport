@@ -14,8 +14,14 @@
  * limitations under the License.
  */
 
-import React, { useCallback, useState, useLayoutEffect, useRef } from 'react';
-import styled from 'styled-components';
+import React, {
+  useCallback,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from 'react';
+import styled, { css } from 'styled-components';
 
 import {
   Box,
@@ -76,14 +82,18 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   const ResTypeIcon = resourceTypeIcon(resource.kind);
   const description = resourceDescription(resource);
 
-  const labelsInnerContainer = useRef(null);
-
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(false);
   const [numMoreLabels, setNumMoreLabels] = useState(0);
-
-  const nameTextRef = useRef<HTMLDivElement | null>(null);
   const [isNameOverflowed, setIsNameOverflowed] = useState(false);
+
+  const [hovered, setHovered] = useState(false);
+
+  const innerContainer = useRef<Element | null>(null);
+  const labelsInnerContainer = useRef(null);
+  const nameText = useRef<HTMLDivElement | null>(null);
+  const collapseTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+
   // This effect installs a resize observer whose purpose is to detect the size
   // of the component that contains all the labels. If this component is taller
   // than the height of a single label row, we show a "+x more" button.
@@ -94,8 +104,8 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
       // This check will let us know if the name text has overflowed. We do this
       // to conditionally render a tooltip for only overflowed names
       if (
-        nameTextRef.current?.scrollWidth >
-        nameTextRef.current?.parentElement.offsetWidth
+        nameText.current?.scrollWidth >
+        nameText.current?.parentElement.offsetWidth
       ) {
         setIsNameOverflowed(true);
       } else {
@@ -133,17 +143,47 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
     };
   });
 
+  // Clear the timeout on unmount to prevent changing a state of an unmounted
+  // component.
+  useEffect(() => () => clearTimeout(collapseTimeout.current), []);
+
   const onMoreLabelsClick = () => {
     setShowAllLabels(true);
   };
 
+  const onMouseLeave = () => {
+    // If the user expanded the labels and then scrolled down enough to hide the
+    // top of the card, we scroll back up and collapse the labels with a small
+    // delay to keep the user from losing focus on the card that they were
+    // looking at. The delay is picked by hand, since there's no (easy) way to
+    // know when the animation ends.
+    if (
+      showAllLabels &&
+      (innerContainer.current?.getBoundingClientRect().top ?? 0) < 0
+    ) {
+      innerContainer.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+      clearTimeout(collapseTimeout.current);
+      collapseTimeout.current = setTimeout(() => setShowAllLabels(false), 700);
+    } else {
+      // Otherwise, we just collapse the labels immediately.
+      setShowAllLabels(false);
+    }
+  };
+
   return (
-    <CardContainer>
+    <CardContainer
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <CardInnerContainer
+        ref={innerContainer}
         p={3}
         alignItems="start"
         showAllLabels={showAllLabels}
-        onMouseLeave={() => setShowAllLabels(false)}
+        onMouseLeave={onMouseLeave}
       >
         <ResourceIcon name={resIcon} width="45px" height="45px" ml={2} />
         {/* MinWidth is important to prevent descriptions from overflowing. */}
@@ -152,17 +192,17 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
             <SingleLineBox flex="1">
               {isNameOverflowed ? (
                 <HoverTooltip tipContent={<>{name}</>}>
-                  <Text ref={nameTextRef} typography="h5" fontWeight={300}>
+                  <Text ref={nameText} typography="h5" fontWeight={300}>
                     {name}
                   </Text>
                 </HoverTooltip>
               ) : (
-                <Text ref={nameTextRef} typography="h5" fontWeight={300}>
+                <Text ref={nameText} typography="h5" fontWeight={300}>
                   {name}
                 </Text>
               )}
             </SingleLineBox>
-            <CopyButton name={name} />
+            {hovered && <CopyButton name={name} />}
             <ResourceActionButton resource={resource} />
           </Flex>
           <Flex flexDirection="row" alignItems="center">
@@ -283,7 +323,10 @@ function CopyButton({ name }: { name: string }) {
   );
 }
 
-function resourceName(resource: UnifiedResource) {
+export function resourceName(resource: UnifiedResource) {
+  if (resource.kind === 'app' && resource.friendlyName) {
+    return resource.friendlyName;
+  }
   return resource.kind === 'node' ? resource.hostname : resource.name;
 }
 
@@ -291,8 +334,8 @@ function resourceDescription(resource: UnifiedResource) {
   switch (resource.kind) {
     case 'app':
       return {
-        primary: resource.addrWithProtocol,
-        secondary: resource.description,
+        primary: resource.description,
+        secondary: resource.addrWithProtocol,
       };
     case 'db':
       return { primary: resource.type, secondary: resource.description };
@@ -381,6 +424,12 @@ const CardContainer = styled(Box)`
   position: relative;
 `;
 
+const elevatedCardMixin = css`
+  background-color: ${props => props.theme.colors.levels.elevated};
+  border-color: ${props => props.theme.colors.levels.elevated};
+  box-shadow: ${props => props.theme.boxShadow[1]};
+`;
+
 /**
  * The inner container that normally holds a regular layout of the card, and is
  * fully contained inside the outer container.  Once the user clicks the "more"
@@ -397,16 +446,19 @@ const CardInnerContainer = styled(Flex)`
   border-radius: ${props => props.theme.radii[3]}px;
 
   ${props =>
-    props.showAllLabels
-      ? 'position: absolute; left: 0; right: 0; z-index: 1;'
-      : ''}
+    props.showAllLabels &&
+    css`
+      position: absolute;
+      left: 0;
+      right: 0;
+      z-index: 1;
+      ${elevatedCardMixin}
+    `}
 
   transition: all 150ms;
 
   ${CardContainer}:hover & {
-    background-color: ${props => props.theme.colors.levels.elevated};
-    border-color: ${props => props.theme.colors.levels.elevated};
-    box-shadow: ${props => props.theme.boxShadow[1]};
+    ${elevatedCardMixin}
   }
 `;
 

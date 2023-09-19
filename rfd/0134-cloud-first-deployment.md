@@ -161,7 +161,7 @@ we host for our users), agents and clients:
 
 - Control plane. We have full control over it, deploy in tandem and make sure
   these are always compatible with each other.
-- Agents deployed by users. We always keep backwards compatibilithy between
+- Agents deployed by users. We always keep backwards compatibility between
   adjacent releases and rely on automatic upgrades to make sure they don't drift.
 - Clients. Clients require automatic upgrades to avoid breakage on behavior
   incompatible changes. This is [in progress](https://github.com/gravitational/cloud/issues/4880).

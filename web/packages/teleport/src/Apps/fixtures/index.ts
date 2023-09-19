@@ -54,6 +54,27 @@ export const apps = [
     fqdn: 'g.one',
   },
   {
+    kind: 'app',
+    name: '11llkk2234234',
+    description: 'Teleport Okta',
+    uri: 'https://dev-1.okta.com/home/dev-1',
+    publicAddr: '234.dev-test.teleport',
+    fqdn: '234.dev-test.teleport',
+    clusterId: 'dev-test.teleport',
+    labels: [
+      {
+        name: 'okta/org',
+        value: 'https://dev-test.okta.com',
+      },
+      {
+        name: 'teleport.dev/origin',
+        value: 'okta',
+      },
+    ],
+    awsConsole: false,
+    friendlyName: 'Teleport Okta',
+  },
+  {
     name: 'Company Chat',
     uri: 'https://slack.teleport-proxy.com',
     publicAddr: 'slack.teleport-proxy.com',
@@ -76,6 +97,19 @@ export const apps = [
     clusterId: 'one',
     fqdn: '',
     samlApp: true,
+    samlAppSSOUrl: '',
+  },
+  {
+    name: 'okta',
+    uri: '',
+    publicAddr: '',
+    description: 'SAML Application',
+    awsConsole: false,
+    labels: [],
+    clusterId: 'one',
+    fqdn: '',
+    samlApp: true,
+    friendlyName: 'Okta Friendly',
     samlAppSSOUrl: '',
   },
   {

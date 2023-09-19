@@ -1148,7 +1148,8 @@ func TestAccessRequestWatcher(t *testing.T) {
 
 	// Add an access request.
 	accessRequest1 := newAccessRequest(t, uuid.NewString())
-	require.NoError(t, dynamicAccessService.CreateAccessRequest(ctx, accessRequest1))
+	accessRequest1, err = dynamicAccessService.CreateAccessRequestV2(ctx, accessRequest1)
+	require.NoError(t, err)
 
 	// The first event is always the current list of access requests.
 	select {
@@ -1163,7 +1164,8 @@ func TestAccessRequestWatcher(t *testing.T) {
 
 	// Add a second access request.
 	accessRequest2 := newAccessRequest(t, uuid.NewString())
-	require.NoError(t, dynamicAccessService.CreateAccessRequest(ctx, accessRequest2))
+	accessRequest2, err = dynamicAccessService.CreateAccessRequestV2(ctx, accessRequest2)
+	require.NoError(t, err)
 
 	// Watcher should detect the access request list change.
 	select {

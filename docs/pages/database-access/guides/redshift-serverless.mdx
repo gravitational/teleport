@@ -29,77 +29,10 @@ This guide will help you to:
 - Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host where you will run the Teleport Database Service. This guide assumes an
   EC2 instance, and provides a corresponding example of access control.
+- (!docs/pages/includes/database-access/aws-auto-discovery-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Create an IAM policy for Teleport
-
-<Admonition type="note" title="Example Access Control">
-This guide provides an example configuration of IAM access roles as a model,
-and uses an EC2 instance to serve the Teleport Database Service.
-The level of access provided may not suit your needs, or may not fit your
-organization's access conventions. You should adjust the AWS IAM permissions to
-fit your needs.
-</Admonition>
-
-Teleport needs AWS IAM permissions to be able to:
-
-- Discover and register Redshift Serverless workgroups and their associated VPC endpoints.
-- Manage IAM user or IAM role policies.
-
-If you don't already have one, create a role to apply to the EC2 instance that
-the Teleport Database Service will run on. This guide uses the example name
-`teleport-redshift-serverless-node`.
-
-Under **Trusted entity type** choose "AWS service", and under **Use case** choose "EC2".
-
-Create and attach a policy to the `teleport-redshift-serverless-node` role to allow Teleport
-to bootstrap access to AWS Redshift Serverless:
-
-<Admonition type="tip">
-This policy is required for Automatic Teleport bootstrapping, documented below.
-You can optionally skip this policy, and select the "Manual" option when you
-reach step 4.
-</Admonition>
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Action": [
-                "iam:AttachRolePolicy",
-                "iam:PutRolePermissionsBoundary"
-            ],
-            "Resource": [
-                "arn:aws:iam::(=aws.aws_access_key=):role/teleport-redshift-serverless-node"
-            ],
-            "Effect": "Allow"
-        },
-        {
-            "Action": [
-                "iam:GetPolicy",
-                "iam:CreatePolicy",
-                "iam:TagPolicy",
-                "iam:ListPolicyVersions",
-                "iam:CreatePolicyVersion"
-            ],
-            "Resource": [
-                "arn:aws:iam::(=aws.aws_access_key=):policy/DatabaseAccess",
-                "arn:aws:iam::(=aws.aws_access_key=):policy/DatabaseAccessBoundary"
-            ],
-            "Effect": "Allow"
-        }
-    ]
-}
-```
-
-Remember to replace the example AWS account ID. The policies defined in the
-`Resources` array will be created later in this guide.
-
-Apply the `teleport-redshift-serverless-node` role to the EC2 instance the
-Teleport Database Service will be installed in.
-
-## Step 2/5. Create an IAM Role for user access
+## Step 1/4. Create an IAM Role for user access
 
 Create an AWS IAM role to provide user access to Redshift Serverless. This role
 will be granted to Teleport users via a corresponding Teleport role. In this guide
@@ -154,7 +87,7 @@ Or you can restrict the `Resource` line to a specific Redshift Serverless workgr
 }
 ```
 
-## Step 3/5. Create a Teleport role for Redshift Serverless access
+## Step 2/4. Create a Teleport role for Redshift Serverless access
 
 On your workstation logged in to your Teleport cluster with `tsh`, define a new
 role to provide access to Redshift Serverless. Our example file is
@@ -190,106 +123,23 @@ role 'redshift-serverless-access' has been created
 
 (\!docs/pages/includes/add-role-to-user.mdx role="redshift-serverless-access" \!)
 
-## Step 4/5. Install and start the Teleport Database Service
+## Step 3/4. Install and start the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
 (!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
-Install Teleport on the host where you will run the Teleport Database Service:
-
-(!docs/pages/includes/install-linux.mdx!)
-
-On the same host, create a Teleport configuration file:
-
-```code
-$ sudo teleport db configure create \
-   -o file \
-   --proxy=teleport.example.com:443 \
-   --token=/tmp/token \
-   --redshift-serverless-discovery=us-west-1
-```
-
-- Replace `teleport.example.com` with your Teleport proxy URI or cloud tenant
-  address (e.g. `mytenant.teleport.sh`).
-- Provide the token from the previous step to the `--token` flag.
-- Update the value of `--redshift-serverless-discovery` to match your AWS region.
-
-This command will generate a Database Service configuration with Redshift
-Serverless auto-discovery enabled and place it at `/etc/teleport.yaml`.
-
-<Admonition type="tip" title="Filter with AWS tags">
-Use `--aws-tags <key>=<value>,<key>=<value>` to only match Redshift Serverless
-workgroups with specified AWS resource tags.
-
-For example, if a workgroup has multiple VPC endpoints but only one of the VPC
-endpoints will be accessed through Teleport, add the resource tag
-`teleport.dev/discovery` with value `true` to the VPC endpoint, and then specify
-`--aws-tags teleport.dev/discovery=true` when running `teleport db configure create`.
-</Admonition>
+(!docs/pages/includes/database-access/aws-create-db-configuration.mdx type="Redshift Serverless" matcher="redshift-serverless" protocol="postgres" example="my-workgroup.123456789012.us-west-1.redshift-serverless.amazonaws.com:5439" !)
 
 ### Bootstrap access to Redshift Serverless
 
-Teleport can bootstrap IAM permissions for the Database Service based on its
-configuration using the `teleport db configure bootstrap` command. You can use
-this command in automatic or manual mode:
-
-- In automatic mode, Teleport will attempt to create appropriate IAM policies
-  and attach them to the specified IAM identity (user or role). This requires the
-  IAM permissions we applied to the `teleport-redshift-serverless-node` role earlier.
-- In manual mode, Teleport will print required IAM policies. You can then create
-  and attach them manually using the AWS management console.
-
-<Admonition type="note" title="AWS credentials">
-AWS Credentials are only required if you’re running the command in "automatic"
-mode. The command uses the default credential provider chain to find AWS
-credentials. The steps in this guide provide AWS credentials to the node by
-applying the `teleport-redshift-serverless-node` role to the instance. See
-[Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials)
-for alternative methods of providing AWS credentials for non-EC2 nodes.
-</Admonition>
-
-Run one of the following commands on your Database Service node:
-
-<Tabs>
-<TabItem label="Automatic">
-
-Use this command to bootstrap the permissions automatically when your Teleport
-Database Service runs on a host with AWS credentials. Teleport will automatically
-determine the available role/user, or you can specify one with `--attach-to-role`
-or `attach-to-user`.
-
-```code
-$ teleport db configure bootstrap -c /etc/teleport.yaml
-```
-
-</TabItem>
-<TabItem label="Manual">
-
-Use this command to display required IAM policies which you will then create in your AWS console:
-
-```code
-$ teleport db configure bootstrap -c /etc/teleport.yaml --manual
-```
-
-</TabItem>
-</Tabs>
-
-See the full `bootstrap` command
-[reference](../../database-access/reference/cli.mdx#teleport-db-configure-bootstrap)
-for more information.
+(!docs/pages/includes/database-access/aws-bootstrap.mdx type="redshift-serverless" !)
 
 ### Start the Database service
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
-The Database Service will discover all Redshift databases according to the
-configuration and register them in the cluster. The Database Service will also
-attempt to configure IAM access policies for the discovered databases. Keep in
-mind that AWS IAM changes may not propagate immediately and can take a few minutes
-to come into effect.
-
-## Step 5/5. Connect
+## Step 4/4. Connect
 
 Once the Database Service has started and joined the cluster, log in to see the
 registered databases. Replace `--proxy` with the address of your Teleport Proxy
@@ -355,9 +205,6 @@ prior to logging in as this new IAM role to avoid or resolve user permission iss
 
 ## Next steps
 
+(!docs/pages/includes/database-access/guides-next-steps.mdx!)
 - Learn more about [using IAM authentication to generate database user
   credentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-user-credentials.html) for AWS Redshift.
-- Learn how to [restrict access](../rbac.mdx) to certain users and databases.
-- View the [High Availability (HA)](../guides/ha.mdx) guide.
-- Take a look at the YAML configuration [reference](../reference/configuration.mdx).
-

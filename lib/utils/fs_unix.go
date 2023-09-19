@@ -19,7 +19,22 @@ limitations under the License.
 
 package utils
 
+import (
+	"os"
+	"syscall"
+)
+
 // On non-windows we just lock the target file itself.
 func getPlatformLockFilePath(path string) string {
 	return path
+}
+
+func getHardLinkCount(fi os.FileInfo) (uint64, bool) {
+	if statT, ok := fi.Sys().(*syscall.Stat_t); ok {
+		// we must do a cast here because this will be uint16 on OSX
+		//nolint:unconvert // the cast is only necessary for macOS
+		return uint64(statT.Nlink), true
+	} else {
+		return 0, false
+	}
 }

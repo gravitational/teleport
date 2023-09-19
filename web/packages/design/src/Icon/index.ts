@@ -34,6 +34,7 @@ export { Application } from './Icons/Application';
 export { Archive } from './Icons/Archive';
 export { ArrowBack } from './Icons/ArrowBack';
 export { ArrowDown } from './Icons/ArrowDown';
+export { ArrowFatLinesUp } from './Icons/ArrowFatLinesUp';
 export { ArrowForward } from './Icons/ArrowForward';
 export { ArrowRight } from './Icons/ArrowRight';
 export { ArrowUp } from './Icons/ArrowUp';

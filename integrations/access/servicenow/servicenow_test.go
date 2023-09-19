@@ -321,9 +321,9 @@ func (s *ServiceNowSuite) createAccessRequest() types.AccessRequest {
 	t.Helper()
 
 	req := s.newAccessRequest()
-	err := s.requestor().CreateAccessRequest(s.Context(), req)
+	out, err := s.requestor().CreateAccessRequestV2(s.Context(), req)
 	require.NoError(t, err)
-	return req
+	return out
 }
 
 func (s *ServiceNowSuite) checkPluginData(reqID string, cond func(PluginData) bool) PluginData {

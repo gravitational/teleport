@@ -40,7 +40,7 @@ import { Server } from 'teleterm/services/tshd/types';
 
 import { assertUnreachable } from '../utils';
 
-import { canUseConnectMyComputer } from './permissions';
+import { hasConnectMyComputerPermissions } from './permissions';
 
 import type {
   AgentProcessState,
@@ -108,17 +108,24 @@ export const ConnectMyComputerContextProvider: FC<{
       [connectMyComputerService, props.rootClusterUri]
     )
   );
+  const isAgentConfigured =
+    isAgentConfiguredAttempt.status === 'success' &&
+    isAgentConfiguredAttempt.data;
 
   const rootCluster = clustersService.findCluster(props.rootClusterUri);
-  const canUse = useMemo(
-    () =>
-      canUseConnectMyComputer(
-        rootCluster,
-        configService,
-        mainProcessClient.getRuntimeSettings()
-      ),
-    [configService, mainProcessClient, rootCluster]
-  );
+  const canUse = useMemo(() => {
+    const isFeatureFlagEnabled = configService.get(
+      'feature.connectMyComputer'
+    ).value;
+    const hasPermissions = hasConnectMyComputerPermissions(
+      rootCluster,
+      mainProcessClient.getRuntimeSettings()
+    );
+
+    // We check `isAgentConfigured`, because the user should always have access to the agent after configuring it.
+    // https://github.com/gravitational/teleport/blob/master/rfd/0133-connect-my-computer.md#access-to-ui-and-autostart
+    return isFeatureFlagEnabled && (hasPermissions || isAgentConfigured);
+  }, [configService, isAgentConfigured, mainProcessClient, rootCluster]);
 
   const [currentActionKind, setCurrentActionKind] =
     useState<CurrentAction['kind']>('observe-process');
@@ -260,9 +267,6 @@ export const ConnectMyComputerContextProvider: FC<{
     }
   }, [checkIfAgentIsConfigured, isAgentConfiguredAttempt.status]);
 
-  const isAgentConfigured =
-    isAgentConfiguredAttempt.status === 'success' &&
-    isAgentConfiguredAttempt.data;
   const agentIsNotStarted =
     currentAction.kind === 'observe-process' &&
     currentAction.agentProcessState.status === 'not-started';

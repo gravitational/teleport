@@ -43,7 +43,7 @@ jobs:
           private_key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
       # Checkout main branch of shared-workflow repository.
       - name: Checkout shared-workflow
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
