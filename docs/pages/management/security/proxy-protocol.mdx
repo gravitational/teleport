@@ -15,6 +15,12 @@ like Teleport Proxy/Auth.
 L4 load balancers, by design, do not retain the original client's IP address and port when forwarding the connection and 
 PROXY protocol allows to overcome this problem by adding the client's original IP address and port before the actual TCP stream.
 
+An example of the PROXYv1 protocol header:
+
+```text
+PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n
+```
+
 ## Configuring PROXY protocol for Teleport
 
 Teleport Proxy/Auth relies on PROXY protocol to get the client's real IP address when behind an L4 load balancer. 
