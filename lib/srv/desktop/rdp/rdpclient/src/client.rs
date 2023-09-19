@@ -20,10 +20,13 @@ use std::io::Error as IoError;
 use std::net::ToSocketAddrs;
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::oneshot;
 
 // Export this for crate level use.
 pub(crate) use global::call_function_on_handle;
 
+/// The RDP client on the Rust side of things. Each `Client`
+/// corresponds with a Go `Client` specified by `cgo_handle`.
 pub struct Client {
     cgo_handle: CgoHandle,
     rdp_stream: RdpStream,
@@ -43,16 +46,17 @@ impl Client {
     /// (see [`global::call_function_on_handle`]).
     pub fn run(cgo_handle: CgoHandle, params: ConnectParams) -> Result<(), ClientError> {
         global::TOKIO_RT.block_on(async {
-            if let Some(error) = Self::connect(cgo_handle, params)
+            match Self::connect(cgo_handle, params)
                 .await?
                 .register()
                 .run_rdp_loop()
-                .recv()
                 .await
             {
-                Err(error)
-            } else {
-                Ok(())
+                Ok(res) => res,
+                Err(e) => {
+                    error!("failed to receive error: {}", e);
+                    Err(ClientError::InternalError)
+                }
             }
         })
     }
@@ -128,76 +132,63 @@ impl Client {
     ///
     /// The caller is responsible for ensuring that the future spawned by this function
     /// eventually returns. Failure to do so can result in a leak.
-    fn run_rdp_loop(mut self) -> Receiver<ClientError> {
-        let (error_sender, error_receiver) = channel::<ClientError>(1);
+    fn run_rdp_loop(self) -> oneshot::Receiver<Result<(), ClientError>> {
+        let (result_tx, result_rx) = oneshot::channel::<Result<(), ClientError>>();
 
         global::TOKIO_RT.spawn(async move {
-            macro_rules! handle_error {
-                ($err:expr, $error_sender:expr) => {
-                    $error_sender.send($err.into()).await.unwrap_or_else(|_| {
-                        error!("Failed to send error through the channel");
-                    });
-                    return;
-                };
-            }
+            let res = self.run_rdp_loop_internal().await;
+            match result_tx.send(res) {
+                Ok(_) => {}
+                Err(res) => {
+                    error!("failed to send result: {:?}", res)
+                }
+            };
+        });
 
-            macro_rules! handle_function {
-                ($self:expr, $func:ident, $args:expr, $error_sender:expr) => {
-                    if let Err(err) = $self.$func($args).await {
-                        handle_error!(err, $error_sender);
-                    }
-                };
-            }
+        result_rx
+    }
 
-            if let Some(mut function_receiver) = self.function_receiver.take() {
-                loop {
-                    tokio::select! {
-                         res = self.rdp_stream.read_pdu() => {
-                            let (action, mut frame) = match res {
-                                Ok(it) => it,
-                                Err(err) => {
-                                    handle_error!(err, error_sender);
-                                },
-                            };
-                            match action {
-                                ironrdp_pdu::Action::X224 => {
-                                    let result = self.process_x224_frame(&frame).await;
-                                    handle_function!(self, process_active_stage_result, result, error_sender);
-                                },
-                                ironrdp_pdu::Action::FastPath => {
-                                    unsafe {
-                                        handle_remote_fx_frame(self.cgo_handle, frame.as_mut_ptr(), frame.len() as u32);
-                                    }
-                                },
-                            };
-                         }
-                         Some(data) = function_receiver.recv() => {
-                            trace!("received {:?}", data);
-                            match data {
-
-                                ClientFunction::WriteRdpKey(args) => {
-                                    handle_function!(self, write_rdp_key, args, error_sender);
-                                },
-                                ClientFunction::WriteRdpPointer(args) => {
-                                    handle_function!(self, write_rdp_pointer, args, error_sender);
-                                },
-                                ClientFunction::HandleResponsePdu(args) => {
-                                    handle_function!(self, handle_response_pdu, args, error_sender);
-                                },
-                                ClientFunction::Stop => {
-                                    return;
+    async fn run_rdp_loop_internal(mut self) -> Result<(), ClientError> {
+        if let Some(mut function_receiver) = self.function_receiver.take() {
+            loop {
+                tokio::select! {
+                     res = self.rdp_stream.read_pdu() => {
+                        let (action, mut frame) = res?;
+                        match action {
+                            ironrdp_pdu::Action::X224 => {
+                                let result = self.process_x224_frame(&frame).await;
+                                self.process_active_stage_result(result).await?;
+                            },
+                            ironrdp_pdu::Action::FastPath => {
+                                unsafe {
+                                    handle_remote_fx_frame(self.cgo_handle, frame.as_mut_ptr(), frame.len() as u32);
                                 }
+                            },
+                        };
+                     }
+                     Some(data) = function_receiver.recv() => {
+                        trace!("Client received {:?}", data);
+                        match data {
+                            ClientFunction::WriteRdpKey(args) => {
+                                self.write_rdp_key(args).await?;
+                            },
+                            ClientFunction::WriteRdpPointer(args) => {
+                                self.write_rdp_pointer(args).await?;
+                            },
+                            ClientFunction::HandleResponsePdu(args) => {
+                                self.handle_response_pdu(args).await?;
+                            },
+                            ClientFunction::Stop => {
+                                return Ok(());
                             }
                         }
                     }
                 }
-            } else {
-                error!("cannot run rdp loop before the client is registered");
-                handle_error!(ClientError::InternalError, error_sender);
             }
-        });
-
-        error_receiver
+        } else {
+            error!("cannot run rdp loop before the client is registered");
+            Err(ClientError::InternalError)
+        }
     }
 
     async fn process_x224_frame(&mut self, frame: &[u8]) -> SessionResult<Vec<ActiveStageOutput>> {
