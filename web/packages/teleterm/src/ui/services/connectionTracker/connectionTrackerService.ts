@@ -26,6 +26,7 @@ import {
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import * as uri from 'teleterm/ui/uri';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { ImmutableStore } from '../immutableStore';
 
@@ -174,6 +175,8 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
           return s.targetUri === resourceUri;
         case 'connection.kube':
           return s.kubeUri === resourceUri;
+        default:
+          return assertUnreachable(s)
       }
     });
     await Promise.all([
