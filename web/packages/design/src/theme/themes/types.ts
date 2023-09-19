@@ -188,6 +188,7 @@ interface AccessGraphColors {
     reverse: AccessGraphEdgeColors;
     allowed: AccessGraphEdgeColors;
     disallowed: AccessGraphEdgeColors;
+    restricted: AccessGraphEdgeColors;
     default: AccessGraphEdgeColors;
   };
 }

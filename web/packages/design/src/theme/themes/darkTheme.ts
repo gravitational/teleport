@@ -14,7 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { blue, green, orange, pink, purple, red } from 'design/theme/palette';
+import {
+  blue,
+  green,
+  orange,
+  pink,
+  purple,
+  red,
+  yellow,
+} from 'design/theme/palette';
 
 import { lighten } from '../utils/colorManipulator';
 
@@ -205,6 +213,10 @@ const colors: ThemeColors = {
       disallowed: {
         color: red[700],
         stroke: red[300],
+      },
+      restricted: {
+        color: yellow[700],
+        stroke: yellow[900],
       },
       default: {
         color: 'rgba(255, 255, 255, 0.7)',
