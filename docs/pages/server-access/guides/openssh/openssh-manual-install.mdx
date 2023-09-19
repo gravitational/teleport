@@ -33,9 +33,11 @@ In this setup, the Teleport SSH Service performs RBAC checks as well as audits a
   title="Note"
 >
 
-  This guide shows you how to register an OpenSSH node manually, but if you can
-  copy the `teleport` binary onto your OpenSSH node and execute it following the
-  [standard registration guide](openssh.mdx) will be much easier.
+  This guide shows you how to register an OpenSSH node by creating a node resource
+  and configuring OpenSSH to trust the Teleport CA. If you can copy the
+  `teleport` binary onto your OpenSSH node and execute it however, you can follow
+  the [standard registration guide](openssh.mdx) instead which has fewer steps.
+  Teleport is able to preform many of the steps below automatically.
 
 </Admonition>
 
@@ -54,6 +56,28 @@ In this setup, the Teleport SSH Service performs RBAC checks as well as audits a
   but not Teleport. The SSH port on this host must be open to traffic from the
   Teleport Proxy Service host.
 - (!docs/pages/includes/tctl.mdx!)
+
+<Admonition
+  type="tip"
+  title="Upgrading to Teleport 14 and migrating from legacy OpenSSH nodes"
+>
+
+  If you have previously configured OpenSSH nodes to trust a Teleport CA without
+  registering them and you upgrade your Teleport cluster to Teleport 14, you won't
+  be able to connect to them anymore by default. This is because open dialing to
+  OpenSSH servers not registered with the cluster is no longer allowed in Teleport 14.
+  To ensure that you will retain access to your OpenSSH nodes you will need to follow
+  the above guide to register every OpenSSH node with Teleport that you previously
+  configured. This must be done *before* your Teleport cluster is upgraded to Teleport 14.
+
+  If you are having issues registering OpenSSH nodes or need to upgrade your
+  Teleport cluster to Teleport 14 before registering all of your OpenSSH nodes, you can 
+  pass the `TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING` environment variable to your
+  Proxy Service and set it to `yes`. This will allow connections to unregistered
+  OpenSSH nodes but will be removed in Teleport v15.
+
+</Admonition>
+
 
 ## Step 1/5. Add a node resource to your Teleport cluster
 
@@ -516,18 +540,4 @@ $ ssh -F ssh_config_teleport ${USER?}@node2.leafcluster.${CLUSTER}
 
 </Admonition>
 
-### Upgrading to Teleport 14 and migrating from legacy OpenSSH nodes
 
-If you have previously configured OpenSSH nodes to trust a Teleport CA without
-registering them and you upgrade your Teleport cluster to Teleport 14, you won't
-be able to connect to them anymore by default. This is because open dialing to
-OpenSSH servers not registered with the cluster is no longer allowed in Teleport 14.
-To ensure that you will retain access to your OpenSSH nodes you will need to follow
-the above guide to register every OpenSSH node with Teleport that you previously
-configured. This must be done *before* your Teleport cluster is upgraded to Teleport 14.
-
-If you are having issues registering OpenSSH nodes or need to upgrade your
-Teleport cluster to Teleport 14 before registering all of your OpenSSH nodes, you can 
-pass the `TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING` environment variable to your
-Proxy Service and set it to `yes`. This will allow connections to unregistered
-OpenSSH nodes but will be removed in Teleport v15.
