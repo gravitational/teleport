@@ -5,12 +5,12 @@ description: How to use Machine ID to access Kubernetes clusters
 
 (!docs/pages/includes/machine-id/v2-config-warning.mdx!)
 
-In this guide, we will demonstrate how to configure an automated service to use
-Machine ID to access a Kubernetes cluster protected by Teleport.
+Teleport Kubernetes Access protects and controls access to Kubernetes
+clusters. Machine ID can be used to grant machines secure, short-lived
+access to these clusters.
 
-With Machine ID, Teleport issues short-lived certificates, tied to a machine
-identity, that can be rotated, audited, and managed with the same access
-controls that Teleport provides for human users.
+In this guide, you will configure `tbot` to produce credentials that can be
+used to access a cluster configured in Teleport Kubernetes Access.
 
 ## Prerequisites
 
@@ -21,19 +21,14 @@ controls that Teleport provides for human users.
 
 (!docs/pages/includes/machine-id/kubernetes-machineidnote.mdx!)
 
-- If you're not already familiar with Machine ID, follow the
-  [Getting Started Guide](../getting-started.mdx) to familiarize yourself with
-  Machine ID. You'll also need `tctl` access to initially configure the bot.
 - (!docs/pages/includes/tctl.mdx!)
-- Ensure the `tbot` binary is installed on your Machine ID client system.
-  The client system is any system from which you want to access your Teleport
-  cluster and the resources it protects from an automated service. Refer to our
-  [Installation guide](../../installation.mdx) for instructions on installing
-  Teleport, which includes the necessary `tbot` binary.
-- Finally, to interact with the connected Kubernetes cluster, your client system
-will need to have `kubectl` installed. See the
-[Kubernetes documentation](https://kubernetes.io/docs/tasks/tools/) for
-installation instructions.
+- To interact with the connected Kubernetes cluster, your client system
+  will need to have `kubectl` installed. See the
+  [Kubernetes documentation](https://kubernetes.io/docs/tasks/tools/) for
+  installation instructions.
+- `tbot` must already be installed and configured on the machine that will
+  access Kubernetes clusters. For more information, see the
+  [platform guides](../platform-guides.mdx).
 
 ## Step 1/3. Create a Machine ID bot and assign permissions
 

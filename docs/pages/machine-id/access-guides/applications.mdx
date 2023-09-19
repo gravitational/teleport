@@ -5,12 +5,9 @@ description: How to use Machine ID to access Applications
 
 (!docs/pages/includes/machine-id/v2-config-warning.mdx!)
 
-Teleport Application Access secures access to TCP and HTTP applications.
-
-Whilst humans may access these applications via the browser, machines may need
-to access these applications with tools such as `curl`. In order to
-authenticate, the machine will require credentials and Machine ID can be used to
-produce these credentials.
+Teleport Application Access protects and controls access to HTTP and TCP
+applications. Machine ID can be used to grant machines secure, short-lived
+access to these applications.
 
 In this guide, you will configure `tbot` to produce credentials that can be
 used to access an application configured in Teleport Application Access.
@@ -21,9 +18,10 @@ used to access an application configured in Teleport Application Access.
 
 - If you have not already connected your application to Teleport, follow
   the [Application Access Getting Started Guide](../../application-access/getting-started.mdx).
-- `tbot` must be installed and configured for your platform. Follow a
-  [platform guide](../platform-guides.mdx) to do so.
 - (!docs/pages/includes/tctl.mdx!)
+- `tbot` must already be installed and configured on the machine that will
+  access applications. For more information, see the
+  [platform guides](../platform-guides.mdx).
 
 ## Step 1/3. Configure RBAC
 
