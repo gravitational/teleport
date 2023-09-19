@@ -3,4 +3,47 @@ title: Deploying Machine ID on Linux
 description: How to install and configure Machine ID on a Linux host
 ---
 
-TODO
+This page contains relevant background information and specific steps for
+deploying Machine ID on a Linux host.
+
+## Background
+
+### The `token` join method
+
+TODO: Brief overview of how the join method works for this platform.
+
+### Daemon vs Oneshot
+
+TODO: Explain when you'd want to  use a service and when you'd want to use
+oneshot. This guide will show service with systemd - explain choice of service
+supervisor
+
+## Guide
+
+This guide will...
+
+### Before you start
+
+### Step 1/3. Create a role and bot user
+
+(!docs/pages/includes/machine-id/blank-role.mdx!)
+
+Create the bot, specifying the role that you have created:
+
+```code
+$ tctl bots add example --roles example-bot
+```
+
+### Step 2/3. Configure `tbot`
+
+### Step 3/3. Configure Outputs
+
+Follow one of the [access guides](../access-guides.mdx) to configure an output
+that meets your access needs.
+
+## Next steps
+
+- Follow the [access guides](../access-guides.mdx) to finish configuring `tbot` for
+  your environment.
+- Read the [configuration reference](../reference/configuration.mdx) to explore
+  all the available configuration options.
