@@ -1374,6 +1374,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		m := types.GCPMatcher{
 			Types:           matcher.Types,
 			Locations:       matcher.Locations,
+			Labels:          matcher.Labels,
 			Tags:            matcher.Tags,
 			ProjectIDs:      matcher.ProjectIDs,
 			ServiceAccounts: matcher.ServiceAccounts,

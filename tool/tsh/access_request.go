@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
@@ -385,7 +386,7 @@ func onRequestSearch(cf *CLIConf) error {
 
 	// If KubeCluster not provided try to read it from kubeconfig.
 	if cf.KubernetesCluster == "" {
-		cf.KubernetesCluster = selectedKubeCluster(tc.SiteName)
+		cf.KubernetesCluster, _ = kubeconfig.SelectedKubeCluster(getKubeConfigPath(cf, ""), tc.SiteName)
 	}
 	if cf.ResourceKind == types.KindKubePod && cf.KubernetesCluster == "" {
 		return trace.BadParameter("when searching for Pods, --kube-cluster cannot be empty")
@@ -472,7 +473,7 @@ func onRequestSearch(cf *CLIConf) error {
 			resourceIDs = append(resourceIDs, resourceID)
 
 			row = []string{
-				resource.GetName(),
+				common.FormatResourceName(resource, cf.Verbose),
 				r.Spec.Namespace,
 				common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
 				resourceID,
@@ -494,7 +495,7 @@ func onRequestSearch(cf *CLIConf) error {
 				hostName = r.GetHostname()
 			}
 			row = []string{
-				resource.GetName(),
+				common.FormatResourceName(resource, cf.Verbose),
 				hostName,
 				common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
 				resourceID,
