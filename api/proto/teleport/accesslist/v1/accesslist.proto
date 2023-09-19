@@ -138,15 +138,17 @@ message MemberSpec {
 
 // IneligibleStatus describes how the user is ineligible.
 enum IneligibleStatus {
-  // INELIGIBLE_STATUS_UNSPECIFIED means user is eligible.
+  // INELIGIBLE_STATUS_UNSPECIFIED means eligiblity is unknown.
   INELIGIBLE_STATUS_UNSPECIFIED = 0;
+  // INELIGIBLE_STATUS_ELIGIBLE means checks were done and user met all requirements.
+  INELIGIBLE_STATUS_ELIGIBLE = 1;
   // INELIGIBLE_STATUS_USER_NOT_EXIST means user was not found in backend.
-  INELIGIBLE_STATUS_USER_NOT_EXIST = 1;
+  INELIGIBLE_STATUS_USER_NOT_EXIST = 2;
   // INELIGIBLE_STATUS_MISSING_REQUIREMENTS means user is missing some requirements
   // defined by AccessListRequires (fields can be either ownership_requires
   // or membership_requires)
-  INELIGIBLE_STATUS_MISSING_REQUIREMENTS = 2;
+  INELIGIBLE_STATUS_MISSING_REQUIREMENTS = 3;
   // INELIGIBLE_STATUS_EXPIRED means user is expired.
-  // Only members can be expired.
-  INELIGIBLE_STATUS_EXPIRED = 3;
+  // Only applicable to members.
+  INELIGIBLE_STATUS_EXPIRED = 4;
 }
