@@ -29,8 +29,7 @@ By default in a new installation of Teleport `proxy_protocol` is unspecified, us
 - `on`: PROXY protocol is enabled. If a PROXY protocol header is received, it
   will parse the header and extract the client's IP address and port. If the header
   isn't present, it will reject the connection with an error.
-- `off`: PROXY protocol is disabled. If a PROXY protocol header is received, it
-  will reject the connection with an error.
+- `off`: `off`: PROXY Protocol is disabled and forbidden. Any connection with a PROXY protocol header is automatically rejected.
 - `unspecified` - PROXY protocol is allowed, but not required. If a PROXY protocol header is received,
   it will replace the client's source IP address with the one from PROXY header, but source port will be set to `0`.
   If the header isn't present, it will assume the IP address and port are
