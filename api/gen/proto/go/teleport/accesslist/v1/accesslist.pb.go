@@ -278,7 +278,9 @@ type AccessListOwner struct {
 	// name is the username of the owner.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// description is the plaintext description of the owner and why they are an owner.
-	Description      string           `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	// ineligible_status describes if this owner is eligible or not
+	// and if not, describes how they're lacking eligibility.
 	IneligibleStatus IneligibleStatus `protobuf:"varint,3,opt,name=ineligible_status,json=ineligibleStatus,proto3,enum=teleport.accesslist.v1.IneligibleStatus" json:"ineligible_status,omitempty"`
 }
 
@@ -585,7 +587,9 @@ type MemberSpec struct {
 	// reason is the reason this user was added to the access list.
 	Reason string `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
 	// added_by is the user that added this user to the access list.
-	AddedBy          string           `protobuf:"bytes,6,opt,name=added_by,json=addedBy,proto3" json:"added_by,omitempty"`
+	AddedBy string `protobuf:"bytes,6,opt,name=added_by,json=addedBy,proto3" json:"added_by,omitempty"`
+	// ineligible_status describes if this member is eligible or not
+	// and if not, describes how they're lacking eligibility.
 	IneligibleStatus IneligibleStatus `protobuf:"varint,7,opt,name=ineligible_status,json=ineligibleStatus,proto3,enum=teleport.accesslist.v1.IneligibleStatus" json:"ineligible_status,omitempty"`
 }
 

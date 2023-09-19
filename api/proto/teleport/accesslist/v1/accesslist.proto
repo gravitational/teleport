@@ -73,6 +73,8 @@ message AccessListOwner {
   // description is the plaintext description of the owner and why they are an owner.
   string description = 2;
 
+  // ineligible_status describes if this owner is eligible or not
+  // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 3;
 }
 
@@ -133,6 +135,8 @@ message MemberSpec {
   // added_by is the user that added this user to the access list.
   string added_by = 6;
 
+  // ineligible_status describes if this member is eligible or not
+  // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 7;
 }
 
