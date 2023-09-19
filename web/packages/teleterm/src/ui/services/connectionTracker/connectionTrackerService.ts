@@ -167,14 +167,13 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     resourceUri: uri.ResourceUri
   ): Promise<void> {
     const connections = this.getConnections().filter(s => {
-      if (routing.parseServerUri(resourceUri)) {
-        return s.kind === 'connection.server' && s.serverUri === resourceUri;
-      }
-      if (
-        routing.parseDbUri(resourceUri) ||
-        routing.parseKubeUri(resourceUri)
-      ) {
-        return s.kind === 'connection.gateway' && s.targetUri === resourceUri;
+      switch (s.kind) {
+        case 'connection.server':
+          return s.serverUri === resourceUri;
+        case 'connection.gateway':
+          return s.targetUri === resourceUri;
+        case 'connection.kube':
+          return s.kubeUri === resourceUri;
       }
     });
     await Promise.all([
