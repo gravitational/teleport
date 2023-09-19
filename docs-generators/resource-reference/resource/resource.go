@@ -27,8 +27,9 @@ type ReferenceEntry struct {
 // DeclarationInfo includes data about a declaration so the generator can
 // convert it into a ReferenceEntry.
 type DeclarationInfo struct {
-	FilePath string
-	Decl     *ast.GenDecl
+	FilePath    string
+	Decl        *ast.GenDecl
+	PackageName string
 }
 
 type Field struct {
@@ -52,8 +53,10 @@ const (
 // processing. The intention is to limit raw AST handling to as small a part of
 // the source as possible.
 type rawField struct {
-	doc  string
-	kind yamlKindNode
+	// package that declares the field type
+	packageName string
+	doc         string
+	kind        yamlKindNode
 	// Original name of the field
 	name string
 	// Name as it appears in YAML, based on the json tag and json
@@ -217,15 +220,15 @@ func (y yamlCustomType) formatForTable() string {
 
 // getRawTypes returns the type spec to use for further processing. Returns an
 // error if there is either no type spec or more than one.
-func getRawTypes(decl *ast.GenDecl) (rawType, error) {
-	if len(decl.Specs) == 0 {
+func getRawTypes(decl DeclarationInfo) (rawType, error) {
+	if len(decl.Decl.Specs) == 0 {
 		return rawType{}, errors.New("declaration has no specs")
 	}
 
 	// Name the section after the first type declaration found. We expect
 	// there to be one type spec.
 	var t *ast.TypeSpec
-	for _, s := range decl.Specs {
+	for _, s := range decl.Decl.Specs {
 		ts, ok := s.(*ast.TypeSpec)
 		if !ok {
 			continue
@@ -247,7 +250,7 @@ func getRawTypes(decl *ast.GenDecl) (rawType, error) {
 		return rawType{
 			name: t.Name.Name,
 			// Preserving newlines for downstream processing
-			doc:    decl.Doc.Text(),
+			doc:    decl.Decl.Doc.Text(),
 			fields: []rawField{},
 		}, nil
 	}
@@ -255,7 +258,7 @@ func getRawTypes(decl *ast.GenDecl) (rawType, error) {
 	var rawFields []rawField
 
 	for _, field := range str.Fields.List {
-		f, err := makeRawField(field)
+		f, err := makeRawField(field, decl.PackageName)
 
 		if err != nil {
 			return rawType{}, err
@@ -280,7 +283,7 @@ func getRawTypes(decl *ast.GenDecl) (rawType, error) {
 	result := rawType{
 		name: t.Name.Name,
 		// Preserving newlines for downstream processing
-		doc:    decl.Doc.Text(),
+		doc:    decl.Decl.Doc.Text(),
 		fields: rawFields,
 	}
 
@@ -393,8 +396,9 @@ func getYAMLType(field *ast.Field) (yamlKindNode, error) {
 }
 
 // makeRawField translates an *ast.Field into a rawField for downstream
-// processing.
-func makeRawField(field *ast.Field) (rawField, error) {
+// processing. packageName is the name of the package that includes this name in
+// a struct declaration.
+func makeRawField(field *ast.Field, packageName string) (rawField, error) {
 	doc := field.Doc.Text()
 	if len(field.Names) > 1 {
 		return rawField{}, fmt.Errorf("field %+v contains more than one name", field)
@@ -411,12 +415,24 @@ func makeRawField(field *ast.Field) (rawField, error) {
 		return rawField{}, err
 	}
 
+	// Indicate which package declared this field depending on whether the
+	// field's type name includes the name of another package.
+	pkg := packageName
+	s, ok := field.Type.(*ast.SelectorExpr)
+	if ok {
+		i, ok := s.X.(*ast.Ident)
+		if ok {
+			pkg = i.Name
+		}
+	}
+
 	return rawField{
-		doc:      doc,
-		kind:     tn,
-		name:     name,
-		jsonName: getJSONTag(field.Tag.Value),
-		tags:     field.Tag.Value,
+		packageName: pkg,
+		doc:         doc,
+		kind:        tn,
+		name:        name,
+		jsonName:    getJSONTag(field.Tag.Value),
+		tags:        field.Tag.Value,
 	}, nil
 }
 
@@ -472,15 +488,10 @@ const yamlExampleDelimeter string = "Example YAML:\n---\n"
 // NewFromDecl creates a Resource object from the provided *GenDecl. filepath is
 // the Go source file where the declaration was made, and is used only for
 // printing. NewFromDecl uses allResources to look up custom fields.
-func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) ([]ReferenceEntry, error) {
-	rs, err := getRawTypes(decl.Decl)
+func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (map[PackageInfo]ReferenceEntry, error) {
+	rs, err := getRawTypes(decl)
 	if err != nil {
 		return nil, err
-	}
-
-	deps := []PackageInfo{}
-	for _, f := range rs.fields {
-		deps = append(deps, f.kind.customFieldData()...)
 	}
 
 	// Handle example YAML within the declaration's GoDoc.
@@ -505,35 +516,81 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		}
 	}
 
+	// Initialize the return value and insert the root reference entry
+	// provided by decl.
+	refs := make(map[PackageInfo]ReferenceEntry)
 	fld, err := makeFieldTableInfo(rs.fields)
 	if err != nil {
 		return nil, err
 	}
-
 	description = strings.Trim(strings.ReplaceAll(description, "\n", " "), " ")
-
-	refs := []ReferenceEntry{
-		ReferenceEntry{
-			SectionName: makeSectionName(rs.name),
-			Description: descriptionWithoutName(description, rs.name),
-			SourcePath:  decl.FilePath,
-			Fields:      fld,
-			YAMLExample: example,
-		},
+	refs[PackageInfo{
+		TypeName:    rs.name,
+		PackageName: decl.PackageName,
+	}] = ReferenceEntry{
+		SectionName: makeSectionName(rs.name),
+		Description: descriptionWithoutName(description, rs.name),
+		SourcePath:  decl.FilePath,
+		Fields:      fld,
+		YAMLExample: example,
 	}
 
+	// Add embedded struct fields to the root reference entry generarated
+	// from decl.
+	for _, l := range rs.fields {
+		if l.name != "" {
+			continue
+		}
+		c, ok := l.kind.(yamlCustomType)
+		// Not an embedded struct since it's not a custom type
+		if !ok {
+			continue
+		}
+		d, ok := allDecls[PackageInfo{
+			TypeName:    c.name,
+			PackageName: l.packageName,
+		}]
+		if !ok {
+			return nil, fmt.Errorf(
+				"field %v.%v in %v.%v does not have a name",
+				l.packageName,
+				c.name,
+				decl.PackageName,
+				rs.name,
+			)
+		}
+		e, err := NewFromDecl(d, allDecls)
+		if err != nil {
+			return nil, err
+		}
+
+		// TODO: Add the resulting field's fields to the containing
+		// struct
+		// TODO: Add the remaining fields to the containing struct's
+		// deps
+
+	}
+
+	// For any fields within decl that have a custom type, look up the
+	// declaration for that type and create a separate reference entry for
+	// it.
+	deps := []PackageInfo{}
+	for _, f := range rs.fields {
+		deps = append(deps, f.kind.customFieldData()...)
+	}
 	for _, d := range deps {
 		gd, ok := allDecls[d]
 		if !ok {
 			continue
 		}
 		r, err := NewFromDecl(gd, allDecls)
-
 		if err != nil {
 			return nil, err
 		}
 
-		refs = append(refs, r...)
+		for k, v := range r {
+			refs[k] = v
+		}
 	}
 	return refs, nil
 }
