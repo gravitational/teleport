@@ -3,12 +3,17 @@ title: Machine ID with the Teleport Terraform Provider
 description: How to use Machine ID with the Teleport Terraform provider to manage your Teleport configuration as IaC
 ---
 
+Teleports Terraform provider can be used to configure your Teleport cluster
+using Terraform. This Terraform provider requires a way to authenticate with
+Teleport and Machine ID credentials can be used for this purpose.
+
 In this guide, you will configure `tbot` to produce credentials for the Teleport
 Terraform Provider and use Terraform to configure a Teleport role.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - (!docs/pages/includes/tctl.mdx!)
 - [Terraform >= (=terraform.version=)+](https://learn.hashicorp.com/tutorials/terraform/install-cli)
 
