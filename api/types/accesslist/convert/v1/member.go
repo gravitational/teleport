@@ -25,7 +25,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 )
 
-type MemberOption func(*accesslistv1.Member)
+type MemberOption func(*accesslist.AccessListMember)
 
 // FromMemberProto converts a v1 access list member into an internal access list member object.
 func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslist.AccessListMember, error) {
@@ -37,24 +37,21 @@ func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslis
 		return nil, trace.BadParameter("spec is missing")
 	}
 
-	for _, opt := range opts {
-		opt(msg)
-	}
-
-	ineligibleStatus := ""
-	if msg.Spec.IneligibleStatus != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {
-		ineligibleStatus = msg.Spec.IneligibleStatus.Enum().String()
-	}
-
 	member, err := accesslist.NewAccessListMember(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.AccessListMemberSpec{
-		AccessList:       msg.Spec.AccessList,
-		Name:             msg.Spec.Name,
-		Joined:           msg.Spec.Joined.AsTime(),
-		Expires:          msg.Spec.Expires.AsTime(),
-		Reason:           msg.Spec.Reason,
-		AddedBy:          msg.Spec.AddedBy,
-		IneligibleStatus: ineligibleStatus,
+		AccessList: msg.Spec.AccessList,
+		Name:       msg.Spec.Name,
+		Joined:     msg.Spec.Joined.AsTime(),
+		Expires:    msg.Spec.Expires.AsTime(),
+		Reason:     msg.Spec.Reason,
+		AddedBy:    msg.Spec.AddedBy,
+		// Set it to empty as default.
+		// Must provide as options to set it with the provided value.
+		IneligibleStatus: "",
 	})
+
+	for _, opt := range opts {
+		opt(member)
+	}
 
 	return member, trace.Wrap(err)
 }
@@ -100,4 +97,15 @@ func ToMembersProto(members []*accesslist.AccessListMember) []*accesslistv1.Memb
 		out[i] = ToMemberProto(member)
 	}
 	return out
+}
+
+func WithMemberIneligibleStatusField(protoMember *accesslistv1.Member) MemberOption {
+	return func(m *accesslist.AccessListMember) {
+		protoIneligibleStatus := protoMember.GetSpec().GetIneligibleStatus()
+		ineligibleStatus := ""
+		if protoIneligibleStatus != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {
+			ineligibleStatus = protoIneligibleStatus.String()
+		}
+		m.Spec.IneligibleStatus = ineligibleStatus
+	}
 }

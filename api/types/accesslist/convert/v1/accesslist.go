@@ -27,7 +27,7 @@ import (
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 )
 
-type AccessListOption func(*accesslistv1.AccessList)
+type AccessListOption func(*accesslist.AccessList)
 
 // FromProto converts a v1 access list into an internal access list object.
 func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accesslist.AccessList, error) {
@@ -51,20 +51,14 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		return nil, trace.BadParameter("grants is missing")
 	}
 
-	for _, opt := range opts {
-		opt(msg)
-	}
-
 	owners := make([]accesslist.Owner, len(msg.Spec.Owners))
 	for i, owner := range msg.Spec.Owners {
-		ineligibleStatus := ""
-		if owner.IneligibleStatus != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {
-			ineligibleStatus = owner.IneligibleStatus.Enum().String()
-		}
 		owners[i] = accesslist.Owner{
-			Name:             owner.Name,
-			Description:      owner.Description,
-			IneligibleStatus: ineligibleStatus,
+			Name:        owner.Name,
+			Description: owner.Description,
+			// Set it to empty as default.
+			// Must provide as options to set it with the provided value.
+			IneligibleStatus: "",
 		}
 	}
 
@@ -89,6 +83,10 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 			Traits: traitv1.FromProto(msg.Spec.Grants.Traits),
 		},
 	})
+
+	for _, opt := range opts {
+		opt(accessList)
+	}
 
 	return accessList, trace.Wrap(err)
 }
@@ -131,5 +129,21 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 				Traits: traitv1.ToProto(accessList.Spec.Grants.Traits),
 			},
 		},
+	}
+}
+
+func WithOwnersIneligibleStatusField(protoOwners []*accesslistv1.AccessListOwner) AccessListOption {
+	return func(a *accesslist.AccessList) {
+		updatedOwners := make([]accesslist.Owner, len(a.GetOwners()))
+		for i, owner := range a.GetOwners() {
+			protoIneligibleStatus := protoOwners[i].GetIneligibleStatus()
+			ineligibleStatus := ""
+			if protoIneligibleStatus != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {
+				ineligibleStatus = protoIneligibleStatus.String()
+			}
+			owner.IneligibleStatus = ineligibleStatus
+			updatedOwners[i] = owner
+		}
+		a.SetOwners(updatedOwners)
 	}
 }
