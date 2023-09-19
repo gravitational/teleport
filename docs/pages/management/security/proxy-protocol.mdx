@@ -21,11 +21,18 @@ An example of the PROXYv1 protocol header:
 PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n
 ```
 
+## Security
+
+Misconfiguration of the PROXY protocol behavior can lead to security problems. Since the PROXY protocol lacks built-in authentication, 
+a malicious attacker could send falsified custom PROXY protocol headers to spoof the their IP address. To prevent this, you must 
+explicitly configure PROXY protocol settings according to your network setup - if you don't run Teleport behind a L4 load balancer, that
+send PROXY headers, you **must** disable PROXY protocol support on Teleport.
+
 ## Configuring PROXY protocol for Teleport
 
-Teleport Proxy/Auth relies on PROXY protocol to get the client's real IP address when behind an L4 load balancer. 
-However, without proper configuration, there are security concerns. Since the PROXY protocol lacks built-in authentication, 
-a malicious entity could send falsified PROXY protocol headers to spoof the client's IP.
+Teleport Proxy/Auth relies on PROXY protocol to get the client's real IP address when behind a L4 load balancer. Having reliable
+client IP information is important from the security standpoint, because such features as audit logging and IP pinning depend on it and
+if PROXY protocol is not configured correctly, these features will be compromised.
 
 Usage of PROXY protocol in Teleport is controlled by `proxy_protocol` setting in the configuration for both 
 `proxy_service` and `auth_service` sections separately.
@@ -77,5 +84,5 @@ otherwise set it to `off`.
 You can also have Teleport Proxies have different PROXY protocol settings, if you run some of them behind a load balancer and some not, for
 example if you have dedicated Proxies for private and public networks.
 
-Running Teleport behind an L4 load balancer that doesn't send PROXY protocol headers will lead to all incoming connections seemingly
+Running Teleport behind a L4 load balancer that doesn't send PROXY protocol headers will lead to all incoming connections seemingly
 coming from the same IP address from Teleport's point of view, making the audit trail less useful and the IP pinning feature not helpful.
