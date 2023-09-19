@@ -1,0 +1,80 @@
+---
+title: PROXY protocol
+description: How to securely configure PROXY protocol usage with Teleport
+---
+<Admonition type="note" scope={["cloud", "team"]}>
+Users of Teleport Cloud don't need to manage PROXY protocol setting manually. It's set to `on` automatically 
+and can't be changed, since cloud Proxy/Auth services always run behind L4 load balancer with enabled PROXY protocol. 
+</Admonition>
+
+## What is PROXY protocol
+
+The PROXY protocol is a prefix added to the TCP connection containing information about the client IP. 
+It is most commonly used when networking setup includes a Layer 4 (L4) load balancer between the user and the endpoint service,
+like Teleport Proxy/Auth.
+L4 load balancers, by design, do not retain the original client's IP address and port when forwarding the connection and 
+PROXY protocol allows to overcome this problem by adding the client's original IP address and port before the actual TCP stream.
+
+## Configuring PROXY protocol for Teleport
+
+Teleport Proxy/Auth relies on PROXY protocol to get the client's real IP address when behind an L4 load balancer. 
+However, without proper configuration, there are security concerns. Since the PROXY protocol lacks built-in authentication, 
+a malicious entity could send falsified PROXY protocol headers to spoof the client's IP.
+
+Usage of PROXY protocol in Teleport is controlled by `proxy_protocol` setting in the configuration for both 
+`proxy_service` and `auth_service` sections separately.
+
+By default in a new installation of Teleport `proxy_protocol` is unspecified, users can manually set `proxy_protocol` to
+`on` or `off`:
+- `on`: PROXY protocol is enabled. If a PROXY protocol header is received, it
+  will parse the header and extract the client's IP address and port. If the header
+  isn't present, it will reject the connection with an error.
+- `off`: PROXY protocol is disabled. If a PROXY protocol header is received, it
+  will reject the connection with an error.
+- `unspecified` - PROXY protocol is allowed, but not required. If a PROXY protocol header is received,
+  it will replace the client' source IP address with the one from PROXY header, but source port will be set to `0`.
+  If the header isn't present, it will assume the IP address and port are
+  the same as the connection source IP address and port. **This is the default**
+
+Users are encouraged to explicitly set their `proxy_protocol` setting to `on` or `off` mode
+depending on the network setup. **Default unspecified value mode is not suitable for production**, it is only 
+suitable for test environments, in this mode Teleport doesn't not require PROXY prefix for the connection, but will 
+parse it if present. Incoming connections will also be marked by setting source port to `0` and this will be visible 
+in the audit events.
+
+<Admonition type="warning">
+
+IP pinning will not work if `proxy_protocol` setting wasn't explicitly set in the config. Connections that are marked 
+with source port = 0 will be rejected during IP pinning checks.
+
+</Admonition>
+
+Main rule for configuring `proxy_protocol` setting - **If Teleport is running behind a L4 load balancer, that is set to 
+send PROXY protocol headers, you should set `proxy_protocol: on`**.
+
+```yaml
+proxy_service:
+  proxy_protocol: on
+```
+
+Otherwise you should set `proxy_protocol: off`
+
+```yaml
+proxy_service:
+  proxy_protocol: off
+```
+
+You should make sure that Teleport is only accessible through load balancer, if you run it with `proxy_protocol: on`, so malicious 
+users can't spoof their IP address by connecting directly and sending custom PROXY header.
+Teleport only allows one PROXY protocol header for an incoming connection - that makes sure any client connecting through 
+PROXY enabled L4 load balancer will not be able to send their own PROXY header to the connection.
+
+PROXY protocol behavior is controlled separately for Auth service and Proxy service. So you should make sure both have correct 
+setting. If there's PROXY-enabled L4 load balancer between your Proxy and Auth services, you should set `proxy_protocol: on` on the Auth,
+otherwise set it to `off`.
+
+You can also have Teleport Proxies to have different PROXY protocol settings, if you run some of them behind load balancer and some not, for
+example if you have dedicated Proxies for private and public networks.
+
+Running Teleport behind L4 load balancer that doesn't send PROXY protocol headers will lead to all incoming connections seemingly
+coming from the same IP address from Teleport's point of view, making audit trail less useful and IP pinning feature not helpful.
