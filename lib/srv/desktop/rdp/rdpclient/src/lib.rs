@@ -37,7 +37,7 @@ use ironrdp_session::image::DecodedImage;
 use rdp::core::event::*;
 use rdp::model::error::{Error as RdpError, RdpResult};
 
-use client::ConnectParams;
+use client::{call_function_on_handle, ConnectParams};
 use rdpdr::path::UnixPath;
 use rdpdr::tdp::{
     FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryDeleteResponse,
@@ -263,15 +263,12 @@ pub unsafe extern "C" fn client_handle_tdp_sd_move_response(
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
-    index: usize,
+    cgo_handle: CgoHandle,
     res: *mut u8,
     res_len: u32,
-) {
+) -> CGOErrCode {
     let res = from_go_array(res, res_len);
-    if let Some(tx) = client::get_client_handle(index) {
-        tx.blocking_send(ClientFunction::HandleResponsePdu(res))
-            .unwrap();
-    }
+    call_function_on_handle(cgo_handle, ClientFunction::HandleResponsePdu(res))
 }
 
 /// # Safety
@@ -279,11 +276,11 @@ pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn client_write_rdp_pointer(index: usize, pointer: CGOMousePointerEvent) {
-    if let Some(tx) = client::get_client_handle(index) {
-        tx.blocking_send(ClientFunction::WriteRdpPointer(pointer))
-            .unwrap();
-    }
+pub unsafe extern "C" fn client_write_rdp_pointer(
+    cgo_handle: CgoHandle,
+    pointer: CGOMousePointerEvent,
+) -> CGOErrCode {
+    call_function_on_handle(cgo_handle, ClientFunction::WriteRdpPointer(pointer))
 }
 
 /// # Safety
@@ -291,10 +288,11 @@ pub unsafe extern "C" fn client_write_rdp_pointer(index: usize, pointer: CGOMous
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn client_write_rdp_keyboard(index: usize, key: CGOKeyboardEvent) {
-    if let Some(tx) = client::get_client_handle(index) {
-        tx.blocking_send(ClientFunction::WriteRdpKey(key)).unwrap();
-    }
+pub unsafe extern "C" fn client_write_rdp_keyboard(
+    cgo_handle: CgoHandle,
+    key: CGOKeyboardEvent,
+) -> CGOErrCode {
+    call_function_on_handle(cgo_handle, ClientFunction::WriteRdpKey(key))
 }
 
 /// # Safety
@@ -706,6 +704,11 @@ pub(crate) type Messages = Vec<Message>;
 pub(crate) trait Encode: std::fmt::Debug {
     fn encode(&self) -> RdpResult<Message>;
 }
+
+/// A [cgo.Handle] passed to us by Go.
+///
+/// [cgo.Handle]: https://pkg.go.dev/runtime/cgo#Handle
+type CgoHandle = usize;
 
 /// This is the maximum size of an RDP message which we will accept
 /// over a virtual channel.
