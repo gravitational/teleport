@@ -64,10 +64,9 @@ proxy_service:
   proxy_protocol: off
 ```
 
-You should make sure that Teleport is only accessible through load balancer, if you run it with `proxy_protocol: on`, so malicious 
-users can't spoof their IP address by connecting directly and sending custom PROXY header.
-Teleport only allows one PROXY protocol header for an incoming connection - that makes sure any client connecting through 
-PROXY enabled L4 load balancer will not be able to send their own PROXY header to the connection.
+You should make sure that Teleport is only accessible through the load balancer if you run it with `proxy_protocol: on`, so malicious 
+attackers can't spoof their IP address or bypass IP Pinning restrictions by connecting directly and sending a custom PROXY header.
+Teleport only allows one PROXY protocol header for an incoming connection - it will reject requests that include multiple PROXY lines to prevent attacks when `proxy_protocol: on`.
 
 PROXY protocol behavior is controlled separately for Auth service and Proxy service. So you should ensure both have the correct 
 setting. If there's a PROXY-enabled L4 load balancer between your Proxy and Auth services, you should set `proxy_protocol: on` on the Auth,
