@@ -20,6 +20,7 @@ import Indicator from 'design/Indicator';
 
 import * as types from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 import { useConnectMyComputerContext } from './connectMyComputerContext';
 import { DocumentConnectMyComputerStatus } from './DocumentConnectMyComputerStatus/DocumentConnectMyComputerStatus';
@@ -33,6 +34,7 @@ interface DocumentConnectMyComputerProps {
 export function DocumentConnectMyComputer(
   props: DocumentConnectMyComputerProps
 ) {
+  const { documentsService } = useWorkspaceContext();
   const { isAgentConfiguredAttempt } = useConnectMyComputerContext();
   const shouldShowSetup =
     isAgentConfiguredAttempt.status === 'success' &&
@@ -42,12 +44,16 @@ export function DocumentConnectMyComputer(
     return <Indicator m="auto" />;
   }
 
+  function closeDocument(): void {
+    documentsService.close(props.doc.uri);
+  }
+
   return (
     <Document visible={props.visible}>
       {shouldShowSetup ? (
         <DocumentConnectMyComputerSetup />
       ) : (
-        <DocumentConnectMyComputerStatus />
+        <DocumentConnectMyComputerStatus closeDocument={closeDocument} />
       )}
     </Document>
   );

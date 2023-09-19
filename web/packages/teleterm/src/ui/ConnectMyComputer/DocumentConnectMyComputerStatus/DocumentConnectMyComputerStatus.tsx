@@ -53,8 +53,14 @@ import { Logs } from '../Logs';
 import type * as tsh from 'teleterm/services/tshd/types';
 import type { IconProps } from 'design/Icon/Icon';
 
+interface DocumentConnectMyComputerStatusProps {
+  closeDocument?(): void;
+}
+
 // TODO(gzdunek): Rename to `Status`
-export function DocumentConnectMyComputerStatus() {
+export function DocumentConnectMyComputerStatus(
+  props: DocumentConnectMyComputerStatusProps
+) {
   const ctx = useAppContext();
   const {
     currentAction,
@@ -86,7 +92,7 @@ export function DocumentConnectMyComputerStatus() {
     if (error) {
       return;
     }
-    documentsService.close(props.doc.uri);
+    props.closeDocument();
   }
 
   const isRunning =
@@ -165,8 +171,8 @@ export function DocumentConnectMyComputerStatus() {
           }}
         >
           <MenuItem onClick={removeAgentAndClose}>Remove agent</MenuItem>
-          </MenuIcon>
-        </Flex>
+        </MenuIcon>
+      </Flex>
 
       <Transition in={!!agentNode} timeout={1_800} mountOnEnter unmountOnExit>
         {state => (
