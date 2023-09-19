@@ -192,7 +192,7 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
           return;
         }
 
-        if (joinClusterAttempt.statusText !== AgentProcessError.name) {
+        if (!(joinClusterAttempt.error instanceof AgentProcessError)) {
           return <StandardError error={joinClusterAttempt.statusText} />;
         }
 
