@@ -932,6 +932,12 @@ func (s *Server) Addr() string {
 	return s.srv.Addr()
 }
 
+// ActiveConnections returns the number of connections that are
+// being served.
+func (s *Server) ActiveConnections() int32 {
+	return s.srv.ActiveConnections()
+}
+
 // ID returns server ID
 func (s *Server) ID() string {
 	return s.uuid
