@@ -261,16 +261,16 @@ export const ConnectMyComputerContextProvider: FC<{
         } else {
           throw e;
         }
-        ctx.notificationsService.notifyInfo(
-          hasAccessDeniedError
-            ? {
-                title: 'The agent has been removed.',
-                description:
-                  'The corresponding server may still be visible in the cluster for a few more minutes until it gets purged from the cache.',
-              }
-            : 'The agent has been removed.'
-        );
       }
+      ctx.notificationsService.notifyInfo(
+        hasAccessDeniedError
+          ? {
+              title: 'The agent has been removed.',
+              description:
+                'The corresponding server may still be visible in the cluster for a few more minutes until it gets purged from the cache.',
+            }
+          : 'The agent has been removed.'
+      );
 
       // We have to remove connections before removing the agent directory, because
       // we get the node UUID from the that directory.
