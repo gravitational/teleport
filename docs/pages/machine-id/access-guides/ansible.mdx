@@ -18,9 +18,8 @@ You will need the following tools to use Teleport with Ansible.
 
 - Optional: [`jq`](https://stedolan.github.io/jq/) to process `JSON` output
 
-- If you already have not done so, follow the
-  [Machine ID Getting Started Guide](../getting-started.mdx) to create a bot
-  user and start Machine ID.
+- `tbot` must be configured for your platform. Follow a
+  [platform guide](../platform-guides.mdx) to do so.
 
 - If you followed the above guide, note the `--destination-dir=/opt/machine-id`
   flag, which defines the directory where SSH certificates and OpenSSH configuration
@@ -31,7 +30,74 @@ You will need the following tools to use Teleport with Ansible.
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/2. Configure Ansible
+## Step 1/4. Configure RBAC
+
+First, Teleport must be configured to allow the credentials produced by the bot
+to connect to the SSH servers. In this example, access will be granted to all
+SSH hosts for the username `root`.
+
+For production use, you should use labels to restrict this access to only the
+hosts that Ansible will need to access. This is known as the principal of
+least privilege and reduces damage that exfiltrated credentials can do.
+
+If you have followed an access guide, you will have created a role and granted
+the bot the ability to impersonate it already. This role just needs to have the
+additional privileges added to it.
+
+Use `tctl edit role/example-bot` to add the following to the role:
+
+```yaml
+spec:
+  allow:
+    # Allow login to the user 'root'.
+    logins: ['root']
+    # Allow connection to any node. Adjust these labels to match only nodes
+    # that ansible needs to access.
+    node_labels:
+      '*': '*'
+```
+
+## Step 2/4. Configure `tbot` output
+
+Now, `tbot` needs to be configured with an output that will produce the
+credentials and SSH configuration that is needed by Ansible. For SSH,
+we use the `identity` output type.
+
+For this guide, the `directory` destination will be used. This will write these
+credentials to a specified directory on disk. Ensure that this directory can
+be written to by the Linux user that `tbot` runs as, and that it can be read by
+the Linux user that Ansible will run as.
+
+Modify your `tbot` configuration to add an `identity` output:
+
+```yaml
+outputs:
+- type: identity
+  destination:
+    type: directory
+    # For this guide, /opt/machine-id is used as the destination directory.
+    # You may wish to customize this. Multiple outputs cannot share the same
+    # destination.
+    path: /opt/machine-id
+```
+
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode, it must be executed before you attempt to execute the Terraform
+plan later.
+
+You should now see several files under `/opt/machine-id`:
+
+- `ssh_config`: this can be used with Ansible or OpenSSH to configure them to
+use the Teleport Proxy with the correct credentials when making connections.
+- `known_hosts`: this contains the Teleport SSH host CAs and allows the SSH
+client to validate a hosts certificate.
+- `key-cert.pub`: this is an SSH certificate signed by the Teleport SSH user
+CA.
+- `key`: this is the private key needed to use the SSH certificate.
+
+Next, Ansible will be configured to use these files when making connections.
+
+## Step 3/4. Configure Ansible
 
 Create a folder named `ansible` where all Ansible files will be collected.
 
@@ -70,7 +136,7 @@ $ tsh ls --format=json | jq -r '.[].spec.hostname' > hosts
 
 </Details>
 
-## Step 2/2. Run a playbook
+## Step 3/4. Run a playbook
 
 Finally, let's create a simple Ansible playbook, `playbook.yaml`.
 
