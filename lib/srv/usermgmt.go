@@ -206,8 +206,15 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		}, trace.AlreadyExists("User %q already exists", name)
 	}
 
-	groups := make([]string, len(ui.Groups))
-	copy(groups, ui.Groups)
+	groups := make([]string, 0, len(ui.Groups))
+	for _, group := range ui.Groups {
+		if group == name {
+			// this causes an error as useradd expects the group with the same name as the user to be available
+			log.Debugf("Skipping group creation with name the same as login user (%q, %q).", name, group)
+			continue
+		}
+		groups = append(groups, group)
+	}
 	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_DROP {
 		groups = append(groups, types.TeleportServiceGroup)
 	}

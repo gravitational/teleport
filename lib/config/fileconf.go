@@ -103,7 +103,7 @@ type FileConfig struct {
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
 // format is supported
 func ReadFromFile(filePath string) (*FileConfig, error) {
-	f, err := os.Open(filePath)
+	f, err := utils.OpenFileAllowingUnsafeLinks(filePath)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			return nil, trace.Wrap(err, "failed to open file for Teleport configuration: %v. Ensure that you are running as a user with appropriate permissions.", filePath)
@@ -702,8 +702,16 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 			return trace.BadParameter("GCP discovery service project_ids does cannot be empty; please specify at least one value in project_ids.")
 		}
 
-		if len(matcher.Tags) == 0 {
-			matcher.Tags = map[string]apiutils.Strings{
+		if len(matcher.Labels) > 0 && len(matcher.Tags) > 0 {
+			return trace.BadParameter("labels and tags should not both be set.")
+		}
+
+		if len(matcher.Tags) > 0 {
+			matcher.Labels = matcher.Tags
+		}
+
+		if len(matcher.Labels) == 0 {
+			matcher.Labels = map[string]apiutils.Strings{
 				types.Wildcard: {types.Wildcard},
 			}
 		}
@@ -1674,7 +1682,9 @@ type GCPMatcher struct {
 	Types []string `yaml:"types,omitempty"`
 	// Locations are GKE locations to search resources for.
 	Locations []string `yaml:"locations,omitempty"`
-	// Tags are GCP labels to match.
+	// Labels are GCP labels to match.
+	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+	// Tags are an alias for Labels, for backwards compatibility.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 	// ProjectIDs are the GCP project ID where the resources are deployed.
 	ProjectIDs []string `yaml:"project_ids,omitempty"`

@@ -240,11 +240,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Headless WebAuthn (Preview)",
+              "title": "Headless WebAuthn",
               "slug": "/access-controls/guides/headless/"
             },
             {
-              "title": "IP Pinning (Preview)",
+              "title": "IP Pinning ",
               "slug": "/access-controls/guides/ip-pinning/",
               "forScopes": ["enterprise", "cloud"]
             }
@@ -388,6 +388,23 @@
                 "enterprise",
                 "cloud"
               ]
+            }
+          ]
+        },
+        {
+          "title": "Access Lists",
+          "slug": "/access-controls/access-lists/",
+          "forScopes": ["enterprise", "cloud"],
+          "entries": [
+            {
+              "title": "Getting Started with Access Lists",
+              "slug": "/access-controls/access-lists/guide/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Reference",
+              "slug": "/access-controls/access-lists/reference/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
@@ -749,6 +766,24 @@
           "title": "Getting Started",
           "slug": "/application-access/getting-started/"
         },
+	{
+	    "title": "Enroll Kubernetes Applications",
+	    "slug": "/application-access/enroll-kubernetes-applications/",
+	    "entries":[
+		{
+		    "title": "Get Started",
+		    "slug": "/application-access/enroll-kubernetes-applications/get-started/"
+		},
+		{
+		    "title": "Architecture",
+		    "slug": "/application-access/enroll-kubernetes-applications/architecture/"
+		},
+		{
+		    "title": "Reference",
+		    "slug": "/application-access/enroll-kubernetes-applications/reference/"
+		}
+	    ]
+	},
         {
           "title": "Securing Cloud Provider APIs",
           "slug": "/application-access/cloud-apis/",
@@ -816,7 +851,7 @@
           ]
         },
         {
-          "title": "Protect Okta Applications and Groups (Preview)",
+          "title": "Protect Okta Applications and Groups ",
           "slug": "/application-access/okta/",
           "forScopes": ["enterprise", "cloud"],
           "entries": [
@@ -1025,6 +1060,10 @@
               "slug": "/database-access/guides/aws-cross-account/"
             },
             {
+              "title": "AWS Discovery",
+              "slug": "/database-access/guides/aws-discovery/"
+            },
+            {
               "title": "AWS DynamoDB",
               "slug": "/database-access/guides/aws-dynamodb/"
             },
@@ -1152,7 +1191,7 @@
               "slug": "/database-access/rbac/configuring-access/"
             },
             {
-              "title": "Automatic User Provisioning (Preview)",
+              "title": "Automatic User Provisioning ",
               "slug": "/database-access/rbac/configuring-auto-user-provisioning/"
             }
           ]
@@ -1206,7 +1245,7 @@
           "slug": "/desktop-access/introduction/"
         },
         {
-          "title": "Getting Started",
+          "title": "Configure local Windows users",
           "slug": "/desktop-access/getting-started/",
           "forScopes": ["enterprise", "cloud"]
         },

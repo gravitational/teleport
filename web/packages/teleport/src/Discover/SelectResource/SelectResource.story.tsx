@@ -97,7 +97,7 @@ const Provider = ({
   const ctx = createTeleportContext({ customAcl: customAcl });
   const updatePreferences = () => Promise.resolve();
   const preferences: UserPreferences = makeDefaultUserPreferences();
-  preferences.onboard = { preferredResources: resources };
+  preferences.onboard.preferredResources = resources;
 
   return (
     <MemoryRouter

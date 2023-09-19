@@ -2837,6 +2837,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      tc.InsecureSkipVerify,
 		ViaJumpHost:             len(tc.JumpHosts) > 0,
+		PROXYHeaderGetter:       CreatePROXYHeaderGetter(ctx, tc.PROXYSigner),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

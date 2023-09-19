@@ -239,11 +239,14 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
 			ReadHeaderTimeout: apidefaults.DefaultIOTimeout * 2,
-			ReadTimeout:       apidefaults.DefaultIOTimeout,
-			WriteTimeout:      apidefaults.DefaultIOTimeout,
-			IdleTimeout:       apidefaults.DefaultIdleTimeout,
-			TLSConfig:         cfg.TLS,
-			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
+			// Setting ReadTimeout and WriteTimeout will cause the server to
+			// terminate long running requests. This will cause issues with
+			// long running watch streams. The server will close the connection
+			// and the client will receive incomplete data and will fail to
+			// parse it.
+			IdleTimeout: apidefaults.DefaultIdleTimeout,
+			TLSConfig:   cfg.TLS,
+			ConnState:   ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
 			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 				return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
 			},

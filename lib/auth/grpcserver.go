@@ -71,7 +71,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -5378,7 +5377,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all
 	// Enterprise builds would fail with a duplicate service registered error.
-	if modules.GetModules().BuildType() == modules.BuildOSS {
+	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
 		loginrulepb.RegisterLoginRuleServiceServer(server, loginrule.NotImplementedService{})
 	}
 

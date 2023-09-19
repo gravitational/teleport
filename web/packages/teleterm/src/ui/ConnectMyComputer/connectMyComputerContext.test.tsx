@@ -117,7 +117,7 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
   expect(error).toBeInstanceOf(AgentProcessError);
   expect(result.current.currentAction).toStrictEqual({
     kind: 'start',
-    attempt: makeErrorAttempt(AgentProcessError.name),
+    attempt: makeErrorAttempt(new AgentProcessError()),
     agentProcessState: {
       status: 'error',
       message: 'ENOENT',
@@ -229,28 +229,43 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
 describe('canUse', () => {
   const cases = [
     {
-      name: 'should be true when the user has permissions',
+      name: 'should be true when the user has permissions and the feature flag is enabled',
       hasPermissions: true,
+      isFeatureFlagEnabled: true,
       isAgentConfigured: false,
       expected: true,
     },
     {
-      name: 'should be true when the user does not have permissions, but the agent has been configured',
+      name: 'should be true when the user does not have permissions, but the agent has been configured and the feature flag is enabled',
       hasPermissions: false,
+      isFeatureFlagEnabled: true,
       isAgentConfigured: true,
       expected: true,
     },
     {
-      name: 'should be false when the user does not have permissions and the agent has not been configured',
+      name: 'should be false when the user does not have permissions, the agent has not been configured and the feature flag is enabled',
       hasPermissions: false,
       isAgentConfigured: false,
+      isFeatureFlagEnabled: true,
+      expected: false,
+    },
+    {
+      name: 'should be false when the user has permissions and the agent is configured but the feature flag is disabled',
+      hasPermissions: true,
+      isAgentConfigured: true,
+      isFeatureFlagEnabled: false,
       expected: false,
     },
   ];
 
   test.each(cases)(
     '$name',
-    async ({ hasPermissions, isAgentConfigured, expected }) => {
+    async ({
+      hasPermissions,
+      isAgentConfigured,
+      isFeatureFlagEnabled,
+      expected,
+    }) => {
       const { appContext, rootCluster } =
         getMocksWithConnectMyComputerEnabled();
       // update Connect My Computer permissions
@@ -258,6 +273,9 @@ describe('canUse', () => {
         draftState.clusters.get(
           rootCluster.uri
         ).loggedInUser.acl.tokens.create = hasPermissions;
+      });
+      appContext.configService = createMockConfigService({
+        'feature.connectMyComputer': isFeatureFlagEnabled,
       });
       const isAgentConfigFileCreated = Promise.resolve(isAgentConfigured);
       jest
