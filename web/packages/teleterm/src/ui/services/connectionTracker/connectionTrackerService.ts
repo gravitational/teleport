@@ -176,7 +176,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         case 'connection.kube':
           return s.kubeUri === resourceUri;
         default:
-          return assertUnreachable(s)
+          return assertUnreachable(s);
       }
     });
     await Promise.all([
