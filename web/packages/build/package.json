@@ -80,6 +80,7 @@
     "jest": "^27.3.1",
     "jest-styled-components": "^7.0.8",
     "jsdom": "^21.1.0",
+    "jsdom-testing-mocks": "^1.9.0",
     "msw": "^0.47.4",
     "optimist": "^0.6.1",
     "react": "^16.8.4",
