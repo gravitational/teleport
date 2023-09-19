@@ -124,7 +124,7 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 func (e *Engine) connectAsAdminUser(ctx context.Context, sessionCtx *common.Session) (*client.Conn, error) {
 	adminSessionCtx := sessionCtx.WithUserAndDatabase(
 		sessionCtx.Database.GetAdminUser(),
-		defaultDatabase(sessionCtx),
+		defaultSchema(sessionCtx),
 	)
 	conn, err := e.connect(ctx, adminSessionCtx)
 	return conn, trace.Wrap(err)
@@ -159,7 +159,7 @@ func (e *Engine) setupDatabaseForAutoUsers(conn *client.Conn, sessionCtx *common
 	//
 	// To force an update, drop one of the procedures or update the comment:
 	// ALTER PROCEDURE teleport_activate_user COMMENT 'need update'
-	if required, err := isProcedureUpdateRequired(conn, defaultDatabase(sessionCtx), procedureVersion); err != nil {
+	if required, err := isProcedureUpdateRequired(conn, defaultSchema(sessionCtx), procedureVersion); err != nil {
 		return trace.Wrap(err)
 	} else if !required {
 		return nil
@@ -188,15 +188,15 @@ func (e *Engine) setupDatabaseForAutoUsers(conn *client.Conn, sessionCtx *common
 	}))
 }
 
-// defaultDatabase returns the default database to log into as the admin user.
+// defaultSchema returns the default database to log into as the admin user.
 //
-// Use a default database name to make sure procedures are always created and
+// Use a default database/schema to make sure procedures are always created and
 // called from there (and possibly store other data there in the future).
 //
 // This also avoids "No database selected" errors if client doesn't provide
 // one.
-func defaultDatabase(_ *common.Session) string {
-	// Use "mysql" as the default database as all MySQL/mariadb has it.
+func defaultSchema(_ *common.Session) string {
+	// Use "mysql" as the default schema as both MySQL and Mariadb have it.
 	//
 	// TODO consider allowing user to specify the default database through database
 	// definition.
@@ -215,9 +215,9 @@ func maxUsernameLength(conn *client.Conn) int {
 	return mysqlMaxUsernameLength
 }
 
-func maybeHashUsername(username string, maxUsernameLength int) string {
-	if len(username) <= maxUsernameLength {
-		return username
+func maybeHashUsername(teleportUser string, maxUsernameLength int) string {
+	if len(teleportUser) <= maxUsernameLength {
+		return teleportUser
 	}
 
 	// 64 bit hash collision rates:
@@ -225,7 +225,7 @@ func maybeHashUsername(username string, maxUsernameLength int) string {
 	// -  2k entries: 1 in 10 trillion
 	// - 20k entries: 1 in 100 billion
 	hash := fnv.New64()
-	hash.Write([]byte(username))
+	hash.Write([]byte(teleportUser))
 
 	// Use a prefix to identify the user is managed by Teleport.
 	return "teleport-" + hex.EncodeToString(hash.Sum(nil))
@@ -262,12 +262,12 @@ func makeActivateUserDetails(sessionCtx *common.Session, teleportUser string) (s
 	return strings.ReplaceAll(string(json), "\\", "\\\\"), nil
 }
 
-func isProcedureUpdateRequired(conn *client.Conn, wantDatabase, wantVersion string) (bool, error) {
+func isProcedureUpdateRequired(conn *client.Conn, wantSchema, wantVersion string) (bool, error) {
 	// information_schema.routines is accessible for users/roles with EXECUTE
 	// permission.
 	result, err := conn.Execute(fmt.Sprintf(
 		"SELECT ROUTINE_NAME FROM information_schema.routines WHERE ROUTINE_SCHEMA = %q AND ROUTINE_COMMENT = %q",
-		wantDatabase,
+		wantSchema,
 		wantVersion,
 	))
 	if err != nil {
@@ -279,7 +279,7 @@ func isProcedureUpdateRequired(conn *client.Conn, wantDatabase, wantVersion stri
 		return true, nil
 	}
 
-	// Paranoia. make sure the names match.
+	// Paranoia, make sure the names match.
 	foundProcedures := make([]string, 0, result.RowNumber())
 	for row := range result.Values {
 		procedure, err := result.GetString(row, 0)

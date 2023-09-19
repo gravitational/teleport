@@ -8,7 +8,7 @@ proc_label:BEGIN
 
     -- If the user already exists and was provisioned by Teleport, reactivate
     -- it, otherwise provision a new one.
-    SELECT COUNT(TO_USER) INTO is_auto_user FROM mysql.role_edges WHERE FROM_USER = 'teleport-auto-user' AND  TO_USER = username;
+    SELECT COUNT(TO_USER) INTO is_auto_user FROM mysql.role_edges WHERE FROM_USER = 'teleport-auto-user' AND TO_USER = username;
     IF is_auto_user = 1 THEN
         SELECT COUNT(USER) INTO is_active FROM information_schema.processlist WHERE USER = username;
 
@@ -21,9 +21,9 @@ proc_label:BEGIN
         -- Otherwise reactivate the user, but first strip if of all roles to
         -- account for scenarios with left-over roles if database agent crashed
         -- and failed to cleanup upon session termination.
-        call teleport_revoke_roles(username);
+        CALL teleport_revoke_roles(username);
 
-        -- Ensure the user is unlocked. User is locked during deactivation. 
+        -- Ensure the user is unlocked. User is locked at deactivation. 
         SET @sql := CONCAT_WS(' ', 'ALTER USER', QUOTE(username), 'ACCOUNT UNLOCK');
         PREPARE stmt FROM @sql;
         EXECUTE stmt;

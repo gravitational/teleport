@@ -25,6 +25,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -68,6 +70,9 @@ func (a *UserProvisioner) Activate(ctx context.Context, sessionCtx *Session) (fu
 				"your Teleport administrator")
 	}
 
+	// Observe.
+	defer methodCallMetrics("UserProvisioner:Activate", teleport.ComponentDatabase, sessionCtx.Database)()
+
 	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
 	defer cancel()
 
@@ -100,6 +105,9 @@ func (a *UserProvisioner) Deactivate(ctx context.Context, sessionCtx *Session) e
 	if !sessionCtx.AutoCreateUser {
 		return nil
 	}
+
+	// Observe.
+	defer methodCallMetrics("UserProvisioner:Deactivate", teleport.ComponentDatabase, sessionCtx.Database)()
 
 	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
 	defer cancel()

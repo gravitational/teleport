@@ -12,6 +12,6 @@ BEGIN
         EXECUTE stmt;
         DEALLOCATE PREPARE stmt;
 
-        call teleport_revoke_roles(username);
+        CALL teleport_revoke_roles(username);
     END IF;
 END
