@@ -310,3 +310,48 @@ describe('canUse', () => {
     }
   );
 });
+
+test('removing the agent shows a notification', async () => {
+  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+
+  const { result } = renderUseConnectMyComputerContextHook(
+    appContext,
+    rootCluster
+  );
+
+  await act(() => result.current.removeAgent());
+
+  expect(appContext.notificationsService.getNotifications()).toEqual([
+    {
+      id: expect.any(String),
+      severity: 'info',
+      content: 'The agent has been removed.',
+    },
+  ]);
+});
+
+test('when the user does not have permissions to remove node a custom notification is shown', async () => {
+  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+  jest
+    .spyOn(appContext.connectMyComputerService, 'removeConnectMyComputerNode')
+    .mockRejectedValue(new Error('access denied'));
+
+  const { result } = renderUseConnectMyComputerContextHook(
+    appContext,
+    rootCluster
+  );
+
+  await act(() => result.current.removeAgent());
+
+  expect(appContext.notificationsService.getNotifications()).toEqual([
+    {
+      id: expect.any(String),
+      severity: 'info',
+      content: {
+        title: 'The agent has been removed.',
+        description:
+          'The corresponding server may still be visible in the cluster for a few more minutes until it gets purged from the cache.',
+      },
+    },
+  ]);
+});
