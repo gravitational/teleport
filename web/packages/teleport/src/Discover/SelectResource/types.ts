@@ -16,6 +16,8 @@
 
 import { Platform } from 'design/theme/utils';
 
+import { ClusterResource } from 'teleport/services/userPreferences/types';
+
 import { ResourceKind } from '../Shared/ResourceKind';
 
 import type { DiscoverEventResource } from 'teleport/services/userEvent';
@@ -87,3 +89,8 @@ export enum SearchResource {
   KUBERNETES = 'kubernetes',
   SERVER = 'server',
 }
+
+export type PrioritizedResources = {
+  preferredResources: ClusterResource[];
+  hasPreferredResources: boolean;
+};
