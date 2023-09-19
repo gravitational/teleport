@@ -16,40 +16,12 @@
 
 import React from 'react';
 
-import { AwsRegionSelector } from './AwsRegionSelector';
 import { DatabaseList } from './RdsDatabaseList';
 import { CheckedAwsRdsDatabase } from './EnrollRdsDatabase';
 
 export default {
   title: 'Teleport/Discover/Database/EnrollRds',
 };
-
-export const AwsRegionsSelectorDisabled = () => (
-  <AwsRegionSelector
-    onFetch={() => null}
-    onRefresh={() => null}
-    disableSelector={true}
-    clear={() => null}
-  />
-);
-
-export const AwsRegionsSelectorEnabled = () => (
-  <AwsRegionSelector
-    onFetch={() => null}
-    onRefresh={() => null}
-    disableSelector={false}
-    clear={() => null}
-  />
-);
-
-export const AwsRegionsSelectorRefreshEnabled = () => (
-  <AwsRegionSelector
-    onFetch={() => null}
-    onRefresh={() => null}
-    disableSelector={false}
-    clear={() => null}
-  />
-);
 
 export const RdsDatabaseList = () => (
   <DatabaseList
@@ -90,6 +62,7 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'available',
     accountId: '',
     resourceId: '',
+    vpcId: '',
     region: 'us-west-2',
     subnets: ['subnet1', 'subnet2'],
   },
@@ -101,6 +74,7 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'available',
     accountId: '',
     resourceId: '',
+    vpcId: '',
     dbServerExists: true,
     region: 'us-west-2',
     subnets: ['subnet1', 'subnet2'],
@@ -116,6 +90,7 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'deleting',
     accountId: '',
     resourceId: '',
+    vpcId: '',
     region: 'us-west-2',
     subnets: ['subnet1', 'subnet2'],
   },
@@ -127,6 +102,7 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'failed',
     accountId: '',
     resourceId: '',
+    vpcId: '',
     region: 'us-west-2',
     subnets: ['subnet1', 'subnet2'],
   },
@@ -142,6 +118,7 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'Unknown' as any,
     accountId: '',
     resourceId: '',
+    vpcId: '',
     dbServerExists: true,
     region: 'us-west-2',
     subnets: ['subnet1', 'subnet2'],
@@ -154,6 +131,7 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'available',
     accountId: '',
     resourceId: '',
+    vpcId: '',
     region: 'us-west-2',
     subnets: ['subnet1', 'subnet2'],
   },

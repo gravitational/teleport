@@ -286,7 +286,7 @@ Save this role as `member.yaml`:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: member
 spec:
@@ -295,9 +295,10 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
+      - kind: '*'
+        namespace: '*'
+        name: '*'
+        verbs: ['*']
 ```
 
 Create the role:

@@ -14,33 +14,52 @@
  * limitations under the License.
  */
 
-import React, { useState, useLayoutEffect, useRef } from 'react';
-import styled from 'styled-components';
+import React, {
+  useCallback,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from 'react';
+import styled, { css } from 'styled-components';
 
-import { Box, ButtonLink, Flex, Label, Text } from 'design';
+import {
+  Box,
+  ButtonIcon,
+  ButtonLink,
+  Flex,
+  Label,
+  Popover,
+  Text,
+} from 'design';
+import copyToClipboard from 'design/utils/copyToClipboard';
 
+import { ShimmerBox } from 'design/ShimmerBox';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import {
-  ApplicationsIcon,
-  DatabasesIcon,
-  DesktopsIcon,
-  KubernetesIcon,
-  ServersIcon,
-} from 'design/SVGIcon';
+  Copy,
+  Check,
+  Application as ApplicationsIcon,
+  Database as DatabasesIcon,
+  Kubernetes as KubernetesIcon,
+  Server as ServersIcon,
+  Desktop as DesktopsIcon,
+} from 'design/Icon';
 
 import {
   ResourceLabel,
   UnifiedResource,
   UnifiedResourceKind,
 } from 'teleport/services/agents';
+import { Database } from 'teleport/services/databases';
 
 import { ResourceActionButton } from './ResourceActionButton';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
-const labelRowHeight = 26; // px
+const labelRowHeight = 20; // px
 const labelVerticalMargin = 1; // px
-const labelHeight = labelRowHeight - 2 * labelVerticalMargin;
+const labelHeight = labelRowHeight * labelVerticalMargin;
 
 /**
  * This box serves twofold purpose: first, it prevents the underlying icon from
@@ -63,11 +82,17 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   const ResTypeIcon = resourceTypeIcon(resource.kind);
   const description = resourceDescription(resource);
 
-  const labelsInnerContainer = useRef(null);
-
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(false);
   const [numMoreLabels, setNumMoreLabels] = useState(0);
+  const [isNameOverflowed, setIsNameOverflowed] = useState(false);
+
+  const [hovered, setHovered] = useState(false);
+
+  const innerContainer = useRef<Element | null>(null);
+  const labelsInnerContainer = useRef(null);
+  const nameText = useRef<HTMLDivElement | null>(null);
+  const collapseTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
   // This effect installs a resize observer whose purpose is to detect the size
   // of the component that contains all the labels. If this component is taller
@@ -76,6 +101,16 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
     if (!labelsInnerContainer.current) return;
 
     const observer = new ResizeObserver(entries => {
+      // This check will let us know if the name text has overflowed. We do this
+      // to conditionally render a tooltip for only overflowed names
+      if (
+        nameText.current?.scrollWidth >
+        nameText.current?.parentElement.offsetWidth
+      ) {
+        setIsNameOverflowed(true);
+      } else {
+        setIsNameOverflowed(false);
+      }
       const container = entries[0];
 
       // We're taking labelRowHeight * 1.5 just in case some glitch adds or
@@ -108,34 +143,66 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
     };
   });
 
+  // Clear the timeout on unmount to prevent changing a state of an unmounted
+  // component.
+  useEffect(() => () => clearTimeout(collapseTimeout.current), []);
+
   const onMoreLabelsClick = () => {
     setShowAllLabels(true);
   };
 
+  const onMouseLeave = () => {
+    // If the user expanded the labels and then scrolled down enough to hide the
+    // top of the card, we scroll back up and collapse the labels with a small
+    // delay to keep the user from losing focus on the card that they were
+    // looking at. The delay is picked by hand, since there's no (easy) way to
+    // know when the animation ends.
+    if (
+      showAllLabels &&
+      (innerContainer.current?.getBoundingClientRect().top ?? 0) < 0
+    ) {
+      innerContainer.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+      clearTimeout(collapseTimeout.current);
+      collapseTimeout.current = setTimeout(() => setShowAllLabels(false), 700);
+    } else {
+      // Otherwise, we just collapse the labels immediately.
+      setShowAllLabels(false);
+    }
+  };
+
   return (
-    <CardContainer>
+    <CardContainer
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <CardInnerContainer
+        ref={innerContainer}
         p={3}
         alignItems="start"
         showAllLabels={showAllLabels}
-        onMouseLeave={() => setShowAllLabels(false)}
+        onMouseLeave={onMouseLeave}
       >
-        <ResourceIcon
-          name={resIcon}
-          width="45px"
-          height="45px"
-          ml={2}
-          // We would love to just vertical-center-align this one, but then it
-          // would move down along with expanding the labels. So we apply a
-          // carefully measured top margin instead.
-          mt="16px"
-        />
+        <ResourceIcon name={resIcon} width="45px" height="45px" ml={2} />
         {/* MinWidth is important to prevent descriptions from overflowing. */}
         <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
-          <Flex flexDirection="row" alignItems="start">
-            <SingleLineBox flex="1" title={name}>
-              <Text typography="h5">{name}</Text>
+          <Flex flexDirection="row" alignItems="center">
+            <SingleLineBox flex="1">
+              {isNameOverflowed ? (
+                <HoverTooltip tipContent={<>{name}</>}>
+                  <Text ref={nameText} typography="h5" fontWeight={300}>
+                    {name}
+                  </Text>
+                </HoverTooltip>
+              ) : (
+                <Text ref={nameText} typography="h5" fontWeight={300}>
+                  {name}
+                </Text>
+              )}
             </SingleLineBox>
+            {hovered && <CopyButton name={name} />}
             <ResourceActionButton resource={resource} />
           </Flex>
           <Flex flexDirection="row" alignItems="center">
@@ -193,7 +260,73 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   );
 }
 
-function resourceName(resource: UnifiedResource) {
+export function LoadingCard() {
+  function randomNum(min: number, max: number) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  return (
+    <LoadingCardWrapper p={3}>
+      <Flex gap={2} alignItems="start">
+        {/* Image */}
+        <ShimmerBox height="45px" width="45px" />
+        {/* Name and action button */}
+        <Box flex={1}>
+          <Flex gap={2} mb={2} justifyContent="space-between">
+            <ShimmerBox
+              height="24px"
+              css={`
+                flex-basis: ${randomNum(100, 30)}%;
+              `}
+            />
+            <ShimmerBox height="24px" width="90px" />
+          </Flex>
+          <ShimmerBox height="16px" width={`${randomNum(90, 40)}%`} mb={2} />
+          <Box>
+            <Flex gap={2}>
+              {new Array(randomNum(4, 0)).fill(null).map((_, i) => (
+                <ShimmerBox key={i} height="16px" width="60px" />
+              ))}
+            </Flex>
+          </Box>
+        </Box>
+      </Flex>
+    </LoadingCardWrapper>
+  );
+}
+
+function CopyButton({ name }: { name: string }) {
+  const copySuccess = 'Copied!';
+  const copyDefault = 'Click to copy';
+  const copyAnchorEl = useRef(null);
+  const [copiedText, setCopiedText] = useState(copyDefault);
+
+  const handleCopy = useCallback(() => {
+    setCopiedText(copySuccess);
+    copyToClipboard(name);
+    // Change to default text after 1 second
+    setTimeout(() => {
+      setCopiedText(copyDefault);
+    }, 1000);
+  }, [name]);
+
+  return (
+    <HoverTooltip tipContent={<>{copiedText}</>}>
+      <ButtonIcon setRef={copyAnchorEl} size={0} mr={2} onClick={handleCopy}>
+        {copiedText === copySuccess ? (
+          <Check size="small" />
+        ) : (
+          <Copy size="small" />
+        )}
+      </ButtonIcon>
+    </HoverTooltip>
+  );
+}
+
+export function resourceName(resource: UnifiedResource) {
+  if (resource.kind === 'app' && resource.friendlyName) {
+    return resource.friendlyName;
+  }
   return resource.kind === 'node' ? resource.hostname : resource.name;
 }
 
@@ -201,8 +334,8 @@ function resourceDescription(resource: UnifiedResource) {
   switch (resource.kind) {
     case 'app':
       return {
-        primary: resource.addrWithProtocol,
-        secondary: resource.description,
+        primary: resource.description,
+        secondary: resource.addrWithProtocol,
       };
     case 'db':
       return { primary: resource.type, secondary: resource.description };
@@ -211,7 +344,7 @@ function resourceDescription(resource: UnifiedResource) {
     case 'node':
       return {
         primary: resource.subKind || 'SSH Server',
-        secondary: resource.tunnel ? '← tunnel' : resource.addr,
+        secondary: resource.tunnel ? '' : resource.addr,
       };
     case 'windows_desktop':
       return { primary: 'Windows', secondary: resource.addr };
@@ -221,12 +354,31 @@ function resourceDescription(resource: UnifiedResource) {
   }
 }
 
+function databaseIconName(resource: Database): ResourceIconName {
+  switch (resource.protocol) {
+    case 'postgres':
+      return 'Postgres';
+    case 'mysql':
+      return 'MysqlLarge';
+    case 'mongodb':
+      return 'Mongo';
+    case 'cockroachdb':
+      return 'Cockroach';
+    case 'snowflake':
+      return 'Snowflake';
+    case 'dynamodb':
+      return 'Dynamo';
+    default:
+      return 'Database';
+  }
+}
+
 function resourceIconName(resource: UnifiedResource): ResourceIconName {
   switch (resource.kind) {
     case 'app':
-      return 'Application';
+      return resource.guessedAppIconName;
     case 'db':
-      return 'Database';
+      return databaseIconName(resource);
     case 'kube_cluster':
       return 'Kube';
     case 'node':
@@ -272,6 +424,12 @@ const CardContainer = styled(Box)`
   position: relative;
 `;
 
+const elevatedCardMixin = css`
+  background-color: ${props => props.theme.colors.levels.elevated};
+  border-color: ${props => props.theme.colors.levels.elevated};
+  box-shadow: ${props => props.theme.boxShadow[1]};
+`;
+
 /**
  * The inner container that normally holds a regular layout of the card, and is
  * fully contained inside the outer container.  Once the user clicks the "more"
@@ -282,32 +440,88 @@ const CardContainer = styled(Box)`
  * outer container.
  */
 const CardInnerContainer = styled(Flex)`
-  border-top: 2px solid ${props => props.theme.colors.spotBackground[0]};
-  background-color: ${props => props.theme.colors.levels.sunken};
+  background-color: transparent;
+  border: ${props => props.theme.borders[2]}
+    ${props => props.theme.colors.spotBackground[0]};
+  border-radius: ${props => props.theme.radii[3]}px;
 
   ${props =>
-    props.showAllLabels
-      ? 'position: absolute; left: 0; right: 0; z-index: 1;'
-      : ''}
+    props.showAllLabels &&
+    css`
+      position: absolute;
+      left: 0;
+      right: 0;
+      z-index: 1;
+      ${elevatedCardMixin}
+    `}
 
   transition: all 150ms;
 
   ${CardContainer}:hover & {
-    background-color: ${props => props.theme.colors.levels.elevated};
-    border-color: ${props => props.theme.colors.levels.elevated};
-    box-shadow: ${props => props.theme.boxShadow[1]};
-  }
-
-  @media (min-width: ${props => props.theme.breakpoints.tablet}px) {
-    border: ${props => props.theme.borders[2]}
-      ${props => props.theme.colors.spotBackground[0]};
-    border-radius: ${props => props.theme.radii[3]}px;
+    ${elevatedCardMixin}
   }
 `;
 
 const SingleLineBox = styled(Box)`
   overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
+`;
+
+export const HoverTooltip: React.FC<{
+  tipContent: React.ReactElement;
+  fontSize?: number;
+}> = ({ tipContent, fontSize = 10, children }) => {
+  const [anchorEl, setAnchorEl] = useState();
+  const open = Boolean(anchorEl);
+
+  function handlePopoverOpen(event) {
+    setAnchorEl(event.currentTarget);
+  }
+
+  function handlePopoverClose() {
+    setAnchorEl(null);
+  }
+
+  return (
+    <>
+      <span
+        aria-owns={open ? 'mouse-over-popover' : undefined}
+        onMouseEnter={handlePopoverOpen}
+        onMouseLeave={handlePopoverClose}
+      >
+        {children}
+      </span>
+      <Popover
+        modalCss={modalCss}
+        onClose={handlePopoverClose}
+        open={open}
+        anchorEl={anchorEl}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'center',
+        }}
+        transformOrigin={{
+          vertical: 'bottom',
+          horizontal: 'center',
+        }}
+      >
+        <StyledOnHover px={2} py={1} fontSize={`${fontSize}px`}>
+          {tipContent}
+        </StyledOnHover>
+      </Popover>
+    </>
+  );
+};
+
+const modalCss = () => `
+  pointer-events: none;
+`;
+
+const StyledOnHover = styled(Text)`
+  color: ${props => props.theme.colors.text.main};
+  background-color: ${props => props.theme.colors.tooltip.background};
+  max-width: 350px;
 `;
 
 /**
@@ -361,7 +575,14 @@ const MoreLabelsButton = styled(ButtonLink)`
   transition: visibility 0s;
   transition: background 150ms;
 
-  .grv-unified-resource-card:hover & {
+  ${CardContainer}:hover & {
     background-color: ${props => props.theme.colors.levels.elevated};
   }
+`;
+
+const LoadingCardWrapper = styled(Box)`
+  height: 100px;
+  border: ${props => props.theme.borders[2]}
+    ${props => props.theme.colors.spotBackground[0]};
+  border-radius: ${props => props.theme.radii[3]}px;
 `;

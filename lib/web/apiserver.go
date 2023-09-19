@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -141,6 +142,9 @@ type Handler struct {
 	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
 	nodeWatcher *services.NodeWatcher
+
+	// tracer is used to create spans.
+	tracer oteltrace.Tracer
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -169,6 +173,10 @@ func SetClock(clock clockwork.Clock) HandlerOption {
 type proxySettingsGetter interface {
 	GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error)
 }
+
+// PresenceChecker is a function that executes an mfa prompt to enforce
+// that a user is present.
+type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, promptMFA client.PromptMFAFunc, opts ...client.PresenceOption) error
 
 // Config represents web handler configuration parameters
 type Config struct {
@@ -267,6 +275,24 @@ type Config struct {
 	// NodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
 	NodeWatcher *services.NodeWatcher
+
+	// PresenceChecker periodically runs the mfa ceremony for moderated
+	// sessions.
+	PresenceChecker PresenceChecker
+}
+
+// SetDefaults ensures proper default values are set if
+// not provided.
+func (c *Config) SetDefaults() {
+	c.ProxyClient = auth.WithGithubConnectorConversions(c.ProxyClient)
+
+	if c.TracerProvider == nil {
+		c.TracerProvider = tracing.NoopProvider()
+	}
+
+	if c.PresenceChecker == nil {
+		c.PresenceChecker = client.RunPresenceTask
+	}
 }
 
 type APIHandler struct {
@@ -315,13 +341,16 @@ func (h *APIHandler) Close() error {
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
-	cfg.ProxyClient = auth.WithGithubConnectorConversions(cfg.ProxyClient)
+
+	cfg.SetDefaults()
+
 	h := &Handler{
 		cfg:                  cfg,
 		log:                  newPackageLogger(),
 		clock:                clockwork.NewRealClock(),
 		ClusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
+		tracer:               cfg.TracerProvider.Tracer(teleport.ComponentWeb),
 	}
 
 	// Check for self-hosted vs Cloud.
@@ -775,11 +804,15 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.DELETE("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsDelete))
 
 	// AWS OIDC Integration Actions
+	h.GET("/webapi/scripts/integrations/configure/awsoidc-idp.sh", h.WithLimiter(h.awsOIDCConfigureIdP))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
+	h.GET("/webapi/scripts/integrations/configure/listdatabases-iam.sh", h.WithLimiter(h.awsOIDCConfigureListDatabasesIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
 	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
 
 	// AWS OIDC Integration specific endpoints:
@@ -1201,7 +1234,12 @@ func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	}
 
 	go func() {
-		if err := h.cfg.TraceClient.UploadTraces(r.Context(), data.ResourceSpans); err != nil {
+		// Because the uploading happens in a goroutine we cannot use the request scoped context
+		// since it will more than likely get canceled prior to the traces being uploaded. Use
+		// a background context with a lenient timeout to allow for a large number of spans to complete.
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := h.cfg.TraceClient.UploadTraces(ctx, data.ResourceSpans); err != nil {
 			h.log.WithError(err).Error("Failed to upload traces")
 		}
 	}()
@@ -2906,7 +2944,7 @@ func (h *Handler) siteNodeConnect(
 		ParticipantMode:    req.ParticipantMode,
 		PROXYSigner:        h.cfg.PROXYSigner,
 		Tracker:            tracker,
-		Clock:              h.clock,
+		PresenceChecker:    h.cfg.PresenceChecker,
 	}
 
 	term, err := NewTerminal(ctx, terminalConfig)

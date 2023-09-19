@@ -35,7 +35,7 @@ Here is a typical setup that we want to enable by this RFD:
   │
  ┌▼────────────┐
  │Load Balancer◄──┐
- └┬────────────┘  │Reversse tunnel,
+ └┬────────────┘  │Reverse tunnel,
   │               │Join,
   │Web port       │etc.
   │               │
@@ -315,7 +315,7 @@ export KUBECONFIG=<path to kubeconfig>
 
 `tsh proxy kube` should support all flags supported by `tsh kube login` like cluster names, `--as` etc. and can be run
 independently WITHOUT running `tsh kube login` first. If `tsh kube login` has been run perviously, `tsh proxy kube`
-should inherit the flags from the login if they are not specfied during `tsh proxy kube`.
+should inherit the flags from the login if they are not specified during `tsh proxy kube`.
 
 In addition to the cluster names provided to `tsh proxy kube`, the ephemeral kubeconfig should also copy other
 non-Teleport clusters in the default kubeconfig (or `$KUBECONFIG`), so the user does not need to switch between configs
@@ -332,7 +332,7 @@ A new setting is added to the Proxy service for web APIs to take client IPs from
 ```
 proxy_service:
   # Enables the Proxy service to take client source IPs from the
-  # "X-Forwarded-For" headers for web APIs recevied from layer 7 load balancers
+  # "X-Forwarded-For" headers for web APIs received from layer 7 load balancers
   # or reverse proxies.
   # 
   # IMPORTANT: please make sure the service is behind a layer 7 load balancer or
@@ -361,7 +361,7 @@ authentication remains the same as if there is no connection upgrade.
 
 #### 2 - Client source IPs
 
-The premise of the IP Pinning feature is to protect against hackers using comproised credentials from different
+The premise of the IP Pinning feature is to protect against hackers using compromised credentials from different
 locations.
 
 A hacker can easily modify a Teleport client with a fake IP in the "X-Forwarded-For" (XFF) if the Proxy service trusts

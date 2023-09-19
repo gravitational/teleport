@@ -14,7 +14,7 @@ Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 <TabItem scope={["oss", "enterprise"]} label="Teleport Enterprise/Enterprise Cloud">
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
    --proxy=teleport.example.com:443 \
@@ -28,7 +28,7 @@ $ teleport db configure create \
 <TabItem scope={["cloud","team"]} label="Teleport Team/Community Edition">
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
    --proxy=mytenant.teleport.sh:443 \

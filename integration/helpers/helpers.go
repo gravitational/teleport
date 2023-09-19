@@ -333,6 +333,7 @@ func CreatePROXYEnabledListener(ctx context.Context, t *testing.T, address strin
 	return multiplexer.NewPROXYEnabledListener(multiplexer.Config{
 		Listener:            listener,
 		Context:             ctx,
+		PROXYProtocolMode:   multiplexer.PROXYProtocolOff,
 		CertAuthorityGetter: caGetter,
 		LocalClusterName:    clusterName,
 	})

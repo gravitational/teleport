@@ -36,6 +36,9 @@ message AccessList {
 
 // AccessListSpec is the specification for an access list.
 message AccessListSpec {
+  reserved 7;
+  reserved "members";
+
   // description is an optional plaintext description of the access list.
   string description = 1;
 
@@ -57,10 +60,6 @@ message AccessListSpec {
 
   // grants describes the access granted by membership to this access list.
   AccessListGrants grants = 6;
-
-  // members describes the current members of the access list.
-  // TODO(mdwn): Remove this once members are independent objects.
-  repeated AccessListMember members = 7;
 
   // title is a plaintext short description of the access list.
   string title = 8;
@@ -101,25 +100,6 @@ message AccessListGrants {
 
   // traits are the traits that are granted to users who are members of the access list.
   repeated teleport.trait.v1.Trait traits = 2;
-}
-
-// AccessListMember describes a member of an access list.
-// TODO(mdwn): Remove this once members are independent objects.
-message AccessListMember {
-  // name is the name of the member of the access list.
-  string name = 1;
-
-  // joined is when the user joined the access list.
-  google.protobuf.Timestamp joined = 2;
-
-  // expires is when the user's membership to the access list expires.
-  google.protobuf.Timestamp expires = 3;
-
-  // reason is the reason this user was added to the access list.
-  string reason = 4;
-
-  // added_by is the user that added this user to the access list.
-  string added_by = 5;
 }
 
 // Member describes a member of an access list.

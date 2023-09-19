@@ -32,7 +32,8 @@ type ResourceType =
   | 'database'
   | 'desktop'
   | 'kubernetes'
-  | 'server';
+  | 'server'
+  | 'unified_resource';
 
 function getAccentImage(resourceType: ResourceType): string {
   const accentImages = {

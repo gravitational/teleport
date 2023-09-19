@@ -15,6 +15,7 @@
  */
 
 import React, { useMemo } from 'react';
+import { createPortal } from 'react-dom';
 
 import styled from 'styled-components';
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
@@ -34,8 +35,8 @@ import DocumentGateway from 'teleterm/ui/DocumentGateway';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
 import {
   ConnectMyComputerContextProvider,
-  DocumentConnectMyComputerSetup,
-  DocumentConnectMyComputerStatus,
+  DocumentConnectMyComputer,
+  ConnectMyComputerNavigationMenu,
 } from 'teleterm/ui/ConnectMyComputer';
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 
@@ -45,7 +46,9 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 import { WorkspaceContextProvider } from './workspaceContext';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 
-export function DocumentsRenderer() {
+export function DocumentsRenderer(props: {
+  topBarContainerRef: React.MutableRefObject<HTMLDivElement>;
+}) {
   const { workspacesService } = useAppContext();
 
   function renderDocuments(documentsService: DocumentsService) {
@@ -88,6 +91,12 @@ export function DocumentsRenderer() {
               ) : (
                 <KeyboardShortcutsPanel />
               )}
+              {workspace.rootClusterUri ===
+                workspacesService.getRootClusterUri() &&
+                createPortal(
+                  <ConnectMyComputerNavigationMenu />,
+                  props.topBarContainerRef?.current
+                )}
             </ConnectMyComputerContextProvider>
           </WorkspaceContextProvider>
         </DocumentsContainer>
@@ -120,10 +129,8 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentTerminal doc={doc} visible={visible} />;
       case 'doc.access_requests':
         return <DocumentAccessRequests doc={doc} visible={visible} />;
-      case 'doc.connect_my_computer_setup':
-        return <DocumentConnectMyComputerSetup doc={doc} visible={visible} />;
-      case 'doc.connect_my_computer_status':
-        return <DocumentConnectMyComputerStatus doc={doc} visible={visible} />;
+      case 'doc.connect_my_computer':
+        return <DocumentConnectMyComputer doc={doc} visible={visible} />;
       default:
         return (
           <Document visible={visible}>

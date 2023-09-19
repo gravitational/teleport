@@ -143,6 +143,7 @@ func (s *Reporter) Create(ctx context.Context, i Item) (*Lease, error) {
 		ctx,
 		"backend/Create",
 		oteltrace.WithAttributes(
+			attribute.String("revision", i.Revision),
 			attribute.String("key", string(i.Key)),
 		),
 	)
@@ -166,6 +167,7 @@ func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 		ctx,
 		"backend/Put",
 		oteltrace.WithAttributes(
+			attribute.String("revision", i.Revision),
 			attribute.String("key", string(i.Key)),
 		),
 	)
@@ -188,6 +190,7 @@ func (s *Reporter) Update(ctx context.Context, i Item) (*Lease, error) {
 		ctx,
 		"backend/Update",
 		oteltrace.WithAttributes(
+			attribute.String("revision", i.Revision),
 			attribute.String("key", string(i.Key)),
 		),
 	)
@@ -303,6 +306,7 @@ func (s *Reporter) KeepAlive(ctx context.Context, lease Lease, expires time.Time
 		ctx,
 		"backend/KeepAlive",
 		oteltrace.WithAttributes(
+			attribute.String("revision", lease.Revision),
 			attribute.Int64("lease", lease.ID),
 			attribute.String("key", string(lease.Key)),
 		),

@@ -942,6 +942,47 @@ func TestAccessMongoDB(t *testing.T) {
 	}
 }
 
+func TestMongoDBMaxMessageSize(t *testing.T) {
+	ctx := context.Background()
+
+	for name, tt := range map[string]struct {
+		maxMessageSize     uint32
+		messageSize        int
+		expectedQueryError bool
+	}{
+		"default message size": {
+			messageSize: 256,
+		},
+		"message size exceeded": {
+			// Set a value that will enable handshake message to complete
+			// successfully.
+			maxMessageSize:     256,
+			messageSize:        512,
+			expectedQueryError: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tt := tt
+			t.Parallel()
+
+			testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo", mongodb.TestServerMaxMessageSize(tt.maxMessageSize)))
+			testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{"admin"})
+			go testCtx.startHandlingConnections()
+
+			mongoClient, err := testCtx.mongoClient(ctx, "alice", "mongo", "admin")
+			require.NoError(t, err)
+			defer mongoClient.Disconnect(ctx)
+
+			_, err = mongoClient.Database("admin").Collection("test").Find(ctx, bson.M{"largevalue": make([]byte, tt.messageSize)})
+			if tt.expectedQueryError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 // TestAccessDisabled makes sure database access can be disabled via modules.
 func TestAccessDisabled(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
@@ -2066,9 +2107,8 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	testCtx.mux, err = multiplexer.New(multiplexer.Config{
-		ID:                          "test",
-		Listener:                    listener,
-		EnableExternalProxyProtocol: true,
+		ID:       "test",
+		Listener: listener,
 	})
 	require.NoError(t, err)
 

@@ -296,6 +296,22 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "user without access to clusterrole role2",
+			args: args{
+				name:     "role2",
+				kind:     "clusterroles",
+				apiGroup: "rbac.authorization.k8s.io",
+				resources: []types.KubernetesResource{
+					{
+						Kind:  types.KindKubeClusterRole,
+						Name:  "role",
+						Verbs: []string{types.Wildcard},
+					},
+				},
+			},
+			want: false,
+		},
+		{
 			name: "user check clusterrole access with empty role name",
 			args: args{
 				name:     "",
@@ -326,6 +342,22 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				},
 			},
 			want: false,
+		},
+		{
+			name: "user tries to check a specific pod when he holds a namespace resource",
+			args: args{
+				name:      "pod-1",
+				kind:      "pods",
+				namespace: "namespace-1",
+				resources: []types.KubernetesResource{
+					{
+						Kind:  types.KindKubeNamespace,
+						Name:  "namespace-1",
+						Verbs: []string{types.Wildcard},
+					},
+				},
+			},
+			want: true,
 		},
 	}
 

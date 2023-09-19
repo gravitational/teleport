@@ -16,7 +16,7 @@
 
 import React, { useState } from 'react';
 
-import { Box, ButtonLink, ButtonPrimary, Text } from 'design';
+import { Box, ButtonLink, ButtonPrimary, Text, Card } from 'design';
 
 import { OnboardCard } from 'design/Onboard/OnboardCard';
 
@@ -27,9 +27,9 @@ export default {
 };
 
 const singleFlow = { default: [Body1, Body2] };
-export const SingleStaticFlow = () => {
+export const SingleFlowInPlaceSlider = () => {
   return (
-    <>
+    <Card my="5" mx="auto" width={464}>
       <Text typography="h3" pt={5} textAlign="center" color="text.main">
         Static Title
       </Text>
@@ -38,7 +38,7 @@ export const SingleStaticFlow = () => {
         currFlow={'default'}
         testProp="I'm that test prop"
       />
-    </>
+    </Card>
   );
 };
 
@@ -50,7 +50,7 @@ const multiflows = {
   primary: [MainStep1, MainStep2, FinalStep],
   secondary: [OtherStep1, FinalStep],
 };
-export const MultiCardFlow = () => {
+export const MultiFlowWheelSlider = () => {
   const [flow, setFlow] = useState<MultiFlow>('primary');
   const [newFlow, setNewFlow] = useState<NewFlow<MultiFlow>>();
 
@@ -233,7 +233,7 @@ function Body1({
   testProp,
 }: StepComponentProps & { testProp: string }) {
   return (
-    <OnboardCard ref={refCallback} data-testid="single-body1">
+    <Box p={6} ref={refCallback} data-testid="single-body1">
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua.
@@ -259,7 +259,7 @@ function Body1({
           Back1
         </ButtonLink>
       </Box>
-    </OnboardCard>
+    </Box>
   );
 }
 
@@ -270,7 +270,7 @@ function Body2({
   testProp,
 }: StepComponentProps & { testProp: string }) {
   return (
-    <OnboardCard ref={refCallback} data-testid="single-body2">
+    <Box p={6} ref={refCallback} data-testid="single-body2">
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
@@ -302,6 +302,6 @@ function Body2({
           Next2
         </ButtonLink>
       </Box>
-    </OnboardCard>
+    </Box>
   );
 }

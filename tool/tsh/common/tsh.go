@@ -362,12 +362,6 @@ type CLIConf struct {
 
 	// LocalProxyPort is a port used by local proxy listener.
 	LocalProxyPort string
-	// LocalProxyCertFile is the client certificate used by local proxy.
-	// DEPRECATED DELETE IN 14.0
-	LocalProxyCertFile string
-	// LocalProxyKeyFile is the client key used by local proxy.
-	// DEPRECATED DELETE IN 14.0
-	LocalProxyKeyFile string
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
 	LocalProxyTunnel bool
 
@@ -786,7 +780,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsRecordings.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&cf.ToUTC)
 	lsRecordings.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxRecordingsToShow)
 	lsRecordings.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&cf.recordingsSince)
-	exportRecordings := recordings.Command("export", "Export recorded desktop sesions to video.")
+	exportRecordings := recordings.Command("export", "Export recorded desktop sessions to video.")
 	exportRecordings.Flag("out", "Override output file name").StringVar(&cf.OutFile)
 	exportRecordings.Arg("session-id", "ID of the session to export").Required().StringVar(&cf.SessionID)
 
@@ -799,9 +793,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	proxyDB.Arg("db", "The name of the database to start local proxy for").StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
-	// --cert-file and --key-file are deprecated in favor of --tunnel flag.
-	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").Hidden().StringVar(&cf.LocalProxyCertFile)
-	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").Hidden().StringVar(&cf.LocalProxyKeyFile)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
 	proxyDB.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
 	proxyDB.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
@@ -2508,28 +2499,17 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		}
 	}
 
-	// Watch for resolution events on the given request. Start watcher and wait
-	// for it to be ready before creating the request to avoid a potential race.
-	requestWatcher := newAccessRequestWatcher(req)
-	defer requestWatcher.Close()
-	if !cf.NoWait {
-		// Don't initialize the watcher unless we'll actually use it.
-		if err := requestWatcher.initialize(cf.Context, tc); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	// Upsert request if it doesn't already exist.
 	if cf.RequestID == "" {
-		cf.RequestID = req.GetName()
 		fmt.Fprint(os.Stdout, "Creating request...\n")
 		// always create access request against the root cluster
 		if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-			err := clt.CreateAccessRequest(cf.Context, req)
+			req, err = clt.CreateAccessRequestV2(cf.Context, req)
 			return trace.Wrap(err)
 		}); err != nil {
 			return trace.Wrap(err)
 		}
+		cf.RequestID = req.GetName()
 	}
 
 	onRequestShow(cf)
@@ -2542,13 +2522,12 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 
 	// Wait for the request to be resolved.
 	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
-	resolvedReq, err := requestWatcher.awaitResolution()
-	if err != nil {
+
+	var resolvedReq types.AccessRequest
+	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+		resolvedReq, err = awaitRequestResolution(cf.Context, clt, req)
 		return trace.Wrap(err)
-	}
-	if err := requestWatcher.Close(); err != nil {
-		// This was deferred above to catch all other error cases, here we
-		// actually handle any errors from requestWatcher.Close().
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3132,7 +3111,8 @@ func accessRequestForSSH(ctx context.Context, _ *CLIConf, tc *client.TeleportCli
 	req.SetDryRun(true)
 	req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
 	if err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
-		return trace.Wrap(clt.CreateAccessRequest(ctx, req))
+		req, err = clt.CreateAccessRequestV2(ctx, req)
+		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3183,18 +3163,11 @@ func retryWithAccessRequest(
 	}
 	req.SetRequestReason(requestReason)
 
-	// Watch for resolution events on the given request. Start watcher and wait
-	// for it to be ready before creating the request to avoid a potential race.
-	requestWatcher := newAccessRequestWatcher(req)
-	defer requestWatcher.Close()
-	if err := requestWatcher.initialize(cf.Context, tc); err != nil {
-		return trace.Wrap(err)
-	}
-
 	fmt.Fprint(os.Stdout, "Creating request...\n")
 	// Always create access request against the root cluster.
 	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		return trace.Wrap(clt.CreateAccessRequest(cf.Context, req))
+		req, err = clt.CreateAccessRequestV2(cf.Context, req)
+		return trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -3208,13 +3181,11 @@ func retryWithAccessRequest(
 
 	// Wait for the request to be resolved.
 	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
-	resolvedReq, err := requestWatcher.awaitResolution()
-	if err != nil {
+	var resolvedReq types.AccessRequest
+	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+		resolvedReq, err = awaitRequestResolution(cf.Context, clt, req)
 		return trace.Wrap(err)
-	}
-	if err := requestWatcher.Close(); err != nil {
-		// This was deferred above to catch all other error cases, here we
-		// actually handle any errors from requestWatcher.Close().
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4356,50 +4327,12 @@ func host(in string) string {
 	return out
 }
 
-// accessRequestWatcher is a helper to wait for an access request to be resolved.
-type accessRequestWatcher struct {
-	req     types.AccessRequest
-	watcher types.Watcher
-	closers []io.Closer
-	sync.RWMutex
-}
-
-// newAccessRequestWatcher returns a new accessRequestWatcher. Callers should
-// always defer (*accessRequestWatcher).Close().
-func newAccessRequestWatcher(req types.AccessRequest) *accessRequestWatcher {
-	return &accessRequestWatcher{
-		req: req,
-	}
-}
-
-// initialize sets up the underlying event watcher, when this returns without
-// error the watcher is guaranteed to be in a ready state. Call this before
-// creating the request to prevent a race.
-func (w *accessRequestWatcher) initialize(ctx context.Context, tc *client.TeleportClient) error {
-	w.Lock()
-	defer w.Unlock()
-
-	if w.watcher != nil {
-		return trace.BadParameter("cannot re-initialize accessRequestWatcher")
-	}
-
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	w.closers = append(w.closers, proxyClient)
-
-	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	w.closers = append(w.closers, rootClient)
-
+func awaitRequestResolution(ctx context.Context, clt auth.ClientI, req types.AccessRequest) (types.AccessRequest, error) {
 	filter := types.AccessRequestFilter{
-		User: w.req.GetUser(),
-		ID:   w.req.GetName(),
+		User: req.GetUser(),
+		ID:   req.GetName(),
 	}
-	w.watcher, err = rootClient.NewWatcher(ctx, types.Watch{
+	watcher, err := clt.NewWatcher(ctx, types.Watch{
 		Name: "await-request-approval",
 		Kinds: []types.WatchKind{{
 			Kind:   types.KindAccessRequest,
@@ -4407,75 +4340,49 @@ func (w *accessRequestWatcher) initialize(ctx context.Context, tc *client.Telepo
 		}},
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	w.closers = append(w.closers, w.watcher)
+	defer watcher.Close()
 
 	// Wait for OpInit event so that returned watcher is ready.
 	select {
-	case event := <-w.watcher.Events():
+	case event := <-watcher.Events():
 		if event.Type != types.OpInit {
-			return trace.BadParameter("failed to watch for access requests: received an unexpected event while waiting for the initial OpInit")
+			return nil, trace.BadParameter("failed to watch for access requests: received an unexpected event while waiting for the initial OpInit")
 		}
-	case <-w.watcher.Done():
-		return trace.Wrap(w.watcher.Error())
-	case <-ctx.Done():
-		// This should be the same as w.watcher.Done(), including for completeness.
-		return trace.Wrap(ctx.Err())
+	case <-watcher.Done():
+		return nil, trace.Wrap(watcher.Error())
 	}
 
-	return nil
-}
-
-// awaitResolution waits for the request to be resolved (state != PENDING).
-func (w *accessRequestWatcher) awaitResolution() (types.AccessRequest, error) {
-	w.RLock()
-	defer w.RUnlock()
-
-	if w.watcher == nil {
-		return nil, trace.BadParameter("must initialize accessRequestWatcher before calling awaitResolution()")
+	// get initial state of request
+	reqState, err := services.GetAccessRequest(ctx, clt, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	for {
+		if !reqState.GetState().IsPending() {
+			return reqState, nil
+		}
+
 		select {
-		case event := <-w.watcher.Events():
+		case event := <-watcher.Events():
 			switch event.Type {
 			case types.OpPut:
-				r, ok := event.Resource.(*types.AccessRequestV3)
+				var ok bool
+				reqState, ok = event.Resource.(*types.AccessRequestV3)
 				if !ok {
 					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
-				}
-				if !r.GetState().IsPending() {
-					return r, nil
 				}
 			case types.OpDelete:
 				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
 			default:
 				log.Warnf("Skipping unknown event type %s", event.Type)
 			}
-		case <-w.watcher.Done():
-			return nil, trace.Wrap(w.watcher.Error())
+		case <-watcher.Done():
+			return nil, trace.Wrap(watcher.Error())
 		}
 	}
-}
-
-// Close closes the clients held by the watcher.
-func (w *accessRequestWatcher) Close() error {
-	var errs []error
-	// Close in reverse order, like defer.
-	w.RLock()
-	for i := len(w.closers) - 1; i >= 0; i-- {
-		errs = append(errs, w.closers[i].Close())
-	}
-	w.RUnlock()
-
-	// Closed the watcher above, awaitResolution should now terminate and we can
-	// grab the lock.
-	w.Lock()
-	w.closers = nil
-	w.Unlock()
-
-	return trace.NewAggregate(errs...)
 }
 
 func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest) error {

@@ -33,7 +33,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -135,7 +134,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		proxySigner:     cfg.PROXYSigner,
 		participantMode: cfg.ParticipantMode,
 		tracker:         cfg.Tracker,
-		clock:           cfg.Clock,
+		presenceChecker: cfg.PresenceChecker,
 	}, nil
 }
 
@@ -178,8 +177,8 @@ type TerminalHandlerConfig struct {
 	// Tracker is the session tracker of the session being joined. May be nil
 	// if the user is not joining a session.
 	Tracker types.SessionTracker
-	// Clock used for presence checking.
-	Clock clockwork.Clock
+	// PresenceChecker used for presence checking.
+	PresenceChecker PresenceChecker
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -282,8 +281,8 @@ type TerminalHandler struct {
 	// if the user is not joining a session.
 	tracker types.SessionTracker
 
-	// clock to use for presence checking
-	clock clockwork.Clock
+	// presenceChecker to use for presence checking
+	presenceChecker PresenceChecker
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -752,7 +751,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				if err := client.RunPresenceTask(ctx, out, t.authProvider, t.sessionData.ID.String(), promptMFAChallenge(t.stream.WSStream, protobufMFACodec{}), client.WithPresenceClock(t.clock)); err != nil {
+				if err := t.presenceChecker(ctx, out, t.authProvider, t.sessionData.ID.String(), promptMFAChallenge(t.stream.WSStream, protobufMFACodec{})); err != nil {
 					t.log.WithError(err).Warn("Unable to stream terminal - failure performing presence checks")
 					return
 				}
@@ -1109,14 +1108,20 @@ func (t *TerminalStream) handleWindowResize(ctx context.Context, envelope Envelo
 		return
 	}
 
-	var e map[string]string
+	var e map[string]interface{}
 	err := json.Unmarshal([]byte(envelope.Payload), &e)
 	if err != nil {
 		t.log.Warnf("Failed to parse resize payload: %v", err)
 		return
 	}
 
-	params, err := session.UnmarshalTerminalParams(e["size"])
+	size, ok := e["size"].(string)
+	if !ok {
+		t.log.Errorf("expected size to be of type string, got type %T instead", size)
+		return
+	}
+
+	params, err := session.UnmarshalTerminalParams(size)
 	if err != nil {
 		t.log.Warnf("Failed to retrieve terminal size: %v", err)
 		return
