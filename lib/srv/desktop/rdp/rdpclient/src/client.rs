@@ -19,11 +19,12 @@ use parking_lot::RwLock;
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
 use static_init::dynamic;
 use tokio::net::TcpStream as TokioTcpStream;
-use tokio::sync::mpsc;
+use tokio::sync::broadcast::error::SendError;
 use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    handle_remote_fx_frame, CGOErrCode, CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton,
+    handle_remote_fx_frame, CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton,
     CGOPointerWheel,
 };
 
@@ -45,15 +46,16 @@ pub fn connect(cgo_ref: usize, params: ConnectParams) {
     let (tdp_sender, tdp_reader) = mpsc::channel(100);
     let (frame_sender, mut frame_reader) = mpsc::channel(100);
     add_channels(cgo_ref, tdp_sender);
+    let (res_tx, res_rx) = oneshot::channel();
     TOKIO_RT.spawn(async move {
-        if let Err(e) = inner_connect(params, tdp_reader, frame_sender).await {
-            error!("inner_connect error: {:?}", e);
-        }
+        let res = inner_connect(params, tdp_reader, frame_sender).await;
         CHANNELS.write().remove(&cgo_ref);
+        res_tx.send(res)
     });
     while let Some(mut frame) = frame_reader.blocking_recv() {
         unsafe { handle_remote_fx_frame(cgo_ref, frame.as_mut_ptr(), frame.len() as u32) }
     }
+    let res = res_rx.blocking_recv().expect("recv should always work");
 }
 
 async fn inner_connect(
@@ -106,29 +108,24 @@ async fn inner_connect(
                 let (action, mut frame) = res?;
                 match action {
                     ironrdp_pdu::Action::X224 => {
-                        let result =
-                            process_x224_frame(&mut x224_processor, &frame).await;
-                        process_active_stage_result(&mut upgraded_framed, result).await.map_err(|e|{
-                                error!("process_stage_result {:?}", e);
-                                ConnectError::Rdp(RdpError::InvalidSecurityHeader)
-                            })?;
+                        let outputs =
+                        process_x224_frame(&mut x224_processor, &frame).await?;
+                        process_active_stage_result(&mut upgraded_framed, outputs).await?;
                     },
-                    ironrdp_pdu::Action::FastPath => {
-                            frame_sender.send(frame).await;
-                    },
+                    ironrdp_pdu::Action::FastPath => frame_sender.send(frame).await?,
                 };
              }
              Some(data) = tdp_reader.recv() => {
                 match data {
                     TdpMessage::Key(p) => {
-                        write_rdp_key(&mut upgraded_framed, p).await;
+                        write_rdp_key(&mut upgraded_framed, p).await?;
                     }
                     TdpMessage::Pointer(p) => {
-                        write_rdp_pointer(&mut upgraded_framed, p).await;
+                        write_rdp_pointer(&mut upgraded_framed, p).await?;
                     },
                     TdpMessage::PDU(res) => {
-                        let output = Ok(vec![ActiveStageOutput::ResponseFrame(res)]);
-                        process_active_stage_result(&mut upgraded_framed, output).await;
+                        let output = vec![ActiveStageOutput::ResponseFrame(res)];
+                        process_active_stage_result(&mut upgraded_framed, output).await?;
                     },
                     _ => {}
                 }
@@ -256,21 +253,14 @@ async fn process_x224_frame(
 /// Typically returns Ok(()) if everything goes as expected and the session should continue.
 async fn process_active_stage_result(
     writer: &mut Framed<TokioStream<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>>,
-    result: SessionResult<Vec<ActiveStageOutput>>,
-) -> Result<(), CGOErrCode> {
-    let outputs = result.map_err(|_| CGOErrCode::ErrCodeFailure)?;
+    outputs: Vec<ActiveStageOutput>,
+) -> Result<(), ConnectError> {
     for output in outputs {
         match output {
-            ActiveStageOutput::ResponseFrame(response) => {
-                writer
-                    .write_all(&response)
-                    .await
-                    .map_err(|_| CGOErrCode::ErrCodeFailure)?;
-            }
-            ActiveStageOutput::Terminate => return Err(CGOErrCode::ErrCodeSuccess),
+            ActiveStageOutput::ResponseFrame(response) => writer.write_all(&response).await?,
+            ActiveStageOutput::Terminate => return Err(ConnectError::Terminate),
             ActiveStageOutput::GraphicsUpdate(_) => {
-                error!("unexpected GraphicsUpdate, this should be handled on the client side");
-                return Err(CGOErrCode::ErrCodeFailure);
+                return Err(ConnectError::UnexpectedGraphicUpdate)
             }
             _ => {}
         }
@@ -295,9 +285,11 @@ pub struct ConnectParams {
 pub enum ConnectError {
     Tcp(IoError),
     Rdp(RdpError),
-    SessionError(SessionError),
-    //todo(isaiah): reconsider error typing
-    ConnectorError(ConnectorError),
+    Session(SessionError),
+    Connector(ConnectorError),
+    Terminate,
+    UnexpectedGraphicUpdate,
+    Send(mpsc::error::SendError<BytesMut>),
 }
 
 impl From<IoError> for ConnectError {
@@ -314,6 +306,18 @@ impl From<RdpError> for ConnectError {
 
 impl From<ConnectorError> for ConnectError {
     fn from(value: ConnectorError) -> Self {
-        ConnectError::ConnectorError(value)
+        ConnectError::Connector(value)
+    }
+}
+
+impl From<SessionError> for ConnectError {
+    fn from(value: SessionError) -> Self {
+        ConnectError::Session(value)
+    }
+}
+
+impl From<mpsc::error::SendError<BytesMut>> for ConnectError {
+    fn from(value: mpsc::error::SendError<BytesMut>) -> Self {
+        ConnectError::Send(value)
     }
 }

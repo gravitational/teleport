@@ -104,11 +104,7 @@ pub unsafe extern "C" fn client_connect(cgo_ref: usize, params: CGOConnectParams
 /// data MUST be a valid pointer.
 /// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
 #[no_mangle]
-pub unsafe extern "C" fn client_update_clipboard(
-    cgo_ref: usize,
-    data: *mut u8,
-    len: u32,
-) -> CGOErrCode {
+pub extern "C" fn client_update_clipboard(cgo_ref: usize, data: *mut u8, len: u32) -> CGOErrCode {
     warn!("unimplemented: client_update_clipboard");
     CGOErrCode::ErrCodeSuccess
 }
@@ -124,7 +120,7 @@ pub unsafe extern "C" fn client_update_clipboard(
 ///
 /// sd_announce.name MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_announce(
+pub extern "C" fn client_handle_tdp_sd_announce(
     cgo_ref: usize,
     sd_announce: CGOSharedDirectoryAnnounce,
 ) -> CGOErrCode {
@@ -142,7 +138,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_announce(
 ///
 /// res.fso.path MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_info_response(
+pub extern "C" fn client_handle_tdp_sd_info_response(
     cgo_ref: usize,
     res: CGOSharedDirectoryInfoResponse,
 ) -> CGOErrCode {
@@ -158,7 +154,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_info_response(
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
+pub extern "C" fn client_handle_tdp_sd_create_response(
     cgo_ref: usize,
     res: CGOSharedDirectoryCreateResponse,
 ) -> CGOErrCode {
@@ -174,7 +170,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
+pub extern "C" fn client_handle_tdp_sd_delete_response(
     cgo_ref: usize,
     res: CGOSharedDirectoryDeleteResponse,
 ) -> CGOErrCode {
@@ -194,7 +190,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
 ///
 /// each res.fso_list[i].path MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_list_response(
+pub extern "C" fn client_handle_tdp_sd_list_response(
     cgo_ref: usize,
     res: CGOSharedDirectoryListResponse,
 ) -> CGOErrCode {
@@ -209,7 +205,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_list_response(
 ///
 /// client_ptr must be a valid pointer
 #[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_read_response(
+pub extern "C" fn client_handle_tdp_sd_read_response(
     cgo_ref: usize,
     res: CGOSharedDirectoryReadResponse,
 ) -> CGOErrCode {
@@ -224,7 +220,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_read_response(
 ///
 /// client_ptr must be a valid pointer
 #[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
+pub extern "C" fn client_handle_tdp_sd_write_response(
     cgo_ref: usize,
     res: CGOSharedDirectoryWriteResponse,
 ) -> CGOErrCode {
@@ -240,7 +236,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_move_response(
+pub extern "C" fn client_handle_tdp_sd_move_response(
     cgo_ref: usize,
     res: CGOSharedDirectoryMoveResponse,
 ) -> CGOErrCode {
@@ -275,7 +271,7 @@ pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn client_write_rdp_pointer(index: usize, pointer: CGOMousePointerEvent) {
+pub extern "C" fn client_write_rdp_pointer(index: usize, pointer: CGOMousePointerEvent) {
     if let Some(tx) = client::get_channels(index) {
         tx.blocking_send(TdpMessage::Pointer(pointer)).unwrap();
     }
@@ -286,7 +282,7 @@ pub unsafe extern "C" fn client_write_rdp_pointer(index: usize, pointer: CGOMous
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn client_write_rdp_keyboard(index: usize, key: CGOKeyboardEvent) {
+pub extern "C" fn client_write_rdp_keyboard(index: usize, key: CGOKeyboardEvent) {
     if let Some(tx) = client::get_channels(index) {
         tx.blocking_send(TdpMessage::Key(key)).unwrap();
     }
@@ -296,7 +292,7 @@ pub unsafe extern "C" fn client_write_rdp_keyboard(index: usize, key: CGOKeyboar
 ///
 /// client_ptr must be a valid pointer to a Client.
 #[no_mangle]
-pub unsafe extern "C" fn client_close_rdp(cgo_reg: usize) -> CGOErrCode {
+pub extern "C" fn client_close_rdp(cgo_reg: usize) -> CGOErrCode {
     warn!("unimplemented: client_close_rdp");
     CGOErrCode::ErrCodeSuccess
 }

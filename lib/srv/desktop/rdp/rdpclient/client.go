@@ -504,16 +504,14 @@ func (c *Client) start() {
 					}
 				}
 			case tdp.RDPResponsePDU:
-				pduLen := uint32(len(m))
+				pduLen := C.uint32_t(len(m))
 				if pduLen == 0 {
 					c.cfg.Log.Error("response PDU empty")
 					return
 				}
-				rdpResponsePDU := (*C.uint8_t)(unsafe.SliceData(m))
+				rdpResponsePDU := (*C.uint8_t)(&m[0])
 
-				C.client_handle_tdp_rdp_response_pdu(
-					C.ulong(c.handle), rdpResponsePDU, C.uint32_t(pduLen),
-				)
+				C.client_handle_tdp_rdp_response_pdu(C.ulong(c.handle), rdpResponsePDU, pduLen)
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
 			}
