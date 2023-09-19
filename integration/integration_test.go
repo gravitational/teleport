@@ -184,6 +184,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
+	t.Run("LeafProxySessionRecording", suite.bind(testLeafProxySessionRecording))
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
 	t.Run("JoinOverReverseTunnelOnly", suite.bind(testJoinOverReverseTunnelOnly))
 	t.Run("SFTP", suite.bind(testSFTP))
@@ -1134,6 +1135,112 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 			})
 		})
 	}
+}
+
+func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
+	rootRecCfg, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtNode,
+	})
+	require.NoError(t, err)
+
+	leafRecCfg, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtProxy,
+	})
+	require.NoError(t, err)
+
+	rootTC, root, _ := createTrustedClusterPair(t, suite, nil, func(cfg *servicecfg.Config, isRoot bool) {
+		auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+			AuditSessionsURI: t.TempDir(),
+		})
+		require.NoError(t, err)
+
+		cfg.Auth.Enabled = true
+		cfg.Auth.AuditConfig = auditConfig
+		cfg.Proxy.Enabled = true
+		cfg.SSH.Enabled = true
+
+		cfg.Auth.SessionRecordingConfig = leafRecCfg
+		if isRoot {
+			cfg.Auth.SessionRecordingConfig = rootRecCfg
+		}
+	})
+	ctx := context.Background()
+
+	tc, err := root.NewClient(helpers.ClientConfig{
+		Login:   suite.Me.Username,
+		Cluster: "leaf-test",
+		Host:    "leaf-zero:0",
+	})
+	require.NoError(t, err)
+
+	clt, err := tc.ConnectToCluster(ctx)
+	require.NoError(t, err)
+
+	term := NewTerminal(250)
+	errCh := make(chan error)
+
+	tc.Stdout = term
+	tc.Stdin = term
+
+	go func() {
+		nodeClient, err := tc.ConnectToNode(
+			ctx,
+			clt,
+			client.NodeDetails{Addr: "leaf-zero:0", Namespace: tc.Namespace, Cluster: clt.ClusterName()},
+			tc.Config.HostLogin,
+		)
+		assert.NoError(t, err)
+
+		errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil)
+		assert.NoError(t, nodeClient.Close())
+	}()
+
+	authSrv := root.Process.GetAuthServer()
+	var sessionID string
+	require.Eventually(t, func() bool {
+		trackers, err := authSrv.GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+		if len(trackers) == 1 {
+			sessionID = trackers[0].GetSessionID()
+			return true
+		}
+		return false
+	}, time.Second*5, time.Millisecond*100)
+
+	// Send stuff to the session.
+	term.Type("echo Hello\n\r")
+
+	// Guarantee the session hasn't stopped after typing.
+	select {
+	case <-errCh:
+		require.Fail(t, "session was closed before")
+	default:
+	}
+
+	// Wait for the session to terminate without error.
+	term.Type("exit\n\r")
+	require.NoError(t, waitForError(errCh, 5*time.Second))
+
+	var uploaded bool
+	timeoutC := time.After(10 * time.Second)
+	for !uploaded {
+		select {
+		case event := <-root.UploadEventsC:
+			if event.SessionID == sessionID {
+				uploaded = true
+			}
+		case <-timeoutC:
+			require.Fail(t, "timeout waiting for session recording to be uploaded")
+		}
+	}
+
+	require.Eventually(t, func() bool {
+		events, err := rootTC.GetSessionEvents(ctx, defaults.Namespace, sessionID)
+		if err == nil && len(events) != 0 {
+			return true
+		}
+		return false
+	}, time.Second*5, time.Millisecond*200)
 }
 
 // TestCustomReverseTunnel tests that the SSH node falls back to configured
@@ -7300,7 +7407,9 @@ outer:
 	t.FailNow()
 }
 
-func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *helpers.TeleInstance, *helpers.TeleInstance)) (*client.TeleportClient, *helpers.TeleInstance, *helpers.TeleInstance) {
+type serviceCfgOpt func(cfg *servicecfg.Config, isRoot bool)
+
+func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *helpers.TeleInstance, *helpers.TeleInstance), cfgOpts ...serviceCfgOpt) (*client.TeleportClient, *helpers.TeleInstance, *helpers.TeleInstance) {
 	ctx := context.Background()
 	username := suite.Me.Username
 	name := "test"
@@ -7339,18 +7448,32 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSession},
+					Verbs: []string{
+						types.VerbList,
+						types.VerbRead,
+					},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
 	root.AddUserWithRole(username, role)
 	leaf.AddUserWithRole(username, role)
 
-	makeConfig := func() (*testing.T, []*helpers.InstanceSecrets, *servicecfg.Config) {
+	makeConfig := func(isRoot bool) (*testing.T, []*helpers.InstanceSecrets, *servicecfg.Config) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
 		tconf.SSH.Enabled = false
 		tconf.CachePolicy.MaxRetryPeriod = time.Millisecond * 500
+
+		for _, opt := range cfgOpts {
+			opt(tconf, isRoot)
+		}
+
 		return t, nil, tconf
 	}
 
@@ -7358,8 +7481,8 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(oldInsecure)
 
-	require.NoError(t, root.CreateEx(makeConfig()))
-	require.NoError(t, leaf.CreateEx(makeConfig()))
+	require.NoError(t, root.CreateEx(makeConfig(true)))
+	require.NoError(t, leaf.CreateEx(makeConfig(false)))
 	require.NoError(t, leaf.Process.GetAuthServer().UpsertRole(ctx, role))
 
 	// Connect leaf to root.
@@ -7614,7 +7737,8 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 
 func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 	for _, proxyProtocolMode := range []multiplexer.PROXYProtocolMode{
-		multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff, multiplexer.PROXYProtocolUnspecified} {
+		multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff, multiplexer.PROXYProtocolUnspecified,
+	} {
 		t.Run(fmt.Sprintf("proxy protocol mode: %v", proxyProtocolMode), func(t *testing.T) {
 			lib.SetInsecureDevMode(true)
 			t.Cleanup(func() { lib.SetInsecureDevMode(false) })
