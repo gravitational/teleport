@@ -1,5 +1,4 @@
 pub mod global;
-use self::global::{deregister, register, tokio_block_on, tokio_spawn, FunctionReceiver};
 use crate::{
     handle_remote_fx_frame, CGOErrCode, CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton,
     CGOPointerWheel, CgoHandle,
@@ -20,7 +19,7 @@ use sspi::network_client::reqwest_network_client::RequestClientFactory;
 use std::io::Error as IoError;
 use std::net::ToSocketAddrs;
 use tokio::net::TcpStream as TokioTcpStream;
-use tokio::sync::mpsc::{channel, Receiver};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 // Export this for crate level use.
 pub(crate) use global::call_function_on_handle;
@@ -36,11 +35,14 @@ impl Client {
     /// Connects a new client to the RDP server specified by `params` and starts the session.
     ///
     /// After creating the connection, this function registers the newly made Client with
-    /// the global client handle map, and creates a task for reading frames from the  RDP
-    /// server and sending them back to Go, and receiving function calls via the client handle
-    /// map and executing them.
+    /// the [`global::ClientHandles`] map, and creates a task for reading frames from the  RDP
+    /// server and sending them back to Go, and receiving function calls via [`global::call_function_on_handle`]
+    /// and executing them.
+    ///
+    /// This function hangs until the RDP session ends or a [`ClientFunction::Stop`] is dispatched
+    /// (see [`global::call_function_on_handle`]).
     pub fn run(cgo_handle: CgoHandle, params: ConnectParams) -> Result<(), ClientError> {
-        tokio_block_on(async {
+        global::TOKIO_RT.block_on(async {
             if let Some(error) = Self::connect(cgo_handle, params)
                 .await?
                 .register()
@@ -104,11 +106,15 @@ impl Client {
         })
     }
 
-    /// Registers the Client with the global client handle map, setting the
-    /// Client's function_receiver in the process.
+    /// Registers the Client with the [`global::CLIENT_HANDLES`] cache.
+    ///
+    /// This constitutes creating a new [`ClientHandle`]/[`FunctionReceiver`] pair,
+    /// storing the [`ClientHandle`] (indexed by `self.cgo_handle`) in [`global::CLIENT_HANDLES`],
+    /// and assigning the [`FunctionReceiver`] to `self.function_receiver`.
     fn register(mut self) -> Self {
-        let function_receiver = Some(register(&mut self));
-        self.function_receiver = function_receiver;
+        let (client_handle, function_receiver) = channel(100);
+        global::CLIENT_HANDLES.insert(self.cgo_handle, client_handle);
+        self.function_receiver = Some(function_receiver);
         self
     }
 
@@ -118,11 +124,14 @@ impl Client {
     ///    which it then executes.
     ///
     /// Returns immediately with a receiver which callers are expected to listen
-    /// on in case of any errors, or until a ClientFunction::Stop is received.
+    /// on in case of any errors, or until a [`ClientFunction::Stop`] is received.
+    ///
+    /// The caller is responsible for ensuring that the future spawned by this function
+    /// eventually returns. Failure to do so can result in a leak.
     fn run_rdp_loop(mut self) -> Receiver<ClientError> {
         let (error_sender, error_receiver) = channel::<ClientError>(1);
 
-        tokio_spawn(async move {
+        global::TOKIO_RT.spawn(async move {
             macro_rules! handle_error {
                 ($err:expr, $error_sender:expr) => {
                     $error_sender.send($err.into()).await.unwrap_or_else(|_| {
@@ -304,7 +313,7 @@ impl Client {
 
 impl Drop for Client {
     fn drop(&mut self) {
-        deregister(self.cgo_handle);
+        global::CLIENT_HANDLES.remove(self.cgo_handle)
     }
 }
 
@@ -319,8 +328,18 @@ pub enum ClientFunction {
     WriteRdpKey(CGOKeyboardEvent),
     /// Corresponds to [`Client::handle_response_pdu`]
     HandleResponsePdu(Vec<u8>),
+    /// Causes the looping future spawned by run_rdp_loop to return
     Stop,
 }
+
+/// `ClientHandle` is used to dispatch [`ClientFunction`]s calls
+/// to a corresponding [`FunctionReceiver`] on a `Client`.
+type ClientHandle = Sender<ClientFunction>;
+
+/// Each `Client` has a `FunctionReceiver` that it listens to for
+/// incoming [`ClientFunction`] calls sent via its corresponding
+/// [`ClientHandle`].
+pub type FunctionReceiver = Receiver<ClientFunction>;
 
 type RdpStream = Framed<TokioStream<TlsStream<TokioTcpStream>>>;
 

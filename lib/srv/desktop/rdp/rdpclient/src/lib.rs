@@ -60,10 +60,12 @@ pub extern "C" fn init() {
     env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {e}"));
 }
 
-/// client_run establishes an RDP connection with the provided `params`.
-/// If the call succeeds, the client is internally registered in the global
-/// client handle map. When done with the connection, the caller must call
-/// [`client_stop`]. Failure to do so may result in a memory leak.
+/// client_run establishes an RDP connection with the provided `params`
+/// and executes the RDP session, hanging until the session ends.
+///
+/// Sessions can end due to an error, or the caller can end the session
+/// manually by calling [`client_stop`]. Failure to end a session can
+/// result in a memory leak.
 ///
 /// # Safety
 ///
