@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 
 import { Box } from 'design';
-import { Attempt } from 'shared/hooks/useAsync';
+import { Attempt, makeErrorAttempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
 import { makeGateway } from 'teleterm/services/tshd/testHelpers';
@@ -67,12 +67,9 @@ function makeProps(): ClusterLoginPresentationProps {
   };
 }
 
-export const Error = () => {
+export const Err = () => {
   const props = makeProps();
-  props.initAttempt = {
-    status: 'error',
-    statusText: 'some error message',
-  };
+  props.initAttempt = makeErrorAttempt(new Error('some error message'));
 
   return (
     <TestContainer>
