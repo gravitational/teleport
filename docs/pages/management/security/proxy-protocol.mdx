@@ -35,17 +35,14 @@ By default in a new installation of Teleport `proxy_protocol` is unspecified, us
 - `on`: PROXY Protocol is enabled and mandatory. If a PROXY
   protocol header is received, Teleport will parse the header and extract the client's IP
   address and port. If the header isn't present, it will reject the connection with an error.
-- `off`: `off`: PROXY Protocol is disabled and forbidden. Any connection with a PROXY protocol header is automatically rejected.
-- `unspecified` - PROXY protocol is allowed, but not required. If a PROXY protocol header is received,
-  it will replace the client's source IP address with the one from PROXY header, but source port will be set to `0`.
-  If the header isn't present, it will assume the IP address and port are
-  the same as the connection source IP address and port. **This is the default**
+- `off`: PROXY Protocol is disabled and forbidden. Any connection with a PROXY protocol header is automatically rejected.
 
 Users are encouraged to explicitly set their `proxy_protocol` setting to `on` or `off` mode
 depending on the network setup. **Default unspecified value mode is not suitable for production**, it is only 
-suitable for test environments, in this mode Teleport doesn't not require PROXY prefix for the connection, but will 
-parse it if present. Incoming connections will also be marked by setting source port to `0` and this will be visible 
-in the audit events.
+suitable for test environments. If `proxy_protocol` is unspecified Teleport does not require PROXY header for the connection, but will 
+parse it if present, client's source IP address will be replaced with the one from PROXY header and this address will appear in
+the audit events. Incoming connections with PROXY header will also be marked by setting source port to `0` and this will be visible 
+in the audit events as well.
 
 <Admonition type="warning">
 
