@@ -311,7 +311,7 @@ Teleport clients will also store a self-signed metadata-containing certificate. 
 
 ```bash
 > tsh login
-Certificate in YubiKey PIV slot "9a" is not a Teleport client cert:
+certificate in YubiKey PIV slot "9a" is not a Teleport client cert:
 Slot 9a:
   Algorithm:  ECCP256
   Subject DN: CN=SSH key
@@ -320,6 +320,24 @@ Slot 9a:
   Fingerprint:  1ce4faf8bdbfc9668a9f532c20b03ccf1dbadcd06b51f235aeb3fe388bb1703b
   Not before: 2022-08-19 01:10:14
   Not after:  2064-08-19 01:10:14
+Would you like to overwrite this slot's private key and certificate? (y/N):
+```
+
+##### Custom slot configuration
+
+To support non-standard use cases, users can also provide a specific PIV slot to use via client or server settings:
+
+* `tsh` flag/envvar: `--piv-slot`, `TELEPORT_PIV_SLOT`
+* server settings: `auth_service.authentication.piv_slot`
+* cluster auth preference settings: `cluster_auth_preference.spec.piv_slot`
+
+This value can be set to the hexadecimal string representing the slot, such as `9d`. Any existing key in the slot will be used. If no key exists, the Teleport Client will attempt to generate a key in the slot. If the key does not meet the private key policy requirement for the user, the client will display an error to the user and prompt them to overwrite the slot.
+
+If the key does not meet the private key policy requirement for the user, the user will be prompted to overwrite the slot:
+
+```bash
+> tsh --piv-slot=9a login
+private key in YubiKey PIV slot "9a" does not meet private key policy "hardware_key_touch".
 Would you like to overwrite this slot's private key and certificate? (y/N):
 ```
 
