@@ -419,6 +419,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Log:         log,
 		AccessLists: services,
 		Access:      services,
+		UsageEvents: &as,
 		Clock:       cfg.Clock,
 	})
 	if err != nil {
