@@ -51,32 +51,36 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 		PrivateKeyPolicyHardwareKey,
 		PrivateKeyPolicyHardwareKeyTouch,
 	} {
-		t.Run(fmt.Sprintf("policy:%q", policy), func(t *testing.T) {
-			t.Cleanup(func() { resetYubikey(ctx, t) })
+		for _, slot := range []string{"", "9a"} {
+			t.Run(fmt.Sprintf("policy:%q", policy), func(t *testing.T) {
+				t.Run(fmt.Sprintf("slot:%q", slot), func(t *testing.T) {
+					t.Cleanup(func() { resetYubikey(ctx, t) })
 
-			// GetYubiKeyPrivateKey should generate a new YubiKeyPrivateKey.
-			priv, err := GetOrGenerateYubiKeyPrivateKey(policy == PrivateKeyPolicyHardwareKeyTouch)
-			require.NoError(t, err)
+					// GetYubiKeyPrivateKey should generate a new YubiKeyPrivateKey.
+					priv, err := GetOrGenerateYubiKeyPrivateKey(policy == PrivateKeyPolicyHardwareKeyTouch)
+					require.NoError(t, err)
 
-			// test HardwareSigner methods
-			require.Equal(t, policy, priv.GetPrivateKeyPolicy())
-			require.NotNil(t, priv.GetAttestationStatement())
+					// test HardwareSigner methods
+					require.Equal(t, policy, priv.GetPrivateKeyPolicy())
+					require.NotNil(t, priv.GetAttestationStatement())
 
-			// Test Sign.
-			digest := []byte{100}
-			_, err = priv.Sign(rand.Reader, digest, nil)
-			require.NoError(t, err)
+					// Test Sign.
+					digest := []byte{100}
+					_, err = priv.Sign(rand.Reader, digest, nil)
+					require.NoError(t, err)
 
-			// Another call to GetYubiKeyPrivateKey should retrieve the previously generated key.
-			retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(policy == PrivateKeyPolicyHardwareKeyTouch)
-			require.NoError(t, err)
-			require.Equal(t, priv.Public(), retrievePriv.Public())
+					// Another call to GetYubiKeyPrivateKey should retrieve the previously generated key.
+					retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(policy == PrivateKeyPolicyHardwareKeyTouch)
+					require.NoError(t, err)
+					require.Equal(t, priv.Public(), retrievePriv.Public())
 
-			// parsing the key's private key PEM should produce the same key as well.
-			retrievePriv, err = ParsePrivateKey(priv.PrivateKeyPEM())
-			require.NoError(t, err)
-			require.Equal(t, priv.Public(), retrievePriv.Public())
-		})
+					// parsing the key's private key PEM should produce the same key as well.
+					retrievePriv, err = ParsePrivateKey(priv.PrivateKeyPEM())
+					require.NoError(t, err)
+					require.Equal(t, priv.Public(), retrievePriv.Public())
+				})
+			})
+		}
 	}
 }
 
@@ -138,7 +142,7 @@ func TestOverwritePrompt(t *testing.T) {
 		require.NoError(t, err)
 		touchRequiredSlot, err := getDefaultKeySlot(PrivateKeyPolicyHardwareKeyTouch)
 		require.NoError(t, err)
-		err = y.generatePrivateKey(touchRequiredSlot, PrivateKeyPolicyHardwareKey)
+		err = y.generatePrivateKey(ctx, touchRequiredSlot, PrivateKeyPolicyHardwareKey)
 		require.NoError(t, err)
 
 		testOverwritePrompt(t)
