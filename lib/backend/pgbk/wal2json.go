@@ -17,6 +17,7 @@ package pgbk
 import (
 	"bytes"
 	"encoding/hex"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -242,4 +243,16 @@ func (w *wal2jsonMessage) toastCol(name string) *wal2jsonColumn {
 		return c
 	}
 	return w.oldCol(name)
+}
+
+// wal2jsonEscape turns a schema or table name into a form suitable for use in
+// wal2json's filter-tables or add-tables option, by prepending a backslash to
+// each character.
+func wal2jsonEscape(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		b.WriteRune('\\')
+		b.WriteRune(r)
+	}
+	return b.String()
 }
