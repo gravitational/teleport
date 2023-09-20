@@ -688,6 +688,13 @@ You will need a YubiKey 4.3+ to test this feature.
 
 This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-ent-v11.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
+#### Unit Tests
+
+Hardware Key support tests depend on a YubiKey directly and so cannot be run by CI. Run the tests manually and follow the interactive prompts.
+
+- [ ] `TELEPORT_TEST_YUBIKEY_PIV=yes go test github.com/gravitational/teleport/api/utils/keys -tags "piv" -v`
+- [ ] `TELEPORT_TEST_YUBIKEY_PIV=yes go test github.com/gravitational/teleport/e/lib/hardwarekey -tags "piv" -v`
+
 #### Server Access
 
 These tests should be carried out sequentially. `tsh` tests should be carried out on Linux, MacOS, and Windows.
