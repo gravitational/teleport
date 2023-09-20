@@ -80,7 +80,7 @@ export function CompatibilityError(): JSX.Element {
     $content = (
       <>
         , clusters don't support clients that are more than one major version
-        behind. If you wish to connect your computer, upgrade the app to{' '}
+        behind. If you wish to use Connect My Computer, upgrade the app to{' '}
         {clusterMajorVersion}.x.x.
       </>
     );
