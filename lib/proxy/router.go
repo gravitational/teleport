@@ -45,6 +45,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const errDirectDialing = `Direct dialing to nodes not found in the inventory is not supported.
+If you want to connect to a node without installing Teleport on it, consider registering it with
+your cluster with 'teleport join openssh'.
+
+See https://goteleport.com/docs/ver/14.x/server-access/guides/openssh/ for more details.`
+
 var (
 	// proxiedSessions counts successful connections to nodes
 	proxiedSessions = prometheus.NewGauge(
@@ -236,11 +242,12 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	principals := []string{host}
 
 	var (
-		isAgentlessNode bool
-		serverID        string
-		serverAddr      string
-		proxyIDs        []string
-		sshSigner       ssh.Signer
+		isAgentlessNode    bool
+		isNotInventoryNode bool
+		serverID           string
+		serverAddr         string
+		proxyIDs           []string
+		sshSigner          ssh.Signer
 	)
 
 	if target != nil {
@@ -282,16 +289,29 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 				}
 			}
 		}
-
 	} else {
 		if !r.permitUnlistedDialing {
-			return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
+			return nil, trace.ConnectionProblem(errors.New("connection problem"), errDirectDialing)
 		}
+
+		// Prepare a dummy server resource so this connection will not be
+		// treated like a connection to a Teleport node
+		isNotInventoryNode = true
+		isAgentlessNode = true
 		if port == "" || port == "0" {
 			port = strconv.Itoa(defaults.SSHServerListenPort)
 		}
-
 		serverAddr = net.JoinHostPort(host, port)
+		name := "unknown server " + serverAddr
+		target, err = types.NewServer(name, types.KindNode, types.ServerSpecV2{
+			Addr:     serverAddr,
+			Hostname: host,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		target.SetSubKind(types.SubKindOpenSSHNode)
+
 		r.log.Warnf("server lookup failed: using default=%v", serverAddr)
 	}
 
@@ -300,6 +320,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
+		IsNotInventoryNode:    isNotInventoryNode,
 		IsAgentlessNode:       isAgentlessNode,
 		AgentlessSigner:       sshSigner,
 		Address:               host,

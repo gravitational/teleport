@@ -87,11 +87,9 @@ func TestTokens(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, strings.Count(buf.String(), "\n"), 1)
 
-		var out addedToken
-
 		buf, err = runTokensCommand(t, fileConfig, []string{"add", "--type=node,app", "--format", teleport.JSON})
 		require.NoError(t, err)
-		mustDecodeJSON(t, buf, &out)
+		out := mustDecodeJSON[addedToken](t, buf)
 
 		require.Len(t, out.Roles, 2)
 		require.Equal(t, types.KindNode, strings.ToLower(out.Roles[0]))
@@ -99,7 +97,7 @@ func TestTokens(t *testing.T) {
 
 		buf, err = runTokensCommand(t, fileConfig, []string{"add", "--type=node,app", "--format", teleport.YAML})
 		require.NoError(t, err)
-		mustDecodeYAML(t, buf, &out)
+		out = mustDecodeYAML[addedToken](t, buf)
 
 		require.Len(t, out.Roles, 2)
 		require.Equal(t, types.KindNode, strings.ToLower(out.Roles[0]))
@@ -122,16 +120,14 @@ func TestTokens(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 5, strings.Count(buf.String(), "\n"))
 
-		var jsonOut []listedToken
 		buf, err = runTokensCommand(t, fileConfig, []string{"ls", "--format", teleport.JSON})
 		require.NoError(t, err)
-		mustDecodeJSON(t, buf, &jsonOut)
+		jsonOut := mustDecodeJSON[[]listedToken](t, buf)
 		require.Len(t, jsonOut, 5)
 
-		var yamlOut []listedToken
 		buf, err = runTokensCommand(t, fileConfig, []string{"ls", "--format", teleport.YAML})
 		require.NoError(t, err)
-		mustDecodeYAML(t, buf, &yamlOut)
+		yamlOut := mustDecodeYAML[[]listedToken](t, buf)
 		require.Len(t, yamlOut, 5)
 
 		require.Equal(t, jsonOut, yamlOut)
