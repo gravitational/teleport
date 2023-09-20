@@ -521,6 +521,7 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindInstance, RO()),
 			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 			types.NewRule(types.KindNode, RW()),
+			types.NewRule(types.KindAccessList, RW()),
 		},
 		teleport.PresetAccessRoleName: {
 			types.NewRule(types.KindInstance, RO()),

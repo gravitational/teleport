@@ -946,7 +946,26 @@ Config option priority is applied in the following order:
   are not supported in certain regions or environments or are only supported in GovCloud.
 </Admonition>
 
-## Athena
+## Athena (Preview)
+
+The Athena audit log back-end is available starting from Teleport v14.0, and is
+currently in preview.
+
+<Notice type="danger">
+
+If you are using the
+[Teleport-event-exporter](../management/export-audit-events/fluentd.mdx)
+or any other mechanism for polling of [SearchEvents
+API](https://pkg.go.dev/github.com/gravitational/teleport/api/client#Client.SearchEvents),
+you should not use the Athena audit back-end, as the preview release of this
+back-end is especially resource intensive when polling the Teleport Auth
+Service for audit events.
+
+A new version of the Teleport event handler is under development to address this
+issue.
+
+</Notice>
+
 
 If you are running Teleport on AWS, you can use an
 [Athena](https://aws.amazon.com/athena/)-based audit log system that manages
