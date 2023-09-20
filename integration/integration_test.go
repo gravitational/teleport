@@ -184,7 +184,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
-	t.Run("LeafProxySessionRecording", suite.bind(testLeafProxySessionRecording))
+	t.Run("LeafSessionRecording", suite.bind(testLeafProxySessionRecording))
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
 	t.Run("JoinOverReverseTunnelOnly", suite.bind(testJoinOverReverseTunnelOnly))
 	t.Run("SFTP", suite.bind(testSFTP))
@@ -1138,17 +1138,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 }
 
 func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
-	rootRecCfg, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordAtNode,
-	})
-	require.NoError(t, err)
-
-	leafRecCfg, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordAtProxy,
-	})
-	require.NoError(t, err)
-
-	rootTC, root, _ := createTrustedClusterPair(t, suite, nil, func(cfg *servicecfg.Config, isRoot bool) {
+	_, root, leaf := createTrustedClusterPair(t, suite, nil, func(cfg *servicecfg.Config, isRoot bool) {
 		auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 			AuditSessionsURI: t.TempDir(),
 		})
@@ -1158,89 +1148,150 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 		cfg.Auth.AuditConfig = auditConfig
 		cfg.Proxy.Enabled = true
 		cfg.SSH.Enabled = true
-
-		cfg.Auth.SessionRecordingConfig = leafRecCfg
-		if isRoot {
-			cfg.Auth.SessionRecordingConfig = rootRecCfg
-		}
 	})
-	ctx := context.Background()
 
-	tc, err := root.NewClient(helpers.ClientConfig{
+	leafTC, err := root.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: "leaf-test",
 		Host:    "leaf-zero:0",
 	})
 	require.NoError(t, err)
 
-	clt, err := tc.ConnectToCluster(ctx)
+	rootAuth := root.Process.GetAuthServer()
+	leafAuth := leaf.Process.GetAuthServer()
+
+	tests := []struct {
+		rootRecordingMode string
+		leafRecordingMode string
+		authSrv           *auth.Server
+	}{
+		{
+			rootRecordingMode: types.RecordAtNode,
+			leafRecordingMode: types.RecordAtProxy,
+			authSrv:           rootAuth,
+		},
+		{
+			rootRecordingMode: types.RecordAtProxy,
+			leafRecordingMode: types.RecordAtNode,
+			authSrv:           rootAuth,
+		},
+		{
+			rootRecordingMode: types.RecordAtNode,
+			leafRecordingMode: types.RecordAtNode,
+			authSrv:           leafAuth,
+		},
+		// {
+		// 	rootRecordingMode: types.RecordAtProxy,
+		// 	leafRecordingMode: types.RecordAtProxy,
+		// 	authSrv:           rootAuth,
+		// },
+	}
+
+	ctx := context.Background()
+	clt, err := leafTC.ConnectToCluster(ctx)
 	require.NoError(t, err)
 
-	term := NewTerminal(250)
-	errCh := make(chan error)
+	waitForRecCfg := func(t *testing.T, authSrv *auth.Server, expectedCfg types.SessionRecordingConfig) {
+		t.Helper()
 
-	tc.Stdout = term
-	tc.Stdin = term
-
-	go func() {
-		nodeClient, err := tc.ConnectToNode(
-			ctx,
-			clt,
-			client.NodeDetails{Addr: "leaf-zero:0", Namespace: tc.Namespace, Cluster: clt.ClusterName()},
-			tc.Config.HostLogin,
-		)
-		assert.NoError(t, err)
-
-		errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil)
-		assert.NoError(t, nodeClient.Close())
-	}()
-
-	authSrv := root.Process.GetAuthServer()
-	var sessionID string
-	require.Eventually(t, func() bool {
-		trackers, err := authSrv.GetActiveSessionTrackers(ctx)
-		require.NoError(t, err)
-		if len(trackers) == 1 {
-			sessionID = trackers[0].GetSessionID()
-			return true
-		}
-		return false
-	}, time.Second*5, time.Millisecond*100)
-
-	// Send stuff to the session.
-	term.Type("echo Hello\n\r")
-
-	// Guarantee the session hasn't stopped after typing.
-	select {
-	case <-errCh:
-		require.Fail(t, "session was closed before")
-	default:
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			recCfg, err := authSrv.GetSessionRecordingConfig(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedCfg.GetMode(), recCfg.GetMode())
+		}, 3*time.Second, 100*time.Millisecond)
 	}
 
-	// Wait for the session to terminate without error.
-	term.Type("exit\n\r")
-	require.NoError(t, waitForError(errCh, 5*time.Second))
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("root rec mode=%q leaf rec mode=%q",
+			tt.rootRecordingMode,
+			tt.leafRecordingMode,
+		), func(t *testing.T) {
+			// Set the session recording configs
+			rootRecCfg, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+				Mode: tt.rootRecordingMode,
+			})
+			require.NoError(t, err)
 
-	var uploaded bool
-	timeoutC := time.After(10 * time.Second)
-	for !uploaded {
-		select {
-		case event := <-root.UploadEventsC:
-			if event.SessionID == sessionID {
-				uploaded = true
+			leafRecCfg, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+				Mode: tt.leafRecordingMode,
+			})
+			require.NoError(t, err)
+
+			err = rootAuth.SetSessionRecordingConfig(ctx, rootRecCfg)
+			require.NoError(t, err)
+
+			err = leafAuth.SetSessionRecordingConfig(ctx, leafRecCfg)
+			require.NoError(t, err)
+
+			waitForRecCfg(t, rootAuth, rootRecCfg)
+			waitForRecCfg(t, leafAuth, leafRecCfg)
+
+			// Create an interactive SSH session to start session recording
+			term := NewTerminal(250)
+			errCh := make(chan error)
+
+			leafTC.Stdout = term
+			leafTC.Stdin = term
+
+			go func() {
+				nodeClient, err := leafTC.ConnectToNode(
+					ctx,
+					clt,
+					client.NodeDetails{Addr: "leaf-zero:0", Namespace: leafTC.Namespace, Cluster: clt.ClusterName()},
+					leafTC.Config.HostLogin,
+				)
+				assert.NoError(t, err)
+
+				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil)
+				assert.NoError(t, nodeClient.Close())
+			}()
+
+			var sessionID string
+			require.Eventually(t, func() bool {
+				trackers, err := tt.authSrv.GetActiveSessionTrackers(ctx)
+				require.NoError(t, err)
+				if len(trackers) == 1 {
+					sessionID = trackers[0].GetSessionID()
+					return true
+				}
+				return false
+			}, time.Second*5, time.Millisecond*100)
+
+			// Send stuff to the session.
+			term.Type("echo Hello\n\r")
+
+			// Guarantee the session hasn't stopped after typing.
+			select {
+			case <-errCh:
+				require.Fail(t, "session was closed before")
+			default:
 			}
-		case <-timeoutC:
-			require.Fail(t, "timeout waiting for session recording to be uploaded")
-		}
-	}
 
-	require.Eventually(t, func() bool {
-		events, err := rootTC.GetSessionEvents(ctx, defaults.Namespace, sessionID)
-		if err == nil && len(events) != 0 {
-			return true
-		}
-		return false
-	}, time.Second*5, time.Millisecond*200)
+			// Wait for the session to terminate without error.
+			term.Type("exit\n\r")
+			require.NoError(t, waitForError(errCh, 5*time.Second))
+
+			// Wait for the session recording to be uploaded and available
+			var uploaded bool
+			timeoutC := time.After(10 * time.Second)
+			for !uploaded {
+				select {
+				case event := <-root.UploadEventsC:
+					if event.SessionID == sessionID {
+						uploaded = true
+					}
+				case <-timeoutC:
+					require.Fail(t, "timeout waiting for session recording to be uploaded")
+				}
+			}
+
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				events, err := rootAuth.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0)
+				assert.NoError(t, err)
+				assert.NotEmpty(t, events)
+			}, 5*time.Second, 200*time.Millisecond)
+		})
+	}
 }
 
 // TestCustomReverseTunnel tests that the SSH node falls back to configured

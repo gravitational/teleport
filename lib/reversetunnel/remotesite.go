@@ -759,17 +759,20 @@ func (s *remoteSite) Dial(params reversetunnelclient.DialParams) (net.Conn, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if shouldDialAndForward(params, localRecCfg) {
+		return s.dialAndForward(params)
+	}
+
+	// If the remote cluster is recording at the proxy we need to respect
+	// that and forward and record the session. We will be connecting
+	// to the node without connecting through the remote proxy, so the
+	// session won't have a chance to get recorded at the remote proxy.
 	remoteRecCfg, err := s.remoteAccessPoint.GetSessionRecordingConfig(s.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteProxyRec := services.IsRecordAtProxy(remoteRecCfg.GetMode())
-
-	// If the remote cluster is recording at the proxy we need to respect
-	// that and forward and record the session. We will be connecting
-	// to the node without connecting through the remote Proxy, so the
-	// session won't have a chance to get recorded at the remote Proxy.
-	if remoteProxyRec || shouldDialAndForward(params, localRecCfg) {
+	if services.IsRecordAtProxy(remoteRecCfg.GetMode()) {
 		return s.dialAndForward(params)
 	}
 
