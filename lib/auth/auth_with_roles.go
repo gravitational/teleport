@@ -5416,9 +5416,19 @@ func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthServic
 
 // AddMFADeviceSync is implemented by AuthService.AddMFADeviceSync.
 func (a *ServerWithRoles) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
-	// The token provides its own authorization and authentication.
-	res, err := a.authServer.AddMFADeviceSync(ctx, req)
-	return res, trace.Wrap(err)
+	switch {
+	case req.TokenID != "":
+	default: // ContextUser
+		if a.hasBuiltinRole(types.RoleProxy) {
+			return nil, trace.BadParameter("proxy role clients are not allowed to register devices using ContextUser")
+		}
+	}
+
+	// The following serve as means of authentication for this RPC:
+	//   - privilege token (or equivalent)
+	//   - authenticated user using non-Proxy identity
+	resp, err := a.authServer.AddMFADeviceSync(ctx, req)
+	return resp, trace.Wrap(err)
 }
 
 // DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.

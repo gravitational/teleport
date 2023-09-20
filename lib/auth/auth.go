@@ -3115,27 +3115,39 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 // AddMFADeviceSync implements AuthService.AddMFADeviceSync.
 func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
-	privilegeToken, err := a.GetUserToken(ctx, req.GetTokenID())
-	if err != nil {
-		log.Error(trace.DebugReport(err))
-		return nil, trace.AccessDenied("invalid token")
-	}
+	var token, username string
+	switch {
+	case req.GetTokenID() != "":
+		privilegeToken, err := a.GetUserToken(ctx, req.GetTokenID())
+		if err != nil {
+			log.Error(trace.DebugReport(err))
+			return nil, trace.AccessDenied("invalid token")
+		}
 
-	if err := a.verifyUserToken(privilegeToken, UserTokenTypePrivilege, UserTokenTypePrivilegeException); err != nil {
-		return nil, trace.Wrap(err)
+		if err := a.verifyUserToken(privilegeToken, UserTokenTypePrivilege, UserTokenTypePrivilegeException); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		token = privilegeToken.GetName()
+		username = privilegeToken.GetUser()
+
+	default: // ContextUser
+		var err error
+		username, err = authz.GetClientUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	dev, err := a.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
-		username:      privilegeToken.GetUser(),
+		username:      username,
 		newDeviceName: req.GetNewDeviceName(),
-		tokenID:       privilegeToken.GetName(),
+		tokenID:       token,
 		deviceResp:    req.GetNewMFAResponse(),
 		deviceUsage:   req.DeviceUsage,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &proto.AddMFADeviceSyncResponse{Device: dev}, nil
 }
 
