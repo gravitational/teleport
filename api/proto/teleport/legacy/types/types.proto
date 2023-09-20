@@ -6198,8 +6198,10 @@ message InstallerParams {
   // SSHDConfig provides the path to write sshd configuration changes
   string SSHDConfig = 5 [(gogoproto.jsontag) = "sshd_config,omitempty"];
   // PublicProxyAddr is the address of the proxy the discovered node should use
-  // to connect to the cluster. Used only in Azure.
+  // to connect to the cluster.
   string PublicProxyAddr = 6 [(gogoproto.jsontag) = "proxy_addr,omitempty"];
+  // Azure is the set of Azure-specific installation parameters.
+  AzureInstallerParams Azure = 7 [(gogoproto.jsontag) = "azure,omitempty"];
 }
 
 // AWSSSM provides options to use when executing SSM documents
@@ -6207,6 +6209,13 @@ message AWSSSM {
   // DocumentName is the name of the document to use when executing an
   // SSM command
   string DocumentName = 1 [(gogoproto.jsontag) = "document_name,omitempty"];
+}
+
+// AzureInstallerParams is the set of Azure-specific installation parameters.
+message AzureInstallerParams {
+  // ClientID is the client ID of the managed identity discovered nodes
+  // should use to join the cluster.
+  string ClientID = 1 [(gogoproto.jsontag) = "client_id,omitempty"];
 }
 
 // AzureMatcher matches Azure resources.

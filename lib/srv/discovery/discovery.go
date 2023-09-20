@@ -740,6 +740,7 @@ func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 		Params:          instances.Parameters,
 		ScriptName:      instances.ScriptName,
 		PublicProxyAddr: instances.PublicProxyAddr,
+		ClientID:        instances.ClientID,
 	}
 	if err := s.azureInstaller.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
