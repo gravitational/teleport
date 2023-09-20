@@ -57,7 +57,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					t.Cleanup(func() { resetYubikey(ctx, t) })
 
 					// GetYubiKeyPrivateKey should generate a new YubiKeyPrivateKey.
-					priv, err := GetOrGenerateYubiKeyPrivateKey(policy == PrivateKeyPolicyHardwareKeyTouch)
+					priv, err := GetYubiKeyPrivateKey(ctx, policy, slot)
 					require.NoError(t, err)
 
 					// test HardwareSigner methods
@@ -70,7 +70,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					require.NoError(t, err)
 
 					// Another call to GetYubiKeyPrivateKey should retrieve the previously generated key.
-					retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(policy == PrivateKeyPolicyHardwareKeyTouch)
+					retrievePriv, err := GetYubiKeyPrivateKey(ctx, policy, slot)
 					require.NoError(t, err)
 					require.Equal(t, priv.Public(), retrievePriv.Public())
 
@@ -100,12 +100,12 @@ func TestOverwritePrompt(t *testing.T) {
 	testOverwritePrompt := func(t *testing.T) {
 		// Fail to overwrite slot when user denies
 		prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
-		_, err := GetOrGenerateYubiKeyPrivateKey(true)
+		_, err := GetYubiKeyPrivateKey(ctx, PrivateKeyPolicyHardwareKeyTouch, "" /* slot */)
 		require.True(t, trace.IsCompareFailed(err), "Expected compare failed error but got %v", err)
 
 		// Successfully overwrite slot when user accepts
 		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
-		_, err = GetOrGenerateYubiKeyPrivateKey(true)
+		_, err = GetYubiKeyPrivateKey(ctx, PrivateKeyPolicyHardwareKeyTouch, "" /* slot */)
 		require.NoError(t, err)
 	}
 
