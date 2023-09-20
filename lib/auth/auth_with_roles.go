@@ -6224,6 +6224,16 @@ func (a *ServerWithRoles) GetAccountRecoveryToken(ctx context.Context, req *prot
 
 // CreateAuthenticateChallenge is implemented by AuthService.CreateAuthenticateChallenge.
 func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	switch req.GetRequest().(type) {
+	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
+	case *proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:
+	case *proto.CreateAuthenticateChallengeRequest_Passwordless:
+	default: // nil or *proto.CreateAuthenticateChallengeRequest_ContextUser:
+		if a.hasBuiltinRole(types.RoleProxy) {
+			return nil, trace.BadParameter("proxy role clients are not allowed to issue authentication challenges using ContextUser")
+		}
+	}
+
 	// No permission check is required b/c this request verifies request by one of the following:
 	//   - username + password, anyone who has user's password can generate a sign request
 	//   - token provide its own auth
