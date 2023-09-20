@@ -41,17 +41,14 @@ func TestHardwareSigner(t *testing.T) {
 
 	ctx := context.Background()
 	resetYubikey(ctx, t)
+	t.Cleanup(func() { resetYubikey(ctx, t) })
 
 	// Generate a new YubiKeyPrivateKey. It should return a valid attestation statement and key policy.
 	priv, err := keys.GetOrGenerateYubiKeyPrivateKey(false)
 	require.NoError(t, err)
 
-	att, err := keys.GetAttestationStatement(priv)
-	require.NoError(t, err)
-	require.NotNil(t, att)
-
-	policy := keys.GetPrivateKeyPolicy(priv)
-	require.Equal(t, keys.PrivateKeyPolicyHardwareKey, policy)
+	require.NotNil(t, priv.GetAttestationStatement())
+	require.Equal(t, keys.PrivateKeyPolicyHardwareKey, priv.GetPrivateKeyPolicy())
 }
 
 // TestNonHardwareSigner tests the HardwareSigner interface with non-hardware keys.
@@ -62,10 +59,6 @@ func TestNonHardwareSigner(t *testing.T) {
 	key, err := keys.NewPrivateKey(priv, nil)
 	require.NoError(t, err)
 
-	att, err := keys.GetAttestationStatement(key)
-	require.NoError(t, err)
-	require.Nil(t, att)
-
-	policy := keys.GetPrivateKeyPolicy(key)
-	require.Equal(t, keys.PrivateKeyPolicyNone, policy)
+	require.Nil(t, key.GetAttestationStatement())
+	require.Equal(t, keys.PrivateKeyPolicyNone, key.GetPrivateKeyPolicy())
 }
