@@ -87,8 +87,8 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				cancelCtx, cancelFunc := context.WithTimeout(ctx, timeout)
 				process.log.Infof("Got signal %q, exiting within %vs.", signal, timeout.Seconds())
 				go func() {
+					defer cancelFunc()
 					process.Shutdown(cancelCtx)
-					cancelFunc()
 				}()
 				<-cancelCtx.Done()
 				process.log.Infof("All services stopped or timeout passed, exiting immediately.")
