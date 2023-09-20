@@ -172,7 +172,7 @@ teleport:
      etcd_max_client_msg_size_bytes: 15728640
 ```
 
-## PostgreSQL 
+## PostgreSQL
 
 <Details
   title="Version warning"
@@ -226,7 +226,7 @@ stream of changes from the database; because of that, the
 parameter must be set to `logical` and
 [`max_replication_slots`](https://www.postgresql.org/docs/current/runtime-config-replication.html#GUC-MAX-REPLICATION-SLOTS)
 must be set to at least as many Teleport Auth Service instances as you'll be
-running (a higher number is recommended, to account for network conditions). 
+running (a higher number is recommended, to account for network conditions).
 
 The Teleport Auth Service needs to be able to create a replication slot when
 starting and when reestablishing a new connection to the PostgreSQL cluster, and
@@ -300,7 +300,7 @@ teleport:
     # use a different user or different settings for the connection used
     # to set up and make use of logical decoding. If specified, Teleport
     # will use the connection string in change_feed_conn_string for that,
-    # instead of the one in conn_string. Available in Teleport 13.3.10 and later.
+    # instead of the one in conn_string. Available in Teleport 13.4 and later.
     change_feed_conn_string: postgresql://replication_user_name@database-address/teleport_backend?sslmode=verify-full
 
     # An audit_events_uri with a scheme of postgresql:// will use the
@@ -1377,7 +1377,7 @@ teleport:
   be present. If they are not set, Teleport will default to a local filesystem for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
 
-## Azure Blob Storage 
+## Azure Blob Storage
 
 <Details
   title="Version warning"
