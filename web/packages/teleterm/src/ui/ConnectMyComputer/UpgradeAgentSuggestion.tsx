@@ -46,7 +46,8 @@ export function UpgradeAgentSuggestion(props: {
     <Alert kind="info">
       <Text>
         The agent is running version {props.appVersion} of Teleport. Consider
-        upgrading it to {props.proxyVersion} by updating Teleport Connect. Visit{' '}
+        upgrading it to version {props.proxyVersion} by updating Teleport
+        Connect. Visit{' '}
         <Link href="https://goteleport.com/download" target="_blank">
           the downloads page
         </Link>

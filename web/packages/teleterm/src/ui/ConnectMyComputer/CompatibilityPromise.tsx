@@ -68,7 +68,7 @@ export function CompatibilityError(): JSX.Element {
         , clusters don't support clients that are on a newer major version. If
         you wish to connect your computer,{' '}
         {isAppDowngradePossible && (
-          <>downgrade the app to {downgradeAppTo} or </>
+          <>downgrade the app to version {downgradeAppTo} or </>
         )}
         upgrade the cluster to version {appMajorVersion}.x.x.
       </>
