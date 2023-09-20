@@ -55,9 +55,34 @@ export function Default() {
   );
 }
 
-export function NonCompatibleAgent() {
-  const cluster = makeRootCluster();
-  const appContext = new MockAppContext({ appVersion: '3.0.0' });
+export function AgentVersionTooNew() {
+  const cluster = makeRootCluster({ proxyVersion: '16.3.0' });
+  const appContext = new MockAppContext({ appVersion: '17.0.0' });
+  appContext.clustersService.state.clusters.set(cluster.uri, cluster);
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = cluster.uri;
+    draftState.workspaces[cluster.uri] = {
+      localClusterUri: cluster.uri,
+      documents: [],
+      location: undefined,
+      accessRequests: undefined,
+    };
+  });
+
+  return (
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
+        <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
+          <DocumentConnectMyComputerSetup />
+        </ConnectMyComputerContextProvider>
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
+}
+
+export function AgentVersionTooOld() {
+  const cluster = makeRootCluster({ proxyVersion: '16.3.0' });
+  const appContext = new MockAppContext({ appVersion: '14.1.0' });
   appContext.clustersService.state.clusters.set(cluster.uri, cluster);
   appContext.workspacesService.setState(draftState => {
     draftState.rootClusterUri = cluster.uri;
