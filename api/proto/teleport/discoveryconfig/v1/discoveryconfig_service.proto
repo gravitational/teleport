@@ -17,7 +17,7 @@ syntax = "proto3";
 package teleport.discoveryconfig.v1;
 
 import "google/protobuf/empty.proto";
-import "teleport/legacy/types/types.proto";
+import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1;discoveryconfigv1";
 
@@ -31,13 +31,13 @@ service DiscoveryConfigService {
   rpc ListDiscoveryConfigs(ListDiscoveryConfigsRequest) returns (ListDiscoveryConfigsResponse);
 
   // GetDiscoveryConfig returns the specified DiscoveryConfig resource.
-  rpc GetDiscoveryConfig(GetDiscoveryConfigRequest) returns (types.DiscoveryConfigV1);
+  rpc GetDiscoveryConfig(GetDiscoveryConfigRequest) returns (DiscoveryConfig);
 
   // CreateDiscoveryConfig creates a new DiscoveryConfig resource.
-  rpc CreateDiscoveryConfig(CreateDiscoveryConfigRequest) returns (types.DiscoveryConfigV1);
+  rpc CreateDiscoveryConfig(CreateDiscoveryConfigRequest) returns (DiscoveryConfig);
 
   // UpdateDiscoveryConfig updates an existing DiscoveryConfig resource.
-  rpc UpdateDiscoveryConfig(UpdateDiscoveryConfigRequest) returns (types.DiscoveryConfigV1);
+  rpc UpdateDiscoveryConfig(UpdateDiscoveryConfigRequest) returns (DiscoveryConfig);
 
   // DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
   rpc DeleteDiscoveryConfig(DeleteDiscoveryConfigRequest) returns (google.protobuf.Empty);
@@ -48,16 +48,17 @@ service DiscoveryConfigService {
 
 // ListDiscoveryConfigsRequest is a request for a paginated list of DiscoveryConfigs.
 message ListDiscoveryConfigsRequest {
-  // Limit is the maximum amount of resources to retrieve.
-  int32 limit = 1;
-  // NextKey is the key for the next page of DiscoveryConfigs.
-  string next_key = 2;
+  // page_size is the size of the page to request.
+  int32 page_size = 1;
+
+  // next_token is the page token.
+  string next_token = 2;
 }
 
 // ListDiscoveryConfigsResponse is the response for ListDiscoveryConfigsRequest.
 message ListDiscoveryConfigsResponse {
   // DiscoveryConfigs is a list of DiscoveryConfigs.
-  repeated types.DiscoveryConfigV1 discovery_configs = 1;
+  repeated DiscoveryConfig discovery_configs = 1;
   // NextKey is the key for the next page of DiscoveryConfigs.
   string next_key = 2;
   // TotalCount is the total number of discovery_config in all pages.
@@ -73,13 +74,13 @@ message GetDiscoveryConfigRequest {
 // CreateDiscoveryConfigRequest is the request to create the provided DiscoveryConfig.
 message CreateDiscoveryConfigRequest {
   // DiscoveryConfig is the DiscoveryConfig to be created.
-  types.DiscoveryConfigV1 discovery_config = 1;
+  DiscoveryConfig discovery_config = 1;
 }
 
 // UpdateDiscoveryConfigRequest is the request to update the provided DiscoveryConfig.
 message UpdateDiscoveryConfigRequest {
   // DiscoveryConfig is the DiscoveryConfig to be updated.
-  types.DiscoveryConfigV1 discovery_config = 1;
+  DiscoveryConfig discovery_config = 1;
 }
 
 // DeleteDiscoveryConfigRequest is a request for deleting a specific DiscoveryConfig resource.
