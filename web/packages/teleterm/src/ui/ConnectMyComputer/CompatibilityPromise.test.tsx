@@ -24,10 +24,7 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
-import {
-  isAgentCompatible,
-  CompatibilityError,
-} from './CompatibilityPromise';
+import { isAgentCompatible, CompatibilityError } from './CompatibilityPromise';
 
 describe('isAgentCompatible', () => {
   const testCases = [

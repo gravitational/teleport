@@ -131,7 +131,10 @@ export const ConnectMyComputerContextProvider: FC<{
   }, [configService, isAgentConfigured, mainProcessClient, rootCluster]);
   const isAgentCompatible = useMemo(
     () =>
-      checkIfAgentIsComptabile(rootCluster.proxyVersion, mainProcessClient.getRuntimeSettings()),
+      checkIfAgentIsComptabile(
+        rootCluster.proxyVersion,
+        mainProcessClient.getRuntimeSettings()
+      ),
     [mainProcessClient, rootCluster]
   );
 
