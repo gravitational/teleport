@@ -51,6 +51,14 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 			priv, err := GetOrGenerateYubiKeyPrivateKey(policy == PrivateKeyPolicyHardwareKeyTouch)
 			require.NoError(t, err)
 
+			// test HardwareSigner methods
+			getPolicy := GetPrivateKeyPolicy(priv)
+			require.Equal(t, policy, getPolicy)
+
+			att, err := GetAttestationStatement(priv)
+			require.NoError(t, err)
+			require.NotNil(t, att)
+
 			// Test Sign.
 			_, err = selfSignedTeleportClientCertificate(priv, priv.Public())
 			require.NoError(t, err)
