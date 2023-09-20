@@ -358,10 +358,14 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (t *TerminalHandler) Close() error {
 	var err error
 	t.closeOnce.Do(func() {
-		// If the terminal handler was closed (most likely due to the *SessionContext
-		// closing) then the stream should be closed as well.
-		if t.stream != nil {
-			err = t.stream.Close()
+		if t.stream == nil {
+			return
+		}
+
+		if t.stream.sshSession != nil {
+			err = trace.NewAggregate(t.stream.sshSession.Close(), t.stream.Close())
+		} else {
+			err = trace.Wrap(t.stream.Close())
 		}
 	})
 	return trace.Wrap(err)
@@ -1353,10 +1357,8 @@ func (t *WSStream) SendCloseMessage(event sessionEndEvent) error {
 
 func (t *WSStream) close() {
 	t.once.Do(func() {
-		defer func() {
-			close(t.rawC)
-			close(t.challengeC)
-		}()
+		close(t.rawC)
+		close(t.challengeC)
 	})
 }
 
