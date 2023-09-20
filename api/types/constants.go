@@ -1098,6 +1098,8 @@ const (
 	JWTClaimsRewriteRolesAndTraits = "roles-and-traits"
 	// JWTClaimsRewriteRoles includes only the roles in the JWT token.
 	JWTClaimsRewriteRoles = "roles"
+	// JWTClaimsRewriteTraits includes only the traits in the JWT token.
+	JWTClaimsRewriteTraits = "traits"
 	// JWTClaimsRewriteNone include neither traits nor roles in the JWT token.
 	JWTClaimsRewriteNone = "none"
 )
