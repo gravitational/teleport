@@ -17,6 +17,7 @@ package pgbk
 import (
 	"bytes"
 	"encoding/hex"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -98,8 +99,6 @@ func (c *wal2jsonColumn) UUID() (uuid.UUID, error) {
 
 type wal2jsonMessage struct {
 	Action string `json:"action"`
-	Schema string `json:"schema"`
-	Table  string `json:"table"`
 
 	Columns  []wal2jsonColumn `json:"columns"`
 	Identity []wal2jsonColumn `json:"identity"`
@@ -113,16 +112,9 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 		return nil, trace.BadParameter("unexpected action %q", w.Action)
 
 	case "T":
-		if w.Schema != "public" || w.Table != "kv" {
-			return nil, nil
-		}
 		return nil, trace.BadParameter("received truncate for table kv")
 
 	case "I":
-		if w.Schema != "public" || w.Table != "kv" {
-			return nil, nil
-		}
-
 		key, err := w.newCol("key").Bytea()
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing key on insert")
@@ -152,10 +144,6 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 		}}, nil
 
 	case "D":
-		if w.Schema != "public" || w.Table != "kv" {
-			return nil, nil
-		}
-
 		key, err := w.oldCol("key").Bytea()
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing key on delete")
@@ -168,10 +156,6 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 		}}, nil
 
 	case "U":
-		if w.Schema != "public" || w.Table != "kv" {
-			return nil, nil
-		}
-
 		// on an UPDATE, an unmodified TOASTed column might be missing from
 		// "columns", but it should be present in "identity" (and this also
 		// applies to "key"), so we use the toastCol accessor function
@@ -259,4 +243,16 @@ func (w *wal2jsonMessage) toastCol(name string) *wal2jsonColumn {
 		return c
 	}
 	return w.oldCol(name)
+}
+
+// wal2jsonEscape turns a schema or table name into a form suitable for use in
+// wal2json's filter-tables or add-tables option, by prepending a backslash to
+// each character.
+func wal2jsonEscape(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		b.WriteRune('\\')
+		b.WriteRune(r)
+	}
+	return b.String()
 }
