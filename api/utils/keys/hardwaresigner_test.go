@@ -41,12 +41,8 @@ func TestHardwareSigner(t *testing.T) {
 	priv, err := GetOrGenerateYubiKeyPrivateKey(false)
 	require.NoError(t, err)
 
-	att, err := GetAttestationStatement(priv)
-	require.NoError(t, err)
-	require.NotNil(t, att)
-
-	policy := GetPrivateKeyPolicy(priv)
-	require.Equal(t, PrivateKeyPolicyHardwareKey, policy)
+	require.NotNil(t, priv.GetAttestationStatement())
+	require.Equal(t, PrivateKeyPolicyHardwareKey, priv.GetPrivateKeyPolicy())
 }
 
 // TestNonHardwareSigner tests the HardwareSigner interface with non-hardware keys.
@@ -55,10 +51,6 @@ func TestNonHardwareSigner(t *testing.T) {
 	priv, err := ParsePrivateKey(rsaKeyPEM)
 	require.NoError(t, err)
 
-	att, err := GetAttestationStatement(priv)
-	require.NoError(t, err)
-	require.Nil(t, att)
-
-	policy := GetPrivateKeyPolicy(priv)
-	require.Equal(t, PrivateKeyPolicyNone, policy)
+	require.Nil(t, priv.GetAttestationStatement())
+	require.Equal(t, PrivateKeyPolicyNone, priv.GetPrivateKeyPolicy())
 }
