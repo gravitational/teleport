@@ -164,9 +164,10 @@ func TestMessage(t *testing.T) {
 	require.Empty(t, cmp.Diff(evs[0], backend.Event{
 		Type: types.OpPut,
 		Item: backend.Item{
-			Key:   []byte("foo"),
-			Value: []byte(""),
-			ID:    idFromRevision(rev),
+			Key:      []byte("foo"),
+			Value:    []byte(""),
+			ID:       idFromRevision(rev),
+			Revision: revisionToString(rev),
 		},
 	}))
 
@@ -195,9 +196,10 @@ func TestMessage(t *testing.T) {
 	require.Empty(t, cmp.Diff(evs[0], backend.Event{
 		Type: types.OpPut,
 		Item: backend.Item{
-			Key:   []byte("foo"),
-			Value: []byte("foo2"),
-			ID:    idFromRevision(rev),
+			Key:      []byte("foo"),
+			Value:    []byte("foo2"),
+			ID:       idFromRevision(rev),
+			Revision: revisionToString(rev),
 		},
 	}))
 
@@ -231,10 +233,11 @@ func TestMessage(t *testing.T) {
 	require.Empty(t, cmp.Diff(evs[1], backend.Event{
 		Type: types.OpPut,
 		Item: backend.Item{
-			Key:     []byte("foo2"),
-			Value:   []byte("foo2"),
-			Expires: time.Date(2023, 9, 5, 15, 57, 1, 340426000, time.UTC),
-			ID:      idFromRevision(rev),
+			Key:      []byte("foo2"),
+			Value:    []byte("foo2"),
+			Expires:  time.Date(2023, 9, 5, 15, 57, 1, 340426000, time.UTC),
+			ID:       idFromRevision(rev),
+			Revision: revisionToString(rev),
 		},
 	}))
 

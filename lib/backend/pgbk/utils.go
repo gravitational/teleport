@@ -18,33 +18,35 @@ import (
 	"encoding/binary"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
-
-	"github.com/gravitational/teleport/lib/backend"
 )
 
-// newLease returns a non-nil [*backend.Lease] that's filled in with the details
-// of the item (i.e. its key) if the item has an expiration time.
-func newLease(i backend.Item) *backend.Lease {
-	var lease backend.Lease
-	if !i.Expires.IsZero() {
-		lease.Key = i.Key
-	}
-	return &lease
+// revision is transparently converted to and from Postgres UUIDs.
+type revision = [16]byte
+
+// newRevision returns a new random revision.
+func newRevision() revision {
+	return revision(uuid.New())
 }
 
-// newRevision returns a random, non-null [pgtype.UUID] to use as a row
-// revision.
-func newRevision() pgtype.UUID {
-	return pgtype.UUID{
-		Bytes: uuid.New(),
-		Valid: true,
+// revisionToString converts a revision to its string form, usable in
+// [backend.Item].
+func revisionToString(r revision) string {
+	return uuid.UUID(r).String()
+}
+
+// revisionFromString converts a revision from its string form, returning false
+// in second position.
+func revisionFromString(s string) (r revision, ok bool) {
+	u, err := uuid.Parse(s)
+	if err != nil {
+		return revision{}, false
 	}
+	return u, true
 }
 
 // idFromRevision derives a value usable as a [backend.Item]'s ID from a
 // revision UUID.
-func idFromRevision(revision uuid.UUID) int64 {
+func idFromRevision(revision revision) int64 {
 	u := binary.LittleEndian.Uint64(revision[:])
 	u &= 0x7fff_ffff_ffff_ffff
 	return int64(u)
