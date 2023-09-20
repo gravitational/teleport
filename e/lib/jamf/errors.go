@@ -9,8 +9,6 @@ type APIError struct {
 	// typically (always?) matches the responses' status code. That field is not
 	// mapped here, instead we rely solely on the HTTP status code.
 	StatusCode int
-	// RawBody is the raw JSON body of the error.
-	RawBody string `json:"-"`
 }
 
 // Error returns a textual representation of the error.
@@ -18,5 +16,5 @@ func (e *APIError) Error() string {
 	if e == nil {
 		return "nil error"
 	}
-	return fmt.Sprintf("status=%v, body=%s", e.StatusCode, e.RawBody)
+	return fmt.Sprintf("status=%v", e.StatusCode)
 }

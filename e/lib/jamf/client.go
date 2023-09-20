@@ -89,10 +89,30 @@ func NewClient(ctx context.Context, opts ClientOpts) (*Client, error) {
 		clock = clockwork.NewRealClock()
 	}
 
+	// Forbid HTTP downgrades or changing from the base host.
+	// https://github.com/gravitational/teleport-private/issues/916.
+	httpClient := &http.Client{
+		Transport: opts.HTTPClient.Transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			switch {
+			// No downgrades, no host/port changes.
+			// (Note that req.URL.Host already captures the port.)
+			case req.URL.Scheme != "https" || req.URL.Host != baseURL.Host:
+				return http.ErrUseLastResponse
+			case opts.HTTPClient.CheckRedirect != nil:
+				return opts.HTTPClient.CheckRedirect(req, via)
+			default:
+				return nil
+			}
+		},
+		Jar:     opts.HTTPClient.Jar,
+		Timeout: opts.HTTPClient.Timeout,
+	}
+
 	c := &Client{
 		clock:      clock,
 		logger:     logger,
-		httpClient: opts.HTTPClient,
+		httpClient: httpClient,
 		baseURL:    baseURL.String(),
 		username:   opts.Username,
 		password:   opts.Password,
@@ -153,9 +173,13 @@ func (c *Client) doJSONRequest(req *http.Request, jsonResp any) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		c.logger.WithFields(log.Fields{
+			"body":   string(body),
+			"status": resp.StatusCode,
+			"url":    req.URL,
+		}).Debug("Jamf API: API request failed")
 		return &APIError{
 			StatusCode: resp.StatusCode,
-			RawBody:    string(body),
 		}
 	}
 
