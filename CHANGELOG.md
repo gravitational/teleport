@@ -1,5 +1,53 @@
 # Changelog
 
+## 11.3.25 (09/20/23)
+
+### Security fixes
+
+#### [Critical] Privilege escalation via host user creation
+
+When using automatic Linux user creation, an attacker could exploit a race
+condition in the user creation functionality to create arbitrary files on the
+system as root writable by the created user.
+
+This could allow the attacker to escalate their privileges to root.
+
+Users who aren't using automatic Linux host user creation aren’t affected by
+this vulnerability.
+
+[#32208](https://github.com/gravitational/teleport/pull/32208)
+
+#### [High] Insufficient auth token verification when signing self-hosted database certificates
+
+When signing self-hosted database certificates, Teleport did not sufficiently
+validate the authorization token type.
+
+This could allow an attacker to sign valid database access certificates using a
+guessed authorization token name.
+
+Users who aren’t using self-hosted database access aren’t affected by this
+vulnerability.
+
+[#32217](https://github.com/gravitational/teleport/pull/32217)
+
+#### [High] Privilege escalation via untrusted config file on Windows
+
+When loading the global tsh configuration file tsh.yaml on Windows, Teleport
+would look for the file in a potentially untrusted directory.
+
+This could allow a malicious user to create harmful command aliases for all tsh
+users on the system.
+
+Users who aren’t using tsh on Windows aren’t affected by this vulnerability.
+
+[#32225](https://github.com/gravitational/teleport/pull/32225)
+
+### Other fixes and improvements
+
+* Fixed directory sharing in Desktop Access for non-ascii directory names. [#31922](https://github.com/gravitational/teleport/pull/31922)
+* Fixed desktop sessions' viewport size to the size of browser window at session start. [#31522](https://github.com/gravitational/teleport/pull/31522)
+* Updated OpenSSL to 3.0.11 [#32167](https://github.com/gravitational/teleport/pull/32167)
+
 ## 11.3.23 (09/06/23)
 
 * Updated Go to `v1.20.8`. [#31509](https://github.com/gravitational/teleport/pull/31509)
