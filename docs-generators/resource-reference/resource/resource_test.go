@@ -452,7 +452,7 @@ label_maps:
 // MyResource is a resource declared for testing.
 type MyResource struct{
   // Alias is another name to call the resource.
-  Alias string BACKTICKalias:"json"BACKTICK
+  Alias string BACKTICKjson:"alias"BACKTICK
   types.Metadata
 }
 `,
@@ -564,8 +564,9 @@ active: true
 			}
 
 			r, err := NewFromDecl(DeclarationInfo{
-				FilePath: "myfile.go",
-				Decl:     gd,
+				FilePath:    "myfile.go",
+				Decl:        gd,
+				PackageName: f.Name.Name,
 			}, allDecls)
 			assert.NoError(t, err)
 
