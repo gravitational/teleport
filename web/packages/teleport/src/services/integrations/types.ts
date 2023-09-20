@@ -108,6 +108,7 @@ export type PluginKind =
   | 'msteams'
   | 'opsgenie'
   | 'okta'
+  | 'servicenow'
   | 'jamf';
 
 export type IntegrationCreateRequest = {
