@@ -247,7 +247,7 @@ func (y *YubiKeyPrivateKey) keyPEM() ([]byte, error) {
 }
 
 // GetAttestationStatement returns an AttestationStatement for this YubiKeyPrivateKey.
-func (y *YubiKeyPrivateKey) GetAttestationStatement() (*AttestationStatement, error) {
+func (y *YubiKeyPrivateKey) GetAttestationStatement() *AttestationStatement {
 	return &AttestationStatement{
 		AttestationStatement: &attestation.AttestationStatement_YubikeyAttestationStatement{
 			YubikeyAttestationStatement: &attestation.YubiKeyAttestationStatement{
@@ -255,7 +255,7 @@ func (y *YubiKeyPrivateKey) GetAttestationStatement() (*AttestationStatement, er
 				AttestationCert: y.attestationCert.Raw,
 			},
 		},
-	}, nil
+	}
 }
 
 // GetPrivateKeyPolicy returns the PrivateKeyPolicy supported by this YubiKeyPrivateKey.

@@ -59,12 +59,8 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 			require.NoError(t, err)
 
 			// test HardwareSigner methods
-			getPolicy := GetPrivateKeyPolicy(priv)
-			require.Equal(t, policy, getPolicy)
-
-			att, err := GetAttestationStatement(priv)
-			require.NoError(t, err)
-			require.NotNil(t, att)
+			require.Equal(t, policy, priv.GetPrivateKeyPolicy())
+			require.NotNil(t, priv.GetAttestationStatement())
 
 			// Test Sign.
 			digest := []byte{100}
