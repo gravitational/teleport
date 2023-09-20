@@ -74,6 +74,9 @@ func UnmarshalDatabaseServer(data []byte, opts ...MarshalOption) (types.Database
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)
 		}

@@ -90,6 +90,9 @@ func UnmarshalUserGroup(data []byte, opts ...MarshalOption) (types.UserGroup, er
 		if cfg.ID != 0 {
 			g.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			g.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			g.SetExpiry(cfg.Expires)
 		}

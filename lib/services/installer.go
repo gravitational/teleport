@@ -46,6 +46,9 @@ func UnmarshalInstaller(data []byte, opts ...MarshalOption) (types.Installer, er
 	if cfg.ID != 0 {
 		installer.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		installer.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		installer.SetExpiry(cfg.Expires)
 	}

@@ -1568,6 +1568,9 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (types.AccessReq
 	if cfg.ID != 0 {
 		req.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		req.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		req.SetExpiry(cfg.Expires)
 	}

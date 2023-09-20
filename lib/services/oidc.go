@@ -123,6 +123,9 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (types.OIDCConn
 		if cfg.ID != 0 {
 			c.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			c.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			c.SetExpiry(cfg.Expires)
 		}

@@ -92,6 +92,9 @@ func UnmarshalPlugin(data []byte, opts ...MarshalOption) (types.Plugin, error) {
 		if cfg.ID != 0 {
 			plugin.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			plugin.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			plugin.SetExpiry(cfg.Expires)
 		}

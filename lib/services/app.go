@@ -100,6 +100,9 @@ func UnmarshalApp(data []byte, opts ...MarshalOption) (types.Application, error)
 		if cfg.ID != 0 {
 			app.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			app.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			app.SetExpiry(cfg.Expires)
 		}
@@ -156,6 +159,9 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 		}
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
+		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
 		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)

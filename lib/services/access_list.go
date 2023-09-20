@@ -96,6 +96,9 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	if cfg.ID != 0 {
 		accessList.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		accessList.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		accessList.SetExpiry(cfg.Expires)
 	}
@@ -161,6 +164,9 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 	}
 	if cfg.ID != 0 {
 		member.SetResourceID(cfg.ID)
+	}
+	if cfg.Revision != "" {
+		member.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
 		member.SetExpiry(cfg.Expires)

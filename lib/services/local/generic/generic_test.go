@@ -87,6 +87,9 @@ func unmarshalResource(data []byte, opts ...services.MarshalOption) (*testResour
 	if cfg.ID != 0 {
 		r.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		r.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		r.SetExpiry(cfg.Expires)
 	}

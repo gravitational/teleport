@@ -48,6 +48,9 @@ func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (types.RemoteCl
 	if cfg.ID != 0 {
 		cluster.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		cluster.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		cluster.SetExpiry(cfg.Expires)
 	}

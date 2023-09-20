@@ -91,6 +91,9 @@ func UnmarshalIntegration(data []byte, opts ...MarshalOption) (types.Integration
 	if cfg.ID != 0 {
 		ig.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		ig.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		ig.SetExpiry(cfg.Expires)
 	}

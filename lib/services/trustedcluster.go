@@ -161,6 +161,9 @@ func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (types.Trusted
 	if cfg.ID != 0 {
 		trustedCluster.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		trustedCluster.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		trustedCluster.SetExpiry(cfg.Expires)
 	}

@@ -127,6 +127,9 @@ func UnmarshalOktaImportRule(data []byte, opts ...MarshalOption) (types.OktaImpo
 		if cfg.ID != 0 {
 			i.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			i.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			i.SetExpiry(cfg.Expires)
 		}
@@ -183,6 +186,9 @@ func UnmarshalOktaAssignment(data []byte, opts ...MarshalOption) (types.OktaAssi
 		}
 		if cfg.ID != 0 {
 			a.SetResourceID(cfg.ID)
+		}
+		if cfg.Revision != "" {
+			a.SetRevision(cfg.Revision)
 		}
 		if !cfg.Expires.IsZero() {
 			a.SetExpiry(cfg.Expires)

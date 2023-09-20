@@ -96,6 +96,9 @@ func UnmarshalLock(bytes []byte, opts ...MarshalOption) (types.Lock, error) {
 	if cfg.ID != 0 {
 		lock.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		lock.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		lock.SetExpiry(cfg.Expires)
 	}

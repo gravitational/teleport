@@ -105,6 +105,9 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (types.User, error) {
 		if cfg.ID != 0 {
 			u.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			u.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			u.SetExpiry(cfg.Expires)
 		}

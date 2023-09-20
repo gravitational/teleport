@@ -53,6 +53,9 @@ func UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (types.WebSession,
 		if cfg.ID != 0 {
 			ws.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			ws.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			ws.SetExpiry(cfg.Expires)
 		}

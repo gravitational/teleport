@@ -3134,6 +3134,9 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 		if cfg.ID != 0 {
 			role.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			role.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			role.SetExpiry(cfg.Expires)
 		}

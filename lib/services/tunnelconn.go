@@ -82,6 +82,9 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (types.Tunnel
 		if cfg.ID != 0 {
 			r.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			r.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			r.SetExpiry(cfg.Expires)
 		}

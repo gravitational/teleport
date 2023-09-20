@@ -65,6 +65,9 @@ func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (types.ReverseT
 		if cfg.ID != 0 {
 			r.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			r.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			r.SetExpiry(cfg.Expires)
 		}

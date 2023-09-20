@@ -473,6 +473,9 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 		if cfg.ID != 0 {
 			ca.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			ca.SetRevision(cfg.Revision)
+		}
 		// Correct problems with existing CAs that contain non-UTC times, which
 		// causes panics when doing a gogoproto Clone; should only ever be
 		// possible with LastRotated, but we enforce it on all the times anyway.

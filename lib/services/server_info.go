@@ -45,6 +45,9 @@ func UnmarshalServerInfo(bytes []byte, opts ...MarshalOption) (types.ServerInfo,
 	if cfg.ID != 0 {
 		si.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		si.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		si.SetExpiry(cfg.Expires)
 	}

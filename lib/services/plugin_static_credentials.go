@@ -92,6 +92,9 @@ func UnmarshalPluginStaticCredentials(data []byte, opts ...MarshalOption) (types
 		if cfg.ID != 0 {
 			pluginStaticCredentials.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			pluginStaticCredentials.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			pluginStaticCredentials.SetExpiry(cfg.Expires)
 		}

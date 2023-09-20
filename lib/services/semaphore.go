@@ -301,6 +301,9 @@ func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (types.Semaphore, e
 	if cfg.ID != 0 {
 		semaphore.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		semaphore.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		semaphore.SetExpiry(cfg.Expires)
 	}

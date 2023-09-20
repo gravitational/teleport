@@ -59,6 +59,9 @@ func UnmarshalClusterAuditConfig(bytes []byte, opts ...MarshalOption) (types.Clu
 	if cfg.ID != 0 {
 		auditConfig.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		auditConfig.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		auditConfig.SetExpiry(cfg.Expires)
 	}

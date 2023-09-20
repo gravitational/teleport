@@ -57,6 +57,9 @@ func UnmarshalSessionRecordingConfig(bytes []byte, opts ...MarshalOption) (types
 	if cfg.ID != 0 {
 		recConfig.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		recConfig.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		recConfig.SetExpiry(cfg.Expires)
 	}

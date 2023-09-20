@@ -45,6 +45,9 @@ func UnmarshalUIConfig(data []byte, opts ...MarshalOption) (types.UIConfig, erro
 	if cfg.ID != 0 {
 		uiconfig.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		uiconfig.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		uiconfig.SetExpiry(cfg.Expires)
 	}

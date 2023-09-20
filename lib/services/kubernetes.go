@@ -110,6 +110,9 @@ func UnmarshalKubeServer(data []byte, opts ...MarshalOption) (types.KubeServer, 
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)
 		}
@@ -166,6 +169,9 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 		}
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
+		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
 		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)

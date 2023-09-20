@@ -299,6 +299,9 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 		if cfg.ID != 0 {
 			c.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			c.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			c.SetExpiry(cfg.Expires)
 		}
