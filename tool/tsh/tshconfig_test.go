@@ -35,28 +35,27 @@ func TestLoadConfigNonExistingFile(t *testing.T) {
 	fullFilePath := "/tmp/doesntexist." + uuid.NewString()
 	gotConfig, gotErr := loadConfig(fullFilePath)
 	require.NoError(t, gotErr)
-	require.Equal(t, &TshConfig{}, gotConfig)
+	require.Equal(t, &TSHConfig{}, gotConfig)
 }
 
 func TestLoadConfigEmptyFile(t *testing.T) {
 	t.Parallel()
 
-	file, err := os.CreateTemp("", "test-telelport")
+	file, err := os.CreateTemp(t.TempDir(), "test-telelport")
 	require.NoError(t, err)
-	defer os.Remove(file.Name())
 
 	_, err = file.Write([]byte(" "))
 	require.NoError(t, err)
 
 	gotConfig, gotErr := loadConfig(file.Name())
 	require.NoError(t, gotErr)
-	require.Equal(t, &TshConfig{}, gotConfig)
+	require.Equal(t, &TSHConfig{}, gotConfig)
 }
 
 func TestLoadAllConfigs(t *testing.T) {
 	t.Parallel()
 
-	writeConf := func(fn string, config TshConfig) {
+	writeConf := func(fn string, config TSHConfig) {
 		dir, _ := path.Split(fn)
 		err := os.MkdirAll(dir, 0777)
 		require.NoError(t, err)
@@ -69,7 +68,7 @@ func TestLoadAllConfigs(t *testing.T) {
 	tmp := t.TempDir()
 
 	globalPath := path.Join(tmp, "etc", "tsh_global.yaml")
-	globalConf := TshConfig{
+	globalConf := TSHConfig{
 		ExtraHeaders: []ExtraProxyHeaders{{
 			Proxy:   "global",
 			Headers: map[string]string{"bar": "123"},
@@ -78,7 +77,7 @@ func TestLoadAllConfigs(t *testing.T) {
 
 	homeDir := path.Join(tmp, "home", "myuser", ".tsh")
 	userPath := path.Join(homeDir, "config", "config.yaml")
-	userConf := TshConfig{
+	userConf := TSHConfig{
 		ExtraHeaders: []ExtraProxyHeaders{{
 			Proxy:   "user",
 			Headers: map[string]string{"bar": "456"},
@@ -94,7 +93,7 @@ func TestLoadAllConfigs(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, &TshConfig{
+	require.Equal(t, &TSHConfig{
 		ExtraHeaders: []ExtraProxyHeaders{
 			{
 				Proxy:   "user",
@@ -111,7 +110,9 @@ func TestLoadAllConfigs(t *testing.T) {
 }
 
 func TestTshConfigMerge(t *testing.T) {
-	sampleConfig := TshConfig{
+	t.Parallel()
+
+	sampleConfig := TSHConfig{
 		ExtraHeaders: []ExtraProxyHeaders{{
 			Proxy: "foo",
 			Headers: map[string]string{
@@ -123,15 +124,15 @@ func TestTshConfigMerge(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		config1 *TshConfig
-		config2 *TshConfig
-		want    TshConfig
+		config1 *TSHConfig
+		config2 *TSHConfig
+		want    TSHConfig
 	}{
 		{
 			name:    "empty + empty = empty",
 			config1: nil,
 			config2: nil,
-			want:    TshConfig{Aliases: map[string]string{}},
+			want:    TSHConfig{Aliases: map[string]string{}},
 		},
 		{
 			name:    "empty + x = x",
@@ -147,14 +148,14 @@ func TestTshConfigMerge(t *testing.T) {
 		},
 		{
 			name: "headers combine different proxies",
-			config1: &TshConfig{
+			config1: &TSHConfig{
 				ExtraHeaders: []ExtraProxyHeaders{{
 					Proxy: "foo",
 					Headers: map[string]string{
 						"bar": "123",
 					},
 				}}},
-			config2: &TshConfig{
+			config2: &TSHConfig{
 				ExtraHeaders: []ExtraProxyHeaders{{
 					Proxy: "bar",
 					Headers: map[string]string{
@@ -162,7 +163,7 @@ func TestTshConfigMerge(t *testing.T) {
 					},
 				}},
 			},
-			want: TshConfig{
+			want: TSHConfig{
 				ExtraHeaders: []ExtraProxyHeaders{
 					{
 						Proxy: "bar",
@@ -182,21 +183,21 @@ func TestTshConfigMerge(t *testing.T) {
 		},
 		{
 			name: "headers combine same proxy",
-			config1: &TshConfig{
+			config1: &TSHConfig{
 				ExtraHeaders: []ExtraProxyHeaders{{
 					Proxy: "foo",
 					Headers: map[string]string{
 						"bar": "123",
 					},
 				}}},
-			config2: &TshConfig{
+			config2: &TSHConfig{
 				ExtraHeaders: []ExtraProxyHeaders{{
 					Proxy: "foo",
 					Headers: map[string]string{
 						"bar": "456",
 					},
 				}}},
-			want: TshConfig{
+			want: TSHConfig{
 				ExtraHeaders: []ExtraProxyHeaders{
 					{
 						Proxy: "foo",
@@ -216,7 +217,7 @@ func TestTshConfigMerge(t *testing.T) {
 		},
 		{
 			name: "aliases combine",
-			config1: &TshConfig{
+			config1: &TSHConfig{
 				ExtraHeaders:   nil,
 				ProxyTemplates: nil,
 				Aliases: map[string]string{
@@ -224,7 +225,7 @@ func TestTshConfigMerge(t *testing.T) {
 					"bar": "bar1",
 				},
 			},
-			config2: &TshConfig{
+			config2: &TSHConfig{
 				ExtraHeaders:   nil,
 				ProxyTemplates: nil,
 				Aliases: map[string]string{
@@ -232,7 +233,7 @@ func TestTshConfigMerge(t *testing.T) {
 					"bar": "bar2",
 				},
 			},
-			want: TshConfig{
+			want: TSHConfig{
 				ExtraHeaders:   nil,
 				ProxyTemplates: nil,
 				Aliases: map[string]string{
@@ -254,7 +255,9 @@ func TestTshConfigMerge(t *testing.T) {
 
 // TestProxyTemplatesApply verifies proxy templates matching functionality.
 func TestProxyTemplatesApply(t *testing.T) {
-	tshConfig := TshConfig{
+	t.Parallel()
+
+	tshConfig := TSHConfig{
 		ProxyTemplates: ProxyTemplates{
 			{
 				Template: `^(.+)\.(us.example.com):(.+)$`,
@@ -331,7 +334,9 @@ func TestProxyTemplatesApply(t *testing.T) {
 
 // TestProxyTemplates verifies proxy templates apply properly to client config.
 func TestProxyTemplatesMakeClient(t *testing.T) {
-	tshConfig := TshConfig{
+	t.Parallel()
+
+	tshConfig := TSHConfig{
 		ProxyTemplates: ProxyTemplates{
 			{
 				Template: `^(.+)\.(us.example.com):(.+)$`,
@@ -349,7 +354,7 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 			Proxy:     "proxy:3080",
 			UserHost:  "localhost",
 			HomePath:  t.TempDir(),
-			TshConfig: tshConfig,
+			TSHConfig: tshConfig,
 		}
 
 		// Create a empty profile so we don't ping proxy.
