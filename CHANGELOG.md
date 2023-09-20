@@ -1,5 +1,73 @@
 # Changelog
 
+## 12.4.18 (09/20/23)
+
+### Security fixes
+
+#### [Critical] Privilege escalation via host user creation
+
+When using automatic Linux user creation, an attacker could exploit a race
+condition in the user creation functionality to create arbitrary files on the
+system as root writable by the created user.
+
+This could allow the attacker to escalate their privileges to root.
+
+Users who aren't using automatic Linux host user creation aren’t affected by
+this vulnerability.
+
+[#32209](https://github.com/gravitational/teleport/pull/32209)
+
+#### [High] Insufficient auth token verification when signing self-hosted database certificates
+
+When signing self-hosted database certificates, Teleport did not sufficiently
+validate the authorization token type.
+
+This could allow an attacker to sign valid database access certificates using a
+guessed authorization token name.
+
+Users who aren’t using self-hosted database access aren’t affected by this
+vulnerability.
+
+[#32216](https://github.com/gravitational/teleport/pull/32216)
+
+#### [High] Privilege escalation via untrusted config file on Windows
+
+When loading the global tsh configuration file tsh.yaml on Windows, Teleport
+would look for the file in a potentially untrusted directory.
+
+This could allow a malicious user to create harmful command aliases for all tsh
+users on the system.
+
+Users who aren’t using tsh on Windows aren’t affected by this vulnerability.
+
+[#32224](https://github.com/gravitational/teleport/pull/32224)
+
+#### [High] XSS in SAML IdP
+
+When registering a service provider with SAML IdP, Teleport did not sufficiently
+validate the ACS endpoint.
+
+This could allow an attacker to execute arbitrary code at the client-side
+leading to privilege escalation.
+
+This issue only affects Teleport Enterprise Edition. Enterprise users who aren’t
+using Teleport SAML IdP functionality aren’t affected by this vulnerability.
+
+[#32251](https://github.com/gravitational/teleport/pull/32251)
+
+### Other fixes and improvements
+
+* Fixed directory sharing in Desktop Access for non-ascii directory names. [#31923](https://github.com/gravitational/teleport/pull/31923)
+* Extended EC2 joining to Discovery, MDM and Okta services. [#31895](https://github.com/gravitational/teleport/pull/31895)
+* Added il-central-1 AWS region to discovery selector. [#31841](https://github.com/gravitational/teleport/pull/31841)
+* Validates unknown AWS regions from discovery matchers. [#31829](https://github.com/gravitational/teleport/pull/31829)
+* Fails with an error if desktops are created with invalid names. [#31765](https://github.com/gravitational/teleport/pull/31765)
+* Added support for bot and agent joining from external Kubernetes Clusters. [#31704](https://github.com/gravitational/teleport/pull/31704)
+* Fixed incorrect autofill in Safari. [#31592](https://github.com/gravitational/teleport/issues/31592) [#31610](https://github.com/gravitational/teleport/pull/31610)
+* Fixed desktop sessions' viewport size to the size of browser window at session start. [#31523](https://github.com/gravitational/teleport/pull/31523)
+* Updated Go to v1.20.8. [#31508](https://github.com/gravitational/teleport/pull/31508)
+* Updated OpenSSL to 3.0.11. [#32166](https://github.com/gravitational/teleport/pull/32166)
+
 ## 12.4.16 (09/05/23)
 
 * Fixed an issue in desktop discovery that unmapped IPv6 addresses. [#31433](https://github.com/gravitational/teleport/pull/31433)
