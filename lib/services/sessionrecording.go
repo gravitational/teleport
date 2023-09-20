@@ -87,6 +87,7 @@ func MarshalSessionRecordingConfig(recConfig types.SessionRecordingConfig, opts 
 			// to prevent unexpected data races
 			copy := *recConfig
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			recConfig = &copy
 		}
 		return utils.FastMarshal(recConfig)

@@ -57,6 +57,7 @@ func MarshalUserGroup(group types.UserGroup, opts ...MarshalOption) ([]byte, err
 		if !cfg.PreserveResourceID {
 			copy := *g
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			g = &copy
 		}
 		return utils.FastMarshal(g)

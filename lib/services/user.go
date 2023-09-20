@@ -135,6 +135,7 @@ func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
 			// to prevent unexpected data races
 			copy := *user
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			user = &copy
 		}
 		return utils.FastMarshal(user)

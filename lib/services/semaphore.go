@@ -328,6 +328,7 @@ func MarshalSemaphore(semaphore types.Semaphore, opts ...MarshalOption) ([]byte,
 			// to prevent unexpected data races
 			copy := *semaphore
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			semaphore = &copy
 		}
 		return utils.FastMarshal(semaphore)

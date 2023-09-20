@@ -192,6 +192,7 @@ func MarshalTrustedCluster(trustedCluster types.TrustedCluster, opts ...MarshalO
 			// to prevent unexpected data races
 			copy := *trustedCluster
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			trustedCluster = &copy
 		}
 		return utils.FastMarshal(trustedCluster)

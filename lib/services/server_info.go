@@ -76,6 +76,7 @@ func MarshalServerInfo(si types.ServerInfo, opts ...MarshalOption) ([]byte, erro
 			// to prevent unexpected data races
 			copy := *si
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			si = &copy
 		}
 		bytes, err := utils.FastMarshal(si)

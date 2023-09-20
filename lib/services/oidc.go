@@ -153,6 +153,7 @@ func MarshalOIDCConnector(oidcConnector types.OIDCConnector, opts ...MarshalOpti
 			// to prevent unexpected data races
 			copy := *oidcConnector
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			oidcConnector = &copy
 		}
 		return utils.FastMarshal(oidcConnector)

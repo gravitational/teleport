@@ -62,6 +62,7 @@ func MarshalSAMLIdPServiceProvider(serviceProvider types.SAMLIdPServiceProvider,
 		if !cfg.PreserveResourceID {
 			copy := *sp
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			sp = &copy
 		}
 		return utils.FastMarshal(sp)

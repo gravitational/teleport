@@ -72,6 +72,7 @@ func MarshalAccessList(accessList *accesslist.AccessList, opts ...MarshalOption)
 	if !cfg.PreserveResourceID {
 		copy := *accessList
 		copy.SetResourceID(0)
+		copy.SetRevision("")
 		accessList = &copy
 	}
 	return utils.FastMarshal(accessList)
@@ -141,6 +142,7 @@ func MarshalAccessListMember(member *accesslist.AccessListMember, opts ...Marsha
 	if !cfg.PreserveResourceID {
 		copy := *member
 		copy.SetResourceID(0)
+		copy.SetRevision("")
 		member = &copy
 	}
 	return utils.FastMarshal(member)

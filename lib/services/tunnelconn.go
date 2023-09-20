@@ -111,6 +111,7 @@ func MarshalTunnelConnection(tunnelConnection types.TunnelConnection, opts ...Ma
 			// to prevent unexpected data races
 			copy := *tunnelConnection
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			tunnelConnection = &copy
 		}
 		return utils.FastMarshal(tunnelConnection)

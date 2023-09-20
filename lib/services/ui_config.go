@@ -70,6 +70,7 @@ func MarshalUIConfig(uiconfig types.UIConfig, opts ...MarshalOption) ([]byte, er
 			// to prevent unexpected data races
 			copy := *uiconfig
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			uiconfig = &copy
 		}
 		return utils.FastMarshal(uiconfig)

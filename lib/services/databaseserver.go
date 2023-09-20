@@ -41,6 +41,7 @@ func MarshalDatabaseServer(databaseServer types.DatabaseServer, opts ...MarshalO
 			// to prevent unexpected data races
 			copy := *databaseServer
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			databaseServer = &copy
 		}
 		return utils.FastMarshal(databaseServer)

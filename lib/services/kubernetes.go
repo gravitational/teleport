@@ -77,6 +77,7 @@ func MarshalKubeServer(kubeServer types.KubeServer, opts ...MarshalOption) ([]by
 		if !cfg.PreserveResourceID {
 			copy := *server
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			server = &copy
 		}
 		return utils.FastMarshal(server)
@@ -137,6 +138,7 @@ func MarshalKubeCluster(kubeCluster types.KubeCluster, opts ...MarshalOption) ([
 		if !cfg.PreserveResourceID {
 			copy := *cluster
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			cluster = &copy
 		}
 		return utils.FastMarshal(cluster)

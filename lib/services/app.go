@@ -67,6 +67,7 @@ func MarshalApp(app types.Application, opts ...MarshalOption) ([]byte, error) {
 		if !cfg.PreserveResourceID {
 			copy := *app
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			app = &copy
 		}
 		return utils.FastMarshal(app)
@@ -127,6 +128,7 @@ func MarshalAppServer(appServer types.AppServer, opts ...MarshalOption) ([]byte,
 		if !cfg.PreserveResourceID {
 			copy := *appServer
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			appServer = &copy
 		}
 		return utils.FastMarshal(appServer)

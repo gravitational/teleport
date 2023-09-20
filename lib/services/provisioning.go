@@ -127,6 +127,7 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 			// to prevent unexpected data races
 			copy := *provisionToken
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			provisionToken = &copy
 		}
 		if cfg.GetVersion() == types.V1 {

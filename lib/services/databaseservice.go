@@ -55,6 +55,7 @@ func MarshalDatabaseService(databaseService types.DatabaseService, opts ...Marsh
 			// to prevent unexpected data races
 			copy := *databaseService
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			databaseService = &copy
 		}
 		return utils.FastMarshal(databaseService)

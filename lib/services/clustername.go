@@ -86,6 +86,7 @@ func MarshalClusterName(clusterName types.ClusterName, opts ...MarshalOption) ([
 			// to prevent unexpected data races
 			copy := *clusterName
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			clusterName = &copy
 		}
 		return utils.FastMarshal(clusterName)

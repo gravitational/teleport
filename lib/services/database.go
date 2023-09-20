@@ -97,6 +97,7 @@ func MarshalDatabase(database types.Database, opts ...MarshalOption) ([]byte, er
 			// to prevent unexpected data races
 			copy := *database
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			database = &copy
 		}
 		return utils.FastMarshal(database)

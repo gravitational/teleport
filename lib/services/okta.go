@@ -94,6 +94,7 @@ func MarshalOktaImportRule(importRule types.OktaImportRule, opts ...MarshalOptio
 		if !cfg.PreserveResourceID {
 			copy := *i
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			i = &copy
 		}
 		return utils.FastMarshal(i)
@@ -154,6 +155,7 @@ func MarshalOktaAssignment(assignment types.OktaAssignment, opts ...MarshalOptio
 		if !cfg.PreserveResourceID {
 			copy := *a
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			a = &copy
 		}
 		return utils.FastMarshal(a)

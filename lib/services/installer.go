@@ -71,6 +71,7 @@ func MarshalInstaller(installer types.Installer, opts ...MarshalOption) ([]byte,
 			// to prevent unexpected data races
 			copy := *installer
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			installer = &copy
 		}
 		return utils.FastMarshal(installer)

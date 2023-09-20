@@ -1595,6 +1595,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 			// to prevent unexpected data races
 			copy := *accessRequest
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			accessRequest = &copy
 		}
 		return utils.FastMarshal(accessRequest)

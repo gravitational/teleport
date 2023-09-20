@@ -397,6 +397,7 @@ func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 			// to prevent unexpected data races
 			copy := *server
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			server = &copy
 		}
 		return utils.FastMarshal(server)

@@ -38,6 +38,7 @@ func MarshalNamespace(resource types.Namespace, opts ...MarshalOption) ([]byte, 
 		// to prevent unexpected data races
 		copy := resource
 		copy.SetResourceID(0)
+		copy.SetRevision("")
 		resource = copy
 	}
 	return utils.FastMarshal(resource)

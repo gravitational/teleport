@@ -73,6 +73,7 @@ func MarshalStaticTokens(staticToken types.StaticTokens, opts ...MarshalOption) 
 			// to prevent unexpected data races
 			copy := *staticToken
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			staticToken = &copy
 		}
 		return utils.FastMarshal(staticToken)

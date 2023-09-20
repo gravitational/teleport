@@ -83,6 +83,7 @@ func MarshalWebSession(webSession types.WebSession, opts ...MarshalOption) ([]by
 			// to prevent unexpected data races
 			copy := *webSession
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			webSession = &copy
 		}
 		return utils.FastMarshal(webSession)
@@ -109,6 +110,7 @@ func MarshalWebToken(webToken types.WebToken, opts ...MarshalOption) ([]byte, er
 			// to prevent unexpected data races
 			copy := *webToken
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			webToken = &copy
 		}
 		return utils.FastMarshal(webToken)

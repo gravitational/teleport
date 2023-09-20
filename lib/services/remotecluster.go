@@ -76,6 +76,7 @@ func MarshalRemoteCluster(remoteCluster types.RemoteCluster, opts ...MarshalOpti
 			// to prevent unexpected data races
 			copy := *remoteCluster
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			remoteCluster = &copy
 		}
 		return utils.FastMarshal(remoteCluster)

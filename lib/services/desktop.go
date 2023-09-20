@@ -60,6 +60,7 @@ func MarshalWindowsDesktop(s types.WindowsDesktop, opts ...MarshalOption) ([]byt
 			// to prevent unexpected data races
 			copy := *s
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			s = &copy
 		}
 		return utils.FastMarshal(s)
@@ -122,6 +123,7 @@ func MarshalWindowsDesktopService(s types.WindowsDesktopService, opts ...Marshal
 			// to prevent unexpected data races
 			copy := *s
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			s = &copy
 		}
 		return utils.FastMarshal(s)

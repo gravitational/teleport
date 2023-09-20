@@ -94,6 +94,7 @@ func MarshalReverseTunnel(reverseTunnel types.ReverseTunnel, opts ...MarshalOpti
 			// to prevent unexpected data races
 			copy := *reverseTunnel
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			reverseTunnel = &copy
 		}
 		return utils.FastMarshal(reverseTunnel)

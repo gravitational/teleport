@@ -3164,6 +3164,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 			// to prevent unexpected data races
 			copy := *role
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			role = &copy
 		}
 		return utils.FastMarshal(role)

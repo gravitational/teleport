@@ -66,6 +66,7 @@ func MarshalConnectionDiagnostic(s types.ConnectionDiagnostic, opts ...MarshalOp
 			// to prevent unexpected data races
 			copy := *s
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			s = &copy
 		}
 

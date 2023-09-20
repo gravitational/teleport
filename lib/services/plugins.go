@@ -54,6 +54,7 @@ func MarshalPlugin(plugin types.Plugin, opts ...MarshalOption) ([]byte, error) {
 		if !cfg.PreserveResourceID {
 			copy := *plugin
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			plugin = &copy
 		}
 		var buf bytes.Buffer

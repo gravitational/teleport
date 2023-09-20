@@ -330,6 +330,7 @@ func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOpti
 			// to prevent unexpected data races
 			copy := *samlConnector
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			samlConnector = &copy
 		}
 		return utils.FastMarshal(samlConnector)

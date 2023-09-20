@@ -512,6 +512,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 			// to prevent unexpected data races
 			copy := *certAuthority
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			certAuthority = &copy
 		}
 		return utils.FastMarshal(certAuthority)
