@@ -23,7 +23,7 @@ func TestNewFromDecl(t *testing.T) {
 		// Go source fixture. Replace backticks with the "BACKTICK"
 		// placeholder.
 		source   string
-		expected []ReferenceEntry
+		expected map[PackageInfo]ReferenceEntry
 		// Go source fixtures that the test uses for named type fields.
 		declSources []string
 	}{
@@ -47,39 +47,44 @@ type Metadata struct {
     Active bool BACKTICKjson:"active"BACKTICK
 }
 `,
-			expected: []ReferenceEntry{{
-				SectionName: "Metadata",
-				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
-				SourcePath:  "myfile.go",
-				YAMLExample: `name: "string"
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					TypeName:    "Metadata",
+					PackageName: "mypkg",
+				}: {
+					SectionName: "Metadata",
+					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
+					SourcePath:  "myfile.go",
+					YAMLExample: `name: "string"
 description: "string"
 age: 1
 active: true
 `,
-				Fields: []Field{
-					Field{
-						Name:        "name",
-						Description: "The name of the resource.",
-						Type:        "string",
-					},
-					Field{
-						Name:        "description",
-						Description: "The resource's description.",
-						Type:        "string",
-					},
-					Field{
-						Name:        "age",
-						Description: "The resource's age in seconds.",
-						Type:        "number",
-					},
-					Field{
-						Name:        "active",
-						Description: "Indicates whether the resource is currently in use.",
-						Type:        "Boolean",
+					Fields: []Field{
+						Field{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
+						},
+						Field{
+							Name:        "description",
+							Description: "The resource's description.",
+							Type:        "string",
+						},
+						Field{
+							Name:        "age",
+							Description: "The resource's age in seconds.",
+							Type:        "number",
+						},
+						Field{
+							Name:        "active",
+							Description: "Indicates whether the resource is currently in use.",
+							Type:        "Boolean",
+						},
 					},
 				},
 			},
-			}},
+		},
 		{
 			description: "sequences of scalars",
 			source: `
@@ -96,11 +101,15 @@ type Metadata struct {
     Booleans []bool BACKTICKjson:"booleans"BACKTICK
 }
 `,
-			expected: []ReferenceEntry{{
-				SectionName: "Metadata",
-				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
-				SourcePath:  "myfile.go",
-				YAMLExample: `names: 
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					TypeName:    "Metadata",
+					PackageName: "mypkg",
+				}: {
+					SectionName: "Metadata",
+					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
+					SourcePath:  "myfile.go",
+					YAMLExample: `names: 
 - "string"
 - "string"
 - "string"
@@ -113,24 +122,24 @@ booleans:
 - true
 - true
 `,
-				Fields: []Field{
-					Field{
-						Name:        "names",
-						Description: "A list of names.",
-						Type:        "[]string",
-					},
-					Field{
-						Name:        "numbers",
-						Description: "A list of numbers.",
-						Type:        "[]number",
-					},
-					Field{
-						Name:        "booleans",
-						Description: "A list of Booleans.",
-						Type:        "[]Boolean",
+					Fields: []Field{
+						Field{
+							Name:        "names",
+							Description: "A list of names.",
+							Type:        "[]string",
+						},
+						Field{
+							Name:        "numbers",
+							Description: "A list of numbers.",
+							Type:        "[]number",
+						},
+						Field{
+							Name:        "booleans",
+							Description: "A list of Booleans.",
+							Type:        "[]Boolean",
+						},
 					},
 				},
-			},
 			}},
 		{
 			description: "a map of strings to sequences",
@@ -144,11 +153,15 @@ type Metadata struct {
   Attributes map[string][]string BACKTICKjson:"attributes"BACKTICK
 }
 `,
-			expected: []ReferenceEntry{{
-				SectionName: "Metadata",
-				Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
-				SourcePath:  "myfile.go",
-				YAMLExample: `attributes: 
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					TypeName:    "Metadata",
+					PackageName: "mypkg",
+				}: {
+					SectionName: "Metadata",
+					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
+					SourcePath:  "myfile.go",
+					YAMLExample: `attributes: 
   "string": 
     - "string"
     - "string"
@@ -162,14 +175,14 @@ type Metadata struct {
     - "string"
     - "string"
 `,
-				Fields: []Field{
-					Field{
-						Name:        "attributes",
-						Description: "Indicates additional data for the resource.",
-						Type:        "map[string][]string",
+					Fields: []Field{
+						Field{
+							Name:        "attributes",
+							Description: "Indicates additional data for the resource.",
+							Type:        "map[string][]string",
+						},
 					},
 				},
-			},
 			}},
 		{
 			description: "a custom type field with no override",
@@ -184,26 +197,30 @@ type Server struct {
     Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
 }
 `,
-			expected: []ReferenceEntry{{
-				SectionName: "Server",
-				Description: "Includes information about a server registered with Teleport.",
-				SourcePath:  "myfile.go",
-				YAMLExample: `name: "string"
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					TypeName:    "Server",
+					PackageName: "mypkg",
+				}: {
+					SectionName: "Server",
+					Description: "Includes information about a server registered with Teleport.",
+					SourcePath:  "myfile.go",
+					YAMLExample: `name: "string"
 spec: 
 # [...]
 `,
-				Fields: []Field{
-					Field{
-						Name:        "name",
-						Description: "The name of the resource.",
-						Type:        "string",
+					Fields: []Field{
+						Field{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
+						},
+						Field{
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "[Server Spec v1](#server-spec-v1)"},
 					},
-					Field{
-						Name:        "spec",
-						Description: "Contains information about the server.",
-						Type:        "[Server Spec v1](#server-spec-v1)"},
-				},
-			}},
+				}},
 		},
 		{
 			description: "example YAML block",
@@ -224,8 +241,11 @@ type Server struct {
 }
 `,
 
-			expected: []ReferenceEntry{
-				{
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					TypeName:    "Server",
+					PackageName: "mypkg",
+				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
 					SourcePath:  "myfile.go",
@@ -269,8 +289,11 @@ type ServerSpecV1 struct {
     IsActive bool BACKTICKjson:"is_active"BACKTICK
 }`,
 			},
-			expected: []ReferenceEntry{
-				{
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					TypeName:    "Server",
+					PackageName: "mypkg",
+				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
 					SourcePath:  "myfile.go",
@@ -290,7 +313,10 @@ spec:
 							Type:        "[Server Spec v1](#server-spec-v1)"},
 					},
 				},
-				{
+				PackageInfo{
+					TypeName:    "ServerSpecV1",
+					PackageName: "types",
+				}: {
 					SectionName: "Server Spec v1",
 					Description: "Includes aspects of a proxied server.",
 					SourcePath:  "myfile0.go",
@@ -346,8 +372,11 @@ type ServerSpecV1 struct {
 type Label string
 `,
 			},
-			expected: []ReferenceEntry{
-				{
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					TypeName:    "Server",
+					PackageName: "mypkg",
+				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
 					SourcePath:  "myfile.go",
@@ -388,7 +417,10 @@ label_maps:
 						},
 					},
 				},
-				{
+				PackageInfo{
+					TypeName:    "ServerSpecV1",
+					PackageName: "types",
+				}: {
 					SectionName: "Server Spec v1",
 					Description: "Includes aspects of a proxied server.",
 					SourcePath:  "myfile0.go",
@@ -402,7 +434,10 @@ label_maps:
 						},
 					},
 				},
-				{
+				PackageInfo{
+					TypeName:    "Label",
+					PackageName: "types",
+				}: {
 					SectionName: "Label",
 					Description: "A custom type that we unmarshal in a non-default way.",
 					SourcePath:  "myfile1.go",
@@ -433,8 +468,11 @@ type Metadata struct {
     Active bool BACKTICKjson:"active"BACKTICK
 }`,
 			},
-			expected: []ReferenceEntry{
-				{
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					TypeName:    "MyResource",
+					PackageName: "mypkg",
+				}: {
 					SectionName: "My Resource",
 					Description: "A resource declared for testing.",
 					SourcePath:  "myfile.go",
