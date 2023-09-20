@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/license"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/e/lib/licensefile"
@@ -75,13 +76,7 @@ func InitAggregatingUsageReporting(
 		return trace.Wrap(err)
 	}
 
-	log := process.Config.Log.WithField(
-		trace.Component,
-		teleport.Component(
-			teleport.ComponentUsageReporting,
-			process.GetID(),
-		),
-	)
+	log := usageReportingLog(process)
 
 	reporter, err := aggregating.NewReporter(process.ExitContext(),
 		aggregating.ReporterConfig{
@@ -122,4 +117,26 @@ func InitAggregatingUsageReporting(
 	log.Info("Successfully started.")
 
 	return nil
+}
+
+// ClearAggregatingUsageReportingAlert deletes the reporting-failed cluster
+// alert, if present.
+func ClearAggregatingUsageReportingAlert(process *service.TeleportProcess) {
+	log := usageReportingLog(process)
+	err := aggregating.ClearAlert(process.GracefulExitContext(), process.GetAuthServer())
+	if err == nil {
+		log.Infof("Deleted cluster alert.")
+	} else if !trace.IsNotFound(err) {
+		log.WithError(err).Errorf("Failed to delete cluster alert.")
+	}
+}
+
+func usageReportingLog(process *service.TeleportProcess) *logrus.Entry {
+	return process.Config.Log.WithField(
+		trace.Component,
+		teleport.Component(
+			teleport.ComponentUsageReporting,
+			process.GetID(),
+		),
+	)
 }

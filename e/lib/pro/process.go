@@ -95,6 +95,8 @@ func NewTeleport(cfg Config) (*Process, error) {
 		); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	} else {
+		prehog.ClearAggregatingUsageReportingAlert(process.TeleportProcess)
 	}
 
 	return process, nil
