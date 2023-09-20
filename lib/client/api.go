@@ -3871,11 +3871,6 @@ func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.Privat
 
 // new SSHLogin generates a new SSHLogin using the given login key.
 func (tc *TeleportClient) newSSHLogin(priv *keys.PrivateKey) (SSHLogin, error) {
-	attestationStatement, err := keys.GetAttestationStatement(priv)
-	if err != nil {
-		return SSHLogin{}, trace.Wrap(err)
-	}
-
 	return SSHLogin{
 		ProxyAddr:            tc.WebProxyAddr,
 		PubKey:               priv.MarshalSSHPublicKey(),
@@ -3885,7 +3880,7 @@ func (tc *TeleportClient) newSSHLogin(priv *keys.PrivateKey) (SSHLogin, error) {
 		Compatibility:        tc.CertificateFormat,
 		RouteToCluster:       tc.SiteName,
 		KubernetesCluster:    tc.KubernetesCluster,
-		AttestationStatement: attestationStatement,
+		AttestationStatement: priv.GetAttestationStatement(),
 		ExtraHeaders:         tc.ExtraProxyHeaders,
 	}, nil
 }
