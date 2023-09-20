@@ -426,13 +426,18 @@ func makeRawField(field *ast.Field, packageName string) (rawField, error) {
 		}
 	}
 
+	var tag string
+	if field.Tag != nil {
+		tag = field.Tag.Value
+	}
+
 	return rawField{
 		packageName: pkg,
 		doc:         doc,
 		kind:        tn,
 		name:        name,
-		jsonName:    getJSONTag(field.Tag.Value),
-		tags:        field.Tag.Value,
+		jsonName:    getJSONTag(tag),
+		tags:        tag,
 	}, nil
 }
 
