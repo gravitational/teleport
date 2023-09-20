@@ -153,7 +153,7 @@ func FuzzMongoRead(f *testing.F) {
 		msg := bytes.NewReader(msgBytes)
 
 		require.NotPanics(t, func() {
-			_, _ = ReadMessage(msg)
+			_, _ = ReadMessage(msg, DefaultMaxMessageSizeBytes)
 		})
 	})
 }
