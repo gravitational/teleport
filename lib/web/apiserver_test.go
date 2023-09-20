@@ -6016,7 +6016,11 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
-					Error:   "direct dialing to nodes not found in inventory is not supported",
+					Error: `Direct dialing to nodes not found in the inventory is not supported.
+If you want to connect to a node without installing Teleport on it, consider registering it with
+your cluster with 'teleport join openssh'.
+
+See https://goteleport.com/docs/ver/14.x/server-access/guides/openssh/ for more details.`,
 				},
 			},
 		},

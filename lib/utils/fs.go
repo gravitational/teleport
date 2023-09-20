@@ -23,6 +23,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -84,30 +86,69 @@ func IsDir(path string) bool {
 
 // NormalizePath normalises path, evaluating symlinks and converting local
 // paths to absolute
-func NormalizePath(path string) (string, error) {
+func NormalizePath(path string, evaluateSymlinks bool) (string, error) {
 	s, err := filepath.Abs(path)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}
-	abs, err := filepath.EvalSymlinks(s)
-	if err != nil {
-		return "", trace.ConvertSystemError(err)
+	if evaluateSymlinks {
+		s, err = filepath.EvalSymlinks(s)
+		if err != nil {
+			return "", trace.ConvertSystemError(err)
+		}
 	}
-	return abs, nil
+	return s, nil
 }
 
-// OpenFile opens  file and returns file handle
-func OpenFile(path string) (*os.File, error) {
-	newPath, err := NormalizePath(path)
+// OpenFileAllowingUnsafeLinks opens a file, if the path includes a symlink, the returned os.File will be resolved to
+// the actual file.  This will return an error if the file is not found or is a directory.
+func OpenFileAllowingUnsafeLinks(path string) (*os.File, error) {
+	return openFile(path, true /* allowSymlink */, true /* allowMultipleHardlinks */)
+}
+
+// OpenFileNoUnsafeLinks opens a file, ensuring it's an actual file and not a directory or symlink.  Depending on
+// the os, it may also prevent hardlinks.  This is important because MacOS allows hardlinks without validating write
+// permissions (similar to a symlink in that regard).
+func OpenFileNoUnsafeLinks(path string) (*os.File, error) {
+	return openFile(path, false /* allowSymlink */, runtime.GOOS != "darwin" /* allowMultipleHardlinks */)
+}
+
+func openFile(path string, allowSymlink, allowMultipleHardlinks bool) (*os.File, error) {
+	newPath, err := NormalizePath(path, allowSymlink)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fi, err := os.Stat(newPath)
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
+	var fi os.FileInfo
+	if allowSymlink {
+		fi, err = os.Stat(newPath)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+	} else {
+		components := strings.Split(newPath, string(os.PathSeparator))
+		var subPath string
+		for _, p := range components {
+			subPath = filepath.Join(subPath, p)
+			if subPath == "" {
+				subPath = string(os.PathSeparator)
+			}
+
+			fi, err = os.Lstat(subPath)
+			if err != nil {
+				return nil, trace.ConvertSystemError(err)
+			} else if fi.Mode().Type()&os.ModeSymlink != 0 {
+				return nil, trace.BadParameter("opening file %s, symlink not allowed in path: %s", path, subPath)
+			}
+		}
+	}
+	if !allowMultipleHardlinks {
+		// hardlinks can only exist at the end file, not for directories within the path
+		if linkCount, ok := getHardLinkCount(fi); ok && linkCount > 1 {
+			return nil, trace.BadParameter("file has hardlink count greater than 1: %s", path)
+		}
 	}
 	if fi.IsDir() {
-		return nil, trace.BadParameter("%v is not a file", path)
+		return nil, trace.BadParameter("%s is not a file", path)
 	}
 	f, err := os.Open(newPath)
 	if err != nil {
@@ -118,7 +159,7 @@ func OpenFile(path string) (*os.File, error) {
 
 // StatFile stats path, returns error if it exists but a directory.
 func StatFile(path string) (os.FileInfo, error) {
-	newPath, err := NormalizePath(path)
+	newPath, err := NormalizePath(path, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
