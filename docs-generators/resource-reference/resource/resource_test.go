@@ -484,7 +484,7 @@ type Metadata struct {
 						},
 						{
 							Name:        "name",
-							Description: "The name of the resource",
+							Description: "The name of the resource.",
 							Type:        "string",
 						},
 						{

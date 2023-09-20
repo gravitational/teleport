@@ -523,9 +523,13 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 
 	// Add embedded struct fields to the root reference entry generarated
 	// from decl.
-	embeddeds := []Field{}
+	embeddedFields := []Field{}
+	// Process these later. Remove embedded fields from rs.fields so they
+	// don't show up as empty in the reference.
+	nonEmbeddedFields := []rawField{}
 	for _, l := range rs.fields {
 		if l.name != "" {
+			nonEmbeddedFields = append(nonEmbeddedFields, l)
 			continue
 		}
 		c, ok := l.kind.(yamlCustomType)
@@ -564,13 +568,13 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 				rs.name,
 			)
 		}
-		embeddeds = append(embeddeds, r.Fields...)
+		embeddedFields = append(embeddedFields, r.Fields...)
 	}
 
 	// Initialize the return value and insert the root reference entry
 	// provided by decl.
 	refs := make(map[PackageInfo]ReferenceEntry)
-	fld, err := makeFieldTableInfo(rs.fields)
+	fld, err := makeFieldTableInfo(nonEmbeddedFields)
 	if err != nil {
 		return nil, err
 	}
@@ -582,7 +586,7 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		SectionName: makeSectionName(rs.name),
 		Description: descriptionWithoutName(description, rs.name),
 		SourcePath:  decl.FilePath,
-		Fields:      append(fld, embeddeds...),
+		Fields:      append(fld, embeddedFields...),
 		YAMLExample: example,
 	}
 
