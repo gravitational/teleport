@@ -192,6 +192,9 @@ type UaccMetadata struct {
 
 	// WtmpPath is the path of the system wtmp log.
 	WtmpPath string `json:"wtmp_path,omitempty"`
+
+	// BtmpPath is the path of the system btmp log.
+	BtmpPath string `json:"btmp_path,omitempty"`
 }
 
 // RunCommand reads in the command to run from the parent process (over a
@@ -284,13 +287,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
 		errorWriter = tty
-		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
-		// uacc support is best-effort, only enable it if Open is successful.
-		// Currently, there is no way to log this error out-of-band with the
-		// command output, so for now we essentially ignore it.
-		if err == nil {
-			uaccEnabled = true
-		}
 	}
 
 	// If PAM is enabled, open a PAM context. This has to be done before anything
@@ -346,7 +342,22 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
+		if uaccErr := uacc.LogFailedLogin(c.UaccMetadata.BtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr); uaccErr != nil {
+			log.WithError(uaccErr).Debug("uacc unsupported.")
+		}
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	if c.Terminal {
+		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
+		// uacc support is best-effort, only enable it if Open is successful.
+		// Currently, there is no way to log this error out-of-band with the
+		// command output, so for now we essentially ignore it.
+		if err == nil {
+			uaccEnabled = true
+		} else {
+			log.WithError(err).Debug("uacc unsupported.")
+		}
 	}
 
 	// Build the actual command that will launch the shell.
