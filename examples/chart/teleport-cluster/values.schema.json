@@ -33,6 +33,15 @@
             "type": "string",
             "default": ""
         },
+        "proxyProtocol": {
+            "$id": "#/properties/proxyProtocol",
+            "type": "string",
+            "default": "",
+            "enum": [
+                "off",
+                "on"
+            ]
+        },
         "auth": {
             "$id": "#/properties/auth",
             "type": "object"
@@ -49,7 +58,9 @@
         "podMonitor": {
             "$id": "#/properties/podMonitor",
             "type": "object",
-            "required": ["enabled"],
+            "required": [
+                "enabled"
+            ],
             "properties": {
                 "enabled": {
                     "$id": "#/properties/podMonitor/enabled",
@@ -59,8 +70,12 @@
                 "additionalLabels": {
                     "$id": "#/properties/podMonitor/additionalLabels",
                     "type": "object",
-                    "default": {"prometheus": "default"},
-                    "additionalProperties": {"type": "string"}
+                    "default": {
+                        "prometheus": "default"
+                    },
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 },
                 "interval": {
                     "$id": "#/properties/podMonitor/interval",
@@ -72,7 +87,10 @@
         "authentication": {
             "$id": "#/properties/authentication",
             "type": "object",
-            "required": ["type", "localAuth"],
+            "required": [
+                "type",
+                "localAuth"
+            ],
             "properties": {
                 "type": {
                     "$id": "#/properties/authentication/properties/type",
@@ -97,7 +115,13 @@
                 "secondFactor": {
                     "$id": "#/properties/authentication/properties/secondFactor",
                     "type": "string",
-                    "enum": ["off", "on", "otp", "optional", "webauthn"],
+                    "enum": [
+                        "off",
+                        "on",
+                        "otp",
+                        "optional",
+                        "webauthn"
+                    ],
                     "default": "otp"
                 },
                 "webauthn": {
@@ -131,7 +155,13 @@
                 "secondFactor": {
                     "$id": "#/properties/authenticationSecondFactor/properties/secondFactor",
                     "type": "string",
-                    "enum": ["off", "on", "otp", "optional", "webauthn"],
+                    "enum": [
+                        "off",
+                        "on",
+                        "otp",
+                        "optional",
+                        "webauthn"
+                    ],
                     "default": "otp"
                 },
                 "webauthn": {
@@ -261,7 +291,9 @@
         "operator": {
             "$id": "#/properties/operator",
             "type": "object",
-            "required": ["enabled"],
+            "required": [
+                "enabled"
+            ],
             "properties": {
                 "enabled": {
                     "$id": "#/properties/operator/properties/enabled",
@@ -700,7 +732,13 @@
                 "level": {
                     "$id": "#/properties/log/properties/level",
                     "type": "string",
-                    "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+                    "enum": [
+                        "DEBUG",
+                        "INFO",
+                        "WARN",
+                        "WARNING",
+                        "ERROR"
+                    ],
                     "default": "INFO"
                 },
                 "deployment": {
