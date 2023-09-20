@@ -240,11 +240,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Headless WebAuthn (Preview)",
+              "title": "Headless WebAuthn",
               "slug": "/access-controls/guides/headless/"
             },
             {
-              "title": "IP Pinning (Preview)",
+              "title": "IP Pinning ",
               "slug": "/access-controls/guides/ip-pinning/",
               "forScopes": ["enterprise", "cloud"]
             }
@@ -612,6 +612,14 @@
             {
               "title": "Reducing the Blast Radius of Attacks",
               "slug": "/management/security/reduce-blast-radius/"
+            },
+            {
+              "title": "PROXY Protocol",
+              "slug": "/management/security/proxy-protocol/",
+              "forScopes": [
+                "enterprise",
+                "oss"
+              ]
             }
           ]
         },
@@ -851,7 +859,7 @@
           ]
         },
         {
-          "title": "Protect Okta Applications and Groups (Preview)",
+          "title": "Protect Okta Applications and Groups ",
           "slug": "/application-access/okta/",
           "forScopes": ["enterprise", "cloud"],
           "entries": [
@@ -1191,7 +1199,7 @@
               "slug": "/database-access/rbac/configuring-access/"
             },
             {
-              "title": "Automatic User Provisioning (Preview)",
+              "title": "Automatic User Provisioning ",
               "slug": "/database-access/rbac/configuring-auto-user-provisioning/"
             }
           ]
@@ -1245,7 +1253,7 @@
           "slug": "/desktop-access/introduction/"
         },
         {
-          "title": "Getting Started",
+          "title": "Configure local Windows users",
           "slug": "/desktop-access/getting-started/",
           "forScopes": ["enterprise", "cloud"]
         },

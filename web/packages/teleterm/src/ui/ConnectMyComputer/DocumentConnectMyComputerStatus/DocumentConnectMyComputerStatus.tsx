@@ -258,7 +258,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
           return noop; // noop, not used, at this point it should be start processing.
         }
         default: {
-          return assertUnreachable(currentAction.attempt.status);
+          return assertUnreachable(currentAction.attempt);
         }
       }
     }
@@ -272,7 +272,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
           };
         }
         case 'error': {
-          if (currentAction.attempt.statusText !== AgentProcessError.name) {
+          if (!(currentAction.attempt.error instanceof AgentProcessError)) {
             return {
               Icon: StyledWarning,
               title: 'Failed to start agent',
@@ -306,7 +306,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
           return noop; // noop, not used, at this point it should be observe-process running.
         }
         default: {
-          return assertUnreachable(currentAction.attempt.status);
+          return assertUnreachable(currentAction.attempt);
         }
       }
       break;
@@ -377,7 +377,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
           return noop; // noop, not used, at this point it should be observe-process exited.
         }
         default: {
-          return assertUnreachable(currentAction.attempt.status);
+          return assertUnreachable(currentAction.attempt);
         }
       }
     }

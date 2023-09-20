@@ -84,7 +84,7 @@ export default function makeApp(json: any): App {
 }
 
 function guessAppIcon(json: any): GuessedAppType {
-  const { name, labels, awsConsole = false } = json;
+  const { name, labels, friendlyName, awsConsole = false } = json;
 
   if (awsConsole) {
     return 'Aws';
@@ -92,6 +92,7 @@ function guessAppIcon(json: any): GuessedAppType {
 
   if (
     name?.toLocaleLowerCase().includes('slack') ||
+    friendlyName?.toLocaleLowerCase().includes('slack') ||
     labels?.some(l => `${l.name}:${l.value}` === 'icon:slack')
   ) {
     return 'Slack';
@@ -99,6 +100,7 @@ function guessAppIcon(json: any): GuessedAppType {
 
   if (
     name?.toLocaleLowerCase().includes('grafana') ||
+    friendlyName?.toLocaleLowerCase().includes('grafana') ||
     labels?.some(l => `${l.name}:${l.value}` === 'icon:grafana')
   ) {
     return 'Grafana';
@@ -106,6 +108,7 @@ function guessAppIcon(json: any): GuessedAppType {
 
   if (
     name?.toLocaleLowerCase().includes('jenkins') ||
+    friendlyName?.toLocaleLowerCase().includes('jenkins') ||
     labels?.some(l => `${l.name}:${l.value}` === 'icon:jenkins')
   ) {
     return 'Jenkins';
