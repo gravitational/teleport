@@ -17,6 +17,7 @@ package keys
 
 import (
 	"context"
+	"crypto/rand"
 	"os"
 	"testing"
 
@@ -39,7 +40,8 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test creating a self signed certificate with the key.
-	_, err = selfSignedTeleportClientCertificate(priv, priv.Public())
+	digest := []byte{100}
+	_, err = priv.Sign(rand.Reader, digest, nil)
 	require.NoError(t, err)
 
 	// Another call to GetOrGenerateYubiKeyPrivateKey should retrieve the previously generated key.

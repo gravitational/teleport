@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
@@ -277,24 +278,14 @@ func (y *yubiKey) generatePrivateKey(slot piv.Slot, touchPolicy piv.TouchPolicy)
 		TouchPolicy: touchPolicy,
 	}
 
-	if slot == pivSlotWithTouch {
-		cancelTouchPrompt := delayedTouchPrompt(generateKeyTouchPromptDelay)
-		defer cancelTouchPrompt()
-	}
-
 	pub, err := yk.GenerateKey(piv.DefaultManagementKey, slot, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create a self signed certificate and store it in the PIV slot so that other
-	// Teleport Clients know to reuse the stored key instead of generating a new one.
-	priv, err := yk.PrivateKey(slot, pub, piv.KeyAuth{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cert, err := selfSignedTeleportClientCertificate(priv, pub)
+	// Generate a self signed cert to provide metadata about the private key in the slot.
+	// This is useful for users to discern where the key came from with tools like `ykman piv info`.
+	cert, err := selfSignedMetadataCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -323,7 +314,12 @@ func (y *yubiKey) getPrivateKey(slot piv.Slot) (*YubiKeyPrivateKey, error) {
 		return nil, trace.NotFound("YubiKey certificate slot contained unknown certificate:\n%+v", cert)
 	}
 
-	return newYubiKeyPrivateKey(y, slot, cert.PublicKey)
+	attestCert, err := yk.Attest(slot)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newYubiKeyPrivateKey(y, slot, attestCert.PublicKey)
 }
 
 // open a connection to YubiKey PIV module. The returned connection should be closed once
@@ -445,7 +441,16 @@ func parsePIVSlot(slotKey uint32) (piv.Slot, error) {
 // certOrgName is used to identify Teleport Client self-signed certificates stored in yubiKey PIV slots.
 const certOrgName = "teleport"
 
-func selfSignedTeleportClientCertificate(priv crypto.PrivateKey, pub crypto.PublicKey) (*x509.Certificate, error) {
+// selfSignedMetadataCertificate creates a self signed certificate to be stored in the
+// YubiKey's PIV slot. This certificate is purely used as metadata to determine when a
+// slot is in used by a Teleport Client and is not fit to be used in cryptographic operations.
+func selfSignedMetadataCertificate() (*x509.Certificate, error) {
+	// generate a small rsa key to quickly generate a metadata cert.
+	priv, err := rsa.GenerateKey(rand.Reader, 512)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit) // see crypto/tls/generate_cert.go
 	if err != nil {
@@ -453,13 +458,13 @@ func selfSignedTeleportClientCertificate(priv crypto.PrivateKey, pub crypto.Publ
 	}
 	cert := &x509.Certificate{
 		SerialNumber: serialNumber,
-		PublicKey:    pub,
+		PublicKey:    priv.Public(),
 		Subject: pkix.Name{
 			Organization:       []string{certOrgName},
 			OrganizationalUnit: []string{api.Version},
 		},
 	}
-	if cert.Raw, err = x509.CreateCertificate(rand.Reader, cert, cert, pub, priv); err != nil {
+	if cert.Raw, err = x509.CreateCertificate(rand.Reader, cert, cert, priv.Public(), priv); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return cert, nil
@@ -479,9 +484,6 @@ const (
 	// piv.ECDSAPrivateKey.Sign consistently takes ~70 milliseconds. We don't want to delay signatures
 	// much since they happen frequently, so we use a liberal delay of 100ms.
 	signTouchPromptDelay = time.Millisecond * 100
-	// piv.YubiKey.GenerateKey can take between 80 and 320ms. We use a slightly more
-	// conservative delay of 500ms since this only occurs once on login.
-	generateKeyTouchPromptDelay = time.Millisecond * 500
 )
 
 // delayedTouchPrompt prompts the user for touch after the given delay.
