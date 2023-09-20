@@ -166,7 +166,7 @@ proto.teleport.lib.teleterm.v1.Cluster.toObject = function(includeInstance, msg)
     loggedInUser: (f = msg.getLoggedInUser()) && proto.teleport.lib.teleterm.v1.LoggedInUser.toObject(includeInstance, f),
     features: (f = msg.getFeatures()) && proto.teleport.lib.teleterm.v1.Features.toObject(includeInstance, f),
     authClusterId: jspb.Message.getFieldWithDefault(msg, 9, ""),
-    serverVersion: jspb.Message.getFieldWithDefault(msg, 10, "")
+    proxyVersion: jspb.Message.getFieldWithDefault(msg, 10, "")
   };
 
   if (includeInstance) {
@@ -239,7 +239,7 @@ proto.teleport.lib.teleterm.v1.Cluster.deserializeBinaryFromReader = function(ms
       break;
     case 10:
       var value = /** @type {string} */ (reader.readString());
-      msg.setServerVersion(value);
+      msg.setProxyVersion(value);
       break;
     default:
       reader.skipField();
@@ -328,7 +328,7 @@ proto.teleport.lib.teleterm.v1.Cluster.serializeBinaryToWriter = function(messag
       f
     );
   }
-  f = message.getServerVersion();
+  f = message.getProxyVersion();
   if (f.length > 0) {
     writer.writeString(
       10,
@@ -521,10 +521,10 @@ proto.teleport.lib.teleterm.v1.Cluster.prototype.setAuthClusterId = function(val
 
 
 /**
- * optional string server_version = 10;
+ * optional string proxy_version = 10;
  * @return {string}
  */
-proto.teleport.lib.teleterm.v1.Cluster.prototype.getServerVersion = function() {
+proto.teleport.lib.teleterm.v1.Cluster.prototype.getProxyVersion = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
 };
 
@@ -533,7 +533,7 @@ proto.teleport.lib.teleterm.v1.Cluster.prototype.getServerVersion = function() {
  * @param {string} value
  * @return {!proto.teleport.lib.teleterm.v1.Cluster} returns this
  */
-proto.teleport.lib.teleterm.v1.Cluster.prototype.setServerVersion = function(value) {
+proto.teleport.lib.teleterm.v1.Cluster.prototype.setProxyVersion = function(value) {
   return jspb.Message.setProto3StringField(this, 10, value);
 };
 

@@ -20,7 +20,8 @@ import { MainProcessClient } from 'teleterm/mainProcess/types';
 import {
   makeDatabaseGateway,
   makeKubeGateway,
-  makeLoggedInUser,
+  makeRootCluster,
+  makeLeafCluster,
 } from 'teleterm/services/tshd/testHelpers';
 
 import { ClustersService } from './clustersService';
@@ -33,27 +34,16 @@ jest.mock('teleterm/ui/services/usage');
 
 const clusterUri: uri.RootClusterUri = '/clusters/test';
 
-const clusterMock: tsh.Cluster = {
+const clusterMock = makeRootCluster({
   uri: clusterUri,
   name: 'Test',
-  connected: true,
-  leaf: false,
   proxyHost: 'localhost:3080',
-  authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-  serverVersion: '1.0.0',
-  loggedInUser: makeLoggedInUser(),
-};
+});
 
-const leafClusterMock: tsh.Cluster = {
+const leafClusterMock = makeLeafCluster({
   uri: `${clusterUri}/leaves/test2`,
   name: 'Leaf',
-  connected: true,
-  leaf: true,
-  proxyHost: 'localhost:3085',
-  authClusterId: '98dc94c8-c9a0-40e7-9a09-016cde91c652',
-  serverVersion: '',
-  loggedInUser: makeLoggedInUser(),
-};
+});
 
 const gatewayMock = makeDatabaseGateway({
   uri: '/gateways/gatewayTestUri',

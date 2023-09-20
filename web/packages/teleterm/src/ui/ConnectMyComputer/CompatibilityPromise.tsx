@@ -34,14 +34,14 @@ export function isAgentCompatible(
   cluster: Cluster,
   runtimeSettings: RuntimeSettings
 ): boolean {
-  if (cluster.serverVersion === '') {
+  if (cluster.proxyVersion === '') {
     return false;
   }
   if (runtimeSettings.isLocalBuild) {
     return true;
   }
   const majorAppVersion = getMajorVersion(runtimeSettings.appVersion);
-  const majorClusterVersion = getMajorVersion(cluster.serverVersion);
+  const majorClusterVersion = getMajorVersion(cluster.proxyVersion);
   return (
     majorAppVersion === majorClusterVersion ||
     majorAppVersion === majorClusterVersion - 1 // app one major version behind the cluster
@@ -55,8 +55,8 @@ export function CompatibilityError(): JSX.Element {
     workspaceContext.rootClusterUri
   );
 
-  const { serverVersion } = cluster;
-  const clusterMajorVersion = getMajorVersion(serverVersion);
+  const { proxyVersion } = cluster;
+  const clusterMajorVersion = getMajorVersion(proxyVersion);
   const { appVersion } = ctx.mainProcessClient.getRuntimeSettings();
   const appMajorVersion = getMajorVersion(appVersion);
   const connectMyComputerReleaseMajorVersion = getMajorVersion(
@@ -98,7 +98,7 @@ export function CompatibilityError(): JSX.Element {
     <>
       <Alert>Detected an incompatible agent version.</Alert>
       <Text>
-        The cluster is on version {serverVersion} while Teleport Connect is on
+        The cluster is on version {proxyVersion} while Teleport Connect is on
         version {appVersion}. Per our{' '}
         <Link
           href="https://goteleport.com/docs/faq/#version-compatibility"
@@ -130,12 +130,12 @@ export function UpgradeAgentSuggestion(): JSX.Element {
   const cluster = ctx.clustersService.findCluster(
     workspaceContext.rootClusterUri
   );
-  const { serverVersion } = cluster;
+  const { proxyVersion } = cluster;
   const { appVersion, isLocalBuild } =
     ctx.mainProcessClient.getRuntimeSettings();
 
   const isClusterAlreadyOnNewerVersion =
-    compareSemVers(appVersion, serverVersion) === 1;
+    compareSemVers(appVersion, proxyVersion) === 1;
   if (isNonCompatibleAgent || isClusterAlreadyOnNewerVersion || isLocalBuild) {
     return null;
   }
@@ -144,7 +144,7 @@ export function UpgradeAgentSuggestion(): JSX.Element {
     <Alert kind="info">
       <Text>
         The agent is running version {appVersion} of Teleport. Consider
-        upgrading it to {serverVersion} by updating Teleport Connect.{' '}
+        upgrading it to {proxyVersion} by updating Teleport Connect.{' '}
         <Link href="https://goteleport.com/download" target="_blank">
           Visit the downloads page.
         </Link>

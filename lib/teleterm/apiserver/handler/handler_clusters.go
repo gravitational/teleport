@@ -121,7 +121,7 @@ func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cl
 		return nil, trace.Wrap(err)
 	}
 	apiCluster.LoggedInUser.UserType = userType
-	apiCluster.ServerVersion = cluster.ServerVersion
+	apiCluster.ProxyVersion = cluster.ProxyVersion
 
 	return apiCluster, nil
 }

@@ -35,36 +35,36 @@ describe('isAgentCompatible', () => {
   const testCases = [
     {
       agentVersion: '2.0.0',
-      serverVersion: '2.0.0',
+      proxyVersion: '2.0.0',
       isCompatible: true,
     },
     {
       agentVersion: '2.1.0',
-      serverVersion: '2.0.0',
+      proxyVersion: '2.0.0',
       isCompatible: true,
     },
     {
       agentVersion: '3.0.0',
-      serverVersion: '2.0.0',
+      proxyVersion: '2.0.0',
       isCompatible: false,
     },
     {
       agentVersion: '2.0.0',
-      serverVersion: '3.0.0',
+      proxyVersion: '3.0.0',
       isCompatible: true,
     },
     {
       agentVersion: '2.0.0',
-      serverVersion: '4.0.0',
+      proxyVersion: '4.0.0',
       isCompatible: false,
     },
   ];
   test.each(testCases)(
-    'should agent $agentVersion and cluster $serverVersion be compatible? $isCompatible',
-    ({ agentVersion, serverVersion, isCompatible }) => {
+    'should agent $agentVersion and cluster $proxyVersion be compatible? $isCompatible',
+    ({ agentVersion, proxyVersion, isCompatible }) => {
       expect(
         isAgentCompatible(
-          makeRootCluster({ serverVersion }),
+          makeRootCluster({ proxyVersion }),
           makeRuntimeSettings({ appVersion: agentVersion })
         )
       ).toBe(isCompatible);
@@ -74,9 +74,9 @@ describe('isAgentCompatible', () => {
 
 test('compatibilityError shows app upgrade instructions', async () => {
   const agentVersion = '1.0.0';
-  const serverVersion = '3.0.0';
+  const proxyVersion = '3.0.0';
   const appContext = new MockAppContext({ appVersion: agentVersion });
-  const cluster = makeRootCluster({ serverVersion });
+  const cluster = makeRootCluster({ proxyVersion });
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(cluster.uri, cluster);
   });
@@ -101,9 +101,9 @@ test('compatibilityError shows app upgrade instructions', async () => {
 
 test('compatibilityError shows cluster upgrade (and app downgrade) instructions', async () => {
   const agentVersion = '15.0.0';
-  const serverVersion = '14.0.0';
+  const proxyVersion = '14.0.0';
   const appContext = new MockAppContext({ appVersion: agentVersion });
-  const cluster = makeRootCluster({ serverVersion });
+  const cluster = makeRootCluster({ proxyVersion });
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(cluster.uri, cluster);
   });
@@ -131,9 +131,9 @@ test('compatibilityError shows cluster upgrade (and app downgrade) instructions'
 
 test('upgradeAgentSuggestion is visible when the agent is compatible and cluster is older than the agent', async () => {
   const agentVersion = '14.1.0';
-  const serverVersion = '15.0.0';
+  const proxyVersion = '15.0.0';
   const appContext = new MockAppContext({ appVersion: agentVersion });
-  const cluster = makeRootCluster({ serverVersion });
+  const cluster = makeRootCluster({ proxyVersion });
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(cluster.uri, cluster);
   });
@@ -161,17 +161,17 @@ describe('upgradeAgentSuggestion is not visible when', () => {
     {
       name: 'the agent is not compatible',
       agentVersion: '15.0.0',
-      serverVersion: '17.0.0',
+      proxyVersion: '17.0.0',
     },
     {
       name: 'the cluster is already on a newer version',
       agentVersion: '15.0.0',
-      serverVersion: '14.0.0',
+      proxyVersion: '14.0.0',
     },
   ];
-  test.each(testCases)('$name', async ({ agentVersion, serverVersion }) => {
+  test.each(testCases)('$name', async ({ agentVersion, proxyVersion }) => {
     const appContext = new MockAppContext({ appVersion: agentVersion });
-    const cluster = makeRootCluster({ serverVersion });
+    const cluster = makeRootCluster({ proxyVersion });
     appContext.clustersService.setState(draftState => {
       draftState.clusters.set(cluster.uri, cluster);
     });

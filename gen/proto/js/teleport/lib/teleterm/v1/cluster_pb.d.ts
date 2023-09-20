@@ -37,8 +37,8 @@ export class Cluster extends jspb.Message {
     getAuthClusterId(): string;
     setAuthClusterId(value: string): Cluster;
 
-    getServerVersion(): string;
-    setServerVersion(value: string): Cluster;
+    getProxyVersion(): string;
+    setProxyVersion(value: string): Cluster;
 
 
     serializeBinary(): Uint8Array;
@@ -61,7 +61,7 @@ export namespace Cluster {
         loggedInUser?: LoggedInUser.AsObject,
         features?: Features.AsObject,
         authClusterId: string,
-        serverVersion: string,
+        proxyVersion: string,
     }
 }
 

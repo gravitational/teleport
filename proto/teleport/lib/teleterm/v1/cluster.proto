@@ -40,9 +40,9 @@ message Cluster {
   // during the first auth server startup.
   // Only present when detailed information is queried from the auth server.
   string auth_cluster_id = 9;
-  // ServerVersion is the version of Teleport that is running.
+  // ProxyVersion is the cluster proxy's service version.
   // Only present when detailed information is queried from the proxy server.
-  string server_version = 10;
+  string proxy_version = 10;
 }
 
 // LoggedInUser describes a logged-in user

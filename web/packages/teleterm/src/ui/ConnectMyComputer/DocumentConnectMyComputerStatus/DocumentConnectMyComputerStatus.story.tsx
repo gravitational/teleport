@@ -102,7 +102,7 @@ export function AgentVersionTooNew() {
     <ShowState
       agentProcessState={{ status: 'not-started' }}
       appContext={appContext}
-      serverVersion={'16.3.0'}
+      proxyVersion={'16.3.0'}
     />
   );
 }
@@ -116,7 +116,7 @@ export function AgentVersionTooNewButOnlyClusterCanBeUpgraded() {
     <ShowState
       agentProcessState={{ status: 'not-started' }}
       appContext={appContext}
-      serverVersion={'13.3.0'}
+      proxyVersion={'13.3.0'}
     />
   );
 }
@@ -128,7 +128,7 @@ export function AgentVersionTooOld() {
     <ShowState
       agentProcessState={{ status: 'not-started' }}
       appContext={appContext}
-      serverVersion={'16.3.0'}
+      proxyVersion={'16.3.0'}
     />
   );
 }
@@ -140,7 +140,7 @@ export function UpgradeAgentSuggestion() {
     <ShowState
       agentProcessState={{ status: 'not-started' }}
       appContext={appContext}
-      serverVersion={'16.3.0'}
+      proxyVersion={'16.3.0'}
     />
   );
 }
@@ -148,14 +148,14 @@ export function UpgradeAgentSuggestion() {
 function ShowState(props: {
   agentProcessState: AgentProcessState;
   appContext?: AppContext;
-  serverVersion?: string;
+  proxyVersion?: string;
 }) {
   const cluster = makeRootCluster({
-    serverVersion: props.serverVersion || makeRuntimeSettings().appVersion,
+    proxyVersion: props.proxyVersion || makeRuntimeSettings().appVersion,
   });
   const appContext =
     props.appContext ||
-    new MockAppContext({ appVersion: cluster.serverVersion });
+    new MockAppContext({ appVersion: cluster.proxyVersion });
 
   appContext.mainProcessClient.getAgentState = () => props.agentProcessState;
   appContext.mainProcessClient.subscribeToAgentUpdate = (

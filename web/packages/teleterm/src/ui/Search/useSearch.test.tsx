@@ -244,13 +244,11 @@ describe('useFiltersSearch', () => {
       name: 'teleport-a',
       proxyHost: 'localhost:3080',
       uri: '/clusters/teleport-a',
-      serverVersion: '1.0.0',
     });
     const clusterB = makeRootCluster({
       name: 'teleport-b',
       proxyHost: 'localhost:3080',
       uri: '/clusters/teleport-b',
-      serverVersion: '1.0.0',
     });
     appContext.clustersService.setState(draftState => {
       draftState.clusters.set(clusterA.uri, clusterA);

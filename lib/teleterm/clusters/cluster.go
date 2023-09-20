@@ -69,8 +69,8 @@ type ClusterWithDetails struct {
 	ACL *api.ACL
 	// UserType identifies whether the user is a local user or comes from an SSO provider.
 	UserType types.UserType
-	// ServerVersion is the version of Teleport that is running.
-	ServerVersion string
+	// ProxyVersion is the cluster proxy's service version.
+	ProxyVersion string
 }
 
 // Connected indicates if connection to the cluster can be established
@@ -169,7 +169,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		AuthClusterID:      authClusterID,
 		ACL:                acl,
 		UserType:           user.GetUserType(),
-		ServerVersion:      clusterPingResponse.ServerVersion,
+		ProxyVersion:       clusterPingResponse.ServerVersion,
 	}
 
 	return withDetails, nil
