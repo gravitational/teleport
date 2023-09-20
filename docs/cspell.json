@@ -3,6 +3,7 @@
   "language": "en",
   "words": [
     "AADUSER",
+    "Aarch",
     "ABCDEFGHIJKL",
     "ADFS",
     "AICPA",
@@ -98,6 +99,7 @@
     "Jlbm",
     "Jlbn",
     "Jpji",
+    "Jqlang",
     "Kanban",
     "Keycloak",
     "Keyspaces",
@@ -309,6 +311,7 @@
     "cluster-6uysmebmutd",
     "clusteradmin",
     "clustername",
+    "clustercfg",
     "clusterolebinding",
     "clusterrole",
     "clusterrolebinding",
