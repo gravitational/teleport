@@ -587,7 +587,12 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	}
 	log.Debugf("Activating relogin on %v.", fnErr)
 
-	if privateKeyPolicy, parseErr := keys.ParsePrivateKeyPolicyError(fnErr); parseErr == nil {
+	if keys.IsPrivateKeyPolicyError(fnErr) {
+		privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		if err := tc.updatePrivateKeyPolicy(privateKeyPolicy); err != nil {
 			return trace.Wrap(err)
 		}
@@ -3809,7 +3814,12 @@ func (tc *TeleportClient) loginWithHardwareKeyRetry(ctx context.Context, login f
 
 	loginErr := login(ctx, priv)
 	if loginErr != nil {
-		if privateKeyPolicy, parseErr := keys.ParsePrivateKeyPolicyError(loginErr); parseErr == nil {
+		if keys.IsPrivateKeyPolicyError(loginErr) {
+			privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(loginErr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
 			if err := tc.updatePrivateKeyPolicy(privateKeyPolicy); err != nil {
 				return nil, trace.Wrap(err)
 			}
