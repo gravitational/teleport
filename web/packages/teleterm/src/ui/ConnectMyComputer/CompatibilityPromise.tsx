@@ -65,8 +65,8 @@ export function CompatibilityError(): JSX.Element {
   if (appMajorVersion > clusterMajorVersion) {
     $content = (
       <>
-        , clusters don't support clients that are on a newer major version. If
-        you wish to connect your computer,{' '}
+        , clusters don't support clients that are on a newer major version. To
+        use Connect My Computer,{' '}
         {isAppDowngradePossible && (
           <>downgrade the app to version {downgradeAppTo} or </>
         )}
@@ -78,7 +78,7 @@ export function CompatibilityError(): JSX.Element {
     $content = (
       <>
         , clusters don't support clients that are more than one major version
-        behind. If you wish to use Connect My Computer, upgrade the app to{' '}
+        behind. To use Connect My Computer, upgrade the app to{' '}
         {clusterMajorVersion}.x.x.
       </>
     );
