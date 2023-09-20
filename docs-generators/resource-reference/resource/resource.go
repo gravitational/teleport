@@ -499,37 +499,12 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		return nil, err
 	}
 
-	// Handle example YAML within the declaration's GoDoc.
-	description := rs.doc
-	var example string
-	if strings.Contains(rs.doc, yamlExampleDelimeter) {
-		sides := strings.Split(rs.doc, yamlExampleDelimeter)
-		if len(sides) != 2 {
-			return nil, errors.New("malformed example YAML in description: " + rs.doc)
-		}
-		example = sides[1]
-		description = sides[0]
-	} else {
-
-		if len(rs.fields) == 0 {
-			return nil, fmt.Errorf("declaration %v has no fields and no example YAML in the GoDoc", rs.name)
-		}
-
-		example, err = makeYAMLExample(rs.fields)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	// Add embedded struct fields to the root reference entry generarated
-	// from decl.
-	embeddedFields := []Field{}
-	// Process these later. Remove embedded fields from rs.fields so they
-	// don't show up as empty in the reference.
-	nonEmbeddedFields := []rawField{}
+	// from decl.Remove embedded fields from rs.fields so they
+	fieldsToProcess := []rawField{}
 	for _, l := range rs.fields {
 		if l.name != "" {
-			nonEmbeddedFields = append(nonEmbeddedFields, l)
+			fieldsToProcess = append(fieldsToProcess, l)
 			continue
 		}
 		c, ok := l.kind.(yamlCustomType)
@@ -551,30 +526,39 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 				rs.name,
 			)
 		}
-		e, err := NewFromDecl(d, allDecls)
+		e, err := getRawTypes(d)
 		if err != nil {
 			return nil, err
 		}
 
-		// Recover the ReferenceEntry we created for the embedded type
-		// and add its types to the containing type.
-		r, ok := e[p]
-		if !ok {
-			return nil, fmt.Errorf(
-				"no type declaration found for type %v.%v embedded in %v.%v",
-				p.PackageName,
-				p.TypeName,
-				decl.PackageName,
-				rs.name,
-			)
+		fieldsToProcess = append(fieldsToProcess, e.fields...)
+	}
+
+	// Handle example YAML within the declaration's GoDoc.
+	description := rs.doc
+	var example string
+	if strings.Contains(rs.doc, yamlExampleDelimeter) {
+		sides := strings.Split(rs.doc, yamlExampleDelimeter)
+		if len(sides) != 2 {
+			return nil, errors.New("malformed example YAML in description: " + rs.doc)
 		}
-		embeddedFields = append(embeddedFields, r.Fields...)
+		example = sides[1]
+		description = sides[0]
+	} else {
+
+		if len(rs.fields) == 0 {
+			return nil, fmt.Errorf("declaration %v has no fields and no example YAML in the GoDoc", rs.name)
+		}
+		example, err = makeYAMLExample(fieldsToProcess)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Initialize the return value and insert the root reference entry
 	// provided by decl.
 	refs := make(map[PackageInfo]ReferenceEntry)
-	fld, err := makeFieldTableInfo(nonEmbeddedFields)
+	fld, err := makeFieldTableInfo(fieldsToProcess)
 	if err != nil {
 		return nil, err
 	}
@@ -586,7 +570,7 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		SectionName: makeSectionName(rs.name),
 		Description: descriptionWithoutName(description, rs.name),
 		SourcePath:  decl.FilePath,
-		Fields:      append(fld, embeddedFields...),
+		Fields:      fld,
 		YAMLExample: example,
 	}
 
