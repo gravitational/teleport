@@ -146,6 +146,10 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 
 		state.Spec.Roles = append(state.Spec.Roles, accessList.Spec.Grants.Roles...)
 
+		if state.Spec.Traits == nil && len(accessList.Spec.Grants.Traits) > 0 {
+			state.Spec.Traits = map[string][]string{}
+		}
+
 		for k, values := range accessList.Spec.Grants.Traits {
 			state.Spec.Traits[k] = append(state.Spec.Traits[k], values...)
 		}

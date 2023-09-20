@@ -44,10 +44,14 @@ func TestAccessLists(t *testing.T) {
 		"otrait1": {"value1", "value2"},
 	})
 	require.NoError(t, err)
+
+	userNoRolesOrTraits, err := types.NewUser("user")
+	require.NoError(t, err)
 	clock := clockwork.NewFakeClock()
 
 	tests := []struct {
 		name        string
+		user        types.User
 		accessLists []*accesslist.AccessList
 		members     []*accesslist.AccessListMember
 		roles       []string
@@ -55,6 +59,7 @@ func TestAccessLists(t *testing.T) {
 	}{
 		{
 			name:  "access lists are empty",
+			user:  user,
 			roles: []string{"orole1"},
 			expected: newUserLoginState(t, "user", []string{
 				"orole1",
@@ -64,6 +69,7 @@ func TestAccessLists(t *testing.T) {
 		},
 		{
 			name: "access lists add roles and traits",
+			user: user,
 			accessLists: []*accesslist.AccessList{
 				newAccessList(t, clock, "1", []string{"role1"}, trait.Traits{
 					"trait1": []string{"value1"},
@@ -88,6 +94,7 @@ func TestAccessLists(t *testing.T) {
 		},
 		{
 			name: "access lists add roles and traits, roles missing from backend",
+			user: user,
 			accessLists: []*accesslist.AccessList{
 				newAccessList(t, clock, "1", []string{"role1"}, trait.Traits{
 					"trait1": []string{"value1"},
@@ -108,6 +115,7 @@ func TestAccessLists(t *testing.T) {
 		},
 		{
 			name: "access lists only a member of some lists",
+			user: user,
 			accessLists: []*accesslist.AccessList{
 				newAccessList(t, clock, "1", []string{"role1"}, trait.Traits{
 					"trait1": []string{"value1"},
@@ -130,6 +138,7 @@ func TestAccessLists(t *testing.T) {
 		},
 		{
 			name: "access lists add roles with duplicates",
+			user: user,
 			accessLists: []*accesslist.AccessList{
 				newAccessList(t, clock, "1", []string{"role1", "role2"}, trait.Traits{}),
 				newAccessList(t, clock, "2", []string{"role2", "role3"}, trait.Traits{}),
@@ -148,6 +157,7 @@ func TestAccessLists(t *testing.T) {
 		},
 		{
 			name: "access lists add traits with duplicates",
+			user: user,
 			accessLists: []*accesslist.AccessList{
 				newAccessList(t, clock, "1", []string{},
 					trait.Traits{
@@ -175,6 +185,34 @@ func TestAccessLists(t *testing.T) {
 					"trait3":  []string{"value5", "value6"},
 				}),
 		},
+		{
+			name: "access lists add traits with no roles or traits in original",
+			user: userNoRolesOrTraits,
+			accessLists: []*accesslist.AccessList{
+				newAccessList(t, clock, "1", []string{"role1"},
+					trait.Traits{
+						"trait1": []string{"value1", "value2"},
+						"trait2": []string{"value3", "value4"},
+					},
+				),
+				newAccessList(t, clock, "2", []string{},
+					trait.Traits{
+						"trait3": []string{"value5", "value6"},
+					},
+				),
+			},
+			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
+			roles:   []string{"role1"},
+			expected: newUserLoginState(t, "user",
+				[]string{
+					"role1",
+				},
+				trait.Traits{
+					"trait1": []string{"value1", "value2"},
+					"trait2": []string{"value3", "value4"},
+					"trait3": []string{"value5", "value6"},
+				}),
+		},
 	}
 
 	for _, test := range tests {
@@ -198,7 +236,7 @@ func TestAccessLists(t *testing.T) {
 				require.NoError(t, backendSvc.UpsertRole(ctx, role))
 			}
 
-			state, err := svc.Generate(ctx, user)
+			state, err := svc.Generate(ctx, test.user)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(test.expected, state,
 				cmpopts.SortSlices(func(str1, str2 string) bool {
