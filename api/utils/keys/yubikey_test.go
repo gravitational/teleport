@@ -20,6 +20,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,12 +46,35 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 	// Another call to GetOrGenerateYubiKeyPrivateKey should retrieve the previously generated key.
 	retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(false)
 	require.NoError(t, err)
-	require.Equal(t, priv, retrievePriv)
+	require.Equal(t, priv.Public(), retrievePriv.Public())
 
 	// parsing the key's private key PEM should produce the same key as well.
-	retrieveKey, err := ParsePrivateKey(priv.PrivateKeyPEM())
+	retrievePriv, err = ParsePrivateKey(priv.PrivateKeyPEM())
 	require.NoError(t, err)
-	require.Equal(t, priv, retrieveKey)
+	require.Equal(t, priv.Public(), retrievePriv.Public())
+}
+
+func TestInvalidKey(t *testing.T) {
+	// This test expects a yubiKey to be connected with default PIV
+	// settings and will overwrite any PIV data on the yubiKey.
+	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
+		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
+	}
+
+	ctx := context.Background()
+	resetYubikey(ctx, t)
+
+	// Generate a key that does not require touch in the slot that Teleport expects to require touch.
+	y, err := findYubiKey(0)
+	require.NoError(t, err)
+	touchRequiredSlot, err := getDefaultKeySlot(PrivateKeyPolicyHardwareKeyTouch)
+	require.NoError(t, err)
+	err = y.generatePrivateKey(touchRequiredSlot, PrivateKeyPolicyHardwareKey)
+	require.NoError(t, err)
+
+	// Attempting to retrieve the YubiKeyPrivateKey as a key with touch required should fail.
+	_, err = GetOrGenerateYubiKeyPrivateKey(true)
+	require.True(t, trace.IsCompareFailed(err), "Expected compare failed error but got %v", err)
 }
 
 // resetYubikey connects to the first yubiKey and resets it to defaults.
