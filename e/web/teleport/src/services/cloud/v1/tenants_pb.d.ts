@@ -653,6 +653,12 @@ export class GetFeaturesResponse extends jspb.Message {
   getAssist(): boolean;
   setAssist(value: boolean): void;
 
+  getFeatureHiding(): boolean;
+  setFeatureHiding(value: boolean): void;
+
+  getCustomTheme(): string;
+  setCustomTheme(value: string): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): GetFeaturesResponse.AsObject;
   static toObject(includeInstance: boolean, msg: GetFeaturesResponse): GetFeaturesResponse.AsObject;
@@ -680,6 +686,8 @@ export namespace GetFeaturesResponse {
     hsm: boolean,
     isUsageBased: boolean,
     assist: boolean,
+    featureHiding: boolean,
+    customTheme: string,
   }
 }
 
@@ -907,12 +915,49 @@ export namespace GetInvoiceSettingsInformationResponse {
   }
 }
 
+export class MarketingParamData extends jspb.Message {
+  getCampaign(): string;
+  setCampaign(value: string): void;
+
+  getSource(): string;
+  setSource(value: string): void;
+
+  getMedium(): string;
+  setMedium(value: string): void;
+
+  getIntent(): string;
+  setIntent(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): MarketingParamData.AsObject;
+  static toObject(includeInstance: boolean, msg: MarketingParamData): MarketingParamData.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: MarketingParamData, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): MarketingParamData;
+  static deserializeBinaryFromReader(message: MarketingParamData, reader: jspb.BinaryReader): MarketingParamData;
+}
+
+export namespace MarketingParamData {
+  export type AsObject = {
+    campaign: string,
+    source: string,
+    medium: string,
+    intent: string,
+  }
+}
+
 export class SurveyCompanyResponse extends jspb.Message {
   getCompanyName(): string;
   setCompanyName(value: string): void;
 
   getEmployeeCount(): string;
   setEmployeeCount(value: string): void;
+
+  hasMarketingParams(): boolean;
+  clearMarketingParams(): void;
+  getMarketingParams(): MarketingParamData | undefined;
+  setMarketingParams(value?: MarketingParamData): void;
 
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): SurveyCompanyResponse.AsObject;
@@ -928,6 +973,7 @@ export namespace SurveyCompanyResponse {
   export type AsObject = {
     companyName: string,
     employeeCount: string,
+    marketingParams?: MarketingParamData.AsObject,
   }
 }
 

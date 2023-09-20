@@ -1,10 +1,18 @@
 import React from 'react';
-import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
+import {
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+} from 'design/utils/testing';
 
 import { userEventService } from 'teleport/services/userEvent';
 import api from 'teleport/services/api';
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+
+import cfg from 'teleport/config';
 
 import { surveyService } from 'e-teleport/services/survey';
 
@@ -92,6 +100,37 @@ describe('questionnaire', () => {
     ).toBeInTheDocument();
   });
 
+  test('preselects resources based on marketing params', async () => {
+    jest
+      .spyOn(surveyService, 'getSurveyCompanyResults')
+      .mockImplementation(() =>
+        Promise.resolve({
+          companyName: '',
+          employeeCount: null,
+          marketingParams: {
+            campaign: 'foodatabase', // match 'Databases'
+            medium: 'desktopbar', // match 'Windows Desktops'
+            source: 'kubebaz', // match 'Kubernetes'
+            intent: 'sshsssdatabase', // match 'Server/SSH' & 'Databases'
+          },
+        })
+      );
+
+    render(<Questionnaire {...props} />);
+
+    await screen.findByText('Tell us about yourself');
+    await waitFor(() => {
+      expect(screen.getByTestId('check-RESOURCE_DATABASES')).toBeChecked();
+    });
+
+    expect(screen.getByTestId('check-RESOURCE_WINDOWS_DESKTOPS')).toBeChecked();
+    expect(screen.getByTestId('check-RESOURCE_KUBERNETES')).toBeChecked();
+    expect(screen.getByTestId('check-RESOURCE_SERVER_SSH')).toBeChecked();
+    expect(
+      screen.getByTestId('check-RESOURCE_WEB_APPLICATIONS')
+    ).not.toBeChecked();
+  });
+
   test('shows validation errors', async () => {
     render(<Questionnaire {...props} />);
 
@@ -122,6 +161,21 @@ describe('questionnaire', () => {
   });
 
   test('submits responses in onboard mode', async () => {
+    jest
+      .spyOn(surveyService, 'getSurveyCompanyResults')
+      .mockImplementation(() =>
+        Promise.resolve({
+          companyName: '',
+          employeeCount: '',
+          marketingParams: {
+            campaign: 'c_1',
+            source: 's_1',
+            medium: 'm_1',
+            intent: 't_i',
+          },
+        })
+      );
+
     props.onboard = true;
     props.username = 'user-000';
     render(<Questionnaire {...props} />);
@@ -156,7 +210,13 @@ describe('questionnaire', () => {
         companyName: 'Teleport',
         employeeCount: '5000+',
         clusterResources: [5, 1, 4],
-        resources: [
+        marketingParams: {
+          campaign: 'c_1',
+          source: 's_1',
+          medium: 'm_1',
+          intent: 't_i',
+        },
+        resourcesList: [
           'RESOURCE_WEB_APPLICATIONS',
           'RESOURCE_WINDOWS_DESKTOPS',
           'RESOURCE_KUBERNETES',
@@ -179,6 +239,21 @@ describe('questionnaire', () => {
   });
 
   test('submits responses in non-onboard mode', async () => {
+    jest
+      .spyOn(surveyService, 'getSurveyCompanyResults')
+      .mockImplementation(() =>
+        Promise.resolve({
+          companyName: '',
+          employeeCount: '',
+          marketingParams: {
+            campaign: 'c_1',
+            source: 's_1',
+            medium: 'm_1',
+            intent: 't_i',
+          },
+        })
+      );
+
     props.onboard = false;
     props.username = 'user-000';
     render(<Questionnaire {...props} />);
@@ -213,7 +288,34 @@ describe('questionnaire', () => {
 
     // assert data was sent to sales center
     expect(surveyService.submitSurvey).toHaveBeenCalled();
-    expect(api.put).toHaveBeenCalled();
+    expect(surveyService.submitSurvey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyName: 'Teleport',
+        employeeCount: '5000+',
+        resourcesList: [
+          'RESOURCE_WEB_APPLICATIONS',
+          'RESOURCE_WINDOWS_DESKTOPS',
+          'RESOURCE_KUBERNETES',
+        ],
+        role: 'VP',
+        team: 'LEGAL',
+        username: 'user-000',
+      })
+    );
+    expect(api.put).toHaveBeenCalledWith(
+      cfg.api.userPreferencesPath,
+      expect.objectContaining({
+        onboard: {
+          marketingParams: {
+            campaign: 'c_1',
+            intent: 't_i',
+            medium: 'm_1',
+            source: 's_1',
+          },
+          preferredResources: [5, 1, 4],
+        },
+      })
+    );
 
     // assert posthog event triggered
     expect(userEventService.capturePreUserEvent).not.toHaveBeenCalled();

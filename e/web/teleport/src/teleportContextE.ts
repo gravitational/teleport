@@ -43,7 +43,7 @@ class TeleportEContext extends TeleportContext {
     await super.init();
     const survey = localStorage.getOnboardSurvey();
     if (survey) {
-      const { clusterResources, ...rest } = survey;
+      const { clusterResources, marketingParams, ...rest } = survey;
 
       // submit survey to sales center
       surveyService.submitSurvey(rest);
@@ -53,6 +53,7 @@ class TeleportEContext extends TeleportContext {
         await service.updateUserPreferences({
           onboard: {
             preferredResources: clusterResources,
+            marketingParams: marketingParams,
           },
         });
       }

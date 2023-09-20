@@ -45,6 +45,7 @@ export const Resources = ({ checked, updateFields }: ResourcesProps) => {
         <ResourceWrapper isSelected={isSelected} invalid={!valid}>
           <CheckboxInput
             aria-labelledby="resources"
+            data-testid={`check-${resource.value}`}
             role="checkbox"
             type="checkbox"
             name={resource.label}

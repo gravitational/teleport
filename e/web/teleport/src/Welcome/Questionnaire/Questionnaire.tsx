@@ -8,12 +8,18 @@ import * as service from 'teleport/services/userPreferences';
 
 import localStorage, {
   LocalStorageSurvey,
-  SurveyRequest,
 } from 'teleport/services/localStorage';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { CompanySurveyDTO, surveyService } from 'e-teleport/services/survey';
+import {
+  MarketingParamData,
+  SetSurveyResultsRequest,
+  SurveyCompanyResponse,
+} from 'e-teleport/services/cloud/v1/tenants_pb';
+import { surveyService } from 'e-teleport/services/survey';
+
+import { getMarketingResources } from 'e-teleport/Welcome/Questionnaire/getMarketingResources';
 
 import {
   QuestionnaireFormFields,
@@ -45,11 +51,24 @@ export const Questionnaire = ({
   // If true, we only show a partial survey.
   // If false, we show the entire survey.
   const [fullSurvey, setFullSurvey] = useState<boolean>(true);
+  const [marketingPref, setMarketingPref] =
+    useState<MarketingParamData.AsObject>();
+
   useEffect(() => {
     async function getSurveyResults() {
-      const resp: CompanySurveyDTO =
+      const resp: SurveyCompanyResponse.AsObject =
         await surveyService.getSurveyCompanyResults();
+      const marketingResources = await getMarketingResources(
+        resp.marketingParams
+      );
+
       setFullSurvey(resp.companyName == '' && resp.employeeCount == '');
+      setMarketingPref(resp.marketingParams);
+      setFormFields(previous => ({
+        ...previous,
+        // preselect resources which match marketing preferences
+        resources: marketingResources,
+      }));
     }
 
     // We're not leveraging any errors returned from getSurveyResults,
@@ -78,20 +97,24 @@ export const Questionnaire = ({
       r => resourceMapping[ResourceOption[r]]
     );
 
-    const request: SurveyRequest = {
+    const request: SetSurveyResultsRequest.AsObject = {
       companyName: formFields.companyName,
       employeeCount: formFields.employeeCount,
-      resources: formFields.resources,
+      resourcesList: formFields.resources,
       role: formFields.role,
       team: formFields.team,
+      username: username || '',
     };
 
+    // When answering the survey, the user can either be in the onboarding or post-log-in modal flow.
+    // If onboarding, we persist data to local storage for safe persistence after redirect.
+    // If the user is post-log-in, we transmit the data immediately.
     if (onboard) {
-      // set survey result in localstorage, because we do not have a bearer-token this
-      // early in onboarding (will be sent when onboarding completes)
+      // set survey result and marketing params in localstorage
       const lsRequest: LocalStorageSurvey = {
         ...request,
         clusterResources: clusterResources,
+        marketingParams: marketingPref,
       };
       localStorage.setOnboardSurvey(lsRequest);
 
@@ -110,6 +133,7 @@ export const Questionnaire = ({
       await service.updateUserPreferences({
         onboard: {
           preferredResources: clusterResources,
+          marketingParams: marketingPref,
         },
       });
 

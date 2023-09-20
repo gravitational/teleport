@@ -1,11 +1,13 @@
 import api from 'teleport/services/api';
 
+import {
+  SetSurveyResultsRequest,
+  SurveyCompanyResponse,
+} from 'e-teleport/services/cloud/v1/tenants_pb';
 import cfg from 'e-teleport/config';
 
-import { CompanySurveyDTO, SurveyDTO } from './types';
-
 export const surveyService = {
-  submitSurvey(survey: SurveyDTO) {
+  submitSurvey(survey: Omit<SetSurveyResultsRequest.AsObject, 'username'>) {
     // using api.fetch instead of api.fetchJSON
     // because we are not expecting a JSON response
     void api.fetch(cfg.api.surveyPath, {
@@ -14,7 +16,7 @@ export const surveyService = {
     });
   },
 
-  getSurveyCompanyResults(): Promise<CompanySurveyDTO> {
+  getSurveyCompanyResults(): Promise<SurveyCompanyResponse.AsObject> {
     return api.get(cfg.api.surveyCompanyPath);
   },
 };

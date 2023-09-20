@@ -61,6 +61,8 @@ export enum TitleOption {
   C_SUITE_OWNER = 'C-Suite/Owner',
 }
 
+export type ResourceKey = keyof typeof ResourceOption;
+
 export enum ResourceOption {
   RESOURCE_WEB_APPLICATIONS = 'Web Applications',
   RESOURCE_WINDOWS_DESKTOPS = 'Windows Desktops',
