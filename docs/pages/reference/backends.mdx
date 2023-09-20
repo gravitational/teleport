@@ -226,10 +226,11 @@ stream of changes from the database; because of that, the
 parameter must be set to `logical` and
 [`max_replication_slots`](https://www.postgresql.org/docs/current/runtime-config-replication.html#GUC-MAX-REPLICATION-SLOTS)
 must be set to at least as many Teleport Auth Service instances as you'll be
-running (a higher number is recommended, to account for network conditions). The
-Teleport Auth Service needs to be able to create a replication slot when
+running (a higher number is recommended, to account for network conditions). 
+
+The Teleport Auth Service needs to be able to create a replication slot when
 starting and when reestablishing a new connection to the PostgreSQL cluster, and
-any long-running transaction will prevent that; it's therefore only advisable to
+any long-running transaction will prevent that. It's therefore only advisable to
 store the Teleport cluster state on a shared PostgreSQL cluster if the other
 workloads on the cluster only consist of short-lived transactions.
 
