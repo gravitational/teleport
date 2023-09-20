@@ -6,11 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	jamffake "github.com/gravitational/teleport/e/lib/jamf/fake"
+	"github.com/gravitational/teleport/e/lib/jamf/testenv"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
@@ -247,4 +251,114 @@ func TestPluginCreateDelete(t *testing.T) {
 		_, err = suite.pluginStaticCredentialsService.GetPluginStaticCredentials(ctx, staticCredentialsForBadOkta.GetName())
 		require.True(t, trace.IsNotFound(err))
 	})
+}
+
+func TestService_CreatePlugin_jamf(t *testing.T) {
+	t.Parallel()
+
+	jamfEnv := testenv.NewUsingT(t, nil /* opts */)
+
+	const username = "llama"
+	const password = "secret"
+	jamfEnv.API.SetUsers([]*jamffake.User{
+		{
+			Username: username,
+			Password: password,
+		},
+	})
+
+	suite := createSuite(t)
+	suite.setRules([]types.Rule{
+		{Resources: []string{types.KindPlugin}, Verbs: services.RW()},
+	})
+	service := suite.svc
+	service.httpClient = jamfEnv.HTTPClient
+
+	okPlugin := &types.PluginV1{
+		SubKind: types.PluginSubkindMDM,
+		Metadata: types.Metadata{
+			Name: types.PluginTypeJamf,
+		},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Jamf{
+				Jamf: &types.PluginJamfSettings{
+					JamfSpec: &types.JamfSpecV1{
+						ApiEndpoint: jamfEnv.APIEndpoint,
+					},
+				},
+			},
+		},
+	}
+	okStaticCreds := &types.PluginStaticCredentialsV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "jamf-static-credentials",
+			},
+		},
+		Spec: &types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_BasicAuth{
+				BasicAuth: &types.PluginStaticCredentialsBasicAuth{
+					Username: username, Password: password,
+				},
+			},
+		},
+	}
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name        string
+		plugin      *types.PluginV1
+		staticCreds *types.PluginStaticCredentialsV1
+		wantErr     string
+	}{
+		{
+			name:        "ok",
+			plugin:      okPlugin,
+			staticCreds: okStaticCreds,
+		},
+		{
+			name: "bad plugin URL",
+			plugin: func() *types.PluginV1 {
+				cp := proto.Clone(okPlugin).(*types.PluginV1)
+				cp.Spec.GetJamf().JamfSpec.ApiEndpoint = jamfEnv.APIEndpoint + "badllama"
+				return cp
+			}(),
+			staticCreds: okStaticCreds,
+			wantErr:     "verifying Jamf",
+		},
+		{
+			name:   "bad plugin credentials",
+			plugin: okPlugin,
+			staticCreds: func() *types.PluginStaticCredentialsV1 {
+				cp := proto.Clone(okStaticCreds).(*types.PluginStaticCredentialsV1)
+				cp.Spec.GetBasicAuth().Username = "badllama"
+				return cp
+			}(),
+			wantErr: "verifying Jamf",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := service.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+				Plugin:            test.plugin,
+				StaticCredentials: test.staticCreds,
+			})
+			if test.wantErr == "" {
+				assert.NoError(t, err, "CreatePlugin")
+			} else {
+				assert.ErrorContains(t, err, test.wantErr, "CreatePlugin error mismatch")
+			}
+			if err != nil {
+				return
+			}
+
+			// Delete plugin after tests. Makes consecutive test cases simpler, but
+			// otherwise this isn't part of the test scenario.
+			_, err = service.DeletePlugin(ctx, &pluginspb.DeletePluginRequest{
+				Name: test.plugin.GetName(),
+			})
+			assert.NoError(t, err, "DeletePlugin")
+		})
+	}
 }

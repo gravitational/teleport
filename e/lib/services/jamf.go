@@ -81,7 +81,7 @@ func startJamfService(ctx context.Context, process *service.TeleportProcess, htt
 
 	if httpClient == nil {
 		httpClient = &http.Client{
-			Timeout: 5 * time.Minute,
+			Timeout: 1 * time.Minute,
 		}
 	}
 

@@ -2,7 +2,9 @@ package pluginsv1
 
 import (
 	"context"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -11,6 +13,7 @@ import (
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -80,9 +83,8 @@ type Service struct {
 	pluginService                  services.Plugins
 	pluginStaticCredentialsService services.PluginStaticCredentials
 	log                            *logrus.Entry
+	httpClient                     *http.Client
 }
-
-var _ pluginspb.PluginServiceServer = (*Service)(nil)
 
 // NewService creates a new plugins service from the given config.
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -95,6 +97,9 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		pluginService:                  cfg.PluginService,
 		pluginStaticCredentialsService: cfg.PluginStaticCredentialsService,
 		log:                            cfg.Log,
+		httpClient: &http.Client{
+			Timeout: 1 * time.Minute,
+		},
 	}, nil
 }
 
@@ -160,7 +165,7 @@ func (s *Service) updatePluginWithLiveCredentials(ctx context.Context, plugin ty
 }
 
 // updatePluginAndCreateStaticCredetials will update the plugin with static credentials and create them if needed.
-func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, plugin types.Plugin, staticCreds *types.PluginStaticCredentialsV1) error {
+func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, plugin *types.PluginV1, staticCreds *types.PluginStaticCredentialsV1) error {
 	if staticCreds == nil {
 		return nil
 	}
@@ -171,9 +176,12 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 	pluginUUID := uuid.NewString()
 	labels := staticCreds.GetStaticLabels()
 
-	// Make sure that we remove any teleport internal labels. Also, apparently it's safe to delete from
-	// a map that's currently being iterated over:
-	// https://go.dev/doc/effective_go#for
+	// Create if nil, we add keys to it below.
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+
+	// Make sure that we remove any teleport internal labels.
 	for k := range labels {
 		if strings.HasPrefix(k, types.TeleportInternalLabelPrefix) {
 			delete(labels, k)
@@ -198,6 +206,21 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 		return trace.Wrap(err)
 	}
 
+	// Verify Jamf API endpoint and credentials.
+	if plugin.GetType() == types.PluginTypeJamf {
+		user, pass := staticCreds.GetBasicAuth()
+
+		// Creating a client automatically verifies the credentials.
+		if _, err := jamf.NewClient(ctx, jamf.ClientOpts{
+			Logger:     s.log,
+			HTTPClient: s.httpClient,
+			APIURL:     plugin.Spec.GetJamf().JamfSpec.ApiEndpoint,
+			Username:   user,
+			Password:   pass,
+		}); err != nil {
+			return trace.Wrap(err, "verifying Jamf endpoint and credentials")
+		}
+	}
 	return trace.Wrap(s.pluginStaticCredentialsService.CreatePluginStaticCredentials(ctx, staticCreds))
 }
 

@@ -5,13 +5,11 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/gravitational/trace"
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	jamf "github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/integrations/access/servicenow"
@@ -299,19 +297,6 @@ func installJamfPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 				},
 			},
 		},
-	}
-
-	// Verify Jamf credential and API endpoint.
-	_, err := jamf.NewClient(ctx, jamf.ClientOpts{
-		HTTPClient: &http.Client{
-			Timeout: 5 * time.Minute,
-		},
-		APIURL:   apiEndpoint,
-		Username: username,
-		Password: password,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	ui, err := installPlugin(ctx, sessCtx, pluginReq, p)
