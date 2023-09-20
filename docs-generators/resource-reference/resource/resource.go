@@ -516,6 +516,52 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		}
 	}
 
+	// Add embedded struct fields to the root reference entry generarated
+	// from decl.
+	embeddeds := []Field{}
+	for _, l := range rs.fields {
+		if l.name != "" {
+			continue
+		}
+		c, ok := l.kind.(yamlCustomType)
+		// Not an embedded struct since it's not a custom type
+		if !ok {
+			continue
+		}
+		p := PackageInfo{
+			TypeName:    c.name,
+			PackageName: l.packageName,
+		}
+		d, ok := allDecls[p]
+		if !ok {
+			return nil, fmt.Errorf(
+				"field %v.%v in %v.%v does not have a name",
+				l.packageName,
+				c.name,
+				decl.PackageName,
+				rs.name,
+			)
+		}
+		e, err := NewFromDecl(d, allDecls)
+		if err != nil {
+			return nil, err
+		}
+
+		// Recover the ReferenceEntry we created for the embedded type
+		// and add its types to the containing type.
+		r, ok := e[p]
+		if !ok {
+			return nil, fmt.Errorf(
+				"no type declaration found for type %v.%v embedded in %v.%v",
+				p.PackageName,
+				p.TypeName,
+				decl.PackageName,
+				rs.name,
+			)
+		}
+		embeddeds = append(embeddeds, r.Fields...)
+	}
+
 	// Initialize the return value and insert the root reference entry
 	// provided by decl.
 	refs := make(map[PackageInfo]ReferenceEntry)
@@ -531,44 +577,8 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		SectionName: makeSectionName(rs.name),
 		Description: descriptionWithoutName(description, rs.name),
 		SourcePath:  decl.FilePath,
-		Fields:      fld,
+		Fields:      append(fld, embeddeds...),
 		YAMLExample: example,
-	}
-
-	// Add embedded struct fields to the root reference entry generarated
-	// from decl.
-	for _, l := range rs.fields {
-		if l.name != "" {
-			continue
-		}
-		c, ok := l.kind.(yamlCustomType)
-		// Not an embedded struct since it's not a custom type
-		if !ok {
-			continue
-		}
-		d, ok := allDecls[PackageInfo{
-			TypeName:    c.name,
-			PackageName: l.packageName,
-		}]
-		if !ok {
-			return nil, fmt.Errorf(
-				"field %v.%v in %v.%v does not have a name",
-				l.packageName,
-				c.name,
-				decl.PackageName,
-				rs.name,
-			)
-		}
-		e, err := NewFromDecl(d, allDecls)
-		if err != nil {
-			return nil, err
-		}
-
-		// TODO: Add the resulting field's fields to the containing
-		// struct
-		// TODO: Add the remaining fields to the containing struct's
-		// deps
-
 	}
 
 	// For any fields within decl that have a custom type, look up the
