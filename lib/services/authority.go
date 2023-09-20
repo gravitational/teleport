@@ -47,7 +47,7 @@ import (
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 	return cmp.Equal(lhs, rhs,
 		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		// Optimize types.CAKeySet comparison.
 		cmp.Comparer(func(a, b types.CAKeySet) bool {
 			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning

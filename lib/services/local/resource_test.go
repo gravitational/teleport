@@ -23,10 +23,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
-	"google.golang.org/protobuf/testing/protocmp"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -50,7 +50,7 @@ func TestCreateResourcesProvisionToken(t *testing.T) {
 	s := NewProvisioningService(tt.bk)
 	fetchedToken, err := s.GetToken(ctx, "foo")
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(token, fetchedToken))
+	require.Empty(t, cmp.Diff(token, fetchedToken, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestUserResource(t *testing.T) {
@@ -248,5 +248,5 @@ func TestBootstrapLock(t *testing.T) {
 
 	l, err := tt.suite.Access.GetLock(ctx, "test")
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(nl, l, protocmp.Transform()))
+	require.Empty(t, cmp.Diff(nl, l, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
