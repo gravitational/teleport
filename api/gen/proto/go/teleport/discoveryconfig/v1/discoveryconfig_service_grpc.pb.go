@@ -22,7 +22,6 @@ package discoveryconfigv1
 
 import (
 	context "context"
-	types "github.com/gravitational/teleport/api/types"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -50,11 +49,11 @@ type DiscoveryConfigServiceClient interface {
 	// ListDiscoveryConfigs returns a paginated list of Discovery Config resources.
 	ListDiscoveryConfigs(ctx context.Context, in *ListDiscoveryConfigsRequest, opts ...grpc.CallOption) (*ListDiscoveryConfigsResponse, error)
 	// GetDiscoveryConfig returns the specified DiscoveryConfig resource.
-	GetDiscoveryConfig(ctx context.Context, in *GetDiscoveryConfigRequest, opts ...grpc.CallOption) (*types.DiscoveryConfigV1, error)
+	GetDiscoveryConfig(ctx context.Context, in *GetDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error)
 	// CreateDiscoveryConfig creates a new DiscoveryConfig resource.
-	CreateDiscoveryConfig(ctx context.Context, in *CreateDiscoveryConfigRequest, opts ...grpc.CallOption) (*types.DiscoveryConfigV1, error)
+	CreateDiscoveryConfig(ctx context.Context, in *CreateDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error)
 	// UpdateDiscoveryConfig updates an existing DiscoveryConfig resource.
-	UpdateDiscoveryConfig(ctx context.Context, in *UpdateDiscoveryConfigRequest, opts ...grpc.CallOption) (*types.DiscoveryConfigV1, error)
+	UpdateDiscoveryConfig(ctx context.Context, in *UpdateDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error)
 	// DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
 	DeleteDiscoveryConfig(ctx context.Context, in *DeleteDiscoveryConfigRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllDiscoveryConfigs removes all DiscoveryConfigs.
@@ -78,8 +77,8 @@ func (c *discoveryConfigServiceClient) ListDiscoveryConfigs(ctx context.Context,
 	return out, nil
 }
 
-func (c *discoveryConfigServiceClient) GetDiscoveryConfig(ctx context.Context, in *GetDiscoveryConfigRequest, opts ...grpc.CallOption) (*types.DiscoveryConfigV1, error) {
-	out := new(types.DiscoveryConfigV1)
+func (c *discoveryConfigServiceClient) GetDiscoveryConfig(ctx context.Context, in *GetDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error) {
+	out := new(DiscoveryConfig)
 	err := c.cc.Invoke(ctx, DiscoveryConfigService_GetDiscoveryConfig_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -87,8 +86,8 @@ func (c *discoveryConfigServiceClient) GetDiscoveryConfig(ctx context.Context, i
 	return out, nil
 }
 
-func (c *discoveryConfigServiceClient) CreateDiscoveryConfig(ctx context.Context, in *CreateDiscoveryConfigRequest, opts ...grpc.CallOption) (*types.DiscoveryConfigV1, error) {
-	out := new(types.DiscoveryConfigV1)
+func (c *discoveryConfigServiceClient) CreateDiscoveryConfig(ctx context.Context, in *CreateDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error) {
+	out := new(DiscoveryConfig)
 	err := c.cc.Invoke(ctx, DiscoveryConfigService_CreateDiscoveryConfig_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -96,8 +95,8 @@ func (c *discoveryConfigServiceClient) CreateDiscoveryConfig(ctx context.Context
 	return out, nil
 }
 
-func (c *discoveryConfigServiceClient) UpdateDiscoveryConfig(ctx context.Context, in *UpdateDiscoveryConfigRequest, opts ...grpc.CallOption) (*types.DiscoveryConfigV1, error) {
-	out := new(types.DiscoveryConfigV1)
+func (c *discoveryConfigServiceClient) UpdateDiscoveryConfig(ctx context.Context, in *UpdateDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error) {
+	out := new(DiscoveryConfig)
 	err := c.cc.Invoke(ctx, DiscoveryConfigService_UpdateDiscoveryConfig_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -130,11 +129,11 @@ type DiscoveryConfigServiceServer interface {
 	// ListDiscoveryConfigs returns a paginated list of Discovery Config resources.
 	ListDiscoveryConfigs(context.Context, *ListDiscoveryConfigsRequest) (*ListDiscoveryConfigsResponse, error)
 	// GetDiscoveryConfig returns the specified DiscoveryConfig resource.
-	GetDiscoveryConfig(context.Context, *GetDiscoveryConfigRequest) (*types.DiscoveryConfigV1, error)
+	GetDiscoveryConfig(context.Context, *GetDiscoveryConfigRequest) (*DiscoveryConfig, error)
 	// CreateDiscoveryConfig creates a new DiscoveryConfig resource.
-	CreateDiscoveryConfig(context.Context, *CreateDiscoveryConfigRequest) (*types.DiscoveryConfigV1, error)
+	CreateDiscoveryConfig(context.Context, *CreateDiscoveryConfigRequest) (*DiscoveryConfig, error)
 	// UpdateDiscoveryConfig updates an existing DiscoveryConfig resource.
-	UpdateDiscoveryConfig(context.Context, *UpdateDiscoveryConfigRequest) (*types.DiscoveryConfigV1, error)
+	UpdateDiscoveryConfig(context.Context, *UpdateDiscoveryConfigRequest) (*DiscoveryConfig, error)
 	// DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
 	DeleteDiscoveryConfig(context.Context, *DeleteDiscoveryConfigRequest) (*emptypb.Empty, error)
 	// DeleteAllDiscoveryConfigs removes all DiscoveryConfigs.
@@ -149,13 +148,13 @@ type UnimplementedDiscoveryConfigServiceServer struct {
 func (UnimplementedDiscoveryConfigServiceServer) ListDiscoveryConfigs(context.Context, *ListDiscoveryConfigsRequest) (*ListDiscoveryConfigsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDiscoveryConfigs not implemented")
 }
-func (UnimplementedDiscoveryConfigServiceServer) GetDiscoveryConfig(context.Context, *GetDiscoveryConfigRequest) (*types.DiscoveryConfigV1, error) {
+func (UnimplementedDiscoveryConfigServiceServer) GetDiscoveryConfig(context.Context, *GetDiscoveryConfigRequest) (*DiscoveryConfig, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDiscoveryConfig not implemented")
 }
-func (UnimplementedDiscoveryConfigServiceServer) CreateDiscoveryConfig(context.Context, *CreateDiscoveryConfigRequest) (*types.DiscoveryConfigV1, error) {
+func (UnimplementedDiscoveryConfigServiceServer) CreateDiscoveryConfig(context.Context, *CreateDiscoveryConfigRequest) (*DiscoveryConfig, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateDiscoveryConfig not implemented")
 }
-func (UnimplementedDiscoveryConfigServiceServer) UpdateDiscoveryConfig(context.Context, *UpdateDiscoveryConfigRequest) (*types.DiscoveryConfigV1, error) {
+func (UnimplementedDiscoveryConfigServiceServer) UpdateDiscoveryConfig(context.Context, *UpdateDiscoveryConfigRequest) (*DiscoveryConfig, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateDiscoveryConfig not implemented")
 }
 func (UnimplementedDiscoveryConfigServiceServer) DeleteDiscoveryConfig(context.Context, *DeleteDiscoveryConfigRequest) (*emptypb.Empty, error) {

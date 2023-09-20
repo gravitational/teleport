@@ -17,6 +17,7 @@ syntax = "proto3";
 package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
+import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 
@@ -134,6 +135,6 @@ message Event {
     // AccessListMember is an access list member resource.
     teleport.accesslist.v1.Member AccessListMember = 47;
     // DiscoveryConfig contains a list of matchers to be loaded dynamically by Discovery Services.
-    types.DiscoveryConfigV1 DiscoveryConfig = 48;
+    teleport.discoveryconfig.v1.DiscoveryConfig DiscoveryConfig = 48;
   }
 }
