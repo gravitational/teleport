@@ -145,6 +145,9 @@ func (y *YubiKeyPrivateKey) Public() crypto.PublicKey {
 
 // Sign implements crypto.Signer.
 func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	signCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// To prevent concurrent calls to Sign from failing due to PIV only handling a
 	// single connection, use a lock to queue through signature requests one at a time.
 	y.signMux.Lock()
@@ -162,8 +165,20 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 	}
 
 	if y.pivSlot == pivSlotWithTouch {
-		cancelTouchPrompt := delayedTouchPrompt(signTouchPromptDelay)
-		defer cancelTouchPrompt()
+		touchPromptDelayTimer := time.NewTimer(signTouchPromptDelay)
+		defer touchPromptDelayTimer.Stop()
+
+		go func() {
+			select {
+			case <-touchPromptDelayTimer.C:
+				// Prompt for touch after a delay, in case the function succeeds without touch due to a cached touch.
+				fmt.Fprintln(os.Stderr, "Tap your YubiKey")
+				return
+			case <-signCtx.Done():
+				// touch cached, skip prompt.
+				return
+			}
+		}()
 	}
 
 	signer, ok := privateKey.(crypto.Signer)
@@ -470,33 +485,19 @@ func selfSignedMetadataCertificate() (*x509.Certificate, error) {
 	return cert, nil
 }
 
-// YubiKeys require touch when generating a private key that requires touch, or using
-// a private key (Sign) with touch required. Unfortunately, there is no good way to
-// check whether touch is cached by the PIV module at a given time. In order to require
-// touch only when needed, we prompt for touch after a short delay when we expect the
-// request would succeed if touch were not required.
+// YubiKeys require touch when signing with a private key that requires touch.
+// Unfortunately, there is no good way to check whether touch is cached by the
+// PIV module at a given time. In order to require touch only when needed, we
+// prompt for touch after a short delay when we expect the request would succeed
+// if touch were not required.
 //
 // There are some X factors which determine how long a request may take, such as the
 // YubiKey model and firmware version, so the delays below may need to be adjusted to
 // suit more models. The durations mentioned below were retrieved from testing with a
 // YubiKey 5 nano (5.2.7) and a YubiKey NFC (5.4.3).
 const (
-	// piv.ECDSAPrivateKey.Sign consistently takes ~70 milliseconds. We don't want to delay signatures
-	// much since they happen frequently, so we use a liberal delay of 100ms.
-	signTouchPromptDelay = time.Millisecond * 100
+	// piv.ECDSAPrivateKey.Sign consistently takes ~70 milliseconds. However, 200ms
+	// should be imperceptible the the user and should avoid misfired prompts for
+	// slower cards (if there are any).
+	signTouchPromptDelay = time.Millisecond * 200
 )
-
-// delayedTouchPrompt prompts the user for touch after the given delay.
-// The returned cancel function can be used to cancel the prompt if the
-// calling function succeeds without touch, meaning touch was cached.
-func delayedTouchPrompt(delay time.Duration) (cancel func()) {
-	touchCtx, cancel := context.WithTimeout(context.Background(), delay)
-	go func() {
-		<-touchCtx.Done()
-		if touchCtx.Err() == context.DeadlineExceeded {
-			fmt.Fprintln(os.Stderr, "Tap your YubiKey")
-		}
-	}()
-
-	return cancel
-}
