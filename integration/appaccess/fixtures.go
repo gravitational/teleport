@@ -360,7 +360,6 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 
 var forwardedHeaderNames = []string{
 	teleport.AppJWTHeader,
-	teleport.AppCFHeader,
 	"X-Forwarded-Proto",
 	"X-Forwarded-Host",
 	"X-Forwarded-Server",
