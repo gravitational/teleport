@@ -305,7 +305,7 @@ func (s *DynamicAccessService) GetAccessRequestSuggestions(ctx context.Context, 
 		if trace.IsNotFound(err) {
 			// do not return nil as the caller will assume that nil error
 			// means that there are some suggestions
-			return &types.AccessRequestSuggestions{Suggestions: []*types.AccessRequestSuggestion{}}, nil
+			return types.NewAccessRequestSuggestions(nil), nil
 		}
 		return nil, trace.Wrap(err)
 	}
