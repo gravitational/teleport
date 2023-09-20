@@ -105,6 +105,10 @@ func (tm *testHostUserBackend) DeleteUser(user string) error {
 	return nil
 }
 
+func (tm *testHostUserBackend) CreateHomeDirectory(user, uid, gid string) error {
+	return nil
+}
+
 // RemoveSudoersFile implements HostUsersBackend
 func (tm *testHostUserBackend) RemoveSudoersFile(user string) error {
 	delete(tm.sudoers, user)
