@@ -51,7 +51,8 @@ func FromMetadataProto(msg *headerv1.Metadata) header.Metadata {
 		Description: msg.Description,
 		Labels:      msg.Labels,
 		Expires:     msg.Expires.AsTime(),
-		ID:          msg.Id,
+		ID:          msg.Id, //nolint:staticcheck // Keep propagating ID until it's entirely replaced by revision.
+		Revision:    msg.Revision,
 	}
 }
 
@@ -62,6 +63,7 @@ func ToMetadataProto(metadata header.Metadata) *headerv1.Metadata {
 		Description: metadata.Description,
 		Labels:      metadata.Labels,
 		Expires:     timestamppb.New(metadata.Expires),
-		Id:          metadata.ID,
+		Id:          metadata.ID, //nolint:staticcheck // Keep propagating ID until it's entirely replaced by revision.
+		Revision:    metadata.Revision,
 	}
 }
