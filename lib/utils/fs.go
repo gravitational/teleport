@@ -245,12 +245,23 @@ func FSTryReadLockTimeout(ctx context.Context, filePath string, timeout time.Dur
 // RemoveSecure attempts to securely delete the file by first overwriting the file with random data three times
 // followed by calling os.Remove(filePath).
 func RemoveSecure(filePath string) error {
+	var overwriteErr error
 	for i := 0; i < 3; i++ {
 		if err := overwriteFile(filePath); err != nil {
-			return trace.Wrap(err)
+			if overwriteErr == nil {
+				overwriteErr = err
+			}
 		}
 	}
-	return trace.ConvertSystemError(os.Remove(filePath))
+	// regardless of above errors we want to attempt a removal of the file
+	removeErr := os.Remove(filePath)
+	if overwriteErr == nil {
+		return trace.ConvertSystemError(removeErr)
+	} else if removeErr == nil {
+		return trace.ConvertSystemError(overwriteErr)
+	} else {
+		return trace.Errorf("multiple errors on removal: %v - %v", overwriteErr, removeErr)
+	}
 }
 
 func overwriteFile(filePath string) (err error) {
