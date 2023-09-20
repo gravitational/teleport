@@ -30,7 +30,7 @@ option (gogoproto.unmarshaler_all) = true;
 
 // Metadata is a common event metadata
 message Metadata {
-  // Index is a monotonicaly incremented index in the event sequence
+  // Index is a monotonically incremented index in the event sequence
   int64 Index = 1 [(gogoproto.jsontag) = "ei"];
 
   // Type is the event type
@@ -53,7 +53,7 @@ message Metadata {
   string ClusterName = 6 [(gogoproto.jsontag) = "cluster_name,omitempty"];
 }
 
-// SesssionMetadata is a common session event metadata
+// SessionMetadata is a common session event metadata
 message SessionMetadata {
   // SessionID is a unique UUID of the session.
   string SessionID = 1 [(gogoproto.jsontag) = "sid"];
@@ -214,6 +214,44 @@ message OktaAssignmentMetadata {
   string EndingStatus = 4 [(gogoproto.jsontag) = "ending_status,omitempty"];
 }
 
+// AccessListMemberMetadata contains common metadata for access list member resource events.
+message AccessListMemberMetadata {
+  // AccessListName is the name of the access list the members are being added to or removed from.
+  string AccessListName = 1 [(gogoproto.jsontag) = "access_list_name,omitempty"];
+
+  // Members are all members affected by the access list membership change.
+  repeated AccessListMember Members = 2 [(gogoproto.jsontag) = "members,omitempty"];
+}
+
+// AccessListMember is metadata surrounding an individual access list member.
+message AccessListMember {
+  // JoinedOn is the date that the member joined.
+  google.protobuf.Timestamp JoinedOn = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "joined_on,omitempty"
+  ];
+
+  // RemovedOn is the date that the access list member was removed. Will only be populated for deletion.
+  google.protobuf.Timestamp RemovedOn = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "removed_on,omitempty"
+  ];
+
+  // Reason is the reason that the member was added, modified, or removed.
+  string Reason = 3 [(gogoproto.jsontag) = "reason,omitempty"];
+
+  // MemberName is the name of the member.
+  string MemberName = 4 [(gogoproto.jsontag) = "member_name,omitempty"];
+}
+
+// AccessListReviewMetadata contains metadata for access list review events.
+message AccessListReviewMetadata {
+  // Message is the message that was supplied during the review.
+  string Message = 1 [(gogoproto.jsontag) = "message,omitempty"];
+}
+
 // SessionStart is a session start event
 message SessionStart {
   // Metadata is a common event metadata
@@ -328,7 +366,7 @@ message SessionJoin {
 }
 
 // SessionPrint event happens every time a write occurs to
-// temirnal I/O during a session
+// terminal I/O during a session
 message SessionPrint {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
@@ -337,7 +375,7 @@ message SessionPrint {
     (gogoproto.jsontag) = ""
   ];
 
-  // ChunkIndex is a monotonicaly incremented index for ordering print events
+  // ChunkIndex is a monotonically incremented index for ordering print events
   int64 ChunkIndex = 2 [(gogoproto.jsontag) = "ci"];
 
   // Data is data transferred, it is not marshaled to JSON format
@@ -1089,7 +1127,7 @@ message SessionLeave {
   ];
 }
 
-// UserLogin records a successfull or failed user login event
+// UserLogin records a successfully or failed user login event
 message UserLogin {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
@@ -1277,7 +1315,7 @@ message AccessRequestCreate {
   string Reason = 8 [(gogoproto.jsontag) = "reason,omitempty"];
 
   // Annotations is an optional set of attributes supplied by a plugin during
-  // approval/denail of the request.
+  // approval/denial of the request.
   google.protobuf.Struct Annotations = 9 [
     (gogoproto.jsontag) = "annotations,omitempty",
     (gogoproto.casttype) = "Struct"
@@ -1294,6 +1332,13 @@ message AccessRequestCreate {
   repeated ResourceID RequestedResourceIDs = 12 [
     (gogoproto.jsontag) = "resource_ids,omitempty",
     (gogoproto.nullable) = false
+  ];
+
+  // MaxDuration indicates how long the access should be granted for.
+  google.protobuf.Timestamp MaxDuration = 13 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "max_duration,omitempty"
   ];
 }
 
@@ -3211,6 +3256,22 @@ enum OSType {
   OS_TYPE_WINDOWS = 3;
 }
 
+// DeviceOrigin is the same as teleport.devicetrust.v1.DeviceOrigin.
+// Duplicated because gogo doesn't play well with protoc-gen-go.
+enum DeviceOrigin {
+  // Unspecified or absent origin.
+  DEVICE_ORIGIN_UNSPECIFIED = 0;
+
+  // Devices originated from direct API usage.
+  DEVICE_ORIGIN_API = 1;
+
+  // Devices originated from Jamf sync.
+  DEVICE_ORIGIN_JAMF = 2;
+
+  // Source originated from Microsoft Intune sync.
+  DEVICE_ORIGIN_INTUNE = 3;
+}
+
 // DeviceMetadata groups device information for events.
 message DeviceMetadata {
   // ID of the device.
@@ -3221,6 +3282,8 @@ message DeviceMetadata {
   string asset_tag = 3 [(gogoproto.jsontag) = "asset_tag,omitempty"];
   // Device credential identifier.
   string credential_id = 4 [(gogoproto.jsontag) = "credential_id,omitempty"];
+  // Device origin.
+  DeviceOrigin device_origin = 5 [(gogoproto.jsontag) = "device_origin,omitempty"];
 }
 
 // DeviceEvent is a device-related event.
@@ -3404,6 +3467,14 @@ message OneOf {
     events.OktaSyncFailure OktaSyncFailure = 123;
     events.OktaAssignmentResult OktaAssignmentResult = 124;
     events.ProvisionTokenCreate ProvisionTokenCreate = 125;
+    events.AccessListCreate AccessListCreate = 126;
+    events.AccessListUpdate AccessListUpdate = 127;
+    events.AccessListDelete AccessListDelete = 128;
+    events.AccessListReview AccessListReview = 129;
+    events.AccessListMemberCreate AccessListMemberCreate = 130;
+    events.AccessListMemberUpdate AccessListMemberUpdate = 131;
+    events.AccessListMemberDelete AccessListMemberDelete = 132;
+    events.AccessListMemberDeleteAllForAccessList AccessListMemberDeleteAllForAccessList = 133;
   }
 }
 
@@ -4884,6 +4955,233 @@ message OktaAssignmentResult {
 
   // OktaAssignmentMetadata is common Okta assignment metadata.
   OktaAssignmentMetadata OktaAssignment = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListCreate is emitted when an access list is created.
+message AccessListCreate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the resource operation was successful.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListUpdate is emitted when an access list is updated.
+message AccessListUpdate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the resource operation was successful.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListDelete is emitted when an access list is deleted.
+message AccessListDelete {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the resource operation was successful.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListMemberCreate is emitted when an access list member is created.
+message AccessListMemberCreate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // AccessListMember is common access list member metadata.
+  AccessListMemberMetadata AccessListMember = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the resource operation was successful.
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListMemberUpdate is emitted when an access list member is updated.
+message AccessListMemberUpdate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // AccessListMember is common access list member metadata.
+  AccessListMemberMetadata AccessListMember = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the resource operation was successful.
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListMemberDelete is emitted when an access list member is deleted.
+message AccessListMemberDelete {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // AccessListMember is common access list member metadata.
+  AccessListMemberMetadata AccessListMember = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the resource operation was successful.
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListMemberDeleteAllForAccessList is emitted when all members are deleted for an access list.
+message AccessListMemberDeleteAllForAccessList {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // AccessListMember is common access list member metadata.
+  AccessListMemberMetadata AccessListMember = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the resource operation was successful.
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListReview is emitted when an access list is reviewed.
+message AccessListReview {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Review is metadata for the access list review.
+  AccessListReviewMetadata Review = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the review operation was successful.
+  Status status = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

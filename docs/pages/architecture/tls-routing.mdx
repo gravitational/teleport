@@ -188,6 +188,9 @@ certificate to secure local communications with the Kubernetes clients.
 When forwarding the requests to the Proxy Service, the local proxy performs
 necessary connection upgrades and sets the required SNI for the TLS handshake.
 
+The `tsh kubectl` and `tsh kube exec` commands also start a local proxy
+automatically when connection upgrades are required.
+
 ### Databases
 
 In TLS routing mode, `tsh db connect` starts a local proxy which database
@@ -223,6 +226,56 @@ that utilize connection upgrades, since they are essentially HTTP requests.
 To prevent IP spoofing, only a single IP address is expected in the
 "X-Forwarded-For" headers per request. Any requests with multiple IP addresses
 will be rejected.
+
+## FAQ
+
+### Does TLS routing work behind a layer 4 load balancer that terminates TLS?
+
+Yes. When the Teleport Proxy Service is behind a layer 4 load balancer that
+terminates TLS, Teleport clients handle the situation similarly to when a layer
+7 load balancer is present, performing the connection upgrades.
+
+Note that the load balancer must forward the TLS layer to the Teleport Proxy
+Service. For example, an AWS Network Load Balancer (NLB) must use "TLS"
+protocol for the target group.
+
+### Will TLS routing work behind my reverse proxy?
+
+TLS routing does support the Teleport Proxy Service behind layer 7 reverse
+proxies. The reverse proxy must support custom [connection
+upgrades](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Upgrade)
+and long-lived connections.
+
+You can set up a Teleport Proxy Service behind the reverse proxy and run the
+following command to test the connection:
+```bash
+$ curl -v https://<proxy.example.com>/webapi/connectionupgrade -H "Connection: Upgrade" -H "Upgrade: alpn-ping" --no-alpn
+```
+
+For a successful upgrade, the server should return "101 Switching Protocols"
+with the requested upgrade type and you should also get some binary output in
+about 30 seconds running the `curl` command:
+```
+< HTTP/1.1 101 Switching Protocols
+< Connection: Upgrade
+< Upgrade: alpn-ping
+< X-Teleport-Upgrade: alpn-ping
+<
+Warning: Binary output can mess up your terminal.
+```
+
+### How can I access Kubernetes clusters without using `tsh proxy kube`?
+
+Local proxies are required when the Teleport Proxy Service is behind layer 7
+load balancers or reverse proxies.
+
+One alternative to `tsh proxy kube` is to use `tsh kubectl` which starts a
+local proxy automatically when connection upgrades are required.
+
+To completely avoid local proxies, either use layer 4 load balancers in TCP
+mode instead of layer 7 load balancers, or configure your Teleport Proxy
+Service in `separate` port mode and use a separate Kubernetes port that is not
+behind layer 7 load balancers.
 
 ## Next steps
 

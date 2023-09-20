@@ -15,8 +15,11 @@ limitations under the License.
 */
 
 import React, { useState } from 'react';
-import { Card } from 'design';
 import { NewFlow, StepSlider } from 'design/StepSlider';
+
+import { OnboardCard } from 'design/Onboard/OnboardCard';
+
+import { Box } from 'design';
 
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
 import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolicy';
@@ -98,13 +101,14 @@ export function NewCredentials(props: NewCredentialsProps) {
     setDisplayOnboardingQuestionnaire &&
     Questionnaire
   ) {
-    // todo (michellescripts) check cluster config to determine if all or partial questions are asked
     return (
-      <Questionnaire
-        full={true}
-        username={resetToken.user}
-        onSubmit={() => setDisplayOnboardingQuestionnaire(false)}
-      />
+      <OnboardCard>
+        <Questionnaire
+          username={resetToken.user}
+          onSubmit={() => setDisplayOnboardingQuestionnaire(false)}
+          onboard={true}
+        />
+      </OnboardCard>
     );
   }
 
@@ -143,7 +147,7 @@ export function NewCredentials(props: NewCredentialsProps) {
   }
 
   return (
-    <Card as="form" my={5} mx="auto" width={464}>
+    <Box as="form">
       <StepSlider<typeof loginFlows>
         flows={loginFlows}
         currFlow={flow}
@@ -154,6 +158,6 @@ export function NewCredentials(props: NewCredentialsProps) {
         password={password}
         updatePassword={updatePassword}
       />
-    </Card>
+    </Box>
   );
 }

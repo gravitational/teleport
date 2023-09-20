@@ -22,6 +22,7 @@ import {
 import {
   ReloginRequest,
   SendNotificationRequest,
+  SendPendingHeadlessAuthenticationRequest,
 } from 'teleterm/services/tshdEvents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
@@ -32,8 +33,9 @@ import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
-import { ReloginService } from 'teleterm/services/relogin';
-import { TshdNotificationsService } from 'teleterm/services/tshdNotifications';
+import { ReloginService } from 'teleterm/ui/services/relogin/reloginService';
+import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications/tshdNotificationService';
+import { HeadlessAuthenticationService } from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ConfigService } from 'teleterm/services/config';
@@ -70,6 +72,7 @@ export default class AppContext implements IAppContext {
   subscribeToTshdEvent: SubscribeToTshdEvent;
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
+  headlessAuthenticationService: HeadlessAuthenticationService;
   usageService: UsageService;
   configService: ConfigService;
 
@@ -131,6 +134,12 @@ export default class AppContext implements IAppContext {
       this.notificationsService,
       this.clustersService
     );
+    this.headlessAuthenticationService = new HeadlessAuthenticationService(
+      mainProcessClient,
+      this.modalsService,
+      tshClient,
+      this.configService
+    );
   }
 
   async init(): Promise<void> {
@@ -153,5 +162,15 @@ export default class AppContext implements IAppContext {
         request as SendNotificationRequest
       );
     });
+
+    this.subscribeToTshdEvent(
+      'sendPendingHeadlessAuthentication',
+      ({ request, onCancelled }) => {
+        return this.headlessAuthenticationService.sendPendingHeadlessAuthentication(
+          request as SendPendingHeadlessAuthenticationRequest,
+          onCancelled
+        );
+      }
+    );
   }
 }

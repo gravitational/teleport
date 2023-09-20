@@ -35,7 +35,6 @@ import (
 	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport"
-	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -102,12 +101,12 @@ func (f *Forwarder) transportForRequestWithoutImpersonation(sess *clusterSession
 	}
 	transport := newTransport(sess.DialWithContext, sess.tlsConfig)
 	if !sess.upgradeToHTTP2 {
-		return tracehttp.NewTransport(transport), nil
+		return instrumentedRoundtripper(f.cfg.KubeServiceType, transport), nil
 	}
 	if err := http2.ConfigureTransport(transport); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return tracehttp.NewTransport(transport), nil
+	return instrumentedRoundtripper(f.cfg.KubeServiceType, transport), nil
 }
 
 // transportForRequestWithImpersonation returns a transport that supports
@@ -323,8 +322,8 @@ func (f *Forwarder) newRemoteClusterTransport(clusterName string) (*httpTranspor
 	}
 
 	return &httpTransport{
-		h1Transport: tracehttp.NewTransport(auth.NewImpersonatorRoundTripper(h1Transport)),
-		h2Transport: tracehttp.NewTransport(auth.NewImpersonatorRoundTripper(h2Transport)),
+		h1Transport: instrumentedRoundtripper(f.cfg.KubeServiceType, auth.NewImpersonatorRoundTripper(h1Transport)),
+		h2Transport: instrumentedRoundtripper(f.cfg.KubeServiceType, auth.NewImpersonatorRoundTripper(h2Transport)),
 	}, nil
 }
 
@@ -407,8 +406,8 @@ func (f *Forwarder) newLocalClusterTransport(kubeClusterName string) (*httpTrans
 	}
 
 	return &httpTransport{
-		h1Transport: tracehttp.NewTransport(auth.NewImpersonatorRoundTripper(h1Transport)),
-		h2Transport: tracehttp.NewTransport(auth.NewImpersonatorRoundTripper(h2Transport)),
+		h1Transport: instrumentedRoundtripper(f.cfg.KubeServiceType, auth.NewImpersonatorRoundTripper(h1Transport)),
+		h2Transport: instrumentedRoundtripper(f.cfg.KubeServiceType, auth.NewImpersonatorRoundTripper(h2Transport)),
 	}, nil
 }
 

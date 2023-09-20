@@ -15,7 +15,6 @@
 package db
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -38,21 +37,8 @@ func TestOpenSearchFetcher(t *testing.T) {
 		status.Created = aws.Bool(false)
 	})
 
-	prodVPC, prodVPCDBs := makeOpenSearchDomain(t, tags, "os3", "us-east-1", "prod", func(status *opensearchservice.DomainStatus) {
-		if status.Endpoints == nil {
-			status.Endpoints = map[string]*string{}
-		}
-		status.Endpoints["vpc"] = aws.String("vpc-" + aws.StringValue(status.Endpoint))
-		status.Endpoint = nil
-	})
-
-	prodCustom, prodCustomDBs := makeOpenSearchDomain(t, tags, "os4", "us-east-1", "prod", func(status *opensearchservice.DomainStatus) {
-		status.DomainEndpointOptions = &opensearchservice.DomainEndpointOptions{
-			CustomEndpoint:        aws.String("opensearch.example.com"),
-			CustomEndpointEnabled: aws.Bool(true),
-			EnforceHTTPS:          aws.Bool(true),
-		}
-	})
+	prodVPC, prodVPCDBs := makeOpenSearchDomain(t, tags, "os3", "us-east-1", "prod", mocks.WithOpenSearchVPCEndpoint("vpc"))
+	prodCustom, prodCustomDBs := makeOpenSearchDomain(t, tags, "os4", "us-east-1", "prod", mocks.WithOpenSearchCustomEndpoint("opensearch.example.com"))
 
 	test, testDBs := makeOpenSearchDomain(t, tags, "os5", "us-east-1", "test")
 
@@ -128,20 +114,7 @@ func TestOpenSearchFetcher(t *testing.T) {
 }
 
 func makeOpenSearchDomain(t *testing.T, tagMap map[string][]*opensearchservice.Tag, name, region, env string, opts ...func(status *opensearchservice.DomainStatus)) (*opensearchservice.DomainStatus, types.Databases) {
-	domain := &opensearchservice.DomainStatus{
-		ARN:           aws.String(fmt.Sprintf("arn:aws:es:%s:123456789012:domain/%s", region, name)),
-		DomainId:      aws.String("123456789012/" + name),
-		DomainName:    aws.String(name),
-		Created:       aws.Bool(true),
-		Deleted:       aws.Bool(false),
-		EngineVersion: aws.String("OpenSearch_2.5"),
-
-		Endpoint: aws.String(fmt.Sprintf("search-%s-aaaabbbbcccc4444.%s.es.amazonaws.com", name, region)),
-	}
-
-	for _, opt := range opts {
-		opt(domain)
-	}
+	domain := mocks.OpenSearchDomain(name, region, opts...)
 
 	tags := []*opensearchservice.Tag{{
 		Key:   aws.String("env"),
@@ -150,8 +123,7 @@ func makeOpenSearchDomain(t *testing.T, tagMap map[string][]*opensearchservice.T
 
 	tagMap[aws.StringValue(domain.ARN)] = tags
 
-	database, err := services.NewDatabaseFromOpenSearchDomain(domain, tags)
+	databases, err := services.NewDatabasesFromOpenSearchDomain(domain, tags)
 	require.NoError(t, err)
-
-	return domain, database
+	return domain, databases
 }

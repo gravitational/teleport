@@ -313,7 +313,7 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, clt *ClusterClie
 		// Proceed with the prompt for MFA below.
 	}
 
-	mfaResp, err := clt.tc.PromptMFAChallenge(ctx, clt.tc.WebProxyAddr, mfaChal, nil /* applyOpts */)
+	mfaResp, err := clt.tc.PromptMFA(ctx, mfaChal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

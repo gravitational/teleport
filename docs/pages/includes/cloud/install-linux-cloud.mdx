@@ -1,5 +1,5 @@
   <Tabs>
-  <TabItem label="Debian 8+/Ubuntu 16.04+ (apt)">
+  <TabItem label="Debian 9+/Ubuntu 16.04+ (apt)">
 
   Add the Teleport repository to your repository list:
 
@@ -9,27 +9,27 @@
   -o /usr/share/keyrings/teleport-archive-keyring.asc
   # Source variables about OS version
   $ source /etc/os-release
-  # Add the Teleport apt repository for cloud.
+  # Add the Teleport APT repository for cloud.
   $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
   https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/cloud" \
   | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
 
   $ sudo apt-get update
-  $ sudo apt-get install teleport-ent
+  $ sudo apt-get install teleport-ent-updater
   ```
 
   </TabItem>
-  <TabItem label="Amazon Linux 2/RHEL 7 (yum)">
+  <TabItem label="Amazon Linux 2/RHEL 7/CentOS 7 (yum)">
 
   ```code
   # Source variables about OS version
   $ source /etc/os-release
-  # Add the Teleport yum repository for cloud.
-  # First, get the major version from $VERSION_ID so this fetches the correct
+  # Add the Teleport YUM repository for cloud.
+  # First, get the OS major version from $VERSION_ID so this fetches the correct
   # package version.
   $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
-  $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport.repo")"
-  $ sudo yum install teleport-ent
+  $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport-yum.repo")"
+  $ sudo yum install teleport-ent-updater
   #
   # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
   # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
@@ -41,33 +41,35 @@
   ```code
   # Source variables about OS version
   $ source /etc/os-release
-  # Add the Teleport yum repository for cloud.
+  # Add the Teleport YUM repository for cloud.
+  # First, get the OS major version from $VERSION_ID so this fetches the correct
+  # package version.
+  $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
   # Use the dnf config manager plugin to add the teleport RPM repo
-  $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport.repo")"
+  $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport-yum.repo")"
   
   # Install teleport
-  $ sudo dnf install teleport-ent
+  $ sudo dnf install teleport-ent-updater
   
   # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
   # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
   ```
 
   </TabItem>
-  <TabItem label="Tarball">
-
-  In the example commands below, update `$SYSTEM_ARCH` with the appropriate
-  value (`amd64`, `arm64`, or `arm`). All example commands using this variable
-  will update after one is filled out.
+  <TabItem label="SLES 12 SP5+ and 15 SP5+ (zypper)">
 
   ```code
-  $ curl https://get.gravitational.com/teleport-ent-v(=cloud.version=)-linux-<Var name="$SYSTEM_ARCH"/>-bin.tar.gz.sha256
-  # <checksum> <filename>
-  $ curl -O https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-linux-amd64-bin.tar.gz
-  $ shasum -a 256 teleport-ent-v(=cloud.version=)-linux-amd64-bin.tar.gz
-  # Verify that the checksums match
-  $ tar -xvf teleport-ent-v(=cloud.version=)-linux-amd64-bin.tar.gz
-  $ cd teleport-ent
-  $ sudo ./install
+  # Source variables about OS version
+  $ source /etc/os-release
+  # Add the Teleport Zypper repository for cloud.
+  # First, get the OS major version from $VERSION_ID so this fetches the correct
+  # package version.
+  $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
+  # Use Zypper to add the teleport RPM repo
+  $ sudo zypper addrepo --refresh --repo $(rpm --eval "https://zypper.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport-zypper.repo")
+  
+  # Install teleport
+  $ sudo zypper install teleport-ent-updater
   ```
 
   </TabItem>

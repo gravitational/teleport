@@ -20,21 +20,32 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os/exec"
+	"path"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestKube(t *testing.T) {
@@ -54,8 +65,6 @@ type kubeTestPack struct {
 	rootKubeCluster1 string
 	rootKubeCluster2 string
 	leafKubeCluster  string
-	serviceLabels    map[string]string
-	formatedLabels   string
 }
 
 func setupKubeTestPack(t *testing.T) *kubeTestPack {
@@ -64,12 +73,18 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 	ctx := context.Background()
 	rootKubeCluster1 := "root-cluster"
 	rootKubeCluster2 := "first-cluster"
-	leafKubeCluster := "leaf-cluster"
-	serviceLabels := map[string]string{
+	// mock a discovered kube cluster name in the leaf Teleport cluster.
+	leafKubeCluster := "leaf-cluster-some-suffix-added-by-discovery-service"
+	rootLabels := map[string]string{
 		"label1": "val1",
 		"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
 	}
-	formatedLabels := formatServiceLabels(serviceLabels)
+	leafLabels := map[string]string{
+		"label1": "val1",
+		"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
+		// mock a discovered kube cluster in the leaf Teleport cluster.
+		types.DiscoveredNameLabel: "leaf-cluster",
+	}
 
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
@@ -77,7 +92,7 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 			cfg.Kube.Enabled = true
 			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
-			cfg.Kube.StaticLabels = serviceLabels
+			cfg.Kube.StaticLabels = rootLabels
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(
@@ -86,6 +101,7 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 				cfg.Kube.Enabled = true
 				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
+				cfg.Kube.StaticLabels = leafLabels
 			},
 		),
 		withValidationFunc(func(s *suite) bool {
@@ -105,12 +121,18 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 		rootKubeCluster1: rootKubeCluster1,
 		rootKubeCluster2: rootKubeCluster2,
 		leafKubeCluster:  leafKubeCluster,
-		serviceLabels:    serviceLabels,
-		formatedLabels:   formatedLabels,
 	}
 }
 
 func (p *kubeTestPack) testListKube(t *testing.T) {
+	staticRootLabels := p.suite.root.Config.Kube.StaticLabels
+	formattedRootLabels := common.FormatLabels(staticRootLabels, false)
+	formattedRootLabelsVerbose := common.FormatLabels(staticRootLabels, true)
+
+	staticLeafLabels := p.suite.leaf.Config.Kube.StaticLabels
+	formattedLeafLabels := common.FormatLabels(staticLeafLabels, false)
+	formattedLeafLabelsVerbose := common.FormatLabels(staticLeafLabels, true)
+
 	tests := []struct {
 		name      string
 		args      []string
@@ -124,7 +146,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 				// p.rootKubeCluster1 ("root-cluster") after sorting.
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Kube Cluster Name", "Labels", "Selected"},
-					[][]string{{p.rootKubeCluster2, p.formatedLabels, ""}, {p.rootKubeCluster1, p.formatedLabels, ""}},
+					[][]string{
+						{p.rootKubeCluster2, formattedRootLabels, ""},
+						{p.rootKubeCluster1, formattedRootLabels, ""},
+					},
 					"Labels")
 				return table.AsBuffer().String()
 			},
@@ -135,8 +160,8 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			wantTable: func() string {
 				table := asciitable.MakeTable(
 					[]string{"Kube Cluster Name", "Labels", "Selected"},
-					[]string{p.rootKubeCluster2, p.formatedLabels, ""},
-					[]string{p.rootKubeCluster1, p.formatedLabels, ""})
+					[]string{p.rootKubeCluster2, formattedRootLabelsVerbose, ""},
+					[]string{p.rootKubeCluster1, formattedRootLabelsVerbose, ""})
 				return table.AsBuffer().String()
 			},
 		},
@@ -145,8 +170,8 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--quiet"},
 			wantTable: func() string {
 				table := asciitable.MakeHeadlessTable(2)
-				table.AddRow([]string{p.rootKubeCluster2, p.formatedLabels, ""})
-				table.AddRow([]string{p.rootKubeCluster1, p.formatedLabels, ""})
+				table.AddRow([]string{p.rootKubeCluster2, formattedRootLabels, ""})
+				table.AddRow([]string{p.rootKubeCluster1, formattedRootLabels, ""})
 
 				return table.AsBuffer().String()
 			},
@@ -155,13 +180,43 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			name: "list all clusters including leaf clusters",
 			args: []string{"--all"},
 			wantTable: func() string {
+				table := asciitable.MakeTableWithTruncatedColumn(
+					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
+					[][]string{
+						// "leaf-cluster" should be displayed instead of the
+						// full leaf cluster name, since it is mocked as a
+						// discovered resource and the discovered resource name
+						// is displayed in non-verbose mode.
+						{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels},
+						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels},
+						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels},
+					},
+					"Labels",
+				)
+				return table.AsBuffer().String()
+			},
+		},
+		{
+			name: "list all clusters including leaf clusters with complete list of labels",
+			args: []string{"--all", "--verbose"},
+			wantTable: func() string {
 				table := asciitable.MakeTable(
 					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
-
-					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, ""},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, p.formatedLabels},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, p.formatedLabels},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, formattedLeafLabelsVerbose},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabelsVerbose},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabelsVerbose},
 				)
+				return table.AsBuffer().String()
+			},
+		},
+		{
+			name: "list all clusters including leaf clusters in headless table",
+			args: []string{"--all", "--quiet"},
+			wantTable: func() string {
+				table := asciitable.MakeHeadlessTable(4)
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels})
 				return table.AsBuffer().String()
 			},
 		},
@@ -183,11 +238,347 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 					tc.args...,
 				),
 				setCopyStdout(captureStdout),
+
+				// set a custom empty kube config for each test, as we do
+				// not want parallel (or even shuffled sequential) tests
+				// potentially racing on the same config
+				setKubeConfigPath(filepath.Join(t.TempDir(), "kubeconfig")),
 			)
 			require.NoError(t, err)
-			require.Contains(t, captureStdout.String(), tc.wantTable())
+			got := strings.TrimSpace(captureStdout.String())
+			want := strings.TrimSpace(tc.wantTable())
+			diff := cmp.Diff(want, got)
+			require.Empty(t, diff)
 		})
 	}
+}
+
+// Tests `tsh kube login`, `tsh proxy kube`.
+func TestKubeSelection(t *testing.T) {
+	modules.SetTestModules(t,
+		&modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Kubernetes: true,
+			},
+		},
+	)
+	testenv.WithInsecureDevMode(t, true)
+	testenv.WithResyncInterval(t, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.SSH.Enabled = false
+			cfg.Kube.Enabled = true
+			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+			cfg.Kube.ResourceMatchers = []services.ResourceMatcher{{
+				Labels: map[string]apiutils.Strings{"*": {"*"}},
+			}}
+		}),
+	)
+	kubeBarEKS := "bar-eks-us-west-1-123456789012"
+	kubeBazEKS1 := "baz-eks-us-west-1-123456789012"
+	kubeBazEKS2 := "baz-eks-us-west-2-123456789012"
+	mustRegisterKubeClusters(t, ctx, s.root.GetAuthServer(),
+		mustMakeDynamicKubeCluster(t, kubeBarEKS, "bar", map[string]string{types.DiscoveryLabelRegion: "us-west-1", "env": "dev"}),
+		mustMakeDynamicKubeCluster(t, kubeBazEKS1, "baz", map[string]string{types.DiscoveryLabelRegion: "us-west-1", "env": "prod"}),
+		mustMakeDynamicKubeCluster(t, kubeBazEKS2, "baz", map[string]string{types.DiscoveryLabelRegion: "us-west-2", "env": "prod"}),
+	)
+	allKubes := []string{kubeBarEKS, kubeBazEKS1, kubeBazEKS2}
+
+	rootClusterName := s.root.Config.Auth.ClusterName.GetClusterName()
+
+	tests := []struct {
+		desc                    string
+		wantLoginCurrentContext string
+		wantLoggedIn            []string
+		wantProxied             []string
+		args                    []string
+		// indicate if a test case is only for one of the `tsh kube login`
+		// or `tsh proxy kube` test runners.
+		// A lot of the test cases can be shared to test `tsh kube login` and
+		// `tsh proxy kube`, but some are specific.
+		loginTestOnly bool
+		proxyTestOnly bool
+		wantErr       string
+	}{
+		{
+			desc:                    "with full name",
+			wantLoginCurrentContext: kubeBazEKS1,
+			wantLoggedIn:            []string{kubeBazEKS1},
+			wantProxied:             []string{kubeBazEKS1},
+			args:                    []string{kubeBazEKS1},
+		},
+		{
+			desc:                    "with discovered name",
+			wantLoginCurrentContext: kubeBarEKS,
+			wantLoggedIn:            []string{kubeBarEKS},
+			wantProxied:             []string{kubeBarEKS},
+			args:                    []string{"bar"},
+		},
+		{
+			desc:         "with labels",
+			wantLoggedIn: []string{kubeBazEKS1, kubeBazEKS2},
+			wantProxied:  []string{kubeBazEKS1, kubeBazEKS2},
+			args:         []string{"--labels", "env=prod"},
+		},
+		{
+			desc:         "with query",
+			wantLoggedIn: []string{kubeBazEKS1},
+			wantProxied:  []string{kubeBazEKS1},
+			args:         []string{"--query", `labels["env"]=="prod" && labels["region"] == "us-west-1"`},
+		},
+		{
+			desc: "with labels and discovered name",
+			// both these match the labels, only one of them matches the discovered name to select the context.
+			wantLoginCurrentContext: kubeBazEKS1,
+			wantLoggedIn:            []string{kubeBarEKS, kubeBazEKS1},
+			wantProxied:             []string{kubeBazEKS1},
+			args: []string{
+				"--labels", "region=us-west-1",
+				"baz",
+			},
+		},
+		{
+			desc:                    "with query and discovered name",
+			wantLoginCurrentContext: kubeBazEKS2,
+			wantLoggedIn:            []string{kubeBazEKS2},
+			wantProxied:             []string{kubeBazEKS2},
+			args: []string{
+				"--query", `labels["region"] == "us-west-2"`,
+				"baz",
+			},
+		},
+		{
+			desc: "ambiguous discovered name is an error",
+			args: []string{
+				"baz",
+			},
+			wantErr: `kubernetes cluster "baz" matches multiple`,
+		},
+		{
+			desc: "zero name matches is an error",
+			args: []string{
+				"xxx",
+			},
+			wantErr: `kubernetes cluster "xxx" not found`,
+		},
+		{
+			desc: "zero label matches is an error",
+			args: []string{
+				"--labels", "env=nonexistent",
+			},
+			wantErr: `kubernetes cluster with labels "env=nonexistent" not found`,
+		},
+		{
+			desc: "zero query matches is an error",
+			args: []string{
+				"--query", `labels["env"]=="nonexistent"`,
+			},
+			wantErr: `kubernetes cluster with query (labels["env"]=="nonexistent") not found`,
+		},
+		// cases specific to `tsh kube login` testing
+		{
+			desc:                    "login to all and set current context by full name",
+			args:                    []string{kubeBazEKS1, "--all"},
+			wantLoginCurrentContext: kubeBazEKS1,
+			wantLoggedIn:            allKubes,
+			loginTestOnly:           true,
+		},
+		{
+			desc:                    "login to all and set current context by discovered name",
+			args:                    []string{kubeBarEKS, "--all"},
+			wantLoginCurrentContext: kubeBarEKS,
+			wantLoggedIn:            allKubes,
+			loginTestOnly:           true,
+		},
+		{
+			desc:          "login to all and set current context by ambiguous discovered name is an error",
+			args:          []string{"baz", "--all"},
+			loginTestOnly: true,
+			wantErr:       `kubernetes cluster "baz" matches multiple`,
+		},
+		{
+			desc:          "login with all",
+			args:          []string{"--all"},
+			wantLoggedIn:  allKubes,
+			loginTestOnly: true,
+		},
+		{
+			desc:          "all with labels is an error",
+			args:          []string{"xxx", "--all", "--labels", `env=root`},
+			loginTestOnly: true,
+			wantErr:       "cannot use",
+		},
+		{
+			desc:          "all with query is an error",
+			args:          []string{"xxx", "--all", "--query", `name == "foo-bar" || name == "foo"`},
+			loginTestOnly: true,
+			wantErr:       "cannot use",
+		},
+		{
+			desc:          "missing required args is an error",
+			args:          []string{},
+			loginTestOnly: true,
+			wantErr:       "required",
+		},
+		// cases specific to `tsh proxy kube` testing
+		{
+			desc:          "proxy multiple",
+			wantProxied:   []string{kubeBazEKS1, kubeBazEKS2, kubeBarEKS},
+			args:          []string{kubeBazEKS1, kubeBazEKS2, kubeBarEKS},
+			proxyTestOnly: true,
+		},
+		{
+			desc:          "proxy multiple with one ambiguous discovered name",
+			args:          []string{kubeBarEKS, "baz"},
+			wantErr:       "matches multiple",
+			proxyTestOnly: true,
+		},
+		{
+			desc:          "proxy multiple with query resolving ambiguity",
+			wantProxied:   []string{kubeBarEKS, kubeBazEKS2},
+			args:          []string{kubeBarEKS, "baz", "--query", `labels.region == "us-west-2" || labels.env == "dev"`},
+			proxyTestOnly: true,
+		},
+	}
+
+	t.Run("proxy", func(t *testing.T) {
+		t.Parallel()
+		for _, test := range tests {
+			if test.loginTestOnly {
+				// skip test cases specific to `tsh kube login`.
+				continue
+			}
+			test := test
+			t.Run(test.desc, func(t *testing.T) {
+				t.Parallel()
+				// login for each parallel test to avoid races when multiple tsh
+				// clients work in the same profile dir.
+				tshHome, _ := mustLogin(t, s)
+				// Set kubeconfig to a non-exist file to avoid loading other things.
+				kubeConfigPath := path.Join(tshHome, "kube-config")
+				var cmdRunner func(*exec.Cmd) error
+				if len(test.wantProxied) > 0 {
+					cmdRunner = func(cmd *exec.Cmd) error {
+						config := kubeConfigFromCmdEnv(t, cmd)
+						for _, kube := range test.wantProxied {
+							checkKubeLocalProxyConfig(t, s, config, rootClusterName, kube)
+						}
+						return nil
+					}
+				}
+				err := Run(ctx, append([]string{"proxy", "kube", "--insecure", "--port", ports.Pop()}, test.args...),
+					setCmdRunner(cmdRunner),
+					setHomePath(tshHome),
+					setKubeConfigPath(kubeConfigPath),
+				)
+				if test.wantErr != "" {
+					require.ErrorContains(t, err, test.wantErr)
+					return
+				}
+				require.NoError(t, err)
+			})
+		}
+	})
+
+	t.Run("login", func(t *testing.T) {
+		t.Parallel()
+		webProxyAddr, err := utils.ParseAddr(s.root.Config.Proxy.WebAddr.String())
+		require.NoError(t, err)
+		// profile kube config path depends on web proxy host
+		webProxyHost := webProxyAddr.Host()
+		for _, test := range tests {
+			if test.proxyTestOnly {
+				continue
+			}
+			test := test
+			t.Run(test.desc, func(t *testing.T) {
+				t.Parallel()
+				tshHome, kubeConfigPath := mustLogin(t, s)
+				err := Run(
+					context.Background(),
+					append([]string{"kube", "login", "--insecure"},
+						test.args...,
+					),
+					setHomePath(tshHome),
+					// set a custom empty kube config for each test, as we do
+					// not want parallel (or even shuffled sequential) tests
+					// potentially racing on the same config
+					setKubeConfigPath(kubeConfigPath),
+				)
+				if test.wantErr != "" {
+					require.ErrorContains(t, err, test.wantErr)
+					return
+				}
+				require.NoError(t, err)
+
+				// load the global kube config.
+				config, err := kubeconfig.Load(kubeConfigPath)
+				require.NoError(t, err)
+
+				// check that the kube config context is set to what we expect.
+				if test.wantLoginCurrentContext == "" {
+					require.Empty(t, config.CurrentContext)
+				} else {
+					require.Equal(t,
+						kubeconfig.ContextName("root", test.wantLoginCurrentContext),
+						config.CurrentContext,
+					)
+				}
+
+				// check which kube clusters were added to the global kubeconfig.
+				for _, name := range allKubes {
+					contextName := kubeconfig.ContextName("root", name)
+					if !slices.Contains(test.wantLoggedIn, name) {
+						require.NotContains(t, config.AuthInfos, contextName, "unexpected kube cluster %v in config update", name)
+						continue
+					}
+					require.Contains(t, config.AuthInfos, contextName, "kube cluster %v not in config update", name)
+					authInfo := config.AuthInfos[contextName]
+					require.NotNil(t, authInfo)
+					require.Contains(t, authInfo.Exec.Args, fmt.Sprintf("--kube-cluster=%v", name))
+				}
+
+				// ensure the profile config only contains one kube cluster.
+				profileKubeConfigPath := keypaths.KubeConfigPath(
+					profile.FullProfilePath(tshHome),
+					webProxyHost,
+					s.user.GetName(),
+					s.root.Config.Auth.ClusterName.GetClusterName(),
+					test.wantLoginCurrentContext,
+				)
+
+				// load the profile kube config
+				profileConfig, err := kubeconfig.Load(profileKubeConfigPath)
+				require.NoError(t, err)
+
+				// check that the kube config context is set to what we expect.
+				if test.wantLoginCurrentContext == "" {
+					require.Empty(t, profileConfig.CurrentContext)
+				} else {
+					require.Equal(t,
+						kubeconfig.ContextName("root", test.wantLoginCurrentContext),
+						profileConfig.CurrentContext,
+					)
+				}
+				for _, name := range allKubes {
+					contextName := kubeconfig.ContextName("root", name)
+					if name != test.wantLoginCurrentContext {
+						require.NotContains(t, profileConfig.AuthInfos, contextName, "unexpected kube cluster %v in profile config update", name)
+						continue
+					}
+					require.Contains(t, profileConfig.AuthInfos, contextName, "kube cluster %v not in profile config update", name)
+					authInfo := profileConfig.AuthInfos[contextName]
+					require.NotNil(t, authInfo)
+					require.Contains(t, authInfo.Exec.Args, fmt.Sprintf("--kube-cluster=%v", name))
+				}
+			})
+		}
+	})
 }
 
 func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
@@ -212,14 +603,23 @@ func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
 	return kubeConfigLocation
 }
 
-func formatServiceLabels(labels map[string]string) string {
-	labelSlice := make([]string, 0, len(labels))
-	for key, value := range labels {
-		labelSlice = append(labelSlice, fmt.Sprintf("%s=%s", key, value))
+func newKubeConfig(t *testing.T, name string) []byte {
+	kubeConf := clientcmdapi.NewConfig()
+
+	kubeConf.Clusters[name] = &clientcmdapi.Cluster{
+		Server:                newKubeSelfSubjectServer(t),
+		InsecureSkipTLSVerify: true,
+	}
+	kubeConf.AuthInfos[name] = &clientcmdapi.AuthInfo{}
+
+	kubeConf.Contexts[name] = &clientcmdapi.Context{
+		Cluster:  name,
+		AuthInfo: name,
 	}
 
-	sort.Strings(labelSlice)
-	return strings.Join(labelSlice, " ")
+	buf, err := clientcmd.Write(*kubeConf)
+	require.NoError(t, err)
+	return buf
 }
 
 func newKubeSelfSubjectServer(t *testing.T) string {

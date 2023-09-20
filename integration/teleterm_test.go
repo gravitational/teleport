@@ -18,10 +18,15 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -68,6 +73,12 @@ func TestTeleterm(t *testing.T) {
 		t.Parallel()
 
 		testGetClusterReturnsPropertiesFromAuthServer(t, pack)
+	})
+
+	t.Run("Test headless watcher", func(t *testing.T) {
+		t.Parallel()
+
+		testHeadlessWatcher(t, pack, creds)
 	})
 }
 
@@ -216,6 +227,75 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	require.ElementsMatch(t, []string{suggestedReviewer}, response.LoggedInUser.SuggestedReviewers)
 }
 
+func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
+	t.Helper()
+	ctx := context.Background()
+
+	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                tc.KeysDir,
+		InsecureSkipVerify: tc.InsecureSkipVerify,
+	})
+	require.NoError(t, err)
+
+	cluster, err := storage.Add(ctx, tc.WebProxyAddr)
+	require.NoError(t, err)
+
+	daemonService, err := daemon.New(daemon.Config{
+		Storage: storage,
+		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
+			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		daemonService.Stop()
+	})
+
+	expires := pack.Root.Cluster.Config.Clock.Now().Add(time.Minute)
+	ha, err := types.NewHeadlessAuthentication(pack.Root.User.GetName(), "uuid", expires)
+	require.NoError(t, err)
+	ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
+
+	// Start the tshd event service and connect the daemon to it.
+
+	tshdEventsService, addr := newMockTSHDEventsServiceServer(t)
+	err = daemonService.UpdateAndDialTshdEventsServerAddress(addr)
+	require.NoError(t, err)
+
+	// Stop and restart the watcher twice to simulate logout + login + relogin. Ensure the watcher catches events.
+
+	err = daemonService.StopHeadlessWatcher(cluster.URI.String())
+	require.NoError(t, err)
+	err = daemonService.StartHeadlessWatcher(cluster.URI.String(), false /* waitInit */)
+	require.NoError(t, err)
+	err = daemonService.StartHeadlessWatcher(cluster.URI.String(), true /* waitInit */)
+	require.NoError(t, err)
+
+	// Ensure the watcher catches events and sends them to the Electron App.
+
+	err = pack.Root.Cluster.Process.GetAuthServer().UpsertHeadlessAuthentication(ctx, ha)
+	assert.NoError(t, err)
+
+	assert.Eventually(t,
+		func() bool {
+			return tshdEventsService.sendPendingHeadlessAuthenticationCount.Load() == 1
+		},
+		10*time.Second,
+		500*time.Millisecond,
+		"Expected tshdEventService to receive 1 SendPendingHeadlessAuthentication message but got %v",
+		tshdEventsService.sendPendingHeadlessAuthenticationCount.Load(),
+	)
+}
+
+// mustLogin logs in as the given user by completely skipping the actual login flow and saving valid
+// certs to disk. clusters.Storage can then be pointed to tc.KeysDir and daemon.Service can act as
+// if the user was successfully logged in.
+//
+// This is faster than going through the actual process, but keep in mind that it might skip some
+// vital steps. It should be used only for tests which don't depend on complex user setup and do not
+// reissue certs or modify them in some other way.
 func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) *client.TeleportClient {
 	tc, err := pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   userName,
@@ -225,4 +305,43 @@ func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, cred
 	// Save the profile yaml file to disk as NewClientWithCreds doesn't do that by itself.
 	tc.SaveProfile(false /* makeCurrent */)
 	return tc
+}
+
+type mockTSHDEventsService struct {
+	*api.UnimplementedTshdEventsServiceServer
+	sendPendingHeadlessAuthenticationCount atomic.Uint32
+}
+
+func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsService, addr string) {
+	tshdEventsService := &mockTSHDEventsService{}
+
+	ls, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+
+	grpcServer := grpc.NewServer()
+	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
+
+	serveErr := make(chan error)
+	go func() {
+		serveErr <- grpcServer.Serve(ls)
+	}()
+
+	t.Cleanup(func() {
+		grpcServer.GracefulStop()
+
+		// For test cases that did not send any grpc calls, test may finish
+		// before grpcServer.Serve is called and grpcServer.Serve will return
+		// grpc.ErrServerStopped.
+		err := <-serveErr
+		if err != grpc.ErrServerStopped {
+			assert.NoError(t, err)
+		}
+	})
+
+	return tshdEventsService, ls.Addr().String()
+}
+
+func (c *mockTSHDEventsService) SendPendingHeadlessAuthentication(context.Context, *api.SendPendingHeadlessAuthenticationRequest) (*api.SendPendingHeadlessAuthenticationResponse, error) {
+	c.sendPendingHeadlessAuthenticationCount.Add(1)
+	return &api.SendPendingHeadlessAuthenticationResponse{}, nil
 }

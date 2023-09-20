@@ -18,6 +18,7 @@ package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/legacy/types/types.proto";
+import "teleport/userloginstate/v1/userloginstate.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 
@@ -124,7 +125,13 @@ message Event {
     types.IntegrationV1 Integration = 42;
     // WatchStatus is an WatchStatus resource.
     types.WatchStatusV1 WatchStatus = 43;
+    // HeadlessAuthentication is a HeadlessAuthentication resource.
+    types.HeadlessAuthentication HeadlessAuthentication = 44;
     // AccessList is an AccessList resource.
     teleport.accesslist.v1.AccessList AccessList = 45;
+    // UserLoginState is a UserLoginState resource.
+    teleport.userloginstate.v1.UserLoginState UserLoginState = 46;
+    // AccessListMember is an access list member resource.
+    teleport.accesslist.v1.Member AccessListMember = 47;
   }
 }

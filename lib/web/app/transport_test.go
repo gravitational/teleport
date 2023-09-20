@@ -139,6 +139,19 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 			wantLocation:   "/admin/blah",
 		},
 		{
+			name: "remote app, redirect to app public addr, preserve query params",
+			transportConfig: makeTransportConfig(
+				rootCluster,
+				&tlsca.Identity{RouteToApp: tlsca.RouteToApp{
+					ClusterName: leafCluster,
+					PublicAddr:  "dumper.leaf.teleport.example.com",
+				}},
+				makeAppServer(leafCluster, "dumper")),
+			respStatusCode: 302,
+			respLocation:   "https://dumper.leaf.teleport.example.com:3080/admin/blah?foo=bar&baz=bar",
+			wantLocation:   "/admin/blah?foo=bar&baz=bar",
+		},
+		{
 			name: "canonicalize empty location to /",
 			transportConfig: makeTransportConfig(
 				rootCluster,
@@ -150,6 +163,19 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 			respStatusCode: 302,
 			respLocation:   "https://dumper.leaf.teleport.example.com:3080",
 			wantLocation:   "/",
+		},
+		{
+			name: "canonicalize empty location to /, preserve query params",
+			transportConfig: makeTransportConfig(
+				rootCluster,
+				&tlsca.Identity{RouteToApp: tlsca.RouteToApp{
+					ClusterName: leafCluster,
+					PublicAddr:  "dumper.leaf.teleport.example.com",
+				}},
+				makeAppServer(leafCluster, "dumper")),
+			respStatusCode: 302,
+			respLocation:   "https://dumper.leaf.teleport.example.com:3080?foo=bar&baz=bar",
+			wantLocation:   "/?foo=bar&baz=bar",
 		},
 	}
 

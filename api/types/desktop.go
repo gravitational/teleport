@@ -18,6 +18,7 @@ package types
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -124,8 +125,6 @@ type WindowsDesktop interface {
 	ResourceWithLabels
 	// GetAddr returns the network address of this host.
 	GetAddr() string
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// GetDomain returns the ActiveDirectory domain of this host.
 	GetDomain() string
 	// GetHostID returns the ID of the Windows Desktop Service reporting the desktop.
@@ -165,6 +164,13 @@ func (d *WindowsDesktopV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("WindowsDesktopV3.Spec missing Addr field")
 	}
 
+	// We use SNI to identify the desktop to route a connection to,
+	// and '.' will add an extra subdomain, preventing Teleport from
+	// correctly establishing TLS connections.
+	if name := d.GetName(); strings.Contains(name, ".") {
+		return trace.BadParameter("invalid name %q: desktop names cannot contain periods", name)
+	}
+
 	d.setStaticFields()
 	if err := d.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -185,11 +191,6 @@ func (d *WindowsDesktopV3) GetAddr() string {
 // GetHostID returns the HostID for the associated desktop service.
 func (d *WindowsDesktopV3) GetHostID() string {
 	return d.Spec.HostID
-}
-
-// LabelsString returns all desktop labels as a string.
-func (d *WindowsDesktopV3) LabelsString() string {
-	return LabelsAsString(d.Metadata.Labels, nil)
 }
 
 // GetDomain returns the Active Directory domain of this host.

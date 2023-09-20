@@ -189,6 +189,51 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 		require.Eventually(t, channelClosedCondition(t, eventsChan), maxWaitOnResults, 1*time.Millisecond)
 		requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(r.GetMsgs()))
 	})
+	t.Run("verify if collector finishes execution (via closing channel) upon reaching maxUniquePerDayEvents", func(t *testing.T) {
+		// Given SqsMessagesCollector reading from fake sqs with random wait time on receiveMessage call
+		// When maxUniquePerDayEvents is reached.
+		// Then reading chan is closed.
+
+		// Given
+		fclock := clockwork.NewFakeClock()
+		fq := &fakeSQS{
+			clock:       fclock,
+			maxWaitTime: maxWaitTimeOnReceiveMessagesInFake,
+		}
+		cfg := validCollectCfgForTests(t)
+		cfg.sqsReceiver = fq
+		cfg.batchMaxItems = 1000
+		require.NoError(t, cfg.CheckAndSetDefaults())
+		c := newSqsMessagesCollector(cfg)
+
+		eventsChan := c.getEventsChan()
+
+		readSQSCtx, readCancel := context.WithCancel(context.Background())
+		defer readCancel()
+
+		go c.fromSQS(readSQSCtx)
+
+		// receiver is used to read messages from eventsChan.
+		r := &receiver{}
+		go r.Do(eventsChan)
+
+		// When over 100 unique days are sent
+		eventsToSend := make([]apievents.AuditEvent, 0, 101)
+		for i := 0; i < 101; i++ {
+			day := fclock.Now().Add(time.Duration(i) * 24 * time.Hour)
+			eventsToSend = append(eventsToSend, &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: day}, AppMetadata: apievents.AppMetadata{AppName: "app1"}})
+		}
+		fq.addEvents(eventsToSend...)
+		fclock.BlockUntil(cfg.noOfWorkers)
+		fclock.Advance(maxWaitTimeOnReceiveMessagesInFake)
+		require.Eventually(t, func() bool {
+			return len(r.GetMsgs()) == 101
+		}, maxWaitOnResults, 1*time.Millisecond)
+
+		// Then
+		// Make sure that channel is closed.
+		require.Eventually(t, channelClosedCondition(t, eventsChan), maxWaitOnResults, 1*time.Millisecond)
+	})
 }
 
 func validCollectCfgForTests(t *testing.T) sqsCollectConfig {
@@ -824,11 +869,13 @@ func TestCollectedEventsMetadataMerge(t *testing.T) {
 				Size:            10,
 				Count:           5,
 				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
 			},
 			expected: collectedEventsMetadata{
 				Size:            10,
 				Count:           5,
 				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
 			},
 		},
 		{
@@ -837,6 +884,7 @@ func TestCollectedEventsMetadataMerge(t *testing.T) {
 				Size:            10,
 				Count:           5,
 				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
 			},
 			b: collectedEventsMetadata{
 				Size:            0,
@@ -847,6 +895,7 @@ func TestCollectedEventsMetadataMerge(t *testing.T) {
 				Size:            10,
 				Count:           5,
 				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
 			},
 		},
 		{
@@ -865,6 +914,30 @@ func TestCollectedEventsMetadataMerge(t *testing.T) {
 				Size:            25,
 				Count:           12,
 				OldestTimestamp: now.Add(-time.Hour),
+			},
+		},
+		{
+			name: "Merge with two different days",
+			a: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now.Add(-36 * time.Hour),
+				UniqueDays:      map[string]struct{}{now.Add(-36 * time.Hour).Format(time.DateOnly): {}},
+			},
+			b: collectedEventsMetadata{
+				Size:            15,
+				Count:           7,
+				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
+			},
+			expected: collectedEventsMetadata{
+				Size:            25,
+				Count:           12,
+				OldestTimestamp: now.Add(-36 * time.Hour),
+				UniqueDays: map[string]struct{}{
+					now.Add(-36 * time.Hour).Format(time.DateOnly): {},
+					now.Format(time.DateOnly):                      {},
+				},
 			},
 		},
 	}

@@ -213,7 +213,6 @@ func NewKubeClusterFromAzureAKS(cluster *azure.AKSCluster) (types.KubeCluster, e
 // labelsFromAzureKubeCluster creates kube cluster labels.
 func labelsFromAzureKubeCluster(cluster *azure.AKSCluster) map[string]string {
 	labels := azureTagsToLabels(cluster.Tags)
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudAzure
 	labels[types.DiscoveryLabelRegion] = cluster.Location
 
@@ -251,8 +250,9 @@ func getOrSetDefaultGCPDescription(cluster gcp.GKECluster) string {
 
 // labelsFromGCPKubeCluster creates kube cluster labels.
 func labelsFromGCPKubeCluster(cluster gcp.GKECluster) map[string]string {
-	labels := maps.Clone(cluster.Labels)
-	labels[types.OriginLabel] = types.OriginCloud
+	labels := make(map[string]string)
+	maps.Copy(labels, cluster.Labels)
+
 	labels[types.CloudLabel] = types.CloudGCP
 	labels[types.DiscoveryLabelGCPLocation] = cluster.Location
 
@@ -287,7 +287,6 @@ func NewKubeClusterFromAWSEKS(cluster *eks.Cluster) (types.KubeCluster, error) {
 // labelsFromAWSKubeCluster creates kube cluster labels.
 func labelsFromAWSKubeCluster(cluster *eks.Cluster, parsedARN arn.ARN) map[string]string {
 	labels := awsEKSTagsToLabels(cluster.Tags)
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudAWS
 	labels[types.DiscoveryLabelRegion] = parsedARN.Region
 

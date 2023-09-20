@@ -24,14 +24,19 @@ export const KeysEnum = {
   ASSIST_VIEW_MODE: 'grv_teleport_assist_view_mode',
   USER_PREFERENCES: 'grv_teleport_user_preferences',
   ONBOARD_SURVEY: 'grv_teleport_onboard_survey',
+  RECOMMEND_FEATURE: 'grv_recommend_feature',
 };
 
-// LocalStorageSurvey is the SurveyRequest type defined in Enterprise
-export type LocalStorageSurvey = {
+// SurveyRequest is the request for sending data to the back end
+export type SurveyRequest = {
   companyName: string;
   employeeCount: string;
   resources: Array<string>;
-  clusterResources: Array<number>;
   role: string;
   team: string;
+};
+
+// LocalStorageSurvey is the SurveyRequest type defined in Enterprise
+export type LocalStorageSurvey = SurveyRequest & {
+  clusterResources: Array<number>;
 };

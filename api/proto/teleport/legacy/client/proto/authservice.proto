@@ -489,6 +489,12 @@ message Features {
   bool Assist = 18 [(gogoproto.jsontag) = "assist"];
   // DeviceTrust holds its namesake feature settings.
   DeviceTrustFeature DeviceTrust = 19 [(gogoproto.jsontag) = "device_trust,omitempty"];
+  // FeatureHiding enables hiding features from being discoverable for users who don't have the necessary permissions.
+  bool FeatureHiding = 20 [(gogoproto.jsontag) = "feature_hiding,omitempty"];
+  // AccessRequests holds its namesake feature settings.
+  AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
+  // CustomTheme holds the name of WebUI custom theme.
+  string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -502,6 +508,17 @@ message DeviceTrustFeature {
   // Meant for usage-based accounts, like Teleport Team. Has no effect if
   // [Features.IsUsageBased] is `false`.
   int32 devices_usage_limit = 2 [(gogoproto.jsontag) = "devices_usage_limit,omitempty"];
+}
+
+// AccessRequestsFeature holds the AccessRequest feature general and usage-based
+// settings.
+// Requires Teleport Enterprise.
+message AccessRequestsFeature {
+  // Usage-based limit for the number of limit for the number of
+  // access requests created in a calendar month.
+  // Meant for usage-based accounts, like Teleport Team. Has no effect if
+  // [Features.IsUsageBased] is `false`.
+  int32 monthly_request_limit = 1 [(gogoproto.jsontag) = "monthly_request_limit"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -2351,7 +2368,11 @@ service AuthService {
   // GetAccessRequestsV2 gets all pending access requests.
   rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
   // CreateAccessRequest creates a new access request.
+  // Deprecated: use CreateAccessRequestV2 instead.
+  // DELETE IN v15.0.0.
   rpc CreateAccessRequest(types.AccessRequestV3) returns (google.protobuf.Empty);
+  // CreateAccessRequestV2 creates a new access request.
+  rpc CreateAccessRequestV2(types.AccessRequestV3) returns (types.AccessRequestV3);
   // DeleteAccessRequest deletes an access request.
   rpc DeleteAccessRequest(RequestID) returns (google.protobuf.Empty);
   // SetAccessRequestState sets the state of an access request.
@@ -2925,6 +2946,9 @@ service AuthService {
   // GetHeadlessAuthentication is a request to retrieve a headless authentication from the backend.
   rpc GetHeadlessAuthentication(GetHeadlessAuthenticationRequest) returns (types.HeadlessAuthentication);
 
+  // WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
+  rpc WatchPendingHeadlessAuthentications(google.protobuf.Empty) returns (stream Event);
+
   // UpdateHeadlessAuthenticationState is a request to update a headless authentication's state.
   rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (google.protobuf.Empty);
 
@@ -2937,4 +2961,7 @@ service AuthService {
 
   // UpdateClusterMaintenanceConfig updates the current maintenance window config singleton.
   rpc UpdateClusterMaintenanceConfig(types.ClusterMaintenanceConfigV1) returns (google.protobuf.Empty);
+
+  // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
+  rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -334,4 +335,85 @@ func getDatabaseUsersAndNames(accessChecker services.AccessChecker) (dbNames []s
 
 type desktopIsActive struct {
 	Active bool `json:"active"`
+}
+
+// createNodeRequest contains the required information to create a Node.
+type createNodeRequest struct {
+	Name     string         `json:"name,omitempty"`
+	SubKind  string         `json:"subKind,omitempty"`
+	Hostname string         `json:"hostname,omitempty"`
+	Addr     string         `json:"addr,omitempty"`
+	Labels   []ui.Label     `json:"labels,omitempty"`
+	AWSInfo  *types.AWSInfo `json:"aws,omitempty"`
+}
+
+func (r *createNodeRequest) checkAndSetDefaults() error {
+	if r.Name == "" {
+		return trace.BadParameter("missing node name")
+	}
+
+	// Nodes provided by the Teleport Agent are not meant to be created by the user.
+	// They connect to the cluster and heartbeat their information.
+	//
+	// Agentless Nodes with Teleport CA call the Teleport Proxy and upsert themselves,
+	// so they are also not meant to be added from web api.
+	if r.SubKind != types.SubKindOpenSSHEICENode {
+		return trace.BadParameter("invalid subkind %q, only %q is supported", r.SubKind, types.SubKindOpenSSHEICENode)
+	}
+
+	if r.Hostname == "" {
+		return trace.BadParameter("missing node hostname")
+	}
+
+	if r.Addr == "" {
+		return trace.BadParameter("missing node addr")
+	}
+
+	return nil
+}
+
+// handleNodeCreate creates a Teleport Node.
+func (h *Handler) handleNodeCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	ctx := r.Context()
+
+	var req *createNodeRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := req.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	labels := make(map[string]string, len(req.Labels))
+	for _, label := range req.Labels {
+		labels[label.Name] = label.Value
+	}
+
+	server, err := types.NewNode(
+		req.Name,
+		req.SubKind,
+		types.ServerSpecV2{
+			Hostname: req.Hostname,
+			Addr:     req.Addr,
+			CloudMetadata: &types.CloudMetadata{
+				AWS: req.AWSInfo,
+			},
+		},
+		labels,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := clt.UpsertNode(r.Context(), server); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return server, nil
 }

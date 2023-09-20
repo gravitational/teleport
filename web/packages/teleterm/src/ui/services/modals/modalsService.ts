@@ -193,6 +193,16 @@ export interface DialogResourceSearchErrors {
   onCancel: () => void;
 }
 
+export interface DialogHeadlessAuthentication {
+  kind: 'headless-authn';
+  rootClusterUri: RootClusterUri;
+  headlessAuthenticationId: string;
+  headlessAuthenticationClientIp: string;
+  skipConfirm: boolean;
+  onSuccess(): void;
+  onCancel(): void;
+}
+
 export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
@@ -200,4 +210,5 @@ export type Dialog =
   | DialogUsageData
   | DialogUserJobRole
   | DialogResourceSearchErrors
+  | DialogHeadlessAuthentication
   | DialogNone;

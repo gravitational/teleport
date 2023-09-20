@@ -18,6 +18,8 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -49,10 +51,114 @@ func NewCeremony() *Ceremony {
 	}
 }
 
-// RunCeremony performs the client-side device enrollment ceremony.
-// Equivalent to `NewCeremony().Run()`.
-func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, debug bool, enrollToken string) (*devicepb.Device, error) {
-	return NewCeremony().Run(ctx, devicesClient, debug, enrollToken)
+// RunAdminOutcome is the outcome of [Ceremony.RunAdmin].
+// It is used to communicate the actions performed.
+type RunAdminOutcome int
+
+const (
+	_ RunAdminOutcome = iota // Zero means nothing happened.
+	DeviceEnrolled
+	DeviceRegistered
+	DeviceRegisteredAndEnrolled
+)
+
+// RunAdmin is a more powerful variant of Run: it attempts to register the
+// current device, creates an enrollment token and uses that token to call Run.
+//
+// Must be called by a user capable of performing all actions above, otherwise
+// it fails.
+//
+// Returns the created or enrolled device, an outcome marker and an error. The
+// zero outcome means everything failed.
+//
+// Note that the device may be created and the ceremony can still fail
+// afterwards, causing a return similar to "return dev, DeviceRegistered, err"
+// (where nothing is "nil").
+func (c *Ceremony) RunAdmin(
+	ctx context.Context,
+	devicesClient devicepb.DeviceTrustServiceClient,
+	debug bool,
+) (*devicepb.Device, RunAdminOutcome, error) {
+	// The init message contains the device collected data.
+	init, err := c.EnrollDeviceInit()
+	if err != nil {
+		return nil, 0, trace.Wrap(err)
+	}
+	cdd := init.DeviceData
+	osType := cdd.OsType
+	assetTag := cdd.SerialNumber
+
+	rewordAccessDenied := func(err error, action string) error {
+		if trace.IsAccessDenied(trail.FromGRPC(err)) {
+			log.WithError(err).Debug(
+				"Device Trust: Redacting access denied error with user-friendly message")
+			return trace.AccessDenied(
+				"User does not have permissions to %s. Contact your cluster device administrator.",
+				action,
+			)
+		}
+		return err
+	}
+
+	// Query for current device.
+	findResp, err := devicesClient.FindDevices(ctx, &devicepb.FindDevicesRequest{
+		IdOrTag: assetTag,
+	})
+	if err != nil {
+		return nil, 0, trace.Wrap(rewordAccessDenied(err, "list devices"))
+	}
+	var currentDev *devicepb.Device
+	for _, dev := range findResp.Devices {
+		if dev.OsType == osType {
+			currentDev = dev
+			log.Debugf(
+				"Device Trust: Found device %q/%v, id=%q",
+				currentDev.AssetTag, devicetrust.FriendlyOSType(currentDev.OsType), currentDev.Id,
+			)
+			break
+		}
+	}
+
+	// If missing, create the device.
+	var outcome RunAdminOutcome
+	if currentDev == nil {
+		currentDev, err = devicesClient.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+			Device: &devicepb.Device{
+				OsType:   osType,
+				AssetTag: assetTag,
+			},
+			CreateEnrollToken: true, // Save an additional RPC.
+		})
+		if err != nil {
+			return nil, outcome, trace.Wrap(rewordAccessDenied(err, "register devices"))
+		}
+		outcome = DeviceRegistered
+	}
+	// From here onwards, always return `currentDev` and `outcome`!
+
+	// If missing, create a new enrollment token.
+	if currentDev.EnrollToken.GetToken() == "" {
+		currentDev.EnrollToken, err = devicesClient.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
+			DeviceId: currentDev.Id,
+		})
+		if err != nil {
+			return currentDev, outcome, trace.Wrap(rewordAccessDenied(err, "create device enrollment tokens"))
+		}
+		log.Debugf(
+			"Device Trust: Created enrollment token for device %q/%s",
+			currentDev.AssetTag,
+			devicetrust.FriendlyOSType(currentDev.OsType))
+	}
+	token := currentDev.EnrollToken.GetToken()
+
+	// Then proceed onto enrollment.
+	enrolled, err := c.Run(ctx, devicesClient, debug, token)
+	if err != nil {
+		return enrolled, outcome, trace.Wrap(err)
+	}
+
+	outcome++ // "0" becomes "Enrolled", "Registered" becomes "RegisteredAndEnrolled".
+	return enrolled, outcome, trace.Wrap(err)
 }
 
 // Run performs the client-side device enrollment ceremony.

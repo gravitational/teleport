@@ -179,6 +179,9 @@ func (c *fetchConfig) fetchInstallMethods() []string {
 	if c.systemctlInstallMethod() {
 		installMethods = append(installMethods, "systemctl")
 	}
+	if c.awsoidcDeployServiceInstallMethod() {
+		installMethods = append(installMethods, "awsoidc_deployservice")
+	}
 	return installMethods
 }
 
@@ -198,6 +201,13 @@ func (c *fetchConfig) helmKubeAgentInstallMethod() bool {
 // install-node.sh script.
 func (c *fetchConfig) nodeScriptInstallMethod() bool {
 	return c.boolEnvIsTrue("TELEPORT_INSTALL_METHOD_NODE_SCRIPT")
+}
+
+// awsoidcDeployServiceInstallMethod returns true if the instance was installed using
+// the DeployService action of the AWS OIDC integration.
+// This install method uses Amazon ECS with Fargate deployment method.
+func (c *fetchConfig) awsoidcDeployServiceInstallMethod() bool {
+	return c.boolEnvIsTrue(types.InstallMethodAWSOIDCDeployServiceEnvVar)
 }
 
 // systemctlInstallMethod returns true if the instance is running using systemctl.

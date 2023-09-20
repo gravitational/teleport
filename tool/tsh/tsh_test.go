@@ -61,8 +61,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -946,10 +946,9 @@ func approveAllAccessRequests(ctx context.Context, approver accessApprover) erro
 // sessions when set either via role or cluster auth preference.
 // Sessions created via hostname and by matched labels are
 // verified.
-//
-// NOTE: This test must NOT be run in parallel because it updates
-// the global [client.PromptWebauthn] in multiple test cases.
 func TestSSHOnMultipleNodes(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -1128,7 +1127,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 		})
 		require.NoError(t, err)
-		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+		cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
 		ccr, err := device.SignCredentialCreation(origin(cluster), cc)
 		require.NoError(t, err)
@@ -1137,7 +1136,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			NewPassword: []byte(password),
 			NewMFARegisterResponse: &proto.MFARegisterResponse{
 				Response: &proto.MFARegisterResponse_Webauthn{
-					Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+					Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 				},
 			},
 		})
@@ -1148,28 +1147,28 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	setupUser("leafcluster", "alice", true, leafAuth.GetAuthServer())
 	setupUser("localhost", "bob", false, rootAuth.GetAuthServer())
 
-	successfulChallenge := func(cluster string) func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
-		return func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+	successfulChallenge := func(cluster string) func(ctx context.Context, realOrigin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		return func(ctx context.Context, realOrigin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 			car, err := device.SignAssertion(origin(cluster), assertion) // use the fake origin to prevent a mismatch
 			if err != nil {
 				return nil, "", err
 			}
 			return &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_Webauthn{
-					Webauthn: wanlib.CredentialAssertionResponseToProto(car),
+					Webauthn: wantypes.CredentialAssertionResponseToProto(car),
 				},
 			}, "", nil
 		}
 	}
 
-	failedChallenge := func(cluster string) func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
-		return func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+	failedChallenge := func(cluster string) func(ctx context.Context, realOrigin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		return func(ctx context.Context, realOrigin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 
 			car, err := device.SignAssertion(origin(cluster), assertion) // use the fake origin to prevent a mismatch
 			if err != nil {
 				return nil, "", err
 			}
-			carProto := wanlib.CredentialAssertionResponseToProto(car)
+			carProto := wantypes.CredentialAssertionResponseToProto(car)
 			carProto.Type = "NOT A VALID TYPE" // set to an invalid type so the ceremony fails
 
 			return &proto.MFAAuthenticateResponse{
@@ -1180,32 +1179,12 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		}
 	}
 
-	type mfaPrompt = func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
-	setupChallengeSolver := func(mfaPrompt mfaPrompt) func(t *testing.T) {
-		return func(t *testing.T) {
-			inputReader := prompt.NewFakeReader().
-				AddString(password).
-				AddReply(func(ctx context.Context) (string, error) {
-					panic("this should not be called")
-				})
-
-			oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
-			t.Cleanup(func() {
-				prompt.SetStdin(oldStdin)
-				*client.PromptWebauthn = oldWebauthn
-			})
-
-			prompt.SetStdin(inputReader)
-			*client.PromptWebauthn = mfaPrompt
-		}
-	}
-
 	cases := []struct {
 		name            string
 		target          string
 		authPreference  types.AuthPreference
 		roles           []string
-		setup           func(t *testing.T)
+		webauthnLogin   client.WebauthnLoginFunc
 		errAssertion    require.ErrorAssertionFunc
 		stdoutAssertion require.ValueAssertionFunc
 		stderrAssertion require.ValueAssertionFunc
@@ -1273,7 +1252,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			},
 			proxyAddr:       rootProxyAddr.String(),
 			auth:            rootAuth.GetAuthServer(),
-			setup:           setupChallengeSolver(successfulChallenge("localhost")),
+			webauthnLogin:   successfulChallenge("localhost"),
 			target:          "env=stage",
 			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
@@ -1296,7 +1275,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			},
 			proxyAddr:       rootProxyAddr.String(),
 			auth:            rootAuth.GetAuthServer(),
-			setup:           setupChallengeSolver(successfulChallenge("localhost")),
+			webauthnLogin:   successfulChallenge("localhost"),
 			target:          "env=prod",
 			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
@@ -1319,7 +1298,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			},
 			proxyAddr:       rootProxyAddr.String(),
 			auth:            rootAuth.GetAuthServer(),
-			setup:           setupChallengeSolver(successfulChallenge("localhost")),
+			webauthnLogin:   successfulChallenge("localhost"),
 			target:          "env=dev",
 			errAssertion:    require.Error,
 			stderrAssertion: require.Empty,
@@ -1339,7 +1318,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			proxyAddr:       rootProxyAddr.String(),
 			auth:            rootAuth.GetAuthServer(),
 			roles:           []string{"access", sshLoginRole.GetName(), perSessionMFARole.GetName()},
-			setup:           setupChallengeSolver(successfulChallenge("localhost")),
+			webauthnLogin:   successfulChallenge("localhost"),
 			target:          "env=stage",
 			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
@@ -1375,12 +1354,12 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			errAssertion: require.Error,
 		},
 		{
-			name:      "command runs on a hostname with mfa set via role",
-			target:    sshHostID,
-			proxyAddr: rootProxyAddr.String(),
-			auth:      rootAuth.GetAuthServer(),
-			roles:     []string{perSessionMFARole.GetName()},
-			setup:     setupChallengeSolver(successfulChallenge("localhost")),
+			name:          "command runs on a hostname with mfa set via role",
+			target:        sshHostID,
+			proxyAddr:     rootProxyAddr.String(),
+			auth:          rootAuth.GetAuthServer(),
+			roles:         []string{perSessionMFARole.GetName()},
+			webauthnLogin: successfulChallenge("localhost"),
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
 			},
@@ -1403,7 +1382,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			auth:            rootAuth.GetAuthServer(),
 			target:          sshHostID,
 			roles:           []string{perSessionMFARole.GetName()},
-			setup:           setupChallengeSolver(failedChallenge("localhost")),
+			webauthnLogin:   failedChallenge("localhost"),
 			stdoutAssertion: require.Empty,
 			stderrAssertion: func(t require.TestingT, v any, i ...any) {
 				out, ok := v.(string)
@@ -1428,7 +1407,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			auth:            rootAuth.GetAuthServer(),
 			target:          sshHostID,
 			roles:           []string{perSessionMFARole.GetName()},
-			setup:           setupChallengeSolver(failedChallenge("localhost")),
+			webauthnLogin:   failedChallenge("localhost"),
 			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
@@ -1442,7 +1421,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			proxyAddr:       leafProxyAddr,
 			auth:            leafAuth.GetAuthServer(),
 			roles:           []string{perSessionMFARole.GetName()},
-			setup:           setupChallengeSolver(successfulChallenge("leafcluster")),
+			webauthnLogin:   successfulChallenge("leafcluster"),
 			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
@@ -1457,7 +1436,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			auth:            rootAuth.GetAuthServer(),
 			cluster:         "leafcluster",
 			roles:           []string{sshLoginRole.GetName()},
-			setup:           setupChallengeSolver(successfulChallenge("localhost")),
+			webauthnLogin:   successfulChallenge("localhost"),
 			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
@@ -1471,7 +1450,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			auth:            leafAuth.GetAuthServer(),
 			roles:           []string{sshLoginRole.GetName()},
 			stderrAssertion: require.Empty,
-			setup:           setupChallengeSolver(successfulChallenge("leafcluster")),
+			webauthnLogin:   successfulChallenge("leafcluster"),
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
 			},
@@ -1484,7 +1463,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			auth:            rootAuth.GetAuthServer(),
 			cluster:         "leafcluster",
 			roles:           []string{perSessionMFARole.GetName()},
-			setup:           setupChallengeSolver(successfulChallenge("localhost")),
+			webauthnLogin:   successfulChallenge("localhost"),
 			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
@@ -1544,10 +1523,6 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				})
 			}
 
-			if tt.setup != nil {
-				tt.setup(t)
-			}
-
 			if tt.roles != nil {
 				roles := user.GetRoles()
 				t.Cleanup(func() {
@@ -1569,6 +1544,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			}, setHomePath(tmpHomePath),
 				func(cf *CLIConf) error {
 					cf.mockSSOLogin = mockSSOLogin(t, tt.auth, user)
+					cf.WebauthnLogin = tt.webauthnLogin
 					return nil
 				},
 			)
@@ -1594,6 +1570,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					conf.overrideStdout = stdout
 					conf.overrideStderr = stderr
 					conf.mockHeadlessLogin = mockHeadlessLogin(t, tt.auth, user)
+					conf.WebauthnLogin = tt.webauthnLogin
 					return nil
 				},
 			)
@@ -3444,6 +3421,20 @@ func setHomePath(path string) cliOption {
 	}
 }
 
+func setOverrideMySQLConfigPath(path string) cliOption {
+	return func(cf *CLIConf) error {
+		cf.overrideMySQLOptionFilePath = path
+		return nil
+	}
+}
+
+func setOverridePostgresConfigPath(path string) cliOption {
+	return func(cf *CLIConf) error {
+		cf.overridePostgresServiceFilePath = path
+		return nil
+	}
+}
+
 func setKubeConfigPath(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.kubeConfigPath = path
@@ -3466,6 +3457,7 @@ func setCmdRunner(cmdRunner func(*exec.Cmd) error) cliOption {
 }
 
 func testSerialization(t *testing.T, expected string, serializer func(string) (string, error)) {
+	t.Helper()
 	out, err := serializer(teleport.JSON)
 	require.NoError(t, err)
 	require.JSONEq(t, expected, out)
@@ -3601,7 +3593,7 @@ func TestSerializeDatabases(t *testing.T) {
         "rds": {
           "iam_auth": false
         },
-        "iam_policy_exists": false,
+        "iam_policy_status": "IAM_POLICY_STATUS_UNSPECIFIED",
         "elasticache": {},
         "secret_store": {},
         "memorydb": {},
@@ -3630,7 +3622,7 @@ func TestSerializeDatabases(t *testing.T) {
         "rds": {
           "iam_auth": false
         },
-        "iam_policy_exists": false,
+        "iam_policy_status": "IAM_POLICY_STATUS_UNSPECIFIED",
         "elasticache": {},
         "secret_store": {},
         "memorydb": {},
@@ -4129,7 +4121,9 @@ func TestSerializeAccessRequests(t *testing.T) {
       ],
       "state": 1,
       "created": "0001-01-01T00:00:00Z",
-      "expires": "0001-01-01T00:00:00Z"
+      "expires": "0001-01-01T00:00:00Z",
+      "max_duration": "0001-01-01T00:00:00Z",
+      "session_ttl": "0001-01-01T00:00:00Z"
     }
   }
 	`

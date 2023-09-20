@@ -17,18 +17,15 @@ limitations under the License.
 package db
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -205,71 +202,29 @@ func TestRDSFetchers(t *testing.T) {
 }
 
 func makeRDSInstance(t *testing.T, name, region string, labels map[string]string, opts ...func(*rds.DBInstance)) (*rds.DBInstance, types.Database) {
-	instance := &rds.DBInstance{
-		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db:%v", region, name)),
-		DBInstanceIdentifier: aws.String(name),
-		DbiResourceId:        aws.String(uuid.New().String()),
-		Engine:               aws.String(services.RDSEnginePostgres),
-		DBInstanceStatus:     aws.String("available"),
-		Endpoint: &rds.Endpoint{
-			Address: aws.String("localhost"),
-			Port:    aws.Int64(5432),
-		},
-		TagList: libcloudaws.LabelsToTags[rds.Tag](labels),
-	}
-	for _, opt := range opts {
-		opt(instance)
-	}
-
+	instance := mocks.RDSInstance(name, region, labels, opts...)
 	database, err := services.NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
 	return instance, database
 }
 
 func makeRDSCluster(t *testing.T, name, region string, labels map[string]string, opts ...func(*rds.DBCluster)) (*rds.DBCluster, types.Database) {
-	cluster := &rds.DBCluster{
-		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:cluster:%v", region, name)),
-		DBClusterIdentifier: aws.String(name),
-		DbClusterResourceId: aws.String(uuid.New().String()),
-		Engine:              aws.String(services.RDSEngineAuroraMySQL),
-		EngineMode:          aws.String(services.RDSEngineModeProvisioned),
-		Status:              aws.String("available"),
-		Endpoint:            aws.String("localhost"),
-		Port:                aws.Int64(3306),
-		TagList:             libcloudaws.LabelsToTags[rds.Tag](labels),
-		DBClusterMembers: []*rds.DBClusterMember{{
-			IsClusterWriter: aws.Bool(true), // Only one writer.
-		}},
-	}
-	for _, opt := range opts {
-		opt(cluster)
-	}
-
+	cluster := mocks.RDSCluster(name, region, labels, opts...)
 	database, err := services.NewDatabaseFromRDSCluster(cluster)
 	require.NoError(t, err)
 	return cluster, database
 }
 
 func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels map[string]string, hasWriter bool) (*rds.DBCluster, types.Databases) {
-	cluster := &rds.DBCluster{
-		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:cluster:%v", region, name)),
-		DBClusterIdentifier: aws.String(name),
-		DbClusterResourceId: aws.String(uuid.New().String()),
-		Engine:              aws.String(services.RDSEngineAuroraMySQL),
-		EngineMode:          aws.String(services.RDSEngineModeProvisioned),
-		Status:              aws.String("available"),
-		Endpoint:            aws.String("localhost"),
-		ReaderEndpoint:      aws.String("reader.host"),
-		Port:                aws.Int64(3306),
-		TagList:             libcloudaws.LabelsToTags[rds.Tag](labels),
-		DBClusterMembers: []*rds.DBClusterMember{{
-			IsClusterWriter: aws.Bool(false), // Add reader by default. Writer is added below based on hasWriter.
-		}},
-		CustomEndpoints: []*string{
-			aws.String("custom1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
-			aws.String("custom2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
+	cluster := mocks.RDSCluster(name, region, labels,
+		func(cluster *rds.DBCluster) {
+			// Disable writer by default. If hasWriter, writer endpoint will be added below.
+			cluster.DBClusterMembers = nil
 		},
-	}
+		mocks.WithRDSClusterReader,
+		mocks.WithRDSClusterCustomEndpoint("custom1"),
+		mocks.WithRDSClusterCustomEndpoint("custom2"),
+	)
 
 	var databases types.Databases
 
@@ -290,7 +245,6 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 	customDatabases, err := services.NewDatabasesFromRDSClusterCustomEndpoints(cluster)
 	require.NoError(t, err)
 	databases = append(databases, customDatabases...)
-
 	return cluster, databases
 }
 

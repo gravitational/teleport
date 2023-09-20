@@ -130,71 +130,57 @@ type Constructor func(options ...ConstructionOption) (backend.Backend, clockwork
 // backend under test.
 func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
 	t.Run("CRUD", func(t *testing.T) {
-		t.Parallel()
 		testCRUD(t, newBackend)
 	})
 
 	t.Run("QueryRange", func(t *testing.T) {
-		t.Parallel()
 		testQueryRange(t, newBackend)
 	})
 
 	t.Run("DeleteRange", func(t *testing.T) {
-		t.Parallel()
 		testDeleteRange(t, newBackend)
 	})
 
 	t.Run("PutRange", func(t *testing.T) {
-		t.Parallel()
 		testPutRange(t, newBackend)
 	})
 
 	t.Run("CompareAndSwap", func(t *testing.T) {
-		t.Parallel()
 		testCompareAndSwap(t, newBackend)
 	})
 
 	t.Run("Expiration", func(t *testing.T) {
-		t.Parallel()
 		testExpiration(t, newBackend)
 	})
 
 	t.Run("KeepAlive", func(t *testing.T) {
-		t.Parallel()
 		testKeepAlive(t, newBackend)
 	})
 
 	t.Run("Events", func(t *testing.T) {
-		t.Parallel()
 		testEvents(t, newBackend)
 	})
 	t.Run("WatchersClose", func(t *testing.T) {
-		t.Parallel()
 		testWatchersClose(t, newBackend)
 	})
 
 	t.Run("Locking", func(t *testing.T) {
-		t.Parallel()
 		testLocking(t, newBackend)
 	})
 
 	t.Run("ConcurrentOperations", func(t *testing.T) {
-		t.Parallel()
 		testConcurrentOperations(t, newBackend)
 	})
 
 	t.Run("Mirror", func(t *testing.T) {
-		t.Parallel()
 		testMirror(t, newBackend)
 	})
 
 	t.Run("FetchLimit", func(t *testing.T) {
-		t.Parallel()
 		testFetchLimit(t, newBackend)
 	})
 
 	t.Run("Limit", func(t *testing.T) {
-		t.Parallel()
 		testLimit(t, newBackend)
 	})
 }
@@ -509,6 +495,8 @@ func addSeconds(t time.Time, seconds int64) time.Time {
 
 // testKeepAlive tests keep alive API
 func testKeepAlive(t *testing.T, newBackend Constructor) {
+	const eventTimeout = 10 * time.Second
+
 	uut, clock, err := newBackend()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
@@ -524,19 +512,21 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 
 	// ...expect that the event channel contains the original `init` message
 	// sent when the Firestore client was set up.
-	init := collectEvents(ctx, t, watcher, 1)
-	requireEvents(t, init, []backend.Event{
-		{Type: types.OpInit, Item: backend.Item{}},
-	})
+	requireEvent(t, watcher, types.OpInit, nil, eventTimeout)
+
+	// Make sure that nothing breaks even if the value we are KeepAlive-ing is
+	// somewhat big; PostgreSQL starts optimizing values if their compressed
+	// form doesn't fit within 8KiB, so we use 16KiB of uncompressible data
+	var bigValue [16384]byte
+	rand.Read(bigValue[:])
 
 	// When I create an item that expires in 10 seconds and add it to the DB
 	expiresAt := addSeconds(clock.Now(), 10)
-	item, lease := AddItem(ctx, t, uut, prefix("key"), "val1", expiresAt)
+	item, lease := AddItem(ctx, t, uut, prefix("key"), string(bigValue[:]), expiresAt)
 
-	events := collectEvents(ctx, t, watcher, 1)
-	requireEvents(t, events, []backend.Event{
-		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: expiresAt}},
-	})
+	event := requireEvent(t, watcher, types.OpPut, prefix("key"), eventTimeout)
+	require.Equal(t, bigValue[:], event.Item.Value)
+	require.WithinDuration(t, expiresAt, event.Item.Expires, 2*time.Second)
 
 	// move the current slightly forward, but still *before* the item's
 	// expiry time
@@ -550,10 +540,9 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	// Since the backend translates absolute expiration timestamp to a TTL
 	// and collecting events takes arbitrary time, the expiration timestamps
 	// on the collected events might have a slight skew
-	events = collectEvents(ctx, t, watcher, 1)
-	requireEvents(t, events, []backend.Event{
-		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: updatedAt}},
-	})
+	event = requireEvent(t, watcher, types.OpPut, prefix("key"), eventTimeout)
+	require.Equal(t, bigValue[:], event.Item.Value)
+	require.WithinDuration(t, updatedAt, event.Item.Expires, 2*time.Second)
 
 	err = uut.Delete(context.TODO(), item.Key)
 	require.NoError(t, err)
@@ -566,25 +555,9 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	require.True(t, trace.IsNotFound(err))
 }
 
-func collectEvents(ctx context.Context, t *testing.T, watcher backend.Watcher, count int) []backend.Event {
-	var events []backend.Event
-	for i := 0; i < count; i++ {
-		select {
-		case e := <-watcher.Events():
-			events = append(events, e)
-		case <-watcher.Done():
-			require.FailNow(t, "Watcher has unexpectedly closed.")
-		case <-ctx.Done():
-			require.FailNowf(t, "Context expired waiting for events.",
-				"Captured %d of %d so far: %v", len(events), count, events)
-		}
-	}
-	return events
-}
-
 // testEvents tests scenarios with event watches
 func testEvents(t *testing.T, newBackend Constructor) {
-	eventTimeout := 10 * time.Second
+	const eventTimeout = 10 * time.Second
 
 	uut, clock, err := newBackend()
 	require.NoError(t, err)
@@ -651,7 +624,7 @@ func testEvents(t *testing.T, newBackend Constructor) {
 	require.Error(t, err)
 
 	// Make sure a DELETE event is emitted.
-	requireEvent(t, watcher, types.OpDelete, item.Key, 2*time.Second)
+	requireEvent(t, watcher, types.OpDelete, item.Key, eventTimeout)
 }
 
 // testFetchLimit tests fetch max items size limit.
@@ -1029,6 +1002,8 @@ func testConcurrentOperations(t *testing.T, newBackend Constructor) {
 // Mirror tests mirror mode for backends (used in caches). Only some backends
 // support mirror mode (like memory).
 func testMirror(t *testing.T, newBackend Constructor) {
+	const eventTimeout = 2 * time.Second
+
 	uut, _, err := newBackend(WithMirrorMode(true))
 	if err == ErrMirrorNotSupported {
 		t.Skip("Backend does not support mirror mode")
@@ -1046,7 +1021,7 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, watcher.Close()) }()
 
 	// Make sure INIT event is emitted.
-	requireEvent(t, watcher, types.OpInit, nil, 2*time.Second)
+	requireEvent(t, watcher, types.OpInit, nil, eventTimeout)
 
 	// Add item to backend with a 1 second TTL.
 	item := &backend.Item{
@@ -1066,7 +1041,7 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	originalID := item.ID
 
 	// Make sure a PUT event is emitted.
-	e := requireEvent(t, watcher, types.OpPut, item.Key, 2*time.Second)
+	e := requireEvent(t, watcher, types.OpPut, item.Key, eventTimeout)
 	require.Equal(t, item.Value, e.Item.Value)
 
 	// Wait 1 second for the item to expire.
@@ -1079,7 +1054,7 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	require.Equal(t, item.Value, nitem.Value)
 
 	// Make sure a DELETE event was not emitted.
-	requireNoEvent(t, watcher, 2*time.Second)
+	requireNoEvent(t, watcher, eventTimeout)
 
 	// Update the existing item.
 	_, err = uut.Put(ctx, backend.Item{
@@ -1142,44 +1117,5 @@ func MakePrefix() func(k string) []byte {
 	id := "/" + uuid.New().String()
 	return func(k string) []byte {
 		return []byte(id + k)
-	}
-}
-
-func requireEvents(t *testing.T, obtained, expected []backend.Event) {
-	requireIncreasingIDs(t, obtained)
-	requireNoDuplicateIDs(t, obtained)
-	requireExpireTimestamps(t, obtained, expected)
-}
-
-func requireIncreasingIDs(t *testing.T, obtained []backend.Event) {
-	lastID := int64(-1)
-	for _, item := range obtained {
-		require.Greater(t, item.Item.ID, lastID)
-		lastID = item.Item.ID
-	}
-}
-
-func requireNoDuplicateIDs(t *testing.T, obtained []backend.Event) {
-	set := make(map[int64]struct{})
-	for _, event := range obtained {
-		_, ok := set[event.Item.ID]
-		require.False(t, ok, "Duplicate ID for %v.", event.Item.ID)
-		set[event.Item.ID] = struct{}{}
-	}
-}
-
-// requireExpireTimestampsIncreasing verifies that the expiry timestamps
-// of the `obtained` items expire _after_ the corresponding `expected`
-// item expiry times
-func requireExpireTimestamps(t *testing.T, obtained, expected []backend.Event) {
-	require.Len(t, obtained, len(expected))
-
-	for i := range expected {
-		require.False(t,
-			obtained[i].Item.Expires.After(expected[i].Item.Expires),
-			"Expected %v >= %v",
-			expected[i].Item.Expires,
-			obtained[i].Item.Expires,
-		)
 	}
 }

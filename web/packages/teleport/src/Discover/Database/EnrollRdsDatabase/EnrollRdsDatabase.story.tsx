@@ -90,6 +90,9 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'available',
     accountId: '',
     resourceId: '',
+    vpcId: '',
+    region: 'us-west-2',
+    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'mysql-name',
@@ -99,11 +102,14 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'available',
     accountId: '',
     resourceId: '',
+    vpcId: '',
     dbServerExists: true,
+    region: 'us-west-2',
+    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'alpaca',
-    engine: 'aurora',
+    engine: 'aurora-mysql',
     uri: '',
     labels: [
       { name: 'env', value: 'prod' },
@@ -112,6 +118,9 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'deleting',
     accountId: '',
     resourceId: '',
+    vpcId: '',
+    region: 'us-west-2',
+    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'banana',
@@ -121,6 +130,9 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'failed',
     accountId: '',
     resourceId: '',
+    vpcId: '',
+    region: 'us-west-2',
+    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'watermelon',
@@ -134,7 +146,10 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'Unknown' as any,
     accountId: '',
     resourceId: '',
+    vpcId: '',
     dbServerExists: true,
+    region: 'us-west-2',
+    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'llama',
@@ -144,5 +159,8 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'available',
     accountId: '',
     resourceId: '',
+    vpcId: '',
+    region: 'us-west-2',
+    subnets: ['subnet1', 'subnet2'],
   },
 ];

@@ -189,9 +189,7 @@ exports[`render DocumentNodes 1`] = `
 .c5 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -725,6 +723,10 @@ exports[`render DocumentNodes 1`] = `
 .c6 .react-select--is-disabled .react-select__indicator,
 .c6 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c6 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c2 {

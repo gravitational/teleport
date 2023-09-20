@@ -1,4 +1,4 @@
-{{ attachToRole="TeleportRole" attachToUser="TeleportUser" account="123456789012" }}
+{{ attachToRole="TeleportRole" attachToUser="TeleportUser" account="123456789012" output="/etc/teleport.yaml" }}
 
 Teleport can bootstrap IAM permissions for the Database Service based on its
 configuration using the `teleport db configure bootstrap` command. You can use
@@ -17,7 +17,7 @@ this command in automatic or manual mode:
   credentials file).
 
   ```code
-  $ teleport db configure bootstrap -c /etc/teleport.yaml --attach-to-user {{ attachToUser }}
+  $ teleport db configure bootstrap -c {{ output }} --attach-to-user {{ attachToUser }}
   ```
   </TabItem>
 
@@ -27,7 +27,7 @@ this command in automatic or manual mode:
   instance with an attached IAM role).
 
   ```code
-  $ teleport db configure bootstrap -c /etc/teleport.yaml --attach-to-role {{ attachToRole }}
+  $ teleport db configure bootstrap -c {{ output }} --attach-to-role {{ attachToRole }}
   ```
   </TabItem>
 
@@ -35,7 +35,7 @@ this command in automatic or manual mode:
   Use this command to display required IAM policies which you will then create in your AWS console:
 
   ```code
-  $ teleport db configure bootstrap -c /etc/teleport.yaml --manual --attach-to-user arn:aws:iam::{{ account }}:user/{{ attachToUser }}
+  $ teleport db configure bootstrap -c {{ output }} --manual --attach-to-user arn:aws:iam::{{ account }}:user/{{ attachToUser }}
   ```
   </TabItem>
 
@@ -43,7 +43,7 @@ this command in automatic or manual mode:
   Use this command to display required IAM policies which you will then create in your AWS console:
 
   ```code
-  $ teleport db configure bootstrap -c /etc/teleport.yaml --manual --attach-to-role arn:aws:iam::{{ account }}:role/{{ attachToRole }}
+  $ teleport db configure bootstrap -c {{ output }} --manual --attach-to-role arn:aws:iam::{{ account }}:role/{{ attachToRole }}
   ```
   </TabItem>
 </Tabs>
@@ -64,6 +64,3 @@ You will need to run the bootstrap command once with the Teleport Database
 Service's IAM identity as the policy attachment target, and once for each AWS
 IAM role that is used for `assume_role_arn`.
 </Details>
-
-See the full `bootstrap` command
-[reference](../../database-access/reference/cli.mdx#teleport-db-configure-bootstrap).

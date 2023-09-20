@@ -41,17 +41,20 @@ import (
 	"github.com/gravitational/oxy/forward"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/square/go-jose.v2/jwt"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
 	libsession "github.com/gravitational/teleport/lib/session"
@@ -89,6 +92,8 @@ type Suite struct {
 	user       types.User
 	role       types.Role
 	serverPort string
+
+	login string
 }
 
 func (s *Suite) TearDown(t *testing.T) {
@@ -128,6 +133,10 @@ type suiteConfig struct {
 	AppLabels map[string]string
 	// RoleAppLabels are the labels set to allow for the user role.
 	RoleAppLabels types.Labels
+	// Rewrite configures the rewrite rules for the app.
+	Rewrite *types.Rewrite
+	// Login is used to specify "login" trait in the jwt token
+	Login string
 }
 
 type fakeConnMonitor struct{}
@@ -146,6 +155,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
 	s.hostUUID = uuid.New().String()
+	s.login = config.Login
 
 	var err error
 	// Create Auth Server.
@@ -262,6 +272,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		PublicAddr:         "foo.example.com",
 		InsecureSkipVerify: true,
 		DynamicLabels:      types.LabelsToV2(dynamicLabels),
+		Rewrite:            config.Rewrite,
 	})
 	require.NoError(t, err)
 	s.appAWS, err = types.NewAppV3(types.Metadata{
@@ -364,6 +375,7 @@ func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, A
 		TTL:         1 * time.Hour,
 		PublicAddr:  publicAddr,
 		ClusterName: "root.example.com",
+		LoginTrait:  s.login,
 	}
 	if AWSRoleARN != "" {
 		req.AWSRoleARN = AWSRoleARN
@@ -712,6 +724,76 @@ func TestHandleConnectionHTTP2WS(t *testing.T) {
 		require.Equal(t, websocket.TextMessage, messageType)
 		require.Equal(t, s.message, message)
 	})
+}
+
+func TestRewriteJWT(t *testing.T) {
+	login := uuid.New().String()
+	for _, tc := range []struct {
+		name           string
+		expectedRoles  []string
+		expectedTraits wrappers.Traits
+		jwtRewrite     string
+	}{
+		{
+			name:          "test default behavior",
+			expectedRoles: []string{"foo"},
+			expectedTraits: wrappers.Traits{
+				"logins": []string{login},
+			},
+			jwtRewrite: "",
+		},
+		{
+			name:          "test roles-and-traits behavior",
+			expectedRoles: []string{"foo"},
+			expectedTraits: wrappers.Traits{
+				"logins": []string{login},
+			},
+			jwtRewrite: types.JWTClaimsRewriteRolesAndTraits,
+		},
+		{
+			name:           "test roles behavior",
+			expectedRoles:  []string{"foo"},
+			expectedTraits: wrappers.Traits{},
+			jwtRewrite:     types.JWTClaimsRewriteRoles,
+		},
+		{
+			name:           "test none behavior",
+			expectedRoles:  nil,
+			expectedTraits: wrappers.Traits{},
+			jwtRewrite:     types.JWTClaimsRewriteNone,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := SetUpSuiteWithConfig(t,
+				suiteConfig{
+					Rewrite: &types.Rewrite{
+						JWTClaims: tc.jwtRewrite,
+						Headers: []*types.Header{
+							{Name: "TestHeader", Value: "{{internal.jwt}}"},
+						},
+					},
+					ValidateRequest: func(s *Suite, r *http.Request) {
+						token, err := jwt.ParseSigned(r.Header.Get("TestHeader"))
+						require.NoError(t, err)
+
+						claims := libjwt.Claims{}
+						err = token.UnsafeClaimsWithoutVerification(&claims)
+						require.NoError(t, err)
+
+						require.Equal(t, tc.expectedTraits, claims.Traits)
+						require.Equal(t, tc.expectedRoles, claims.Roles)
+					},
+					Login: login,
+				})
+			s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+				require.Equal(t, resp.StatusCode, http.StatusOK)
+				buf, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, strings.TrimSpace(string(buf)), s.message)
+			})
+		})
+	}
+
 }
 
 // TestAuthorize verifies that only authorized requests are handled.

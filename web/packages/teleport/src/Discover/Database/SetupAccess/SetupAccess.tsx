@@ -29,6 +29,7 @@ import {
 } from 'teleport/Discover/Shared/SetupAccess';
 import { Mark } from 'teleport/Discover/Shared';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { DbMeta } from 'teleport/Discover/useDiscover';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 
@@ -47,6 +48,8 @@ export function SetupAccess(props: State) {
     getFixedOptions,
     getSelectableOptions,
     resourceSpec,
+    onPrev,
+    agentMeta,
     ...restOfProps
   } = props;
   const [nameInputValue, setNameInputValue] = useState('');
@@ -105,6 +108,8 @@ export function SetupAccess(props: State) {
   const headerSubtitle =
     'Allow access from your Database names and users to interact with your Database.';
 
+  const dbMeta = agentMeta as DbMeta;
+
   return (
     <SetupAccessWrapper
       {...restOfProps}
@@ -114,6 +119,9 @@ export function SetupAccess(props: State) {
       hasTraits={hasTraits}
       onProceed={handleOnProceed}
       infoContent={<Info dbEngine={engine} dbLocation={location} />}
+      // Don't allow going back to previous screen when deploy db
+      // service got skipped or user auto deployed the db service.
+      onPrev={dbMeta.serviceDeployedMethod === 'manual' ? onPrev : null}
     >
       <Box mb={4}>
         Database Users

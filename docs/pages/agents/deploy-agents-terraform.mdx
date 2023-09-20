@@ -102,7 +102,7 @@ pool in your infrastructure.
 
 The file `agent-pool.tf` configures EC2 instances and Teleport join tokens:
 
-```text
+```hcl
 (!examples/agent-pool-terraform/agent-pool.tf!)
 ```
 
@@ -150,14 +150,14 @@ configuration.
 The Terraform configuration we show in this guide relies on the following inputs
 (`examples/agent-pool-terraform/inputs.tf`):
 
-```text
+```hcl
 (!examples/agent-pool-terraform/inputs.tf!)
 ```
 
 In your `agent-pool-terraform` project directory, create a file called
 `main.auto.tfvars` with the following content:
 
-```text
+```hcl
 agent_count=2
 proxy_service_address="mytenant.teleport.sh"
 aws_region=""
@@ -187,7 +187,7 @@ Finally, make sure you are using the latest supported version of the Teleport
 Terraform provider. The `required_providers` block for the Teleport provider
 includes a placeholder value:
 
-```text
+```hcl
 (!examples/agent-pool-terraform/provider.tf!)
 ```
 
@@ -246,7 +246,7 @@ reference](../reference/terraform-provider.mdx).
 <Tabs>
 <TabItem label="Application">
 
-```text
+```hcl
 resource "teleport_app" "example" {
   metadata = {
     name        = "example"
@@ -267,7 +267,7 @@ resource "teleport_app" "example" {
 </TabItem>
 <TabItem label="Database">
 
-```text
+```hcl
 resource "teleport_database" "example" {
   metadata = {
     name        = "example"

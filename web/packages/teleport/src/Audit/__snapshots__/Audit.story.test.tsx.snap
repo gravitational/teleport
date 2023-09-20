@@ -455,12 +455,12 @@ exports[`list of all events 1`] = `
             </strong>
              - 
             <strong>
-              196
+              212
             </strong>
              of
              
             <strong>
-              196
+              212
             </strong>
           </div>
           <button
@@ -529,6 +529,582 @@ exports[`list of all events 1`] = `
         </tr>
       </thead>
       <tbody>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-warning c14 c20"
+                font-size="3"
+              />
+              Access list member delete all members failure
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [mike] failed to remove all members from access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-user c14 c20"
+                font-size="3"
+              />
+              All members removed from access list
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [mike] removed all members from access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-warning c14 c20"
+                font-size="3"
+              />
+              Access list member removal failure
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [undefined] failed to remove member [undefined] from access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-user c14 c20"
+                font-size="3"
+              />
+              Access list member removed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [undefined] removed member [undefined] from access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-warning c14 c20"
+                font-size="3"
+              />
+              Access list member update failure
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [undefined] failed to update member [undefined] in access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-user c14 c20"
+                font-size="3"
+              />
+              Access list member updated
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [undefined] updated member [undefined] in access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-warning c14 c20"
+                font-size="3"
+              />
+              Access list member addition failure
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [undefined] failed to add member [undefined] to access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-user c14 c20"
+                font-size="3"
+              />
+              Access list member added
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [undefined] added member [undefined] to access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-warning c14 c20"
+                font-size="3"
+              />
+              Access list review failed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [mike] failed to to review access list [access-list]]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Access list reviewed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [mike] reviewed access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-warning c14 c20"
+                font-size="3"
+              />
+              Access list delete failed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [mike] failed to delete access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Access list deleted
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [mike] deleted access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-warning c14 c20"
+                font-size="3"
+              />
+              Access list update failed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [mike] failed to update access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Access list updated
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [mike] updated access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-warning c14 c20"
+                font-size="3"
+              />
+              Access list create failed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [mike] failed to create access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Access list created
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [mike] created access list [access-list]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
         <tr>
           <td
             style="vertical-align: inherit;"
@@ -7945,6 +8521,10 @@ exports[`loaded audit log screen 1`] = `
 .c4 .react-select--is-disabled .react-select__indicator,
 .c4 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c4 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c1 {

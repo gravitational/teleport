@@ -23,7 +23,7 @@ import (
 	wan "github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gravitational/trace"
 
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 )
 
 // scopeLogin identifies session data stored for login.
@@ -37,13 +37,13 @@ const scopeLogin = "login"
 // that use in-memory storage.
 const scopeSession = "registration"
 
-func sessionToPB(sd *wan.SessionData) (*wantypes.SessionData, error) {
+func sessionToPB(sd *wan.SessionData) (*wanpb.SessionData, error) {
 	rawChallenge, err := base64.RawURLEncoding.DecodeString(sd.Challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// TODO(codingllama): Record extensions in stored session data.
-	return &wantypes.SessionData{
+	return &wanpb.SessionData{
 		Challenge:        rawChallenge,
 		UserId:           sd.UserID,
 		AllowCredentials: sd.AllowedCredentialIDs,
@@ -51,7 +51,7 @@ func sessionToPB(sd *wan.SessionData) (*wantypes.SessionData, error) {
 	}, nil
 }
 
-func sessionFromPB(sd *wantypes.SessionData) *wan.SessionData {
+func sessionFromPB(sd *wanpb.SessionData) *wan.SessionData {
 	// TODO(codingllama): Record extensions in stored session data.
 	return &wan.SessionData{
 		Challenge:            base64.RawURLEncoding.EncodeToString(sd.Challenge),

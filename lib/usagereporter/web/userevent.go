@@ -63,6 +63,8 @@ const (
 	uiIntegrationEnrollCompleteEvent = "tp.ui.integrationEnroll.complete"
 
 	uiCallToActionClickEvent = "tp.ui.callToAction.click"
+
+	featureRecommendationEvent = "tp.ui.feature.recommendation"
 )
 
 // Events that require extra metadata.
@@ -334,6 +336,31 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 					Cta: usageeventsv1.CTA(cta),
 				}}},
 			nil
+
+	case questionnaireSubmitEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiOnboardQuestionnaireSubmit{
+				UiOnboardQuestionnaireSubmit: &usageeventsv1.UIOnboardQuestionnaireSubmitEvent{},
+			}},
+			nil
+
+	case featureRecommendationEvent:
+		event := struct {
+			Feature                     int32 `json:"feature"`
+			FeatureRecommendationStatus int32 `json:"featureRecommendationStatus"`
+		}{}
+
+		if err := json.Unmarshal([]byte(*req.EventData), &event); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_FeatureRecommendationEvent{
+				FeatureRecommendationEvent: &usageeventsv1.FeatureRecommendationEvent{
+					Feature:                     usageeventsv1.Feature(event.Feature),
+					FeatureRecommendationStatus: usageeventsv1.FeatureRecommendationStatus(event.FeatureRecommendationStatus),
+				},
+			}},
+			nil
+
 	}
 
 	return nil, trace.BadParameter("invalid event %s", req.Event)

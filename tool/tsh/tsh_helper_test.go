@@ -29,11 +29,14 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
@@ -91,12 +94,13 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
-			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleNode, types.RoleTrustedCluster},
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},
 	})
 	require.NoError(t, err)
+	cfg.SetToken(staticToken)
 
 	user, err := user.Current()
 	require.NoError(t, err)
@@ -134,7 +138,6 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	s.root = runTeleport(t, cfg)
-	t.Cleanup(func() { require.NoError(t, s.root.Close()) })
 }
 
 func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
@@ -182,6 +185,15 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
+	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
+			Expires: time.Now().Add(time.Minute),
+			Token:   staticToken,
+		}},
+	})
+	require.NoError(t, err)
+	cfg.SetToken(staticToken)
 	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
@@ -406,4 +418,60 @@ func mustCloneTempDir(t *testing.T, srcDir string) string {
 	})
 	require.NoError(t, err)
 	return dstDir
+}
+
+func mustMakeDynamicKubeCluster(t *testing.T, name, discoveredName string, labels map[string]string) types.KubeCluster {
+	t.Helper()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[types.OriginLabel] = types.OriginDynamic
+	if discoveredName != "" {
+		// setup a fake "discovered" kube cluster by adding a discovered name label
+		labels[types.DiscoveredNameLabel] = discoveredName
+		labels[types.OriginLabel] = types.OriginCloud
+	}
+	kc, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.KubernetesClusterSpecV3{
+			Kubeconfig: newKubeConfig(t, name),
+		},
+	)
+	require.NoError(t, err)
+	return kc
+}
+
+func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.Server, clusters ...types.KubeCluster) {
+	t.Helper()
+	if len(clusters) == 0 {
+		return
+	}
+
+	wg, _ := errgroup.WithContext(ctx)
+	wantNames := make([]string, 0, len(clusters))
+	for _, kc := range clusters {
+		kc := kc
+		wg.Go(func() error {
+			err := authSrv.CreateKubernetesCluster(ctx, kc)
+			return trace.Wrap(err)
+		})
+		wantNames = append(wantNames, kc.GetName())
+	}
+	require.NoError(t, wg.Wait())
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		servers, err := authSrv.GetKubernetesServers(ctx)
+		assert.NoError(c, err)
+		gotNames := map[string]struct{}{}
+		for _, ks := range servers {
+			gotNames[ks.GetName()] = struct{}{}
+		}
+		for _, name := range wantNames {
+			assert.Contains(c, gotNames, name, "missing kube cluster")
+		}
+	}, time.Second*10, time.Millisecond*500, "dynamically created kube clusters failed to register")
+
 }

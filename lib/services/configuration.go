@@ -93,4 +93,6 @@ type ClusterConfiguration interface {
 	GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error)
 	// UpdateClusterMaintenanceConfig updates the maintenance config singleton.
 	UpdateClusterMaintenanceConfig(ctx context.Context, cfg types.ClusterMaintenanceConfig) error
+	// DeleteClusterMaintenanceConfig deletes the maintenance config singleton.
+	DeleteClusterMaintenanceConfig(ctx context.Context) error
 }

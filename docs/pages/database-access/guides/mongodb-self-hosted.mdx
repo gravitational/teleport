@@ -4,18 +4,17 @@ description: How to configure Teleport database access with self-hosted MongoDB.
 videoBanner: 6lgVObxoLkc
 ---
 
-In this guide you will:
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="MongoDB cluster" dbConfigure="MongoDB cluster with mutual TLS authentication" dbName="MongoDB" !)
 
-1. Install and configure Teleport for database access.
-2. Configure mutual TLS authentication between Teleport and your MongoDB cluster.
-3. Connect to your MongoDB instance via Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access MongoDB Self-Hosted](../../../img/database-access/guides/mongodb_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access MongoDB Cloud](../../../img/database-access/guides/mongodb_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -196,7 +195,8 @@ in the MongoDB documentation for more details.
 
 Log in to your Teleport cluster and see available databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -206,8 +206,8 @@ $ tsh db ls
 # example-mongo Example MongoDB env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -217,7 +217,9 @@ $ tsh db ls
 # example-mongo Example MongoDB env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To retrieve credentials for a database and connect to it:
 
@@ -251,3 +253,4 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

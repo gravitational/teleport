@@ -35,7 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/auth/touchid"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func init() {
@@ -68,14 +68,14 @@ func TestRegisterAndLogin(t *testing.T) {
 		name            string
 		webUser         *fakeUser
 		origin, user    string
-		modifyAssertion func(a *wanlib.CredentialAssertion)
+		modifyAssertion func(a *wantypes.CredentialAssertion)
 		wantUser        string
 	}{
 		{
 			name:    "passwordless",
 			webUser: &fakeUser{id: []byte{1, 2, 3, 4, 5}, name: llamaUser},
 			origin:  web.Config.RPOrigin,
-			modifyAssertion: func(a *wanlib.CredentialAssertion) {
+			modifyAssertion: func(a *wantypes.CredentialAssertion) {
 				a.Response.AllowedCredentials = nil // aka passwordless
 			},
 			wantUser: llamaUser,
@@ -94,7 +94,7 @@ func TestRegisterAndLogin(t *testing.T) {
 			cc, sessionData, err := web.BeginRegistration(webUser)
 			require.NoError(t, err)
 
-			reg, err := touchid.Register(origin, (*wanlib.CredentialCreation)(cc))
+			reg, err := touchid.Register(origin, wantypes.CredentialCreationFromProtocol(cc))
 			require.NoError(t, err, "Register failed")
 			assert.Equal(t, 1, fake.userPrompts, "unexpected number of Registration prompts")
 
@@ -116,7 +116,7 @@ func TestRegisterAndLogin(t *testing.T) {
 			// Login section.
 			a, sessionData, err := web.BeginLogin(webUser)
 			require.NoError(t, err, "BeginLogin failed")
-			assertion := (*wanlib.CredentialAssertion)(a)
+			assertion := wantypes.CredentialAssertionFromProtocol(a)
 			test.modifyAssertion(assertion)
 
 			assertionResp, actualUser, err := touchid.Login(origin, user, assertion, simplePicker{})
@@ -162,7 +162,7 @@ func TestRegister_rollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// Register and then Rollback a credential.
-	reg, err := touchid.Register(origin, (*wanlib.CredentialCreation)(cc))
+	reg, err := touchid.Register(origin, wantypes.CredentialCreationFromProtocol(cc))
 	require.NoError(t, err, "Register failed")
 	require.NoError(t, reg.Rollback(), "Rollback failed")
 
@@ -170,8 +170,8 @@ func TestRegister_rollback(t *testing.T) {
 	require.Contains(t, fake.nonInteractiveDelete, reg.CCR.ID, "Credential ID not found in (fake) nonInteractiveDeletes")
 
 	// Attempt to authenticate.
-	_, _, err = touchid.Login(origin, llamaUser, &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+	_, _, err = touchid.Login(origin, llamaUser, &wantypes.CredentialAssertion{
+		Response: wantypes.PublicKeyCredentialRequestOptions{
 			Challenge:        []byte{1, 2, 3, 4, 5}, // doesn't matter as long as it's not empty
 			RelyingPartyID:   web.Config.RPID,
 			UserVerification: "required",
@@ -225,7 +225,7 @@ func TestLogin_findsCorrectCredential(t *testing.T) {
 		cc, _, err := web.BeginRegistration(u)
 		require.NoError(t, err, "BeginRegistration #%v failed, user %v", i+1, u.name)
 
-		reg, err := touchid.Register(origin, (*wanlib.CredentialCreation)(cc))
+		reg, err := touchid.Register(origin, wantypes.CredentialCreationFromProtocol(cc))
 		require.NoError(t, err, "Register #%v failed, user %v", i+1, u.name)
 		require.NoError(t, reg.Confirm(), "Confirm failed")
 	}
@@ -243,7 +243,7 @@ func TestLogin_findsCorrectCredential(t *testing.T) {
 		cc, _, err := web2.BeginRegistration(u)
 		require.NoError(t, err, "web2 BeginRegistration failed")
 
-		reg, err := touchid.Register(web2.Config.RPOrigin, (*wanlib.CredentialCreation)(cc))
+		reg, err := touchid.Register(web2.Config.RPOrigin, wantypes.CredentialCreationFromProtocol(cc))
 		require.NoError(t, err, "web2 Register failed")
 		require.NoError(t, reg.Confirm(), "Confirm failed")
 	}
@@ -324,16 +324,16 @@ func TestLogin_findsCorrectCredential(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var allowedCreds []protocol.CredentialDescriptor
+			var allowedCreds []wantypes.CredentialDescriptor
 			for _, cred := range test.allowedCreds {
-				allowedCreds = append(allowedCreds, protocol.CredentialDescriptor{
+				allowedCreds = append(allowedCreds, wantypes.CredentialDescriptor{
 					Type:         protocol.PublicKeyCredentialType,
 					CredentialID: []byte(cred.id),
 				})
 			}
 
-			_, gotUser, err := touchid.Login(origin, test.user, &wanlib.CredentialAssertion{
-				Response: protocol.PublicKeyCredentialRequestOptions{
+			_, gotUser, err := touchid.Login(origin, test.user, &wantypes.CredentialAssertion{
+				Response: wantypes.PublicKeyCredentialRequestOptions{
 					Challenge:          []byte{1, 2, 3, 4, 5}, // arbitrary
 					RelyingPartyID:     web.Config.RPID,
 					AllowedCredentials: allowedCreds,
@@ -361,8 +361,8 @@ func TestLogin_noCredentials_failsWithoutUserInteraction(t *testing.T) {
 	*touchid.Native = fake
 
 	const origin = "https://goteleport.com"
-	baseAssertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+	baseAssertion := &wantypes.CredentialAssertion{
+		Response: wantypes.PublicKeyCredentialRequestOptions{
 			Challenge:        []byte{1, 2, 3, 4, 5}, // arbitrary
 			RelyingPartyID:   "goteleport.com",
 			UserVerification: protocol.VerificationRequired,
@@ -370,7 +370,7 @@ func TestLogin_noCredentials_failsWithoutUserInteraction(t *testing.T) {
 	}
 	mfaAssertion := *baseAssertion
 	mfaAssertion.Response.UserVerification = protocol.VerificationDiscouraged
-	mfaAssertion.Response.AllowedCredentials = []protocol.CredentialDescriptor{
+	mfaAssertion.Response.AllowedCredentials = []wantypes.CredentialDescriptor{
 		{
 			Type:         protocol.PublicKeyCredentialType,
 			CredentialID: []byte{1, 2, 3, 4, 5}, // arbitrary
@@ -381,7 +381,7 @@ func TestLogin_noCredentials_failsWithoutUserInteraction(t *testing.T) {
 	for _, test := range []struct {
 		name      string
 		user      string
-		assertion *wanlib.CredentialAssertion
+		assertion *wantypes.CredentialAssertion
 	}{
 		{
 			name:      "passwordless empty user",
@@ -415,29 +415,29 @@ func TestLogin_noCredentials_failsWithoutUserInteraction(t *testing.T) {
 	const userLlama = "llama"
 	const userAlpaca = "alpaca"
 	rrk := true
-	cc1 := &wanlib.CredentialCreation{
-		Response: protocol.PublicKeyCredentialCreationOptions{
+	cc1 := &wantypes.CredentialCreation{
+		Response: wantypes.PublicKeyCredentialCreationOptions{
 			Challenge: []byte{1, 2, 3, 4, 5}, // arbitrary, not important here
-			RelyingParty: protocol.RelyingPartyEntity{
-				CredentialEntity: protocol.CredentialEntity{
+			RelyingParty: wantypes.RelyingPartyEntity{
+				CredentialEntity: wantypes.CredentialEntity{
 					Name: "Teleport",
 				},
 				ID: baseAssertion.Response.RelyingPartyID,
 			},
-			User: protocol.UserEntity{
-				CredentialEntity: protocol.CredentialEntity{
+			User: wantypes.UserEntity{
+				CredentialEntity: wantypes.CredentialEntity{
 					Name: userLlama,
 				},
 				DisplayName: "Llama",
 				ID:          []byte{1, 1, 1, 1, 1},
 			},
-			Parameters: []protocol.CredentialParameter{
+			Parameters: []wantypes.CredentialParameter{
 				{
 					Type:      protocol.PublicKeyCredentialType,
 					Algorithm: webauthncose.AlgES256,
 				},
 			},
-			AuthenticatorSelection: protocol.AuthenticatorSelection{
+			AuthenticatorSelection: wantypes.AuthenticatorSelection{
 				RequireResidentKey: &rrk,
 				UserVerification:   protocol.VerificationRequired,
 			},
@@ -445,14 +445,14 @@ func TestLogin_noCredentials_failsWithoutUserInteraction(t *testing.T) {
 		},
 	}
 	cc2 := *cc1
-	cc2.Response.User = protocol.UserEntity{
-		CredentialEntity: protocol.CredentialEntity{
+	cc2.Response.User = wantypes.UserEntity{
+		CredentialEntity: wantypes.CredentialEntity{
 			Name: userAlpaca,
 		},
 		DisplayName: "Alpaca",
 		ID:          []byte{1, 1, 1, 1, 2},
 	}
-	for _, cc := range []*wanlib.CredentialCreation{cc1, &cc2} {
+	for _, cc := range []*wantypes.CredentialCreation{cc1, &cc2} {
 		reg, err := touchid.Register(origin, cc)
 		require.NoError(t, err, "Register failed")
 		require.NoError(t, reg.Confirm(), "Confirm failed")
@@ -461,7 +461,7 @@ func TestLogin_noCredentials_failsWithoutUserInteraction(t *testing.T) {
 	mfaAllCreds := mfaAssertion
 	mfaAllCreds.Response.AllowedCredentials = nil
 	for _, c := range fake.creds {
-		mfaAllCreds.Response.AllowedCredentials = append(mfaAllCreds.Response.AllowedCredentials, protocol.CredentialDescriptor{
+		mfaAllCreds.Response.AllowedCredentials = append(mfaAllCreds.Response.AllowedCredentials, wantypes.CredentialDescriptor{
 			Type:         protocol.PublicKeyCredentialType,
 			CredentialID: []byte(c.id),
 		})
@@ -471,7 +471,7 @@ func TestLogin_noCredentials_failsWithoutUserInteraction(t *testing.T) {
 	for _, test := range []struct {
 		name      string
 		user      string
-		assertion *wanlib.CredentialAssertion
+		assertion *wantypes.CredentialAssertion
 	}{
 		{
 			name:      "passwordless existing credentials",
@@ -539,17 +539,17 @@ func TestLogin_credentialPicker(t *testing.T) {
 
 	const rpID = "goteleport.com"
 	const origin = "https://goteleport.com"
-	baseAssertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+	baseAssertion := &wantypes.CredentialAssertion{
+		Response: wantypes.PublicKeyCredentialRequestOptions{
 			Challenge:        []byte{1, 2, 3, 4, 5}, // arbitrary
 			RelyingPartyID:   rpID,
 			UserVerification: protocol.VerificationRequired,
 		},
 	}
-	newAssertion := func(allowedCreds [][]byte) *wanlib.CredentialAssertion {
+	newAssertion := func(allowedCreds [][]byte) *wantypes.CredentialAssertion {
 		cp := *baseAssertion
 		for _, id := range allowedCreds {
-			cp.Response.AllowedCredentials = append(cp.Response.AllowedCredentials, protocol.CredentialDescriptor{
+			cp.Response.AllowedCredentials = append(cp.Response.AllowedCredentials, wantypes.CredentialDescriptor{
 				Type:         protocol.PublicKeyCredentialType,
 				CredentialID: id,
 			})

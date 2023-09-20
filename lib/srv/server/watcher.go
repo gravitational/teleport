@@ -28,8 +28,9 @@ import (
 
 // Instances contains information about discovered cloud instances from any provider.
 type Instances struct {
-	*EC2Instances
-	*AzureInstances
+	EC2   *EC2Instances
+	Azure *AzureInstances
+	GCP   *GCPInstances
 }
 
 // Fetcher fetches instances from a particular cloud provider.

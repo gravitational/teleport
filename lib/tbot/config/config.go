@@ -48,6 +48,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodGitHub),
 	string(types.JoinMethodGitLab),
 	string(types.JoinMethodIAM),
+	string(types.JoinMethodKubernetes),
 	string(types.JoinMethodToken),
 }
 
@@ -55,7 +56,7 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTBot,
 })
 
-// RemainingArgs is a custom kingpin parser that consumes all remaining
+// RemainingArgsList is a custom kingpin parser that consumes all remaining
 // arguments.
 type RemainingArgsList []string
 
@@ -79,11 +80,20 @@ func RemainingArgs(s kingpin.Settings) (target *[]string) {
 	return
 }
 
+const (
+	LogFormatJSON = "json"
+	LogFormatText = "text"
+)
+
 // CLIConf is configuration from the CLI.
 type CLIConf struct {
 	ConfigPath string
 
 	Debug bool
+
+	// LogFormat controls the format of logging. Can be either `json` or `text`.
+	// By default, this is `text`.
+	LogFormat string
 
 	// AuthServer is a Teleport auth server address. It may either point
 	// directly to an auth server, or to a Teleport proxy server in which case

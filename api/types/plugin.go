@@ -38,10 +38,16 @@ const (
 	PluginTypeOkta = "okta"
 	// PluginTypeJamf is the Jamf MDM plugin
 	PluginTypeJamf = "jamf"
+	// PluginTypeJira is the Jira access plugin
+	PluginTypeJira = "jira"
 	// PluginTypeOpsgenie is the Opsgenie access request plugin
 	PluginTypeOpsgenie = "opsgenie"
 	// PluginTypePagerDuty is the PagerDuty access plugin
 	PluginTypePagerDuty = "pagerduty"
+	// PluginTypeMattermost is the PagerDuty access plugin
+	PluginTypeMattermost = "mattermost"
+	// PluginTypeDiscord indicates the Discord access plugin
+	PluginTypeDiscord = "discord"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -148,6 +154,21 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
+	case *PluginSpecV1_Mattermost:
+		if settings.Mattermost == nil {
+			return trace.BadParameter("missing Mattermost settings")
+		}
+		if err := settings.Mattermost.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Mattermost plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
 	case *PluginSpecV1_Jamf:
 		// Check Jamf settings.
 		if settings.Jamf == nil {
@@ -166,6 +187,29 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
+
+	case *PluginSpecV1_Jira:
+		if settings.Jira == nil {
+			return trace.BadParameter("missing Jira settings")
+		}
+
+		if err := settings.Jira.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("jira plugin must be used with the static credentials ref type")
+		}
+
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
+
 	case *PluginSpecV1_Okta:
 		// Check settings.
 		if settings.Okta == nil {
@@ -192,6 +236,20 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.PagerDuty.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+
+	case *PluginSpecV1_Discord:
+		if settings.Discord == nil {
+			return trace.BadParameter("missing Discord settings")
+		}
+		if err := settings.Discord.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Discord plugin must be used with the static credentials ref type")
+		}
+
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
 	}
@@ -328,10 +386,16 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeOkta
 	case *PluginSpecV1_Jamf:
 		return PluginTypeJamf
+	case *PluginSpecV1_Jira:
+		return PluginTypeJira
 	case *PluginSpecV1_Opsgenie:
 		return PluginTypeOpsgenie
 	case *PluginSpecV1_PagerDuty:
 		return PluginTypePagerDuty
+	case *PluginSpecV1_Mattermost:
+		return PluginTypeMattermost
+	case *PluginSpecV1_Discord:
+		return PluginTypeDiscord
 	default:
 		return PluginTypeUnknown
 	}
@@ -364,10 +428,44 @@ func (s *PluginJamfSettings) CheckAndSetDefaults() error {
 	return nil
 }
 
+func (s *PluginJiraSettings) CheckAndSetDefaults() error {
+	if s.ServerUrl == "" {
+		return trace.BadParameter("Jira server URL must be set")
+	}
+
+	if s.ProjectKey == "" {
+		return trace.BadParameter("Jira project key must be set")
+	}
+
+	if s.IssueType == "" {
+		return trace.BadParameter("Jira issue type must be set")
+	}
+
+	return nil
+}
+
 // CheckAndSetDefaults validates and set the default values
 func (s *PluginOpsgenieAccessSettings) CheckAndSetDefaults() error {
 	if s.ApiEndpoint == "" {
 		return trace.BadParameter("opsgenie api endpoint url must be set")
+	}
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default values
+func (s *PluginMattermostSettings) CheckAndSetDefaults() error {
+	if s.ServerUrl == "" {
+		return trace.BadParameter("server url is required")
+	}
+
+	// If one field is defined, both should be required.
+	if len(s.Channel) > 0 || len(s.Team) > 0 {
+		if len(s.Team) == 0 {
+			return trace.BadParameter("team is required")
+		}
+		if len(s.Channel) == 0 {
+			return trace.BadParameter("channel is required")
+		}
 	}
 	return nil
 }
@@ -393,6 +491,18 @@ func (c *PluginPagerDutySettings) CheckAndSetDefaults() error {
 	if c.UserEmail == "" {
 		return trace.BadParameter("user_email must be set")
 	}
+	return nil
+}
+
+func (c *PluginDiscordSettings) CheckAndSetDefaults() error {
+	if len(c.RoleToRecipients) == 0 {
+		return trace.BadParameter("role_to_recipients must be set")
+	}
+
+	if _, present := c.RoleToRecipients[Wildcard]; !present {
+		return trace.BadParameter("role_to_recipients must contain default entry `*`")
+	}
+
 	return nil
 }
 

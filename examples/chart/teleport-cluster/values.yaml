@@ -250,10 +250,12 @@ labels: {}
 # - "standalone": will deploy a Teleport container running auth and proxy services with a PersistentVolumeClaim for storage.
 # - "aws": will deploy Teleport using DynamoDB for backend/audit log storage and S3 for session recordings. (1)
 # - "gcp": will deploy Teleport using Firestore for backend/audit log storage and Google Cloud storage for session recordings. (2)
-# - "scratch": will deploy Teleport containers but will not provide default configuration file. You must pass your own configuration. (3)
+# - "azure": will deploy Teleport using Azure Database for PostgreSQL for backend/audit and Azure Blob Storage for session recordings. (3)
+# - "scratch": will deploy Teleport containers but will not provide default configuration file. You must pass your own configuration. (4)
 # (1) To use "aws" mode, you must also configure the "aws" section below.
 # (2) To use "gcp" mode, you must also configure the "gcp" section below.
-# (3) When set to "scratch", you must write the teleport configuration in auth.teleportConfig and proxy.teleportConfig.
+# (3) To use "azure" mode, you must also configure the "azure" section below.
+# (4) When set to "scratch", you must write the teleport configuration in auth.teleportConfig and proxy.teleportConfig.
 # `scratch` usage is strongly discouraged, this is a last resort option and
 # everything should be doable with `standalone` mode + overrides through
 # `auth.teleportConfig` and `proxy.teleportConfig`.
@@ -363,6 +365,39 @@ gcp:
   # You can override this to a blank value if the worker node running Teleport already has a service account which grants access.
   credentialSecretName: teleport-gcp-credentials
 
+#####################################################
+# Azure-specific settings (only used in "azure" mode)
+#####################################################
+azure:
+  # The fully qualified hostname of the Postgres database cluster hosted in Azure.
+  # It should follow the format "<database name>.postgres.database.azure.com".
+  databaseHost: ""
+  # The Postgres user Teleport must use to connect to the backend and audit
+  # databases.
+  databaseUser: ""
+  # The Postgres database to use for backend storage.
+  backendDatabase: "teleport_backend"
+  # The Postgres database to use for audit log storage.
+  # This MUST NOT be the same database as used for 'backendDatabase'.
+  auditLogDatabase: "teleport_audit"
+  # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
+  auditLogMirrorOnStdout: false
+  # The fully qualified domain name of the Azure Blob Storage account to use for
+  # recorded session storage. This account must already exist.
+  # It should follow the format "<storage account>.blob.core.windows.net"
+  sessionRecordingStorageAccount: ""
+  # Azure client ID is used by the Kubernetes Service Account to know which
+  # Application it should impersonate. This can be unset only if the clientID is
+  # passed through other means (e.g. environment variable)
+  clientID: ""
+  # Controls the `pool_max_conns` setting passed to PostgreSQL. This is the
+  # max amount of connections Teleport can open to the database. This can affect
+  # performance on large clusters and depends on various factors like the
+  # database size, the number of CPU cores available for Teleport, GOMAXPROCS
+  # and the database latency.
+  # This only applies to the core backend connections, not the audit log ones.
+  # 0 means the parameter is not set and the client's default is used (recommended)
+  databasePoolMaxConnections: 0
 
 # `highAvailability` contains settings controlling how Teleport pods are
 # replicated and scheduled. This allows Teleport to run in a highly-available
@@ -402,10 +437,13 @@ highAvailability:
   # Settings for cert-manager (can be used for provisioning TLS certs in HA mode)
   # These settings are mutually exclusive with the "tls" value below.
   certManager:
-    # If set to true, a common name matching the cluster name will be set in the certificate signing request. This is mandatory for some CAs.
-    addCommonName: false
     # If set to true, use cert-manager to get certificates for Teleport to use for TLS termination
     enabled: false
+    # If set to true, a common name matching the cluster name will be set in the certificate signing request. This is mandatory for some CAs.
+    addCommonName: false
+    # If set to true, any additional public addresses configured under the `publicAddr` chart value will be added to the certificate signing request.
+    # This setting is not enabled by default to preserve backward compatibility.
+    addPublicAddrs: false
     # Name of the Issuer/ClusterIssuer to use for certs
     # NOTE: You will always need to create this yourself when certManager.enabled is true.
     issuerName: ""

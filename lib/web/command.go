@@ -39,10 +39,13 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/agentless"
+	"github.com/gravitational/teleport/lib/ai/model"
 	assistlib "github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -132,7 +135,7 @@ func (h *Handler) executeCommand(
 	if params == "" {
 		return nil, trace.BadParameter("missing params")
 	}
-	var req *CommandRequest
+	var req CommandRequest
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
 		return nil, trace.BadParameter("failed to read JSON message: %v", err)
 	}
@@ -293,6 +296,7 @@ func (h *Handler) executeCommand(
 
 	runCommands(hosts, runCmd, int(netConfig.GetAssistCommandExecutionWorkers()), h.log)
 
+	var tokenCount *model.TokenCount
 	// Optionally, try to compute the command summary.
 	if output, valid := buffer.Export(); valid {
 		summaryReq := summaryRequest{
@@ -304,10 +308,29 @@ func (h *Handler) executeCommand(
 			conversationID: req.ConversationID,
 			command:        req.Command,
 		}
-		err := h.computeAndSendSummary(ctx, &summaryReq, ws)
+		tokenCount, err = h.computeAndSendSummary(ctx, &summaryReq, ws)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	prompt, completion := model.CountTokens(tokenCount)
+
+	usageEventReq := &clientproto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AssistExecution{
+				AssistExecution: &usageeventsv1.AssistExecutionEvent{
+					ConversationId:   req.ConversationID,
+					NodeCount:        int64(len(hosts)),
+					TotalTokens:      int64(completion + prompt),
+					PromptTokens:     int64(prompt),
+					CompletionTokens: int64(completion),
+				},
+			},
+		},
+	}
+	if err := clt.SubmitUsageEvent(ctx, usageEventReq); err != nil {
+		h.log.WithError(err).Warn("Failed to emit usage event")
 	}
 
 	return nil, nil
@@ -327,7 +350,7 @@ func (h *Handler) computeAndSendSummary(
 	ctx context.Context,
 	req *summaryRequest,
 	ws WSConn,
-) error {
+) (*model.TokenCount, error) {
 	// Convert the map nodeId->output into a map nodeName->output
 	namedOutput := outputByName(req.hosts, req.output)
 
@@ -336,17 +359,17 @@ func (h *Handler) computeAndSendSummary(
 		Username:       req.identity.TeleportUser,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	assistClient, err := assistlib.NewClient(ctx, req.authClient, h.cfg.ProxySettings, h.cfg.OpenAIConfig)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	summary, err := assistClient.GenerateCommandSummary(ctx, history.GetMessages(), namedOutput)
+	summary, tokenCount, err := assistClient.GenerateCommandSummary(ctx, history.GetMessages(), namedOutput)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Add the summary message to the backend, so it is persisted on chat
@@ -357,7 +380,7 @@ func (h *Handler) computeAndSendSummary(
 		Summary:     summary,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	summaryMessage := &assist.CreateAssistantMessageRequest{
 		ConversationId: req.conversationID,
@@ -371,7 +394,7 @@ func (h *Handler) computeAndSendSummary(
 
 	err = req.authClient.CreateAssistantMessage(ctx, summaryMessage)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Send the summary over the execution websocket to provide instant
@@ -382,11 +405,11 @@ func (h *Handler) computeAndSendSummary(
 	}
 	data, err := json.Marshal(out)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	stream := NewWStream(ctx, ws, log, nil)
 	_, err = stream.Write(data)
-	return trace.Wrap(err)
+	return tokenCount, trace.Wrap(err)
 }
 
 func outputByName(hosts []hostInfo, output map[string][]byte) map[string][]byte {

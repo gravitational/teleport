@@ -42,11 +42,11 @@ func DecodeCookie(b string) (*SessionCookie, error) {
 	if err != nil {
 		return nil, err
 	}
-	var c *SessionCookie
+	var c SessionCookie
 	if err := json.Unmarshal(bytes, &c); err != nil {
 		return nil, err
 	}
-	return c, nil
+	return &c, nil
 }
 
 func SetSessionCookie(w http.ResponseWriter, user, sid string) error {

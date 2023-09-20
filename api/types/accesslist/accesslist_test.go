@@ -26,21 +26,26 @@ import (
 
 func TestAuditMarshaling(t *testing.T) {
 	audit := Audit{
-		Frequency: time.Hour,
+		Frequency:     time.Hour,
+		NextAuditDate: time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC),
 	}
 
 	data, err := json.Marshal(&audit)
 	require.NoError(t, err)
 
+	require.Equal(t, `{"frequency":"1h0m0s","next_audit_date":"2023-02-02T00:00:00Z"}`, string(data))
+
 	raw := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal(data, &raw))
 
 	require.Equal(t, "1h0m0s", raw["frequency"])
+	require.Equal(t, "2023-02-02T00:00:00Z", raw["next_audit_date"])
 }
 
 func TestAuditUnmarshaling(t *testing.T) {
 	raw := map[string]interface{}{
-		"frequency": "1h",
+		"frequency":       "1h",
+		"next_audit_date": "2023-02-02T00:00:00Z",
 	}
 
 	data, err := json.Marshal(&raw)
@@ -50,4 +55,5 @@ func TestAuditUnmarshaling(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &audit))
 
 	require.Equal(t, time.Hour, audit.Frequency)
+	require.Equal(t, time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC), audit.NextAuditDate)
 }

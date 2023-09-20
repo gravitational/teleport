@@ -47,6 +47,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	if err := c.Teleport.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := c.ClientConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if c.AccessTokenProvider == nil {
 		if c.Opsgenie.Token == "" {
@@ -78,7 +81,6 @@ func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, 
 	}
 	c.ClientConfig.WebProxyURL = webProxyURL
 	c.ClientConfig.ClusterName = clusterName
-	c.ClientConfig.APIKey = c.Opsgenie.Token
 	client, err := NewClient(c.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

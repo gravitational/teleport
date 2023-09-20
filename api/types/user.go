@@ -107,6 +107,10 @@ type User interface {
 	SetAzureIdentities(azureIdentities []string)
 	// SetGCPServiceAccounts sets a list of GCP service accounts for the user
 	SetGCPServiceAccounts(accounts []string)
+	// SetHostUserUID sets the UID for host users
+	SetHostUserUID(uid string)
+	// SetHostUserGID sets the GID for host users
+	SetHostUserGID(gid string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
@@ -117,6 +121,14 @@ type User interface {
 	GetTraits() map[string][]string
 	// SetTraits sets the trait map for this user used to populate role variables.
 	SetTraits(map[string][]string)
+	// GetTrustedDeviceIDs returns the IDs of the user's trusted devices.
+	GetTrustedDeviceIDs() []string
+	// SetTrustedDeviceIDs assigns the IDs of the user's trusted devices.
+	SetTrustedDeviceIDs(ids []string)
+	// IsBot returns true if the user is a bot.
+	IsBot() bool
+	// BotGenerationLabel returns the bot generation label.
+	BotGenerationLabel() string
 }
 
 // NewUser creates new empty user
@@ -223,6 +235,16 @@ func (u *UserV2) SetTraits(traits map[string][]string) {
 	u.Spec.Traits = traits
 }
 
+// GetTrustedDeviceIDs returns the IDs of the user's trusted devices.
+func (u *UserV2) GetTrustedDeviceIDs() []string {
+	return u.Spec.TrustedDeviceIDs
+}
+
+// SetTrustedDeviceIDs assigns the IDs of the user's trusted devices.
+func (u *UserV2) SetTrustedDeviceIDs(ids []string) {
+	u.Spec.TrustedDeviceIDs = ids
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (u *UserV2) setStaticFields() {
 	u.Kind = KindUser
@@ -324,6 +346,16 @@ func (u *UserV2) SetAzureIdentities(identities []string) {
 // SetGCPServiceAccounts sets a list of GCP service accounts for the user
 func (u *UserV2) SetGCPServiceAccounts(accounts []string) {
 	u.setTrait(constants.TraitGCPServiceAccounts, accounts)
+}
+
+// SetHostUserUID sets the host user UID
+func (u *UserV2) SetHostUserUID(uid string) {
+	u.setTrait(constants.TraitHostUserUID, []string{uid})
+}
+
+// SetHostUserGID sets the host user GID
+func (u *UserV2) SetHostUserGID(uid string) {
+	u.setTrait(constants.TraitHostUserGID, []string{uid})
 }
 
 // GetStatus returns login status of the user
@@ -430,6 +462,17 @@ func (u UserV2) GetUserType() UserType {
 	}
 
 	return UserTypeSSO
+}
+
+// IsBot returns true if the user is a bot.
+func (u UserV2) IsBot() bool {
+	_, ok := u.GetMetadata().Labels[BotGenerationLabel]
+	return ok
+}
+
+// BotGenerationLabel returns the bot generation label.
+func (u UserV2) BotGenerationLabel() string {
+	return u.GetMetadata().Labels[BotGenerationLabel]
 }
 
 func (u *UserV2) String() string {

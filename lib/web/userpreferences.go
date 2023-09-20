@@ -50,9 +50,7 @@ func (h *Handler) getUserPreferences(_ http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := authClient.GetUserPreferences(r.Context(), &userpreferencesv1.GetUserPreferencesRequest{
-		Username: sctx.GetUser(),
-	})
+	resp, err := authClient.GetUserPreferences(r.Context(), &userpreferencesv1.GetUserPreferencesRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,7 +72,6 @@ func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, 
 	}
 
 	preferences := &userpreferencesv1.UpsertUserPreferencesRequest{
-		Username: sctx.GetUser(),
 		Preferences: &userpreferencesv1.UserPreferences{
 			Theme: req.Theme,
 			Assist: &userpreferencesv1.AssistUserPreferences{

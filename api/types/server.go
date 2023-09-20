@@ -80,24 +80,19 @@ type Server interface {
 	SetPeerAddr(string)
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
-	// MatchAgainst takes a map of labels and returns True if this server
-	// has ALL of them
-	//
-	// Any server matches against an empty label set
-	MatchAgainst(labels map[string]string) bool
-	// LabelsString returns a comma separated string with all node's labels
-	LabelsString() string
 
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
 
 	// GetCloudMetadata gets the cloud metadata for the server.
 	GetCloudMetadata() *CloudMetadata
+	// GetAWSInfo returns the AWSInfo for the server.
+	GetAWSInfo() *AWSInfo
 	// SetCloudMetadata sets the server's cloud metadata.
 	SetCloudMetadata(meta *CloudMetadata)
 
 	// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
-	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEC2InstanceConnectEndpointNode.
+	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 	IsOpenSSHNode() bool
 }
 
@@ -386,55 +381,34 @@ func (s *ServerV2) SetPeerAddr(addr string) {
 	s.Spec.PeerAddr = addr
 }
 
-// MatchAgainst takes a map of labels and returns True if this server
-// has ALL of them
-//
-// Any server matches against an empty label set
-func (s *ServerV2) MatchAgainst(labels map[string]string) bool {
-	return MatchLabels(s, labels)
-}
-
-// LabelsString returns a comma separated string of all labels.
-func (s *ServerV2) LabelsString() string {
-	return LabelsAsString(s.Metadata.Labels, s.Spec.CmdLabels)
-}
-
-// LabelsAsString combines static and dynamic labels and returns a comma
-// separated string.
-func LabelsAsString(static map[string]string, dynamic map[string]CommandLabelV2) string {
-	labels := []string{}
-	for key, val := range static {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, val))
-	}
-	for key, val := range dynamic {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, val.Result))
-	}
-	sort.Strings(labels)
-	return strings.Join(labels, ",")
-}
-
 // setStaticFields sets static resource header and metadata fields.
 func (s *ServerV2) setStaticFields() {
 	s.Version = V2
 }
 
 // IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
-// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEC2InstanceConnectEndpointNode.
+// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 func (s *ServerV2) IsOpenSSHNode() bool {
-	return s.SubKind == SubKindOpenSSHNode || s.SubKind == SubKindOpenSSHEC2InstanceConnectEndpointNode
+	return IsOpenSSHNodeSubKind(s.SubKind)
+}
+
+// IsOpenSSHNodeSubKind returns whether the Node SubKind is from a server which accepts connections over the
+// OpenSSH daemon (instead of a Teleport Node).
+func IsOpenSSHNodeSubKind(subkind string) bool {
+	return subkind == SubKindOpenSSHNode || subkind == SubKindOpenSSHEICENode
 }
 
 // openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
-// They include SubKindOpenSSHNode and SubKindOpenSSHEC2InstanceConnectEndpointNode.
+// They include SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
 	if s.Spec.Addr == "" {
-		return trace.BadParameter(`addr must be set when server SubKind is "openssh"`)
+		return trace.BadParameter("addr must be set when server SubKind is %q", s.GetSubKind())
 	}
 	if len(s.GetPublicAddrs()) != 0 {
-		return trace.BadParameter(`publicAddrs must not be set when server SubKind is "openssh"`)
+		return trace.BadParameter("publicAddrs must not be set when server SubKind is %q", s.GetSubKind())
 	}
 	if s.Spec.Hostname == "" {
-		return trace.BadParameter(`hostname must be set when server SubKind is "openssh"`)
+		return trace.BadParameter("hostname must be set when server SubKind is %q", s.GetSubKind())
 	}
 
 	_, _, err := net.SplitHostPort(s.Spec.Addr)
@@ -444,13 +418,13 @@ func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
 	return nil
 }
 
-// openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults are validations for SubKindOpenSSHEC2InstanceConnectEndpointNode.
+// openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults are validations for SubKindOpenSSHEICENode.
 func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() error {
 	if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// AWS fields are required for SubKindOpenSSHEC2InstanceConnectEndpointNode.
+	// AWS fields are required for SubKindOpenSSHEICENode.
 	switch {
 	case s.Spec.CloudMetadata == nil || s.Spec.CloudMetadata.AWS == nil:
 		return trace.BadParameter("missing AWS CloudMetadata (required for %q SubKind)", s.SubKind)
@@ -469,6 +443,9 @@ func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() er
 
 	case s.Spec.CloudMetadata.AWS.VPCID == "":
 		return trace.BadParameter("missing AWS VPC ID (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.SubnetID == "":
+		return trace.BadParameter("missing AWS Subnet ID (required for %q SubKind)", s.SubKind)
 	}
 
 	return nil
@@ -505,7 +482,7 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 
-	case SubKindOpenSSHEC2InstanceConnectEndpointNode:
+	case SubKindOpenSSHEICENode:
 		if err := s.openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -551,6 +528,15 @@ func (s *ServerV2) DeepCopy() Server {
 // GetCloudMetadata gets the cloud metadata for the server.
 func (s *ServerV2) GetCloudMetadata() *CloudMetadata {
 	return s.Spec.CloudMetadata
+}
+
+// GetAWSInfo gets the AWS Cloud metadata for the server.
+func (s *ServerV2) GetAWSInfo() *AWSInfo {
+	if s.Spec.CloudMetadata == nil {
+		return nil
+	}
+
+	return s.Spec.CloudMetadata.AWS
 }
 
 // SetCloudMetadata sets the server's cloud metadata.

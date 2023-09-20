@@ -147,6 +147,7 @@ export const awsRegionMap = {
   'eu-south-2': 'Europe (Spain)',
   'eu-north-1': 'Europe (Stockholm)',
   'eu-central-2': 'Europe (Zurich)',
+  'il-central-1': 'Israel (Tel Aviv)',
   'me-south-1': 'Middle East (Bahrain)',
   'me-central-1': 'Middle East (UAE)',
   'sa-east-1': 'South America (São Paulo)',
@@ -158,7 +159,6 @@ export type Regions = keyof typeof awsRegionMap;
 // used when requesting lists of rds databases of the
 // specified engine.
 export type RdsEngine =
-  | 'aurora' // (for MySQL 5.6-compatible Aurora)
   | 'aurora-mysql' // (for MySQL 5.7-compatible and MySQL 8.0-compatible Aurora)
   | 'aurora-postgresql'
   | 'mariadb'
@@ -202,6 +202,12 @@ export type AwsRdsDatabase = {
   accountId: string;
   // labels contains this Instance tags.
   labels: Label[];
+  // subnets is a list of subnets for the RDS instance.
+  subnets: string[];
+  // vpcId is the AWS VPC ID for the DB.
+  vpcId: string;
+  // region is the AWS cloud region that this database is from.
+  region: Regions;
   // status contains this Instance status.
   // There is a lot of status states available so only a select few were
   // hard defined to use to determine the status color.
@@ -220,4 +226,27 @@ export type IntegrationUpdateRequest = {
   awsoidc: {
     roleArn: string;
   };
+};
+
+export type AwsOidcDeployServiceRequest = {
+  deploymentMode: 'database-service';
+  region: Regions;
+  subnetIds: string[];
+  taskRoleArn: string;
+  databaseAgentMatcherLabels: Label[];
+};
+
+export type AwsOidcDeployServiceResponse = {
+  // clusterArn is the Amazon ECS Cluster ARN
+  // where the task was started.
+  clusterArn: string;
+  // serviceArn is the Amazon ECS Cluster Service
+  // ARN created to run the task.
+  serviceArn: string;
+  // taskDefinitionArn is the Amazon ECS Task Definition
+  // ARN created to run the Service.
+  taskDefinitionArn: string;
+  // serviceDashboardUrl is a link to the service's Dashboard
+  // URL in Amazon Console.
+  serviceDashboardUrl: string;
 };

@@ -33,8 +33,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 var requestLoginHint = "use 'tsh login --request-id=<request-id>' to login with an approved request"
@@ -211,6 +213,10 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 	table.AddRow([]string{"Reason:", reason})
 	table.AddRow([]string{"Reviewers:", reviewers + " (suggested)"})
+	if !req.GetAccessExpiry().IsZero() {
+		// Display the expiry time in the local timezone. UTC is confusing.
+		table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().Local().Format(time.DateTime)})
+	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
 	_, err := table.AsBuffer().WriteTo(cf.Stdout())
@@ -380,7 +386,7 @@ func onRequestSearch(cf *CLIConf) error {
 
 	// If KubeCluster not provided try to read it from kubeconfig.
 	if cf.KubernetesCluster == "" {
-		cf.KubernetesCluster = selectedKubeCluster(tc.SiteName)
+		cf.KubernetesCluster, _ = kubeconfig.SelectedKubeCluster(getKubeConfigPath(cf, ""), tc.SiteName)
 	}
 	if cf.ResourceKind == types.KindKubePod && cf.KubernetesCluster == "" {
 		return trace.BadParameter("when searching for Pods, --kube-cluster cannot be empty")
@@ -467,9 +473,9 @@ func onRequestSearch(cf *CLIConf) error {
 			resourceIDs = append(resourceIDs, resourceID)
 
 			row = []string{
-				resource.GetName(),
+				common.FormatResourceName(resource, cf.Verbose),
 				r.Spec.Namespace,
-				sortedLabels(resource.GetAllLabels()),
+				common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
 				resourceID,
 			}
 
@@ -489,15 +495,20 @@ func onRequestSearch(cf *CLIConf) error {
 				hostName = r.GetHostname()
 			}
 			row = []string{
-				resource.GetName(),
+				common.FormatResourceName(resource, cf.Verbose),
 				hostName,
-				sortedLabels(resource.GetAllLabels()),
+				common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
 				resourceID,
 			}
 		}
 		rows = append(rows, row)
 	}
-	table := asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
+	var table asciitable.Table
+	if cf.Verbose {
+		table = asciitable.MakeTable(tableColumns, rows...)
+	} else {
+		table = asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
+	}
 	if _, err := table.AsBuffer().WriteTo(cf.Stdout()); err != nil {
 		return trace.Wrap(err)
 	}

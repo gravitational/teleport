@@ -83,7 +83,7 @@ export default function LoginForm(props: Props) {
             {attempt.message}
           </Alerts.Danger>
         )}
-        <SsoList {...props} />
+        <SsoList {...props} autoFocus={true} hasTransitionEnded={true} />
       </Card>
     );
   }
@@ -128,7 +128,11 @@ const SsoList = ({
   authProviders,
   onLoginWithSso,
   autoFocus = false,
-}: Props) => {
+  hasTransitionEnded,
+}: Props & { hasTransitionEnded?: boolean }) => {
+  const ref = useRefAutoFocus<HTMLInputElement>({
+    shouldFocus: hasTransitionEnded && autoFocus,
+  });
   const { isProcessing } = attempt;
   return (
     <SSOButtonList
@@ -136,7 +140,7 @@ const SsoList = ({
       isDisabled={isProcessing}
       providers={authProviders}
       onClick={onLoginWithSso}
-      autoFocus={autoFocus}
+      ref={ref}
     />
   );
 };
@@ -145,7 +149,11 @@ const Passwordless = ({
   onLoginWithWebauthn,
   attempt,
   autoFocus = false,
-}: Props) => {
+  hasTransitionEnded,
+}: Props & { hasTransitionEnded: boolean }) => {
+  const ref = useRefAutoFocus<HTMLInputElement>({
+    shouldFocus: hasTransitionEnded && autoFocus,
+  });
   // Firefox currently does not support passwordless and when
   // logging in, it will return an ambigugous error.
   // We display a soft warning because firefox may provide
@@ -162,13 +170,13 @@ const Passwordless = ({
         </Alerts.Info>
       )}
       <StyledPaswordlessBtn
+        setRef={ref}
         mt={3}
         py={2}
         px={3}
         width="100%"
         onClick={() => onLoginWithWebauthn()}
         disabled={attempt.isProcessing}
-        autoFocus={autoFocus}
       >
         <Flex alignItems="center" justifyContent="space-between">
           <Flex alignItems="center">
@@ -297,7 +305,7 @@ const LocalForm = ({
                   maxWidth="50%"
                   width="100%"
                   data-testid="mfa-select"
-                  label="Two-factor type"
+                  label="Two-factor Type"
                   value={mfaType}
                   options={mfaOptions}
                   onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
@@ -309,7 +317,7 @@ const LocalForm = ({
                 {mfaType.value === 'otp' && (
                   <FieldInput
                     width="50%"
-                    label="Authenticator code"
+                    label="Authenticator Code"
                     rule={requiredToken}
                     autoComplete="one-time-code"
                     inputMode="numeric"
@@ -361,10 +369,22 @@ const Primary = ({
 
   switch (otherProps.primaryAuthType) {
     case 'passwordless':
-      $primary = <Passwordless {...otherProps} autoFocus={true} />;
+      $primary = (
+        <Passwordless
+          {...otherProps}
+          autoFocus={true}
+          hasTransitionEnded={hasTransitionEnded}
+        />
+      );
       break;
     case 'sso':
-      $primary = <SsoList {...otherProps} autoFocus={true} />;
+      $primary = (
+        <SsoList
+          {...otherProps}
+          autoFocus={true}
+          hasTransitionEnded={hasTransitionEnded}
+        />
+      );
       break;
     case 'local':
       otherOptionsAvailable = otherProps.isPasswordlessEnabled || ssoEnabled;

@@ -34,6 +34,7 @@ import {
   TshAbortSignal,
   TshClient,
   GetRequestableRolesResponse,
+  UpdateHeadlessAuthenticationStateParams,
 } from '../types';
 
 export class MockTshClient implements TshClient {
@@ -97,4 +98,8 @@ export class MockTshClient implements TshClient {
   logout = () => Promise.resolve();
   transferFile: () => undefined;
   reportUsageEvent: () => undefined;
+
+  updateHeadlessAuthenticationState: (
+    params: UpdateHeadlessAuthenticationStateParams
+  ) => Promise<void>;
 }

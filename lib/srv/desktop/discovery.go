@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -181,23 +182,66 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 	}
 }
 
+const dnsQueryTimeout = 5 * time.Second
+
 // lookupDesktop does a DNS lookup for the provided hostname.
 // It checks using the default system resolver first, and falls
-// back to making a DNS query of the configured LDAP server
-// if the system resolver fails.
-func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) (addrs []string, err error) {
-	tctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
+// back to the configured LDAP server if the system resolver fails.
+func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]string, error) {
+	stringAddrs := func(addrs []netip.Addr) []string {
+		result := make([]string, 0, len(addrs))
+		for _, addr := range addrs {
+			result = append(result, addr.String())
+		}
+		return result
+	}
 
-	addrs, err = net.DefaultResolver.LookupHost(tctx, hostname)
-	if err == nil && len(addrs) > 0 {
-		return addrs, nil
+	queryResolver := func(resolver *net.Resolver, resolverName string) chan []netip.Addr {
+		ch := make(chan []netip.Addr, 1)
+		go func() {
+			tctx, cancel := context.WithTimeout(ctx, dnsQueryTimeout)
+			defer cancel()
+
+			addrs, err := resolver.LookupNetIP(tctx, "ip4", hostname)
+			if err != nil {
+				s.cfg.Log.Debugf("DNS lookup for %v failed with %s resolver: %v",
+					hostname, resolverName, err)
+			}
+
+			// even though we requested "ip4" it's possible to get IPv4
+			// addresses mapped to IPv6 addresses, so we unmap them here
+			result := make([]netip.Addr, 0, len(addrs))
+			for _, addr := range addrs {
+				if addr.Is4() || addr.Is4In6() {
+					result = append(result, addr.Unmap())
+				}
+			}
+
+			ch <- result
+		}()
+		return ch
 	}
-	if s.dnsResolver == nil {
-		return nil, trace.NewAggregate(err, trace.Errorf("DNS lookup for %q failed and there's no LDAP server to fallback to", hostname))
+
+	// kick off both DNS queries in parallel
+	defaultResult := queryResolver(net.DefaultResolver, "default")
+	ldapResult := queryResolver(s.dnsResolver, "LDAP")
+
+	// wait for the default resolver to return (or time out)
+	addrs := <-defaultResult
+	if len(addrs) > 0 {
+		return stringAddrs(addrs), nil
 	}
-	s.cfg.Log.WithError(err).Debugf("DNS lookup for %q failed, falling back to LDAP server", hostname)
-	return s.dnsResolver.LookupHost(ctx, hostname)
+
+	// If we didn't get a result from the default resolver,
+	// use the result from the LDAP resolver.
+	// This shouldn't block for very long, since both operations
+	// started at the same time with the same timeout.
+	addrs = <-ldapResult
+	if len(addrs) > 0 {
+		return stringAddrs(addrs), nil
+	}
+
+	return nil, trace.Errorf("could not resolve %v in time", hostname)
 }
 
 // ldapEntryToWindowsDesktop generates the Windows Desktop resource
@@ -205,7 +249,12 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) (ad
 func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.ResourceWithLabels, error) {
 	hostname := entry.GetAttributeValue(windows.AttrDNSHostName)
 	if hostname == "" {
-		return nil, trace.BadParameter("LDAP entry missing hostname, has attributes: %v", entry.Attributes)
+		attrs := make([]string, len(entry.Attributes))
+		for _, a := range entry.Attributes {
+			attrs = append(attrs, fmt.Sprintf("%v=%v", a.Name, a.Values))
+		}
+		s.cfg.Log.Debugf("LDAP entry %v is missing hostname, has attributes %v", entry.DN, strings.Join(attrs, ","))
+		return nil, trace.BadParameter("LDAP entry %v missing hostname", entry.DN)
 	}
 	labels := getHostLabels(hostname)
 	labels[types.DiscoveryLabelWindowsDomain] = s.cfg.Domain
@@ -237,6 +286,9 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 		return nil, trace.Wrap(err)
 	}
 
-	desktop.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
+	// We use a longer TTL for discovered desktops, because the reconciler will manually
+	// purge them if they stop being detected, and discovery of large Windows fleets can
+	// take a long time.
+	desktop.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL * 3))
 	return desktop, nil
 }

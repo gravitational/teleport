@@ -14,6 +14,9 @@ resource "teleport_provision_token" "agent" {
     ]
     name = random_string.token[count.index].result
   }
+  metadata = {
+    expires = timeadd(timestamp(), "1h")
+  }
 }
 
 resource "aws_instance" "teleport_agent" {
@@ -23,7 +26,7 @@ resource "aws_instance" "teleport_agent" {
   instance_type = "t3.small"
   subnet_id     = var.subnet_id
   user_data = templatefile("./userdata", {
-    token                 = teleport_provision_token.agent[count.index].id
+    token                 = teleport_provision_token.agent[count.index].metadata.name
     proxy_service_address = var.proxy_service_address
     teleport_version      = var.teleport_version
   })
@@ -31,7 +34,8 @@ resource "aws_instance" "teleport_agent" {
   // The following two blocks adhere to security best practices.
 
   metadata_options {
-    http_tokens = "required"
+    http_endpoint = "enabled"
+    http_tokens   = "required"
   }
 
   root_block_device {

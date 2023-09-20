@@ -139,7 +139,7 @@ type Config struct {
 
 	// discoveryResourceChecker performs some pre-checks when creating databases
 	// discovered by the discovery service.
-	discoveryResourceChecker discoveryResourceChecker
+	discoveryResourceChecker cloud.DiscoveryResourceChecker
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -246,7 +246,11 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 
 	if c.discoveryResourceChecker == nil {
-		c.discoveryResourceChecker, err = newCloudCrednentialsChecker(ctx, c.CloudClients, c.ResourceMatchers)
+		c.discoveryResourceChecker, err = cloud.NewDiscoveryResourceChecker(cloud.DiscoveryResourceCheckerConfig{
+			ResourceMatchers: c.ResourceMatchers,
+			Clients:          c.CloudClients,
+			Context:          ctx,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -827,17 +831,17 @@ func (s *Server) Close() error {
 }
 
 // Shutdown performs a graceful shutdown.
-func (s *Server) Shutdown(ctx context.Context) (err error) {
-	err = s.close(ctx)
+func (s *Server) Shutdown(ctx context.Context) error {
+	err := s.close(ctx)
 	defer s.closeConnFunc()
 
 	activeConnections := s.activeConnections.Load()
 	if activeConnections == 0 {
-		return
+		return trace.Wrap(err)
 	}
 
 	s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
-	lastReport := time.Time{}
+	lastReport := time.Now()
 	ticker := time.NewTicker(s.cfg.ShutdownPollPeriod)
 	defer ticker.Stop()
 
@@ -846,7 +850,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 		case <-ticker.C:
 			activeConnections = s.activeConnections.Load()
 			if activeConnections == 0 {
-				return
+				return trace.Wrap(err)
 			}
 
 			if time.Since(lastReport) > 10*s.cfg.ShutdownPollPeriod {
@@ -855,7 +859,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 			}
 		case <-ctx.Done():
 			s.log.Infof("Context canceled wait, returning.")
-			return
+			return trace.Wrap(err)
 		}
 	}
 }
@@ -998,7 +1002,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	// Wrap a client connection into monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, sessionCtx.AuthContext, clientConn)
+	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(cancelCtx, sessionCtx.AuthContext, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

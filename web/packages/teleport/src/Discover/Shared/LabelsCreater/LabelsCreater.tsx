@@ -29,12 +29,14 @@ export function LabelsCreater({
   disableBtns = false,
   isLabelOptional = false,
   noDuplicateKey = false,
+  autoFocus = false,
 }: {
   labels: DiscoverLabel[];
   setLabels(l: DiscoverLabel[]): void;
   disableBtns?: boolean;
   isLabelOptional?: boolean;
   noDuplicateKey?: boolean;
+  autoFocus?: boolean;
 }) {
   const validator = useValidation() as Validator;
 
@@ -124,7 +126,7 @@ export function LabelsCreater({
                 <FieldInput
                   Input
                   rule={requiredUniqueKey}
-                  autoFocus
+                  autoFocus={autoFocus}
                   value={label.name}
                   placeholder="label key"
                   width="170px"

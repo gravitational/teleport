@@ -133,7 +133,7 @@ export function TopBar() {
   return (
     <TopBarContainer>
       {!hasClusterUrl && (
-        <Text fontSize="18px" bold>
+        <Text fontSize="18px" bold data-testid="title">
           {title}
         </Text>
       )}
@@ -167,7 +167,7 @@ export function TopBar() {
                     <PopupLogos>
                       <OpenAIIcon size={30} />
                       <PopupLogosSpacer>+</PopupLogosSpacer>
-                      <TeleportIcon light={theme.name === 'light'} />
+                      <TeleportIcon light={theme.type === 'light'} />
                     </PopupLogos>
 
                     <PopupButton onClick={() => setShowAssistPopup(false)}>

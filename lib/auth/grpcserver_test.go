@@ -62,7 +62,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -178,12 +178,12 @@ func TestMFADeviceManagement(t *testing.T) {
 				authHandler:  devs.webAuthHandler,
 				checkAuthErr: require.NoError,
 				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-					ccr, err := webKey2.SignCredentialCreation(webOrigin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					ccr, err := webKey2.SignCredentialCreation(webOrigin, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
 
 					return &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 						},
 					}
 				},
@@ -205,11 +205,11 @@ func TestMFADeviceManagement(t *testing.T) {
 					require.NoError(t, err)
 					key.PreferRPID = true
 					key.IgnoreAllowedCredentials = true
-					resp, err := key.SignAssertion(webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+					resp, err := key.SignAssertion(webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
 					require.NoError(t, err)
 					return &proto.MFAAuthenticateResponse{
 						Response: &proto.MFAAuthenticateResponse_Webauthn{
-							Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+							Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 						},
 					}
 				},
@@ -236,11 +236,11 @@ func TestMFADeviceManagement(t *testing.T) {
 					key.PreferRPID = true
 
 					ccr, err := key.SignCredentialCreation(
-						"http://badorigin.com" /* origin */, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+						"http://badorigin.com" /* origin */, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
 					return &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 						},
 					}
 				},
@@ -268,12 +268,12 @@ func TestMFADeviceManagement(t *testing.T) {
 					key.PreferRPID = true
 					key.SetPasswordless()
 
-					ccr, err := key.SignCredentialCreation(webOrigin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					ccr, err := key.SignCredentialCreation(webOrigin, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
 
 					return &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 						},
 					}
 				},
@@ -356,11 +356,11 @@ func TestMFADeviceManagement(t *testing.T) {
 					require.NoError(t, err)
 					key.PreferRPID = true
 					key.IgnoreAllowedCredentials = true
-					resp, err := key.SignAssertion(webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+					resp, err := key.SignAssertion(webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
 					require.NoError(t, err)
 					return &proto.MFAAuthenticateResponse{
 						Response: &proto.MFAAuthenticateResponse_Webauthn{
-							Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+							Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 						},
 					}
 				},
@@ -405,11 +405,11 @@ func TestMFADeviceManagement(t *testing.T) {
 				},
 				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					resp, err := webKey2.SignAssertion(
-						webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+						webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
 					require.NoError(t, err)
 					return &proto.MFAAuthenticateResponse{
 						Response: &proto.MFAAuthenticateResponse_Webauthn{
-							Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+							Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 						},
 					}
 				},
@@ -459,11 +459,11 @@ func (d *mfaDevices) webAuthHandler(t *testing.T, challenge *proto.MFAAuthentica
 	require.NotNil(t, challenge.WebauthnChallenge)
 
 	resp, err := d.WebKey.SignAssertion(
-		d.webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+		d.webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
 	require.NoError(t, err)
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+			Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 		},
 	}
 }
@@ -471,7 +471,7 @@ func (d *mfaDevices) webAuthHandler(t *testing.T, challenge *proto.MFAAuthentica
 func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, origin string) mfaDevices {
 	const totpName = "totp-dev"
 	const webName = "webauthn-dev"
-	devs := mfaDevices{
+	mfaDevs := mfaDevices{
 		clock:     clock,
 		webOrigin: origin,
 		TOTPName:  totpName,
@@ -479,13 +479,13 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 	}
 
 	var err error
-	devs.WebKey, err = mocku2f.Create()
+	mfaDevs.WebKey, err = mocku2f.Create()
 	require.NoError(t, err)
-	devs.WebKey.PreferRPID = true
+	mfaDevs.WebKey.PreferRPID = true
 
-	// Add MFA devices of all kinds.
 	ctx := context.Background()
-	for _, test := range []struct {
+
+	devs := []struct {
 		name string
 		opts mfaAddTestOpts
 	}{
@@ -505,8 +505,8 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 					require.NotEmpty(t, challenge.GetTOTP())
 					require.Equal(t, challenge.GetTOTP().Algorithm, otp.AlgorithmSHA1.String())
 
-					devs.TOTPSecret = challenge.GetTOTP().Secret
-					code, err := totp.GenerateCodeCustom(devs.TOTPSecret, clock.Now(), totp.ValidateOpts{
+					mfaDevs.TOTPSecret = challenge.GetTOTP().Secret
+					code, err := totp.GenerateCodeCustom(mfaDevs.TOTPSecret, clock.Now(), totp.ValidateOpts{
 						Period:    uint(challenge.GetTOTP().PeriodSeconds),
 						Digits:    otp.Digits(challenge.GetTOTP().Digits),
 						Algorithm: otp.AlgorithmSHA1,
@@ -523,7 +523,7 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 				},
 				checkRegisterErr: require.NoError,
 				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
-					want, err := services.NewTOTPDevice(totpName, devs.TOTPSecret, clock.Now())
+					want, err := services.NewTOTPDevice(totpName, mfaDevs.TOTPSecret, clock.Now())
 					want.Id = got.Id
 					require.NoError(t, err)
 					require.Empty(t, cmp.Diff(want, got))
@@ -537,16 +537,16 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 					DeviceName: webName,
 					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
-				authHandler:  devs.totpAuthHandler,
+				authHandler:  mfaDevs.totpAuthHandler,
 				checkAuthErr: require.NoError,
 				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
 					require.NotNil(t, challenge.GetWebauthn())
 
-					ccr, err := devs.WebKey.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					ccr, err := mfaDevs.WebKey.SignCredentialCreation(origin, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
 					return &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 						},
 					}
 				},
@@ -554,16 +554,17 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
 					// MFADevice device asserted in its entirety by lib/auth/webauthn
 					// tests, a simple check suffices here.
-					require.Equal(t, devs.WebKey.KeyHandle, got.GetWebauthn().CredentialId)
+					require.Equal(t, mfaDevs.WebKey.KeyHandle, got.GetWebauthn().CredentialId)
 				},
 			},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			testAddMFADevice(ctx, t, cl, test.opts)
-		})
 	}
-	return devs
+
+	for _, dev := range devs {
+		testAddMFADevice(ctx, t, cl, dev.opts)
+	}
+
+	return mfaDevs
 }
 
 type mfaAddTestOpts struct {
@@ -4370,4 +4371,91 @@ func TestRoleVersions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpsertApplicationServerOrigin(t *testing.T) {
+	t.Parallel()
+
+	parentCtx := context.Background()
+	server := newTestTLSServer(t)
+
+	admin := TestAdmin()
+
+	client, err := server.NewClient(admin)
+	require.NoError(t, err)
+
+	// Dynamic origin should work for admin role.
+	app, err := types.NewAppV3(types.Metadata{
+		Name:   "app1",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost1",
+	})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "localhost", "123456")
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(parentCtx, admin.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	// Okta origin should not work for admin role.
+	app.SetOrigin(types.OriginOkta)
+	appServer, err = types.NewAppServerV3FromApp(app, "localhost", "123456")
+	require.NoError(t, err)
+
+	ctx = authz.ContextWithUser(parentCtx, admin.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.ErrorIs(t, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"), err)
+
+	// Okta origin should not work with instance and node roles.
+	client, err = server.NewClient(TestIdentity{
+		I: authz.BuiltinRole{
+			Role: types.RoleInstance,
+			AdditionalSystemRoles: []types.SystemRole{
+				types.RoleNode,
+			},
+			Username: server.ClusterName(),
+		},
+	})
+	require.NoError(t, err)
+
+	ctx = authz.ContextWithUser(parentCtx, admin.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.ErrorIs(t, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"), err)
+
+	// Okta origin should work with Okta role in role field.
+	node := TestIdentity{
+		I: authz.BuiltinRole{
+			Role: types.RoleOkta,
+			AdditionalSystemRoles: []types.SystemRole{
+				types.RoleNode,
+			},
+			Username: server.ClusterName(),
+		},
+	}
+	client, err = server.NewClient(node)
+	require.NoError(t, err)
+
+	ctx = authz.ContextWithUser(parentCtx, node.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	// Okta origin should work with Okta role in additional system roles.
+	node = TestIdentity{
+		I: authz.BuiltinRole{
+			Role: types.RoleInstance,
+			AdditionalSystemRoles: []types.SystemRole{
+				types.RoleNode,
+				types.RoleOkta,
+			},
+			Username: server.ClusterName(),
+		},
+	}
+	client, err = server.NewClient(node)
+	require.NoError(t, err)
+
+	ctx = authz.ContextWithUser(parentCtx, node.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
 }

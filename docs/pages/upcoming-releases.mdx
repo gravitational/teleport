@@ -8,31 +8,11 @@ The Teleport team delivers a new major release roughly every 3 months.
 
 ## Teleport
 
-| Version | Date                |
-|---------|---------------------|
-| 13.3.0  | July 31st, 2023     |
-| 13.4.0  | August 21st, 2023   |
-| 14.0.0  | September 4th, 2023 |
-| 14.1.0  | October 4th, 2023   |
-
-### 13.3.0
-
-#### (Preview) GCP Auto-Discovery for Server Access
-
-Teleport will be able to automatically enroll GCP VMs for server access.
-
-*Delayed from Teleport 13.2.0.*
-
-#### (Preview) Native Azure support
-
-Teleport will add native support for Azure for Auth and Audit backends.
-
-#### ~(Preview) Device Trust Intune integration~
-
-~Teleport will add a new service for integrating with Microsoft Intune, allowing
-users to sync device inventory and automatically enroll trusted devices.~
-
-*Indefinitely postponed.*
+| Version | Date                 |
+|---------|----------------------|
+| 13.4.0  | September 20th, 2023 |
+| 14.0.0  | September 20th, 2023 |
+| 14.1.0  | October 16th, 2023   |
 
 ### 13.4.0
 
@@ -43,35 +23,51 @@ with periodic mandatory access reviews and detailed audit trail.
 
 ### 14.0.0
 
-#### (Preview) Advanced Audit Log
+#### Advanced Audit Log
 
 Teleport will include a new audit log backend that supports efficient
 searching, sorting, and filtering operations.
 
-#### (Preview) ClickHouse support for database access
+#### Automatic discovery of web applications
+
+Teleport will be able to automatically find and enroll web applications running
+in a Kubernetes cluster.
+
+#### ClickHouse support for database access
 
 Teleport will add support for ClickHouse to database access.
 
 #### Limited Passwordless access for local Windows users in OSS Teleport
 
-Teleport Community edition will gain the ability to create 3 Windows desktops
+Teleport Community edition will gain the ability to create 5 Windows desktops
 with local users.
 
-#### Additional features
+#### Access Lists
 
-In addition, Teleport 14 will include:
+Teleport administrators will be able to configure long-term user access lists,
+with periodic mandatory access reviews and detailed audit trail.
 
-- SAML configuration wizard
-- Performance improvements
+#### Discord and ServiceNow hosted plugins
+
+Teleport Cloud users will be able to configure Discord and ServiceNow integrations
+for access request reviews from the web UI.
 
 ### 14.1.0
 
-#### (Preview) Automatic discovery of web applications
+#### Access Reviews
 
-Teleport will be able to automatically find and enroll web applications running
-in a Kubernetes cluster.
+Access list owners will be able to perform regular periodic reviews of the list
+members.
 
-*Delayed from Teleport 14.0.0.*
+#### Connect my Computer for Teleport Connect
+
+Users on macOS and Linux will be able to seamlessly add their computer to a Teleport
+cluster with Teleport Connect.
+
+#### EC2 agentless support for SSH
+
+Users will be able to connect to EC2 instances via AWS EC2 Instance Connect
+endpoints, without needing to install Teleport agents.
 
 ## Teleport Cloud
 

@@ -426,3 +426,341 @@ func TestPluginJamfValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestPluginMattermostValidation(t *testing.T) {
+	defaultSettings := &PluginSpecV1_Mattermost{
+		Mattermost: &PluginMattermostSettings{
+			ServerUrl: "https://test.mattermost.com",
+			Team:      "team-llama",
+			Channel:   "teleport",
+		},
+	}
+
+	testCases := []struct {
+		name      string
+		settings  *PluginSpecV1_Mattermost
+		creds     *PluginCredentialsV1
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "no settings",
+			settings: &PluginSpecV1_Mattermost{
+				Mattermost: nil,
+			},
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "missing Mattermost settings")
+			},
+		},
+		{
+			name: "no server url",
+			settings: &PluginSpecV1_Mattermost{
+				Mattermost: &PluginMattermostSettings{},
+			},
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "server url is required")
+			},
+		},
+		{
+			name: "no team",
+			settings: &PluginSpecV1_Mattermost{
+				Mattermost: &PluginMattermostSettings{
+					ServerUrl: "https://test.mattermost.com",
+					Channel:   "some-channel",
+				},
+			},
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "team is required")
+			},
+		},
+		{
+			name: "no channel",
+			settings: &PluginSpecV1_Mattermost{
+				Mattermost: &PluginMattermostSettings{
+					ServerUrl: "https://test.mattermost.com",
+					Team:      "team-llama",
+				},
+			},
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "channel is required")
+			},
+		},
+		{
+			name:     "no credentials inner",
+			settings: defaultSettings,
+			creds:    &PluginCredentialsV1{},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
+			},
+		},
+		{
+			name:     "invalid credential type (oauth2)",
+			settings: defaultSettings,
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_Oauth2AccessToken{},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
+			},
+		},
+		{
+			name:     "no labels for credentials",
+			settings: defaultSettings,
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "labels must be specified")
+			},
+		},
+		{
+			name:     "valid settings with team/channel",
+			settings: defaultSettings,
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "valid settings with no team/channel",
+			settings: &PluginSpecV1_Mattermost{
+				Mattermost: &PluginMattermostSettings{
+					ServerUrl: "https://test.mattermost.com",
+				},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin := NewPluginV1(Metadata{Name: "foobar"}, PluginSpecV1{
+				Settings: tc.settings,
+			}, tc.creds)
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+}
+
+func requireBadParameterError(t require.TestingT, err error, args ...any) {
+	if tt, ok := t.(*testing.T); ok {
+		tt.Helper()
+	}
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), args...)
+}
+
+func reqireNamedBadParameterError(name string) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, args ...any) {
+		if tt, ok := t.(*testing.T); ok {
+			tt.Helper()
+		}
+		require.ErrorContains(t, err, name)
+		require.True(t, trace.IsBadParameter(err))
+	}
+}
+
+func TestPluginJiraValidation(t *testing.T) {
+	validSettings := func() *PluginSpecV1_Jira {
+		return &PluginSpecV1_Jira{
+			&PluginJiraSettings{
+				ServerUrl:  "https://example.com",
+				ProjectKey: "PRJ",
+				IssueType:  "Task",
+			},
+		}
+	}
+	validCreds := func() *PluginCredentialsV1 {
+		return &PluginCredentialsV1{
+			Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+				&PluginStaticCredentialsRef{
+					Labels: map[string]string{
+						"jira/address":   "https://jira.example.com",
+						"jira/project":   "PRJ",
+						"jira/issueType": "Task",
+					},
+				},
+			},
+		}
+	}
+
+	testCases := []struct {
+		name           string
+		mutateSettings func(*PluginSpecV1_Jira)
+		mutateCreds    func(*PluginCredentialsV1)
+		assertErr      require.ErrorAssertionFunc
+	}{
+		{
+			name:      "Valid",
+			assertErr: require.NoError,
+		}, {
+			name:           "Missing Settings",
+			mutateSettings: func(s *PluginSpecV1_Jira) { s.Jira = nil },
+			assertErr:      requireBadParameterError,
+		}, {
+			name:           "Missing Server URL",
+			mutateSettings: func(s *PluginSpecV1_Jira) { s.Jira.ServerUrl = "" },
+			assertErr:      reqireNamedBadParameterError("server URL"),
+		}, {
+			name:           "Missing Project Key",
+			mutateSettings: func(s *PluginSpecV1_Jira) { s.Jira.ProjectKey = "" },
+			assertErr:      reqireNamedBadParameterError("project key"),
+		}, {
+			name:           "Missing Issue Type",
+			mutateSettings: func(s *PluginSpecV1_Jira) { s.Jira.IssueType = "" },
+			assertErr:      reqireNamedBadParameterError("issue type"),
+		}, {
+			name:        "Missing Credentials",
+			mutateCreds: func(c *PluginCredentialsV1) { c.Credentials = nil },
+			assertErr:   requireBadParameterError,
+		}, {
+			name: "Missing Credential Labels",
+			mutateCreds: func(c *PluginCredentialsV1) {
+				c.Credentials.(*PluginCredentialsV1_StaticCredentialsRef).
+					StaticCredentialsRef.
+					Labels = map[string]string{}
+			},
+			assertErr: reqireNamedBadParameterError("labels"),
+		}, {
+			name: "Invalid Credential Type",
+			mutateCreds: func(c *PluginCredentialsV1) {
+				c.Credentials = &PluginCredentialsV1_Oauth2AccessToken{}
+			},
+			assertErr: reqireNamedBadParameterError("static credentials"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := validSettings()
+			if tc.mutateSettings != nil {
+				tc.mutateSettings(settings)
+			}
+
+			creds := validCreds()
+			if tc.mutateCreds != nil {
+				tc.mutateCreds(creds)
+			}
+
+			plugin := NewPluginV1(Metadata{Name: "uut"}, PluginSpecV1{
+				Settings: settings,
+			}, creds)
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+}
+
+func TestPluginDiscordValidation(t *testing.T) {
+	validSettings := func() *PluginSpecV1_Discord {
+		return &PluginSpecV1_Discord{
+			&PluginDiscordSettings{
+				RoleToRecipients: map[string]*DiscordChannels{
+					"*": &DiscordChannels{ChannelIds: []string{"1234567890"}},
+				},
+			},
+		}
+	}
+	validCreds := func() *PluginCredentialsV1 {
+		return &PluginCredentialsV1{
+			Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+				&PluginStaticCredentialsRef{
+					Labels: map[string]string{},
+				},
+			},
+		}
+	}
+
+	testCases := []struct {
+		name           string
+		mutateSettings func(*PluginSpecV1_Discord)
+		mutateCreds    func(*PluginCredentialsV1)
+		assertErr      require.ErrorAssertionFunc
+	}{
+		{
+			name:      "Valid",
+			assertErr: require.NoError,
+		}, {
+			name:           "Missing Settings",
+			mutateSettings: func(s *PluginSpecV1_Discord) { s.Discord = nil },
+			assertErr:      requireBadParameterError,
+		}, {
+			name: "Empty Role Mapping",
+			mutateSettings: func(s *PluginSpecV1_Discord) {
+				s.Discord.RoleToRecipients = map[string]*DiscordChannels{}
+			},
+			assertErr: reqireNamedBadParameterError("role_to_recipients"),
+		}, {
+			name: "Missing Default Mapping",
+			mutateSettings: func(s *PluginSpecV1_Discord) {
+				delete(s.Discord.RoleToRecipients, Wildcard)
+				s.Discord.RoleToRecipients["access"] = &DiscordChannels{
+					ChannelIds: []string{"1234567890"},
+				}
+			},
+			assertErr: reqireNamedBadParameterError("default entry"),
+		}, {
+			name:        "Missing Credentials",
+			mutateCreds: func(c *PluginCredentialsV1) { c.Credentials = nil },
+			assertErr:   requireBadParameterError,
+		}, {
+			name: "Invalid Credential Type",
+			mutateCreds: func(c *PluginCredentialsV1) {
+				c.Credentials = &PluginCredentialsV1_Oauth2AccessToken{}
+			},
+			assertErr: reqireNamedBadParameterError("static credentials"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := validSettings()
+			if tc.mutateSettings != nil {
+				tc.mutateSettings(settings)
+			}
+
+			creds := validCreds()
+			if tc.mutateCreds != nil {
+				tc.mutateCreds(creds)
+			}
+
+			plugin := NewPluginV1(
+				Metadata{Name: "uut"},
+				PluginSpecV1{Settings: settings},
+				creds)
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+}

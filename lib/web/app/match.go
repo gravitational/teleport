@@ -101,6 +101,11 @@ func MatchName(name string) Matcher {
 // doesn't return any error.
 func MatchHealthy(proxyClient reversetunnel.Tunnel, clusterName string) Matcher {
 	return func(ctx context.Context, appServer types.AppServer) bool {
+		// Redirected apps don't need to be dialed, as the proxy will redirect to them.
+		if redirectInsteadOfForward(appServer) {
+			return true
+		}
+
 		conn, err := dialAppServer(ctx, proxyClient, clusterName, appServer)
 		if err != nil {
 			return false

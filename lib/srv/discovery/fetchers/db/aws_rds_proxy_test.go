@@ -17,10 +17,8 @@ limitations under the License.
 package db
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/stretchr/testify/require"
 
@@ -68,30 +66,14 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 }
 
 func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types.Database) {
-	rdsProxy := &rds.DBProxy{
-		DBProxyArn:   aws.String(fmt.Sprintf("arn:aws:rds:%s:123456789012:db-proxy:prx-%s", region, name)),
-		DBProxyName:  aws.String(name),
-		EngineFamily: aws.String(rds.EngineFamilyMysql),
-		Endpoint:     aws.String("localhost"),
-		VpcId:        aws.String(vpcID),
-		RequireTLS:   aws.Bool(true),
-		Status:       aws.String("available"),
-	}
-
+	rdsProxy := mocks.RDSProxy(name, region, vpcID)
 	rdsProxyDatabase, err := services.NewDatabaseFromRDSProxy(rdsProxy, 9999, nil)
 	require.NoError(t, err)
 	return rdsProxy, rdsProxyDatabase
 }
 
 func makeRDSProxyCustomEndpoint(t *testing.T, rdsProxy *rds.DBProxy, name, region string) (*rds.DBProxyEndpoint, types.Database) {
-	rdsProxyEndpoint := &rds.DBProxyEndpoint{
-		Endpoint:            aws.String("localhost"),
-		DBProxyEndpointName: aws.String(name),
-		DBProxyName:         rdsProxy.DBProxyName,
-		DBProxyEndpointArn:  aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db-proxy-endpoint:prx-endpoint-%v", region, name)),
-		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
-		Status:              aws.String("available"),
-	}
+	rdsProxyEndpoint := mocks.RDSProxyCustomEndpoint(rdsProxy, name, region)
 	rdsProxyEndpointDatabase, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint, 9999, nil)
 	require.NoError(t, err)
 	return rdsProxyEndpoint, rdsProxyEndpointDatabase

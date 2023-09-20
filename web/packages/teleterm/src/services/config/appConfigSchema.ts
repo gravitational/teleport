@@ -110,6 +110,12 @@ export const createAppConfigSchema = (platform: Platform) => {
     'keymap.openSearchBar': shortcutSchema
       .default(defaultKeymap['openSearchBar'])
       .describe(getShortcutDesc('open the search bar')),
+    'headless.skipConfirm': z
+      .boolean()
+      .default(false)
+      .describe(
+        'Skips the confirmation prompt for headless login approval and instead prompts for WebAuthn immediately.'
+      ),
   });
 };
 

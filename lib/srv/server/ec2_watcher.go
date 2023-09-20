@@ -27,8 +27,10 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
@@ -39,6 +41,8 @@ const (
 	// https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-instances.html
 	// Used for filtering instances for automatic EC2 discovery
 	AWSInstanceStateName = "instance-state-name"
+
+	awsEventPrefix = "aws/"
 )
 
 // EC2Instances contains information required to send SSM commands to EC2 instances
@@ -112,6 +116,23 @@ func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 	}
 
 	return serverInfos, nil
+}
+
+// MakeEvents generates ResourceCreateEvents for these instances.
+func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
+	resourceType := types.DiscoveredResourceNode
+	if instances.DocumentName == defaults.AWSAgentlessInstallerDocument {
+		resourceType = types.DiscoveredResourceAgentlessNode
+	}
+	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
+	for _, inst := range instances.Instances {
+		events[awsEventPrefix+inst.InstanceID] = &usageeventsv1.ResourceCreateEvent{
+			ResourceType:   resourceType,
+			ResourceOrigin: types.OriginCloud,
+			CloudProvider:  types.CloudAWS,
+		}
+	}
+	return events
 }
 
 // NewEC2Watcher creates a new EC2 watcher instance.
@@ -317,7 +338,7 @@ func chunkInstances(insts EC2Instances) []Instances {
 			Instances:    insts.Instances[i:end],
 			Rotation:     insts.Rotation,
 		}
-		instColl = append(instColl, Instances{EC2Instances: &inst})
+		instColl = append(instColl, Instances{EC2: &inst})
 	}
 	return instColl
 }
@@ -348,7 +369,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 					for _, ec2inst := range res.Instances[i:end] {
 						f.cachedInstances.add(ownerID, aws.StringValue(ec2inst.InstanceId))
 					}
-					instances = append(instances, Instances{EC2Instances: &inst})
+					instances = append(instances, Instances{EC2: &inst})
 				}
 			}
 			return true

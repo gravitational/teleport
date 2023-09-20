@@ -381,7 +381,7 @@ func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 	// Note: we *don't* want to add suffix for kubernetes_service!
 	// This breaks reverse tunnel routing, which uses server.Name.
 	if t.KubeServiceType != KubeService {
-		name += "-proxy_service"
+		name += teleport.KubeLegacyProxySuffix
 	}
 
 	srv, err := types.NewKubernetesServerV3(

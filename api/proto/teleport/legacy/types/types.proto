@@ -385,6 +385,35 @@ message DatabaseStatusV3 {
   ];
 }
 
+// IAMPolicyStatus represents states that describe if an AWS database
+// has its IAM policy properly configured or not.
+// This enum is set in a Sync.Map during an IAM task that checks for the
+// validity of IAM policy, and the database gets updated with the value
+// from this map during a heartbeat.
+enum IAMPolicyStatus {
+  // IAM_POLICY_STATUS_UNSPECIFIED represents a zero value where
+  // nothing has been attempted yet.
+  IAM_POLICY_STATUS_UNSPECIFIED = 0;
+  // IAM_POLICY_STATUS_PENDING represents a state where iam policy status
+  // is pending to be checked. This enum value is set at the start of
+  // registering a database -> IAM setup (before the db heartbeat starts).
+  //
+  // This state was required for two reasons:
+  //   1) To be able to tell apart from an older service that do not update
+  //      the IAMPolicyStatus (in which case the enum value will remain the
+  //      zero value).
+  //   2) When starting a database, the heartbeat and its IAM task starts,
+  //      and the heartbeat may run first before the IAM task finishes.
+  IAM_POLICY_STATUS_PENDING = 1;
+  // IAM_POLICY_STATUS_FAILED represents a state where an error occured
+  // while checking for IAM policy status eg: no AWS credentials provider found
+  // or the policy was misconfigured.
+  IAM_POLICY_STATUS_FAILED = 2;
+  // IAM_POLICY_STATUS_SUCCESS represents a state where IAM policy was configured
+  // correctly.
+  IAM_POLICY_STATUS_SUCCESS = 3;
+}
+
 // AWS contains AWS metadata about the database.
 message AWS {
   // Region is a AWS cloud region.
@@ -437,10 +466,13 @@ message AWS {
     (gogoproto.jsontag) = "opensearch,omitempty"
   ];
 
-  // IAMPolicyExists indicates whether the IAM Policy is configured properly for database access.
+  reserved 13;
+  reserved "IAMPolicyExists";
+
+  // IAMPolicyStatus indicates whether the IAM Policy is configured properly for database access.
   // If not, the user must update the AWS profile identity to allow access to the Database.
-  // Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database
-  bool IAMPolicyExists = 13 [(gogoproto.jsontag) = "iam_policy_exists"];
+  // Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.
+  IAMPolicyStatus IAMPolicyStatus = 14 [(gogoproto.jsontag) = "iam_policy_status"];
 }
 
 // SecretStore contains secret store configurations.
@@ -469,6 +501,8 @@ message RDS {
   bool IAMAuth = 4 [(gogoproto.jsontag) = "iam_auth"];
   // Subnets is a list of subnets for the RDS instance.
   repeated string Subnets = 5 [(gogoproto.jsontag) = "subnets,omitempty"];
+  // VPCID is the VPC where the RDS is running.
+  string VPCID = 6 [(gogoproto.jsontag) = "vpc_id,omitempty"];
 }
 
 // RDSProxy contains AWS RDS Proxy specific database metadata.
@@ -816,6 +850,8 @@ message AWSInfo {
   // When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection.
   // This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.
   string Integration = 5 [(gogoproto.jsontag) = "integration,omitempty"];
+  // SubnetID is the Subnet ID in use by the instance.
+  string SubnetID = 6 [(gogoproto.jsontag) = "subnet_id,omitempty"];
 }
 
 // CloudMetadata contains info about the cloud instance a server is running
@@ -970,6 +1006,8 @@ message Rewrite {
   // Headers is a list of headers to inject when passing the request over
   // to the application.
   repeated Header Headers = 2 [(gogoproto.jsontag) = "headers,omitempty"];
+  // JWTClaims configures whether roles/traits are included in the JWT token.
+  string JWTClaims = 3 [(gogoproto.jsontag) = "jwt_claims,omitempty"];
 }
 
 // Header represents a single http header passed over to the proxied application.
@@ -1356,6 +1394,12 @@ message ProvisionTokenSpecV2CircleCI {
 // ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
 // ProvisionTokenSpecV2
 message ProvisionTokenSpecV2Kubernetes {
+  message StaticJWKSConfig {
+    // JWKS should be the JSON Web Key Set formatted public keys of that the
+    // Kubernetes Cluster uses to sign service account tokens.
+    // This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
+    string JWKS = 1 [(gogoproto.jsontag) = "jwks,omitempty"];
+  }
   // Rule is a set of properties the Kubernetes-issued token might have to be
   // allowed to use this ProvisionToken
   message Rule {
@@ -1366,6 +1410,17 @@ message ProvisionTokenSpecV2Kubernetes {
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // Type controls which behavior should be used for validating the Kubernetes
+  // Service Account token. Support values:
+  // - `in_cluster`
+  // - `static_jwks`
+  // If unset, this defaults to `in_cluster`.
+  string Type = 2 [
+    (gogoproto.jsontag) = "type,omitempty",
+    (gogoproto.casttype) = "KubernetesJoinType"
+  ];
+  // StaticJWKS is the configuration specific to the `static_jwks` type.
+  StaticJWKSConfig StaticJWKS = 3 [(gogoproto.jsontag) = "static_jwks,omitempty"];
 }
 
 // ProvisionTokenSpecV2Azure contains the Azure-specific part of the
@@ -1809,6 +1864,10 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "default_session_ttl,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // Okta is a set of options related to the Okta service in Teleport.
+  // Requires Teleport Enterprise.
+  OktaOptions Okta = 17 [(gogoproto.jsontag) = "okta,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -2213,6 +2272,20 @@ message AccessRequestSpecV3 {
   // DryRun indicates that the request should not actually be created, the
   // auth server should only validate the access request.
   bool DryRun = 16 [(gogoproto.jsontag) = "dry_run,omitempty"];
+
+  // MaxDuration indicates how long the access should be granted for.
+  google.protobuf.Timestamp MaxDuration = 17 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "max_duration,omitempty"
+  ];
+
+  // SessionTLL indicated how long a certificate for a session should be valid for.
+  google.protobuf.Timestamp SessionTTL = 18 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "session_ttl,omitempty"
+  ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -2856,6 +2929,13 @@ message AccessRequestConditions {
   // defines the underlying roles which will be requested as part of any
   // Resource Access Request.
   repeated string SearchAsRoles = 6 [(gogoproto.jsontag) = "search_as_roles,omitempty"];
+
+  // MaxDuration is the amount of time the access will be granted for.
+  // If this is zero, the default duration is used.
+  int64 MaxDuration = 7 [
+    (gogoproto.jsontag) = "max_duration,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on
@@ -3009,9 +3089,13 @@ message UserSpecV2 {
     (gogoproto.jsontag) = "created_by,omitempty"
   ];
 
-  // LocalAuths hold sensitive data necessary for performing local
+  // LocalAuth holds sensitive data necessary for performing local
   // authentication
   LocalAuthSecrets LocalAuth = 9 [(gogoproto.jsontag) = "local_auth,omitempty"];
+
+  // TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user.
+  // Managed by the Device Trust subsystem, avoid manual edits.
+  repeated string TrustedDeviceIDs = 10 [(gogoproto.jsontag) = "trusted_device_ids,omitempty"];
 }
 
 // ExternalIdentity is OpenID Connect/SAML or Github identity that is linked
@@ -3888,6 +3972,22 @@ message OIDCConnectorSpecV3 {
   bool AllowUnverifiedEmail = 15 [(gogoproto.jsontag) = "allow_unverified_email,omitempty"];
   // UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.
   string UsernameClaim = 16 [(gogoproto.jsontag) = "username_claim,omitempty"];
+  // MaxAge is the amount of time that user logins are
+  // valid for. If a user logs in, but then does not login again
+  // within this time period, they will be forced to re-authenticate.
+  MaxAge MaxAge = 17 [
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+}
+
+// MaxAge allows the max_age parameter to be nullable to preserve backwards
+// compatibility. The duration is stored as nanoseconds.
+message MaxAge {
+  int64 Value = 1 [
+    (gogoproto.jsontag) = "max_age",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -4868,6 +4968,9 @@ message SessionTrackerSpecV1 {
 
   // DesktopName is the windows desktop server this session belongs to.
   string DesktopName = 20 [(gogoproto.jsontag) = "desktop_name,omitempty"];
+
+  // TargetSubKind is the sub kind of the target server.
+  string TargetSubKind = 22 [(gogoproto.jsontag) = "target_sub_kind,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker
@@ -5261,6 +5364,12 @@ message PluginSpecV1 {
     PluginJamfSettings jamf = 5;
     // Settings for the PagerDuty plugin
     PluginPagerDutySettings pager_duty = 6;
+    // Settings for the Mattermost plugin
+    PluginMattermostSettings mattermost = 7;
+    // Settings for the JIRA plugin
+    PluginJiraSettings jira = 8;
+    // Settings for the Discord plugin
+    PluginDiscordSettings discord = 9;
   }
 }
 
@@ -5299,9 +5408,39 @@ message PluginPagerDutySettings {
   string api_endpoint = 2;
 }
 
+message PluginJiraSettings {
+  option (gogoproto.equal) = true;
+
+  // ServerURL is the address of the target JIRA Server instance.
+  string server_url = 1;
+
+  // ProjectKey is the key of the Jira project that will receive
+  // notifications and issues from the plugin.
+  string project_key = 2;
+
+  // IssueType is the type of Jira Issue that the plugin will create
+  string issue_type = 3;
+}
+
 // Defines settings for the OpenAI plugin. Currently there are no settings.
 message PluginOpenAISettings {
   option (gogoproto.equal) = true;
+}
+
+// Defines settings for the Mattermost plugin.
+message PluginMattermostSettings {
+  option (gogoproto.equal) = true;
+  // serverURL is the URL to access Mattermost.
+  string server_url = 1;
+  // team is the Mattermost workspace.
+  string team = 2;
+  // channel is the Mattermost channel in the workspace
+  // (team) to send notifications to.
+  string channel = 3;
+  // report_to_email is an optional email address of a Mattermost user
+  // to notify via a direct message when the plugin receives an
+  // Access Request event.
+  string report_to_email = 4;
 }
 
 // Defines settings for Jamf plugin.
@@ -5317,6 +5456,22 @@ message PluginOktaSettings {
 
   // OrgUrl is the Okta organization URL to use for API communication.
   string org_url = 1;
+}
+
+// Defines a set of discord channel IDs
+message DiscordChannels {
+  option (gogoproto.equal) = true;
+  repeated string channel_ids = 1;
+}
+
+// Defines settings for the discord plugin
+message PluginDiscordSettings {
+  option (gogoproto.equal) = true;
+
+  // RoleToRecipients maps Teleport roles (by name) to the set of Discord
+  // channel IDs that will receive notifications and requests regarding that
+  // that Role.
+  map<string, DiscordChannels> role_to_recipients = 1;
 }
 
 message PluginBootstrapCredentialsV1 {
@@ -6056,11 +6211,11 @@ message AzureMatcher {
 
 // GCPMatcher matches GCP resources.
 message GCPMatcher {
-  // Types are GKE resource types to match: "gke".
+  // Types are GKE resource types to match: "gke", "vm".
   repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
   // Locations are GKE locations to search resources for.
   repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
-  // Tags are GCP labels to match.
+  // Tags is obsolete and only exists for backwards compatibility. Use Labels instead.
   wrappers.LabelValues Tags = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "tags,omitempty",
@@ -6068,4 +6223,24 @@ message GCPMatcher {
   ];
   // ProjectIDs are the GCP project ID where the resources are deployed.
   repeated string ProjectIDs = 4 [(gogoproto.jsontag) = "project_ids,omitempty"];
+  // ServiceAccounts are the emails of service accounts attached to VMs.
+  repeated string ServiceAccounts = 5 [(gogoproto.jsontag) = "service_accounts,omitempty"];
+  // Params sets the join method when installing on
+  // discovered GCP nodes.
+  InstallerParams Params = 6 [(gogoproto.jsontag) = "install_params,omitempty"];
+  // Labels are GCP labels to match.
+  wrappers.LabelValues Labels = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+}
+
+// OktaOptions specify options related to the Okta service.
+message OktaOptions {
+  // SyncPeriod is the duration between synchronization calls in nanoseconds.
+  int64 SyncPeriod = 1 [
+    (gogoproto.jsontag) = "sync_period,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }

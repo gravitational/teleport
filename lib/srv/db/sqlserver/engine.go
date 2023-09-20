@@ -17,6 +17,7 @@ limitations under the License.
 package sqlserver
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net"
@@ -132,6 +133,12 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 		e.Log.Debug("Stop receiving from client.")
 		close(clientErrCh)
 	}()
+
+	// initialPacketHeader and chunkData are used to accumulate chunked packets
+	// to build a single packet with full contents for auditing.
+	var initialPacketHeader protocol.PacketHeader
+	var chunkData bytes.Buffer
+
 	for {
 		p, err := protocol.ReadPacket(clientConn)
 		if err != nil {
@@ -144,13 +151,24 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 			return
 		}
 
-		sqlPacket, err := protocol.ToSQLPacket(p)
-		switch {
-		case err != nil:
-			e.Log.WithError(err).Errorf("Failed to parse SQLServer packet.")
-			e.emitMalformedPacket(e.Context, sessionCtx, p)
-		default:
-			e.auditPacket(e.Context, sessionCtx, sqlPacket)
+		// Audit events are going to be emitted only on final messages, this way
+		// the packet parsing can be complete and provide the query/RPC
+		// contents.
+		if protocol.IsFinalPacket(p) {
+			sqlPacket, err := e.toSQLPacket(initialPacketHeader, p, &chunkData)
+			switch {
+			case err != nil:
+				e.Log.WithError(err).Errorf("Failed to parse SQLServer packet.")
+				e.emitMalformedPacket(e.Context, sessionCtx, p)
+			default:
+				e.auditPacket(e.Context, sessionCtx, sqlPacket)
+			}
+		} else {
+			if chunkData.Len() == 0 {
+				initialPacketHeader = p.Header()
+			}
+
+			chunkData.Write(p.Data())
 		}
 
 		_, err = serverConn.Write(p.Bytes())
@@ -160,6 +178,27 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 			return
 		}
 	}
+}
+
+// toSQLPacket Parses a regular (self-contained) or chunked packet into an SQL
+// packet (used for auditing).
+func (e *Engine) toSQLPacket(header protocol.PacketHeader, packet *protocol.BasicPacket, chunks *bytes.Buffer) (protocol.Packet, error) {
+	if chunks.Len() > 0 {
+		defer chunks.Reset()
+		chunks.Write(packet.Data())
+		// We're safe to "read" chunk using `Bytes()` function because the
+		// packet processing copies the packet contents.
+		packetData := chunks.Bytes()
+
+		var err error
+		// The final chucked packet header must be the first packet header.
+		packet, err = protocol.NewBasicPacket(header, packetData)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return protocol.ToSQLPacket(packet)
 }
 
 // receiveFromServer relays protocol messages received from MySQL database

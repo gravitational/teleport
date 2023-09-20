@@ -29,6 +29,10 @@ import (
 
 // FromProto converts a v1 access list into an internal access list object.
 func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
+	if msg == nil {
+		return nil, trace.BadParameter("access list message is nil")
+	}
+
 	if msg.Spec == nil {
 		return nil, trace.BadParameter("spec is missing")
 	}
@@ -53,22 +57,13 @@ func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
 		}
 	}
 
-	members := make([]accesslist.Member, len(msg.Spec.Members))
-	for i, member := range msg.Spec.Members {
-		members[i] = accesslist.Member{
-			Name:    member.Name,
-			Joined:  member.Joined.AsTime(),
-			Expires: member.Expires.AsTime(),
-			Reason:  member.Reason,
-			AddedBy: member.AddedBy,
-		}
-	}
-
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
+		Title:       msg.Spec.Title,
 		Description: msg.Spec.Description,
 		Owners:      owners,
 		Audit: accesslist.Audit{
-			Frequency: msg.Spec.Audit.Frequency.AsDuration(),
+			Frequency:     msg.Spec.Audit.Frequency.AsDuration(),
+			NextAuditDate: msg.Spec.Audit.NextAuditDate.AsTime(),
 		},
 		MembershipRequires: accesslist.Requires{
 			Roles:  msg.Spec.MembershipRequires.Roles,
@@ -82,7 +77,6 @@ func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
 			Roles:  msg.Spec.Grants.Roles,
 			Traits: traitv1.FromProto(msg.Spec.Grants.Traits),
 		},
-		Members: members,
 	})
 
 	return accessList, trace.Wrap(err)
@@ -98,24 +92,15 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		}
 	}
 
-	members := make([]*accesslistv1.AccessListMember, len(accessList.Spec.Members))
-	for i, member := range accessList.Spec.Members {
-		members[i] = &accesslistv1.AccessListMember{
-			Name:    member.Name,
-			Joined:  timestamppb.New(member.Joined),
-			Expires: timestamppb.New(member.Expires),
-			Reason:  member.Reason,
-			AddedBy: member.AddedBy,
-		}
-	}
-
 	return &accesslistv1.AccessList{
 		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
 		Spec: &accesslistv1.AccessListSpec{
+			Title:       accessList.Spec.Title,
 			Description: accessList.Spec.Description,
 			Owners:      owners,
 			Audit: &accesslistv1.AccessListAudit{
-				Frequency: durationpb.New(accessList.Spec.Audit.Frequency),
+				Frequency:     durationpb.New(accessList.Spec.Audit.Frequency),
+				NextAuditDate: timestamppb.New(accessList.Spec.Audit.NextAuditDate),
 			},
 			MembershipRequires: &accesslistv1.AccessListRequires{
 				Roles:  accessList.Spec.MembershipRequires.Roles,
@@ -129,7 +114,6 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 				Roles:  accessList.Spec.Grants.Roles,
 				Traits: traitv1.ToProto(accessList.Spec.Grants.Traits),
 			},
-			Members: members,
 		},
 	}
 }

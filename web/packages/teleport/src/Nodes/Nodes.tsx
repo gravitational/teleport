@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Indicator, Box, Flex } from 'design';
+import { Box, Flex, Indicator } from 'design';
 
 import {
   FeatureBox,
@@ -29,7 +29,9 @@ import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import useTeleport from 'teleport/useTeleport';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
-import { useNodes, State } from './useNodes';
+import { SearchResource } from 'teleport/Discover/SelectResource';
+
+import { State, useNodes } from './useNodes';
 
 export default function Container() {
   const teleCtx = useTeleport();
@@ -82,7 +84,7 @@ export function Nodes(props: State) {
           <Flex alignItems="center">
             <QuickLaunch width="280px" onPress={onSshEnter} mr={3} />
             <AgentButtonAdd
-              agent="server"
+              agent={SearchResource.SERVER}
               beginsWithVowel={false}
               isLeafCluster={isLeafCluster}
               canCreate={canCreate}
@@ -132,7 +134,7 @@ const emptyStateInfo: EmptyStateInfo = {
   byline:
     'Teleport Server Access consolidates SSH access across all environments.',
   docsURL: 'https://goteleport.com/docs/server-access/getting-started/',
-  resourceType: 'server',
+  resourceType: SearchResource.SERVER,
   readOnly: {
     title: 'No Servers Found',
     resource: 'servers',

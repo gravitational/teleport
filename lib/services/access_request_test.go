@@ -278,6 +278,8 @@ func TestReviewThresholds(t *testing.T) {
 		propose types.RequestState
 		// expect is the expected post-review state of the request (defaults to pending)
 		expect types.RequestState
+
+		errCheck require.ErrorAssertionFunc
 	}
 
 	tts := []struct {
@@ -314,10 +316,61 @@ func TestReviewThresholds(t *testing.T) {
 					propose: approve,
 					expect:  approve,
 				},
-				{ // adds second denial to all thresholds, no effect since a state-transition was already triggered.
+			},
+		},
+		{
+			desc:      "trying to deny an already approved request",
+			requestor: "alice", // permitted by role populist
+			reviews: []review{
+				{ // cannot review own requests
+					author:   "alice",
+					noReview: true,
+				},
+				{ // no matching allow directives
+					author:   g.user(t, "military"),
+					noReview: true,
+				},
+				{ // adds one approval to all thresholds
+					author:  g.user(t, "proletariat", "intelligentsia", "military"),
+					propose: approve,
+				},
+				{ // adds one denial to all thresholds
 					author:  g.user(t, "proletariat", "intelligentsia", "military"),
 					propose: deny,
+				},
+				{ // adds second approval to all thresholds, triggers "uprising".
+					author:  g.user(t, "proletariat", "intelligentsia", "military"),
+					propose: approve,
 					expect:  approve,
+				},
+				{ // adds second denial but request was already approved.
+					author:  g.user(t, "proletariat", "intelligentsia", "military"),
+					propose: deny,
+					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+						require.ErrorIs(tt, err, trace.AccessDenied("the access request has been already approved"), i...)
+					},
+				},
+			},
+		},
+		{
+			desc:      "trying to approve an already denied request",
+			requestor: "bob", // permitted by role general
+			reviews: []review{
+				{ // 1 of 2 required denials
+					author:  g.user(t, "military"),
+					propose: deny,
+				},
+				{ // 2 of 2 required denials
+					author:  g.user(t, "military"),
+					propose: deny,
+					expect:  deny,
+				},
+				{ // tries to approve but it was already denied
+					author:  g.user(t, "military"),
+					propose: approve,
+					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+						require.ErrorIs(tt, err, trace.AccessDenied("the access request has been already denied"), i...)
+					},
 				},
 			},
 		},
@@ -333,7 +386,7 @@ func TestReviewThresholds(t *testing.T) {
 					author:  g.user(t, "proletariat"),
 					propose: approve,
 				},
-				{ // 1 of 2 required denials (does not triger threshold)
+				{ // 1 of 2 required denials (does not trigger a threshold)
 					author:  g.user(t, "proletariat"),
 					propose: deny,
 				},
@@ -368,7 +421,7 @@ func TestReviewThresholds(t *testing.T) {
 					author:   g.user(t, "proletariat"),
 					noReview: true,
 				},
-				{ // 1 of 2 required denials for "coup" (does not triger threshold)
+				{ // 1 of 2 required denials for "coup" (does not trigger a threshold)
 					author:  g.user(t, "military"),
 					propose: deny,
 				},
@@ -574,6 +627,11 @@ func TestReviewThresholds(t *testing.T) {
 			require.True(t, ok, "scenario=%q, rev=%d", tt.desc, ri)
 
 			err = ApplyAccessReview(req, rev, author)
+			if rt.errCheck != nil {
+				rt.errCheck(t, err)
+				continue
+			}
+
 			require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
 			require.Equal(t, rt.expect.String(), req.GetState().String(), "scenario=%q, rev=%d", tt.desc, ri)
 		}
@@ -1757,6 +1815,242 @@ func TestGetResourceDetails(t *testing.T) {
 
 	// This Okta sourced user group should have a friendly name.
 	require.Equal(t, "friendly group 1", details[types.ResourceIDToString(resourceIDs[4])].FriendlyName)
+}
+
+func TestMaxDuration(t *testing.T) {
+	// describes a collection of roles and their conditions
+	roleDesc := roleTestSet{
+		"requestedRole": {
+			// ...
+		},
+		"requestedRole2": {
+			// ...
+		},
+		"setMaxTTLRole": {
+			options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(6 * time.Hour),
+			},
+		},
+		"defaultRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"requestedRole", "setMaxTTLRole"},
+				},
+			},
+		},
+		"defaultShortRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"requestedRole", "setMaxTTLRole"},
+				},
+			},
+		},
+		"maxDurationReqRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:       []string{"requestedRole", "setMaxTTLRole"},
+					MaxDuration: types.Duration(7 * day),
+				},
+			},
+		},
+		"shortMaxDurationReqRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:       []string{"requestedRole"},
+					MaxDuration: types.Duration(3 * day),
+				},
+			},
+		},
+		"shortMaxDurationReqRole2": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:       []string{"requestedRole2"},
+					MaxDuration: types.Duration(day),
+				},
+			},
+		},
+	}
+
+	// describes a collection of users with various roles
+	userDesc := map[string][]string{
+		"alice": {"shortMaxDurationReqRole"},
+		"bob":   {"defaultRole"},
+		"carol": {"shortMaxDurationReqRole", "shortMaxDurationReqRole2"},
+		"david": {"maxDurationReqRole"},
+	}
+
+	g := getMockGetter(t, roleDesc, userDesc)
+
+	tts := []struct {
+		// desc is a short description of the test scenario (should be unique)
+		desc string
+		// requestor is the name of the requesting user
+		requestor string
+		// the roles to be requested (defaults to "dictator")
+		roles []string
+		// maxDuration is the requested maxDuration duration
+		maxDuration time.Duration
+		// expectedAccessDuration is the expected access duration
+		expectedAccessDuration time.Duration
+		// expectedSessionTTL is the expected session TTL
+		expectedSessionTTL time.Duration
+		// DryRun is true if the request is a dry run
+		dryRun bool
+	}{
+		{
+			desc:                   "role maxDuration is respected",
+			requestor:              "alice",
+			roles:                  []string{"requestedRole"},
+			maxDuration:            7 * day,
+			expectedAccessDuration: 3 * day,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc:                   "dry run allows for longer maxDuration then 7d",
+			requestor:              "alice",
+			roles:                  []string{"requestedRole"},
+			maxDuration:            10 * day,
+			expectedAccessDuration: 3 * day,
+			expectedSessionTTL:     8 * time.Hour,
+			dryRun:                 true,
+		},
+		{
+			desc:                   "maxDuration not set, default maxTTL (8h)",
+			requestor:              "bob",
+			roles:                  []string{"requestedRole"},
+			expectedAccessDuration: 8 * time.Hour,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc:                   "maxDuration inside request is respected",
+			requestor:              "bob",
+			roles:                  []string{"requestedRole"},
+			maxDuration:            5 * time.Hour,
+			expectedAccessDuration: 8 * time.Hour,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc:                   "users with no MaxDuration are constrained by normal maxTTL logic",
+			requestor:              "bob",
+			roles:                  []string{"requestedRole"},
+			maxDuration:            2 * day,
+			expectedAccessDuration: 8 * time.Hour,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc:                   "maxDuration can't exceed maxTTL by default",
+			requestor:              "bob",
+			roles:                  []string{"setMaxTTLRole"},
+			maxDuration:            day,
+			expectedAccessDuration: 6 * time.Hour,
+			expectedSessionTTL:     6 * time.Hour,
+		},
+		{
+			desc:                   "maxDuration is ignored if max_duration is not set in role",
+			requestor:              "bob",
+			roles:                  []string{"setMaxTTLRole"},
+			maxDuration:            2 * time.Hour,
+			expectedAccessDuration: 6 * time.Hour,
+			expectedSessionTTL:     6 * time.Hour,
+		},
+		{
+			desc:                   "maxDuration can exceed maxTTL if max_duration is set in role",
+			requestor:              "david",
+			roles:                  []string{"setMaxTTLRole"},
+			maxDuration:            day,
+			expectedAccessDuration: day,
+			expectedSessionTTL:     6 * time.Hour,
+		},
+		{
+			desc:                   "maxDuration shorter than maxTTL if max_duration is set in role",
+			requestor:              "david",
+			roles:                  []string{"setMaxTTLRole"},
+			maxDuration:            2 * time.Hour,
+			expectedAccessDuration: 2 * time.Hour,
+			expectedSessionTTL:     2 * time.Hour,
+		},
+		{
+			desc:                   "only required roles are considered for maxDuration",
+			requestor:              "carol",
+			roles:                  []string{"requestedRole"},
+			maxDuration:            5 * day,
+			expectedAccessDuration: 3 * day,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc:                   "only required roles are considered for maxDuration #2",
+			requestor:              "carol",
+			roles:                  []string{"requestedRole2"},
+			maxDuration:            6 * day,
+			expectedAccessDuration: day,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.desc, func(t *testing.T) {
+			require.GreaterOrEqual(t, len(tt.roles), 1, "at least one role must be specified")
+
+			// create a request for the specified author
+			req, err := types.NewAccessRequest("some-id", tt.requestor, tt.roles...)
+			require.NoError(t, err)
+
+			clock := clockwork.NewFakeClock()
+			now := clock.Now().UTC()
+			identity := tlsca.Identity{
+				Expires: now.Add(8 * time.Hour),
+			}
+
+			validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
+			require.NoError(t, err)
+
+			req.SetCreationTime(now)
+			req.SetMaxDuration(now.Add(tt.maxDuration))
+			req.SetDryRun(tt.dryRun)
+
+			require.NoError(t, validator.Validate(context.Background(), req, identity))
+			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetAccessExpiry())
+			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetMaxDuration())
+			require.Equal(t, now.Add(tt.expectedSessionTTL), req.GetSessionTLL())
+		})
+	}
+}
+
+type roleTestSet map[string]struct {
+	condition types.RoleConditions
+	options   types.RoleOptions
+}
+
+func getMockGetter(t *testing.T, roleDesc roleTestSet, userDesc map[string][]string) *mockGetter {
+	t.Helper()
+
+	roles := make(map[string]types.Role)
+
+	for name, desc := range roleDesc {
+		role, err := types.NewRole(name, types.RoleSpecV6{
+			Allow:   desc.condition,
+			Options: desc.options,
+		})
+		require.NoError(t, err)
+
+		roles[name] = role
+	}
+
+	users := make(map[string]types.User)
+
+	for name, roles := range userDesc {
+		user, err := types.NewUser(name)
+		require.NoError(t, err)
+
+		user.SetRoles(roles)
+		users[name] = user
+	}
+
+	g := &mockGetter{
+		roles: roles,
+		users: users,
+	}
+	return g
 }
 
 func newNode(t *testing.T, name, hostname string) types.Server {

@@ -127,9 +127,7 @@ exports[`auth2faType: off 1`] = `
 .c6 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -209,60 +207,64 @@ exports[`auth2faType: off 1`] = `
       <div
         class="c2"
       >
-        <form
-          class="c4"
-          data-testid="userpassword"
+        <div
+          class="c2"
         >
-          <div
-            class="c5"
-          >
-            <label
-              class="c6"
-              font-size="0"
-            >
-              Username
-              <input
-                autocomplete="off"
-                class="c7"
-                inputmode="text"
-                placeholder="Username"
-                type="text"
-                value=""
-              />
-            </label>
-          </div>
-          <div
-            class="c5"
+          <form
+            class="c4"
+            data-testid="userpassword"
           >
             <div
-              class="c8"
-              width="100%"
+              class="c5"
             >
               <label
                 class="c6"
                 font-size="0"
               >
-                Password
+                Username
                 <input
                   autocomplete="off"
                   class="c7"
                   inputmode="text"
-                  placeholder="Password"
-                  type="password"
+                  placeholder="Username"
+                  type="text"
                   value=""
                 />
               </label>
             </div>
-          </div>
-          <button
-            class="c9"
-            kind="primary"
-            type="submit"
-            width="100%"
-          >
-            Sign In
-          </button>
-        </form>
+            <div
+              class="c5"
+            >
+              <div
+                class="c8"
+                width="100%"
+              >
+                <label
+                  class="c6"
+                  font-size="0"
+                >
+                  Password
+                  <input
+                    autocomplete="off"
+                    class="c7"
+                    inputmode="text"
+                    placeholder="Password"
+                    type="password"
+                    value=""
+                  />
+                </label>
+              </div>
+            </div>
+            <button
+              class="c9"
+              kind="primary"
+              type="submit"
+              width="100%"
+            >
+              Sign In
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
@@ -404,9 +406,7 @@ exports[`auth2faType: optional rendering 1`] = `
 .c6 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -414,9 +414,7 @@ exports[`auth2faType: optional rendering 1`] = `
 .c11 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -643,6 +641,10 @@ exports[`auth2faType: optional rendering 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c12 .react-select__input {
+  color: #FFFFFF;
+}
+
 <div
   class="c0"
   width="464"
@@ -662,117 +664,121 @@ exports[`auth2faType: optional rendering 1`] = `
       <div
         class="c2"
       >
-        <form
-          class="c4"
-          data-testid="userpassword"
+        <div
+          class="c2"
         >
-          <div
-            class="c5"
-          >
-            <label
-              class="c6"
-              font-size="0"
-            >
-              Username
-              <input
-                autocomplete="off"
-                class="c7"
-                inputmode="text"
-                placeholder="Username"
-                type="text"
-                value=""
-              />
-            </label>
-          </div>
-          <div
-            class="c5"
+          <form
+            class="c4"
+            data-testid="userpassword"
           >
             <div
-              class="c8"
-              width="100%"
+              class="c5"
             >
               <label
                 class="c6"
                 font-size="0"
               >
-                Password
+                Username
                 <input
                   autocomplete="off"
                   class="c7"
                   inputmode="text"
-                  placeholder="Password"
-                  type="password"
+                  placeholder="Username"
+                  type="text"
                   value=""
                 />
               </label>
             </div>
-          </div>
-          <div
-            class="c5"
-          >
             <div
-              class="c9"
+              class="c5"
             >
               <div
-                class="c10"
-                data-testid="mfa-select"
+                class="c8"
                 width="100%"
               >
                 <label
-                  class="c11"
+                  class="c6"
                   font-size="0"
-                  for="select"
                 >
-                  Two-factor type
+                  Password
+                  <input
+                    autocomplete="off"
+                    class="c7"
+                    inputmode="text"
+                    placeholder="Password"
+                    type="password"
+                    value=""
+                  />
                 </label>
+              </div>
+            </div>
+            <div
+              class="c5"
+            >
+              <div
+                class="c9"
+              >
                 <div
-                  class="c12"
+                  class="c10"
+                  data-testid="mfa-select"
+                  width="100%"
                 >
+                  <label
+                    class="c11"
+                    font-size="0"
+                    for="select"
+                  >
+                    Two-factor Type
+                  </label>
                   <div
-                    class="react-select-container css-2b097c-container"
+                    class="c12"
                   >
                     <div
-                      class="react-select__control css-yk16xz-control"
+                      class="react-select-container css-2b097c-container"
                     >
                       <div
-                        class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                        class="react-select__control css-yk16xz-control"
                       >
                         <div
-                          class="react-select__single-value css-1uccc91-singleValue"
+                          class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
                         >
-                          Hardware Key
-                        </div>
-                        <input
-                          aria-autocomplete="list"
-                          class="css-62g3xt-dummyInput"
-                          id="select"
-                          readonly=""
-                          tabindex="0"
-                          value=""
-                        />
-                      </div>
-                      <div
-                        class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                      >
-                        <span
-                          class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                        />
-                        <div
-                          aria-hidden="true"
-                          class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                        >
-                          <svg
-                            aria-hidden="true"
-                            class="css-6q0nyr-Svg"
-                            focusable="false"
-                            height="20"
-                            viewBox="0 0 20 20"
-                            width="20"
+                          <div
+                            class="react-select__single-value css-1uccc91-singleValue"
                           >
-                            <path
-                              d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                            />
-                          </svg>
+                            Hardware Key
+                          </div>
+                          <input
+                            aria-autocomplete="list"
+                            class="css-62g3xt-dummyInput"
+                            id="select"
+                            readonly=""
+                            tabindex="0"
+                            value=""
+                          />
+                        </div>
+                        <div
+                          class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                        >
+                          <span
+                            class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                          />
+                          <div
+                            aria-hidden="true"
+                            class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                          >
+                            <svg
+                              aria-hidden="true"
+                              class="css-6q0nyr-Svg"
+                              focusable="false"
+                              height="20"
+                              viewBox="0 0 20 20"
+                              width="20"
+                            >
+                              <path
+                                d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                              />
+                            </svg>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -780,16 +786,16 @@ exports[`auth2faType: optional rendering 1`] = `
                 </div>
               </div>
             </div>
-          </div>
-          <button
-            class="c13"
-            kind="primary"
-            type="submit"
-            width="100%"
-          >
-            Sign In
-          </button>
-        </form>
+            <button
+              class="c13"
+              kind="primary"
+              type="submit"
+              width="100%"
+            >
+              Sign In
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
@@ -937,9 +943,7 @@ exports[`auth2faType: otp rendering 1`] = `
 .c6 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -947,9 +951,7 @@ exports[`auth2faType: otp rendering 1`] = `
 .c11 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -1176,6 +1178,10 @@ exports[`auth2faType: otp rendering 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c12 .react-select__input {
+  color: #FFFFFF;
+}
+
 <div
   class="c0"
   width="464"
@@ -1195,153 +1201,157 @@ exports[`auth2faType: otp rendering 1`] = `
       <div
         class="c2"
       >
-        <form
-          class="c4"
-          data-testid="userpassword"
+        <div
+          class="c2"
         >
-          <div
-            class="c5"
-          >
-            <label
-              class="c6"
-              font-size="0"
-            >
-              Username
-              <input
-                autocomplete="off"
-                class="c7"
-                inputmode="text"
-                placeholder="Username"
-                type="text"
-                value=""
-              />
-            </label>
-          </div>
-          <div
-            class="c5"
+          <form
+            class="c4"
+            data-testid="userpassword"
           >
             <div
-              class="c8"
-              width="100%"
+              class="c5"
             >
               <label
                 class="c6"
                 font-size="0"
               >
-                Password
+                Username
                 <input
                   autocomplete="off"
                   class="c7"
                   inputmode="text"
-                  placeholder="Password"
-                  type="password"
+                  placeholder="Username"
+                  type="text"
                   value=""
                 />
               </label>
             </div>
-          </div>
-          <div
-            class="c5"
-          >
             <div
-              class="c9"
+              class="c5"
             >
               <div
-                class="c10"
-                data-testid="mfa-select"
+                class="c8"
                 width="100%"
-              >
-                <label
-                  class="c11"
-                  font-size="0"
-                  for="select"
-                >
-                  Two-factor type
-                </label>
-                <div
-                  class="c12"
-                >
-                  <div
-                    class="react-select-container css-2b097c-container"
-                  >
-                    <div
-                      class="react-select__control css-yk16xz-control"
-                    >
-                      <div
-                        class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
-                      >
-                        <div
-                          class="react-select__single-value css-1uccc91-singleValue"
-                        >
-                          Authenticator App
-                        </div>
-                        <input
-                          aria-autocomplete="list"
-                          class="css-62g3xt-dummyInput"
-                          id="select"
-                          readonly=""
-                          tabindex="0"
-                          value=""
-                        />
-                      </div>
-                      <div
-                        class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                      >
-                        <span
-                          class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                        />
-                        <div
-                          aria-hidden="true"
-                          class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                        >
-                          <svg
-                            aria-hidden="true"
-                            class="css-6q0nyr-Svg"
-                            focusable="false"
-                            height="20"
-                            viewBox="0 0 20 20"
-                            width="20"
-                          >
-                            <path
-                              d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                            />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div
-                class="c13"
-                width="50%"
               >
                 <label
                   class="c6"
                   font-size="0"
                 >
-                  Authenticator code
+                  Password
                   <input
-                    autocomplete="one-time-code"
+                    autocomplete="off"
                     class="c7"
-                    inputmode="numeric"
-                    placeholder="123 456"
-                    type="text"
+                    inputmode="text"
+                    placeholder="Password"
+                    type="password"
                     value=""
                   />
                 </label>
               </div>
             </div>
-          </div>
-          <button
-            class="c14"
-            kind="primary"
-            type="submit"
-            width="100%"
-          >
-            Sign In
-          </button>
-        </form>
+            <div
+              class="c5"
+            >
+              <div
+                class="c9"
+              >
+                <div
+                  class="c10"
+                  data-testid="mfa-select"
+                  width="100%"
+                >
+                  <label
+                    class="c11"
+                    font-size="0"
+                    for="select"
+                  >
+                    Two-factor Type
+                  </label>
+                  <div
+                    class="c12"
+                  >
+                    <div
+                      class="react-select-container css-2b097c-container"
+                    >
+                      <div
+                        class="react-select__control css-yk16xz-control"
+                      >
+                        <div
+                          class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                        >
+                          <div
+                            class="react-select__single-value css-1uccc91-singleValue"
+                          >
+                            Authenticator App
+                          </div>
+                          <input
+                            aria-autocomplete="list"
+                            class="css-62g3xt-dummyInput"
+                            id="select"
+                            readonly=""
+                            tabindex="0"
+                            value=""
+                          />
+                        </div>
+                        <div
+                          class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                        >
+                          <span
+                            class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                          />
+                          <div
+                            aria-hidden="true"
+                            class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                          >
+                            <svg
+                              aria-hidden="true"
+                              class="css-6q0nyr-Svg"
+                              focusable="false"
+                              height="20"
+                              viewBox="0 0 20 20"
+                              width="20"
+                            >
+                              <path
+                                d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  class="c13"
+                  width="50%"
+                >
+                  <label
+                    class="c6"
+                    font-size="0"
+                  >
+                    Authenticator Code
+                    <input
+                      autocomplete="one-time-code"
+                      class="c7"
+                      inputmode="numeric"
+                      placeholder="123 456"
+                      type="text"
+                      value=""
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+            <button
+              class="c14"
+              kind="primary"
+              type="submit"
+              width="100%"
+            >
+              Sign In
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
@@ -1483,9 +1493,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 .c6 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -1493,9 +1501,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 .c11 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -1722,6 +1728,10 @@ exports[`auth2faType: webauthn rendering 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c12 .react-select__input {
+  color: #FFFFFF;
+}
+
 <div
   class="c0"
   width="464"
@@ -1741,117 +1751,121 @@ exports[`auth2faType: webauthn rendering 1`] = `
       <div
         class="c2"
       >
-        <form
-          class="c4"
-          data-testid="userpassword"
+        <div
+          class="c2"
         >
-          <div
-            class="c5"
-          >
-            <label
-              class="c6"
-              font-size="0"
-            >
-              Username
-              <input
-                autocomplete="off"
-                class="c7"
-                inputmode="text"
-                placeholder="Username"
-                type="text"
-                value=""
-              />
-            </label>
-          </div>
-          <div
-            class="c5"
+          <form
+            class="c4"
+            data-testid="userpassword"
           >
             <div
-              class="c8"
-              width="100%"
+              class="c5"
             >
               <label
                 class="c6"
                 font-size="0"
               >
-                Password
+                Username
                 <input
                   autocomplete="off"
                   class="c7"
                   inputmode="text"
-                  placeholder="Password"
-                  type="password"
+                  placeholder="Username"
+                  type="text"
                   value=""
                 />
               </label>
             </div>
-          </div>
-          <div
-            class="c5"
-          >
             <div
-              class="c9"
+              class="c5"
             >
               <div
-                class="c10"
-                data-testid="mfa-select"
+                class="c8"
                 width="100%"
               >
                 <label
-                  class="c11"
+                  class="c6"
                   font-size="0"
-                  for="select"
                 >
-                  Two-factor type
+                  Password
+                  <input
+                    autocomplete="off"
+                    class="c7"
+                    inputmode="text"
+                    placeholder="Password"
+                    type="password"
+                    value=""
+                  />
                 </label>
+              </div>
+            </div>
+            <div
+              class="c5"
+            >
+              <div
+                class="c9"
+              >
                 <div
-                  class="c12"
+                  class="c10"
+                  data-testid="mfa-select"
+                  width="100%"
                 >
+                  <label
+                    class="c11"
+                    font-size="0"
+                    for="select"
+                  >
+                    Two-factor Type
+                  </label>
                   <div
-                    class="react-select-container css-2b097c-container"
+                    class="c12"
                   >
                     <div
-                      class="react-select__control css-yk16xz-control"
+                      class="react-select-container css-2b097c-container"
                     >
                       <div
-                        class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                        class="react-select__control css-yk16xz-control"
                       >
                         <div
-                          class="react-select__single-value css-1uccc91-singleValue"
+                          class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
                         >
-                          Hardware Key
-                        </div>
-                        <input
-                          aria-autocomplete="list"
-                          class="css-62g3xt-dummyInput"
-                          id="select"
-                          readonly=""
-                          tabindex="0"
-                          value=""
-                        />
-                      </div>
-                      <div
-                        class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                      >
-                        <span
-                          class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                        />
-                        <div
-                          aria-hidden="true"
-                          class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                        >
-                          <svg
-                            aria-hidden="true"
-                            class="css-6q0nyr-Svg"
-                            focusable="false"
-                            height="20"
-                            viewBox="0 0 20 20"
-                            width="20"
+                          <div
+                            class="react-select__single-value css-1uccc91-singleValue"
                           >
-                            <path
-                              d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                            />
-                          </svg>
+                            Hardware Key
+                          </div>
+                          <input
+                            aria-autocomplete="list"
+                            class="css-62g3xt-dummyInput"
+                            id="select"
+                            readonly=""
+                            tabindex="0"
+                            value=""
+                          />
+                        </div>
+                        <div
+                          class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                        >
+                          <span
+                            class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                          />
+                          <div
+                            aria-hidden="true"
+                            class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                          >
+                            <svg
+                              aria-hidden="true"
+                              class="css-6q0nyr-Svg"
+                              focusable="false"
+                              height="20"
+                              viewBox="0 0 20 20"
+                              width="20"
+                            >
+                              <path
+                                d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                              />
+                            </svg>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1859,16 +1873,16 @@ exports[`auth2faType: webauthn rendering 1`] = `
                 </div>
               </div>
             </div>
-          </div>
-          <button
-            class="c13"
-            kind="primary"
-            type="submit"
-            width="100%"
-          >
-            Sign In
-          </button>
-        </form>
+            <button
+              class="c13"
+              kind="primary"
+              type="submit"
+              width="100%"
+            >
+              Sign In
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
@@ -2090,9 +2104,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 .c6 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -2100,9 +2112,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 .c16 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -2329,6 +2339,10 @@ exports[`cloud auth2faType: on rendering 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c17 .react-select__input {
+  color: #FFFFFF;
+}
+
 <div
   class="c0"
   width="464"
@@ -2348,152 +2362,156 @@ exports[`cloud auth2faType: on rendering 1`] = `
       <div
         class="c2"
       >
-        <form
-          class="c4"
-          data-testid="userpassword"
+        <div
+          class="c2"
         >
-          <div
-            class="c5"
-          >
-            <label
-              class="c6"
-              font-size="0"
-            >
-              Username
-              <input
-                autocomplete="off"
-                class="c7"
-                inputmode="text"
-                placeholder="Username"
-                type="text"
-                value=""
-              />
-            </label>
-          </div>
-          <div
-            class="c8"
+          <form
+            class="c4"
+            data-testid="userpassword"
           >
             <div
-              class="c9"
-              width="100%"
+              class="c5"
             >
               <label
                 class="c6"
                 font-size="0"
               >
-                Password
+                Username
                 <input
                   autocomplete="off"
                   class="c7"
                   inputmode="text"
-                  placeholder="Password"
-                  type="password"
+                  placeholder="Username"
+                  type="text"
                   value=""
                 />
               </label>
             </div>
             <div
-              class="c10"
-            >
-              <a
-                class="c11 c12"
-                kind="primary"
-                style="padding: 0px; min-height: 0;"
-              >
-                Forgot Password?
-              </a>
-            </div>
-          </div>
-          <div
-            class="c13"
-          >
-            <div
-              class="c14"
+              class="c8"
             >
               <div
-                class="c15"
-                data-testid="mfa-select"
+                class="c9"
                 width="100%"
               >
                 <label
-                  class="c16"
+                  class="c6"
                   font-size="0"
-                  for="select"
                 >
-                  Two-factor type
+                  Password
+                  <input
+                    autocomplete="off"
+                    class="c7"
+                    inputmode="text"
+                    placeholder="Password"
+                    type="password"
+                    value=""
+                  />
                 </label>
-                <div
-                  class="c17"
+              </div>
+              <div
+                class="c10"
+              >
+                <a
+                  class="c11 c12"
+                  kind="primary"
+                  style="padding: 0px; min-height: 0;"
                 >
+                  Forgot Password?
+                </a>
+              </div>
+            </div>
+            <div
+              class="c13"
+            >
+              <div
+                class="c14"
+              >
+                <div
+                  class="c15"
+                  data-testid="mfa-select"
+                  width="100%"
+                >
+                  <label
+                    class="c16"
+                    font-size="0"
+                    for="select"
+                  >
+                    Two-factor Type
+                  </label>
                   <div
-                    class="react-select-container css-2b097c-container"
+                    class="c17"
                   >
                     <div
-                      class="react-select__control css-yk16xz-control"
+                      class="react-select-container css-2b097c-container"
                     >
                       <div
-                        class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                        class="react-select__control css-yk16xz-control"
                       >
                         <div
-                          class="react-select__single-value css-1uccc91-singleValue"
+                          class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
                         >
-                          Hardware Key
-                        </div>
-                        <input
-                          aria-autocomplete="list"
-                          class="css-62g3xt-dummyInput"
-                          id="select"
-                          readonly=""
-                          tabindex="0"
-                          value=""
-                        />
-                      </div>
-                      <div
-                        class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                      >
-                        <span
-                          class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                        />
-                        <div
-                          aria-hidden="true"
-                          class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                        >
-                          <svg
-                            aria-hidden="true"
-                            class="css-6q0nyr-Svg"
-                            focusable="false"
-                            height="20"
-                            viewBox="0 0 20 20"
-                            width="20"
+                          <div
+                            class="react-select__single-value css-1uccc91-singleValue"
                           >
-                            <path
-                              d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                            />
-                          </svg>
+                            Hardware Key
+                          </div>
+                          <input
+                            aria-autocomplete="list"
+                            class="css-62g3xt-dummyInput"
+                            id="select"
+                            readonly=""
+                            tabindex="0"
+                            value=""
+                          />
+                        </div>
+                        <div
+                          class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                        >
+                          <span
+                            class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                          />
+                          <div
+                            aria-hidden="true"
+                            class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                          >
+                            <svg
+                              aria-hidden="true"
+                              class="css-6q0nyr-Svg"
+                              focusable="false"
+                              height="20"
+                              viewBox="0 0 20 20"
+                              width="20"
+                            >
+                              <path
+                                d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                              />
+                            </svg>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+              <a
+                class="c11 c12"
+                kind="primary"
+                style="padding: 0px; min-height: 0;"
+              >
+                Lost Two-Factor Device?
+              </a>
             </div>
-            <a
-              class="c11 c12"
+            <button
+              class="c18"
               kind="primary"
-              style="padding: 0px; min-height: 0;"
+              type="submit"
+              width="100%"
             >
-              Lost Two-Factor Device?
-            </a>
-          </div>
-          <button
-            class="c18"
-            kind="primary"
-            type="submit"
-            width="100%"
-          >
-            Sign In
-          </button>
-        </form>
+              Sign In
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
@@ -2734,9 +2752,7 @@ exports[`server error rendering 1`] = `
 .c7 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -2822,60 +2838,64 @@ exports[`server error rendering 1`] = `
       <div
         class="c3"
       >
-        <form
-          class="c5"
-          data-testid="userpassword"
+        <div
+          class="c3"
         >
-          <div
-            class="c6"
-          >
-            <label
-              class="c7"
-              font-size="0"
-            >
-              Username
-              <input
-                autocomplete="off"
-                class="c8"
-                inputmode="text"
-                placeholder="Username"
-                type="text"
-                value=""
-              />
-            </label>
-          </div>
-          <div
-            class="c6"
+          <form
+            class="c5"
+            data-testid="userpassword"
           >
             <div
-              class="c9"
-              width="100%"
+              class="c6"
             >
               <label
                 class="c7"
                 font-size="0"
               >
-                Password
+                Username
                 <input
                   autocomplete="off"
                   class="c8"
                   inputmode="text"
-                  placeholder="Password"
-                  type="password"
+                  placeholder="Username"
+                  type="text"
                   value=""
                 />
               </label>
             </div>
-          </div>
-          <button
-            class="c10"
-            kind="primary"
-            type="submit"
-            width="100%"
-          >
-            Sign In
-          </button>
-        </form>
+            <div
+              class="c6"
+            >
+              <div
+                class="c9"
+                width="100%"
+              >
+                <label
+                  class="c7"
+                  font-size="0"
+                >
+                  Password
+                  <input
+                    autocomplete="off"
+                    class="c8"
+                    inputmode="text"
+                    placeholder="Password"
+                    type="password"
+                    value=""
+                  />
+                </label>
+              </div>
+            </div>
+            <button
+              class="c10"
+              kind="primary"
+              type="submit"
+              width="100%"
+            >
+              Sign In
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
@@ -3483,99 +3503,103 @@ exports[`sso providers rendering 1`] = `
         class="c2"
       >
         <div
-          class="c4"
-          data-testid="sso-list"
+          class="c2"
         >
-          <button
-            class="c5 c6"
-            color="#444444"
-            kind="primary"
+          <div
+            class="c4"
+            data-testid="sso-list"
           >
-            <div
-              class="c7"
+            <button
+              class="c5 c6"
+              color="#444444"
+              kind="primary"
             >
-              <span
-                class="c8 c9 icon icon-github "
-                color="white"
-                data-testid="icon"
-              />
-            </div>
-            Login with github
-          </button>
-          <button
-            class="c5 c10"
-            color="#dd4b39"
-            kind="primary"
-          >
-            <div
-              class="c7"
+              <div
+                class="c7"
+              >
+                <span
+                  class="c8 c9 icon icon-github "
+                  color="white"
+                  data-testid="icon"
+                />
+              </div>
+              Login with github
+            </button>
+            <button
+              class="c5 c10"
+              color="#dd4b39"
+              kind="primary"
             >
-              <span
-                class="c8 c9 icon icon-google-plus "
-                color="white"
-                data-testid="icon"
-              />
-            </div>
-            Login with google
-          </button>
-          <button
-            class="c5 c11"
-            color="#205081"
-            kind="primary"
-          >
-            <div
-              class="c7"
+              <div
+                class="c7"
+              >
+                <span
+                  class="c8 c9 icon icon-google-plus "
+                  color="white"
+                  data-testid="icon"
+                />
+              </div>
+              Login with google
+            </button>
+            <button
+              class="c5 c11"
+              color="#205081"
+              kind="primary"
             >
-              <span
-                class="c8 c9 icon icon-bitbucket "
-                color="white"
-                data-testid="icon"
-              />
-            </div>
-            Login with bitbucket
-          </button>
-          <button
-            class="c5 c12"
-            color="#f7931e"
-            kind="primary"
-          >
-            <div
-              class="c7"
+              <div
+                class="c7"
+              >
+                <span
+                  class="c8 c9 icon icon-bitbucket "
+                  color="white"
+                  data-testid="icon"
+                />
+              </div>
+              Login with bitbucket
+            </button>
+            <button
+              class="c5 c12"
+              color="#f7931e"
+              kind="primary"
             >
-              <span
-                class="c8 c9 icon icon-openid "
-                color="white"
-                data-testid="icon"
-              />
-            </div>
-            Login with Mission Control
-          </button>
-          <button
-            class="c13 c14"
-            color="#2672ec"
-            kind="primary"
-          >
-            <div
-              class="c7"
+              <div
+                class="c7"
+              >
+                <span
+                  class="c8 c9 icon icon-openid "
+                  color="white"
+                  data-testid="icon"
+                />
+              </div>
+              Login with Mission Control
+            </button>
+            <button
+              class="c13 c14"
+              color="#2672ec"
+              kind="primary"
             >
-              <span
-                class="c8 c9 icon icon-windows "
-                color="white"
-                data-testid="icon"
-              />
-            </div>
-            Microsoft
-          </button>
-        </div>
-        <div
-          class="c15"
-        >
-          <button
-            class="c16"
-            kind="text"
+              <div
+                class="c7"
+              >
+                <span
+                  class="c8 c9 icon icon-windows "
+                  color="white"
+                  data-testid="icon"
+                />
+              </div>
+              Microsoft
+            </button>
+          </div>
+          <div
+            class="c15"
           >
-            Other sign-in options
-          </button>
+            <button
+              class="c16"
+              kind="text"
+            >
+              Other sign-in options
+            </button>
+          </div>
         </div>
       </div>
     </div>

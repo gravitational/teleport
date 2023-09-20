@@ -161,6 +161,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindBilling, RW()),
 					types.NewRule(types.KindClusterAlert, RW()),
 					types.NewRule(types.KindAccessList, RW()),
+					types.NewRule(types.KindNode, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -362,6 +363,118 @@ func NewPresetGroupAccessRole() types.Role {
 	return role
 }
 
+// NewPresetDeviceAdminRole returns the preset "device-admin" role, or nil for
+// non-Enterprise builds.
+// The role is used to administer trusted devices.
+func NewPresetDeviceAdminRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetDeviceAdminRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Administer trusted devices",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+				},
+			},
+		},
+	}
+}
+
+// NewPresetDeviceEnrollRole returns the preset "device-enroll" role, or nil for
+// non-Enterprise builds.
+// The role is used to grant device enrollment powers to users.
+func NewPresetDeviceEnrollRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetDeviceEnrollRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Grant permission to enroll trusted devices",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindDevice, []string{types.VerbEnroll}),
+				},
+			},
+		},
+	}
+}
+
+// NewPresetRequireTrustedDeviceRole returns the preset "require-trusted-device"
+// role, or nil for non-Enterprise builds.
+// The role is used as a basis for requiring trusted device access to
+// resources.
+func NewPresetRequireTrustedDeviceRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetRequireTrustedDeviceRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Require trusted device to access resources",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				DeviceTrustMode: constants.DeviceTrustModeRequired,
+			},
+			Allow: types.RoleConditions{
+				// All SSH nodes.
+				Logins: []string{"{{internal.logins}}"},
+				NodeLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+
+				// All k8s nodes.
+				KubeGroups: []string{
+					"{{internal.kubernetes_groups}}",
+					// Common/example groups.
+					"system:masters",
+					"developers",
+					"viewers",
+				},
+				KubernetesLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+
+				// All DB nodes.
+				DatabaseLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+				DatabaseNames: []string{types.Wildcard},
+				DatabaseUsers: []string{types.Wildcard},
+			},
+		},
+	}
+}
+
 // bootstrapRoleMetadataLabels are metadata labels that will be applied to each role.
 // These are intended to add labels for older roles that didn't previously have them.
 func bootstrapRoleMetadataLabels() map[string]map[string]string {
@@ -406,6 +519,7 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindBilling, RW()),
 			types.NewRule(types.KindInstance, RO()),
 			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
+			types.NewRule(types.KindNode, RW()),
 		},
 		teleport.PresetAccessRoleName: {
 			types.NewRule(types.KindInstance, RO()),

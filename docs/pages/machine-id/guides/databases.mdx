@@ -54,11 +54,12 @@ spec:
 ```
 
 This role allows Machine ID bots to do two things:
- 1. Access the database `example` on any database server (due to the `'*': '*'`
+
+ - Access the database `example` on any database server (due to the `'*': '*'`
     label selector) as the user `alice`. You may restrict access to the bot
     using a more specific label selector; see the [Database Access RBAC 
     guide](../../database-access/rbac.mdx) for more info.
- 2. Discover information about databases in Teleport.
+ - Discover information about databases in Teleport.
 
 Write this to `role.yaml` and run the following to create the role in Teleport:
 
@@ -68,21 +69,24 @@ $ tctl create -f role.yaml
 
 With the role created, create a new bot and allow it to assume the new role.
 
-<ScopedBlock scope={["cloud"]}>
+<Tabs>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 On your client machine, log in to Teleport using `tsh` before using `tctl` to
 create the bot:
 
 ```code
 $ tctl bots add app --roles=machine-id-db
 ```
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
+</TabItem>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
 Connect to the Teleport Auth Server and use `tctl` to create the bot:
 
 ```code
 $ tctl bots add app --roles=machine-id-db
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Step 2/3. Configure and start Machine ID
 
@@ -91,7 +95,8 @@ credentials.
 
 Start by creating a configuration file for Machine ID at `/etc/tbot.yaml`:
 
-<ScopedBlock scope={["cloud"]}>
+<Tabs>
+<TabItem label="Teleport Cloud" scope={["cloud","team"]}>
 ```yaml
 auth_server: "example.teleport.sh:443"
 onboarding:
@@ -113,8 +118,8 @@ destinations:
     configs:
       - mongo
 ```
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
+</TabItem>
+<TabItem label="Self-Hosted" scope={["oss","enterprise"]}>
 ```yaml
 auth_server: "teleport.example.com:443"
 onboarding:
@@ -136,7 +141,8 @@ destinations:
     configs:
       - mongo
 ```
-</ScopedBlock>
+</TabItem>
+</Tabs>
 
 Be sure to configure the `token` and `ca_pins` fields to match the output from
 `tctl bots add ...`. We've also included the `mongo` config template in the
@@ -291,3 +297,4 @@ access controls.
 ## Next steps
 
 [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)
+

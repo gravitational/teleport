@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
@@ -931,6 +932,47 @@ func TestAccessMongoDB(t *testing.T) {
 					})
 				}
 			}
+		})
+	}
+}
+
+func TestMongoDBMaxMessageSize(t *testing.T) {
+	ctx := context.Background()
+
+	for name, tt := range map[string]struct {
+		maxMessageSize     uint32
+		messageSize        int
+		expectedQueryError bool
+	}{
+		"default message size": {
+			messageSize: 256,
+		},
+		"message size exceeded": {
+			// Set a value that will enable handshake message to complete
+			// successfully.
+			maxMessageSize:     256,
+			messageSize:        512,
+			expectedQueryError: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tt := tt
+			t.Parallel()
+
+			testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo", mongodb.TestServerMaxMessageSize(tt.maxMessageSize)))
+			testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{"admin"})
+			go testCtx.startHandlingConnections()
+
+			mongoClient, err := testCtx.mongoClient(ctx, "alice", "mongo", "admin")
+			require.NoError(t, err)
+			defer mongoClient.Disconnect(ctx)
+
+			_, err = mongoClient.Database("admin").Collection("test").Find(ctx, bson.M{"largevalue": make([]byte, tt.messageSize)})
+			if tt.expectedQueryError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
 }
@@ -1916,7 +1958,7 @@ func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userN
 
 // makeTLSConfig returns tls configuration for the test's tls listener.
 func (c *testContext) makeTLSConfig(t *testing.T) *tls.Config {
-	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"})
+	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil)
 	require.NoError(t, err)
 	cert, err := tls.X509KeyPair(creds.Cert, creds.PrivateKey)
 	require.NoError(t, err)
@@ -2127,6 +2169,9 @@ type agentParams struct {
 	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
 	AzureMatchers []types.AzureMatcher
+	// discoveryResourceChecker performs some pre-checks when creating databases
+	// discovered by the discovery service.
+	DiscoveryResourceChecker cloud.DiscoveryResourceChecker
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -2165,6 +2210,10 @@ func (p *agentParams) setDefaults(c *testContext) {
 			IAM:                &mocks.IAMMock{},
 			GCPSQL:             p.GCPSQL,
 		}
+	}
+
+	if p.DiscoveryResourceChecker == nil {
+		p.DiscoveryResourceChecker = &fakeDiscoveryResourceChecker{}
 	}
 }
 
@@ -2249,7 +2298,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		AWSMatchers:              p.AWSMatchers,
 		AzureMatchers:            p.AzureMatchers,
 		ShutdownPollPeriod:       100 * time.Millisecond,
-		discoveryResourceChecker: &fakeDiscoveryResourceChecker{},
+		discoveryResourceChecker: p.DiscoveryResourceChecker,
 	})
 	require.NoError(t, err)
 
@@ -2778,9 +2827,16 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 }
 
 type fakeDiscoveryResourceChecker struct {
+	byName map[string]func(context.Context, types.Database) error
 }
 
-func (f fakeDiscoveryResourceChecker) check(_ context.Context, _ types.Database) {
+func (f *fakeDiscoveryResourceChecker) Check(ctx context.Context, database types.Database) error {
+	if len(f.byName) > 0 {
+		if check := f.byName[database.GetName()]; check != nil {
+			return trace.Wrap(check(ctx, database))
+		}
+	}
+	return nil
 }
 
 var dynamicLabels = types.LabelsToV2(map[string]types.CommandLabel{

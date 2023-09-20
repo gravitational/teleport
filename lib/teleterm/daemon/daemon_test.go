@@ -19,13 +19,20 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -268,12 +275,9 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 	}
 
-	gatewayCertReissuer := GatewayCertReissuer{Log: storage.Log}
-
 	daemon, err := New(Config{
 		Storage:                         storage,
 		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
-		GatewayCertReissuer:             &gatewayCertReissuer,
 	})
 	require.NoError(t, err)
 
@@ -283,7 +287,7 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 
 	err = daemon.UpdateAndDialTshdEventsServerAddress(ls.Addr().String())
 	require.NoError(t, err)
-	require.NotNil(t, gatewayCertReissuer.TSHDEventsClient)
+	require.NotNil(t, daemon.tshdEventsClient)
 	require.Equal(t, 1, createTshdEventsClientCredsFuncCallCount,
 		"Expected createTshdEventsClientCredsFunc to be called exactly once")
 }
@@ -309,4 +313,280 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 
 	err = daemon.UpdateAndDialTshdEventsServerAddress("foo")
 	require.ErrorContains(t, err, "Error while creating creds")
+}
+
+func TestRetryWithRelogin(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	resolvableErr := trace.Errorf("ssh: cert has expired")
+	unresolvableErr := trace.AccessDenied("")
+	concurrentCallErr := trace.AlreadyExists("")
+	reloginTimeoutErr := context.DeadlineExceeded
+	unknownErr := trace.Errorf("foo")
+	tests := []struct {
+		name             string
+		fnErrs           []error
+		reloginErr       error
+		serviceOpt       func(t *testing.T, service *Service)
+		wantFnCalls      int
+		wantReloginCalls int
+		wantErr          error
+		wantAddedMessage string
+	}{
+		{
+			name:        "calls the function once if it returns successfully",
+			wantFnCalls: 1,
+		},
+		{
+			name:             "calls the function once if it returns error unresolvable with relogin",
+			fnErrs:           []error{unresolvableErr},
+			wantFnCalls:      1,
+			wantReloginCalls: 0,
+			wantErr:          unresolvableErr,
+		},
+		{
+			name:             "resolves error with relogin and calls the function twice",
+			fnErrs:           []error{resolvableErr},
+			wantFnCalls:      2,
+			wantReloginCalls: 1,
+		},
+		{
+			name:   "fails on concurrent relogin calls",
+			fnErrs: []error{concurrentCallErr},
+			serviceOpt: func(t *testing.T, service *Service) {
+				t.Helper()
+				require.True(t, service.reloginMu.TryLock(), "Couldn't lock reloginClient")
+			},
+			wantFnCalls:      1,
+			wantReloginCalls: 0,
+			wantErr:          concurrentCallErr,
+		},
+		{
+			name:             "fails with additional message to error on timeout during relogin",
+			fnErrs:           []error{resolvableErr},
+			reloginErr:       reloginTimeoutErr,
+			wantFnCalls:      1,
+			wantReloginCalls: 1,
+			wantErr:          status.Error(codes.DeadlineExceeded, reloginTimeoutErr.Error()),
+			wantAddedMessage: "the user did not refresh the session within",
+		},
+		{
+			name:             "fails with additional message to error on unexpected error during relogin",
+			fnErrs:           []error{resolvableErr},
+			reloginErr:       unknownErr,
+			wantFnCalls:      1,
+			wantReloginCalls: 1,
+			wantErr:          status.Error(codes.Unknown, unknownErr.Error()),
+			wantAddedMessage: "could not refresh the session",
+		},
+		{
+			name:             "fails if the second call to the function fails",
+			fnErrs:           []error{resolvableErr, unresolvableErr},
+			wantFnCalls:      2,
+			wantReloginCalls: 1,
+			wantErr:          unresolvableErr,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			storage, err := clusters.NewStorage(clusters.Config{
+				Dir:                t.TempDir(),
+				InsecureSkipVerify: true,
+			})
+			require.NoError(t, err)
+
+			daemon, err := New(Config{
+				Storage: storage,
+				CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
+					return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+				},
+			})
+			require.NoError(t, err)
+
+			service, addr := newMockTSHDEventsServiceServer(t)
+			service.reloginErr = tt.reloginErr
+
+			err = daemon.UpdateAndDialTshdEventsServerAddress(addr)
+			require.NoError(t, err)
+
+			var fnCallCount int
+			fn := func() error {
+				fnCallCount++
+				if fnCallCount > len(tt.fnErrs) {
+					return nil
+				}
+				return tt.fnErrs[fnCallCount-1]
+			}
+
+			err = daemon.retryWithRelogin(ctx, &api.ReloginRequest{}, fn)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				require.ErrorContains(t, err, tt.wantAddedMessage)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.wantFnCalls, fnCallCount,
+				"Unexpected number of calls to fn")
+			require.EqualValues(t, tt.wantReloginCalls, service.reloginCount.Load(),
+				"Unexpected number of calls to service.Relogin")
+		})
+	}
+}
+
+func TestImportantModalSemaphore(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                t.TempDir(),
+		InsecureSkipVerify: true,
+	})
+	require.NoError(t, err)
+
+	daemon, err := New(Config{
+		Storage: storage,
+		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
+			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+		},
+	})
+	require.NoError(t, err)
+
+	service, addr := newMockTSHDEventsServiceServer(t)
+	err = daemon.UpdateAndDialTshdEventsServerAddress(addr)
+	require.NoError(t, err)
+
+	// Claim the important modal semaphore.
+
+	customWaitDuration := 10 * time.Millisecond
+	daemon.importantModalSemaphore.waitDuration = customWaitDuration
+	err = daemon.importantModalSemaphore.Acquire(ctx)
+	require.NoError(t, err)
+
+	// relogin and sending pending headless authentications should be blocked.
+
+	reloginErrC := make(chan error)
+	go func() {
+		reloginErrC <- daemon.relogin(ctx, &api.ReloginRequest{})
+	}()
+
+	sphaErrC := make(chan error)
+	go func() {
+		sphaErrC <- daemon.sendPendingHeadlessAuthentication(ctx, &types.HeadlessAuthentication{}, "")
+	}()
+
+	select {
+	case <-reloginErrC:
+		t.Error("relogin completed successfully without acquiring the important modal semaphore")
+	case <-sphaErrC:
+		t.Error("sendPendingHeadlessAuthentication completed successfully without acquiring the important modal semaphore")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	// if the request's ctx is canceled, they will unblock and return an error instead.
+
+	cancelCtx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	err = daemon.relogin(cancelCtx, &api.ReloginRequest{})
+	require.Error(t, err)
+	err = daemon.sendPendingHeadlessAuthentication(cancelCtx, &types.HeadlessAuthentication{}, "")
+	require.Error(t, err)
+
+	// Release the semaphore. relogin and sending pending headless authentication should
+	// complete successfully after a short delay between each semaphore release.
+
+	releaseTime := time.Now()
+	daemon.importantModalSemaphore.Release()
+
+	var otherC chan error
+	select {
+	case err := <-reloginErrC:
+		require.NoError(t, err)
+		otherC = sphaErrC
+	case err := <-sphaErrC:
+		require.NoError(t, err)
+		otherC = reloginErrC
+	case <-time.After(time.Second):
+		t.Error("important modal operations failed to acquire unclaimed semaphore")
+	}
+
+	if time.Since(releaseTime) < customWaitDuration {
+		t.Error("important modal semaphore should not be acquired before waiting the specified duration")
+	}
+
+	select {
+	case err := <-otherC:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Error("important modal operations failed to acquire unclaimed semaphore")
+	}
+
+	if time.Since(releaseTime) < 2*customWaitDuration {
+		t.Error("important modal semaphore should not be acquired before waiting the specified duration")
+	}
+
+	require.EqualValues(t, 1, service.reloginCount.Load(), "Unexpected number of calls to service.Relogin")
+	require.EqualValues(t, 1, service.sendPendingHeadlessAuthenticationCount.Load(), "Unexpected number of calls to service.SendPendingHeadlessAuthentication")
+}
+
+type mockTSHDEventsService struct {
+	*api.UnimplementedTshdEventsServiceServer
+	reloginErr                             error
+	reloginCount                           atomic.Uint32
+	sendNotificationCount                  atomic.Uint32
+	sendPendingHeadlessAuthenticationCount atomic.Uint32
+}
+
+func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsService, addr string) {
+	t.Helper()
+
+	tshdEventsService := &mockTSHDEventsService{}
+
+	ls, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	grpcServer := grpc.NewServer()
+	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
+
+	serveErr := make(chan error)
+	go func() {
+		serveErr <- grpcServer.Serve(ls)
+	}()
+
+	t.Cleanup(func() {
+		grpcServer.GracefulStop()
+
+		// For test cases that did not send any grpc calls, test may finish
+		// before grpcServer.Serve is called and grpcServer.Serve will return
+		// grpc.ErrServerStopped.
+		err := <-serveErr
+		if err != grpc.ErrServerStopped {
+			assert.NoError(t, err)
+		}
+	})
+
+	return tshdEventsService, ls.Addr().String()
+}
+
+func (c *mockTSHDEventsService) Relogin(context.Context, *api.ReloginRequest) (*api.ReloginResponse, error) {
+	c.reloginCount.Add(1)
+	if c.reloginErr != nil {
+		return nil, c.reloginErr
+	}
+	return &api.ReloginResponse{}, nil
+}
+
+func (c *mockTSHDEventsService) SendNotification(context.Context, *api.SendNotificationRequest) (*api.SendNotificationResponse, error) {
+	c.sendNotificationCount.Add(1)
+	return &api.SendNotificationResponse{}, nil
+}
+
+func (c *mockTSHDEventsService) SendPendingHeadlessAuthentication(context.Context, *api.SendPendingHeadlessAuthenticationRequest) (*api.SendPendingHeadlessAuthenticationResponse, error) {
+	c.sendPendingHeadlessAuthenticationCount.Add(1)
+	return &api.SendPendingHeadlessAuthenticationResponse{}, nil
 }

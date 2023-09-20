@@ -330,7 +330,7 @@ func (c *CLICommandBuilder) getMySQLOracleCommand() (*exec.Cmd, error) {
 		// We save configuration to ~/.my.cnf, but on Windows that file is not read,
 		// see tables 4.1 and 4.2 on https://dev.mysql.com/doc/refman/8.0/en/option-files.html.
 		// We instruct mysql client to use use that file with --defaults-extra-file.
-		configPath, err := mysql.DefaultConfigPath()
+		configPath, err := c.getMySQLOptionFilePath()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -344,6 +344,15 @@ func (c *CLICommandBuilder) getMySQLOracleCommand() (*exec.Cmd, error) {
 	}
 
 	return exec.Command(mysqlBin, args...), nil
+}
+
+// getMySQLOptionFilePath gets the filepath to .my.cnf from the default location
+// in ~/.my.cnf, unless overridden by config.
+func (c *CLICommandBuilder) getMySQLOptionFilePath() (string, error) {
+	if c.tc.OverrideMySQLOptionFilePath != "" {
+		return c.tc.OverrideMySQLOptionFilePath, nil
+	}
+	return mysql.DefaultConfigPath()
 }
 
 // getMySQLCommand returns mariadb command if the binary is on the path. Otherwise,
@@ -683,11 +692,15 @@ func (j *jdbcOracleThinConnection) ConnString() string {
 }
 
 func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
+	tnsAdminPath := c.profile.OracleWalletDir(c.profile.Cluster, c.db.ServiceName)
+	if runtime.GOOS == constants.WindowsOS {
+		tnsAdminPath = strings.ReplaceAll(tnsAdminPath, `\`, `\\`)
+	}
 	cs := jdbcOracleThinConnection{
 		host:     c.host,
 		port:     c.port,
 		db:       c.db.Database,
-		tnsAdmin: c.profile.OracleWalletDir(c.profile.Cluster, c.db.ServiceName),
+		tnsAdmin: tnsAdminPath,
 	}
 	// Quote the address for printing as the address contains "?".
 	connString := cs.ConnString()

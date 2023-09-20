@@ -187,6 +187,7 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 			JamfBinaryVersion:   "9.27",
 			ExternalId:          "99",
 		},
+		Owner: "llama",
 	}
 
 	gotRes := DeviceToResource(dev)

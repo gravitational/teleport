@@ -121,10 +121,12 @@ type Chat struct {
 
 // NewChat creates a new Assist chat.
 func (a *Assist) NewChat(ctx context.Context, assistService MessageService,
-	embeddingServiceClient assist.AssistEmbeddingServiceClient,
-	conversationID, username string,
+	conversationID, username string, toolsConfig model.ToolsConfig,
 ) (*Chat, error) {
-	aichat := a.client.NewChat(embeddingServiceClient, username)
+	aichat, err := a.client.NewChat(username, toolsConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	chat := &Chat{
 		assist:                  a,
@@ -142,6 +144,31 @@ func (a *Assist) NewChat(ctx context.Context, assistService MessageService,
 	return chat, nil
 }
 
+// LightweightChat is a Teleport Assist chat that doesn't store the history
+// of the conversation.
+type LightweightChat struct {
+	assist *Assist
+	chat   *ai.Chat
+}
+
+// NewLightweightChat creates a new Assist chat what doesn't store the history
+// of the conversation.
+func (a *Assist) NewLightweightChat(username string) (*LightweightChat, error) {
+	aichat, err := a.client.NewCommand(username) // TODO(jakule): fix this after all in-flight PRs are merged
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &LightweightChat{
+		assist: a,
+		chat:   aichat,
+	}, nil
+}
+
+func (a *Assist) NewSSHCommand(username string) (*ai.Chat, error) {
+	return a.client.NewCommand(username)
+}
+
 // GenerateSummary generates a summary for the given message.
 func (a *Assist) GenerateSummary(ctx context.Context, message string) (string, error) {
 	return a.client.Summary(ctx, message)
@@ -150,7 +177,7 @@ func (a *Assist) GenerateSummary(ctx context.Context, message string) (string, e
 // GenerateCommandSummary summarizes the output of a command executed on one or
 // many nodes. The conversation history is also sent into the prompt in order
 // to gather context and know what information is relevant in the command output.
-func (a *Assist) GenerateCommandSummary(ctx context.Context, messages []*assist.AssistantMessage, output map[string][]byte) (string, error) {
+func (a *Assist) GenerateCommandSummary(ctx context.Context, messages []*assist.AssistantMessage, output map[string][]byte) (string, *model.TokenCount, error) {
 	// Create system prompt
 	modelMessages := []openai.ChatCompletionMessage{
 		{Role: openai.ChatMessageRoleSystem, Content: model.PromptSummarizeCommand},
@@ -162,7 +189,7 @@ func (a *Assist) GenerateCommandSummary(ctx context.Context, messages []*assist.
 		if role != "" && role != openai.ChatMessageRoleSystem {
 			payload, err := formatMessagePayload(message)
 			if err != nil {
-				return "", trace.Wrap(err)
+				return "", nil, trace.Wrap(err)
 			}
 			modelMessages = append(modelMessages, openai.ChatCompletionMessage{Role: role, Content: payload})
 		}
@@ -177,7 +204,7 @@ func (c *Chat) reloadMessages(ctx context.Context) error {
 }
 
 // ClassifyMessage takes a user message, a list of categories, and uses the AI
-// mode as a zero shot classifier. It returns an error if the classification
+// mode as a zero-shot classifier. It returns an error if the classification
 // result is not a valid class.
 func (a *Assist) ClassifyMessage(ctx context.Context, message string, classes map[string]string) (string, error) {
 	category, err := a.client.ClassifyMessage(ctx, message, classes)
@@ -268,8 +295,7 @@ type onMessageFunc func(kind MessageType, payload []byte, createdTime time.Time)
 
 // ProcessComplete processes the completion request and returns the number of tokens used.
 func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, userInput string,
-) (*model.TokensUsed, error) {
-	var tokensUsed *model.TokensUsed
+) (*model.TokenCount, error) {
 	progressUpdates := func(update *model.AgentAction) {
 		payload, err := json.Marshal(update)
 		if err != nil {
@@ -292,7 +318,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 	}
 
 	// query the assistant and fetch an answer
-	message, err := c.chat.Complete(ctx, userInput, progressUpdates)
+	message, tokenCount, err := c.chat.Complete(ctx, userInput, progressUpdates)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -317,7 +343,6 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 
 	switch message := message.(type) {
 	case *model.Message:
-		tokensUsed = message.TokensUsed
 		c.chat.Insert(openai.ChatMessageRoleAssistant, message.Content)
 
 		// write an assistant message to persistent storage
@@ -339,7 +364,6 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 			return nil, trace.Wrap(err)
 		}
 	case *model.StreamingMessage:
-		tokensUsed = message.TokensUsed
 		var text strings.Builder
 		defer onMessage(MessageKindAssistantPartialFinalize, nil, c.assist.clock.Now().UTC())
 		for part := range message.Parts {
@@ -367,7 +391,6 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 			return nil, trace.Wrap(err)
 		}
 	case *model.CompletionCommand:
-		tokensUsed = message.TokensUsed
 		payload := commandPayload{
 			Command: message.Command,
 			Nodes:   message.Nodes,
@@ -405,7 +428,64 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		return nil, trace.Errorf("unknown message type: %T", message)
 	}
 
-	return tokensUsed, nil
+	return tokenCount, nil
+}
+
+// ProcessComplete processes a user message and returns the assistant's response.
+func (c *LightweightChat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, userInput string,
+) (*model.TokenCount, error) {
+	progressUpdates := func(update *model.AgentAction) {
+		payload, err := json.Marshal(update)
+		if err != nil {
+			log.WithError(err).Debugf("Failed to marshal progress update: %v", update)
+			return
+		}
+
+		if err := onMessage(MessageKindProgressUpdate, payload, c.assist.clock.Now().UTC()); err != nil {
+			log.WithError(err).Debugf("Failed to send progress update: %v", update)
+			return
+		}
+	}
+
+	message, tokenCount, err := c.chat.Reply(ctx, userInput, progressUpdates)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c.chat.Insert(openai.ChatMessageRoleUser, userInput)
+
+	switch message := message.(type) {
+	case *model.Message:
+		c.chat.Insert(openai.ChatMessageRoleAssistant, message.Content)
+		if err := onMessage(MessageKindAssistantMessage, []byte(message.Content), c.assist.clock.Now().UTC()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case *model.GeneratedCommand:
+		c.chat.Insert(openai.ChatMessageRoleAssistant, message.Command)
+		if err := onMessage(MessageKindCommand, []byte(message.Command), c.assist.clock.Now().UTC()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case *model.StreamingMessage:
+		if err := func() error {
+			var text strings.Builder
+			defer onMessage(MessageKindAssistantPartialFinalize, nil, c.assist.clock.Now().UTC())
+			for part := range message.Parts {
+				text.WriteString(part)
+
+				if err := onMessage(MessageKindAssistantPartialMessage, []byte(part), c.assist.clock.Now().UTC()); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+			c.chat.Insert(openai.ChatMessageRoleAssistant, text.String())
+			return nil
+		}(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		return nil, trace.Errorf("Unexpected message type: %T", message)
+	}
+
+	return tokenCount, nil
 }
 
 func getOpenAITokenFromDefaultPlugin(ctx context.Context, proxyClient PluginGetter) (string, error) {

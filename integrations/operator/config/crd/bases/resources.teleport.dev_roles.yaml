@@ -297,6 +297,12 @@ spec:
                               type: string
                           type: object
                         type: array
+                      max_duration:
+                        description: MaxDuration is the amount of time the access
+                          will be granted for. If this is zero, the default duration
+                          is used.
+                        format: duration
+                        type: string
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -745,6 +751,12 @@ spec:
                               type: string
                           type: object
                         type: array
+                      max_duration:
+                        description: MaxDuration is the amount of time the access
+                          will be granted for. If this is zero, the default duration
+                          is used.
+                        format: duration
+                        type: string
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -977,6 +989,11 @@ spec:
                     description: CreateHostUser allows users to be automatically created
                       on a host
                     type: boolean
+                  create_host_user_mode:
+                    description: CreateHostUserMode allows users to be automatically
+                      created on a host when not set to off
+                    format: int32
+                    type: integer
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
                       is allowed between the user's workstation and the remote desktop.
@@ -1082,7 +1099,7 @@ spec:
                     type: string
                   request_prompt:
                     description: RequestPrompt is an optional message which tells
-                      users what they aught to request.
+                      users what they aught to
                     type: string
                   require_session_mfa:
                     description: RequireMFAType is the type of MFA requirement enforced
@@ -1463,6 +1480,12 @@ spec:
                               type: string
                           type: object
                         type: array
+                      max_duration:
+                        description: MaxDuration is the amount of time the access
+                          will be granted for. If this is zero, the default duration
+                          is used.
+                        format: duration
+                        type: string
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -1911,6 +1934,12 @@ spec:
                               type: string
                           type: object
                         type: array
+                      max_duration:
+                        description: MaxDuration is the amount of time the access
+                          will be granted for. If this is zero, the default duration
+                          is used.
+                        format: duration
+                        type: string
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -2143,6 +2172,11 @@ spec:
                     description: CreateHostUser allows users to be automatically created
                       on a host
                     type: boolean
+                  create_host_user_mode:
+                    description: CreateHostUserMode allows users to be automatically
+                      created on a host when not set to off
+                    format: int32
+                    type: integer
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
                       is allowed between the user's workstation and the remote desktop.
@@ -2248,7 +2282,7 @@ spec:
                     type: string
                   request_prompt:
                     description: RequestPrompt is an optional message which tells
-                      users what they aught to request.
+                      users what they aught to
                     type: string
                   require_session_mfa:
                     description: RequireMFAType is the type of MFA requirement enforced

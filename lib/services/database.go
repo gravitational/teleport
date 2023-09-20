@@ -187,7 +187,7 @@ func ValidateDatabase(db types.Database) error {
 	}
 
 	// Validate Active Directory specific configuration, when Kerberos auth is required.
-	if db.GetProtocol() == defaults.ProtocolSQLServer && (db.GetAD().Domain != "" || !strings.Contains(db.GetURI(), azureutils.MSSQLEndpointSuffix)) {
+	if needsADValidation(db) {
 		if db.GetAD().KeytabFile == "" && db.GetAD().KDCHostName == "" {
 			return trace.BadParameter("either keytab file path or kdc_host_name must be provided for database %q, both are missing", db.GetName())
 		}
@@ -225,6 +225,28 @@ func ValidateDatabase(db types.Database) error {
 	}
 
 	return nil
+}
+
+// needsADValidation returns whether a database AD configuration needs to
+// be validated.
+func needsADValidation(db types.Database) bool {
+	if db.GetProtocol() != defaults.ProtocolSQLServer {
+		return false
+	}
+
+	// Domain is always required when configuring the AD section, so we assume
+	// users intend to use Kerberos authentication if the configuration has it.
+	if db.GetAD().Domain != "" {
+		return true
+	}
+
+	// Azure-hosted databases and RDS Proxy support other authentication
+	// methods, and do not require this section to be validated.
+	if strings.Contains(db.GetURI(), azureutils.MSSQLEndpointSuffix) || db.GetAWS().RDSProxy.Name != "" {
+		return false
+	}
+
+	return true
 }
 
 // needsURIValidation returns whether a database URI needs to be validated.
@@ -582,16 +604,7 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 		return nil, trace.Wrap(err)
 	}
 
-	var subnets []string
-	if rdsInstance.DBSubnetGroup != nil {
-		subnets = make([]string, 0, len(rdsInstance.DBSubnetGroup.Subnets))
-		for _, s := range rdsInstance.DBSubnetGroup.Subnets {
-			if s.SubnetIdentifier == nil || *s.SubnetIdentifier == "" {
-				continue
-			}
-			subnets = append(subnets, *s.SubnetIdentifier)
-		}
-	}
+	vpcID, subnets := rdsSubnetGroupToNetworkInfo(rdsInstance.DBSubnetGroup)
 
 	return &types.AWS{
 		Region:    parsedARN.Region,
@@ -602,6 +615,7 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
 			IAMAuth:    rdsInstance.IAMDatabaseAuthenticationEnabled,
 			Subnets:    subnets,
+			VPCID:      vpcID,
 		},
 	}, nil
 }
@@ -619,8 +633,8 @@ func labelsFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance, meta *types.AWS
 
 // NewDatabaseFromRDSV2Cluster creates a database resource from an RDS cluster (Aurora).
 // It uses aws sdk v2.
-func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster) (types.Database, error) {
-	metadata, err := MetadataFromRDSV2Cluster(cluster)
+func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster, firstInstance *rdsTypesV2.DBInstance) (types.Database, error) {
+	metadata, err := MetadataFromRDSV2Cluster(cluster, firstInstance)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -645,13 +659,39 @@ func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster) (types.Database,
 		})
 }
 
+func rdsSubnetGroupToNetworkInfo(subnetGroup *rdsTypesV2.DBSubnetGroup) (vpcID string, subnets []string) {
+	if subnetGroup == nil {
+		return
+	}
+
+	vpcID = aws.StringValue(subnetGroup.VpcId)
+	subnets = make([]string, 0, len(subnetGroup.Subnets))
+	for _, s := range subnetGroup.Subnets {
+		subnetID := aws.StringValue(s.SubnetIdentifier)
+		if subnetID != "" {
+			subnets = append(subnets, subnetID)
+		}
+	}
+
+	return
+}
+
 // MetadataFromRDSV2Cluster creates AWS metadata from the provided RDS cluster.
 // It uses aws sdk v2.
-func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster) (*types.AWS, error) {
+// An optional [rdsTypesV2.DBInstance] can be passed to fill the network configuration of the Cluster.
+func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster, rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(rdsCluster.DBClusterArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var vpcID string
+	var subnets []string
+
+	if rdsInstance != nil {
+		vpcID, subnets = rdsSubnetGroupToNetworkInfo(rdsInstance.DBSubnetGroup)
+	}
+
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
@@ -659,6 +699,8 @@ func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster) (*types.AWS, err
 			ClusterID:  aws.StringValue(rdsCluster.DBClusterIdentifier),
 			ResourceID: aws.StringValue(rdsCluster.DbClusterResourceId),
 			IAMAuth:    aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
+			Subnets:    subnets,
+			VPCID:      vpcID,
 		},
 	}, nil
 }
@@ -766,6 +808,60 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 		}
 
 		databases = append(databases, database)
+	}
+
+	return databases, trace.NewAggregate(errors...)
+}
+
+// NewDatabasesFromRDSCluster creates all database resources from an RDS Aurora
+// cluster.
+func NewDatabasesFromRDSCluster(cluster *rds.DBCluster) (types.Databases, error) {
+	var errors []error
+	var databases types.Databases
+
+	// Find out what types of instances the cluster has. Some examples:
+	// - Aurora cluster with one instance: one writer
+	// - Aurora cluster with three instances: one writer and two readers
+	// - Secondary cluster of a global database: one or more readers
+	var hasWriterInstance, hasReaderInstance bool
+	for _, clusterMember := range cluster.DBClusterMembers {
+		if clusterMember != nil {
+			if aws.BoolValue(clusterMember.IsClusterWriter) {
+				hasWriterInstance = true
+			} else {
+				hasReaderInstance = true
+			}
+		}
+	}
+
+	// Add a database from primary endpoint, if any writer instances.
+	if cluster.Endpoint != nil && hasWriterInstance {
+		database, err := NewDatabaseFromRDSCluster(cluster)
+		if err != nil {
+			errors = append(errors, err)
+		} else {
+			databases = append(databases, database)
+		}
+	}
+
+	// Add a database from reader endpoint, if any reader instances.
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html#Aurora.Endpoints.Reader
+	if cluster.ReaderEndpoint != nil && hasReaderInstance {
+		database, err := NewDatabaseFromRDSClusterReaderEndpoint(cluster)
+		if err != nil {
+			errors = append(errors, err)
+		} else {
+			databases = append(databases, database)
+		}
+	}
+
+	// Add databases from custom endpoints
+	if len(cluster.CustomEndpoints) > 0 {
+		customEndpointDatabases, err := NewDatabasesFromRDSClusterCustomEndpoints(cluster)
+		if err != nil {
+			errors = append(errors, err)
+		}
+		databases = append(databases, customEndpointDatabases...)
 	}
 
 	return databases, trace.NewAggregate(errors...)
@@ -888,6 +984,27 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 	return databases, nil
 }
 
+// NewDatabasesFromElastiCacheReplicationGroup creates all database resources
+// from an ElastiCache ReplicationGroup.
+func NewDatabasesFromElastiCacheReplicationGroup(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Databases, error) {
+	// Create database using configuration endpoint for Redis with cluster
+	// mode enabled.
+	if aws.BoolValue(cluster.ClusterEnabled) {
+		database, err := NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Databases{database}, nil
+	}
+
+	// Create databases using primary and reader endpoints for Redis with
+	// cluster mode disabled. When cluster mode is disabled, it is expected
+	// there is only one node group (aka shard) with one primary endpoint
+	// and one reader endpoint.
+	databases, err := NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
+	return databases, trace.Wrap(err)
+}
+
 // newElastiCacheDatabase returns a new ElastiCache database.
 func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *elasticache.Endpoint, endpointType string, extraLabels map[string]string) (types.Database, error) {
 	metadata, err := MetadataFromElastiCacheCluster(cluster, endpointType)
@@ -910,8 +1027,8 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	})
 }
 
-// NewDatabaseFromOpenSearchDomain creates a database resource from an OpenSearch domain.
-func NewDatabaseFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
+// NewDatabasesFromOpenSearchDomain creates a database resource from an OpenSearch domain.
+func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
 	var databases types.Databases
 
 	if aws.StringValue(domain.Endpoint) != "" {
@@ -1502,7 +1619,6 @@ func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 		labels[types.DiscoveryLabelAccountID] = meta.AccountID
 		labels[types.DiscoveryLabelRegion] = meta.Region
 	}
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudAWS
 	return labels
 }
@@ -1523,7 +1639,6 @@ func labelsFromMetaAndEndpointType(meta *types.AWS, endpointType string, extraLa
 // azureTagsToLabels converts Azure tags to a labels map.
 func azureTagsToLabels(tags map[string]string) map[string]string {
 	labels := make(map[string]string)
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudAzure
 	return addLabels(labels, tags)
 }

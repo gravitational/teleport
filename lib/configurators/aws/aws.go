@@ -121,9 +121,11 @@ func makeDatabaseActionsBuildOption(flags configurators.BootstrapFlags, targetCf
 	case configurators.DatabaseServiceByDiscoveryServiceConfig:
 		return databaseActionsBuildOption{
 			withDiscovery:    false,
-			withMetadata:     false, // Discovered databases should have correct metadata.
 			withAuth:         true,
 			withAuthBoundary: boundary,
+			// Discovered databases should be checked by URL validator which
+			// requires same permissions as the metadata service.
+			withMetadata: true,
 		}
 
 	case configurators.DatabaseService:
@@ -254,6 +256,19 @@ var (
 	dynamodbActions = databaseActions{
 		authBoundary: stsActions,
 	}
+	// opensearchActions contains IAM actions for services.AWSMatcherOpenSearch
+	opensearchActions = databaseActions{
+		discovery: []string{
+			"es:ListDomainNames",
+			"es:DescribeDomains",
+			"es:ListTags",
+		},
+		metadata: []string{
+			// Used for url validation.
+			"es:DescribeDomains",
+		},
+		authBoundary: stsActions,
+	}
 )
 
 // awsConfigurator defines the AWS database configurator.
@@ -276,8 +291,8 @@ type ConfiguratorConfig struct {
 	AWSSTSClient stsiface.STSAPI
 	// AWSIAMClient AWS IAM client.
 	AWSIAMClient iamiface.IAMAPI
-	// AWSSSMClient AWS SSM Client
-	AWSSSMClient ssmiface.SSMAPI
+	// AWSSSMClient is a mapping of region -> ssm client
+	AWSSSMClients map[string]ssmiface.SSMAPI
 	// Policies instance of the `Policies` that the actions use.
 	Policies awslib.Policies
 	// Identity is the current AWS credentials chain identity.
@@ -318,8 +333,29 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 				return trace.Wrap(err)
 			}
 		}
-		if c.AWSSSMClient == nil {
-			c.AWSSSMClient = ssm.New(c.AWSSession)
+		if c.AWSSSMClients == nil {
+			c.AWSSSMClients = make(map[string]ssmiface.SSMAPI)
+			for _, matcher := range c.ServiceConfig.Discovery.AWSMatchers {
+				if !slices.Contains(matcher.Types, services.AWSMatcherEC2) {
+					continue
+				}
+				for _, region := range matcher.Regions {
+					if _, ok := c.AWSSSMClients[region]; ok {
+						continue
+					}
+					session, err := awssession.NewSessionWithOptions(awssession.Options{
+						Config: aws.Config{
+							Region: &region,
+						},
+						SharedConfigState: awssession.SharedConfigEnable,
+					})
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					c.AWSSSMClients[region] = ssm.New(session)
+				}
+			}
+
 		}
 
 		if c.Policies == nil {
@@ -467,7 +503,7 @@ func buildDiscoveryActions(config ConfiguratorConfig, targetCfg targetConfig) ([
 		return nil, err
 	}
 
-	actions = append(actions, buildSSMDocumentCreators(config.AWSSSMClient, targetCfg, proxyAddr)...)
+	actions = append(actions, buildSSMDocumentCreators(config.AWSSSMClients, targetCfg, proxyAddr)...)
 	return actions, nil
 }
 
@@ -641,6 +677,7 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, targetCfg targetCon
 	}
 
 	// Build statements for databases.
+	// TODO(greedy52) remove discovery permissions for static databases.
 	var requireSecretsManager, requireIAMEdit bool
 	var allActions []databaseActions
 	if hasRDSDatabases(flags, targetCfg) {
@@ -666,6 +703,9 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, targetCfg targetCon
 	}
 	if hasDynamoDBDatabases(flags, targetCfg) {
 		allActions = append(allActions, dynamodbActions)
+	}
+	if hasOpenSearchDatabases(flags, targetCfg) {
+		allActions = append(allActions, opensearchActions)
 	}
 
 	dbOption := makeDatabaseActionsBuildOption(flags, targetCfg, boundary)
@@ -725,18 +765,20 @@ func getProxyAddrFromConfig(cfg *servicecfg.Config, flags configurators.Bootstra
 	return "", trace.NotFound("proxy address not found, please provide --proxy, or set either teleport.proxy_server or proxy_service.public_addr in the teleport config")
 }
 
-func buildSSMDocumentCreators(ssm ssmiface.SSMAPI, targetCfg targetConfig, proxyAddr string) []configurators.ConfiguratorAction {
+func buildSSMDocumentCreators(ssm map[string]ssmiface.SSMAPI, targetCfg targetConfig, proxyAddr string) []configurators.ConfiguratorAction {
 	var creators []configurators.ConfiguratorAction
 	for _, matcher := range targetCfg.awsMatchers {
 		if !slices.Contains(matcher.Types, services.AWSMatcherEC2) {
 			continue
 		}
-		ssmCreator := awsSSMDocumentCreator{
-			ssm:      ssm,
-			Name:     matcher.SSM.DocumentName,
-			Contents: EC2DiscoverySSMDocument(proxyAddr),
+		for _, region := range matcher.Regions {
+			ssmCreator := awsSSMDocumentCreator{
+				ssm:      ssm[region],
+				Name:     matcher.SSM.DocumentName,
+				Contents: EC2DiscoverySSMDocument(proxyAddr),
+			}
+			creators = append(creators, &ssmCreator)
 		}
-		creators = append(creators, &ssmCreator)
 	}
 	return creators
 }
@@ -806,6 +848,18 @@ func hasMemoryDBDatabases(flags configurators.BootstrapFlags, targetCfg targetCo
 	}
 	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherMemoryDB, targetCfg.awsMatchers) ||
 		findEndpointIs(targetCfg.databases, apiawsutils.IsMemoryDBEndpoint)
+}
+
+// hasOpenSearchDatabases checks if the agent needs permission for OpenSearch
+// databases.
+func hasOpenSearchDatabases(flags configurators.BootstrapFlags, targetCfg targetConfig) bool {
+	if flags.ForceOpenSearchPermissions {
+		return true
+	}
+	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherOpenSearch, targetCfg.awsMatchers) ||
+		findDatabaseIs(targetCfg.databases, func(db *servicecfg.Database) bool {
+			return db.Protocol == defaults.ProtocolOpenSearch
+		})
 }
 
 // hasAWSKeyspacesDatabases checks if the agent needs permission for AWS Keyspaces.

@@ -62,7 +62,7 @@ export function ShareFeedbackFormFields({
         onChange={e => updateFormField('email', e.target.value)}
       />
       <FieldInput
-        label="Company name (optional)"
+        label="Company Name (optional)"
         readonly={disabled}
         css={`
           input {

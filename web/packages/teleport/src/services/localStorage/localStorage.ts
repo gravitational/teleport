@@ -20,17 +20,21 @@ import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
 
 import {
+  OnboardUserPreferences,
   ThemePreference,
   UserPreferences,
 } from 'teleport/services/userPreferences/types';
 
 import { KeysEnum, LocalStorageSurvey } from './types';
 
+import type { RecommendFeature } from 'teleport/types';
+
 // This is an array of local storage `KeysEnum` that are kept when a user logs out
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.THEME,
   KeysEnum.SHOW_ASSIST_POPUP,
   KeysEnum.USER_PREFERENCES,
+  KeysEnum.RECOMMEND_FEATURE,
 ];
 
 const storage = {
@@ -151,6 +155,15 @@ const storage = {
     return ThemePreference.Light;
   },
 
+  getOnboardUserPreference(): OnboardUserPreferences {
+    const userPreferences = storage.getUserPreferences();
+    if (userPreferences) {
+      return userPreferences.onboard;
+    }
+
+    return { preferredResources: [] };
+  },
+
   // DELETE IN 15 (ryan)
   getDeprecatedThemePreference(): DeprecatedThemeOption {
     return window.localStorage.getItem(KeysEnum.THEME) as DeprecatedThemeOption;
@@ -164,6 +177,21 @@ const storage = {
   broadcast(messageType, messageBody) {
     window.localStorage.setItem(messageType, messageBody);
     window.localStorage.removeItem(messageType);
+  },
+
+  // setRecommendFeature persists states used to determine if
+  // given feature needs to be recommended to the user.
+  // Currently, it only shows a red dot in the side navigation menu.
+  setRecommendFeature(d: RecommendFeature) {
+    window.localStorage.setItem(KeysEnum.RECOMMEND_FEATURE, JSON.stringify(d));
+  },
+
+  getFeatureRecommendationStatus(): RecommendFeature {
+    const item = window.localStorage.getItem(KeysEnum.RECOMMEND_FEATURE);
+    if (item) {
+      return JSON.parse(item);
+    }
+    return null;
   },
 };
 

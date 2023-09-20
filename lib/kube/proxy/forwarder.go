@@ -30,6 +30,7 @@ import (
 	mathrand "math/rand"
 	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -46,7 +47,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -56,6 +56,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apiserver/pkg/util/wsstream"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -105,7 +106,7 @@ const (
 	// LegacyProxyService is a Teleport proxy_service with the kubernetes section
 	// enabled. A LegacyProxyService can forward requests directly to a Kubernetes
 	// endpoint, or to another Teleport LegacyProxyService or KubeService.
-	LegacyProxyService = "legacy_proxy (legacy kubernetes)"
+	LegacyProxyService = "legacy_proxy"
 )
 
 // ForwarderConfig specifies configuration for proxy forwarder
@@ -335,10 +336,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
-	fwd.router = otelhttp.NewHandler(router,
-		fwd.cfg.KubeServiceType,
-		otelhttp.WithMessageEvents(otelhttp.ReadEvents, otelhttp.WriteEvents),
-	)
+	fwd.router = instrumentHTTPHandler(fwd.cfg.KubeServiceType, router)
 
 	if cfg.ClusterOverride != "" {
 		fwd.log.Debugf("Cluster override is set, forwarder will send all requests to remote cluster %v.", cfg.ClusterOverride)
@@ -1301,6 +1299,11 @@ func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 
 // join joins an existing session over a websocket connection
 func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
+	// Increment the request counter and the in-flight gauge.
+	joinSessionsRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	joinSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	defer joinSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+
 	f.log.Debugf("Join %v.", req.URL.String())
 
 	sess, err := f.newClusterSession(req.Context(), *ctx)
@@ -1707,6 +1710,11 @@ func exitCode(err error) (errMsg, code string) {
 // exec forwards all exec requests to the target server, captures
 // all output from the session
 func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
+	// Increment the request counter and the in-flight gauge.
+	execSessionsRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	execSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	defer execSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
 		"kube.Forwarder/exec",
@@ -1830,6 +1838,11 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 
 // portForward starts port forwarding to the remote cluster
 func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+	// Increment the request counter and the in-flight gauge.
+	portforwardRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	portforwardSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	defer portforwardSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
 		"kube.Forwarder/portForward",
@@ -2153,6 +2166,7 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 		tlsConfig:       sess.tlsConfig,
 		pingPeriod:      f.cfg.ConnPingPeriod,
 		originalHeaders: req.Header,
+		proxier:         sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
@@ -2175,6 +2189,7 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 		tlsConfig:       sess.tlsConfig,
 		pingPeriod:      f.cfg.ConnPingPeriod,
 		originalHeaders: req.Header,
+		proxier:         sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
@@ -2306,6 +2321,20 @@ func (s *clusterSession) dial(ctx context.Context, network string) (net.Conn, er
 		return conn, nil
 	}
 	return nil, trace.NewAggregate(errs...)
+}
+
+// getProxier returns the proxier function to use for this session.
+// If the target cluster is not served by this teleport service, the proxier
+// must be nil to avoid using it through the reverse tunnel.
+// If the target cluster is served by this teleport service, the proxier
+// must be set to the default proxy function.
+func (s *clusterSession) getProxier() func(req *http.Request) (*url.URL, error) {
+	// When the target cluster is not served by this teleport service, the
+	// proxier must be nil to avoid using it through the reverse tunnel.
+	if s.kubeAPICreds == nil {
+		return nil
+	}
+	return utilnet.NewProxierWithNoProxyCIDR(http.ProxyFromEnvironment)
 }
 
 // TODO(awly): unit test this

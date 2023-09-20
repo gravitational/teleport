@@ -82,6 +82,9 @@ these options:
 You can use `cert-manager` to provision and automatically renew TLS credentials
 by completing ACME challenges via Let's Encrypt.
 
+You can also use `cert-manager` with AWS Private Certificate Authority (PCA) in EKS using the
+`aws-privateca-issuer` plugin.
+
 This method uses a Kubernetes `LoadBalancer`, which will provision an underlying AWS Network Load
 Balancer (NLB) to handle incoming traffic.
 
@@ -286,7 +289,8 @@ Edit your `aws-values.yaml` file (created below) to refer to the name of your se
 
 ## Step 5/7. Set values to configure the cluster
 
-<ScopedBlock scope="enterprise">
+<Tabs>
+<TabItem scope="enterprise" label="Teleport Enterprise">
 
 Before you can install Teleport in your Kubernetes cluster, you will need to
 create a secret that contains your Teleport license information.
@@ -300,12 +304,15 @@ this secret as long as your file is named `license.pem`.
 $ kubectl -n <Var name="namespace" /> create secret generic license --from-file=license.pem
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Next, configure the `teleport-cluster` Helm chart to use the `aws` mode. Create
 a file called `aws-values.yaml` and write the values you've chosen above to it:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 <Tabs>
 <TabItem label="cert-manager">
@@ -330,12 +337,23 @@ highAvailability:
 podSecurityPolicy:
   enabled: false
 ```
+<Admonition type="note">
+If using an AWS PCA with cert-manager, you will need to 
+[ensure you set](../../reference/helm-reference/teleport-cluster.mdx#highavailabilitycertmanageraddcommonname)
+`highAvailability.certManager.addCommonName: true` in your values file.  You will also need to get the certificate authority
+certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`), 
+upload the full certificate chain to a secret, and 
+[reference the secret](../../reference/helm-reference/teleport-cluster.mdx#tlsexistingcasecretname)
+with `tls.existingCASecretName` in the values file.
+</Admonition>
 </TabItem>
 <TabItem label="AWS Certificate Manager">
 ```yaml
 chartMode: aws
 clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
 proxyListenerMode: multiplex
+service:
+  type: ClusterIP
 aws:
   region: us-west-2                               # AWS region
   backendTable: teleport-helm-backend             # DynamoDB table to use for the Teleport backend
@@ -382,8 +400,8 @@ can also optionally provide these two values under `annotations.ingress`:
 </TabItem>
 </Tabs>
 
-</ScopedBlock>
-<ScopedBlock scope={["enterprise"]}>
+</TabItem>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
 <Tabs>
 <TabItem label="cert-manager">
@@ -409,6 +427,15 @@ enterprise: true                                  # Indicate that this is a Tele
 podSecurityPolicy:
   enabled: false
 ```
+<Admonition type="note">
+If using an AWS PCA with cert-manager, you will need to 
+[ensure you set](../../reference/helm-reference/teleport-cluster.mdx#highavailabilitycertmanageraddcommonname)
+`highAvailability.certManager.addCommonName: true` in your values file.  You will also need to get the certificate authority
+certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`), 
+upload the full certificate chain to a secret, and 
+[reference the secret](../../reference/helm-reference/teleport-cluster.mdx#tlsexistingcasecretname)
+with `tls.existingCASecretName` in the values file.
+</Admonition>
 </TabItem>
 <TabItem label="AWS Certificate Manager">
 ```yaml
@@ -463,7 +490,9 @@ can also optionally provide these two values under `annotations.ingress`:
 </TabItem>
 </Tabs>
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Install the chart with the values from your `aws-values.yaml` file using this command:
 
@@ -645,7 +674,8 @@ $ aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
 Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```code
 $ kubectl --namespace <Var name="namespace" /> exec deploy/<Var name="release-name" />-auth -- tctl users add test --roles=access,editor
 
@@ -654,8 +684,8 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```code
 $ kubectl --namespace teleport exec deploy/teleport-auth -- tctl users add test --roles=access,editor,reviewer
 
@@ -664,7 +694,9 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
 
@@ -767,3 +799,4 @@ users and setting up RBAC.
 See the [high availability section of our Helm chart reference](../../reference/helm-reference/teleport-cluster.mdx#highavailability) for more details on high availability.
 
 Read the [`cert-manager` documentation](https://cert-manager.io/docs/).
+

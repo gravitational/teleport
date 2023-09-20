@@ -16,6 +16,8 @@ limitations under the License.
 
 package aws
 
+import "fmt"
+
 var (
 	allResources = []string{"*"}
 )
@@ -49,6 +51,9 @@ func StatementForECSManageService() *Statement {
 			"ecs:DescribeClusters", "ecs:CreateCluster", "ecs:PutClusterCapacityProviders",
 			"ecs:DescribeServices", "ecs:CreateService", "ecs:UpdateService",
 			"ecs:RegisterTaskDefinition",
+
+			// EC2 DescribeSecurityGroups is required so that the user can list the SG and then pick which ones they want to apply to the ECS Service.
+			"ec2:DescribeSecurityGroups",
 		},
 		Resources: allResources,
 	}
@@ -95,6 +100,62 @@ func StatementForRDSDBConnect() *Statement {
 	return &Statement{
 		Effect:    EffectAllow,
 		Actions:   SliceOrString{"rds-db:connect"},
+		Resources: allResources,
+	}
+}
+
+// StatementForEC2InstanceConnectEndpoint returns the statement that allows the flow for accessing
+// an EC2 instance using its private IP, using EC2 Instance Connect Endpoint.
+func StatementForEC2InstanceConnectEndpoint() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"ec2:DescribeInstances",
+			"ec2:DescribeInstanceConnectEndpoints",
+			"ec2:DescribeSecurityGroups",
+
+			// Create ICE requires the following actions:
+			// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/permissions-for-ec2-instance-connect-endpoint.html
+			"ec2:CreateInstanceConnectEndpoint",
+			"ec2:CreateTags",
+			"ec2:CreateNetworkInterface",
+			"iam:CreateServiceLinkedRole",
+
+			"ec2-instance-connect:SendSSHPublicKey",
+			"ec2-instance-connect:OpenTunnel",
+		},
+		Resources: allResources,
+	}
+}
+
+// StatementForAWSOIDCRoleTrustRelationship returns the Trust Relationship to allow the OpenID Connect Provider
+// set up during the AWS OIDC Onboarding to assume this Role.
+func StatementForAWSOIDCRoleTrustRelationship(accountID, providerURL string, audiences []string) *Statement {
+	federatedARN := fmt.Sprintf("arn:aws:iam::%s:oidc-provider/%s", accountID, providerURL)
+	federatedAudience := fmt.Sprintf("%s:aud", providerURL)
+
+	return &Statement{
+		Effect:  EffectAllow,
+		Actions: SliceOrString{"sts:AssumeRoleWithWebIdentity"},
+		Principals: map[string]SliceOrString{
+			"Federated": []string{federatedARN},
+		},
+		Conditions: map[string]map[string]SliceOrString{
+			"StringEquals": {
+				federatedAudience: audiences,
+			},
+		},
+	}
+}
+
+// StatementForListRDSDatabases returns the statement that allows listing RDS DB Clusters and Instances.
+func StatementForListRDSDatabases() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"rds:DescribeDBInstances",
+			"rds:DescribeDBClusters",
+		},
 		Resources: allResources,
 	}
 }

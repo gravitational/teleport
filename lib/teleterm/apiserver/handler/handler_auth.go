@@ -38,18 +38,20 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 		if err := cluster.LocalLogin(ctx, params.Local.User, params.Local.Password, params.Local.Token); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		return &api.EmptyResponse{}, nil
 	case *api.LoginRequest_Sso:
 		if err := cluster.SSOLogin(ctx, params.Sso.ProviderType, params.Sso.ProviderName); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		return &api.EmptyResponse{}, nil
 	default:
 		return nil, trace.BadParameter("unsupported login parameters")
 	}
 
+	// Don't wait for the headless watcher to initialize as this could slow down logins.
+	if err := s.DaemonService.StartHeadlessWatcher(req.ClusterUri, false /* waitInit */); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.EmptyResponse{}, nil
 }
 
 // LoginPasswordless logs in a user to a cluster passwordlessly.
@@ -72,6 +74,11 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 
 	// Start the prompt flow.
 	if err := cluster.PasswordlessLogin(stream.Context(), stream); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Don't wait for the headless watcher to initialize as this could slow down logins.
+	if err := s.DaemonService.StartHeadlessWatcher(initReq.GetClusterUri(), false /* waitInit */); err != nil {
 		return trace.Wrap(err)
 	}
 

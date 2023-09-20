@@ -86,12 +86,19 @@ without having to write a full configuration file. If you were using `custom` mo
 because of a missing chart feature (like etcd backend support for example) this
 might be a better fit for you than managing a fully-custom config.
 
-#### If you deploy a Teleport cluster and only need a couple of custom configuration overrides
+#### If you deploy a Teleport cluster
 
 You can now use the existing modes `aws`, `gcp` and `standalone` and pass your custom
 configuration overrides through the `auth.teleportConfig` and `proxy.teleportConfig`
 values. For most use-cases this is the recommended setup as you will automatically
 benefit from future configuration upgrades.
+
+You must split the configuration in two configurations, one for each node type:
+
+- The `proxy` configuration must contain at least the `proxy_service` section
+  and the `teleport` section without the `storage` part.
+- The `auth` configuration must contain at least the `auth_service` and
+  `teleport` sections.
 
 For example - a v11 custom configuration that looked like this:
 
@@ -108,6 +115,7 @@ auth_service:
   - "trusted_cluster:(=presets.tokens.second=)"
   listen_addr: 0.0.0.0:3025
   public_addr: custom.example.com:3025
+  session_recording: node-sync
 proxy_service:
   enabled: true
   listen_addr: 0.0.0.0:3080
@@ -120,6 +128,8 @@ Can be converted into these values:
 ```yaml
 chartMode: standalone
 clusterName: custom.example.com
+
+sessionRecording: node-sync
 
 auth:
   teleportConfig:
@@ -137,96 +147,6 @@ proxy:
 <Admonition type="warning">
 `teleport.cluster_name` and `teleport.auth_service.authentication.webauthn.rp_id` MUST NOT change.
 </Admonition>
-
-#### If you deploy a Teleport cluster and need to manage its full configuration
-
-If you need to manage the full configuration you must use the `scratch` mode.
-This mode will generate an empty configuration file and you will pass all your
-custom configuration through the `auth.teleportConfig` and `proxy.teleportConfig`
-values.
-
-You must split the configuration in two configurations, one for each node type:
-
-- The `proxy` configuration must contain at least the `proxy_service` section
-  and the `teleport` section without the `storage` part.
-- The `auth` configuration must contain at least the `auth_service` and `teleport` sections.
-
-The chart automatically creates a Kubernetes join token named after the Helm
-release, which will enable the proxy pods to seamlessly connect to the auth pods.
-If you do not want to use this automatic token, you must provide a valid Teleport
-join token in the proxy pods' configuration.
-
-For example - a v11 custom configuration that looked like this:
-
-```yaml
-version: v1
-teleport:
-  log:
-    output: stderr
-    severity: INFO
-auth_service:
-  enabled: true
-  cluster_name: custom.example.com
-  tokens:
-  - "proxy,node:(=presets.tokens.first=)"
-  - "trusted_cluster:(=presets.tokens.second=)"
-  listen_addr: 0.0.0.0:3025
-  public_addr: custom.example.com:3025
-proxy_service:
-  enabled: true
-  listen_addr: 0.0.0.0:3080
-  public_addr: custom.example.com:443
-  ssh_public_addr: ssh-custom.example.com:3023
-```
-
-Can be split into two configurations and be deployed using these values:
-
-```yaml
-chartMode: scratch
-
-proxy:
-  teleportConfig:
-    version: v1
-    teleport:
-      log:
-        output: stderr
-        severity: INFO
-
-      # You MUST insert the following block, this tells the proxies
-      # how to connect to the auth. The helm chart will automatically create a
-      # Kubernetes join token named after the Helm release name so the proxies
-      # can join the cluster.
-      join_params:
-        method: kubernetes
-        # The token name pattern is "<RELEASE-NAME>-proxy"
-        # Change this if you change the Helm release name.
-        token_name: "teleport-proxy"
-      # The auth server domain pattern is "<RELEASE-NAME>-auth.<RELEASE-NAMESPACE>.svc.cluster.local:3025"
-      # If you change the Helm release name or namespace you must adapt the `auth_server` value.
-      auth_server: "teleport-auth.teleport.svc.cluster.local:3025"
-
-    proxy_service:
-      enabled: true
-      listen_addr: 0.0.0.0:3080
-      public_addr: custom.example.com:443
-      ssh_public_addr: ssh-custom.example.com:3023
-
-auth:
-  teleportConfig:
-    version: v1
-    teleport:
-      log:
-        output: stderr
-        severity: INFO
-    auth_service:
-      enabled: true
-      cluster_name: custom.example.com
-      tokens:
-      - "proxy,node:(=presets.tokens.first=)"
-      - "trusted_cluster:(=presets.tokens.second=)"
-      listen_addr: 0.0.0.0:3025
-      public_addr: custom.example.com:3025
-```
 
 #### If you deploy Teleport nodes
 
