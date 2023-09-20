@@ -22,11 +22,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v2"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 )
 
@@ -38,8 +40,8 @@ const tshConfigPath = "config/config.yaml"
 // default location of global tsh config file.
 const globalTshConfigPathDefault = "/etc/tsh.yaml"
 
-// TshConfig represents configuration loaded from the tsh config file.
-type TshConfig struct {
+// TSHConfig represents configuration loaded from the tsh config file.
+type TSHConfig struct {
 	// ExtraHeaders are additional http headers to be included in
 	// webclient requests.
 	ExtraHeaders []ExtraProxyHeaders `yaml:"add_headers,omitempty"`
@@ -50,7 +52,7 @@ type TshConfig struct {
 }
 
 // Check validates the tsh config.
-func (config *TshConfig) Check() error {
+func (config *TSHConfig) Check() error {
 	for _, template := range config.ProxyTemplates {
 		if err := template.Check(); err != nil {
 			return trace.Wrap(err)
@@ -69,17 +71,17 @@ type ExtraProxyHeaders struct {
 }
 
 // Merge two configs into one. The passed in otherConfig argument has higher priority.
-func (config *TshConfig) Merge(otherConfig *TshConfig) TshConfig {
+func (config *TSHConfig) Merge(otherConfig *TSHConfig) TSHConfig {
 	baseConfig := config
 	if baseConfig == nil {
-		baseConfig = &TshConfig{}
+		baseConfig = &TSHConfig{}
 	}
 
 	if otherConfig == nil {
-		otherConfig = &TshConfig{}
+		otherConfig = &TSHConfig{}
 	}
 
-	newConfig := TshConfig{}
+	newConfig := TSHConfig{}
 	newConfig.ExtraHeaders = append(otherConfig.ExtraHeaders, baseConfig.ExtraHeaders...)
 	newConfig.ProxyTemplates = append(otherConfig.ProxyTemplates, baseConfig.ProxyTemplates...)
 
@@ -176,15 +178,15 @@ func (t ProxyTemplate) Apply(fullHostname string) (proxy, host, cluster string, 
 }
 
 // loadConfig load a single config file from given path. If the path does not exist, an empty config is returned instead.
-func loadConfig(fullConfigPath string) (*TshConfig, error) {
+func loadConfig(fullConfigPath string) (*TSHConfig, error) {
 	bs, err := os.ReadFile(fullConfigPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return &TshConfig{}, nil
+			return &TSHConfig{}, nil
 		}
 		return nil, trace.ConvertSystemError(err)
 	}
-	cfg := TshConfig{}
+	cfg := TSHConfig{}
 	if err := yaml.Unmarshal(bs, &cfg); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -195,16 +197,27 @@ func loadConfig(fullConfigPath string) (*TshConfig, error) {
 }
 
 // loadAllConfigs loads all tsh configs and merges them in appropriate order.
-func loadAllConfigs(cf CLIConf) (*TshConfig, error) {
-	// default to globalTshConfigPathDefault
-	globalConfigPath := cf.GlobalTshConfigPath
-	if globalConfigPath == "" {
-		globalConfigPath = globalTshConfigPathDefault
-	}
-
-	globalConf, err := loadConfig(globalConfigPath)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to load global tsh config from %q", globalConfigPath)
+func loadAllConfigs(cf CLIConf) (*TSHConfig, error) {
+	var globalConf *TSHConfig
+	switch {
+	// prefer using explicitly provided config paths
+	case cf.GlobalTshConfigPath != "":
+		cfg, err := loadConfig(cf.GlobalTshConfigPath)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to load global tsh config from %q", cf.GlobalTshConfigPath)
+		}
+		globalConf = cfg
+	// skip the default global config path on windows see
+	// teleport-private/#811 for more details
+	case runtime.GOOS == constants.WindowsOS:
+		globalConf = &TSHConfig{}
+	// fallback to the global default on all other operating systems
+	default:
+		cfg, err := loadConfig(globalTshConfigPathDefault)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to load global tsh config from %q", globalTshConfigPathDefault)
+		}
+		globalConf = cfg
 	}
 
 	fullConfigPath := filepath.Join(profile.FullProfilePath(cf.HomePath), tshConfigPath)
