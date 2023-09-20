@@ -595,6 +595,10 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 	// it.
 	deps := []PackageInfo{}
 	for _, f := range rs.fields {
+		// Don't make separate reference entries for embedded structs
+		if f.name == "" {
+			continue
+		}
 		deps = append(deps, f.kind.customFieldData()...)
 	}
 	for _, d := range deps {
