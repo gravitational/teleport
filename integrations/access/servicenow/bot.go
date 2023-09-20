@@ -95,5 +95,5 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 
 // FetchRecipient isn't used by the ServicenoPlugin
 func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
-	return nil, nil
+	return nil, trace.NotImplemented("ServiceNow plugin does not use recipients")
 }
