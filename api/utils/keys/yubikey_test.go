@@ -17,40 +17,55 @@ package keys
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-// TestGetOrGenerateYubiKeyPrivateKey tests GetOrGenerateYubiKeyPrivateKey.
-func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
+// TestGetYubiKeyPrivateKey_Interactive tests generation and retrieval of YubiKey private keys.
+func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 	// This test expects a yubiKey to be connected with default PIV
 	// settings and will overwrite any PIV data on the yubiKey.
 	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
 		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
 	}
 
+	if !testing.Verbose() {
+		t.Fatal("This test is interactive and must be called with the -v verbose flag to see touch prompts.")
+	}
+	fmt.Println("This test is interactive, tap your YubiKey when prompted.")
+
 	ctx := context.Background()
 	resetYubikey(ctx, t)
 
-	// Generate a new YubiKeyPrivateKey.
-	priv, err := GetOrGenerateYubiKeyPrivateKey(false)
-	require.NoError(t, err)
+	for _, policy := range []PrivateKeyPolicy{
+		PrivateKeyPolicyHardwareKey,
+		PrivateKeyPolicyHardwareKeyTouch,
+	} {
+		t.Run(fmt.Sprintf("policy:%q", policy), func(t *testing.T) {
+			t.Cleanup(func() { resetYubikey(ctx, t) })
 
-	// Test creating a self signed certificate with the key.
-	_, err = selfSignedTeleportClientCertificate(priv, priv.Public())
-	require.NoError(t, err)
+			// GetYubiKeyPrivateKey should generate a new YubiKeyPrivateKey.
+			priv, err := GetOrGenerateYubiKeyPrivateKey(policy == PrivateKeyPolicyHardwareKeyTouch)
+			require.NoError(t, err)
 
-	// Another call to GetOrGenerateYubiKeyPrivateKey should retrieve the previously generated key.
-	retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(false)
-	require.NoError(t, err)
-	require.Equal(t, priv, retrievePriv)
+			// Test Sign.
+			_, err = selfSignedTeleportClientCertificate(priv, priv.Public())
+			require.NoError(t, err)
 
-	// parsing the key's private key PEM should produce the same key as well.
-	retrieveKey, err := ParsePrivateKey(priv.PrivateKeyPEM())
-	require.NoError(t, err)
-	require.Equal(t, priv, retrieveKey)
+			// Another call to GetYubiKeyPrivateKey should retrieve the previously generated key.
+			retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(policy == PrivateKeyPolicyHardwareKeyTouch)
+			require.NoError(t, err)
+			require.Equal(t, priv.Public(), retrievePriv.Public())
+
+			// parsing the key's private key PEM should produce the same key as well.
+			retrievePriv, err = ParsePrivateKey(priv.PrivateKeyPEM())
+			require.NoError(t, err)
+			require.Equal(t, priv.Public(), retrievePriv.Public())
+		})
+	}
 }
 
 // resetYubikey connects to the first yubiKey and resets it to defaults.
