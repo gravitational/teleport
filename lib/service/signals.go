@@ -82,7 +82,7 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				process.Shutdown(ctx)
 				process.log.Infof("All services stopped, exiting.")
 				return nil
-			case syscall.SIGTERM, syscall.SIGKILL, syscall.SIGINT:
+			case syscall.SIGTERM, syscall.SIGINT:
 				timeout := getShutdownTimeout(process.log)
 				cancelCtx, cancelFunc := context.WithTimeout(ctx, timeout)
 				process.log.Infof("Got signal %q, exiting within %vs.", signal, timeout.Seconds())
