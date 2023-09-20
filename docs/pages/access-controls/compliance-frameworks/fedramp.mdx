@@ -5,8 +5,8 @@ description: How to configure SSH, Kubernetes, database, and web app access to b
 
 Teleport provides the foundation to meet FedRAMP requirements for the purposes of accessing infrastructure. 
 This includes support for the Federal Information Processing Standard [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS\_140-2).
-This standard is the US government approved standard for cryptographic modules. This document provides a high
-level overview of how Teleport FIPS mode works and how it can help your company to become FedRAMP authorized.
+This standard is the US government approved standard for cryptographic modules. This document explains how  
+Teleport FIPS mode works and how it can help your company to become FedRAMP authorized.
 
 ## Obtain FedRAMP authorization with Teleport
 
@@ -39,9 +39,10 @@ For example, you can download and install from the compressed archive by running
 $ curl https://get.gravitational.com/teleport-ent-(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz.sha256
 <checksum> <filename>
 $ curl -O https://cdn.teleport.dev/teleport-ent-(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz
+
+# Verify that the checksums match
 $ shasum -a 256 teleport-ent-(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz
 
-Verify that the checksums match
 $ tar -xvf teleport-ent-(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz
 $ cd teleport-ent
 $ sudo ./install
@@ -49,18 +50,12 @@ $ sudo ./install
 
 After you download and install, all of the Teleport Enterrpise binaries are 
 installed in the `/usr/local/bin` directory. You can verify you have FIPS-compliant
-binaries installed by running the `version` command and verifying that the `X:boringcrypto`
-library is listed. For example:
+binaries installed by running the `teleport version` command and verifying that 
+the `X:boringcrypto` library is listed. For example:
 
 ```code
 $ teleport version
 Teleport Enterprise v13.3.9 git:api/v13.3.9-0-gd1a97d9 go1.20.8 X:boringcrypto
-$ tsh version
-Teleport v13.3.9 git:api/v13.3.9-0-gd1a97d9 go1.20.8 X:boringcrypto
-$ tctl version
-Teleport Enterprise v13.3.9 git:api/v13.3.9-0-gd1a97d9 go1.20.8 X:boringcrypto
-$ tbot version
-Teleport v13.3.9 git:api/v13.3.9-0-gd1a97d9 go1.20.8 X:boringcrypto
 ```
 
 If your Teleport cluster runs on AWS, the cluster must run in a GovCloud
@@ -111,7 +106,7 @@ ssh_service:
   enabled: false
 ```
 
-## Configure the Teleport Node Service
+## Configure the Teleport SSH Service
 
 Save the following configuration file as `/etc/teleport.yaml` on the Node
 Service host:
@@ -137,7 +132,7 @@ proxy_service:
 
 ## Configure service unit file
 
-Dashboardownload the `systemd` service unit file from the [examples directory](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/systemd/fips)
+Download the `systemd` service unit file from the [examples directory](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/systemd/fips)
 on GitHub and save it as `/etc/systemd/system/teleport.service` on both servers.
 
 ```code
