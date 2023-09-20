@@ -109,6 +109,8 @@ export function AgentVersionTooNew() {
 
 // Shows only cluster upgrade instructions.
 // Downgrading the app would result in installing a version that doesn't support 'Connect My Computer'.
+// DELETE IN 17.0.0 (gzdunek): by the time 17.0 releases, 14.x will no longer be
+// supported, so downgrade will be always possible.
 export function AgentVersionTooNewButOnlyClusterCanBeUpgraded() {
   const appContext = new MockAppContext({ appVersion: '14.1.0' });
 

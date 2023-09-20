@@ -53,6 +53,9 @@ export function CompatibilityError(): JSX.Element {
   );
 
   // offer a downgrade only to a release that has 'Connect My Computer'
+  // DELETE IN 17.0.0 (gzdunek): by the time 17.0 releases, 14.x will no longer be
+  // supported and then downgradeAppTo will simply become ${clusterMajorVersion}.x.x,
+  // and we will not have to check if downgrade is possible.
   const isAppDowngradePossible =
     clusterMajorVersion >= connectMyComputerReleaseMajorVersion;
   const downgradeAppTo =
