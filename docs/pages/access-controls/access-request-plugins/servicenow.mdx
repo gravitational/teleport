@@ -33,39 +33,8 @@ The Teleport ServiceNow plugin works by receiving Access Request events from the
 Teleport Auth Service and, based on these events, interacting with the ServiceNow
 API.
 
-### Create a demo-requester role
-
-To create a user first navigate to Management -> Access -> Roles
-
-Then select 'Create New Role' and create the demo-requester role.
-
-```
-kind: role
-version: v5
-metadata:
-  name: demo-requester
-spec:
-  allow:
-    request:
-      roles: ['editor']
-      thresholds:
-        - approve: 1
-          deny: 1
-```
-
-### Create a user who will request access
-
-Create a user called `myuser` who has the `demo-requester` role. Later in this
-guide, you will create an Access Request as this user to test the ServiceNow
-plugin:
-
-To create a user first navigate to Management -> Access -> Users
-
-![Add user one](../../../img/enterprise/plugins/servicenow/add-user-one.png)
-
-Then select 'Create New User' and create a user with the demo-requester role.
-
-![Add user two](../../../img/enterprise/plugins/servicenow/add-user-two.png)
+Before making the access request ensure the user making the request has
+the `requester` role.
 
 ## Step 3/4. Configure the ServiceNow plugin
 
