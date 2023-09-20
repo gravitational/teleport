@@ -27,75 +27,51 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-func TestEICEIAMConfigReqDefaults(t *testing.T) {
-	baseReq := func() EICEIAMConfigureRequest {
-		return EICEIAMConfigureRequest{
-			Region:          "us-east-1",
-			IntegrationRole: "integrationrole",
-		}
-	}
-
+func TestListDatabasesIAMConfigReqDefaults(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
-		req      func() EICEIAMConfigureRequest
+		req      ConfigureIAMListDatabasesRequest
 		errCheck require.ErrorAssertionFunc
-		expected EICEIAMConfigureRequest
+		expected ConfigureIAMListDatabasesRequest
 	}{
 		{
-			name:     "set defaults",
-			req:      baseReq,
-			errCheck: require.NoError,
-			expected: EICEIAMConfigureRequest{
-				Region:                    "us-east-1",
-				IntegrationRole:           "integrationrole",
-				IntegrationRoleEICEPolicy: "EC2InstanceConnectEndpoint",
-			},
-		},
-		{
 			name: "missing region",
-			req: func() EICEIAMConfigureRequest {
-				req := baseReq()
-				req.Region = ""
-				return req
+			req: ConfigureIAMListDatabasesRequest{
+				IntegrationRole: "integrationrole",
 			},
 			errCheck: badParameterCheck,
 		},
 		{
 			name: "missing integration role",
-			req: func() EICEIAMConfigureRequest {
-				req := baseReq()
-				req.IntegrationRole = ""
-				return req
+			req: ConfigureIAMListDatabasesRequest{
+				IntegrationRole: "integrationrole",
 			},
 			errCheck: badParameterCheck,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			req := tt.req()
-			err := req.CheckAndSetDefaults()
+			err := tt.req.CheckAndSetDefaults()
 			tt.errCheck(t, err)
 			if err != nil {
 				return
 			}
 
-			require.Equal(t, tt.expected, req)
+			require.Equal(t, tt.expected, tt.req)
 		})
 	}
 }
 
-func TestEICEIAMConfig(t *testing.T) {
+func TestListDatabasesIAMConfig(t *testing.T) {
 	ctx := context.Background()
-	baseReq := func() EICEIAMConfigureRequest {
-		return EICEIAMConfigureRequest{
-			Region:          "us-east-1",
-			IntegrationRole: "integrationrole",
-		}
+	baseReq := ConfigureIAMListDatabasesRequest{
+		Region:          "us-east-1",
+		IntegrationRole: "integrationrole",
 	}
 
 	for _, tt := range []struct {
 		name              string
 		mockExistingRoles []string
-		req               func() EICEIAMConfigureRequest
+		req               ConfigureIAMListDatabasesRequest
 		errCheck          require.ErrorAssertionFunc
 	}{
 		{
@@ -112,22 +88,22 @@ func TestEICEIAMConfig(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			clt := mockEICEIAMConfigClient{
+			clt := mockListDatabasesIAMConfigClient{
 				existingRoles: tt.mockExistingRoles,
 			}
 
-			err := ConfigureEICEIAM(ctx, &clt, tt.req())
+			err := ConfigureListDatabasesIAM(ctx, &clt, tt.req)
 			tt.errCheck(t, err)
 		})
 	}
 }
 
-type mockEICEIAMConfigClient struct {
+type mockListDatabasesIAMConfigClient struct {
 	existingRoles []string
 }
 
 // PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
-func (m *mockEICEIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
+func (m *mockListDatabasesIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	if !slices.Contains(m.existingRoles, *params.RoleName) {
 		noSuchEntityMessage := fmt.Sprintf("role %q does not exist.", *params.RoleName)
 		return nil, &iamTypes.NoSuchEntityException{
