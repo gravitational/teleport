@@ -9,6 +9,7 @@ COPY_COMMAND="cp"
 DISTRO_TYPE=""
 IGNORE_CONNECTIVITY_CHECK="${TELEPORT_IGNORE_CONNECTIVITY_CHECK:-false}"
 LAUNCHD_CONFIG_PATH="/Library/LaunchDaemons"
+LAUNCHD_PLIST_FILE="com.goteleport.teleport.plist"
 LOG_FILENAME="$(mktemp -t ${SCRIPT_NAME}.log.XXXXXXXXXX)"
 MACOS_STDERR_LOG="/var/log/teleport-stderr.log"
 MACOS_STDOUT_LOG="/var/log/teleport-stdout.log"
@@ -237,6 +238,11 @@ log_cleanup_message() {
     log_only "- remove any Teleport binaries (${TELEPORT_BINARY_LIST}) installed under ${TELEPORT_BINARY_DIR}"
     for BINARY in ${TELEPORT_BINARY_LIST}; do EXAMPLE_DELETE_COMMAND+="${TELEPORT_BINARY_DIR}/${BINARY} "; done
     log_only "  - rm -f ${EXAMPLE_DELETE_COMMAND}"
+    if is_macos_host; then
+        log_only "- unload and remove Teleport launchd config ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
+        log_only "  - launchctl unload ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
+        log_only "  - rm -f ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
+    fi
     log_only "Run this installer again when done."
     log_only
 }
@@ -392,7 +398,7 @@ get_teleport_start_command() {
 # installs the teleport-provided launchd config
 install_launchd_config() {
     log "Installing Teleport launchd config to ${LAUNCHD_CONFIG_PATH}"
-    ${COPY_COMMAND} ./${TELEPORT_ARCHIVE_PATH}/examples/launchd/com.goteleport.teleport.plist ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist
+    ${COPY_COMMAND} ./${TELEPORT_ARCHIVE_PATH}/examples/launchd/${LAUNCHD_PLIST_FILE} ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}
 }
 # installs the teleport-provided systemd unit
 install_systemd_unit() {
@@ -525,8 +531,8 @@ print_welcome_message() {
             log_only "To start Teleport again if you stop it, run 'sudo systemctl start teleport.service'"
         elif is_macos_host; then
             log_only "View Teleport logs in '${MACOS_STDERR_LOG}' and '${MACOS_STDOUT_LOG}'"
-            log_only "To stop Teleport, run 'sudo launchctl unload ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist'"
-            log_only "To start Teleport again if you stop it, run 'sudo launchctl load ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist'"
+            log_only "To stop Teleport, run 'sudo launchctl unload ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}'"
+            log_only "To start Teleport again if you stop it, run 'sudo launchctl load ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}'"
         fi
         log_only ""
         log_only "You can see this node connected in the Teleport web UI or 'tsh ls' with the name '${NODENAME}'"
@@ -552,7 +558,7 @@ start_teleport_foreground() {
 # start teleport via launchd (after installing config)
 start_teleport_launchd() {
     log "Starting Teleport via launchctl. It will automatically be started whenever the system reboots."
-    launchctl load ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist
+    launchctl load ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}
     sleep ${ALIVE_CHECK_DELAY}
 }
 # start teleport via systemd (after installing unit)
@@ -572,6 +578,8 @@ teleport_binaries_exist() {
 teleport_config_exists() { if [ -f ${TELEPORT_CONFIG_PATH} ]; then return 0; else return 1; fi; }
 # checks whether a teleport data dir exists on the host
 teleport_datadir_exists() { if [ -d ${TELEPORT_DATA_DIR} ]; then return 0; else return 1; fi; }
+# checks whether a launchd plist file for teleport already exists on the host
+launchd_plist_file_exists() { if [ -f ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE} ]; then return 0; else return 1; fi; }
 
 # error out if any required values are not set
 check_set TELEPORT_VERSION
@@ -690,6 +698,11 @@ elif [[ "${OSTYPE}" == "darwin"* ]]; then
     fi
     log "Detected macOS ${ARCH} architecture, using Teleport arch ${TELEPORT_ARCH}"
     TELEPORT_FORMAT="tarball"
+    if launchd_plist_file_exists; then
+        log_header "Warning: Found existing Teleport launchd config ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}."
+        log_cleanup_message
+        exit 1
+    fi
 else
     log_important "Error - unsupported platform: ${OSTYPE}"
     exit 1
