@@ -507,8 +507,9 @@ active: true
 						TypeName:    spec.Name.Name,
 						PackageName: d.Name.Name,
 					}] = DeclarationInfo{
-						Decl:     l,
-						FilePath: fmt.Sprintf("myfile%v.go", n),
+						Decl:        l,
+						FilePath:    fmt.Sprintf("myfile%v.go", n),
+						PackageName: d.Name.Name,
 					}
 
 				}
