@@ -62,11 +62,11 @@ export function DocumentConnectMyComputerSetup() {
 function Information(props: { onSetUpAgentClick(): void }) {
   const { systemUsername, hostname, roleName, clusterName } =
     useAgentProperties();
-  const { isNonCompatibleAgent } = useConnectMyComputerContext();
+  const { isAgentCompatible } = useConnectMyComputerContext();
 
   return (
     <>
-      {isNonCompatibleAgent && (
+      {!isAgentCompatible && (
         <>
           <CompatibilityError />
           <Separator mt={3} mb={2} />
@@ -93,7 +93,7 @@ function Information(props: { onSetUpAgentClick(): void }) {
         css={`
           display: block;
         `}
-        disabled={isNonCompatibleAgent}
+        disabled={!isAgentCompatible}
         onClick={props.onSetUpAgentClick}
       >
         Connect

@@ -42,7 +42,7 @@ import { assertUnreachable } from '../utils';
 
 import { hasConnectMyComputerPermissions } from './permissions';
 
-import { isAgentCompatible } from './CompatibilityPromise';
+import { isAgentCompatible as checkIfAgentIsComptabile } from './CompatibilityPromise';
 
 import type {
   AgentProcessState,
@@ -82,7 +82,7 @@ export interface ConnectMyComputerContext {
   isAgentConfiguredAttempt: Attempt<boolean>;
   markAgentAsConfigured(): void;
   markAgentAsNotConfigured(): void;
-  isNonCompatibleAgent: boolean;
+  isAgentCompatible: boolean;
 }
 
 const ConnectMyComputerContext = createContext<ConnectMyComputerContext>(null);
@@ -129,9 +129,9 @@ export const ConnectMyComputerContextProvider: FC<{
     // https://github.com/gravitational/teleport/blob/master/rfd/0133-connect-my-computer.md#access-to-ui-and-autostart
     return isFeatureFlagEnabled && (hasPermissions || isAgentConfigured);
   }, [configService, isAgentConfigured, mainProcessClient, rootCluster]);
-  const isNonCompatibleAgent = useMemo(
+  const isAgentCompatible = useMemo(
     () =>
-      !isAgentCompatible(rootCluster.proxyVersion, mainProcessClient.getRuntimeSettings()),
+      checkIfAgentIsComptabile(rootCluster.proxyVersion, mainProcessClient.getRuntimeSettings()),
     [mainProcessClient, rootCluster]
   );
 
@@ -283,7 +283,7 @@ export const ConnectMyComputerContextProvider: FC<{
     const shouldAutoStartAgent =
       isAgentConfigured &&
       canUse &&
-      !isNonCompatibleAgent &&
+      isAgentCompatible &&
       workspacesService.getConnectMyComputerAutoStart(props.rootClusterUri) &&
       agentIsNotStarted;
     if (shouldAutoStartAgent) {
@@ -296,7 +296,7 @@ export const ConnectMyComputerContextProvider: FC<{
     isAgentConfigured,
     props.rootClusterUri,
     workspacesService,
-    isNonCompatibleAgent,
+    isAgentCompatible,
   ]);
 
   return (
@@ -315,7 +315,7 @@ export const ConnectMyComputerContextProvider: FC<{
         markAgentAsConfigured,
         markAgentAsNotConfigured,
         isAgentConfiguredAttempt,
-        isNonCompatibleAgent,
+        isAgentCompatible,
       }}
       children={props.children}
     />

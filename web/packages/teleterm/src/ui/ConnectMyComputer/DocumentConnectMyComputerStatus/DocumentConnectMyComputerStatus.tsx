@@ -65,7 +65,7 @@ export function DocumentConnectMyComputerStatus() {
     killAgent,
     isAgentConfiguredAttempt,
     markAgentAsNotConfigured,
-    isNonCompatibleAgent,
+    isAgentCompatible,
   } = useConnectMyComputerContext();
   const { roleName, systemUsername, hostname } = useAgentProperties();
   const { proxyVersion, appVersion, isLocalBuild } = useVersions();
@@ -205,7 +205,7 @@ export function DocumentConnectMyComputerStatus() {
       )}
       {prettyCurrentAction.logs && <Logs logs={prettyCurrentAction.logs} />}
 
-      {isNonCompatibleAgent ? (
+      {!isAgentCompatible ? (
         <CompatibilityError />
       ) : (
         <>
