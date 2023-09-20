@@ -17,14 +17,7 @@ limitations under the License.
 import React, { useEffect, useState } from 'react';
 
 import styled from 'styled-components';
-import {
-  Box,
-  Indicator,
-  Flex,
-  ButtonLink,
-  ButtonSecondary,
-  Text,
-} from 'design';
+import { Box, Flex, ButtonLink, ButtonSecondary, Text } from 'design';
 import { Magnifier } from 'design/Icon';
 
 import { Danger } from 'design/Alert';
@@ -171,9 +164,6 @@ export function Resources() {
       </ResourcesContainer>
       <div ref={setScrollDetector} />
       <ListFooter>
-        <IndicatorContainer status={attempt.status}>
-          <Indicator size={INDICATOR_SIZE} />
-        </IndicatorContainer>
         {attempt.status === 'failed' && resources.length > 0 && (
           <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
         )}
@@ -251,13 +241,6 @@ const ListFooter = styled.div`
   margin-top: ${props => props.theme.space[2]}px;
   min-height: ${INDICATOR_SIZE};
   text-align: center;
-`;
-
-// Line height is set to 0 to prevent the layout engine from adding extra pixels
-// to the element's height.
-const IndicatorContainer = styled(Box)`
-  display: ${props => (props.status === 'processing' ? 'block' : 'none')};
-  line-height: 0;
 `;
 
 const emptyStateInfo: EmptyStateInfo = {

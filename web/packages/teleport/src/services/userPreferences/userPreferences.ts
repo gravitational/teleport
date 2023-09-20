@@ -17,8 +17,8 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
-import { ThemePreference } from 'teleport/services/userPreferences/types';
 import { ViewMode } from 'teleport/Assist/types';
+import { ThemePreference } from 'teleport/services/userPreferences/types';
 
 import type {
   GetUserPreferencesResponse,
@@ -46,6 +46,12 @@ export function makeDefaultUserPreferences(): UserPreferences {
     },
     onboard: {
       preferredResources: [],
+      marketingParams: {
+        campaign: '',
+        source: '',
+        medium: '',
+        intent: '',
+      },
     },
   };
 }

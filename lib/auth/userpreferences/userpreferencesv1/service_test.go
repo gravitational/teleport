@@ -60,6 +60,7 @@ func TestService_GetUserPreferences(t *testing.T) {
 					Theme: userpreferencesv1.Theme_THEME_LIGHT,
 					Onboard: &userpreferencesv1.OnboardUserPreferences{
 						PreferredResources: []userpreferencesv1.Resource{},
+						MarketingParams:    &userpreferencesv1.MarketingParams{},
 					},
 				},
 			},
