@@ -18,10 +18,15 @@ package keys
 import (
 	"context"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"os"
 	"testing"
 
+	"github.com/go-piv/piv-go/piv"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 // TestGetOrGenerateYubiKeyPrivateKey tests GetOrGenerateYubiKeyPrivateKey.
@@ -53,6 +58,48 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 	retrieveKey, err := ParsePrivateKey(priv.PrivateKeyPEM())
 	require.NoError(t, err)
 	require.Equal(t, priv, retrieveKey)
+}
+
+func TestOverwriteSlot(t *testing.T) {
+	// This test expects a yubiKey to be connected with default PIV
+	// settings and will overwrite any PIV data on the yubiKey.
+	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
+		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
+	}
+
+	ctx := context.Background()
+	resetYubikey(ctx, t)
+
+	oldStdin := prompt.Stdin()
+	t.Cleanup(func() { prompt.SetStdin(oldStdin) })
+
+	// Set a non-teleport certificate in the slot.
+	y, err := findYubiKey(0)
+	require.NoError(t, err)
+	yk, err := y.open()
+	require.NoError(t, err)
+
+	priv, err := rsa.GenerateKey(rand.Reader, 512)
+	require.NoError(t, err)
+	cert, err := metadataCertificateTemplate()
+	require.NoError(t, err)
+	cert.Subject.Organization = []string{"not-teleport"}
+	cert.PublicKey = priv.Public()
+	cert.Raw, err = x509.CreateCertificate(rand.Reader, cert, cert, priv.Public(), priv)
+	require.NoError(t, err)
+
+	require.NoError(t, yk.SetCertificate(piv.DefaultManagementKey, pivSlotNoTouch, cert))
+	require.NoError(t, yk.Close())
+
+	// Fail to overwrite slot when user denies
+	prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
+	_, err = GetOrGenerateYubiKeyPrivateKey(false)
+	require.Error(t, err)
+
+	// Successfully overwrite slot when user accepts
+	prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
+	_, err = GetOrGenerateYubiKeyPrivateKey(false)
+	require.NoError(t, err)
 }
 
 // resetYubikey connects to the first yubiKey and resets it to defaults.
