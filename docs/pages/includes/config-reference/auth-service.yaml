@@ -131,7 +131,7 @@ auth_service:
     # suitable for test environments, but not recommended for production use.
     # Teleport's IP pinning functionality will not work if this field is left
     # unspecified and PROXY headers are received.
-    # Set to `on` if Teleport runs behind a L4 load balancer that sends PROXY
+    # Set to `on` if Auth service runs behind a L4 load balancer that sends PROXY
     # headers, otherwise set to `off`.
     proxy_protocol: on
 
