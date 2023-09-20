@@ -8030,16 +8030,6 @@ func TestSimultaneousAuthenticateRequest(t *testing.T) {
 	}
 }
 
-// mockedPingTestProxy is a test proxy with a mocked Ping method
-type mockedPingTestProxy struct {
-	auth.ClientI
-	mockedPing func(ctx context.Context) (authproto.PingResponse, error)
-}
-
-func (m mockedPingTestProxy) Ping(ctx context.Context) (authproto.PingResponse, error) {
-	return m.mockedPing(ctx)
-}
-
 type proxyClientMock struct {
 	auth.ClientI
 	tokens map[string]types.ProvisionToken
