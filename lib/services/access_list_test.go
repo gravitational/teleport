@@ -36,6 +36,7 @@ const (
 	member1   = "member1"
 	member2   = "member2"
 	member3   = "member3"
+	member4   = "member4"
 )
 
 // TestAccessListUnmarshal verifies an access list resource can be unmarshaled.
@@ -317,7 +318,7 @@ func TestIsAccessListMember(t *testing.T) {
 		{
 			name: "is not a member",
 			identity: tlsca.Identity{
-				Username: member3,
+				Username: member4,
 				Groups:   []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
 					"mtrait1": {"mvalue1", "mvalue2"},
@@ -339,25 +340,23 @@ func TestIsAccessListMember(t *testing.T) {
 					"mtrait2": {"mvalue3", "mvalue4"},
 				},
 			},
-			currentTime: time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC),
+			currentTime: time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC),
 			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
 		{
-			name: "is expired member (overridden next audit date)",
+			name: "member has no expiration",
 			identity: tlsca.Identity{
-				Username: member1,
+				Username: member3,
 				Groups:   []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
 					"mtrait1": {"mvalue1", "mvalue2"},
 					"mtrait2": {"mvalue3", "mvalue4"},
 				},
 			},
-			currentTime: time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsAccessDenied(err))
-			},
+			currentTime:      time.Date(2030, 7, 1, 0, 0, 0, 0, time.UTC),
+			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "is member with missing roles",
@@ -495,7 +494,18 @@ func newAccessListMembers(t *testing.T) []*accesslist.AccessListMember {
 	})
 	require.NoError(t, err)
 
-	return []*accesslist.AccessListMember{member1, member2}
+	member3, err := accesslist.NewAccessListMember(header.Metadata{
+		Name: member3,
+	}, accesslist.AccessListMemberSpec{
+		AccessList: "test",
+		Name:       member3,
+		Joined:     time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
+		Reason:     "because for the third time",
+		AddedBy:    ownerUser,
+	})
+	require.NoError(t, err)
+
+	return []*accesslist.AccessListMember{member1, member2, member3}
 }
 
 var accessListYAML = `---
