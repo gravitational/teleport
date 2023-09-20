@@ -19,29 +19,24 @@ import { Text, ButtonPrimary, Alert } from 'design';
 
 import Link from 'design/Link';
 
-import { compareSemVers } from 'shared/utils/semVer';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { Cluster } from 'teleterm/services/tshd/types';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
-
-import { useConnectMyComputerContext } from './connectMyComputerContext';
 
 const CONNECT_MY_COMPUTER_RELEASE = '14.1.0';
 
 export function isAgentCompatible(
-  cluster: Cluster,
-  runtimeSettings: RuntimeSettings
+  proxyVersion: string,
+  runtimeSettings: Pick<RuntimeSettings, 'appVersion' | 'isLocalBuild'>
 ): boolean {
-  if (cluster.proxyVersion === '') {
+  if (proxyVersion === '') {
     return false;
   }
   if (runtimeSettings.isLocalBuild) {
     return true;
   }
   const majorAppVersion = getMajorVersion(runtimeSettings.appVersion);
-  const majorClusterVersion = getMajorVersion(cluster.proxyVersion);
+  const majorClusterVersion = getMajorVersion(proxyVersion);
   return (
     majorAppVersion === majorClusterVersion ||
     majorAppVersion === majorClusterVersion - 1 // app one major version behind the cluster
@@ -49,15 +44,9 @@ export function isAgentCompatible(
 }
 
 export function CompatibilityError(): JSX.Element {
-  const ctx = useAppContext();
-  const workspaceContext = useWorkspaceContext();
-  const cluster = ctx.clustersService.findCluster(
-    workspaceContext.rootClusterUri
-  );
+  const { proxyVersion, appVersion } = useVersions();
 
-  const { proxyVersion } = cluster;
   const clusterMajorVersion = getMajorVersion(proxyVersion);
-  const { appVersion } = ctx.mainProcessClient.getRuntimeSettings();
   const appMajorVersion = getMajorVersion(appVersion);
   const connectMyComputerReleaseMajorVersion = getMajorVersion(
     CONNECT_MY_COMPUTER_RELEASE
@@ -123,10 +112,9 @@ export function CompatibilityError(): JSX.Element {
   );
 }
 
-export function UpgradeAgentSuggestion(): JSX.Element {
+export function useVersions() {
   const ctx = useAppContext();
   const workspaceContext = useWorkspaceContext();
-  const { isNonCompatibleAgent } = useConnectMyComputerContext();
   const cluster = ctx.clustersService.findCluster(
     workspaceContext.rootClusterUri
   );
@@ -134,23 +122,7 @@ export function UpgradeAgentSuggestion(): JSX.Element {
   const { appVersion, isLocalBuild } =
     ctx.mainProcessClient.getRuntimeSettings();
 
-  const isClusterAlreadyOnNewerVersion =
-    compareSemVers(appVersion, proxyVersion) === 1;
-  if (isNonCompatibleAgent || isClusterAlreadyOnNewerVersion || isLocalBuild) {
-    return null;
-  }
-
-  return (
-    <Alert kind="info">
-      <Text>
-        The agent is running version {appVersion} of Teleport. Consider
-        upgrading it to {proxyVersion} by updating Teleport Connect.{' '}
-        <Link href="https://goteleport.com/download" target="_blank">
-          Visit the downloads page.
-        </Link>
-      </Text>
-    </Alert>
-  );
+  return { proxyVersion, appVersion, isLocalBuild };
 }
 
 function getMajorVersion(version: string): number {

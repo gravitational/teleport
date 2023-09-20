@@ -46,11 +46,11 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
-
+import { CompatibilityError, useVersions } from '../CompatibilityPromise';
 import {
-  CompatibilityError,
+  shouldShowAgentUpgradeSuggestion,
   UpgradeAgentSuggestion,
-} from '../CompatibilityPromise';
+} from '../UpgradeAgentSuggestion';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 import type { IconProps } from 'design/Icon/Icon';
@@ -68,6 +68,7 @@ export function DocumentConnectMyComputerStatus() {
     isNonCompatibleAgent,
   } = useConnectMyComputerContext();
   const { roleName, systemUsername, hostname } = useAgentProperties();
+  const { proxyVersion, appVersion, isLocalBuild } = useVersions();
 
   const prettyCurrentAction = prettifyCurrentAction(currentAction);
 
@@ -102,7 +103,15 @@ export function DocumentConnectMyComputerStatus() {
 
   return (
     <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
-      <UpgradeAgentSuggestion />
+      {shouldShowAgentUpgradeSuggestion(proxyVersion, {
+        appVersion,
+        isLocalBuild,
+      }) && (
+        <UpgradeAgentSuggestion
+          proxyVersion={proxyVersion}
+          appVersion={appVersion}
+        />
+      )}
       {isAgentConfiguredAttempt.status === 'error' && (
         <Alert
           css={`

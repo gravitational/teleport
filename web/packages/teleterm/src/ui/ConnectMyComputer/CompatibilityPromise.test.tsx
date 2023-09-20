@@ -16,7 +16,7 @@
 
 import React from 'react';
 import { screen } from '@testing-library/react';
-import { render, act } from 'design/utils/testing';
+import { render } from 'design/utils/testing';
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
@@ -27,9 +27,7 @@ import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
   isAgentCompatible,
   CompatibilityError,
-  UpgradeAgentSuggestion,
 } from './CompatibilityPromise';
-import { ConnectMyComputerContextProvider } from './connectMyComputerContext';
 
 describe('isAgentCompatible', () => {
   const testCases = [
@@ -64,7 +62,7 @@ describe('isAgentCompatible', () => {
     ({ agentVersion, proxyVersion, isCompatible }) => {
       expect(
         isAgentCompatible(
-          makeRootCluster({ proxyVersion }),
+          proxyVersion,
           makeRuntimeSettings({ appVersion: agentVersion })
         )
       ).toBe(isCompatible);
@@ -127,73 +125,4 @@ test('compatibilityError shows cluster upgrade (and app downgrade) instructions'
   await expect(
     screen.findByText(/upgrade the cluster to version 15.x.x/)
   ).resolves.toBeVisible();
-});
-
-test('upgradeAgentSuggestion is visible when the agent is compatible and cluster is older than the agent', async () => {
-  const agentVersion = '14.1.0';
-  const proxyVersion = '15.0.0';
-  const appContext = new MockAppContext({ appVersion: agentVersion });
-  const cluster = makeRootCluster({ proxyVersion });
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.set(cluster.uri, cluster);
-  });
-
-  render(
-    <MockAppContextProvider appContext={appContext}>
-      <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
-        <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-          <UpgradeAgentSuggestion />
-        </ConnectMyComputerContextProvider>
-      </MockWorkspaceContextProvider>
-    </MockAppContextProvider>
-  );
-
-  await expect(
-    screen.findByText(/agent is running version 14.1.0 of Teleport/)
-  ).resolves.toBeVisible();
-  await expect(
-    screen.findByText(/Consider upgrading it to 15.0.0/)
-  ).resolves.toBeVisible();
-});
-
-describe('upgradeAgentSuggestion is not visible when', () => {
-  const testCases = [
-    {
-      name: 'the agent is not compatible',
-      agentVersion: '15.0.0',
-      proxyVersion: '17.0.0',
-    },
-    {
-      name: 'the cluster is already on a newer version',
-      agentVersion: '15.0.0',
-      proxyVersion: '14.0.0',
-    },
-  ];
-  test.each(testCases)('$name', async ({ agentVersion, proxyVersion }) => {
-    const appContext = new MockAppContext({ appVersion: agentVersion });
-    const cluster = makeRootCluster({ proxyVersion });
-    appContext.clustersService.setState(draftState => {
-      draftState.clusters.set(cluster.uri, cluster);
-    });
-
-    render(
-      <MockAppContextProvider appContext={appContext}>
-        <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
-          <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-            <UpgradeAgentSuggestion />
-          </ConnectMyComputerContextProvider>
-        </MockWorkspaceContextProvider>
-      </MockAppContextProvider>
-    );
-
-    // suppresses 'An update was not wrapped in act(...)'
-    await act(() =>
-      appContext.connectMyComputerService.isAgentConfigFileCreated(cluster.uri)
-    );
-
-    expect(
-      screen.queryByText(/agent is running version/)
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText(/Consider upgrading it/)).not.toBeInTheDocument();
-  });
 });
