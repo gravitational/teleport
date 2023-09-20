@@ -26,7 +26,12 @@ import {
   DATABASES_UNGUIDED,
   DATABASES_UNGUIDED_DOC,
 } from './databases';
-import { ResourceSpec, DatabaseLocation, DatabaseEngine } from './types';
+import {
+  ResourceSpec,
+  DatabaseLocation,
+  DatabaseEngine,
+  ServerLocation,
+} from './types';
 import { SAML_APPLICATIONS } from './resourcesE';
 
 const baseServerKeywords = 'server node';
@@ -70,6 +75,15 @@ export const SERVERS: ResourceSpec[] = [
     icon: 'Apple',
     event: DiscoverEventResource.Server,
     platform: Platform.PLATFORM_MACINTOSH,
+  },
+  {
+    name: 'EC2 Instance',
+    kind: ResourceKind.Server,
+    keywords:
+      baseServerKeywords + 'ec2 instance connect endpoint aws amazon eice',
+    icon: 'Aws',
+    event: null, // TODO rudream (ADD EVENTS FOR EICE FLOW)
+    nodeMeta: { location: ServerLocation.Aws },
   },
 ];
 
@@ -155,6 +169,9 @@ export function getResourcePretitle(r: ResourceSpec) {
     case ResourceKind.Desktop:
       return 'Windows Desktop';
     case ResourceKind.Server:
+      if (r.nodeMeta?.location === ServerLocation.Aws) {
+        return 'Amazon Web Services (AWS)';
+      }
       return 'Server';
   }
 

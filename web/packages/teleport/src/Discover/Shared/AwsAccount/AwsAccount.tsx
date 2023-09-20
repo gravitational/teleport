@@ -38,20 +38,25 @@ import {
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
-import { integrationRWEAndDbCU } from 'teleport/Discover/yamlTemplates';
+import {
+  integrationRWE,
+  integrationRWEAndNodeRWE,
+  integrationRWEAndDbCU,
+} from 'teleport/Discover/yamlTemplates';
 import useTeleport from 'teleport/useTeleport';
 
-import { ActionButtons, HeaderSubtitle, Header } from '../../Shared';
-
 import {
-  DbMeta,
-  DiscoverUrlLocationState,
-  useDiscover,
-} from '../../useDiscover';
+  ActionButtons,
+  HeaderSubtitle,
+  Header,
+  ResourceKind,
+} from '../../Shared';
+
+import { DiscoverUrlLocationState, useDiscover } from '../../useDiscover';
 
 type Option = BaseOption<Integration>;
 
-export function ConnectAwsAccount() {
+export function AwsAccount() {
   const { storeUser } = useTeleport();
   const {
     prevStep,
@@ -61,16 +66,32 @@ export function ConnectAwsAccount() {
     eventState,
     resourceSpec,
     currentStep,
+    viewConfig,
   } = useDiscover();
 
   const integrationAccess = storeUser.getIntegrationsAccess();
-  const databaseAccess = storeUser.getDatabaseAccess();
-  const hasAccess =
-    integrationAccess.create &&
-    integrationAccess.list &&
-    // Required access after integrating:
-    integrationAccess.use && // required to list AWS RDS db's
-    databaseAccess.create; // required to enroll AWS RDS db
+
+  let roleTemplate = integrationRWE;
+  let hasAccess =
+    integrationAccess.create && integrationAccess.list && integrationAccess.use;
+
+  // Ensure required permissions based on which flow this is in.
+  if (viewConfig.kind === ResourceKind.Database) {
+    roleTemplate = integrationRWEAndDbCU;
+    const databaseAccess = storeUser.getDatabaseAccess();
+    hasAccess = hasAccess && databaseAccess.create; // required to enroll AWS RDS db
+  }
+  if (viewConfig.kind === ResourceKind.Server) {
+    roleTemplate = integrationRWEAndNodeRWE;
+    const nodesAccess = storeUser.getNodeAccess();
+    hasAccess =
+      hasAccess &&
+      nodesAccess.create &&
+      nodesAccess.edit &&
+      nodesAccess.list &&
+      nodesAccess.read; // Needed for TestConnection flow
+  }
+
   const { attempt, run } = useAttempt(hasAccess ? 'processing' : '');
 
   const [awsIntegrations, setAwsIntegrations] = useState<Option[]>([]);
@@ -114,7 +135,7 @@ export function ConnectAwsAccount() {
             <TextEditor
               readOnly={true}
               bg="levels.deep"
-              data={[{ content: integrationRWEAndDbCU, type: 'yaml' }]}
+              data={[{ content: roleTemplate, type: 'yaml' }]}
             />
           </Flex>
         </Box>
@@ -151,7 +172,7 @@ export function ConnectAwsAccount() {
     }
 
     updateAgentMeta({
-      ...(agentMeta as DbMeta),
+      ...agentMeta,
       integration: selectedAwsIntegration.value,
     });
 
