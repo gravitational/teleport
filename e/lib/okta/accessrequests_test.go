@@ -152,7 +152,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	expires := accessRequest.GetAccessExpiry()
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, expires, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Deny the state after the fact
@@ -167,7 +167,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// This delete shouldn't do anything to the assignment.
@@ -177,7 +177,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// This access request should create an Okta assignment
@@ -198,7 +198,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	expires = accessRequest.GetAccessExpiry()
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, expires, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_GROUP, userGroup.GetName())),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
@@ -207,7 +207,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_GROUP, userGroup.GetName())),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 }
 

@@ -554,7 +554,7 @@ func TestProcessAssignments(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Empty(t, cmp.Diff(test.expected, types.OktaAssignments(actual),
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			require.Empty(t, cmp.Diff(test.oktaClientGroupMapping, oktaClient.groupsToUsers))
 			require.Empty(t, cmp.Diff(test.oktaClientAppMapping, oktaClient.appsToUsers))

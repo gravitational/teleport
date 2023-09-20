@@ -89,10 +89,10 @@ func TestAssignmentReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment}, reconciler.getAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
 	)
 	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment}, reconciler.getNewAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
 	)
 
 	// Create the actual resources in the backend.
@@ -134,16 +134,16 @@ func TestAssignmentReconciler(t *testing.T) {
 	)
 
 	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment, assignment1}, reconciler.getAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
 	)
 	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment, assignment1}, reconciler.getNewAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
 	)
 
 	foundAssignment, err := ap.GetOktaAssignment(ctx, assignment1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(foundAssignment, assignment1,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
 	)
 
 	// Update should be recognized.
@@ -174,16 +174,16 @@ func TestAssignmentReconciler(t *testing.T) {
 	)
 
 	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment, assignment1}, reconciler.getAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
 	)
 	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment, assignment1}, reconciler.getNewAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
 	)
 
 	foundAssignment, err = ap.GetOktaAssignment(ctx, assignment1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(foundAssignment, assignment1,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
 	)
 
 	// This delete be recognized.
@@ -194,10 +194,10 @@ func TestAssignmentReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment}, reconciler.getAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
 	)
 	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment}, reconciler.getNewAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
 	)
 
 	_, err = ap.GetOktaAssignment(ctx, assignment1.GetName())
