@@ -161,6 +161,7 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+    nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
 
     databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
     databaseIamPolicyPath: `/v1/webapi/sites/:clusterId/databases/:database/iam/policy`,
@@ -240,6 +241,18 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployservice',
+    awsSecurityGroupsListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/securitygroups',
+
+    ec2InstancesListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2',
+    ec2InstanceConnectEndpointsListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2ice',
+    // Returns a script that configures the required IAM permissions to enable the usage of EC2 Instance Connect Endpoint to access EC2 instances.
+    ec2InstanceConnectIAMConfigureScriptPath:
+      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:awsOidcRoleArn',
+    ec2InstanceConnectDeployPath:
+      '/v1/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice',
 
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -544,11 +557,15 @@ const cfg = {
     });
   },
 
-  getClusterNodesUrl(clusterId: string, params: UrlResourcesParams) {
+  getClusterNodesUrl(clusterId: string, params?: UrlResourcesParams) {
     return generateResourcePath(cfg.api.nodesPath, {
       clusterId,
       ...params,
     });
+  },
+
+  getClusterNodesUrlNoParams(clusterId: string) {
+    return generatePath(cfg.api.nodesPathNoParams, { clusterId });
   },
 
   getDatabaseServicesUrl(clusterId: string) {
@@ -809,6 +826,53 @@ const cfg = {
     return generatePath(cfg.routes.requests, { requestId });
   },
 
+  getListEc2InstancesUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.ec2InstancesListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getListEc2InstanceConnectEndpointsUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.ec2InstanceConnectEndpointsListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getDeployEc2InstanceConnectEndpointUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.ec2InstanceConnectDeployPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getListSecurityGroupsUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsSecurityGroupsListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getEc2InstanceConnectIAMConfigureScriptUrl(
+    params: UrlEc2InstanceIamConfigureScriptParams
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.ec2InstanceConnectIAMConfigureScriptPath, {
+        ...params,
+      })
+    );
+  },
+
   init(backendConfig = {}) {
     mergeDeep(this, backendConfig);
   },
@@ -910,6 +974,11 @@ export interface UrlDeployServiceIamConfigureScriptParams {
   region: Regions;
   awsOidcRoleArn: string;
   taskRoleArn: string;
+}
+
+export interface UrlEc2InstanceIamConfigureScriptParams {
+  region: Regions;
+  awsOidcRoleArn: string;
 }
 
 export default cfg;

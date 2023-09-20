@@ -695,10 +695,6 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 							Value: "rewritten-app-jwt-header",
 						},
 						{
-							Name:  teleport.AppCFHeader,
-							Value: "rewritten-app-cf-header",
-						},
-						{
 							Name:  common.TeleportAPIErrorHeader,
 							Value: "rewritten-x-teleport-api-error",
 						},
@@ -836,10 +832,6 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 						{
 							Name:  teleport.AppJWTHeader,
 							Value: "rewritten-app-jwt-header",
-						},
-						{
-							Name:  teleport.AppCFHeader,
-							Value: "rewritten-app-cf-header",
 						},
 						{
 							Name:  common.TeleportAPIErrorHeader,
