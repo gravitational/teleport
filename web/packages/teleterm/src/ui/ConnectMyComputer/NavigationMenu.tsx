@@ -39,11 +39,12 @@ export function NavigationMenu() {
   const iconRef = useRef();
   const [isMenuOpened, setIsMenuOpened] = useState(false);
   const { documentsService, rootClusterUri } = useWorkspaceContext();
-  const { isAgentConfiguredAttempt, currentAction, canUse } =
+  const { isAgentConfiguredAttempt, isAgentCompatible, currentAction, canUse } =
     useConnectMyComputerContext();
   const indicatorStatus = getIndicatorStatus(
     currentAction,
-    isAgentConfiguredAttempt
+    isAgentConfiguredAttempt,
+    isAgentCompatible
   );
 
   if (!canUse) {
@@ -112,15 +113,28 @@ export function NavigationMenu() {
 
 function getIndicatorStatus(
   currentAction: CurrentAction,
-  isAgentConfiguredAttempt: Attempt<boolean>
+  isAgentConfiguredAttempt: Attempt<boolean>,
+  isAgentCompatible: boolean
 ): IndicatorStatus {
   if (isAgentConfiguredAttempt.status === 'error') {
     return 'error';
   }
 
+  const isAgentConfigured =
+    isAgentConfiguredAttempt.status === 'success' &&
+    isAgentConfiguredAttempt.data;
+
+  if (!isAgentConfigured) {
+    return '';
+  }
+
   if (currentAction.kind === 'observe-process') {
     switch (currentAction.agentProcessState.status) {
       case 'not-started': {
+        if (!isAgentCompatible) {
+          return 'error';
+        }
+
         return '';
       }
       case 'error': {
