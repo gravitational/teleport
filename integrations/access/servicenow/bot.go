@@ -93,11 +93,7 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 	return trace.NewAggregate(errs...)
 }
 
-// FetchRecipient returns the recipient for the given raw recipient.
+// FetchRecipient isn't used by the ServicenoPlugin
 func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
-	return &common.Recipient{
-		Name: recipient,
-		ID:   recipient,
-		Kind: common.RecipientKindRotation,
-	}, nil
+	return nil, nil
 }
