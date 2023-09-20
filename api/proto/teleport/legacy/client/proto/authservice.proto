@@ -1206,9 +1206,18 @@ message DeleteMFADeviceSyncRequest {
 // AddMFADeviceSyncRequest is a request to add a MFA device (nonstream).
 message AddMFADeviceSyncRequest {
   // TokenID is the ID of a user token that will be used to verify this request.
+  //
   // Token types accepted are:
   //  - Privilege token that is obtained with RPC CreatePrivilegeToken
+  //
+  // An authenticated user can register a new device using only a
+  // NewMFAResponse. See [ContextUser].
   string TokenID = 1 [(gogoproto.jsontag) = "token_id"];
+  // ContextUser allows registering a device for the authenticated user.
+  //
+  // Default option if no other is provided.
+  ContextUser ContextUser = 5 [(gogoproto.jsontag) = "context_user,omitempty"];
+
   // NewDeviceName is the name of a new mfa device.
   string NewDeviceName = 2 [(gogoproto.jsontag) = "new_device_name,omitempty"];
   // NewMFAResponse is a user's new mfa response to a mfa register challenge.
