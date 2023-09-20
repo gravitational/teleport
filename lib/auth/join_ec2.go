@@ -252,6 +252,25 @@ func dbExists(ctx context.Context, presence services.Presence, hostID string) (b
 	return false, nil
 }
 
+func oktaExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
+	namespaces, err := presence.GetNamespaces()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, namespace := range namespaces {
+		apps, err := presence.GetApplicationServers(ctx, namespace.GetName())
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		for _, app := range apps {
+			if app.GetName() == hostID && app.Origin() == types.OriginOkta {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
 func desktopServiceExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
 	svcs, err := presence.GetWindowsDesktopServices(ctx)
 	if err != nil {
@@ -292,8 +311,16 @@ func (a *Server) tryToDetectIdentityReuse(ctx context.Context, req *types.Regist
 		instanceExists, err = dbExists(ctx, a, req.HostID)
 	case types.RoleWindowsDesktop:
 		instanceExists, err = desktopServiceExists(ctx, a, req.HostID)
+	case types.RoleOkta:
+		instanceExists, err = oktaExists(ctx, a, req.HostID)
 	case types.RoleInstance:
 		// no appropriate check exists for the Instance role
+		instanceExists = false
+	case types.RoleDiscovery:
+		// no appropriate check exists for the Discovery role
+		instanceExists = false
+	case types.RoleMDM:
+		// no appropriate check exists for the MDM role
 		instanceExists = false
 	default:
 		return trace.BadParameter("unsupported role: %q", req.Role)

@@ -171,3 +171,26 @@ test('run does not update state after being re-run when the callback returns a r
     await secondRunPromise;
   });
 });
+
+test('error and statusText are set when the callback returns a rejected promise', async () => {
+  const expectedError = new Error('whoops');
+
+  const { result, waitFor } = renderHook(() =>
+    useAsync(() => Promise.reject(expectedError))
+  );
+
+  let runPromise: Promise<any>;
+  let [, run] = result.current;
+
+  act(() => {
+    runPromise = run();
+  });
+  await waitFor(() => result.current[0].status === 'error');
+
+  const attempt = result.current[0];
+  expect(attempt['error']).toBe(expectedError);
+  expect(attempt['statusText']).toEqual(expectedError.message);
+
+  // The promise returned from run always succeeds, but any errors are captured as the second arg.
+  await expect(runPromise).resolves.toEqual([null, expectedError]);
+});

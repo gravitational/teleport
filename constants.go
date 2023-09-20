@@ -870,9 +870,6 @@ const (
 	// internal application being proxied.
 	AppJWTHeader = "teleport-jwt-assertion"
 
-	// AppCFHeader is a compatibility header.
-	AppCFHeader = "cf-access-token"
-
 	// HostHeader is the name of the Host header.
 	HostHeader = "Host"
 )

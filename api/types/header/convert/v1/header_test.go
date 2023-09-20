@@ -23,6 +23,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types/header"
 )
 
@@ -57,4 +58,14 @@ func TestMetadataRoundtrip(t *testing.T) {
 	converted := FromMetadataProto(ToMetadataProto(metadata))
 
 	require.Empty(t, cmp.Diff(metadata, converted))
+}
+
+func TestMetadataZeroTime(t *testing.T) {
+	metadata := &headerv1.Metadata{
+		Expires: nil,
+	}
+
+	converted := FromMetadataProto(metadata)
+
+	require.True(t, converted.Expires.IsZero())
 }
