@@ -30,7 +30,7 @@ test('upgradeAgentSuggestion renders correct versions', async () => {
     screen.findByText(/agent is running version 14.1.0 of Teleport/)
   ).resolves.toBeVisible();
   await expect(
-    screen.findByText(/Consider upgrading it to 15.0.0/)
+    screen.findByText(/Consider upgrading it to version 15.0.0/)
   ).resolves.toBeVisible();
 });
 

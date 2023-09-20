@@ -117,7 +117,7 @@ test('compatibilityError shows cluster upgrade (and app downgrade) instructions'
     )
   ).resolves.toBeVisible();
   await expect(
-    screen.findByText(/downgrade the app to 14.1.0/)
+    screen.findByText(/downgrade the app to version 14.1.0/)
   ).resolves.toBeVisible();
   await expect(
     screen.findByText(/upgrade the cluster to version 15.x.x/)
