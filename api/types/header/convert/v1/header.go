@@ -67,9 +67,7 @@ func FromMetadataProto(msg *headerv1.Metadata) header.Metadata {
 func ToMetadataProto(metadata header.Metadata) *headerv1.Metadata {
 	// We map the zero go time to the zero protobuf time (nil).
 	var expires *timestamppb.Timestamp
-	if metadata.Expires.IsZero() {
-		expires = nil
-	} else {
+	if !metadata.Expires.IsZero() {
 		expires = timestamppb.New(metadata.Expires)
 	}
 
