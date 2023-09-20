@@ -122,10 +122,16 @@ auth_service:
     # certificates and keys (may need to wipe out /var/lib/teleport directory)
     cluster_name: "main"
 
-    # ProxyProtocol enables support for HAProxy proxy protocol version 1 when it
-    # is turned 'on'. Verify whether the service is in front of a trusted load
-    # balancer.
-    # The default value is 'on'.
+    # proxy_protocol controls support for HAProxy PROXY protocol.
+    # Unspecified by default, possible values:
+    # 'on' - PROXY protocol is enabled and required.
+    # 'off' - PROXY protocol is disabled and forbidden.
+    #
+    # If unspecified, PROXY protocol is allowed, but not requied. This is not
+    # for production use, suitable for test environments. IP pinning
+    # will not work if proxy_protocol is unspecified, but PROXY headers received.
+    # Set to `on` if the service runs behind L4 load balancer that sends PROXY
+    # headers, otherwise set to `off`
     proxy_protocol: on
 
     authentication:
