@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -59,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
+	"github.com/gravitational/teleport/lib/auth/loginrule"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
@@ -779,8 +781,7 @@ func (g *GRPCServer) GetAccessRequestsV2(f *types.AccessRequestFilter, stream au
 }
 
 func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *types.AccessRequestV3) (*emptypb.Empty, error) {
-	_, err := g.CreateAccessRequestV2(ctx, req)
-	return &emptypb.Empty{}, trace.Wrap(err)
+	return nil, trace.NotImplemented("access request creation API has changed, please update your client to v14 or newer")
 }
 
 func (g *GRPCServer) CreateAccessRequestV2(ctx context.Context, req *types.AccessRequestV3) (*types.AccessRequestV3, error) {
@@ -796,10 +797,17 @@ func (g *GRPCServer) CreateAccessRequestV2(ctx context.Context, req *types.Acces
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.ServerWithRoles.CreateAccessRequest(ctx, req); err != nil {
+	out, err := auth.ServerWithRoles.CreateAccessRequestV2(ctx, req)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return req, nil
+
+	r, ok := out.(*types.AccessRequestV3)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected access request type %T", r))
+	}
+
+	return r, nil
 }
 
 func (g *GRPCServer) DeleteAccessRequest(ctx context.Context, id *authpb.RequestID) (*emptypb.Empty, error) {
@@ -1302,7 +1310,7 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 	// Okta are redirected differently which could create unpredictable or insecure behavior if applied
 	// to non-Okta apps.
 	hasOktaOrigin := server.Origin() == types.OriginOkta || app.Origin() == types.OriginOkta
-	if builtinRole, ok := auth.context.Identity.(authz.BuiltinRole); !ok || builtinRole.Role != types.RoleOkta {
+	if !authz.HasBuiltinRole(auth.context, string(types.RoleOkta)) {
 		if hasOktaOrigin {
 			return nil, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin")
 		}
@@ -5365,6 +5373,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	userloginstatev1.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
+
+	// Only register the service if this is an open source build. Enterprise builds
+	// register the actual service via an auth plugin, if we register here then all
+	// Enterprise builds would fail with a duplicate service registered error.
+	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
+		loginrulepb.RegisterLoginRuleServiceServer(server, loginrule.NotImplementedService{})
+	}
 
 	return authServer, nil
 }

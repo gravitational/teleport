@@ -3,10 +3,12 @@ run-name: Build CI Buildbox Images
 on:
   push:
     paths:
+      - .github/workflows/build-ci-buildbox-images.yaml
       - build.assets/Dockerfile
       - build.assets/Dockerfile-centos7
       - build.assets/Makefile
       - build.assets/images.mk
+      - build.assets/versions.mk
     branches:
       - master
       - branch/**
@@ -26,7 +28,7 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -55,7 +57,7 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2

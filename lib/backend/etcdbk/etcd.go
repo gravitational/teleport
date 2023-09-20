@@ -743,10 +743,6 @@ func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Leas
 
 // KeepAlive updates TTL on the lease ID
 func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
-	if lease.ID == 0 {
-		return trace.BadParameter("lease is not specified")
-	}
-
 	// instead of keep-alive on the old lease, set up a new lease
 	// because we would like the event to be generated
 	// which does not happen in case of lease keep-alive

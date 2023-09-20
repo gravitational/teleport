@@ -23,10 +23,30 @@ export interface Node {
   labels: ResourceLabel[];
   addr: string;
   tunnel: boolean;
+  subKind?: string;
   sshLogins: string[];
+  awsMetadata?: AwsMetadata;
 }
 
 export interface BashCommand {
   text: string;
   expires: string;
 }
+
+export type AwsMetadata = {
+  accountId: string;
+  instanceId: string;
+  region: string;
+  vpcId: string;
+  integration: string;
+  subnetId: string;
+};
+
+export type CreateNodeRequest = {
+  name: string;
+  subKind: string;
+  hostname: string;
+  addr: string;
+  labels?: ResourceLabel[];
+  aws?: AwsMetadata;
+};

@@ -47,6 +47,19 @@ func FromMemberProto(msg *accesslistv1.Member) (*accesslist.AccessListMember, er
 	return member, trace.Wrap(err)
 }
 
+// FromMembersProto converts a list of v1 access list members into a list of internal access list members.
+func FromMembersProto(msgs []*accesslistv1.Member) ([]*accesslist.AccessListMember, error) {
+	members := make([]*accesslist.AccessListMember, len(msgs))
+	for i, msg := range msgs {
+		var err error
+		members[i], err = FromMemberProto(msg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return members, nil
+}
+
 // ToMemberProto converts an internal access list member into a v1 access list member object.
 func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 	return &accesslistv1.Member{
@@ -60,4 +73,13 @@ func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 			AddedBy:    member.Spec.AddedBy,
 		},
 	}
+}
+
+// ToMembersProto converts a list of internal access list members into a list of v1 access list members.
+func ToMembersProto(members []*accesslist.AccessListMember) []*accesslistv1.Member {
+	out := make([]*accesslistv1.Member, len(members))
+	for i, member := range members {
+		out[i] = ToMemberProto(member)
+	}
+	return out
 }

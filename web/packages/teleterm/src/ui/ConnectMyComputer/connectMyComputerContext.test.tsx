@@ -67,6 +67,9 @@ function getMocksWithConnectMyComputerEnabled() {
       accessRequests: undefined,
     };
   });
+  appContext.configService = createMockConfigService({
+    'feature.connectMyComputer': true,
+  });
 
   return { appContext, rootCluster };
 }
@@ -114,7 +117,7 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
   expect(error).toBeInstanceOf(AgentProcessError);
   expect(result.current.currentAction).toStrictEqual({
     kind: 'start',
-    attempt: makeErrorAttempt(AgentProcessError.name),
+    attempt: makeErrorAttempt(new AgentProcessError()),
     agentProcessState: {
       status: 'error',
       message: 'ENOENT',
@@ -167,9 +170,6 @@ test('killing the agent flips the workspace autoStart flag to false', async () =
 
 test('starts the agent automatically if the workspace autoStart flag is true', async () => {
   const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
-  appContext.configService = createMockConfigService({
-    'feature.connectMyComputer': true,
-  });
 
   const eventEmitter = new EventEmitter();
   let currentAgentProcessState: AgentProcessState = {
@@ -224,4 +224,81 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
     appContext.connectMyComputerService.downloadAgent
   ).toHaveBeenCalledTimes(1);
   expect(appContext.connectMyComputerService.runAgent).toHaveBeenCalledTimes(1);
+});
+
+describe('canUse', () => {
+  const cases = [
+    {
+      name: 'should be true when the user has permissions and the feature flag is enabled',
+      hasPermissions: true,
+      isFeatureFlagEnabled: true,
+      isAgentConfigured: false,
+      expected: true,
+    },
+    {
+      name: 'should be true when the user does not have permissions, but the agent has been configured and the feature flag is enabled',
+      hasPermissions: false,
+      isFeatureFlagEnabled: true,
+      isAgentConfigured: true,
+      expected: true,
+    },
+    {
+      name: 'should be false when the user does not have permissions, the agent has not been configured and the feature flag is enabled',
+      hasPermissions: false,
+      isAgentConfigured: false,
+      isFeatureFlagEnabled: true,
+      expected: false,
+    },
+    {
+      name: 'should be false when the user has permissions and the agent is configured but the feature flag is disabled',
+      hasPermissions: true,
+      isAgentConfigured: true,
+      isFeatureFlagEnabled: false,
+      expected: false,
+    },
+  ];
+
+  test.each(cases)(
+    '$name',
+    async ({
+      hasPermissions,
+      isAgentConfigured,
+      isFeatureFlagEnabled,
+      expected,
+    }) => {
+      const { appContext, rootCluster } =
+        getMocksWithConnectMyComputerEnabled();
+      // update Connect My Computer permissions
+      appContext.clustersService.setState(draftState => {
+        draftState.clusters.get(
+          rootCluster.uri
+        ).loggedInUser.acl.tokens.create = hasPermissions;
+      });
+      appContext.configService = createMockConfigService({
+        'feature.connectMyComputer': isFeatureFlagEnabled,
+      });
+      const isAgentConfigFileCreated = Promise.resolve(isAgentConfigured);
+      jest
+        .spyOn(appContext.connectMyComputerService, 'isAgentConfigFileCreated')
+        .mockReturnValue(isAgentConfigFileCreated);
+
+      const { result } = renderHook(() => useConnectMyComputerContext(), {
+        wrapper: ({ children }) => (
+          <MockAppContextProvider appContext={appContext}>
+            <WorkspaceContextProvider value={null}>
+              <ConnectMyComputerContextProvider
+                rootClusterUri={rootCluster.uri}
+              >
+                {children}
+              </ConnectMyComputerContextProvider>
+            </WorkspaceContextProvider>
+          </MockAppContextProvider>
+        ),
+      });
+
+      await act(() => isAgentConfigFileCreated);
+
+      expect(result.current.canUse).toBe(expected);
+    }
+  );
 });

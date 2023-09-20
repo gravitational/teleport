@@ -64,7 +64,7 @@ create-user:
 # teleport cluster
 .PHONY: create-token
 create-token:
-	kubectl --namespace teleport exec deploy/teleport-auth -- tctl tokens add --type=node --ttl=8h
+	kubectl --namespace teleport exec deploy/teleport-auth -- tctl tokens add --type=node,db --ttl=8h
 
 # forwards the grafana web app to localhost:6060
 .PHONY: forward-grafana
@@ -76,3 +76,35 @@ forward-grafana:
 scale-auth:
 	kubectl scale deployment/teleport-auth --replicas=$(REPLICAS) -n teleport
 
+.PHONY: create-rds-database
+create-rds-database:
+	$(MAKE) -C databases/rds apply
+
+.PHONY: deploy-database-agents
+deploy-database-agents: LOADTEST_TAG_VALUE ?= loadtest
+deploy-database-agents:
+ifndef TELEPORT_VERSION
+	@echo "TELEPORT_VERSION is required but not provided"
+	@exit 1
+endif
+ifndef DATABASE_ROLE_ARN
+	@echo "DATABASE_ROLE_ARN is required but not provided"
+	@exit 1
+endif
+
+	helm upgrade --install \
+		database-agents \
+		-n database-agents \
+		--create-namespace \
+		teleport/teleport-kube-agent \
+		--set teleportVersionOverride="${TELEPORT_VERSION}" \
+		--set highAvailability.replicaCount=${NODE_REPLICAS} \
+		--set roles=db \
+		--set proxyAddr=${PROXY_SERVER} \
+		--set authToken=${NODE_TOKEN} \
+		--set annotations.serviceAccount."eks\.amazonaws\.com/role-arn"=${DATABASE_ROLE_ARN} \
+		--set awsDatabases[0].types[0]=rdsproxy \
+		--set awsDatabases[0].regions[0]=us-east-1 \
+		--set awsDatabases[0].tags."loadtest"="${LOADTEST_TAG_VALUE}"
+
+	$(MAKE) -C control-plane enable-database-agents-monitoring

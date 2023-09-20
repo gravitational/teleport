@@ -44,9 +44,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.10 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.11 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = '245cb0291e0db99d9ccf3692fa76f440b2b054c2' ] && \
+    [ "$(git rev-parse HEAD)" = '6ba3884c3235e1bb474b379026087f8216afacf4' ] && \
     ./config --release --libdir=/usr/local/lib && \
     make -j"$(nproc)" && \
     make install_sw
@@ -309,11 +309,14 @@ RUN go install github.com/daixiang0/gci@v0.11.0
 RUN go install gotest.tools/gotestsum@v1.10.1
 
 # Install golangci-lint.
-RUN curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh" | \
-    sh -s -- -b "$(go env GOPATH)/bin"
+RUN VERSION='v1.54.2'; \
+    curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$VERSION/install.sh" | \
+    sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
 
 # Install Buf.
-RUN go install github.com/bufbuild/buf/cmd/buf@latest
+ARG BUF_VERSION # eg, "v1.26.1"
+RUN VERSION="$BUF_VERSION"; \
+    go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
 
 # Copy BPF libraries.
 ARG LIBBPF_VERSION

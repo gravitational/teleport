@@ -87,11 +87,9 @@ func TestTokens(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, strings.Count(buf.String(), "\n"), 1)
 
-		var out addedToken
-
 		buf, err = runTokensCommand(t, fileConfig, []string{"add", "--type=node,app", "--format", teleport.JSON})
 		require.NoError(t, err)
-		mustDecodeJSON(t, buf, &out)
+		out := mustDecodeJSON[addedToken](t, buf)
 
 		require.Len(t, out.Roles, 2)
 		require.Equal(t, types.KindNode, strings.ToLower(out.Roles[0]))
@@ -99,11 +97,16 @@ func TestTokens(t *testing.T) {
 
 		buf, err = runTokensCommand(t, fileConfig, []string{"add", "--type=node,app", "--format", teleport.YAML})
 		require.NoError(t, err)
-		mustDecodeYAML(t, buf, &out)
+		out = mustDecodeYAML[addedToken](t, buf)
 
 		require.Len(t, out.Roles, 2)
 		require.Equal(t, types.KindNode, strings.ToLower(out.Roles[0]))
 		require.Equal(t, types.KindApp, strings.ToLower(out.Roles[1]))
+
+		buf, err = runTokensCommand(t, fileConfig, []string{"add", "--type=kube"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), `--set roles="kube\,app\,discovery"`,
+			"Command print out should include setting kube, app and discovery roles for helm install.")
 	})
 
 	// Test all output formats of "tokens ls".
@@ -111,23 +114,21 @@ func TestTokens(t *testing.T) {
 		buf, err := runTokensCommand(t, fileConfig, []string{"ls"})
 		require.NoError(t, err)
 		require.True(t, strings.HasPrefix(buf.String(), "Token "))
-		require.Equal(t, strings.Count(buf.String(), "\n"), 6) // account for header lines
+		require.Equal(t, 7, strings.Count(buf.String(), "\n")) // account for header lines
 
 		buf, err = runTokensCommand(t, fileConfig, []string{"ls", "--format", teleport.Text})
 		require.NoError(t, err)
-		require.Equal(t, strings.Count(buf.String(), "\n"), 4)
+		require.Equal(t, 5, strings.Count(buf.String(), "\n"))
 
-		var jsonOut []listedToken
 		buf, err = runTokensCommand(t, fileConfig, []string{"ls", "--format", teleport.JSON})
 		require.NoError(t, err)
-		mustDecodeJSON(t, buf, &jsonOut)
-		require.Len(t, jsonOut, 4)
+		jsonOut := mustDecodeJSON[[]listedToken](t, buf)
+		require.Len(t, jsonOut, 5)
 
-		var yamlOut []listedToken
 		buf, err = runTokensCommand(t, fileConfig, []string{"ls", "--format", teleport.YAML})
 		require.NoError(t, err)
-		mustDecodeYAML(t, buf, &yamlOut)
-		require.Len(t, yamlOut, 4)
+		yamlOut := mustDecodeYAML[[]listedToken](t, buf)
+		require.Len(t, yamlOut, 5)
 
 		require.Equal(t, jsonOut, yamlOut)
 	})

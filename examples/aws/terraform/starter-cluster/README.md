@@ -86,7 +86,7 @@ TF_VAR_license_path ?= "/path/to/license"
 # OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
 # Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-TF_VAR_ami_name ?= "gravitational-teleport-ami-ent-13.3.2"
+TF_VAR_ami_name ?= "gravitational-teleport-ami-ent-13.3.7"
 
 # Route 53 hosted zone to use, must be a root zone registered in AWS, e.g. example.com
 TF_VAR_route53_zone ?= "example.com"
@@ -100,27 +100,40 @@ TF_VAR_route53_domain ?= "cluster.example.com"
 export TF_VAR_add_wildcard_route53_record="true"
 
 # Enable adding MongoDB listeners in Teleport proxy, load balancer ports, and security groups
-export TF_VAR_enable_mongodb_listener="true"
+# This will be ignored if TF_VAR_use_tls_routing=true
+export TF_VAR_enable_mongodb_listener="false"
 
 # Enable adding MySQL listeners in Teleport proxy, load balancer ports, and security groups
-export TF_VAR_enable_mysql_listener="true"
+# This will be ignored if TF_VAR_use_tls_routing=true
+export TF_VAR_enable_mysql_listener="false"
 
 # Enable adding Postgres listeners in Teleport proxy, load balancer ports, and security groups
-export TF_VAR_enable_postgres_listener="true"
+# This will be ignored if TF_VAR_use_tls_routing=true
+export TF_VAR_enable_postgres_listener="false"
 
 # Bucket name to store encrypted Let's Encrypt certificates.
-TF_VAR_s3_bucket_name ?= "teleport.example.com"
+export TF_VAR_s3_bucket_name="teleport.example.com"
 
 # Email to be used for Let's Encrypt certificate registration process.
-TF_VAR_email ?= "support@example.com"
+export TF_VAR_email="support@example.com"
 
 # Set to true to use Let's Encrypt to provision certificates
-TF_VAR_use_letsencrypt ?= true
+export TF_VAR_use_letsencrypt="true"
 
 # Set to true to use ACM (Amazon Certificate Manager) to provision certificates
 # If you wish to use a pre-existing ACM certificate rather than having Terraform generate one for you, you can import it:
 # terraform import aws_acm_certificate.cert <certificate_arn>
-TF_VAR_use_acm ?= false
+# Note that TLS routing is automatically enabled when using ACM with the starter-cluster Terraform, meaning:
+# - you must use Teleport and tsh v13+
+# - you must use `tsh proxy` commands for Kubernetes/database access
+export TF_VAR_use_acm="false"
+
+# Set to true to use TLS routing to multiplex all Teleport traffic over one port
+# See https://goteleport.com/docs/architecture/tls-routing for more information
+# Setting this will disable ALL separate listener ports.
+# This setting is automatically set to "true" when using ACM with the starter-cluster Terraform
+# and will be ignored.
+export TF_VAR_use_tls_routing="true"
 
 # plan
 make plan

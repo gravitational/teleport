@@ -30,6 +30,8 @@ type PluginType string
 const (
 	// PluginTypeUnknown is returned when no plugin type matches.
 	PluginTypeUnknown PluginType = ""
+	// PluginTypeServiceNow is the Servicenow access request plugin
+	PluginTypeServiceNow = "servicenow"
 	// PluginTypeSlack is the Slack access request plugin
 	PluginTypeSlack = "slack"
 	// PluginTypeOpenAI is the OpenAI plugin
@@ -249,6 +251,18 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if staticCreds == nil {
 			return trace.BadParameter("Discord plugin must be used with the static credentials ref type")
 		}
+	case *PluginSpecV1_ServiceNow:
+		if settings.ServiceNow == nil {
+			return trace.BadParameter("missing ServiceNow settings")
+		}
+		if err := settings.ServiceNow.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("ServiceNow plugin must be used with the static credentials ref type")
+		}
 
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
@@ -306,6 +320,16 @@ func (p *PluginV1) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (p *PluginV1) SetResourceID(id int64) {
 	p.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (p *PluginV1) GetRevision() string {
+	return p.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (p *PluginV1) SetRevision(rev string) {
+	p.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns object metadata
@@ -396,6 +420,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeMattermost
 	case *PluginSpecV1_Discord:
 		return PluginTypeDiscord
+	case *PluginSpecV1_ServiceNow:
+		return PluginTypeServiceNow
 	default:
 		return PluginTypeUnknown
 	}
@@ -501,6 +527,15 @@ func (c *PluginDiscordSettings) CheckAndSetDefaults() error {
 
 	if _, present := c.RoleToRecipients[Wildcard]; !present {
 		return trace.BadParameter("role_to_recipients must contain default entry `*`")
+	}
+
+	return nil
+}
+
+// CheckAndSetDefaults checks that the required fields for the servicenow plugin are set.
+func (c *PluginServiceNowSettings) CheckAndSetDefaults() error {
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("API endpoint must be set")
 	}
 
 	return nil

@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -71,6 +72,10 @@ func (instances *AzureInstances) MakeEvents() map[string]*usageeventsv1.Resource
 	return events
 }
 
+type azureClientGetter interface {
+	GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error)
+}
+
 // NewAzureWatcher creates a new Azure watcher instance.
 func NewAzureWatcher(ctx context.Context, matchers []types.AzureMatcher, clients cloud.Clients, opts ...Option) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
@@ -87,15 +92,11 @@ func NewAzureWatcher(ctx context.Context, matchers []types.AzureMatcher, clients
 	for _, matcher := range matchers {
 		for _, subscription := range matcher.Subscriptions {
 			for _, resourceGroup := range matcher.ResourceGroups {
-				cl, err := clients.GetAzureVirtualMachinesClient(subscription)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
 				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
-					Matcher:       matcher,
-					Subscription:  subscription,
-					ResourceGroup: resourceGroup,
-					AzureClient:   cl,
+					Matcher:           matcher,
+					Subscription:      subscription,
+					ResourceGroup:     resourceGroup,
+					AzureClientGetter: clients,
 				})
 				watcher.fetchers = append(watcher.fetchers, fetcher)
 			}
@@ -105,28 +106,28 @@ func NewAzureWatcher(ctx context.Context, matchers []types.AzureMatcher, clients
 }
 
 type azureFetcherConfig struct {
-	Matcher       types.AzureMatcher
-	Subscription  string
-	ResourceGroup string
-	AzureClient   azure.VirtualMachinesClient
+	Matcher           types.AzureMatcher
+	Subscription      string
+	ResourceGroup     string
+	AzureClientGetter azureClientGetter
 }
 
 type azureInstanceFetcher struct {
-	Azure         azure.VirtualMachinesClient
-	Regions       []string
-	Subscription  string
-	ResourceGroup string
-	Labels        types.Labels
-	Parameters    map[string]string
+	AzureClientGetter azureClientGetter
+	Regions           []string
+	Subscription      string
+	ResourceGroup     string
+	Labels            types.Labels
+	Parameters        map[string]string
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 	ret := &azureInstanceFetcher{
-		Azure:         cfg.AzureClient,
-		Regions:       cfg.Matcher.Regions,
-		Subscription:  cfg.Subscription,
-		ResourceGroup: cfg.ResourceGroup,
-		Labels:        cfg.Matcher.ResourceTags,
+		AzureClientGetter: cfg.AzureClientGetter,
+		Regions:           cfg.Matcher.Regions,
+		Subscription:      cfg.Subscription,
+		ResourceGroup:     cfg.ResourceGroup,
+		Labels:            cfg.Matcher.ResourceTags,
 	}
 
 	if cfg.Matcher.Params != nil {
@@ -146,19 +147,26 @@ func (*azureInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]I
 
 // GetInstances fetches all Azure virtual machines matching configured filters.
 func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instances, error) {
+	client, err := f.AzureClientGetter.GetAzureVirtualMachinesClient(f.Subscription)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	instancesByRegion := make(map[string][]*armcompute.VirtualMachine)
-	for _, region := range f.Regions {
-		instancesByRegion[region] = []*armcompute.VirtualMachine{}
+	allowAllRegions := slices.Contains(f.Regions, types.Wildcard)
+	if !allowAllRegions {
+		for _, region := range f.Regions {
+			instancesByRegion[region] = []*armcompute.VirtualMachine{}
+		}
 	}
 
-	vms, err := f.Azure.ListVirtualMachines(ctx, f.ResourceGroup)
+	vms, err := client.ListVirtualMachines(ctx, f.ResourceGroup)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	for _, vm := range vms {
 		location := aws.StringValue(vm.Location)
-		if _, ok := instancesByRegion[location]; !ok {
+		if _, ok := instancesByRegion[location]; !ok && !allowAllRegions {
 			continue
 		}
 		vmTags := make(map[string]string, len(vm.Tags))

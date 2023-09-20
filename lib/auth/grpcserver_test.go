@@ -1945,49 +1945,61 @@ func TestIsMFARequired(t *testing.T) {
 	_, err := srv.Auth().UpsertNode(ctx, node)
 	require.NoError(t, err)
 
-	// Create a fake user.
-	user, role, err := CreateUserAndRole(srv.Auth(), "no-mfa-user", []string{"no-mfa-user"}, nil)
-	require.NoError(t, err)
-
 	for _, authPrefRequireMFAType := range requireMFATypes {
-		authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-			Type:           constants.Local,
-			SecondFactor:   constants.SecondFactorOptional,
-			RequireMFAType: authPrefRequireMFAType,
-			Webauthn: &types.Webauthn{
-				RPID: "teleport",
-			},
-		})
-		require.NoError(t, err)
-		err = srv.Auth().SetAuthPreference(ctx, authPref)
-		require.NoError(t, err)
+		t.Run(fmt.Sprintf("authPref=%v", authPrefRequireMFAType.String()), func(t *testing.T) {
 
-		for _, roleRequireMFAType := range requireMFATypes {
-			// If role or auth pref have "hardware_key_touch", expect not required.
-			expectRequired := !(roleRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH || authPrefRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH)
-			// Otherwise, if auth pref or role require session MFA, expect required.
-			expectRequired = expectRequired && (roleRequireMFAType.IsSessionMFARequired() || authPrefRequireMFAType.IsSessionMFARequired())
-
-			t.Run(fmt.Sprintf("authPref=%v/role=%v/expect=%v", authPrefRequireMFAType, roleRequireMFAType, expectRequired), func(t *testing.T) {
-				roleOpt := role.GetOptions()
-				roleOpt.RequireMFAType = roleRequireMFAType
-				role.SetOptions(roleOpt)
-				err = srv.Auth().UpsertRole(ctx, role)
-				require.NoError(t, err)
-
-				cl, err := srv.NewClient(TestUser(user.GetName()))
-				require.NoError(t, err)
-
-				resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
-					Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
-						Login: user.GetName(),
-						Node:  "node-a",
-					}},
-				})
-				require.NoError(t, err)
-				require.Equal(t, expectRequired, resp.Required)
+			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				Type:           constants.Local,
+				SecondFactor:   constants.SecondFactorOptional,
+				RequireMFAType: authPrefRequireMFAType,
+				Webauthn: &types.Webauthn{
+					RPID: "teleport",
+				},
 			})
-		}
+			require.NoError(t, err)
+			err = srv.Auth().SetAuthPreference(ctx, authPref)
+			require.NoError(t, err)
+
+			for _, roleRequireMFAType := range requireMFATypes {
+				roleRequireMFAType := roleRequireMFAType
+				t.Run(fmt.Sprintf("role=%v", roleRequireMFAType.String()), func(t *testing.T) {
+					t.Parallel()
+
+					user, err := types.NewUser(roleRequireMFAType.String())
+					require.NoError(t, err)
+
+					role := services.RoleForUser(user)
+					roleOpt := role.GetOptions()
+					roleOpt.RequireMFAType = roleRequireMFAType
+					role.SetOptions(roleOpt)
+					role.SetLogins(types.Allow, []string{user.GetName()})
+
+					err = srv.Auth().UpsertRole(ctx, role)
+					require.NoError(t, err)
+
+					user.AddRole(role.GetName())
+					err = srv.Auth().UpsertUser(user)
+					require.NoError(t, err)
+
+					cl, err := srv.NewClient(TestUser(user.GetName()))
+					require.NoError(t, err)
+
+					resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+						Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
+							Login: user.GetName(),
+							Node:  "node-a",
+						}},
+					})
+					require.NoError(t, err)
+
+					// If auth pref or role require session MFA, and MFA is not already
+					// verified according to private key policy, expect MFA required.
+					expectRequired := (role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) &&
+						!role.GetPrivateKeyPolicy().MFAVerified() && !authPref.GetPrivateKeyPolicy().MFAVerified()
+					require.Equal(t, expectRequired, resp.Required, "Expected IsMFARequired to return %v but got %v", expectRequired, resp.Required)
+				})
+			}
+		})
 	}
 }
 
@@ -4247,4 +4259,91 @@ func TestRoleVersions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpsertApplicationServerOrigin(t *testing.T) {
+	t.Parallel()
+
+	parentCtx := context.Background()
+	server := newTestTLSServer(t)
+
+	admin := TestAdmin()
+
+	client, err := server.NewClient(admin)
+	require.NoError(t, err)
+
+	// Dynamic origin should work for admin role.
+	app, err := types.NewAppV3(types.Metadata{
+		Name:   "app1",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost1",
+	})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "localhost", "123456")
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(parentCtx, admin.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	// Okta origin should not work for admin role.
+	app.SetOrigin(types.OriginOkta)
+	appServer, err = types.NewAppServerV3FromApp(app, "localhost", "123456")
+	require.NoError(t, err)
+
+	ctx = authz.ContextWithUser(parentCtx, admin.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.ErrorIs(t, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"), err)
+
+	// Okta origin should not work with instance and node roles.
+	client, err = server.NewClient(TestIdentity{
+		I: authz.BuiltinRole{
+			Role: types.RoleInstance,
+			AdditionalSystemRoles: []types.SystemRole{
+				types.RoleNode,
+			},
+			Username: server.ClusterName(),
+		},
+	})
+	require.NoError(t, err)
+
+	ctx = authz.ContextWithUser(parentCtx, admin.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.ErrorIs(t, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"), err)
+
+	// Okta origin should work with Okta role in role field.
+	node := TestIdentity{
+		I: authz.BuiltinRole{
+			Role: types.RoleOkta,
+			AdditionalSystemRoles: []types.SystemRole{
+				types.RoleNode,
+			},
+			Username: server.ClusterName(),
+		},
+	}
+	client, err = server.NewClient(node)
+	require.NoError(t, err)
+
+	ctx = authz.ContextWithUser(parentCtx, node.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	// Okta origin should work with Okta role in additional system roles.
+	node = TestIdentity{
+		I: authz.BuiltinRole{
+			Role: types.RoleInstance,
+			AdditionalSystemRoles: []types.SystemRole{
+				types.RoleNode,
+				types.RoleOkta,
+			},
+			Username: server.ClusterName(),
+		},
+	}
+	client, err = server.NewClient(node)
+	require.NoError(t, err)
+
+	ctx = authz.ContextWithUser(parentCtx, node.I)
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
 }

@@ -336,7 +336,8 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		Log: log,
 	})
 	require.NoError(t, err)
-
+	require.Equal(t, testCtx.KubeServer.Server.ReadTimeout, time.Duration(0), "kube server write timeout must be 0")
+	require.Equal(t, testCtx.KubeServer.Server.WriteTimeout, time.Duration(0), "kube server write timeout must be 0")
 	// Waits for len(clusters) heartbeats to start
 	waitForHeartbeats := len(cfg.Clusters)
 

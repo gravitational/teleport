@@ -162,7 +162,15 @@ const storage = {
       return userPreferences.onboard;
     }
 
-    return { preferredResources: [] };
+    return {
+      preferredResources: [],
+      marketingParams: {
+        campaign: '',
+        source: '',
+        medium: '',
+        intent: '',
+      },
+    };
   },
 
   // DELETE IN 15 (ryan)
@@ -179,7 +187,7 @@ const storage = {
    * Returns `true` if the unified resources feature should be visible in the
    * navigation.
    *
-   * TODO(bl-nero): remove this setting once unified resources are released.
+   * TODO(bl-nero): remove this setting once unified resources are released. Please also see TODO item in `SelectResource.tsx`.
    */
   areUnifiedResourcesEnabled(): boolean {
     const disabled = window.localStorage.getItem(

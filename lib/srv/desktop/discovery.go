@@ -16,6 +16,7 @@ package desktop
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"net/netip"
@@ -208,8 +209,16 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]
 					hostname, resolverName, err)
 			}
 
-			ch <- addrs
+			// even though we requested "ip4" it's possible to get IPv4
+			// addresses mapped to IPv6 addresses, so we unmap them here
+			result := make([]netip.Addr, 0, len(addrs))
+			for _, addr := range addrs {
+				if addr.Is4() || addr.Is4In6() {
+					result = append(result, addr.Unmap())
+				}
+			}
 
+			ch <- result
 		}()
 		return ch
 	}
@@ -263,10 +272,18 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 		return nil, trace.Wrap(err)
 	}
 
+	// ensure no '.' in name, because we use SNI to route to the right
+	// desktop, and our cert is valid for *.desktop.teleport.cluster.local
+	name := strings.ReplaceAll(hostname, ".", "-")
+
+	// append portion of the object GUID to ensure that desktops from
+	// different domains that happen to have the same hostname don't conflict
+	if guid := entry.GetRawAttributeValue(windows.AttrObjectGUID); len(guid) >= 4 {
+		name += "-" + hex.EncodeToString(guid[:4])
+	}
+
 	desktop, err := types.NewWindowsDesktopV3(
-		// ensure no '.' in name, because we use SNI to route to the right
-		// desktop, and our cert is valid for *.desktop.teleport.cluster.local
-		strings.ReplaceAll(hostname, ".", "-"),
+		name,
 		labels,
 		types.WindowsDesktopSpecV3{
 			Addr:   addr.String(),

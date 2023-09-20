@@ -14,6 +14,8 @@ For main, test with a role that has access to all resources.
   - [ ] Connect to a Teleport node
   - [ ] Connect to a OpenSSH node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
+     - Set `forward_agent: true` under the `options` section of your role, and then test that your
+       teleport certs show up when you run `ssh-add -l` on the node.
 
 #### Top Nav
 - [ ] Verify that cluster selector displays all (root + leaf) clusters
@@ -25,27 +27,32 @@ For main, test with a role that has access to all resources.
 - [ ] Verify that Collapse/Expand works and collapsed has icon `>`, and expand has icon `v`
 - [ ] Verify that it automatically expands and highlights the item on page refresh
 
+### Unified Resources
+- [ ] Verify that scrolling to the bottom of the page renders more resources
+- [ ] Verify that all resource types are visible if no filters are present
+- [ ] Verify that "Search" by (host)name, address, labels works for all resources
 #### Servers aka Nodes
-- [ ] Verify that "Servers" table shows all joined nodes
+- [ ] Verify that "Servers" type shows all joined nodes
 - [ ] Verify that "Connect" button shows a list of available logins
-- [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values
-- [ ] Verify that "Search" by hostname, address, labels works
 - [ ] Verify that terminal opens when clicking on one of the available logins
-- [ ] Verify that clicking on `Add Server` button renders dialogue set to `Automatically` view
-  - [ ] Verify clicking on `Regenerate Script` regenerates token value in the bash command
-  - [ ] Verify using the bash command successfully adds the server (refresh server list)
-  - [ ] Verify that clicking on `Manually` tab renders manual steps
-  - [ ] Verify that clicking back to `Automatically` tab renders bash command
-
+- [ ] Verify that clicking on `Add Resource` button correctly sends to the resource discovery page
 #### Applications
-- [ ] Verify that clicking on `Add Application` button renders dialogue
-  - [ ] Verify input validation (prevent empty value and invalid url)
-  - [ ] Verify after input and clicking on `Generate Script`, bash command is rendered
-  - [ ] Verify clicking on `Regenerate` button regenerates token value in bash command
-
+- [ ] Verify that the app icons are correctly displayed
+- [ ] Verify that filtering types by Application includes applications in the page
+- [ ] Verify that the `Launch` button for applications correctly send to the app
+- [ ] Verify that the `Launch` button for AWS apps correctly renders an IAM role selection window 
 #### Databases
-- [ ] Verify that clicking on `Add Database` button renders dialogue for manual instructions:
-  - [ ] Verify selecting different options on `Step 4` changes `Step 5` commands
+- [ ] Verify that the database subtype icons are correctly displayed
+- [ ] Verify that filtering types by Databases includes databases in the page
+- [ ] Verify that clicking `Connect` renders the dialog with correct information
+
+#### Kubes
+- [ ] Verify that filtering types by Kubes includes kubes in the page
+- [ ] Verify that clicking `Connect` renders the dialog with correct information
+
+#### Desktops
+- [ ] Verify that filtering types by Desktops includes desktops in the page
+- [ ] Verify that clicking `Connect` renders a login selection and that the logins are completely in view
 #### Active Sessions
 - [ ] Verify that "empty" state is handled
 - [ ] Verify that it displays the session when session is active
@@ -284,8 +291,6 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 
 #### Node List Tab
 - [ ] Verify that Cluster selector works (URL should change too)
-- [ ] Verify that Quick launcher input works
-- [ ] Verify that Quick launcher input handles input errors
 - [ ] Verify that "Connect" button shows a list of available logins
 - [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values
 - [ ] Verify that "Search" by hostname, address, labels work
@@ -574,11 +579,12 @@ Use Discover Wizard to enroll new resources and access them:
    - [ ] Verify that the tab automatically closes on `$ exit` command.
 - Kubernetes access
    - [ ] Open a new kubernetes tab, run `echo $KUBECONFIG` and check if it points to the file within Connect's app data directory.
-   - [ ] Close the tab and open it again (to the same resource). Verify if the kubeconfig path didn't change.
+   - [ ] Close the tab and open it again (to the same resource). Verify that the kubeconfig path didn't change.
    - [ ] Run `kubectl get pods` and see if the command succeeds.
-   - Verify if the kubeconfig file is removed when the user:
+   - Verify that the kubeconfig file is removed when the user:
       - [ ] Removes the connection
       - [ ] Logs out of the cluster
+      - [ ] Closes Teleport Connect
 - State restoration from disk
    - [ ] Verify that the app asks about restoring previous tabs when launched and restores them
          properly.
@@ -774,6 +780,37 @@ Use Discover Wizard to enroll new resources and access them:
     - Make a syntax error in the file (for example, set `"keymap.tab1": not a string`).
       - [ ] Verify that a notification is displayed saying that the config file was not loaded correctly.
       - [ ] Verify that your config changes were not overridden.
+- Headless auth
+   - Headless auth modal in Connect can be triggered by calling `tsh ls --headless --user=<username>
+     --proxy=<proxy>`. The cluster needs to have webauthn enabled for it to work.
+   - [ ] Verify the basic operations (approve, reject, ignore then accept in the Web UI).
+   - [ ] Make a headless request then cancel the command. Verify that the modal in Connect was
+     closed automatically.
+   - [ ] Make a headless request then accept it in the Web UI. Verify that the modal in Connect was
+     closed automatically.
+   - [ ] Make two concurrent headless requests for the same cluster. Verify that Connect shows the
+     second one after closing the modal for the first request.
+   - [ ] Make two concurrent headless requests for two different clusters. Verify that Connect shows
+     the second one after closing the modal for the first request.
+- tshd-initiated communication
+   - [ ] Create a db connection, wait for the cert to expire. Attempt to connect to the database
+     through CLI. While the login modal is shown, make a headless request. Verify that after logging
+     in again, the app shows the modal for the headless request.
+- Connect My Computer
+   - [ ] Verify the happy path from clean slate (no existing role) setup: set up the node and then
+     connect to it.
+   - Kill the agent while its joining the cluster and verify that the logs from the agent process
+     are shown in the UI.
+      - The easiest way to do this is by following the agent cleanup daemon logs (`tail -F ~/Library/Application\ Support/Teleport\
+        Connect/logs/cleanup.log`) and then `kill -s KILL <agent PID>`.
+      - [ ] During setup.
+      - [ ] After setup in the status view. Verify that the page says that the process exited with
+        SIGKILL.
+   - [ ] Open the node config, change the proxy address to an incorrect one to simulate problems
+     with connection. Verify that the app kills the agent after the agent is not able to join the
+     cluster within the timeout.
+   - [ ] Verify autostart behavior. The agent should automatically start on app start unless it was
+     manually stopped before exiting the app.
 - [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
   `~/Library/Application\ Support/Teleport\ Connect/logs`.
 - [ ] Verify that the password from the login form is not saved in the renderer log.

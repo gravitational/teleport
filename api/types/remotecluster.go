@@ -97,6 +97,16 @@ func (c *RemoteClusterV3) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (c *RemoteClusterV3) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *RemoteClusterV3) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (c *RemoteClusterV3) setStaticFields() {
 	c.Kind = KindRemoteCluster

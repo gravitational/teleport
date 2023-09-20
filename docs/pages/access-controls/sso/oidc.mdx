@@ -193,6 +193,46 @@ spec:
        roles: [ "access" ]
 ```
 
+### Optional: Max age
+
+Teleport has supported setting the `max_age` field since version 13.3.7 to control the
+maximum age of users' sessions before they will be forced to reauthenticate. By
+default `max_age` is unset, meaning once a user authenticates using OIDC they will
+not have to reauthenticate unless the configured OIDC provider forces them to. This
+can be set to a duration of time to force users to reauthenticate more often. If
+`max_age` is set to zero seconds, users will be forced to reauthenticate with their
+OIDC provider every time they authenticate with Teleport.
+
+Note that the specified duration must be in whole seconds. `24h` works because that's
+the same as `1440s`, but `60s500ms` would not be allowed as that is 60.5 seconds.
+
+```yaml
+# Extra parts of OIDC yaml have been removed.
+spec:
+  max_age: 24h
+```
+
+Note that not all OIDC providers support setting `max_age`. Google and GitLab are
+both known not to support it and authentication with those providers will not work
+when the `max_age` field is set.
+
+### Optional: Prompt
+
+Set the Authorization Server prompt for the End-User for reauthentication and consent
+per the OIDC protocol. If no `prompt` value is set, Teleport uses `select_account` as
+default.
+
+```yaml
+# Extra parts of OIDC yaml have been removed.
+spec:
+  # Valid values as defined from https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+  # none: The Authorization Server must not display any authentication or consent user interface pages.
+  # select_account: The Authorization Server should prompt the End-User to select a user account.
+  # login: The Authorization Server should prompt the End-User for reauthentication.
+  # consent: The Authorization Server should prompt the End-User for consent before returning information to the Client.
+  prompt: 'login'
+```
+
 ### Optional: Redirect URL and Timeout
 
 The redirect URL must be accessible by all user, optional redirect timeout.

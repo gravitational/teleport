@@ -139,7 +139,8 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 	}
 
 	for _, accessList := range accessLists {
-		if err := services.IsMember(identity, g.clock, accessList); err != nil {
+		// Check that the user meets the access list requirements.
+		if err := services.IsAccessListMember(ctx, identity, g.clock, accessList, g.accessLists); err != nil {
 			continue
 		}
 

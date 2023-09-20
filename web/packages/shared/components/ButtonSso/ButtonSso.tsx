@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { forwardRef } from 'react';
 import styled from 'styled-components';
 import Button from 'design/Button';
 import { darken, lighten } from 'design/theme/utils/colorManipulator';
@@ -22,12 +22,12 @@ import * as Icons from 'design/Icon';
 
 import { AuthProviderType } from 'shared/services';
 
-const ButtonSso = (props: Props) => {
+const ButtonSso = forwardRef<HTMLInputElement, Props>((props: Props, ref) => {
   const { ssoType = 'unknown', title, ...rest } = props;
   const { color, Icon } = getSSOIcon(ssoType);
 
   return (
-    <StyledButton color={color} block {...rest}>
+    <StyledButton color={color} block {...rest} ref={ref}>
       {Boolean(Icon) && (
         <IconBox>
           <Icon data-testid="icon" color="white" />
@@ -36,7 +36,7 @@ const ButtonSso = (props: Props) => {
       {title}
     </StyledButton>
   );
-};
+});
 
 type Props = {
   ssoType: SSOType;

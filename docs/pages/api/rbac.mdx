@@ -94,7 +94,7 @@ In Kubernetes, you can divide a cluster into logically isolated **namespaces**.
 A **role** defines a set of permissions for manipulating resources in a specific
 namespace. A **cluster role** is a role that applies to all namespaces in a
 cluster. You can use a **role binding** or **cluster role binding** to attach a
-role or cluster role to Kubernetes users and groups. 
+role or cluster role to Kubernetes users and groups.
 
 Define a Kubernetes role and role binding that allows users in the
 `app-developer` group to read and list pods in the `app` namespace. Add the
@@ -122,14 +122,14 @@ metadata:
   name: read-pods
   namespace: app
   annotations:
-    'create-teleport-role': 'true' 
+    'create-teleport-role': 'true'
 subjects:
 - kind: Group
   name: app-developer
   apiGroup: rbac.authorization.k8s.io
 roleRef:
-  kind: Role 
-  name: pod-reader 
+  kind: Role
+  name: pod-reader
   apiGroup: rbac.authorization.k8s.io
 ```
 
@@ -161,7 +161,7 @@ kind: ClusterRoleBinding
 metadata:
   name: pod-ops
   annotations:
-    'create-teleport-role': 'true' 
+    'create-teleport-role': 'true'
 subjects:
 - kind: Group
   name: ops
@@ -220,7 +220,7 @@ clusterrole.rbac.authorization.k8s.io/rbac-sync created
 clusterrolebinding.rbac.authorization.k8s.io/rbac-sync created
 ```
 
-## Step 2/4. Set up Teleport 
+## Step 2/4. Set up Teleport
 
 In this step, you will configure Teleport to enable your API client application
 to interact with your Kubernetes cluster.
@@ -235,7 +235,7 @@ Create a file called `sync-kubernetes-rbac.yaml` with the following content:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: sync-kubernetes-rbac
 spec:
@@ -299,7 +299,7 @@ spec:
       - sync-kubernetes-rbac
 ```
 
-Create the `sync-kubernetes-rbac-impersonator` role: 
+Create the `sync-kubernetes-rbac-impersonator` role:
 
 ```code
 $ tctl create -f sync-kubernetes-rbac-impersonator.yaml
@@ -324,13 +324,13 @@ Request a token that the Kubernetes Service will use to join your Teleport
 cluster:
 
 ```code
-$ tctl tokens add --type=kube --ttl=10000h --format=json
+$ tctl tokens add --type=kube,app,discovery --ttl=10000h --format=json
 ```
 
 Copy this token so you can use it when running the Teleport Kubernetes Service.
 
 Ensure that you are connected to the right Kubernetes cluster (logging into
-Teleport earlier will have changed your Kubernetes context): 
+Teleport earlier will have changed your Kubernetes context):
 
 ```code
 $ kubectl config use-context minikube
@@ -345,12 +345,13 @@ requested earlier:
 ```code
 $ helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=minikube \
+  --set roles="kube\,app\,discovery" \
   --set proxyAddr=<Var name="proxy-address" /> \
   --set authToken=<Var name="token" /> \
   --create-namespace \
   --namespace=teleport \
   --set labels.environment=demo \
-  --version (=teleport.version=) 
+  --version (=teleport.version=)
 ```
 
 After a few seconds, verify that you have deployed the Teleport Kubernetes
@@ -530,7 +531,7 @@ func getRBACClient() (v1.RbacV1Interface, error) {
 `getRBACClient` opens and reads the Kubernetes credentials file at
 `kubeconfigPath`, then uses the file to set up a Kubernetes API client
 configuration (`clientcmd.RESTConfigFromKubeConfig(kc)`) and, with that, an HTTP
-client (`kubernetes.NewForConfig(n)`). 
+client (`kubernetes.NewForConfig(n)`).
 
 Finally, it returns an interface to the Kubernetes API dedicated to role-based
 access controls, which the rest of the program uses to interact with your
@@ -600,7 +601,7 @@ key, `roleAnnotationKey`, and ignores any resource where this key is not set to
 
 We also want a quick way to identify roles we created with this program. To do
 so, this function names all roles it generates based on cluster role bindings
-according to the following attributes: 
+according to the following attributes:
 
 - Kubernetes cluster name
 - Kubernetes role name
@@ -732,7 +733,7 @@ Teleport-registered Kubernetes cluster. It calls the `getRBACClient` function we
 defined earlier to set up a client for the Kubernetes cluster. It then:
 
 - Lists Kubernetes cluster role bindings and creates a Teleport role for each one.
-- Lists Kubernetes role bindings and creates a Teleport role for each one. 
+- Lists Kubernetes role bindings and creates a Teleport role for each one.
 
 ### Initializing clients and start the application
 
@@ -784,7 +785,7 @@ initializes a Teleport client by calling `client.LoadIdentityFile` to obtain a
 <Admonition type="warning">
 
 This program does not validate your credentials or Teleport cluster address.
-Make sure that: 
+Make sure that:
 
 - The identity file you exported earlier does not have an expired TTL
 - The value you supplied to the `Addrs` field in `teleport.Config` includes both
@@ -795,7 +796,7 @@ Make sure that:
 
 After initializing a Teleport client, the `main` function fetches all Kubernetes
 servers registered with Teleport (`teleport.GetKubernetesServers`) and checks if
-there is a registered Kubernetes cluster that matches the one you specified. 
+there is a registered Kubernetes cluster that matches the one you specified.
 
 If a matching Kubernetes cluster exists, the code calls the
 `createTeleportRolesForKubeClusters` function we defined earlier. If not, the
@@ -863,7 +864,7 @@ spec:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v6
+version: v7
 ```
 
 Compare this with the `minikube-pod-reader-app` role, which you can retrieve
@@ -910,7 +911,7 @@ spec:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v6
+version: v7
 ```
 
 Since role bindings are namespaced, this role only allows access to pods in the

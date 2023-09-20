@@ -193,6 +193,12 @@ type webSuiteConfig struct {
 
 	// ClusterFeatures allows overriding default auth server features
 	ClusterFeatures *authproto.Features
+
+	// presenceChecker executes presence prompts for tests
+	presenceChecker PresenceChecker
+
+	// clock to use for all server components
+	clock clockwork.FakeClock
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -203,10 +209,14 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	u, err := user.Current()
 	require.NoError(t, err)
 
+	if cfg.clock == nil {
+		cfg.clock = clockwork.NewFakeClock()
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &WebSuite{
 		mockU2F: mockU2F,
-		clock:   clockwork.NewFakeClock(),
+		clock:   cfg.clock,
 		user:    u.Username,
 		ctx:     ctx,
 		cancel:  cancel,
@@ -471,6 +481,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		HealthCheckAppServer: cfg.HealthCheckAppServer,
 		UI:                   cfg.uiConfig,
 		OpenAIConfig:         cfg.OpenAIConfig,
+		PresenceChecker:      cfg.presenceChecker,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -1107,6 +1118,7 @@ func TestClusterNodesGet(t *testing.T) {
 	require.ElementsMatch(t, res.Items, []ui.Server{
 		{
 			Kind:        types.KindNode,
+			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
 			Name:        server1.GetName(),
 			Hostname:    server1.GetHostname(),
@@ -1117,6 +1129,7 @@ func TestClusterNodesGet(t *testing.T) {
 		},
 		{
 			Kind:        types.KindNode,
+			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
 			Name:        "server2",
 			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
@@ -1824,13 +1837,27 @@ func TestTerminal(t *testing.T) {
 			t.Parallel()
 			s := newWebSuite(t)
 
+			// Set the recording config
 			require.NoError(t, s.server.Auth().SetSessionRecordingConfig(context.Background(), &tt.recordingConfig))
 
+			// Create a new session
 			ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
 			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, ws.Close()) })
+			t.Cleanup(func() { require.True(t, utils.IsOKNetworkError(ws.Close())) })
 
+			// Send a command and validate the output
 			validateTerminalStream(t, ws)
+
+			// Validate that the session is active on the node
+			require.Equal(t, int32(1), s.node.ActiveConnections())
+
+			// Close the web socket to emulate a user closing the browser window
+			require.NoError(t, ws.Close())
+
+			// Validate that the node terminates the session
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				assert.Zero(t, s.node.ActiveConnections())
+			}, 30*time.Second, 250*time.Millisecond)
 		})
 	}
 }
@@ -6014,7 +6041,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
-					Error:   "Teleport proxy failed to connect to",
+					Error:   "direct dialing to nodes not found in inventory is not supported",
 				},
 			},
 		},
@@ -7286,8 +7313,8 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 	return ws, &sessResp.Session, nil
 }
 
-func waitForOutput(r io.Reader, substr string) error {
-	timeoutCh := time.After(10 * time.Second)
+func waitForOutputWithDuration(r io.Reader, substr string, timeout time.Duration) error {
+	timeoutCh := time.After(timeout)
 
 	var prev string
 	out := make([]byte, int64(len(substr)*2))
@@ -7316,6 +7343,10 @@ func waitForOutput(r io.Reader, substr string) error {
 		}
 		prev = outStr
 	}
+}
+
+func waitForOutput(r io.Reader, substr string) error {
+	return waitForOutputWithDuration(r, substr, 10*time.Second)
 }
 
 func (s *WebSuite) client(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
@@ -7693,9 +7724,9 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 
 	mux, err := multiplexer.New(multiplexer.Config{
-		Listener:                    proxyListener,
-		EnableExternalProxyProtocol: false,
-		ID:                          teleport.Component(teleport.ComponentProxy, "ssh"),
+		Listener:          proxyListener,
+		PROXYProtocolMode: multiplexer.PROXYProtocolOff,
+		ID:                teleport.Component(teleport.ComponentProxy, "ssh"),
 		CertAuthorityGetter: func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 			return client.GetCertAuthority(ctx, id, loadKeys)
 		},
@@ -8232,7 +8263,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	accessReq, err := services.NewAccessRequest(username, requestableRolename)
 	require.NoError(t, err)
 	accessReq.SetState(types.RequestState_APPROVED)
-	err = env.server.Auth().CreateAccessRequest(ctx, accessReq, identity)
+	accessReq, err = env.server.Auth().CreateAccessRequestV2(ctx, accessReq, identity)
 	require.NoError(t, err)
 
 	// Get the ID of the created and approved access request.
@@ -9282,7 +9313,9 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	const RPID = "localhost"
 
+	presenceClock := clockwork.NewFakeClock()
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		clock:                     clockwork.NewFakeClockAt(presenceClock.Now()),
 		disableDiskBasedRecording: true,
 		authPreferenceSpec: &types.AuthPreferenceSpecV2{
 			Type:           constants.Local,
@@ -9292,6 +9325,9 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 			Webauthn: &types.Webauthn{
 				RPID: RPID,
 			},
+		},
+		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, promptMFA client.PromptMFAFunc, opts ...client.PresenceOption) error {
+			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, promptMFA, client.WithPresenceClock(presenceClock)))
 		},
 	})
 
@@ -9356,7 +9392,8 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	// run the presence check a few times
 	for i := 0; i < 3; i++ {
-		s.clock.Advance(30 * time.Second)
+		presenceClock.BlockUntil(1)
+		presenceClock.Advance(30 * time.Second)
 		require.NoError(t, waitForOutput(moderatorStream, "Teleport > Please tap your MFA key"))
 
 		challenge, err := moderatorStream.readChallenge(protobufMFACodec{})
@@ -9379,11 +9416,14 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		require.NoError(t, moderatorWS.WriteMessage(websocket.BinaryMessage, envelopeBytes))
 	}
 
-	// advance the clock far enough in the future to make the moderator stale
-	// which will terminate the session
-	s.clock.Advance(180 * time.Second)
-	require.NoError(t, waitForOutput(moderatorStream, "wait: remote command exited without exit status or exit signal"))
-	require.NoError(t, waitForOutput(peerStream, "Process exited with status 255"))
+	// Advance the clock far enough in the future to make the moderator stale
+	// which will terminate the session - because the clock is used by ALL server
+	// components, it's not practical to use BlockUntil here, so we use EventuallyWithT instead.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		s.clock.Advance(3 * time.Minute)
+		assert.NoError(t, waitForOutputWithDuration(moderatorStream, "wait: remote command exited without exit status or exit signal", 3*time.Second))
+		assert.NoError(t, waitForOutputWithDuration(peerStream, "Process exited with status 255", 3*time.Second))
+	}, 15*time.Second, 500*time.Millisecond)
 }
 
 func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {

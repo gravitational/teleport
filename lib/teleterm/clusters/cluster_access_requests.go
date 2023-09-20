@@ -145,8 +145,10 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	request.SetRequestReason(req.Reason)
 	request.SetSuggestedReviewers(req.SuggestedReviewers)
 
+	var reqOut types.AccessRequest
 	err = AddMetadataToRetryableError(ctx, func() error {
-		return c.clusterClient.CreateAccessRequest(ctx, request)
+		reqOut, err = c.clusterClient.CreateAccessRequestV2(ctx, request)
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -154,7 +156,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 
 	return &AccessRequest{
 		URI:           c.URI.AppendAccessRequest(request.GetName()),
-		AccessRequest: request,
+		AccessRequest: reqOut,
 	}, nil
 }
 

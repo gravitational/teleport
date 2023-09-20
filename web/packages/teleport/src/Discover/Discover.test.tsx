@@ -54,15 +54,12 @@ type createProps = {
 
 const create = ({ initialEntry = '', preferredResource }: createProps) => {
   const defaultPref = makeDefaultUserPreferences();
+  defaultPref.onboard.preferredResources = preferredResource
+    ? [preferredResource]
+    : [];
+
   mockUserContextProviderWith(
-    makeTestUserContext({
-      preferences: {
-        ...defaultPref,
-        onboard: {
-          preferredResources: preferredResource ? [preferredResource] : [],
-        },
-      },
-    })
+    makeTestUserContext({ preferences: defaultPref })
   );
 
   const userAcl = getAcl();

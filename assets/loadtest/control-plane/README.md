@@ -22,3 +22,27 @@ Note that the name of the eks cluster must match the `CLUSTER_NAME` variable.
 
 - When finished, first invoke `./clean-non-kube.sh`, then destroy the eks cluster (this ordering
 is important, as some of the resources created by these scripts interfere with eks cluster teardown).
+
+### Database access
+
+You can also deploy database access agents. To setup the databases prior to testing
+check the `databases` folder.
+
+With the infrastructure in place, you can deploy the agents with
+`deploy-database-agents` target, here is an example:
+
+```shell
+make create-token
+
+make deploy-database-agents \
+  TELEPORT_VERSION=13.3.5 \
+  NODE_TOKEN=00000000000000000000000000000000 \
+  PROXY_SERVER=yourcluster.teleportdemo.net:443 \
+  NODE_REPLICAS=3 \
+  DATABASE_ROLE_ARN=arn:aws:iam::000000000000:role/loadtest-database-access \
+  POSTGRES_URL=loadtest-00000000000000000000000000.aaaaaaaaaaaa.us-east-1.rds.amazonaws.com:5432 \
+  MYSQL_URL=loadtest-00000000000000000000000000.aaaaaaaaaaaa.us-east-1.rds.amazonaws.com:3306
+```
+
+The `DATABASE_ROLE_ARN`, `POSTGRES_URL` and `MYSQL_URL` can be retrieved from
+databases Terraform output.
