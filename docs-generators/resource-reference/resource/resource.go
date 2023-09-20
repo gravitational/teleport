@@ -346,7 +346,14 @@ func getYAMLTypeForExpr(exp ast.Expr) (yamlKindNode, error) {
 		case "bool":
 			return yamlBool{}, nil
 		default:
-			return nil, fmt.Errorf("unsupported type: %+v", t.Name)
+			// This may be an embedded struct declared within the
+			// same package as exp.
+			return yamlCustomType{
+				declarationInfo: PackageInfo{
+					TypeName:    t.Name,
+					PackageName: "",
+				},
+			}, nil
 		}
 	case *ast.MapType:
 		k, err := getYAMLTypeForExpr(t.Key)
@@ -512,14 +519,23 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		if !ok {
 			continue
 		}
+
+		// If the field's type has no package name, assume the field's
+		// package name is the same as the one for decl.
+		var pkg string
+		if l.packageName != "" {
+			pkg = l.packageName
+		} else {
+			pkg = decl.PackageName
+		}
 		p := PackageInfo{
-			TypeName:    c.name,
-			PackageName: l.packageName,
+			TypeName:    c.declarationInfo.TypeName,
+			PackageName: pkg,
 		}
 		d, ok := allDecls[p]
 		if !ok {
 			return nil, fmt.Errorf(
-				"field %v.%v in %v.%v does not have a name",
+				"field %v.%v in %v.%v is not declared anywhere",
 				l.packageName,
 				c.name,
 				decl.PackageName,
