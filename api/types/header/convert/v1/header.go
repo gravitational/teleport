@@ -17,6 +17,8 @@ limitations under the License.
 package headerv1
 
 import (
+	"time"
+
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -46,11 +48,17 @@ func ToResourceHeaderProto(resourceHeader header.ResourceHeader) *headerv1.Resou
 
 // FromMetadataProto converts v1 metadata into an internal metadata object.
 func FromMetadataProto(msg *headerv1.Metadata) header.Metadata {
+	// We map the zero protobuf time (nil) to the zero go time.
+	var expires time.Time
+	if msg.Expires != nil {
+		expires = msg.Expires.AsTime()
+	}
+
 	return header.Metadata{
 		Name:        msg.Name,
 		Description: msg.Description,
 		Labels:      msg.Labels,
-		Expires:     msg.Expires.AsTime(),
+		Expires:     expires,
 		ID:          msg.Id, //nolint:staticcheck // Keep propagating ID until it's entirely replaced by revision.
 		Revision:    msg.Revision,
 	}
@@ -58,11 +66,17 @@ func FromMetadataProto(msg *headerv1.Metadata) header.Metadata {
 
 // ToMetadataProto converts an internal metadata object into a v1 metadata protobuf message.
 func ToMetadataProto(metadata header.Metadata) *headerv1.Metadata {
+	// We map the zero go time to the zero protobuf time (nil).
+	var expires *timestamppb.Timestamp
+	if !metadata.Expires.IsZero() {
+		expires = timestamppb.New(metadata.Expires)
+	}
+
 	return &headerv1.Metadata{
 		Name:        metadata.Name,
 		Description: metadata.Description,
 		Labels:      metadata.Labels,
-		Expires:     timestamppb.New(metadata.Expires),
+		Expires:     expires,
 		Id:          metadata.ID, //nolint:staticcheck // Keep propagating ID until it's entirely replaced by revision.
 		Revision:    metadata.Revision,
 	}
