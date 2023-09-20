@@ -22,6 +22,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -51,15 +52,15 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 	// Another call to GetOrGenerateYubiKeyPrivateKey should retrieve the previously generated key.
 	retrievePriv, err := keys.GetOrGenerateYubiKeyPrivateKey(false)
 	require.NoError(t, err)
-	require.Equal(t, priv, retrievePriv)
+	require.Equal(t, priv.Public(), retrievePriv.Public())
 
 	// parsing the key's private key PEM should produce the same key as well.
-	retrieveKey, err := keys.ParsePrivateKey(priv.PrivateKeyPEM())
+	retrievePriv, err = keys.ParsePrivateKey(priv.PrivateKeyPEM())
 	require.NoError(t, err)
-	require.Equal(t, priv, retrieveKey)
+	require.Equal(t, priv.Public(), retrievePriv.Public())
 }
 
-func TestOverwriteSlot(t *testing.T) {
+func TestOverwritePrompt(t *testing.T) {
 	// This test expects a yubiKey to be connected with default PIV
 	// settings and will overwrite any PIV data on the yubiKey.
 	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
@@ -72,21 +73,44 @@ func TestOverwriteSlot(t *testing.T) {
 	oldStdin := prompt.Stdin()
 	t.Cleanup(func() { prompt.SetStdin(oldStdin) })
 
-	// Set a non-teleport certificate in the slot.
-	y, err := keys.FindYubiKey(0)
-	require.NoError(t, err)
-	err = y.SetMetadataCertificate(keys.PIVSlotNoTouch, pkix.Name{Organization: []string{"not-teleport"}})
+	slot, err := keys.GetDefaultKeySlot(keys.PrivateKeyPolicyHardwareKeyTouch)
 	require.NoError(t, err)
 
-	// Fail to overwrite slot when user denies
-	prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
-	_, err = keys.GetOrGenerateYubiKeyPrivateKey(false)
-	require.Error(t, err)
+	testOverwritePrompt := func(t *testing.T) {
+		// Fail to overwrite slot when user denies
+		prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
+		_, err := keys.GetOrGenerateYubiKeyPrivateKey(true)
+		require.True(t, trace.IsCompareFailed(err), "Expected compare failed error but got %v", err)
 
-	// Successfully overwrite slot when user accepts
-	prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
-	_, err = keys.GetOrGenerateYubiKeyPrivateKey(false)
-	require.NoError(t, err)
+		// Successfully overwrite slot when user accepts
+		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
+		_, err = keys.GetOrGenerateYubiKeyPrivateKey(true)
+		require.NoError(t, err)
+	}
+
+	t.Run("invalid metadata cert", func(t *testing.T) {
+		t.Cleanup(func() { resetYubikey(ctx, t) })
+
+		// Set a non-teleport certificate in the slot.
+		y, err := keys.FindYubiKey(0)
+		require.NoError(t, err)
+		err = y.SetMetadataCertificate(slot, pkix.Name{Organization: []string{"not-teleport"}})
+		require.NoError(t, err)
+
+		testOverwritePrompt(t)
+	})
+
+	t.Run("invalid key policies", func(t *testing.T) {
+		t.Cleanup(func() { resetYubikey(ctx, t) })
+
+		// Generate a key that does not require touch in the slot that Teleport expects to require touch.
+		y, err := keys.FindYubiKey(0)
+		require.NoError(t, err)
+		_, err = y.GeneratePrivateKey(slot, keys.PrivateKeyPolicyHardwareKey)
+		require.NoError(t, err)
+
+		testOverwritePrompt(t)
+	})
 }
 
 // resetYubikey connects to the first yubiKey and resets it to defaults.
