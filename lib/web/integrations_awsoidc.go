@@ -216,7 +216,7 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
-		return nil, trace.BadParameter("invalid role")
+		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
 	taskRole := queryParams.Get("taskRole")
@@ -243,7 +243,7 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	fmt.Fprint(w, script)
+	_, err = fmt.Fprint(w, script)
 
 	return nil, trace.Wrap(err)
 }
@@ -260,7 +260,7 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
-		return nil, trace.BadParameter("invalid role")
+		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
 	// The script must execute the following command:
@@ -279,7 +279,7 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	fmt.Fprint(w, script)
+	_, err = fmt.Fprint(w, script)
 
 	return nil, trace.Wrap(err)
 }
@@ -472,7 +472,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
-		return nil, trace.BadParameter("invalid role")
+		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
 	// The script must execute the following command:
@@ -494,7 +494,42 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	fmt.Fprint(w, script)
+	_, err = fmt.Fprint(w, script)
+
+	return nil, trace.Wrap(err)
+}
+
+// awsOIDCConfigureListDatabasesIAM returns a script that configures the required IAM permissions to allow Listing RDS DB Clusters and Instances.
+func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	queryParams := r.URL.Query()
+
+	awsRegion := queryParams.Get("awsRegion")
+	if err := aws.IsValidRegion(awsRegion); err != nil {
+		return nil, trace.BadParameter("invalid awsRegion")
+	}
+
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role %q", role)
+	}
+
+	// The script must execute the following command:
+	// teleport integration configure listdatabases-iam
+	argsList := []string{
+		"integration", "configure", "listdatabases-iam",
+		fmt.Sprintf("--aws-region=%s", awsRegion),
+		fmt.Sprintf("--role=%s", role),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs:   strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the browser to complete the Database enrollment.",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	_, err = fmt.Fprint(w, script)
 
 	return nil, trace.Wrap(err)
 }
