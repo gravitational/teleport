@@ -403,7 +403,6 @@ func testRewriteHeadersRoot(p *Pack, t *testing.T) {
 
 	// verify these headers were not rewritten.
 	require.NotEqual(t, req.Header.Get(teleport.AppJWTHeader), "rewritten-app-jwt-header")
-	require.NotEqual(t, req.Header.Get(teleport.AppCFHeader), "rewritten-app-cf-header")
 	require.NotEqual(t, req.Header.Get(common.TeleportAPIErrorHeader), "rewritten-x-teleport-api-error")
 	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedFor), "rewritten-x-forwarded-for-header")
 	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedHost), "rewritten-x-forwarded-host-header")
@@ -412,7 +411,7 @@ func testRewriteHeadersRoot(p *Pack, t *testing.T) {
 	require.NotEqual(t, req.Header.Get(common.XForwardedSSL), "rewritten-x-forwarded-ssl")
 
 	// Verify JWT tokens.
-	for _, header := range []string{teleport.AppJWTHeader, teleport.AppCFHeader, "X-JWT"} {
+	for _, header := range []string{teleport.AppJWTHeader, "X-JWT"} {
 		verifyJWT(t, p, req.Header.Get(header), p.dumperAppURI)
 	}
 }
@@ -441,7 +440,6 @@ func testRewriteHeadersLeaf(p *Pack, t *testing.T) {
 
 	// verify these headers were not rewritten.
 	require.NotEqual(t, req.Header.Get(teleport.AppJWTHeader), "rewritten-app-jwt-header")
-	require.NotEqual(t, req.Header.Get(teleport.AppCFHeader), "rewritten-app-cf-header")
 	require.NotEqual(t, req.Header.Get(common.TeleportAPIErrorHeader), "rewritten-x-teleport-api-error")
 	require.NotEqual(t, req.Header.Get(common.XForwardedSSL), "rewritten-x-forwarded-ssl")
 	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedFor), "rewritten-x-forwarded-for-header")

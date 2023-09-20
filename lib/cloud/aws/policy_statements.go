@@ -147,3 +147,15 @@ func StatementForAWSOIDCRoleTrustRelationship(accountID, providerURL string, aud
 		},
 	}
 }
+
+// StatementForListRDSDatabases returns the statement that allows listing RDS DB Clusters and Instances.
+func StatementForListRDSDatabases() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"rds:DescribeDBInstances",
+			"rds:DescribeDBClusters",
+		},
+		Resources: allResources,
+	}
+}

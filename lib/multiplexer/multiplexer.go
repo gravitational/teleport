@@ -500,6 +500,13 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 					}).Warnf("%s - could not get host CA", invalidProxySignatureError)
 					continue
 				}
+				if errors.Is(err, ErrNonLocalCluster) {
+					m.WithFields(log.Fields{
+						"src_addr": conn.RemoteAddr(),
+						"dst_addr": conn.LocalAddr(),
+					}).Debugf("%s - signed by non local cluster", invalidProxySignatureError)
+					continue
+				}
 				if err != nil {
 					return nil, trace.Wrap(err, "%s %s -> %s", invalidProxySignatureError, conn.RemoteAddr(), conn.LocalAddr())
 				}

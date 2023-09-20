@@ -27,7 +27,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -262,18 +264,13 @@ func (b *Bot) generateIdentity(
 	return newIdentity, nil
 }
 
-func getDatabase(ctx context.Context, client auth.ClientI, name string) (types.Database, error) {
-	res, err := client.ListResources(ctx, proto.ListResourcesRequest{
+func getDatabase(ctx context.Context, clt auth.ClientI, name string) (types.Database, error) {
+	servers, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, name),
+		PredicateExpression: makeNameOrDiscoveredNamePredicate(name),
 		Limit:               int32(defaults.DefaultChunkSize),
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := types.ResourcesWithLabels(res.Resources).AsDatabaseServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -284,11 +281,8 @@ func getDatabase(ctx context.Context, client auth.ClientI, name string) (types.D
 	}
 
 	databases = types.DeduplicateDatabases(databases)
-	if len(databases) == 0 {
-		return nil, trace.NotFound("database %q not found", name)
-	}
-
-	return databases[0], nil
+	db, err := chooseOneDatabase(databases, name)
+	return db, trace.Wrap(err)
 }
 
 func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, output *config.DatabaseOutput) (proto.RouteToDatabase, error) {
@@ -300,6 +294,9 @@ func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, outpu
 	if err != nil {
 		return proto.RouteToDatabase{}, trace.Wrap(err)
 	}
+	// make sure the output matches the fully resolved db name, since it may
+	// have been just a "discovered name".
+	output.Service = db.GetName()
 
 	username := output.Username
 	if db.GetProtocol() == libdefaults.ProtocolMongoDB && username == "" {
@@ -319,18 +316,34 @@ func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, outpu
 	}, nil
 }
 
-func getApp(ctx context.Context, client auth.ClientI, appName string) (types.Application, error) {
-	res, err := client.ListResources(ctx, proto.ListResourcesRequest{
+func getKubeCluster(ctx context.Context, clt auth.ClientI, name string) (types.KubeCluster, error) {
+	servers, err := apiclient.GetAllResources[types.KubeServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindAppServer,
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
-		Limit:               1,
+		ResourceType:        types.KindKubeServer,
+		PredicateExpression: makeNameOrDiscoveredNamePredicate(name),
+		Limit:               int32(defaults.DefaultChunkSize),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := types.ResourcesWithLabels(res.Resources).AsAppServers()
+	var clusters []types.KubeCluster
+	for _, server := range servers {
+		clusters = append(clusters, server.GetCluster())
+	}
+
+	clusters = types.DeduplicateKubeClusters(clusters)
+	cluster, err := chooseOneKubeCluster(clusters, name)
+	return cluster, trace.Wrap(err)
+}
+
+func getApp(ctx context.Context, clt auth.ClientI, appName string) (types.Application, error) {
+	servers, err := apiclient.GetAllResources[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
+		Namespace:           defaults.Namespace,
+		ResourceType:        types.KindAppServer,
+		PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
+		Limit:               1,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -445,6 +458,13 @@ func (b *Bot) generateImpersonatedIdentity(
 
 		return routedIdentity, impersonatedClient, nil
 	case *config.KubernetesOutput:
+		kc, err := getKubeCluster(ctx, impersonatedClient, output.KubernetesCluster)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		// make sure the output matches the fully resolved kube cluster name,
+		// since it may have been just a "discovered name".
+		output.KubernetesCluster = kc.GetName()
 		// Note: the Teleport server does attempt to verify k8s cluster names
 		// and will fail to generate certs if the cluster doesn't exist or is
 		// offline.
@@ -707,4 +727,73 @@ func (op *outputProvider) GenerateHostCert(ctx context.Context, key []byte, host
 // GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
 func (op *outputProvider) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	return op.impersonatedClient.GetCertAuthority(ctx, id, loadKeys)
+}
+
+// chooseOneDatabase chooses one matched database by name, or tries to choose
+// one database by unambiguous "discovered name".
+func chooseOneDatabase(databases []types.Database, name string) (types.Database, error) {
+	return chooseOneResource(databases, name, "database")
+}
+
+// chooseOneKubeCluster chooses one matched kube cluster by name, or tries to
+// choose one kube cluster by unambiguous "discovered name".
+func chooseOneKubeCluster(clusters []types.KubeCluster, name string) (types.KubeCluster, error) {
+	return chooseOneResource(clusters, name, "kubernetes cluster")
+}
+
+// chooseOneResource chooses one matched resource by name, or tries to choose
+// one resource by unambiguous "discovered name".
+func chooseOneResource[T types.ResourceWithLabels](resources []T, name, resDesc string) (T, error) {
+	for _, r := range resources {
+		if r.GetName() == name {
+			return r, nil
+		}
+	}
+
+	// look for an unambiguous "discovered name" match as a fallback.
+	var matches []T
+	for _, r := range resources {
+		discoveredName, ok := r.GetLabel(types.DiscoveredNameLabel)
+		if ok && discoveredName == name {
+			matches = append(matches, r)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		var out T
+		return out, trace.NotFound("%s %q not found", resDesc, name)
+	case 1:
+		return matches[0], nil
+	default:
+		var out T
+		errMsg := formatAmbiguousMessage(name, resDesc, matches)
+		return out, trace.BadParameter(errMsg)
+	}
+}
+
+// formatAmbiguousMessage formats a generic error message that describes an ambiguous
+// auto-discovered resource name match error.
+func formatAmbiguousMessage[T types.ResourceWithLabels](name, resDesc string, matches []T) string {
+	matchedNames := make([]string, 0, len(matches))
+	for _, match := range matches {
+		matchedNames = append(matchedNames, match.GetName())
+	}
+	slices.Sort(matchedNames)
+	return fmt.Sprintf(`%q matches multiple auto-discovered %ss:
+%v
+
+Use the full resource name that was generated by the Teleport Discovery service`,
+		name, resDesc, strings.Join(matchedNames, "\n"))
+}
+
+// makeNameOrDiscoveredNamePredicate returns a predicate that matches resources
+// by name or by "discovered name" label.
+func makeNameOrDiscoveredNamePredicate(name string) string {
+	matchName := fmt.Sprintf("name == %q", name)
+	matchDiscoveredName := fmt.Sprintf("labels[%q] == %q",
+		types.DiscoveredNameLabel, name,
+	)
+	return fmt.Sprintf("(%v) || (%v)",
+		matchName, matchDiscoveredName,
+	)
 }
