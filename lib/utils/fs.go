@@ -20,12 +20,14 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -240,6 +242,47 @@ func FSTryReadLockTimeout(ctx context.Context, filePath string, timeout time.Dur
 	}
 
 	return fileLock.Unlock, nil
+}
+
+// RemoveAllSecure is similar to `os.RemoveAll` however will delegate to the `RemoveSecure` implementation below
+func RemoveAllSecure(path string) error {
+	// Match os.RemoveAll protections in not permitting removal of "." directories
+	if path == "." || (len(path) >= 2 && path[len(path)-1] == '.' && os.IsPathSeparator(path[len(path)-2])) {
+		return &os.PathError{Op: "RemoveAllSecure", Path: path, Err: syscall.EINVAL} // error type matches os.RemoveAll
+	}
+
+	if info, err := os.Lstat(path); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		} else {
+			return trace.ConvertSystemError(err)
+		}
+	} else if info.IsDir() {
+		var removeErrors []error
+		if files, err := os.ReadDir(path); err != nil {
+			// don't fail fast, allow removal at end to be attempted
+			removeErrors = []error{err}
+		} else {
+			for _, f := range files {
+				if err := RemoveAllSecure(filepath.Join(path, f.Name())); err != nil {
+					removeErrors = append(removeErrors, err)
+				}
+			}
+		}
+		if err := os.Remove(path); err != nil {
+			removeErrors = append(removeErrors, err)
+		}
+		if len(removeErrors) > 0 {
+			if len(removeErrors) == 1 {
+				return trace.ConvertSystemError(removeErrors[0])
+			} else {
+				return fmt.Errorf("multiple errors in directory removal: %v", removeErrors)
+			}
+		}
+		return nil
+	} else { // file or symlink
+		return RemoveSecure(path)
+	}
 }
 
 // RemoveSecure attempts to securely delete the file by first overwriting the file with random data three times
