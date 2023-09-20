@@ -1709,8 +1709,22 @@ message CreatePrivilegeTokenRequest {
 // new MFA device.
 message CreateRegisterChallengeRequest {
   // TokenID is the ID of a user token that will be used to verify this request.
+  // Either TokenID or ExistingMFAResponse are required.
+  //
   // All user token types are accepted except UserTokenTypeRecoveryStart.
+  //
+  // An authenticated user can create challenges without a token by supplying an
+  // ExistingMFAResponse.
   string TokenID = 1 [(gogoproto.jsontag) = "token_id"];
+  // ExistingMFAResponse is a response to ExistingMFAChallenge auth challenge.
+  // Either ExistingMFAResponse or TokenID are required.
+  //
+  // Note that a user with no devices can create the initial register challenge,
+  // in the same manner that they could create a privilege token.
+  //
+  // See the [AuthService.CreateAuthenticateChallenge] RPC.
+  MFAAuthenticateResponse ExistingMFAResponse = 4;
+
   // DeviceType is the type of MFA device to make a register challenge for.
   DeviceType DeviceType = 2 [(gogoproto.jsontag) = "device_type"];
   // DeviceUsage is the requested usage for the device.
