@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"fmt"
 	"os"
 	"testing"
 
@@ -30,35 +31,57 @@ import (
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
-// TestGetOrGenerateYubiKeyPrivateKey tests GetOrGenerateYubiKeyPrivateKey.
-func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
+// TestGetYubiKeyPrivateKey_Interactive tests generation and retrieval of YubiKey private keys.
+func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 	// This test expects a yubiKey to be connected with default PIV
 	// settings and will overwrite any PIV data on the yubiKey.
 	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
 		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
 	}
 
+	if !testing.Verbose() {
+		t.Fatal("This test is interactive and must be called with the -v verbose flag to see touch prompts.")
+	}
+	fmt.Println("This test is interactive, tap your YubiKey when prompted.")
+
 	ctx := context.Background()
 	resetYubikey(ctx, t)
 
-	// Generate a new YubiKeyPrivateKey.
-	priv, err := GetOrGenerateYubiKeyPrivateKey(false)
-	require.NoError(t, err)
+	for _, policy := range []PrivateKeyPolicy{
+		PrivateKeyPolicyHardwareKey,
+		PrivateKeyPolicyHardwareKeyTouch,
+	} {
+		t.Run(fmt.Sprintf("policy:%q", policy), func(t *testing.T) {
+			t.Cleanup(func() { resetYubikey(ctx, t) })
 
-	// Test creating a self signed certificate with the key.
-	digest := []byte{100}
-	_, err = priv.Sign(rand.Reader, digest, nil)
-	require.NoError(t, err)
+			// GetYubiKeyPrivateKey should generate a new YubiKeyPrivateKey.
+			priv, err := GetOrGenerateYubiKeyPrivateKey(policy == PrivateKeyPolicyHardwareKeyTouch)
+			require.NoError(t, err)
 
-	// Another call to GetOrGenerateYubiKeyPrivateKey should retrieve the previously generated key.
-	retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(false)
-	require.NoError(t, err)
-	require.Equal(t, priv.Public(), retrievePriv.Public())
+			// test HardwareSigner methods
+			getPolicy := GetPrivateKeyPolicy(priv)
+			require.Equal(t, policy, getPolicy)
 
-	// parsing the key's private key PEM should produce the same key as well.
-	retrievePriv, err = ParsePrivateKey(priv.PrivateKeyPEM())
-	require.NoError(t, err)
-	require.Equal(t, priv.Public(), retrievePriv.Public())
+			att, err := GetAttestationStatement(priv)
+			require.NoError(t, err)
+			require.NotNil(t, att)
+
+			// Test Sign.
+			digest := []byte{100}
+			_, err = priv.Sign(rand.Reader, digest, nil)
+			require.NoError(t, err)
+
+			// Another call to GetYubiKeyPrivateKey should retrieve the previously generated key.
+			retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(policy == PrivateKeyPolicyHardwareKeyTouch)
+			require.NoError(t, err)
+			require.Equal(t, priv.Public(), retrievePriv.Public())
+
+			// parsing the key's private key PEM should produce the same key as well.
+			retrievePriv, err = ParsePrivateKey(priv.PrivateKeyPEM())
+			require.NoError(t, err)
+			require.Equal(t, priv.Public(), retrievePriv.Public())
+		})
+	}
 }
 
 func TestOverwritePrompt(t *testing.T) {
@@ -87,6 +110,8 @@ func TestOverwritePrompt(t *testing.T) {
 	}
 
 	t.Run("invalid metadata cert", func(t *testing.T) {
+		t.Cleanup(func() { resetYubikey(ctx, t) })
+
 		// Set a non-teleport certificate in the slot.
 		y, err := findYubiKey(0)
 		require.NoError(t, err)
@@ -110,6 +135,8 @@ func TestOverwritePrompt(t *testing.T) {
 	})
 
 	t.Run("invalid key policies", func(t *testing.T) {
+		t.Cleanup(func() { resetYubikey(ctx, t) })
+
 		// Generate a key that does not require touch in the slot that Teleport expects to require touch.
 		y, err := findYubiKey(0)
 		require.NoError(t, err)
