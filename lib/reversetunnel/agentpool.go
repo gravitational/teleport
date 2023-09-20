@@ -270,7 +270,13 @@ func (p *AgentPool) run() error {
 
 		agent, err := p.connectAgent(p.ctx, p.tracker.Acquire(), p.events)
 		if err != nil {
-			p.log.WithError(err).Debugf("Failed to connect agent.")
+			// "proxy already claimed" is a fairly benign error, we should not
+			// spam the log with stack traces for it
+			if isProxyAlreadyClaimed(err) {
+				p.log.Debugf("Failed to connect agent: %v.", err)
+			} else {
+				p.log.WithError(err).Debugf("Failed to connect agent.")
+			}
 		} else {
 			p.wg.Add(1)
 			p.active.add(agent)
