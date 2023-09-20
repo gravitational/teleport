@@ -31,6 +31,6 @@ func TestNonHardwareSigner(t *testing.T) {
 	priv, err := ParsePrivateKey(rsaKeyPEM)
 	require.NoError(t, err)
 
-	require.NotNil(t, priv.GetAttestationStatement())
-	require.Equal(t, PrivateKeyPolicyHardwareKey, priv.GetPrivateKeyPolicy())
+	require.Nil(t, priv.GetAttestationStatement())
+	require.Equal(t, PrivateKeyPolicyNone, priv.GetPrivateKeyPolicy())
 }
