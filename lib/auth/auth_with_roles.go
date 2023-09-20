@@ -6227,7 +6227,7 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 	// No permission check is required b/c this request verifies request by one of the following:
 	//   - username + password, anyone who has user's password can generate a sign request
 	//   - token provide its own auth
-	//   - the user extracted from context can retrieve their own challenges
+	//   - the user extracted from context can create their own challenges
 	return a.authServer.CreateAuthenticateChallenge(ctx, req)
 }
 
@@ -6238,7 +6238,17 @@ func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.C
 
 // CreateRegisterChallenge is implemented by AuthService.CreateRegisterChallenge.
 func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
-	// The token provides its own authorization and authentication.
+	switch {
+	case req.TokenID != "":
+	case req.ExistingMFAResponse != nil:
+		if a.hasBuiltinRole(types.RoleProxy) {
+			return nil, trace.BadParameter("proxy role clients are not allowed to issue registration challenges without a privilege token")
+		}
+	}
+
+	// The following serve as means of authentication for this RPC:
+	//   - privilege token (or equivalent)
+	//   - authenticated user using non-Proxy identity
 	return a.authServer.CreateRegisterChallenge(ctx, req)
 }
 
