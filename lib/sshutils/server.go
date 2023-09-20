@@ -442,6 +442,12 @@ func (s *Server) trackUserConnections(delta int32) int32 {
 	return atomic.AddInt32(&s.userConns, delta)
 }
 
+// ActiveConnections returns the number of connections that are
+// being served.
+func (s *Server) ActiveConnections() int32 {
+	return atomic.LoadInt32(&s.userConns)
+}
+
 // HandleConnection is called every time an SSH server accepts a new
 // connection from a client.
 //
