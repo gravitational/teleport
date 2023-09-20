@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { darken, lighten } from '../utils/colorManipulator';
-import { blue, green, orange, pink, purple, red } from '../palette';
+import { blue, green, orange, pink, purple, red, yellow } from '../palette';
 
 import { sharedColors, sharedStyles } from './sharedStyles';
 import { DataVisualisationColors, Theme, ThemeColors } from './types';
@@ -200,6 +200,10 @@ const colors: ThemeColors = {
       disallowed: {
         color: red[700],
         stroke: red[300],
+      },
+      restricted: {
+        color: yellow[700],
+        stroke: yellow[900],
       },
       default: {
         color: 'rgba(0, 0, 0, 0.7)',
