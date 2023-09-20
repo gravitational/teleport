@@ -8029,3 +8029,117 @@ func TestSimultaneousAuthenticateRequest(t *testing.T) {
 		}
 	}
 }
+
+type proxyClientMock struct {
+	auth.ClientI
+	tokens map[string]types.ProvisionToken
+}
+
+// GetToken returns provisioning token
+func (pc *proxyClientMock) GetToken(_ context.Context, token string) (types.ProvisionToken, error) {
+	tok, ok := pc.tokens[token]
+	if ok {
+		return tok, nil
+	}
+
+	return nil, trace.NotFound(token)
+}
+
+func (pc *proxyClientMock) DeleteToken(_ context.Context, token string) error {
+	_, ok := pc.tokens[token]
+	if ok {
+		delete(pc.tokens, token)
+		return nil
+	}
+	return trace.NotFound(token)
+}
+
+func Test_consumeTokenForAPICall(t *testing.T) {
+	pc := &proxyClientMock{tokens: map[string]types.ProvisionToken{}}
+
+	tests := []struct {
+		name     string
+		getToken func() (string, types.ProvisionToken)
+		wantErr  require.ErrorAssertionFunc
+	}{
+		{
+			name: "missing token is rejected",
+			getToken: func() (string, types.ProvisionToken) {
+				return "fake", nil
+			},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name: "valid token is accepted",
+			getToken: func() (string, types.ProvisionToken) {
+				tok, err := types.NewProvisionToken(uuid.New().String(), []types.SystemRole{types.RoleDatabase}, time.Now().Add(time.Hour))
+				require.NoError(t, err)
+				pc.tokens[tok.GetName()] = tok
+				return tok.GetName(), tok
+			},
+		},
+		{
+			name: "token with no expiry is accepted",
+			getToken: func() (string, types.ProvisionToken) {
+				tok, err := types.NewProvisionToken(uuid.New().String(), []types.SystemRole{types.RoleDatabase}, time.Time{})
+				require.NoError(t, err)
+				pc.tokens[tok.GetName()] = tok
+				return tok.GetName(), tok
+			},
+		},
+		{
+			name: "expired token is rejected",
+			getToken: func() (string, types.ProvisionToken) {
+				tok, err := types.NewProvisionToken(uuid.New().String(), []types.SystemRole{types.RoleDatabase}, time.Now().Add(-time.Hour))
+				require.NoError(t, err)
+				pc.tokens[tok.GetName()] = tok
+				return tok.GetName(), tok
+			},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "expired token")
+			},
+		},
+		{
+			name: "token with invalid join type is rejected",
+			getToken: func() (string, types.ProvisionToken) {
+				tok, err := types.NewProvisionTokenFromSpec("ec2-token", time.Now().Add(time.Hour), types.ProvisionTokenSpecV2{
+					Roles:      []types.SystemRole{types.RoleDatabase},
+					Allow:      []*types.TokenRule{{AWSAccount: "1234"}},
+					JoinMethod: types.JoinMethodEC2,
+				})
+
+				require.NoError(t, err)
+				pc.tokens[tok.GetName()] = tok
+				return tok.GetName(), tok
+			},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unexpected join method \"ec2\" for token \"ec2-token\"")
+			},
+		},
+	}
+
+	tokenExists := func(tokenName string) bool {
+		tok, _ := pc.GetToken(context.Background(), tokenName)
+		return tok != nil
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokName, tok := tt.getToken()
+			tokenInitiallyPresent := tokenExists(tokName)
+			result, err := consumeTokenForAPICall(context.Background(), pc, tokName)
+			if tt.wantErr != nil {
+				tt.wantErr(t, err)
+				// verify that if token was present, then it has not been deleted.
+				require.Equal(t, tokenInitiallyPresent, tokenExists(tokName))
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tok, result)
+				// verify that token does not exist now, even if it did.
+				require.False(t, tokenExists(tokName))
+			}
+		})
+	}
+}
