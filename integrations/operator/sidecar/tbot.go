@@ -20,6 +20,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -31,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -43,6 +46,9 @@ const (
 	DefaultRenewalInterval = 30 * time.Minute
 )
 
+// onboardingConfigGetter is a function that returns tbot's onboarding config.
+type onboardingConfigGetter func(ctx context.Context, options Options, client auth.ClientI) (*config.OnboardingConfig, error)
+
 // ClientAccessor returns a working teleport api client when invoked.
 // Client users should always call this function on a regular basis to ensure certs are always valid.
 type ClientAccessor func(ctx context.Context) (*client.Client, error)
@@ -51,10 +57,11 @@ type ClientAccessor func(ctx context.Context) (*client.Client, error)
 // It implements sigs.k8s.io/controller-runtime/manager.Runnable and
 // sigs.k8s.io/controller-runtime/manager.LeaderElectionRunnable so it can be added to a controllerruntime.Manager.
 type Bot struct {
-	cfg        *config.BotConfig
-	running    bool
-	rootClient auth.ClientI
-	opts       Options
+	cfg                 *config.BotConfig
+	running             bool
+	rootClient          auth.ClientI
+	opts                Options
+	getOnboardingConfig onboardingConfigGetter
 }
 
 func (b *Bot) initializeConfig(ctx context.Context) {
@@ -68,7 +75,7 @@ func (b *Bot) initializeConfig(ctx context.Context) {
 		Onboarding: config.OnboardingConfig{
 			TokenValue: "",         // Field should be populated later, before running
 			CAPins:     []string{}, // Field should be populated later, before running
-			JoinMethod: types.JoinMethodToken,
+			JoinMethod: "",
 		},
 		Storage: &config.StorageConfig{
 			Destination: rootMemoryStore,
@@ -87,8 +94,8 @@ func (b *Bot) initializeConfig(ctx context.Context) {
 	}
 	// We do our own init because config's "CheckAndSetDefaults" is too linked with tbot logic and invokes
 	// `addRequiredConfigs` on each Storage Destination
-	rootMemoryStore.CheckAndSetDefaults()
-	destMemoryStore.CheckAndSetDefaults()
+	_ = rootMemoryStore.CheckAndSetDefaults()
+	_ = destMemoryStore.CheckAndSetDefaults()
 
 	for _, artifact := range identity.GetArtifacts() {
 		_ = destMemoryStore.Write(ctx, artifact.Key, []byte{})
@@ -160,26 +167,15 @@ func (b *Bot) NeedLeaderElection() bool {
 }
 
 func (b *Bot) Start(ctx context.Context) error {
-	token, err := createOrReplaceBot(ctx, b.opts, b.rootClient)
+	if b.getOnboardingConfig == nil {
+		return trace.BadParameter("No bot onboarding config getter passed, cannot start the bot.")
+	}
+	onboarding, err := b.getOnboardingConfig(ctx, b.opts, b.rootClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("Token generated %s", token)
 
-	b.cfg.Onboarding.TokenValue = token
-
-	// Getting the cluster CA Pins to be able to join regardless of the cert SANs.
-	localCAResponse, err := b.rootClient.GetClusterCACert(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	log.Infof("CA Pins recovered: %s", caPins)
-
-	b.cfg.Onboarding.CAPins = caPins
+	b.cfg.Onboarding = *onboarding
 
 	realBot := tbot.New(b.cfg, log.StandardLogger())
 
@@ -223,19 +219,26 @@ func CreateAndBootstrapBot(ctx context.Context, opts Options) (*Bot, *proto.Feat
 	log.Debug("Operator role created")
 
 	bot := &Bot{
-		running:    false,
-		rootClient: authClient,
-		opts:       opts,
+		running:             false,
+		rootClient:          authClient,
+		opts:                opts,
+		getOnboardingConfig: sidecarKubeOnboardingConfig,
 	}
 
 	bot.initializeConfig(ctx)
 	return bot, ping.ServerFeatures, nil
 }
 
-// It is not currently possible to join back the cluster as an existing bot.
-// See https://github.com/gravitational/teleport/issues/13091
-func createOrReplaceBot(ctx context.Context, opts Options, authClient auth.ClientI) (string, error) {
-	var token string
+// sidecarTokenOnboardingConfig uses the sidecar local auth client to create an
+// onboarding config doing a "token" join. As it is not currently possible to
+// join back the cluster as an existing bot. (See https://github.com/gravitational/teleport/issues/13091)
+// we must delete the previous bot and create a new one.
+// This operation can cause race-conditions with the auth, eventually
+// ending to the bot being locked and the operator broken.
+func sidecarTokenOnboardingConfig(ctx context.Context, opts Options, authClient auth.ClientI) (*config.OnboardingConfig, error) {
+	onboardingConfig := config.OnboardingConfig{
+		JoinMethod: types.JoinMethodToken,
+	}
 	// We need to check if the bot exists first and cannot just attempt to delete
 	// it because DeleteBot() returns an aggregate, which breaks the
 	// ToGRPC/FromGRPC status code translation. We end up with the wrong error
@@ -243,38 +246,154 @@ func createOrReplaceBot(ctx context.Context, opts Options, authClient auth.Clien
 	botRoleName := fmt.Sprintf("bot-%s", opts.Name)
 	exists, err := botExists(ctx, opts, authClient)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if exists {
 		err := authClient.DeleteBot(ctx, opts.Name)
 		if err != nil {
-			return "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 	if err := authClient.DeleteRole(ctx, botRoleName); err != nil && !trace.IsNotFound(err) {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	response, err := authClient.CreateBot(ctx, &proto.CreateBotRequest{
 		Name:  opts.Name,
 		Roles: []string{opts.Role},
 	})
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	token = response.TokenID
+	onboardingConfig.TokenValue = response.TokenID
 
-	return token, nil
+	caPins, err := getCAPins(ctx, authClient)
+	onboardingConfig.CAPins = caPins
+
+	return &onboardingConfig, nil
 }
 
-func botExists(ctx context.Context, opts Options, authClient auth.ClientI) (bool, error) {
+// sidecarKubeOnboardingConfig creates the bot's onboarding config to perform a Kubernetes join.
+// It fetches the operator kube SA, validates it (this requires TokenReview permissions,
+// but we currently have them as we're deployed with the auth SA), creates a Teleport
+// provision token that allows the kubernetes SA, and finally create the bot that will
+// use the token.
+// Unlike with the preshared token join method, we don't need the delete/re-create the bot
+// every time. If the bot is already here, we reuse it. The only exception is if the
+// bot was previously used for renewable cert, we must destroy it to reset the generation
+// label.
+func sidecarKubeOnboardingConfig(ctx context.Context, opts Options, authClient auth.ClientI) (*config.OnboardingConfig, error) {
+	caPins, err := getCAPins(ctx, authClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// We get the kubernetes SA token mounted in the container
+	kubeSAToken, err := kubernetestoken.GetIDToken(os.Getenv, os.ReadFile)
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "cannot read Kubernetes SA token")
+	}
+
+	// We validate that this token can be used and retrieve our SA name from it
+	validator := kubernetestoken.TokenReviewValidator{}
+	kubeSATokenInfo, err := validator.Validate(ctx, kubeSAToken)
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "cannot validate the kubernetes SA token")
+	}
+	serviceAccount := strings.TrimPrefix(kubeSATokenInfo.Username, kubernetestoken.ServiceAccountNamePrefix+":")
+
+	// We create/update the Teleport token to allow the operator bot to join
+	// with the current Kubernetes SA token
+	tokenSpec := types.ProvisionTokenSpecV2{
+		Roles:      types.SystemRoles{types.RoleBot},
+		JoinMethod: types.JoinMethodKubernetes,
+		BotName:    opts.Name,
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{
+					ServiceAccount: serviceAccount,
+				},
+			},
+		},
+	}
+	teleportToken, err := types.NewProvisionTokenFromSpec(opts.Name, time.Time{}, tokenSpec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authClient.UpsertToken(ctx, teleportToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We check if the bot already exists and references the correct token name
+	botUser, err := getTeleportBotUser(ctx, opts, authClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	onboardingConfig := &config.OnboardingConfig{
+		TokenValue: opts.Name,
+		CAPins:     caPins,
+		JoinMethod: types.JoinMethodKubernetes,
+	}
+
+	if botUser != nil && botUser.BotGenerationLabel() != "0" {
+		log.Infof("Found and old bot user %s with non-zero generation label, attempting to delete it", botUser)
+		err = authClient.DeleteBot(ctx, opts.Name)
+		if err != nil {
+			return nil, trace.WrapWithMessage(err, "Error while deleting the old bot")
+		}
+		// the bot is no more, we need a new one
+		botUser = nil
+	}
+
+	if botUser == nil {
+		log.Infof("Found no bot user %s, creating a new one", botUser)
+		_, err = authClient.CreateBot(ctx, &proto.CreateBotRequest{
+			Name:    opts.Name,
+			Roles:   []string{opts.Role},
+			TokenID: opts.Name,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return onboardingConfig, nil
+}
+
+// getTeleportBotUser iterates over all bot users to find the one described in the Options.
+// Returns nil if no bot is found.
+func getTeleportBotUser(ctx context.Context, opts Options, authClient auth.ClientI) (types.User, error) {
 	botUsers, err := authClient.GetBotUsers(ctx)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	for _, botUser := range botUsers {
 		if botUser.GetName() == fmt.Sprintf("bot-%s", opts.Name) {
-			return true, nil
+			return botUser, nil
 		}
 	}
-	return false, nil
+	return nil, nil
+
+}
+
+// botExists checks if the bot described in the Options exists
+func botExists(ctx context.Context, opts Options, authClient auth.ClientI) (bool, error) {
+	botUser, err := getTeleportBotUser(ctx, opts, authClient)
+	return botUser != nil, trace.Wrap(err)
+}
+
+// getCAPins uses the local auth client to get the cluster CAs and compute their pins
+func getCAPins(ctx context.Context, authClient auth.ClientI) ([]string, error) {
+	// Getting the cluster CA Pins to be able to join regardless of the cert SANs.
+	localCAResponse, err := authClient.GetClusterCACert(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("CA Pins recovered: %s", caPins)
+	return caPins, nil
 }
