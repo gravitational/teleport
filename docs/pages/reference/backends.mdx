@@ -172,7 +172,7 @@ teleport:
      etcd_max_client_msg_size_bytes: 15728640
 ```
 
-## PostgreSQL 
+## PostgreSQL
 
 <Details
   title="Version warning"
@@ -225,9 +225,17 @@ stream of changes from the database; because of that, the
 [`wal_level`](https://www.postgresql.org/docs/current/runtime-config-wal.html#GUC-WAL-LEVEL)
 parameter must be set to `logical` and
 [`max_replication_slots`](https://www.postgresql.org/docs/current/runtime-config-replication.html#GUC-MAX-REPLICATION-SLOTS)
-must be set to at least as many Teleport Auth Service instances as you'll be running (a
-higher number is recommended, to account for network conditions). `wal_level`
-can only be set at server start, so it should be set in `postgresql.conf`:
+must be set to at least as many Teleport Auth Service instances as you'll be
+running (a higher number is recommended, to account for network conditions).
+
+The Teleport Auth Service needs to be able to create a replication slot when
+starting and when reestablishing a new connection to the PostgreSQL cluster, and
+any long-running transaction will prevent that. It's therefore only advisable to
+store the Teleport cluster state on a shared PostgreSQL cluster if the other
+workloads on the cluster only consist of short-lived transactions.
+
+`wal_level` can only be set at server start, so it should be set in
+`postgresql.conf`:
 ```
 # the default value for wal_level is replica
 wal_level = logical
@@ -287,6 +295,13 @@ teleport:
     # location, you will need to specify them with the sslcert, sslkey, and
     # sslrootcert parameters.
     conn_string: postgresql://user_name@database-address/teleport_backend?sslmode=verify-full&pool_max_conns=20
+
+    # In certain managed environments it can be necessary or convenient to
+    # use a different user or different settings for the connection used
+    # to set up and make use of logical decoding. If specified, Teleport
+    # will use the connection string in change_feed_conn_string for that,
+    # instead of the one in conn_string. Available in Teleport 13.4 and later.
+    change_feed_conn_string: postgresql://replication_user_name@database-address/teleport_backend?sslmode=verify-full
 
     # An audit_events_uri with a scheme of postgresql:// will use the
     # PostgreSQL backend for audit log storage; the URI is a libpq-compatible
@@ -1362,7 +1377,7 @@ teleport:
   be present. If they are not set, Teleport will default to a local filesystem for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
 
-## Azure Blob Storage 
+## Azure Blob Storage
 
 <Details
   title="Version warning"
