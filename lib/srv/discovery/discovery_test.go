@@ -1657,8 +1657,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 					Metadata: types.Metadata{
 						Name: "name",
 						Labels: map[string]string{
-							types.SubscriptionIDLabel: "testsub",
-							types.VMIDLabel:           "test-vmid",
+							"teleport.internal/subscription-id": "testsub",
+							"teleport.internal/vm-id":           "test-vmid",
 						},
 						Namespace: defaults.Namespace,
 					},
@@ -1689,8 +1689,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 					Metadata: types.Metadata{
 						Name: "name",
 						Labels: map[string]string{
-							types.SubscriptionIDLabel: "testsub",
-							types.VMIDLabel:           "alternate-vmid",
+							"teleport.internal/subscription-id": "testsub",
+							"teleport.internal/vm-id":           "alternate-vmid",
 						},
 						Namespace: defaults.Namespace,
 					},
@@ -1878,9 +1878,9 @@ func TestGCPVMDiscovery(t *testing.T) {
 					Metadata: types.Metadata{
 						Name: "name",
 						Labels: map[string]string{
-							types.ProjectIDLabel: "myproject",
-							types.ZoneLabel:      "myzone",
-							types.NameLabel:      "myinstance",
+							"teleport.internal/project-id": "myproject",
+							"teleport.internal/zone":       "myzone",
+							"teleport.internal/name":       "myinstance",
 						},
 						Namespace: defaults.Namespace,
 					},
@@ -1905,9 +1905,9 @@ func TestGCPVMDiscovery(t *testing.T) {
 					Metadata: types.Metadata{
 						Name: "name",
 						Labels: map[string]string{
-							types.ProjectIDLabel: "myproject",
-							types.ZoneLabel:      "myzone",
-							types.NameLabel:      "myotherinstance",
+							"teleport.internal/project-id": "myproject",
+							"teleport.internal/zone":       "myzone",
+							"teleport.internal/name":       "myotherinstance",
 						},
 						Namespace: defaults.Namespace,
 					},
