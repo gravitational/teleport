@@ -22,7 +22,7 @@ Create the name of the service account to use for the post-delete hook
 if serviceAccount is not defined or serviceAccount.name is empty, use .Release.Name-delete-hook
 */}}
 {{- define "teleport-kube-agent.deleteHookServiceAccountName" -}}
-{{- coalesce .Values.serviceAccount.name .Values.serviceAccountName (printf "%s-delete-hook" .Release.Name) -}}
+{{- printf "%s-delete-hook" (include "teleport-kube-agent.serviceAccountName" . ) -}}
 {{- end -}}
 
 {{- define "teleport-kube-agent.version" -}}
