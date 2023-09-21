@@ -677,6 +677,8 @@ const (
 	DiscoveredResourceKubernetes = "k8s"
 	// DiscoveredResourceAgentlessNode identifies a discovered agentless SSH node.
 	DiscoveredResourceAgentlessNode = "node.openssh"
+	// DiscoveredResourceApp identifies a discovered Kubernetes App.
+	DiscoveredResourceApp = "app"
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace

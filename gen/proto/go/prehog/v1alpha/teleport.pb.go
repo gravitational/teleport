@@ -943,11 +943,12 @@ type ResourceCreateEvent struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// resource_type is the type of resource ("node", "node.openssh", "db", "k8s").
+	// resource_type is the type of resource ("node", "node.openssh", "db", "k8s", "app").
 	ResourceType string `protobuf:"bytes,1,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"`
-	// resource_origin is the origin of the resource ("cloud").
+	// resource_origin is the origin of the resource ("cloud", "kubernetes").
 	ResourceOrigin string `protobuf:"bytes,2,opt,name=resource_origin,json=resourceOrigin,proto3" json:"resource_origin,omitempty"`
-	// cloud_provider is the cloud provider the resource came from ("AWS", "Azure", "GCP").
+	// cloud_provider is the cloud provider the resource came from ("AWS", "Azure", "GCP")
+	// if resource_origin == "cloud".
 	CloudProvider string `protobuf:"bytes,3,opt,name=cloud_provider,json=cloudProvider,proto3" json:"cloud_provider,omitempty"`
 	// database contains additional database information if resource_type == "db".
 	Database *DiscoveredDatabaseMetadata `protobuf:"bytes,4,opt,name=database,proto3" json:"database,omitempty"`
