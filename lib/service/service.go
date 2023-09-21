@@ -2686,6 +2686,36 @@ func (process *TeleportProcess) RegisterWithAuthServer(role types.SystemRole, ev
 	})
 }
 
+// waitForInstanceConnector waits for the instance connector to be ready,
+// logging a warning if this is taking longer than expected.
+func waitForInstanceConnector(process *TeleportProcess, log *logrus.Entry) (*Connector, error) {
+	type r struct {
+		c   *Connector
+		err error
+	}
+	ch := make(chan r, 1)
+	go func() {
+		conn, err := process.WaitForConnector(InstanceIdentityEvent, log)
+		ch <- r{conn, err}
+	}()
+
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+
+	for {
+		select {
+		case result := <-ch:
+			if result.c == nil {
+				return nil, trace.Wrap(result.err, "waiting for instance connector")
+			}
+			return result.c, nil
+		case <-t.C:
+			log.Warn("The Instance connector is still not available, process-wide services " +
+				"such as session uploading will not function")
+		}
+	}
+}
+
 // initUploaderService starts a file-based uploader that scans the local streaming logs directory
 // (data/log/upload/streaming/default/)
 func (process *TeleportProcess) initUploaderService() error {
@@ -2722,10 +2752,12 @@ func (process *TeleportProcess) initUploaderService() error {
 		clusterName = cn.GetClusterName()
 	} else {
 		log.Debug("auth is not running in-process, waiting for instance connector")
-		conn, err := process.WaitForConnector(InstanceIdentityEvent, log)
+		conn, err := waitForInstanceConnector(process, log)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		if conn == nil {
-			log.Errorf("no instance connector")
-			return trace.Wrap(err, "waiting for instance connector")
+			return trace.BadParameter("process exiting and Instance connector never became available")
 		}
 		uploaderClient = conn.Client
 		clusterName = conn.ServerIdentity.ClusterName
