@@ -88,8 +88,8 @@ func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.Ac
 		return nil, trail.FromGRPC(err)
 	}
 
-	accessList, err := conv.FromProto(resp)
-	return accessList, trail.FromGRPC(err)
+	accessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
+	return accessList, trace.Wrap(err)
 }
 
 // UpsertAccessList creates or updates an access list resource.
@@ -129,9 +129,9 @@ func (c *Client) ListAccessListMembers(ctx context.Context, accessList string, p
 	}
 
 	members = make([]*accesslist.AccessListMember, len(resp.Members))
-	for i, accessList := range resp.Members {
+	for i, member := range resp.Members {
 		var err error
-		members[i], err = conv.FromMemberProto(accessList)
+		members[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
 		if err != nil {
 			return nil, "", trail.FromGRPC(err)
 		}
@@ -150,8 +150,8 @@ func (c *Client) GetAccessListMember(ctx context.Context, accessList string, mem
 		return nil, trail.FromGRPC(err)
 	}
 
-	member, err := conv.FromMemberProto(resp)
-	return member, trail.FromGRPC(err)
+	member, err := conv.FromMemberProto(resp, conv.WithMemberIneligibleStatusField(resp))
+	return member, trace.Wrap(err)
 }
 
 // UpsertAccessListMember creates or updates an access list member resource.
