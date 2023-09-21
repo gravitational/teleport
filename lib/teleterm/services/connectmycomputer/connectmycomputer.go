@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 	"os/user"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -611,5 +610,5 @@ func (n *NodeNameConfig) checkAndSetDefaults() error {
 }
 
 func getAgentDataDir(agentsDir, profileName string) string {
-	return path.Join(agentsDir, profileName, "data")
+	return filepath.Join(agentsDir, profileName, "data")
 }

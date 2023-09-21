@@ -34,8 +34,6 @@ import { MenuIcon } from 'shared/components/MenuAction';
 import { CircleCheck, Laptop, Moon, Warning } from 'design/Icon';
 import Indicator from 'design/Indicator';
 
-import { wait } from 'shared/utils/wait';
-
 import {
   AgentProcessError,
   CurrentAction,
