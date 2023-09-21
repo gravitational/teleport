@@ -2689,42 +2689,48 @@ func (process *TeleportProcess) RegisterWithAuthServer(role types.SystemRole, ev
 // initUploaderService starts a file-based uploader that scans the local streaming logs directory
 // (data/log/upload/streaming/default/)
 func (process *TeleportProcess) initUploaderService() error {
+	component := teleport.Component(teleport.ComponentUpload, process.id)
 	log := process.log.WithFields(logrus.Fields{
-		trace.Component: teleport.Component(teleport.ComponentUpload, process.id),
+		trace.Component: component,
 	})
 
-	if _, err := process.WaitForEvent(process.ExitContext(), TeleportReadyEvent); err != nil {
-		return trace.Wrap(err)
+	var clusterName string
+
+	type procUploader interface {
+		events.Streamer
+		events.AuditLogSessionStreamer
+		services.SessionTrackerService
 	}
 
-	connectors := process.getConnectors()
-	var conn *Connector
-	for _, c := range connectors {
-		// Skip types.RoleMDM, MDM services don't have the necessary permissions to
-		// run the uploader.
-		if c.ClientIdentity != nil && c.ClientIdentity.ID.Role == types.RoleMDM {
-			continue
+	// use the local auth server for uploads if auth happens to be
+	// running in this process, otherwise wait for the instance client
+	var uploaderClient procUploader
+	if la := process.getLocalAuth(); la != nil {
+		// The auth service's upload completer is initialized separately,
+		// so as a special case we can stop early if auth happens to be
+		// the only service running in this process.
+		if srs := process.getInstanceRoles(); len(srs) == 1 && srs[0] == types.RoleAuth {
+			log.Debug("this process only runs the auth service, no separate upload completer will run")
+			return nil
 		}
-		if c.Client != nil {
-			conn = c
-			log.Debugf("upload completer will use role %v", c.ClientIdentity.ID.Role)
-			break
+
+		uploaderClient = la
+		cn, err := la.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err, "cannot get cluster name")
 		}
+		clusterName = cn.GetClusterName()
+	} else {
+		log.Debug("auth is not running in-process, waiting for instance connector")
+		conn, err := process.WaitForConnector(InstanceIdentityEvent, log)
+		if conn == nil {
+			log.Errorf("no instance connector")
+			return trace.Wrap(err, "waiting for instance connector")
+		}
+		uploaderClient = conn.Client
+		clusterName = conn.ServerIdentity.ClusterName
 	}
 
-	// The auth service's upload completer is initialized separately.
-	// The only circumstance in which we would expect not to have found a
-	// connector is if the Auth or MDM service is the only service running in this
-	// process. In that case, there's nothing to do here and we can safely return.
-	if conn == nil {
-		for _, localService := range types.LocalServiceMappings() {
-			if localService != types.RoleAuth && localService != types.RoleMDM && process.instanceRoleExpected(localService) {
-				log.Warn("This process will not run an upload completer")
-				return trace.BadParameter("no connectors found")
-			}
-		}
-		return nil
-	}
 	log.Info("starting upload completer service")
 
 	// create folder for uploads
@@ -2761,7 +2767,7 @@ func (process *TeleportProcess) initUploaderService() error {
 	corruptedDir := filepath.Join(paths[1]...)
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		Streamer:     conn.Client,
+		Streamer:     uploaderClient,
 		ScanDir:      uploadsDir,
 		CorruptedDir: corruptedDir,
 		EventsC:      process.Config.UploadEventsC,
@@ -2794,10 +2800,11 @@ func (process *TeleportProcess) initUploaderService() error {
 	}
 
 	uploadCompleter, err := events.NewUploadCompleter(events.UploadCompleterConfig{
+		Component:      component,
 		Uploader:       handler,
-		AuditLog:       conn.Client,
-		SessionTracker: conn.Client,
-		ClusterName:    conn.ServerIdentity.ClusterName,
+		AuditLog:       uploaderClient,
+		SessionTracker: uploaderClient,
+		ClusterName:    clusterName,
 	})
 	if err != nil {
 		return trace.Wrap(err)
