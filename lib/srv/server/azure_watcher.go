@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -151,8 +152,11 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 		return nil, trace.Wrap(err)
 	}
 	instancesByRegion := make(map[string][]*armcompute.VirtualMachine)
-	for _, region := range f.Regions {
-		instancesByRegion[region] = []*armcompute.VirtualMachine{}
+	allowAllRegions := slices.Contains(f.Regions, types.Wildcard)
+	if !allowAllRegions {
+		for _, region := range f.Regions {
+			instancesByRegion[region] = []*armcompute.VirtualMachine{}
+		}
 	}
 
 	vms, err := client.ListVirtualMachines(ctx, f.ResourceGroup)
@@ -162,7 +166,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 
 	for _, vm := range vms {
 		location := aws.StringValue(vm.Location)
-		if _, ok := instancesByRegion[location]; !ok {
+		if _, ok := instancesByRegion[location]; !ok && !allowAllRegions {
 			continue
 		}
 		vmTags := make(map[string]string, len(vm.Tags))

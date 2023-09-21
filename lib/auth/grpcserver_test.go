@@ -1945,49 +1945,61 @@ func TestIsMFARequired(t *testing.T) {
 	_, err := srv.Auth().UpsertNode(ctx, node)
 	require.NoError(t, err)
 
-	// Create a fake user.
-	user, role, err := CreateUserAndRole(srv.Auth(), "no-mfa-user", []string{"no-mfa-user"}, nil)
-	require.NoError(t, err)
-
 	for _, authPrefRequireMFAType := range requireMFATypes {
-		authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-			Type:           constants.Local,
-			SecondFactor:   constants.SecondFactorOptional,
-			RequireMFAType: authPrefRequireMFAType,
-			Webauthn: &types.Webauthn{
-				RPID: "teleport",
-			},
-		})
-		require.NoError(t, err)
-		err = srv.Auth().SetAuthPreference(ctx, authPref)
-		require.NoError(t, err)
+		t.Run(fmt.Sprintf("authPref=%v", authPrefRequireMFAType.String()), func(t *testing.T) {
 
-		for _, roleRequireMFAType := range requireMFATypes {
-			// If role or auth pref have "hardware_key_touch", expect not required.
-			expectRequired := !(roleRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH || authPrefRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH)
-			// Otherwise, if auth pref or role require session MFA, expect required.
-			expectRequired = expectRequired && (roleRequireMFAType.IsSessionMFARequired() || authPrefRequireMFAType.IsSessionMFARequired())
-
-			t.Run(fmt.Sprintf("authPref=%v/role=%v/expect=%v", authPrefRequireMFAType, roleRequireMFAType, expectRequired), func(t *testing.T) {
-				roleOpt := role.GetOptions()
-				roleOpt.RequireMFAType = roleRequireMFAType
-				role.SetOptions(roleOpt)
-				err = srv.Auth().UpsertRole(ctx, role)
-				require.NoError(t, err)
-
-				cl, err := srv.NewClient(TestUser(user.GetName()))
-				require.NoError(t, err)
-
-				resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
-					Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
-						Login: user.GetName(),
-						Node:  "node-a",
-					}},
-				})
-				require.NoError(t, err)
-				require.Equal(t, expectRequired, resp.Required)
+			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				Type:           constants.Local,
+				SecondFactor:   constants.SecondFactorOptional,
+				RequireMFAType: authPrefRequireMFAType,
+				Webauthn: &types.Webauthn{
+					RPID: "teleport",
+				},
 			})
-		}
+			require.NoError(t, err)
+			err = srv.Auth().SetAuthPreference(ctx, authPref)
+			require.NoError(t, err)
+
+			for _, roleRequireMFAType := range requireMFATypes {
+				roleRequireMFAType := roleRequireMFAType
+				t.Run(fmt.Sprintf("role=%v", roleRequireMFAType.String()), func(t *testing.T) {
+					t.Parallel()
+
+					user, err := types.NewUser(roleRequireMFAType.String())
+					require.NoError(t, err)
+
+					role := services.RoleForUser(user)
+					roleOpt := role.GetOptions()
+					roleOpt.RequireMFAType = roleRequireMFAType
+					role.SetOptions(roleOpt)
+					role.SetLogins(types.Allow, []string{user.GetName()})
+
+					err = srv.Auth().UpsertRole(ctx, role)
+					require.NoError(t, err)
+
+					user.AddRole(role.GetName())
+					err = srv.Auth().UpsertUser(user)
+					require.NoError(t, err)
+
+					cl, err := srv.NewClient(TestUser(user.GetName()))
+					require.NoError(t, err)
+
+					resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+						Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
+							Login: user.GetName(),
+							Node:  "node-a",
+						}},
+					})
+					require.NoError(t, err)
+
+					// If auth pref or role require session MFA, and MFA is not already
+					// verified according to private key policy, expect MFA required.
+					expectRequired := (role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) &&
+						!role.GetPrivateKeyPolicy().MFAVerified() && !authPref.GetPrivateKeyPolicy().MFAVerified()
+					require.Equal(t, expectRequired, resp.Required, "Expected IsMFARequired to return %v but got %v", expectRequired, resp.Required)
+				})
+			}
+		})
 	}
 }
 

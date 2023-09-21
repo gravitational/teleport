@@ -78,6 +78,8 @@ type HostUsersBackend interface {
 	WriteSudoersFile(user string, entries []byte) error
 	// RemoveSudoersFile deletes a user's sudoers file.
 	RemoveSudoersFile(user string) error
+	// CreateHomeDirectory creates the users home directory and copies in /etc/skel
+	CreateHomeDirectory(user string, uid, gid string) error
 }
 
 type userCloser struct {
@@ -206,8 +208,15 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		}, trace.AlreadyExists("User %q already exists", name)
 	}
 
-	groups := make([]string, len(ui.Groups))
-	copy(groups, ui.Groups)
+	groups := make([]string, 0, len(ui.Groups))
+	for _, group := range ui.Groups {
+		if group == name {
+			// this causes an error as useradd expects the group with the same name as the user to be available
+			log.Debugf("Skipping group creation with name the same as login user (%q, %q).", name, group)
+			continue
+		}
+		groups = append(groups, group)
+	}
 	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_DROP {
 		groups = append(groups, types.TeleportServiceGroup)
 	}
@@ -238,13 +247,19 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		if err != nil && !trace.IsAlreadyExists(err) {
 			return trace.WrapWithMessage(err, "error while creating user")
 		}
+
+		user, err := u.backend.Lookup(name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		err = u.backend.CreateHomeDirectory(name, user.Uid, user.Gid)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		return nil
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	_, err = u.backend.Lookup(name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

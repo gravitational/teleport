@@ -27,11 +27,13 @@ import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import {
   AgentProcessError,
+  NodeWaitJoinTimeout,
   useConnectMyComputerContext,
 } from 'teleterm/ui/ConnectMyComputer';
 import Logger from 'teleterm/logger';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
 import { RootClusterUri } from 'teleterm/ui/uri';
+import { isAccessDeniedError } from 'teleterm/services/tshd/errors';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
@@ -117,31 +119,33 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
 
   const [createRoleAttempt, runCreateRoleAttempt, setCreateRoleAttempt] =
     useAsync(
-      useCallback(async () => {
-        retryWithRelogin(ctx, rootClusterUri, async () => {
-          let certsReloaded = false;
+      useCallback(
+        () =>
+          retryWithRelogin(ctx, rootClusterUri, async () => {
+            let certsReloaded = false;
 
-          try {
-            const response = await ctx.connectMyComputerService.createRole(
-              rootClusterUri
-            );
-            certsReloaded = response.certsReloaded;
-          } catch (error) {
-            if (isAccessDeniedError(error)) {
-              throw new Error(
-                'Access denied. Contact your administrator for permissions to manage users and roles.'
+            try {
+              const response = await ctx.connectMyComputerService.createRole(
+                rootClusterUri
               );
+              certsReloaded = response.certsReloaded;
+            } catch (error) {
+              if (isAccessDeniedError(error)) {
+                throw new Error(
+                  'Access denied. Contact your administrator for permissions to manage users and roles.'
+                );
+              }
+              throw error;
             }
-            throw error;
-          }
 
-          // If tshd reloaded the certs to refresh the role list, the Electron app must resync details
-          // of the cluster to also update the role list in the UI.
-          if (certsReloaded) {
-            await ctx.clustersService.syncRootCluster(rootClusterUri);
-          }
-        });
-      }, [ctx, rootClusterUri])
+            // If tshd reloaded the certs to refresh the role list, the Electron app must resync details
+            // of the cluster to also update the role list in the UI.
+            if (certsReloaded) {
+              await ctx.clustersService.syncRootCluster(rootClusterUri);
+            }
+          }),
+        [ctx, rootClusterUri]
+      )
     );
   const [
     generateConfigFileAttempt,
@@ -202,7 +206,21 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
           return;
         }
 
-        if (joinClusterAttempt.statusText !== AgentProcessError.name) {
+        if (joinClusterAttempt.error instanceof NodeWaitJoinTimeout) {
+          return (
+            <>
+              <StandardError
+                error={
+                  'The agent did not join the cluster within the timeout window.'
+                }
+                mb={1}
+              />
+              <Logs logs={joinClusterAttempt.error.logs} />
+            </>
+          );
+        }
+
+        if (!(joinClusterAttempt.error instanceof AgentProcessError)) {
           return <StandardError error={joinClusterAttempt.statusText} />;
         }
 
@@ -386,10 +404,6 @@ function StandardError(props: {
       {props.error}
     </Alerts.Danger>
   );
-}
-
-function isAccessDeniedError(error: Error): boolean {
-  return (error.message as string)?.includes('access denied');
 }
 
 const Separator = styled(Box)`

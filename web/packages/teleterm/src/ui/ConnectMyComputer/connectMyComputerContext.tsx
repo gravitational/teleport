@@ -23,9 +23,6 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-
-import { wait } from 'shared/utils/wait';
-
 import {
   Attempt,
   makeSuccessAttempt,
@@ -33,12 +30,16 @@ import {
   makeEmptyAttempt,
 } from 'shared/hooks/useAsync';
 
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { Server, TshAbortSignal } from 'teleterm/services/tshd/types';
+import createAbortController from 'teleterm/services/tshd/createAbortController';
+import {
+  isAccessDeniedError,
+  isNotFoundError,
+} from 'teleterm/services/tshd/errors';
 
-import { Server } from 'teleterm/services/tshd/types';
-
-import { assertUnreachable } from '../utils';
+import { assertUnreachable, retryWithRelogin } from '../utils';
 
 import { hasConnectMyComputerPermissions } from './permissions';
 
@@ -66,6 +67,10 @@ export type CurrentAction =
   | {
       kind: 'kill';
       attempt: Attempt<void>;
+    }
+  | {
+      kind: 'remove';
+      attempt: Attempt<void>;
     };
 
 export interface ConnectMyComputerContext {
@@ -79,6 +84,7 @@ export interface ConnectMyComputerContext {
   setDownloadAgentAttempt(attempt: Attempt<void>): void;
   downloadAndStartAgent(): Promise<void>;
   killAgent(): Promise<[void, Error]>;
+  removeAgent(): Promise<[void, Error]>;
   isAgentConfiguredAttempt: Attempt<boolean>;
   markAgentAsConfigured(): void;
   markAgentAsNotConfigured(): void;
@@ -89,7 +95,8 @@ const ConnectMyComputerContext = createContext<ConnectMyComputerContext>(null);
 
 export const ConnectMyComputerContextProvider: FC<{
   rootClusterUri: RootClusterUri;
-}> = props => {
+}> = ({ rootClusterUri, children }) => {
+  const ctx = useAppContext();
   const {
     mainProcessClient,
     connectMyComputerService,
@@ -97,7 +104,7 @@ export const ConnectMyComputerContextProvider: FC<{
     configService,
     workspacesService,
     usageService,
-  } = useAppContext();
+  } = ctx;
   clustersService.useState();
 
   const [
@@ -106,16 +113,15 @@ export const ConnectMyComputerContextProvider: FC<{
     setAgentConfiguredAttempt,
   ] = useAsync(
     useCallback(
-      () =>
-        connectMyComputerService.isAgentConfigFileCreated(props.rootClusterUri),
-      [connectMyComputerService, props.rootClusterUri]
+      () => connectMyComputerService.isAgentConfigFileCreated(rootClusterUri),
+      [connectMyComputerService, rootClusterUri]
     )
   );
   const isAgentConfigured =
     isAgentConfiguredAttempt.status === 'success' &&
     isAgentConfiguredAttempt.data;
 
-  const rootCluster = clustersService.findCluster(props.rootClusterUri);
+  const rootCluster = clustersService.findCluster(rootClusterUri);
   const canUse = useMemo(() => {
     const isFeatureFlagEnabled = configService.get(
       'feature.connectMyComputer'
@@ -144,7 +150,7 @@ export const ConnectMyComputerContextProvider: FC<{
   const [agentProcessState, setAgentProcessState] = useState<AgentProcessState>(
     () =>
       mainProcessClient.getAgentState({
-        rootClusterUri: props.rootClusterUri,
+        rootClusterUri,
       }) || {
         status: 'not-started',
       }
@@ -161,36 +167,33 @@ export const ConnectMyComputerContextProvider: FC<{
   const [startAgentAttempt, startAgent] = useAsync(
     useCallback(async () => {
       setCurrentActionKind('start');
-      await connectMyComputerService.runAgent(props.rootClusterUri);
 
-      const abortController = new AbortController();
+      await connectMyComputerService.runAgent(rootClusterUri);
+
+      const abortController = createAbortController();
       try {
         const server = await Promise.race([
           connectMyComputerService.waitForNodeToJoin(
-            props.rootClusterUri,
+            rootClusterUri,
             abortController.signal
           ),
           throwOnAgentProcessErrors(
             mainProcessClient,
-            props.rootClusterUri,
+            rootClusterUri,
             abortController.signal
           ),
           wait(20_000, abortController.signal).then(() => {
-            throw new Error(
-              'The agent did not manage to join the cluster within 20 seconds.'
-            );
+            const logs = mainProcessClient.getAgentLogs({ rootClusterUri });
+            throw new NodeWaitJoinTimeout(logs);
           }),
         ]);
         setCurrentActionKind('observe-process');
-        workspacesService.setConnectMyComputerAutoStart(
-          props.rootClusterUri,
-          true
-        );
-        usageService.captureConnectMyComputerAgentStart(props.rootClusterUri);
+        workspacesService.setConnectMyComputerAutoStart(rootClusterUri, true);
+        usageService.captureConnectMyComputerAgentStart(rootClusterUri);
         return server;
       } catch (error) {
         // in case of any error kill the agent
-        await connectMyComputerService.killAgent(props.rootClusterUri);
+        await connectMyComputerService.killAgent(rootClusterUri);
         throw error;
       } finally {
         abortController.abort();
@@ -198,7 +201,7 @@ export const ConnectMyComputerContextProvider: FC<{
     }, [
       connectMyComputerService,
       mainProcessClient,
-      props.rootClusterUri,
+      rootClusterUri,
       usageService,
       workspacesService,
     ])
@@ -215,13 +218,10 @@ export const ConnectMyComputerContextProvider: FC<{
   const [killAgentAttempt, killAgent] = useAsync(
     useCallback(async () => {
       setCurrentActionKind('kill');
-      await connectMyComputerService.killAgent(props.rootClusterUri);
+      await connectMyComputerService.killAgent(rootClusterUri);
       setCurrentActionKind('observe-process');
-      workspacesService.setConnectMyComputerAutoStart(
-        props.rootClusterUri,
-        false
-      );
-    }, [connectMyComputerService, props.rootClusterUri, workspacesService])
+      workspacesService.setConnectMyComputerAutoStart(rootClusterUri, false);
+    }, [connectMyComputerService, rootClusterUri, workspacesService])
   );
 
   const markAgentAsConfigured = useCallback(() => {
@@ -232,13 +232,80 @@ export const ConnectMyComputerContextProvider: FC<{
     setAgentConfiguredAttempt(makeSuccessAttempt(false));
   }, [setAgentConfiguredAttempt, setDownloadAgentAttempt]);
 
+  const removeConnections = useCallback(async () => {
+    const { rootClusterId } = routing.parseClusterUri(rootClusterUri).params;
+    let nodeName: string;
+    try {
+      nodeName = await connectMyComputerService.getConnectMyComputerNodeName(
+        rootClusterUri
+      );
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return;
+      }
+      throw error;
+    }
+    const nodeUri = routing.getServerUri({ rootClusterId, serverId: nodeName });
+    await ctx.connectionTracker.disconnectAndRemoveItemsBelongingToResource(
+      nodeUri
+    );
+  }, [connectMyComputerService, ctx.connectionTracker, rootClusterUri]);
+
+  const [removeAgentAttempt, removeAgent] = useAsync(
+    useCallback(async () => {
+      const [, error] = await killAgent();
+      if (error) {
+        throw error;
+      }
+      setCurrentActionKind('remove');
+
+      let hasAccessDeniedError = false;
+      try {
+        await retryWithRelogin(ctx, rootClusterUri, () =>
+          ctx.connectMyComputerService.removeConnectMyComputerNode(
+            rootClusterUri
+          )
+        );
+      } catch (e) {
+        if (isAccessDeniedError(e)) {
+          hasAccessDeniedError = true;
+        } else {
+          throw e;
+        }
+      }
+      ctx.notificationsService.notifyInfo(
+        hasAccessDeniedError
+          ? {
+              title: 'The agent has been removed.',
+              description:
+                'The corresponding server may still be visible in the cluster for a few more minutes until it gets purged from the cache.',
+            }
+          : 'The agent has been removed.'
+      );
+
+      // We have to remove connections before removing the agent directory, because
+      // we get the node UUID from the that directory.
+      await removeConnections();
+      ctx.workspacesService.removeConnectMyComputerState(rootClusterUri);
+      await ctx.connectMyComputerService.removeAgentDirectory(rootClusterUri);
+
+      markAgentAsNotConfigured();
+    }, [
+      ctx,
+      killAgent,
+      markAgentAsNotConfigured,
+      removeConnections,
+      rootClusterUri,
+    ])
+  );
+
   useEffect(() => {
     const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
-      props.rootClusterUri,
+      rootClusterUri,
       setAgentProcessState
     );
     return cleanup;
-  }, [mainProcessClient, props.rootClusterUri]);
+  }, [mainProcessClient, rootClusterUri]);
 
   let currentAction: CurrentAction;
   const kind = currentActionKind;
@@ -258,6 +325,10 @@ export const ConnectMyComputerContextProvider: FC<{
     }
     case 'kill': {
       currentAction = { kind, attempt: killAgentAttempt };
+      break;
+    }
+    case 'remove': {
+      currentAction = { kind, attempt: removeAgentAttempt };
       break;
     }
     default: {
@@ -287,7 +358,7 @@ export const ConnectMyComputerContextProvider: FC<{
       isAgentConfigured &&
       canUse &&
       isAgentCompatible &&
-      workspacesService.getConnectMyComputerAutoStart(props.rootClusterUri) &&
+      workspacesService.getConnectMyComputerAutoStart(rootClusterUri) &&
       agentIsNotStarted;
     if (shouldAutoStartAgent) {
       downloadAndStartAgent();
@@ -297,7 +368,7 @@ export const ConnectMyComputerContextProvider: FC<{
     downloadAndStartAgent,
     agentIsNotStarted,
     isAgentConfigured,
-    props.rootClusterUri,
+    rootClusterUri,
     workspacesService,
     isAgentCompatible,
   ]);
@@ -318,9 +389,10 @@ export const ConnectMyComputerContextProvider: FC<{
         markAgentAsConfigured,
         markAgentAsNotConfigured,
         isAgentConfiguredAttempt,
+        removeAgent,
         isAgentCompatible,
       }}
-      children={props.children}
+      children={children}
     />
   );
 };
@@ -343,7 +415,7 @@ export const useConnectMyComputerContext = () => {
 function throwOnAgentProcessErrors(
   mainProcessClient: MainProcessClient,
   rootClusterUri: RootClusterUri,
-  abortSignal: AbortSignal
+  abortSignal: TshAbortSignal
 ): Promise<never> {
   return new Promise((_, reject) => {
     const rejectOnError = (agentProcessState: AgentProcessState) => {
@@ -362,12 +434,12 @@ function throwOnAgentProcessErrors(
       rootClusterUri,
       rejectOnError
     );
-    abortSignal.onabort = () => {
+    abortSignal.addEventListener(() => {
       cleanup();
       reject(
         new DOMException('throwOnAgentProcessErrors was aborted', 'AbortError')
       );
-    };
+    });
 
     // the state may have changed before we started listening, we have to check the current state
     rejectOnError(
@@ -383,4 +455,36 @@ export class AgentProcessError extends Error {
     super('AgentProcessError');
     this.name = 'AgentProcessError';
   }
+}
+
+export class NodeWaitJoinTimeout extends Error {
+  constructor(public readonly logs: string) {
+    super('NodeWaitJoinTimeout');
+    this.name = 'NodeWaitJoinTimeout';
+  }
+}
+
+/**
+ * wait is like wait from the shared package, but it works with TshAbortSignal.
+ * TODO(ravicious): Refactor TshAbortSignal so that its interface is the same as AbortSignal.
+ * See the comment in createAbortController for more details.
+ */
+function wait(ms: number, abortSignal: TshAbortSignal): Promise<void> {
+  if (abortSignal.aborted) {
+    return Promise.reject(new DOMException('Wait was aborted.', 'AbortError'));
+  }
+
+  return new Promise((resolve, reject) => {
+    const abort = () => {
+      clearTimeout(timeout);
+      reject(new DOMException('Wait was aborted.', 'AbortError'));
+    };
+    const done = () => {
+      abortSignal.removeEventListener(abort);
+      resolve();
+    };
+
+    const timeout = setTimeout(done, ms);
+    abortSignal.addEventListener(abort);
+  });
 }

@@ -23,9 +23,57 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 )
+
+func TestWithOwnersIneligibleStatusField(t *testing.T) {
+	proto := []*accesslistv1.AccessListOwner{
+		{
+			Name:             "expired",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_EXPIRED,
+		},
+		{
+			Name:             "missing",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS,
+		},
+		{
+			Name:             "dne",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST,
+		},
+	}
+
+	owners := []accesslist.Owner{
+		{Name: "expired"},
+		{Name: "missing"},
+		{Name: "dne"},
+	}
+	al := &accesslist.AccessList{
+		Spec: accesslist.Spec{
+			Owners: owners,
+		},
+	}
+	require.Empty(t, cmp.Diff(al.Spec.Owners, owners))
+
+	fn := WithOwnersIneligibleStatusField(proto)
+	fn(al)
+
+	require.Empty(t, cmp.Diff(al.Spec.Owners, []accesslist.Owner{
+		{
+			Name:             "expired",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_EXPIRED.String(),
+		},
+		{
+			Name:             "missing",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS.String(),
+		},
+		{
+			Name:             "dne",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST.String(),
+		},
+	}))
+}
 
 func TestRoundtrip(t *testing.T) {
 	accessList := newAccessList(t, "access-list")

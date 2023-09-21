@@ -152,9 +152,15 @@ function getIndicatorStatus(
         assertUnreachable(currentAction.agentProcessState);
       }
     }
-  } else {
-    return currentAction.attempt.status;
   }
+  if (
+    currentAction.kind === 'remove' &&
+    (currentAction.attempt.status === 'processing' ||
+      currentAction.attempt.status === 'success')
+  ) {
+    return '';
+  }
+  return currentAction.attempt.status;
 }
 
 interface MenuIconProps {
