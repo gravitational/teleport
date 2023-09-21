@@ -164,10 +164,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	sudoers, err := cfg.Srv.GetHostSudoers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	sudoers := cfg.Srv.GetHostSudoers()
 	return &SessionRegistry{
 		SessionRegistryConfig: cfg,
 		log: log.WithFields(log.Fields{
@@ -236,6 +233,10 @@ func (sc *sudoersCloser) Close() error {
 }
 
 func (s *SessionRegistry) TryWriteSudoersFile(ctx *ServerContext) error {
+	if s.sudoers == nil {
+		return nil
+	}
+
 	sudoers, err := ctx.Identity.AccessChecker.HostSudoers(ctx.srv.GetInfo())
 	if err != nil {
 		return trace.Wrap(err)

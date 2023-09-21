@@ -926,8 +926,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 	var sudoers []string
 
-	roleSet := make([]types.Role, len(a.RoleSet))
-	copy(roleSet, a.RoleSet)
+	roleSet := slices.Clone(a.RoleSet)
 	slices.SortFunc(roleSet, func(a types.Role, b types.Role) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})

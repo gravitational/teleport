@@ -91,7 +91,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.True(t, trace.IsAlreadyExists(err))
 
 		require.NoFileExists(t, filepath.Join("/home", testuser))
-		err = backend.CreateHomeDirectory(testuser, tuser.Uid, tuser.Gid)
+		err = usersbk.CreateHomeDirectory(testuser, tuser.Uid, tuser.Gid)
 		require.NoError(t, err)
 		require.FileExists(t, filepath.Join("/home", testuser, ".bashrc"))
 	})
@@ -141,10 +141,10 @@ func TestRootHostUsersBackend(t *testing.T) {
 	})
 
 	t.Run("Test CreateHomeDirectory does not follow symlinks", func(t *testing.T) {
-		err := backend.CreateUser(testuser, []string{testgroup}, "", "")
+		err := usersbk.CreateUser(testuser, []string{testgroup}, "", "")
 		require.NoError(t, err)
 
-		tuser, err := backend.Lookup(testuser)
+		tuser, err := usersbk.Lookup(testuser)
 		require.NoError(t, err)
 
 		require.NoError(t, os.WriteFile("/etc/skel/testfile", []byte("test\n"), 0o700))
@@ -157,7 +157,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, os.Symlink("/tmp/ignoreme", bashrcPath))
 		require.NoFileExists(t, "/tmp/ignoreme")
 
-		err = backend.CreateHomeDirectory(testuser, tuser.Uid, tuser.Gid)
+		err = usersbk.CreateHomeDirectory(testuser, tuser.Uid, tuser.Gid)
 		t.Cleanup(func() {
 			os.RemoveAll(filepath.Join("/home", testuser))
 		})

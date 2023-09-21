@@ -182,7 +182,7 @@ type Server interface {
 
 	// GetHostSudoers returns the HostSudoers instance being used to manage
 	// sudoer file provisioning
-	GetHostSudoers() (HostSudoers, error)
+	GetHostSudoers() HostSudoers
 
 	// TargetMetadata returns metadata about the session target node.
 	TargetMetadata() apievents.ServerMetadata
