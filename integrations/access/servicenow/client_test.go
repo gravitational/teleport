@@ -117,13 +117,13 @@ func TestResolveIncident(t *testing.T) {
 
 	c, err := NewClient(ClientConfig{
 		APIEndpoint: testServer.URL,
+		CloseCode:   "approved",
 	})
 	require.NoError(t, err)
 
 	err = c.ResolveIncident(context.Background(), "someIncidentID", Resolution{
-		CloseCode: "approved",
-		Reason:    "someReason",
-		State:     "6",
+		Reason: "someReason",
+		State:  "6",
 	})
 	assert.NoError(t, err)
 
