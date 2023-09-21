@@ -124,6 +124,18 @@ type HostSudoers interface {
 	RemoveSudoers(name string) error
 }
 
+type HostSudoersNotImplemented struct{}
+
+// WriteSudoers creates a temporary Teleport user in the TeleportServiceGroup
+func (*HostSudoersNotImplemented) WriteSudoers(string, []string) error {
+	return trace.NotImplemented("host sudoers functionality not implemented on this platform")
+}
+
+// RemoveSudoers removes the users sudoer file
+func (*HostSudoersNotImplemented) RemoveSudoers(name string) error {
+	return trace.NotImplemented("host sudoers functionality not implemented on this platform")
+}
+
 type HostUsers interface {
 	// CreateUser creates a temporary Teleport user in the TeleportServiceGroup
 	CreateUser(name string, hostRoleInfo *services.HostUsersInfo) (io.Closer, error)

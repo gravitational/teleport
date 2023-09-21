@@ -285,8 +285,8 @@ func (m *mockServer) GetHostUsers() HostUsers {
 }
 
 // GetHostSudoers
-func (m *mockServer) GetHostSudoers() (HostSudoers, error) {
-	return nil, nil
+func (m *mockServer) GetHostSudoers() HostSudoers {
+	return &HostSudoersNotImplemented{}
 }
 
 // Implementation of ssh.Conn interface.
