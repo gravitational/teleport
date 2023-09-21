@@ -22,7 +22,11 @@ import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspace
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
-import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
+import { IAppContext } from 'teleterm/ui/types';
+
+import { Cluster } from 'teleterm/services/tshd/types';
+
+import { ConnectMyComputerContextProvider } from '../connectMyComputerContext';
 
 import { DocumentConnectMyComputerSetup } from './DocumentConnectMyComputerSetup';
 
@@ -33,56 +37,37 @@ export default {
 export function Default() {
   const cluster = makeRootCluster();
   const appContext = new MockAppContext({ appVersion: cluster.proxyVersion });
-  appContext.clustersService.state.clusters.set(cluster.uri, cluster);
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = cluster.uri;
-    draftState.workspaces[cluster.uri] = {
-      localClusterUri: cluster.uri,
-      documents: [],
-      location: undefined,
-      accessRequests: undefined,
-    };
+  appContext.connectMyComputerService.waitForNodeToJoin = async () => ({
+    uri: '/clusters/teleport-local/servers/178ef081-259b-4aa5-a018-449b5ea7e694',
+    tunnel: false,
+    name: '178ef081-259b-4aa5-a018-449b5ea7e694',
+    hostname: 'foo',
+    addr: '127.0.0.1:3022',
+    labelsList: [],
   });
-
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
-        <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-          <DocumentConnectMyComputerSetup />
-        </ConnectMyComputerContextProvider>
-      </MockWorkspaceContextProvider>
-    </MockAppContextProvider>
-  );
+  return <ShowState cluster={cluster} appContext={appContext} />;
 }
 
 export function AgentVersionTooNew() {
   const cluster = makeRootCluster({ proxyVersion: '16.3.0' });
   const appContext = new MockAppContext({ appVersion: '17.0.0' });
-  appContext.clustersService.state.clusters.set(cluster.uri, cluster);
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = cluster.uri;
-    draftState.workspaces[cluster.uri] = {
-      localClusterUri: cluster.uri,
-      documents: [],
-      location: undefined,
-      accessRequests: undefined,
-    };
-  });
 
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
-        <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-          <DocumentConnectMyComputerSetup />
-        </ConnectMyComputerContextProvider>
-      </MockWorkspaceContextProvider>
-    </MockAppContextProvider>
-  );
+  return <ShowState cluster={cluster} appContext={appContext} />;
 }
 
 export function AgentVersionTooOld() {
   const cluster = makeRootCluster({ proxyVersion: '16.3.0' });
   const appContext = new MockAppContext({ appVersion: '14.1.0' });
+  return <ShowState cluster={cluster} appContext={appContext} />;
+}
+
+function ShowState({
+  cluster,
+  appContext,
+}: {
+  cluster: Cluster;
+  appContext: IAppContext;
+}) {
   appContext.clustersService.state.clusters.set(cluster.uri, cluster);
   appContext.workspacesService.setState(draftState => {
     draftState.rootClusterUri = cluster.uri;
