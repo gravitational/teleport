@@ -497,14 +497,14 @@ func descriptionWithoutName(description, name string) string {
 
 const yamlExampleDelimeter string = "Example YAML:\n---\n"
 
-// handleEmbeddedStructFields finds embedded structs within rt and recursively
+// handleEmbeddedStructFields finds embedded structs within fld and recursively
 // processes the fields of those structs as though the fields belonged to the
 // containing struct. Uses decl and allDecls to look up fields within the base
 // structs. Returns a modified slice of fields that include all non-embedded
-// fields within rt.
-func handleEmbeddedStructFields(decl DeclarationInfo, rt rawType, allDecls map[PackageInfo]DeclarationInfo) ([]rawField, error) {
+// fields within fld.
+func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls map[PackageInfo]DeclarationInfo) ([]rawField, error) {
 	fieldsToProcess := []rawField{}
-	for _, l := range rt.fields {
+	for _, l := range fld {
 		if l.name != "" {
 			fieldsToProcess = append(fieldsToProcess, l)
 			continue
@@ -530,11 +530,9 @@ func handleEmbeddedStructFields(decl DeclarationInfo, rt rawType, allDecls map[P
 		d, ok := allDecls[p]
 		if !ok {
 			return nil, fmt.Errorf(
-				"field %v.%v in %v.%v is not declared anywhere",
+				"field %v.%v is not declared anywhere",
 				l.packageName,
 				c.name,
-				decl.PackageName,
-				rt.name,
 			)
 		}
 		e, err := getRawTypes(d)
@@ -542,7 +540,12 @@ func handleEmbeddedStructFields(decl DeclarationInfo, rt rawType, allDecls map[P
 			return nil, err
 		}
 
-		fieldsToProcess = append(fieldsToProcess, e.fields...)
+		nf, err := handleEmbeddedStructFields(decl, e.fields, allDecls)
+		if err != nil {
+			return nil, err
+		}
+
+		fieldsToProcess = append(fieldsToProcess, nf...)
 	}
 	return fieldsToProcess, nil
 
@@ -557,7 +560,7 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		return nil, err
 	}
 
-	fieldsToProcess, err := handleEmbeddedStructFields(decl, rs, allDecls)
+	fieldsToProcess, err := handleEmbeddedStructFields(decl, rs.fields, allDecls)
 	if err != nil {
 		return nil, err
 	}
