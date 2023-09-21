@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import { wait } from 'shared/utils/wait';
-
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import {
   Cluster,
   CreateConnectMyComputerRoleResponse,
   Server,
+  TshAbortSignal,
   TshClient,
 } from 'teleterm/services/tshd/types';
 
@@ -83,26 +82,13 @@ export class ConnectMyComputerService {
 
   async waitForNodeToJoin(
     rootClusterUri: uri.RootClusterUri,
-    abortSignal: AbortSignal
+    abortSignal: TshAbortSignal
   ): Promise<Server> {
-    // TODO(gzdunek): Replace with waiting for the node to join.
-    await wait(1_000, abortSignal);
-    return {
-      uri: `${rootClusterUri}/servers/178ef081-259b-4aa5-a018-449b5ea7e694`,
-      tunnel: false,
-      name: '178ef081-259b-4aa5-a018-449b5ea7e694',
-      hostname: 'foo',
-      addr: '127.0.0.1:3022',
-      labelsList: [
-        {
-          name: 'hostname',
-          value: 'mbp.home',
-        },
-        {
-          name: 'teleport.dev/connect-my-computer',
-          value: 'abcd@goteleport.com',
-        },
-      ],
-    };
+    const response = await this.tshClient.waitForConnectMyComputerNodeJoin(
+      rootClusterUri,
+      abortSignal
+    );
+
+    return response.server;
   }
 }
