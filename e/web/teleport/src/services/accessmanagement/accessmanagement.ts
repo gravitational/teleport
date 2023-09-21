@@ -3,11 +3,12 @@ import { makeTraits } from 'teleport/services/user/makeUser';
 
 import cfg from 'e-teleport/config';
 
-import type {
+import {
   UpsertAccessListRequest,
   AccessList,
   AccessListMember,
   AccessListOwner,
+  IneligibleStatus,
 } from 'e-teleport/services/accessmanagement';
 
 export const accessManagementService = {
@@ -136,6 +137,19 @@ function makeAccessList(json: any): AccessList {
   };
 }
 
+function getIneligibleReason(ineligibleStatus: IneligibleStatus) {
+  if (ineligibleStatus === IneligibleStatus.UserNotExist) {
+    return 'User does not exist';
+  }
+  if (ineligibleStatus === IneligibleStatus.MissingRequirements) {
+    return 'User does not meet the roles or traits required';
+  }
+  if (ineligibleStatus === IneligibleStatus.Expired) {
+    return `User's membership has expired`;
+  }
+  return '';
+}
+
 function makeMembers(json: any): AccessListMember[] {
   if (!json) {
     return [];
@@ -147,7 +161,7 @@ function makeMembers(json: any): AccessListMember[] {
       addedBy: m.added_by,
       joined: new Date(m.joined),
       expires: new Date(m.expires),
-      ineligibleReason: m.ineligible,
+      ineligibleReason: getIneligibleReason(m.ineligible_status),
     };
   });
 }
@@ -160,7 +174,7 @@ function makeOwners(json: any): AccessListOwner[] {
     return {
       name: o.name,
       description: o.description,
-      ineligibleReason: o.ineligible,
+      ineligibleReason: getIneligibleReason(o.ineligible_status),
     };
   });
 }

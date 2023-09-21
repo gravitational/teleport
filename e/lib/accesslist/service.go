@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 const (
@@ -55,6 +56,10 @@ var ignoreFieldsDuringUpsert = []cmp.Option{
 	cmpopts.IgnoreFields(accesslist.Spec{}, "Audit"),
 }
 
+type UsersService interface {
+	GetUsers(withSecrets bool) ([]types.User, error)
+}
+
 // ServiceConfig is the service config for the Access Lists gRPC service.
 type ServiceConfig struct {
 	// Logger is the logger to use.
@@ -71,6 +76,8 @@ type ServiceConfig struct {
 
 	// Clock is the clock.
 	Clock clockwork.Clock
+
+	CachedUsersServices UsersService
 }
 
 func (c *ServiceConfig) checkAndSetDefaults() error {
@@ -84,6 +91,10 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 
 	if c.Emitter == nil {
 		return trace.BadParameter("emitter is missing")
+	}
+
+	if c.CachedUsersServices == nil {
+		return trace.BadParameter("CachedUsersServices is missing")
 	}
 
 	if c.Logger == nil {
@@ -105,6 +116,7 @@ type Service struct {
 	accessLists services.AccessLists
 	emitter     apievents.Emitter
 	clock       clockwork.Clock
+	cachedUsers UsersService
 }
 
 // NewService creates a new Access List gRPC service.
@@ -119,6 +131,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		accessLists: cfg.AccessLists,
 		emitter:     cfg.Emitter,
 		clock:       cfg.Clock,
+		cachedUsers: cfg.CachedUsersServices,
 	}, nil
 }
 
@@ -266,6 +279,29 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 	if getErr != nil {
 		return nil, trace.Wrap(getErr)
 	}
+
+	// Get a list of all users, to compute eligibility for owners.
+	users, err := s.cachedUsers.GetUsers(false /* without secrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userLookup := makeUserLookup(users)
+
+	// Go through owners and determine eligibility.
+	updatedOwners := make([]accesslist.Owner, len(result.GetOwners()))
+	for i, owner := range result.GetOwners() {
+		ineligibleStatus := checkUserIsStillEligible(StillEligibleFields{
+			userLookup: userLookup,
+			username:   owner.Name,
+			expires:    time.Time{}, // owners don't have expiry's
+			clock:      s.clock,
+			requires:   result.GetOwnershipRequires(),
+		})
+
+		owner.IneligibleStatus = accesslistv1.IneligibleStatus_name[int32(ineligibleStatus)]
+		updatedOwners[i] = owner
+	}
+	result.SetOwners(updatedOwners)
 
 	return conv.ToProto(result), nil
 }
@@ -451,7 +487,8 @@ func (s *Service) DeleteAllAccessLists(ctx context.Context, _ *accesslistv1.Dele
 
 // ListAccessListMembers returns a paginated list of all access list members.
 func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (*accesslistv1.ListAccessListMembersResponse, error) {
-	if err := s.authOrIsOwner(ctx, req.AccessList, types.VerbRead, types.VerbList); err != nil {
+	retrievedAccessList, err := s.authOrIsOwnerWithAccessList(ctx, req.AccessList, types.VerbRead, types.VerbList)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -460,8 +497,23 @@ func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.L
 		return nil, trace.Wrap(err)
 	}
 
+	// Get a list of all users, to compute eligibility for members.
+	users, err := s.cachedUsers.GetUsers(false /* without secrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userLookup := makeUserLookup(users)
+
 	members := make([]*accesslistv1.Member, len(results))
 	for i, r := range results {
+		ineligibleStatus := checkUserIsStillEligible(StillEligibleFields{
+			userLookup: userLookup,
+			username:   r.GetName(),
+			expires:    r.Spec.Expires,
+			clock:      s.clock,
+			requires:   retrievedAccessList.GetMembershipRequires(),
+		})
+		r.Spec.IneligibleStatus = accesslistv1.IneligibleStatus_name[int32(ineligibleStatus)]
 		members[i] = conv.ToMemberProto(r)
 	}
 
@@ -870,7 +922,33 @@ func getModifiedMembers(oldMembers map[string]*accesslist.AccessListMember, upda
 	return modified
 }
 
+// hasAccessListRBAC tests if the user has RBAC access to access lists.
+func (s *Service) hasAccessListRBAC(ctx context.Context, authCtx *authz.Context, verbs ...string) bool {
+	ruleCtx := &services.Context{
+		User: authCtx.User,
+	}
+	_, authErr := authz.AuthorizeContextWithVerbs(ctx, s.log, authCtx, true, ruleCtx, types.KindAccessList, verbs...)
+	if authErr != nil {
+		s.log.WithError(authErr).Debug("hasAccessListRBAC had error")
+	}
+
+	return authErr == nil
+}
+
+// isOwnerOfAccessList checks if this user owns this access list.
+func (s *Service) isOwnerOfAccessList(ctx context.Context, authCtx *authz.Context, accessList *accesslist.AccessList) error {
+	identity := authCtx.Identity.GetIdentity()
+	if err := services.IsAccessListOwner(identity, accessList); err != nil {
+		s.log.WithError(err).Debug("isOwnerOfAccessList returned error")
+		// Return an opaque error
+		return trace.AccessDenied("access denied")
+	}
+
+	return nil
+}
+
 // Check if the user is either authorized for the access list or owns this access list.
+// Returns early if user has RBAC access (skips the step for retrieving an access list).
 func (s *Service) authOrIsOwner(ctx context.Context, accessListName string, verbs ...string) error {
 	// Make sure the user is authorized within Teleport.
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -880,19 +958,12 @@ func (s *Service) authOrIsOwner(ctx context.Context, accessListName string, verb
 		return trace.AccessDenied("access denied")
 	}
 
-	ruleCtx := &services.Context{
-		User: authCtx.User,
-	}
-
-	// Test if the user has RBAC access to access lists. If so, we can exit early.
-	_, authErr := authz.AuthorizeContextWithVerbs(ctx, s.log, authCtx, true, ruleCtx, types.KindAccessList, verbs...)
-	if authErr == nil {
+	// Exit early if user has RBAC access to access lists.
+	if hasAccess := s.hasAccessListRBAC(ctx, authCtx, verbs...); hasAccess {
 		return nil
 	}
 
 	// Otherwise, we need to check if the user owns the access list.
-	identity := authCtx.Identity.GetIdentity()
-
 	accessList, err := s.accessLists.GetAccessList(ctx, accessListName)
 	if err != nil {
 		s.log.WithError(err).Debug("Failed to get access list")
@@ -900,13 +971,79 @@ func (s *Service) authOrIsOwner(ctx context.Context, accessListName string, verb
 		return trace.AccessDenied("access denied")
 	}
 
-	if err := services.IsAccessListOwner(identity, accessList); err != nil {
-		s.log.WithError(err).Debug("IsOwner returned error")
-		// Return an opaque error
-		return trace.AccessDenied("access denied")
+	if err := s.isOwnerOfAccessList(ctx, authCtx, accessList); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
+}
+
+// authOrIsOwnerWithAccessList first checks if retrieving access list was successful,
+// then checks if the user is either authorized for the access list or owns this access list.
+func (s *Service) authOrIsOwnerWithAccessList(ctx context.Context, accessListName string, verbs ...string) (*accesslist.AccessList, error) {
+	// Make sure the user is authorized within Teleport.
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		s.log.WithError(err).Debug("Failed to authorize user")
+		// Return an opaque error
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	accessList, err := s.accessLists.GetAccessList(ctx, accessListName)
+	if err != nil {
+		s.log.WithError(err).Debug("Failed to get access list")
+		// Return an opaque error
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	if hasAccess := s.hasAccessListRBAC(ctx, authCtx, verbs...); hasAccess {
+		return accessList, nil
+	}
+	if err := s.isOwnerOfAccessList(ctx, authCtx, accessList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return accessList, nil
+}
+
+type StillEligibleFields struct {
+	userLookup map[string]types.User
+	requires   accesslist.Requires
+	username   string
+	expires    time.Time
+	clock      clockwork.Clock
+}
+
+func checkUserIsStillEligible(f StillEligibleFields) accesslistv1.IneligibleStatus {
+	foundUser, exists := f.userLookup[f.username]
+	// Check if owner exists.
+	if !exists {
+		return accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST
+	}
+
+	// Check if expired.
+	if !f.expires.IsZero() && !f.clock.Now().Before(f.expires) {
+		return accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_EXPIRED
+	}
+
+	// Check if user still meets requirements.
+	ownerMeetsRequirements := services.UserMeetsRequirements(tlsca.Identity{
+		Groups: foundUser.GetRoles(),
+		Traits: foundUser.GetTraits(),
+	}, f.requires)
+	if !ownerMeetsRequirements {
+		return accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS
+	}
+
+	return accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE
+}
+
+func makeUserLookup(users []types.User) map[string]types.User {
+	userLookup := map[string]types.User{}
+	for _, user := range users {
+		userLookup[user.GetName()] = user
+	}
+	return userLookup
 }
 
 // memberEventMetadata is a small wrapper around a member object.

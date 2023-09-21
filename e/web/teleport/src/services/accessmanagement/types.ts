@@ -1,5 +1,20 @@
 import { AllUserTraits } from 'teleport/services/user';
 
+// IneligibleStatus describes a member or owner's
+// ineligibility.
+export enum IneligibleStatus {
+  // User was checked and is eligible.
+  Eligible = 'INELIGIBLE_STATUS_ELIGIBLE',
+  // User does not exist in the backend.
+  UserNotExist = 'INELIGIBLE_STATUS_USER_NOT_EXIST',
+  // User does not meet the eligibility defined by
+  // AccessListRequires fields.
+  MissingRequirements = 'INELIGIBLE_STATUS_MISSING_REQUIREMENTS',
+  // User is expired.
+  // Only applies to members.
+  Expired = 'INELIGIBLE_STATUS_EXPIRED',
+}
+
 export type AccessList = {
   id: string;
   title: string; // friendly name of id
@@ -45,7 +60,7 @@ export type AccessListMember = {
   addedBy: string;
   // ineligibleReason is a description on why this member
   // no longer meets requirements as defined in membershipRequires.
-  ineligibleReason?: string; // TODO(lisa) need to come from the back
+  ineligibleReason?: string;
 };
 
 export type AccessListOwner = {
@@ -56,7 +71,7 @@ export type AccessListOwner = {
   description?: string;
   // ineligibleReason is a description on why this owner
   // no longer meets requirements as defined in ownershipRequires.
-  ineligibleReason?: string; // TODO(lisa) need to come from the back
+  ineligibleReason?: string;
 };
 
 // AccessListAudit describes the frequency that this

@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
@@ -159,18 +160,29 @@ func TestGetAccessList(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
-	accesList, err := accesslist.NewAccessList(header.Metadata{Name: "accesslist-1"}, accesslist.Spec{
-		Title:             "access list 1",
-		Audit:             accesslist.Audit{Frequency: time.Hour},
-		Owners:            []accesslist.Owner{{Name: "llama", Description: "llama desc"}},
+	accessList, err := accesslist.NewAccessList(header.Metadata{Name: "accesslist-1"}, accesslist.Spec{
+		Title: "access list 1",
+		Audit: accesslist.Audit{Frequency: time.Hour},
+		Owners: []accesslist.Owner{
+			{
+				Name:        "llama",
+				Description: "llama desc",
+				// this owner does not exist in the backend, but that's okay, we are only
+				// testing for a "getter" for this test.
+				IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST.String(),
+			},
+		},
 		OwnershipRequires: accesslist.Requires{Roles: []string{"admin"}},
 		Grants:            accesslist.Grants{Roles: []string{"access"}},
 	})
 	require.NoError(t, err)
-	createdAccessList, err := authClient.AccessListClient().UpsertAccessList(context.Background(), accesList)
+	createdAccessList, err := authClient.AccessListClient().UpsertAccessList(context.Background(), accessList)
 	require.NoError(t, err)
+	require.Empty(t, createdAccessList.Spec.Owners[0].IneligibleStatus)
+	// Set the ineligibleStatus back, because `upsert's` does not preserve ineligible reasons.
+	createdAccessList.Spec.Owners[0].IneligibleStatus = accessList.Spec.Owners[0].IneligibleStatus
 
-	m, err := accesslist.NewAccessListMember(
+	member, err := accesslist.NewAccessListMember(
 		header.Metadata{
 			Name: createdAccessList.GetName(),
 		}, accesslist.AccessListMemberSpec{
@@ -180,12 +192,18 @@ func TestGetAccessList(t *testing.T) {
 			Expires:    time.Now().Add(time.Hour),
 			Reason:     "reason",
 			AddedBy:    "admin",
+			// this member does not exist in the backend, but that's okay, we are only
+			// testing for a "getter" for this test.
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST.String(),
 		},
 	)
 	require.NoError(t, err)
 
-	member, err := authClient.AccessListClient().UpsertAccessListMember(context.Background(), m)
+	createdMember, err := authClient.AccessListClient().UpsertAccessListMember(context.Background(), member)
 	require.NoError(t, err)
+	require.Empty(t, createdMember.Spec.IneligibleStatus)
+	// Set the ineligibleStatus back, because `upsert's` does not preserve ineligible reasons.
+	createdMember.Spec.IneligibleStatus = member.Spec.IneligibleStatus
 
 	accessListResp := getAccessList(t, webPack, s, createdAccessList.GetName())
 
@@ -196,7 +214,7 @@ func TestGetAccessList(t *testing.T) {
 
 	// Members are returned by the API.
 	require.Len(t, accessListResp.AccessList.Members, 1)
-	require.Equal(t, member.Spec, accessListResp.AccessList.Members[0])
+	require.Equal(t, createdMember.Spec, accessListResp.AccessList.Members[0])
 }
 
 func TestDeleteAccessList(t *testing.T) {

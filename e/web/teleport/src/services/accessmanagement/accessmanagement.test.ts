@@ -3,7 +3,7 @@ import api from 'teleport/services/api';
 import cfg from 'e-teleport/config';
 
 import { accessManagementService } from './accessmanagement';
-import { AccessList, UpsertAccessListRequest } from './types';
+import { AccessList, IneligibleStatus, UpsertAccessListRequest } from './types';
 
 test('fetch access lists, empty responses does not throw error', async () => {
   jest.spyOn(api, 'get').mockResolvedValue({ accessLists: null });
@@ -98,7 +98,7 @@ test('fetch an access list', async () => {
           {
             name: 'lisa',
             description: 'some description',
-            ineligible: 'some ineligible reason for owner',
+            ineligible_status: IneligibleStatus.UserNotExist,
           },
         ],
       },
@@ -109,7 +109,7 @@ test('fetch an access list', async () => {
           expires: '2023-08-24T17:48:15.78579Z',
           reason: 'some reason',
           added_by: 'llama',
-          ineligible: 'some ineligible reason for member',
+          ineligible_status: IneligibleStatus.UserNotExist,
         },
       ],
     },
@@ -141,7 +141,7 @@ test('fetch an access list', async () => {
         expires: new Date('2023-08-24T17:48:15.78579Z'),
         reason: 'some reason',
         addedBy: 'llama',
-        ineligibleReason: 'some ineligible reason for member',
+        ineligibleReason: 'User does not exist',
       },
     ],
     ownershipRequires: {
@@ -152,7 +152,7 @@ test('fetch an access list', async () => {
       {
         name: 'lisa',
         description: 'some description',
-        ineligibleReason: 'some ineligible reason for owner',
+        ineligibleReason: 'User does not exist',
       },
     ],
   });

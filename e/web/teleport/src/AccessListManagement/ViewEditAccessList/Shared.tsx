@@ -48,7 +48,11 @@ export const UserRevokeButtonCell = ({
     <Cell align="right">
       <Flex alignItems="center" justifyContent="flex-end">
         {ineligibleReason && (
-          <ToolTipText tipContent={<>{ineligibleReason}</>}>
+          <ToolTipText
+            tipContent={
+              <div css={{ maxWidth: '220px' }}>{ineligibleReason}</div>
+            }
+          >
             <Warning color="warning.active" mr={3} />
           </ToolTipText>
         )}

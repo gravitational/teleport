@@ -42,11 +42,12 @@ import (
 )
 
 const (
-	testUser  = "test-user"
-	ownerUser = "owner-user"
-	member1   = "member1"
-	member2   = "member2"
-	member3   = "member3"
+	testUser   = "test-user"
+	ownerUser  = "owner-user"
+	ownerUser2 = "owner-user2"
+	member1    = "member1"
+	member2    = "member2"
+	member3    = "member3"
 )
 
 // cmpOpts are general cmpOpts for all comparisons.
@@ -70,7 +71,10 @@ func TestService_GetAccessLists(t *testing.T) {
 
 	a1 := newAccessList(t, "1", clock)
 	a2 := newAccessList(t, "2", clock)
+
+	// a3 will have different ownership requirements.
 	a3 := newAccessList(t, "3", clock)
+	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
 	a1m2 := newAccessListMember(t, a1.GetName(), member2, clock)
@@ -251,9 +255,40 @@ func TestService_GetAccessList(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.AccessLists)
 
+	eligibleOwnersWithStatus := []accesslist.Owner{
+		{
+			Name:             ownerUser,
+			Description:      "owner user",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
+		},
+		{
+			Name:             ownerUser2,
+			Description:      "owner user 2",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
+		},
+	}
+
 	a1 := newAccessList(t, "1", clock)
+	a1.Spec.Owners = eligibleOwnersWithStatus
+
 	a2 := newAccessList(t, "2", clock)
+	a2.Spec.Owners = eligibleOwnersWithStatus
+
+	// a3 will have different ownership requirements.
 	a3 := newAccessList(t, "3", clock)
+	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
+	a3.Spec.Owners = []accesslist.Owner{
+		{
+			Name:             ownerUser,
+			Description:      "owner user",
+			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS)],
+		},
+		{
+			Name:             "test-user2",
+			Description:      "test user 2",
+			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST)],
+		},
+	}
 
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
 	a1m2 := newAccessListMember(t, a1.GetName(), member2, clock)
@@ -269,15 +304,15 @@ func TestService_GetAccessList(t *testing.T) {
 
 	get, err := svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(a1, mustFromProto(t, get), cmpOpts...))
+	require.Empty(t, cmp.Diff(a1, mustFromProto(t, get, conv.WithOwnersIneligibleStatusField(get.Spec.Owners)), cmpOpts...))
 
 	get, err = svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a2.GetName()})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(a2, mustFromProto(t, get), cmpOpts...))
+	require.Empty(t, cmp.Diff(a2, mustFromProto(t, get, conv.WithOwnersIneligibleStatusField(get.Spec.Owners)), cmpOpts...))
 
 	get, err = svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a3.GetName()})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(a3, mustFromProto(t, get), cmpOpts...))
+	require.Empty(t, cmp.Diff(a3, mustFromProto(t, get, conv.WithOwnersIneligibleStatusField(get.Spec.Owners)), cmpOpts...))
 
 	// member2 can't see a2
 	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
@@ -287,26 +322,142 @@ func TestService_GetAccessList(t *testing.T) {
 
 	get, err = svc.GetAccessList(memberCtx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(a1, mustFromProto(t, get), cmpOpts...))
+	require.Empty(t, cmp.Diff(a1, mustFromProto(t, get, conv.WithOwnersIneligibleStatusField(get.Spec.Owners)), cmpOpts...))
 
 	_, err = svc.GetAccessList(memberCtx, &accesslistv1.GetAccessListRequest{Name: a2.GetName()})
 	require.True(t, trace.IsAccessDenied(err))
 
 	get, err = svc.GetAccessList(memberCtx, &accesslistv1.GetAccessListRequest{Name: a3.GetName()})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(a3, mustFromProto(t, get), cmpOpts...))
+	require.Empty(t, cmp.Diff(a3, mustFromProto(t, get, conv.WithOwnersIneligibleStatusField(get.Spec.Owners)), cmpOpts...))
 
 	get, err = svc.GetAccessList(ownerCtx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(a1, mustFromProto(t, get), cmpOpts...))
+	require.Empty(t, cmp.Diff(a1, mustFromProto(t, get, conv.WithOwnersIneligibleStatusField(get.Spec.Owners)), cmpOpts...))
 
 	get, err = svc.GetAccessList(ownerCtx, &accesslistv1.GetAccessListRequest{Name: a2.GetName()})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(a2, mustFromProto(t, get), cmpOpts...))
+	require.Empty(t, cmp.Diff(a2, mustFromProto(t, get, conv.WithOwnersIneligibleStatusField(get.Spec.Owners)), cmpOpts...))
 
 	// owner can't see a3
 	_, err = svc.GetAccessList(ownerCtx, &accesslistv1.GetAccessListRequest{Name: a3.GetName()})
 	require.True(t, trace.IsAccessDenied(err))
+}
+
+func TestService_UpsertAndGetAccessList_OwnersIneligibleReason(t *testing.T) {
+	t.Parallel()
+
+	ctx, _, svc, clock, _ := initSvc(t)
+
+	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
+	require.NoError(t, err)
+	require.Empty(t, getResp.AccessLists)
+
+	// Create an access list, with varying eligbility for owners.
+	a1 := newAccessList(t, "1", clock)
+	a1.Spec.Owners = []accesslist.Owner{
+		{
+			Name:             ownerUser,
+			Description:      "OK existing user",
+			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE)],
+		},
+		{
+			Name:             "i-don-exist",
+			Description:      "NOK non-existing user",
+			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST)],
+		},
+		{
+			Name:             member1,
+			Description:      "NOK ownermemship_requires does not match",
+			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS)],
+		},
+	}
+
+	// Test that owner's ineligible status got stripped before upsertion.
+	createdAccessList, err := svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a1)})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]accesslist.Owner{
+		{
+			Name:             ownerUser,
+			Description:      "OK existing user",
+			IneligibleStatus: "",
+		},
+		{
+			Name:             "i-don-exist",
+			Description:      "NOK non-existing user",
+			IneligibleStatus: "",
+		},
+		{
+			Name:             member1,
+			Description:      "NOK ownermemship_requires does not match",
+			IneligibleStatus: "",
+		},
+	}, mustFromProto(t, createdAccessList).GetOwners(), cmpOpts...))
+
+	// Check retrieved access list owners has determined the ineligible status field.
+	getAccessList, err := svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(a1.Spec.Owners, mustFromProto(t, getAccessList, conv.WithOwnersIneligibleStatusField(getAccessList.Spec.Owners)).GetOwners(), cmpOpts...))
+}
+
+func TestService_UpsertAndGetAccessList_MembersIneligibleReason(t *testing.T) {
+	t.Parallel()
+
+	ctx, _, svc, clock, _ := initSvc(t)
+
+	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
+	require.NoError(t, err)
+	require.Empty(t, getResp.AccessLists)
+
+	// Create an access list.
+	a1 := newAccessList(t, "1", clock)
+	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a1)})
+	require.NoError(t, err)
+
+	// Create some members with varying eligiblity.
+	member_expired, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: member1,
+		},
+		accesslist.AccessListMemberSpec{
+			AccessList:       a1.GetName(),
+			Name:             member1,
+			Joined:           clock.Now().UTC(),
+			Expires:          clock.Now().UTC().Add(-24 * time.Hour),
+			Reason:           "expired",
+			AddedBy:          testUser,
+			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_EXPIRED)],
+		},
+	)
+	require.NoError(t, err)
+
+	membersToCreate := []*accesslist.AccessListMember{
+		// NOK non-existing user
+		newAccessListMemberWithIneligibleReason(t, a1.GetName(), "i-don-exist", clock, accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST)]),
+		// NOK member is expired
+		member_expired,
+		// OK member
+		newAccessListMemberWithIneligibleReason(t, a1.GetName(), member2, clock, accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE)]),
+		// NOK membership_requires does not match
+		newAccessListMemberWithIneligibleReason(t, a1.GetName(), ownerUser, clock, accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS)]),
+	}
+
+	// Test that member's ineligible status got stripped before upsertion.
+	for _, member := range membersToCreate {
+		upsertedMember, err := svc.UpsertAccessListMember(ctx, &accesslistv1.UpsertAccessListMemberRequest{Member: conv.ToMemberProto(member)})
+		require.NoError(t, err)
+		require.Empty(t, upsertedMember.Spec.IneligibleStatus)
+	}
+
+	// Check retrieved members list has determined the ineligible status field.
+	getMembers, err := svc.ListAccessListMembers(ctx, &accesslistv1.ListAccessListMembersRequest{PageSize: 0, AccessList: a1.GetName()})
+	require.NoError(t, err)
+
+	var members []*accesslist.AccessListMember
+	for _, member := range getMembers.Members {
+		members = append(members, mustFromMemberProto(t, member, conv.WithMemberIneligibleStatusField(member)))
+	}
+	require.Empty(t, cmp.Diff(membersToCreate, members, cmpOpts...))
 }
 
 func TestService_DeleteAccessList(t *testing.T) {
@@ -423,39 +574,62 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 	require.NoError(t, err)
 	user.AddRole(role.GetName())
 
+	ownerRoles := []string{"orole1", "orole2"}
+	ownerTraits := map[string][]string{
+		"otrait1": {"ovalue1", "ovalue2"},
+		"otrait2": {"ovalue3", "ovalue4"},
+	}
 	owner, err := types.NewUser(ownerUser)
 	require.NoError(t, err)
+	owner.SetRoles(ownerRoles)
+	owner.SetTraits(ownerTraits)
+
+	owner2, err := types.NewUser(ownerUser2)
+	require.NoError(t, err)
+	owner2.SetRoles(ownerRoles)
+	owner2.SetTraits(ownerTraits)
 
 	require.NoError(t, userSvc.CreateUser(user))
 	require.NoError(t, userSvc.CreateUser(owner))
+	require.NoError(t, userSvc.CreateUser(owner2))
 
 	storage, err := local.NewAccessListService(backend, clock)
 	require.NoError(t, err)
 	svc, err = NewService(ServiceConfig{
-		Authorizer:  authorizer,
-		AccessLists: storage,
-		Emitter:     emitter,
-		Clock:       clock,
+		Authorizer:          authorizer,
+		AccessLists:         storage,
+		Emitter:             emitter,
+		Clock:               clock,
+		CachedUsersServices: userSvc,
 	})
 	require.NoError(t, err)
 
+	memberRoles := []string{"mrole1", "mrole2"}
+	memberTraits := map[string][]string{
+		"mtrait1": {"mvalue1", "mvalue2"},
+		"mtrait2": {"mvalue3", "mvalue4"},
+	}
+
 	member1, err := types.NewUser(member1)
 	require.NoError(t, err)
+	member1.SetRoles(memberRoles)
+	member1.SetTraits(memberTraits)
 	require.NoError(t, userSvc.CreateUser(member1))
 
 	member2, err := types.NewUser(member2)
 	require.NoError(t, err)
+	member2.SetRoles(memberRoles)
+	member2.SetTraits(memberTraits)
 	require.NoError(t, userSvc.CreateUser(member2))
 
 	member3, err := types.NewUser(member3)
 	require.NoError(t, err)
+	member3.SetRoles(memberRoles)
+	member3.SetTraits(memberTraits)
 	require.NoError(t, userSvc.CreateUser(member3))
 
 	return genUserContext(ctx, user.GetName(), []string{role.GetName()}, nil),
-		genUserContext(ctx, owner.GetName(), []string{"orole1", "orole2"}, map[string][]string{
-			"otrait1": {"ovalue1", "ovalue2"},
-			"otrait2": {"ovalue3", "ovalue4"},
-		}), svc, clock, emitter
+		genUserContext(ctx, owner.GetName(), ownerRoles, ownerTraits), svc, clock, emitter
 }
 
 func TestService_ListAccessListMembers(t *testing.T) {
@@ -470,12 +644,12 @@ func TestService_ListAccessListMembers(t *testing.T) {
 	// a3 will have different ownership requirements.
 	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
-	a1m1 := newAccessListMember(t, a1.GetName(), "user1", clock)
-	a1m2 := newAccessListMember(t, a1.GetName(), "user2", clock)
-	a2m1 := newAccessListMember(t, a2.GetName(), "user1", clock)
-	a2m2 := newAccessListMember(t, a2.GetName(), "user2", clock)
-	a3m1 := newAccessListMember(t, a3.GetName(), "user1", clock)
-	a3m2 := newAccessListMember(t, a3.GetName(), "user2", clock)
+	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), member2, clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), member1, clock)
+	a2m2 := newAccessListMember(t, a2.GetName(), member2, clock)
+	a3m1 := newAccessListMember(t, a3.GetName(), member1, clock)
+	a3m2 := newAccessListMember(t, a3.GetName(), member2, clock)
 
 	createAccessListsAndMembers(t, ctx, svc, emitter,
 		[]*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2, a3m1, a3m2})
@@ -504,8 +678,8 @@ func TestService_GetAccessListMember(t *testing.T) {
 
 	a1 := newAccessList(t, "1", clock)
 
-	a1m1 := newAccessListMember(t, a1.GetName(), "user1", clock)
-	a1m2 := newAccessListMember(t, a1.GetName(), "user2", clock)
+	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), member2, clock)
 
 	createAccessListsAndMembers(t, ctx, svc, emitter,
 		[]*accesslist.AccessList{a1}, []*accesslist.AccessListMember{a1m1, a1m2})
@@ -534,7 +708,7 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 		require.True(t, event.Success)
 	})
 
-	a1m1 := newAccessListMember(t, a1.GetName(), "user1", clock)
+	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
 
 	require.Equal(t, a1m1.Spec.AddedBy, testUser)
 
@@ -577,8 +751,8 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 
 	a1 := newAccessList(t, "1", clock)
 
-	a1m1 := newAccessListMember(t, a1.GetName(), "user1", clock)
-	a1m2 := newAccessListMember(t, a1.GetName(), "user2", clock)
+	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), member2, clock)
 
 	createAccessListsAndMembers(t, ctx, svc, emitter,
 		[]*accesslist.AccessList{a1}, []*accesslist.AccessListMember{a1m1, a1m2})
@@ -611,10 +785,10 @@ func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
 	a1 := newAccessList(t, "1", clock)
 	a2 := newAccessList(t, "2", clock)
 
-	a1m1 := newAccessListMember(t, a1.GetName(), "user1", clock)
-	a1m2 := newAccessListMember(t, a1.GetName(), "user2", clock)
-	a2m1 := newAccessListMember(t, a2.GetName(), "user1", clock)
-	a2m2 := newAccessListMember(t, a2.GetName(), "user2", clock)
+	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), member2, clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), member1, clock)
+	a2m2 := newAccessListMember(t, a2.GetName(), member2, clock)
 
 	createAccessListsAndMembers(t, ctx, svc, emitter,
 		[]*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2})
@@ -648,10 +822,10 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 	a1 := newAccessList(t, "1", clock)
 	a2 := newAccessList(t, "2", clock)
 
-	a1m1 := newAccessListMember(t, a1.GetName(), "user1", clock)
-	a1m2 := newAccessListMember(t, a1.GetName(), "user2", clock)
-	a2m1 := newAccessListMember(t, a2.GetName(), "user3", clock)
-	a2m2 := newAccessListMember(t, a2.GetName(), "user4", clock)
+	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), member2, clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), member3, clock)
+	a2m2 := newAccessListMemberWithIneligibleReason(t, a2.GetName(), "user4", clock, accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST)])
 
 	createAccessListsAndMembers(t, ctx, svc, emitter, []*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1})
 
@@ -903,8 +1077,8 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 					Description: "owner user",
 				},
 				{
-					Name:        "test-user2",
-					Description: "test user 2",
+					Name:        ownerUser2,
+					Description: "owner user 2",
 				},
 			},
 			Audit: accesslist.Audit{
@@ -960,19 +1134,28 @@ func newAccessListMember(t *testing.T, accessListName, memberName string, clock 
 	return member
 }
 
-func mustFromProto(t *testing.T, accessList *accesslistv1.AccessList) *accesslist.AccessList {
+func newAccessListMemberWithIneligibleReason(t *testing.T, accessListName, memberName string, clock clockwork.Clock, ineligibleReason string) *accesslist.AccessListMember {
 	t.Helper()
 
-	out, err := conv.FromProto(accessList)
+	member := newAccessListMember(t, accessListName, memberName, clock)
+	member.Spec.IneligibleStatus = ineligibleReason
+
+	return member
+}
+
+func mustFromProto(t *testing.T, accessList *accesslistv1.AccessList, opts ...conv.AccessListOption) *accesslist.AccessList {
+	t.Helper()
+
+	out, err := conv.FromProto(accessList, opts...)
 	require.NoError(t, err)
 
 	return out
 }
 
-func mustFromMemberProto(t *testing.T, member *accesslistv1.Member) *accesslist.AccessListMember {
+func mustFromMemberProto(t *testing.T, member *accesslistv1.Member, opts ...conv.MemberOption) *accesslist.AccessListMember {
 	t.Helper()
 
-	out, err := conv.FromMemberProto(member)
+	out, err := conv.FromMemberProto(member, opts...)
 	require.NoError(t, err)
 
 	return out
