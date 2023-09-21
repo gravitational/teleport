@@ -93,7 +93,8 @@ store well above 10,000 pinned resources per user. This is a very unlikely scena
 ### Manual Cleanup
 As of now, there would be no way to manually clean up a pinned resource that isn't available because the UI would never show the tile. We could perhaps decide to show a list of tiles that aren't available but without knowing the "why" (is it gone? connectivity? rbac?) it may be more confusing to see a tile unavailable with no other info, other than the ID, than it would to just have it not shown. An example of that would be like so
 
-ADD IMAGE
+![Untitled-2022-09-11-1530](https://github.com/gravitational/teleport/assets/5201977/e52c4286-bf57-49cc-bfb5-d541146f6896)
+
 
 After discussing with the UX team, having the resource not show is the preferred option. Maybe a user preferences page in the future
 could list the IDs you currently have stored and allow you to remove them that way. This would not be in the first iteration.
