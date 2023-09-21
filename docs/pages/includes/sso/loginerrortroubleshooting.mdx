@@ -60,7 +60,7 @@ version: v5
 
 ###Failed to verify JWT: oidc: unable to verify JWT signature: no matching keys
 
-This error typically indicates a discrepancy between the algorithm used to sign the JWT token and the algorithm(s) supported by the JWKS (JSON Web Key Set). Specifically, the token might be signed with one algorithm, e.g., HS256, while the JWKS only lists keys for a different algorithm, e.g., RS256. Here are the things to check:
+The error typically indicates a discrepancy between the algorithm used to sign the JWT token and the algorithm(s) supported by the JWKS (JSON Web Key Set). Specifically, the token might be signed with one algorithm, e.g., HS256, while the JWKS only lists keys for a different algorithm. e.g., RS256. This issue predominantly arises when using identity providers that offer extremely low-level functionality.
 
 Here are some things to check:
 - Verify the JWT header specifies the correct signing algorithm (alg). This should match one of the algorithms listed in the keys section of the JWKS endpoint response. Common algorithms are RS256.
