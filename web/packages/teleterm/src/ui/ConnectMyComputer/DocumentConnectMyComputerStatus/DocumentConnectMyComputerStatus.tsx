@@ -47,6 +47,11 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
+import { CompatibilityError, useVersions } from '../CompatibilityPromise';
+import {
+  shouldShowAgentUpgradeSuggestion,
+  UpgradeAgentSuggestion,
+} from '../UpgradeAgentSuggestion';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 import type { IconProps } from 'design/Icon/Icon';
@@ -68,8 +73,10 @@ export function DocumentConnectMyComputerStatus(
     isAgentConfiguredAttempt,
     markAgentAsNotConfigured,
     removeAgent,
+    isAgentCompatible,
   } = useConnectMyComputerContext();
   const { roleName, systemUsername, hostname } = useAgentProperties();
+  const { proxyVersion, appVersion, isLocalBuild } = useVersions();
 
   const prettyCurrentAction = prettifyCurrentAction(currentAction);
 
@@ -119,6 +126,15 @@ export function DocumentConnectMyComputerStatus(
 
   return (
     <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
+      {shouldShowAgentUpgradeSuggestion(proxyVersion, {
+        appVersion,
+        isLocalBuild,
+      }) && (
+        <UpgradeAgentSuggestion
+          proxyVersion={proxyVersion}
+          appVersion={appVersion}
+        />
+      )}
       {isAgentConfiguredAttempt.status === 'error' && (
         <Alert
           css={`
@@ -209,29 +225,36 @@ export function DocumentConnectMyComputerStatus(
         </Alert>
       )}
       {prettyCurrentAction.logs && <Logs logs={prettyCurrentAction.logs} />}
-      <Text mb={4} mt={1}>
-        Connecting your computer will allow any cluster user with the role{' '}
-        <strong>{roleName}</strong> to access it as an SSH resource with the
-        user <strong>{systemUsername}</strong>.
-      </Text>
-      {showConnectAndStopAgentButtons ? (
-        <ButtonPrimary
-          block
-          disabled={disableConnectAndStopAgentButtons}
-          onClick={startSshSession}
-          size="large"
-        >
-          Connect
-        </ButtonPrimary>
+
+      {!isAgentCompatible ? (
+        <CompatibilityError />
       ) : (
-        <ButtonPrimary
-          block
-          disabled={disableStartAgentButton}
-          onClick={downloadAndStartAgent}
-          size="large"
-        >
-          Start Agent
-        </ButtonPrimary>
+        <>
+          <Text mb={4} mt={1}>
+            Connecting your computer will allow any cluster user with the role{' '}
+            <strong>{roleName}</strong> to access it as an SSH resource with the
+            user <strong>{systemUsername}</strong>.
+          </Text>
+          {showConnectAndStopAgentButtons ? (
+            <ButtonPrimary
+              block
+              disabled={disableConnectAndStopAgentButtons}
+              onClick={startSshSession}
+              size="large"
+            >
+              Connect
+            </ButtonPrimary>
+          ) : (
+            <ButtonPrimary
+              block
+              disabled={disableStartAgentButton}
+              onClick={downloadAndStartAgent}
+              size="large"
+            >
+              Start Agent
+            </ButtonPrimary>
+          )}
+        </>
       )}
     </Box>
   );
