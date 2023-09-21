@@ -287,7 +287,7 @@ func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req type
 
 // UpsertAccessRequestAllowedPromotions upserts AccessRequestAllowedPromotions object.
 func (s *DynamicAccessService) UpsertAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestAllowedPromotions) error {
-	// create the new access request suggestion object
+	// create the new access request promotion object
 	item, err := itemFromAccessListPromotions(req, accessLists)
 	if err != nil {
 		return trace.Wrap(err)
@@ -301,23 +301,23 @@ func (s *DynamicAccessService) UpsertAccessRequestAllowedPromotions(ctx context.
 
 // GetAccessRequestAllowedPromotions returns AccessRequestAllowedPromotions object.
 func (s *DynamicAccessService) GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
-	// get the access request suggestions from the backend
+	// get the access request promotions from the backend
 	item, err := s.Get(ctx, AccessRequestAllowedPromotionKey(req.GetName()))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// do not return nil as the caller will assume that nil error
-			// means that there are some suggestions
+			// means that there are some promotions
 			return types.NewAccessRequestAllowedPromotions(nil), nil
 		}
 		return nil, trace.Wrap(err)
 	}
-	// unmarshal the access request suggestions
-	suggestions, err := services.UnmarshalAccessRequestAllowedPromotion(item.Value)
+	// unmarshal the access request promotions
+	promotions, err := services.UnmarshalAccessRequestAllowedPromotion(item.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return suggestions, nil
+	return promotions, nil
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
@@ -495,7 +495,7 @@ func itemFromAccessListPromotions(req types.AccessRequest, suggestedItems *types
 	return backend.Item{
 		Key:     AccessRequestAllowedPromotionKey(req.GetName()),
 		Value:   value,
-		Expires: req.Expiry(), // expire the suggestion at the same time as the access request
+		Expires: req.Expiry(), // expire the promotion at the same time as the access request
 		ID:      req.GetResourceID(),
 	}, nil
 }

@@ -3351,8 +3351,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 // GetAccessRequestAllowedPromotions returns a list of roles that the user can
 // promote to, based on the given access requests.
 func (a *ServerWithRoles) GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
-	suggestions, err := a.authServer.GetAccessRequestAllowedPromotions(ctx, req)
-	return suggestions, trace.Wrap(err)
+	promotions, err := a.authServer.GetAccessRequestAllowedPromotions(ctx, req)
+	return promotions, trace.Wrap(err)
 }
 
 // verifyUserDeviceForCertIssuance verifies if the user device is a trusted

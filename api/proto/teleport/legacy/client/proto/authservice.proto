@@ -2327,7 +2327,7 @@ message ExportUpgradeWindowsResponse {
 
 // AccessRequestAllowedPromotionRequest is the request to AccessRequestAllowedPromotion RPC call.
 message AccessRequestAllowedPromotionRequest {
-  // AccessRequest is the access request to get suggestions for.
+  // AccessRequest is the access request to get promotions for.
   string accessRequestID = 1;
 }
 

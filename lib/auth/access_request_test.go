@@ -739,7 +739,7 @@ func TestCreateSuggestions(t *testing.T) {
 
 	const username = "admin"
 
-	// Create the access request, so we can attach the suggestions to it.
+	// Create the access request, so we can attach the promotions to it.
 	adminRequest, err := services.NewAccessRequest(username, "admins")
 	require.NoError(t, err)
 
@@ -747,7 +747,7 @@ func TestCreateSuggestions(t *testing.T) {
 	err = authSrvClient.UpsertAccessRequest(context.Background(), adminRequest)
 	require.NoError(t, err)
 
-	// Create the suggestions.
+	// Create the promotions.
 	err = authSrvClient.UpsertAccessRequestAllowedPromotions(context.Background(), adminRequest, &types.AccessRequestAllowedPromotions{
 		Promotions: []*types.AccessRequestAllowedPromotion{
 			{AccessListName: "a"},
@@ -756,14 +756,14 @@ func TestCreateSuggestions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Get the suggestions and verify them.
-	suggestions, err := authSrvClient.GetAccessRequestAllowedPromotions(context.Background(), adminRequest)
+	// Get the promotions and verify them.
+	promotions, err := authSrvClient.GetAccessRequestAllowedPromotions(context.Background(), adminRequest)
 	require.NoError(t, err)
-	require.Len(t, suggestions.Promotions, 3)
+	require.Len(t, promotions.Promotions, 3)
 	require.Equal(t, []string{"a", "b", "c"},
 		[]string{
-			suggestions.Promotions[0].AccessListName,
-			suggestions.Promotions[1].AccessListName,
-			suggestions.Promotions[2].AccessListName,
+			promotions.Promotions[0].AccessListName,
+			promotions.Promotions[1].AccessListName,
+			promotions.Promotions[2].AccessListName,
 		})
 }

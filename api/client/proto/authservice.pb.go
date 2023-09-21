@@ -13936,7 +13936,7 @@ func (m *ExportUpgradeWindowsResponse) GetSystemdUnitSchedule() string {
 
 // AccessRequestAllowedPromotionRequest is the request to AccessRequestAllowedPromotion RPC call.
 type AccessRequestAllowedPromotionRequest struct {
-	// AccessRequest is the access request to get suggestions for.
+	// AccessRequest is the access request to get promotions for.
 	AccessRequestID      string   `protobuf:"bytes,1,opt,name=accessRequestID,proto3" json:"accessRequestID,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
