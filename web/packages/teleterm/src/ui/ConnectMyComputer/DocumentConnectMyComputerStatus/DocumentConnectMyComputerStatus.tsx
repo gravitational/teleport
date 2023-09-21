@@ -85,7 +85,7 @@ export function DocumentConnectMyComputerStatus() {
     } catch (e) {
       ctx.notificationsService.notifyError({
         title: 'Failed to open agent logs directory',
-        description: e.message,
+        description: `${e.message}\n\nNote: the logs directory is created only after the agent process successfully spawns.`,
       });
     }
   }
