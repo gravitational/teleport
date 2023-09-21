@@ -497,19 +497,14 @@ func descriptionWithoutName(description, name string) string {
 
 const yamlExampleDelimeter string = "Example YAML:\n---\n"
 
-// NewFromDecl creates a Resource object from the provided *GenDecl. filepath is
-// the Go source file where the declaration was made, and is used only for
-// printing. NewFromDecl uses allResources to look up custom fields.
-func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (map[PackageInfo]ReferenceEntry, error) {
-	rs, err := getRawTypes(decl)
-	if err != nil {
-		return nil, err
-	}
-
-	// Add embedded struct fields to the root reference entry generarated
-	// from decl.Remove embedded fields from rs.fields so they
+// handleEmbeddedStructFields finds embedded structs within rt and recursively
+// processes the fields of those structs as though the fields belonged to the
+// containing struct. Uses decl and allDecls to look up fields within the base
+// structs. Returns a modified slice of fields that include all non-embedded
+// fields within rt.
+func handleEmbeddedStructFields(decl DeclarationInfo, rt rawType, allDecls map[PackageInfo]DeclarationInfo) ([]rawField, error) {
 	fieldsToProcess := []rawField{}
-	for _, l := range rs.fields {
+	for _, l := range rt.fields {
 		if l.name != "" {
 			fieldsToProcess = append(fieldsToProcess, l)
 			continue
@@ -539,7 +534,7 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 				l.packageName,
 				c.name,
 				decl.PackageName,
-				rs.name,
+				rt.name,
 			)
 		}
 		e, err := getRawTypes(d)
@@ -548,6 +543,23 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		}
 
 		fieldsToProcess = append(fieldsToProcess, e.fields...)
+	}
+	return fieldsToProcess, nil
+
+}
+
+// NewFromDecl creates a Resource object from the provided *GenDecl. filepath is
+// the Go source file where the declaration was made, and is used only for
+// printing. NewFromDecl uses allResources to look up custom fields.
+func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (map[PackageInfo]ReferenceEntry, error) {
+	rs, err := getRawTypes(decl)
+	if err != nil {
+		return nil, err
+	}
+
+	fieldsToProcess, err := handleEmbeddedStructFields(decl, rs, allDecls)
+	if err != nil {
+		return nil, err
 	}
 
 	// Handle example YAML within the declaration's GoDoc.
