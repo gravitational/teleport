@@ -2030,7 +2030,7 @@ func onLogin(cf *CLIConf) error {
 func onLogout(cf *CLIConf) error {
 	// Extract all clusters the user is currently logged into.
 	active, available, err := cf.FullProfileStatus()
-	if err != nil {
+	if err != nil && !trace.IsCompareFailed(err) {
 		if trace.IsNotFound(err) {
 			fmt.Printf("All users logged out.\n")
 			return nil
@@ -2061,7 +2061,7 @@ func onLogout(cf *CLIConf) error {
 
 		// Load profile for the requested proxy/user.
 		profile, err := tc.ProfileStatus()
-		if err != nil && !trace.IsNotFound(err) {
+		if err != nil && !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
 			return trace.Wrap(err)
 		}
 
@@ -3389,7 +3389,7 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 	profile, profileError := c.GetProfile(c.ClientStore, proxy)
 	if profileError == nil {
 		if err := tc.LoadKeyForCluster(ctx, profile.SiteName); err != nil {
-			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
+			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
 				return nil, trace.Wrap(err)
 			}
 			log.WithError(err).Infof("Could not load key for %s into the local agent.", cf.SiteName)
