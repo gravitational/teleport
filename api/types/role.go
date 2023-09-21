@@ -248,6 +248,9 @@ type Role interface {
 // NewRole constructs new standard V7 role.
 // This creates a V7 role with V4+ RBAC semantics.
 func NewRole(name string, spec RoleSpecV6) (Role, error) {
+	// When incrementing the role version, make sure to update the
+	// role version in the asset file used by the UI.
+	// See: web/packages/teleport/src/Roles/templates/role.yaml
 	role, err := NewRoleWithVersion(name, V7, spec)
 	return role, trace.Wrap(err)
 }
@@ -895,6 +898,9 @@ func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 func (r *RoleV6) setStaticFields() {
 	r.Kind = KindRole
 	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 {
+		// When incrementing the role version, make sure to update the
+		// role version in the asset file used by the UI.
+		// See: web/packages/teleport/src/Roles/templates/role.yaml
 		r.Version = V7
 	}
 }

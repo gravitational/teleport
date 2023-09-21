@@ -5416,9 +5416,19 @@ func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthServic
 
 // AddMFADeviceSync is implemented by AuthService.AddMFADeviceSync.
 func (a *ServerWithRoles) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
-	// The token provides its own authorization and authentication.
-	res, err := a.authServer.AddMFADeviceSync(ctx, req)
-	return res, trace.Wrap(err)
+	switch {
+	case req.TokenID != "":
+	default: // ContextUser
+		if !authz.IsLocalOrRemoteUser(a.context) {
+			return nil, trace.BadParameter("only end users are allowed to register devices using ContextUser")
+		}
+	}
+
+	// The following serve as means of authentication for this RPC:
+	//   - privilege token (or equivalent)
+	//   - authenticated user using non-Proxy identity
+	resp, err := a.authServer.AddMFADeviceSync(ctx, req)
+	return resp, trace.Wrap(err)
 }
 
 // DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
@@ -6224,10 +6234,20 @@ func (a *ServerWithRoles) GetAccountRecoveryToken(ctx context.Context, req *prot
 
 // CreateAuthenticateChallenge is implemented by AuthService.CreateAuthenticateChallenge.
 func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	switch req.GetRequest().(type) {
+	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
+	case *proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:
+	case *proto.CreateAuthenticateChallengeRequest_Passwordless:
+	default: // nil or *proto.CreateAuthenticateChallengeRequest_ContextUser:
+		if !authz.IsLocalOrRemoteUser(a.context) {
+			return nil, trace.BadParameter("only end users are allowed to issue authentication challenges using ContextUser")
+		}
+	}
+
 	// No permission check is required b/c this request verifies request by one of the following:
 	//   - username + password, anyone who has user's password can generate a sign request
 	//   - token provide its own auth
-	//   - the user extracted from context can retrieve their own challenges
+	//   - the user extracted from context can create their own challenges
 	return a.authServer.CreateAuthenticateChallenge(ctx, req)
 }
 
@@ -6238,7 +6258,17 @@ func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.C
 
 // CreateRegisterChallenge is implemented by AuthService.CreateRegisterChallenge.
 func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
-	// The token provides its own authorization and authentication.
+	switch {
+	case req.TokenID != "":
+	case req.ExistingMFAResponse != nil:
+		if !authz.IsLocalOrRemoteUser(a.context) {
+			return nil, trace.BadParameter("only end users are allowed issue registration challenges without a privilege token")
+		}
+	}
+
+	// The following serve as means of authentication for this RPC:
+	//   - privilege token (or equivalent)
+	//   - authenticated user using non-Proxy identity
 	return a.authServer.CreateRegisterChallenge(ctx, req)
 }
 

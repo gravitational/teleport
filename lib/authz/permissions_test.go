@@ -725,6 +725,89 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 	}
 }
 
+func TestIsUserFunctions(t *testing.T) {
+	localIdentity := Context{Identity: LocalUser{}}
+	remoteIdentity := Context{Identity: RemoteUser{}}
+	systemIdentity := Context{
+		Identity: BuiltinRole{
+			Role: types.RoleProxy,
+		},
+	}
+
+	tests := []struct {
+		funcName, scenario string
+		isUserFunc         func(Context) bool
+		authCtx            Context
+		want               bool
+	}{
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "local user",
+			isUserFunc: IsLocalUser,
+			authCtx:    localIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "remote user",
+			isUserFunc: IsLocalUser,
+			authCtx:    remoteIdentity,
+		},
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "system user",
+			isUserFunc: IsLocalUser,
+			authCtx:    systemIdentity,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "local user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    localIdentity,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "remote user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    remoteIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "system user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    systemIdentity,
+		},
+
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "local user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    localIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "remote user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    remoteIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "system user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    systemIdentity,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.funcName+"/"+test.scenario, func(t *testing.T) {
+			got := test.isUserFunc(test.authCtx)
+			assert.Equal(t, test.want, got, "%s mismatch", test.funcName)
+		})
+	}
+}
+
 // fakeCtxUser is used for auth.Context tests.
 type fakeCtxUser struct {
 	types.User

@@ -419,6 +419,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Log:         log,
 		AccessLists: services,
 		Access:      services,
+		UsageEvents: &as,
 		Clock:       cfg.Clock,
 	})
 	if err != nil {
@@ -1331,9 +1332,6 @@ func (a *Server) updateVersionMetrics() {
 	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
 		versionCount[handle.Hello().Version]++
 	})
-
-	// record version for **THIS** auth server
-	versionCount[teleport.Version]++
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgents.Reset()
@@ -2843,31 +2841,50 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 // CreateRegisterChallenge implements AuthService.CreateRegisterChallenge.
 func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
-	token, err := a.GetUserToken(ctx, req.GetTokenID())
-	if err != nil {
-		log.Error(trace.DebugReport(err))
-		return nil, trace.AccessDenied("invalid token")
-	}
+	var token types.UserToken
+	var username string
+	switch {
+	case req.TokenID != "": // Web UI or account recovery flows.
+		var err error
+		token, err = a.GetUserToken(ctx, req.GetTokenID())
+		if err != nil {
+			log.Error(trace.DebugReport(err))
+			return nil, trace.AccessDenied("invalid token")
+		}
 
-	allowedTokenTypes := []string{
-		UserTokenTypePrivilege,
-		UserTokenTypePrivilegeException,
-		UserTokenTypeResetPassword,
-		UserTokenTypeResetPasswordInvite,
-		UserTokenTypeRecoveryApproved,
-	}
+		allowedTokenTypes := []string{
+			UserTokenTypePrivilege,
+			UserTokenTypePrivilegeException,
+			UserTokenTypeResetPassword,
+			UserTokenTypeResetPasswordInvite,
+			UserTokenTypeRecoveryApproved,
+		}
+		if err := a.verifyUserToken(token, allowedTokenTypes...); err != nil {
+			return nil, trace.AccessDenied("invalid token")
+		}
+		username = token.GetUser()
 
-	if err := a.verifyUserToken(token, allowedTokenTypes...); err != nil {
-		return nil, trace.AccessDenied("invalid token")
+	case req.ExistingMFAResponse != nil: // Authenticated user without token, tsh.
+		var err error
+		username, err = authz.GetClientUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if _, err := a.validateMFAAuthResponseForRegister(ctx, req.ExistingMFAResponse, username, false /* passwordless */); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	default:
+		return nil, trace.BadParameter("either a token or an MFA response are required")
 	}
 
 	regChal, err := a.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
-		username:    token.GetUser(),
+		username:    username,
 		token:       token,
 		deviceType:  req.GetDeviceType(),
 		deviceUsage: req.GetDeviceUsage(),
 	})
-
 	return regChal, trace.Wrap(err)
 }
 
@@ -3098,27 +3115,39 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 // AddMFADeviceSync implements AuthService.AddMFADeviceSync.
 func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
-	privilegeToken, err := a.GetUserToken(ctx, req.GetTokenID())
-	if err != nil {
-		log.Error(trace.DebugReport(err))
-		return nil, trace.AccessDenied("invalid token")
-	}
+	var token, username string
+	switch {
+	case req.GetTokenID() != "":
+		privilegeToken, err := a.GetUserToken(ctx, req.GetTokenID())
+		if err != nil {
+			log.Error(trace.DebugReport(err))
+			return nil, trace.AccessDenied("invalid token")
+		}
 
-	if err := a.verifyUserToken(privilegeToken, UserTokenTypePrivilege, UserTokenTypePrivilegeException); err != nil {
-		return nil, trace.Wrap(err)
+		if err := a.verifyUserToken(privilegeToken, UserTokenTypePrivilege, UserTokenTypePrivilegeException); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		token = privilegeToken.GetName()
+		username = privilegeToken.GetUser()
+
+	default: // ContextUser
+		var err error
+		username, err = authz.GetClientUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	dev, err := a.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
-		username:      privilegeToken.GetUser(),
+		username:      username,
 		newDeviceName: req.GetNewDeviceName(),
-		tokenID:       privilegeToken.GetName(),
+		tokenID:       token,
 		deviceResp:    req.GetNewMFAResponse(),
 		deviceUsage:   req.DeviceUsage,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &proto.AddMFADeviceSyncResponse{Device: dev}, nil
 }
 
@@ -5319,6 +5348,40 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 		}
 	}
 	return res
+}
+
+// validateMFAAuthResponseForRegister is akin to [validateMFAAuthResponse], but
+// it allows users with no devices to supply a nil/empty response.
+//
+// The hasDevices response value can only be trusted in the absence of errors.
+//
+// Use only for registration purposes.
+func (a *Server) validateMFAAuthResponseForRegister(
+	ctx context.Context,
+	resp *proto.MFAAuthenticateResponse, username string, passwordless bool,
+) (hasDevices bool, err error) {
+	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil) {
+		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
+		switch {
+		case err != nil:
+			return false, trace.Wrap(err)
+		case len(devices) > 0:
+			return false, trace.BadParameter("second factor authentication required")
+		}
+
+		// Allowed, but no devices registered.
+		return false, nil
+	}
+
+	if err := a.WithUserLock(username, func() error {
+		_, _, err := a.validateMFAAuthResponse(
+			ctx, resp, username, false /* passwordless */)
+		return err
+	}); err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return true, nil
 }
 
 // validateMFAAuthResponse validates an MFA or passwordless challenge.

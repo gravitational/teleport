@@ -63,6 +63,21 @@ export const makeRootCluster = (
   proxyHost: 'teleport-local:3080',
   authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
   loggedInUser: makeLoggedInUser(),
+  proxyVersion: '1.0.0',
+  ...props,
+});
+
+export const makeLeafCluster = (
+  props: Partial<tsh.Cluster> = {}
+): tsh.Cluster => ({
+  uri: '/clusters/teleport-local/leaves/leaf',
+  name: 'teleport-local-leaf',
+  connected: true,
+  leaf: true,
+  proxyHost: '',
+  authClusterId: '',
+  loggedInUser: makeLoggedInUser(),
+  proxyVersion: '',
   ...props,
 });
 

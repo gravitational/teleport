@@ -25,6 +25,7 @@ import { staticConfig } from 'teleterm/staticConfig';
 
 import { GrpcServerAddresses, RuntimeSettings } from './types';
 import { loadInstallationId } from './loadInstallationId';
+import { getAgentsDir } from './createAgentConfigFile';
 
 const { argv, env } = process;
 
@@ -64,6 +65,8 @@ export function getRuntimeSettings(): RuntimeSettings {
   // Before switching to the recommended path, we need to investigate the impact of this change.
   // https://www.electronjs.org/docs/latest/api/app#appgetpathname
   const logsDir = path.join(userDataDir, 'logs');
+  // DO NOT expose agentsDir through RuntimeSettings. See the comment in getAgentsDir.
+  const agentsDir = getAgentsDir(userDataDir);
 
   const tshd = {
     insecure: isInsecure,
@@ -79,6 +82,7 @@ export function getRuntimeSettings(): RuntimeSettings {
       `--certs-dir=${getCertsDir()}`,
       `--prehog-addr=${staticConfig.prehogAddress}`,
       `--kubeconfigs-dir=${kubeConfigsDir}`,
+      `--agents-dir=${agentsDir}`,
     ],
   };
   const sharedProcess = {
