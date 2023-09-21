@@ -54,6 +54,7 @@ import {
 import { Database } from 'teleport/services/databases';
 
 import { ResourceActionButton } from './ResourceActionButton';
+import { resourceName } from './Resources';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -321,13 +322,6 @@ function CopyButton({ name }: { name: string }) {
       </ButtonIcon>
     </HoverTooltip>
   );
-}
-
-export function resourceName(resource: UnifiedResource) {
-  if (resource.kind === 'app' && resource.friendlyName) {
-    return resource.friendlyName;
-  }
-  return resource.kind === 'node' ? resource.hostname : resource.name;
 }
 
 function resourceDescription(resource: UnifiedResource) {

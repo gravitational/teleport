@@ -1332,9 +1332,6 @@ func (a *Server) updateVersionMetrics() {
 		versionCount[handle.Hello().Version]++
 	})
 
-	// record version for **THIS** auth server
-	versionCount[teleport.Version]++
-
 	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgents.Reset()
 	for version, count := range versionCount {
