@@ -40,7 +40,7 @@ There are two types of policies you can use to control moderated sessions:
 - **Allow** policies define what sessions users can join and under what conditions 
   they can join a session.
 
-## Configure a require policy for moderated sessions
+## Configure a require policy
 
 You can use `require_session_join` in a role to set of conditions that must be a met for 
 a session to start or run. For example, the following policy specifies that users assigned
@@ -95,7 +95,31 @@ The following are required fields for `require_session_join`:
 |`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
 |`count`|Integer|The number of users that need to match the filter expression to satisfy the policy|
 
-### Require policy count
+#### Require filter expressions
+
+Filter expressions allow for more detailed control over the scope of a policy.
+For example, rcequire policies can specify which users they consider as valid with a filter
+expression. The filter context has a `user` object defined with the set fields
+`roles` and `name`.
+
+In the following example, the filter expression evaluates to true if the user is
+Adam or if the user has the trait `cs-observe`:
+
+```
+equals(user.name, "adam") || contains(user.spec.roles, "cs-observe")
+```
+
+Filter expressions support the following functions and operators:
+
+- `contains(set, item)`: Returns true if the item is in the set, otherwise
+  false. The set can be a string or an array.
+- `equals(a, b)`: Returns true if the two values are equal, otherwise returns
+  false.
+- `![expr]`: Negates a boolean expression.
+- `[expr] && [expr]`: Performs a logical AND on two boolean expressions.
+- `[expr] || [expr]`: Performs a logical OR on two boolean expressions.
+
+#### Require policy count
 
 Require policies can have a variable amount of users that need to match the
 filter expression in order to satisfy the policy. The `count` field of a require
@@ -131,7 +155,7 @@ The authorizer applies require policies within a role together with an OR operat
 from each role with an AND operator. In practice, this means that for every role with at least one 
 require policy, one of its policies must be met before a session can be started.
 
-## Configure an allow policy for moderated sessions
+## Configure an allow policy
 
 You can use `join_sessions` in a role to specify the sessions users can join and under what conditions 
 they can join a session. For example, the following policy is attached to the role `auditor` and allows 
@@ -225,7 +249,7 @@ You can leave a session with the shortcut `^c` (Control + c) while in observer o
 moderator mode. In moderator mode, you can also forcefully terminate the session 
 at any point in time with the shortcut `t`.
 
-## Filters
+## Filter expressions
 
 Filter expressions allow for more detailed control over the scope of an allow 
 or require policy.
