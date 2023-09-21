@@ -183,8 +183,6 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] tsh ssh \<agentless-node-remote-cluster\> ls
   - [ ] tsh join \<regular-node\>
   - [ ] tsh join \<node-remote-cluster\>
-  - [ ] tsh join \<agentless-node\>
-  - [ ] tsh join \<agentless-node-remote-cluster\>
   - [ ] tsh play \<regular-node\>
   - [ ] tsh play \<node-remote-cluster\>
   - [ ] tsh play \<agentless-node\>
@@ -904,6 +902,7 @@ tsh bench web sessions --max=5000 --web user ls
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Azure SQL Server.
   - [ ] Oracle.
+  - [ ] ClickHouse.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
@@ -933,6 +932,10 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Dynamodb.
   - [ ] Azure SQL Server.
   - [ ] Oracle.
+  - [ ] ClickHouse.
+- [ ] Verify auto user provisioning.
+  - [ ] Self-hosted Postgres.
+  - [ ] AWS RDS Postgres.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.

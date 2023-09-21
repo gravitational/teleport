@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout base
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           ref: ${{ github.event.push.before }}
 
@@ -37,7 +37,7 @@ jobs:
         uses: ./.github/actions/prepare-workspace
 
       - name: Checkout shared-workflow
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
@@ -62,7 +62,7 @@ jobs:
         name: Build base
         id: build_base
         run: |
-          make BUILDDIR=base_build full
+          make WEBASSETS_SKIP_BUILD=1 BUILDDIR=base_build binaries
           cd .github/shared-workflows/bot && go run main.go -workflow=binary-sizes --artifacts="tbot,tctl,teleport,tsh" --builddir="../../../base_build" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"  >> ~/teleport_base_build_stats
           echo "base_stats_file=~/teleport_base_build_stats" >> $GITHUB_OUTPUT
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
@@ -82,13 +82,13 @@ jobs:
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
 
       - name: Checkout branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           clean: false
           ref: ${{ github.event.push.after }}
 
       - name: Checkout shared-workflow
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
@@ -97,7 +97,7 @@ jobs:
       - name: Build Binaries
         id: build_branch
         run: |
-          BUILD_SECRET=FAKE_SECRET make full
+          BUILD_SECRET=FAKE_SECRET make WEBASSETS_SKIP_BUILD=1 binaries
       - name: Check for Environment Leak
         id: check_branch_env_leak
         run: |

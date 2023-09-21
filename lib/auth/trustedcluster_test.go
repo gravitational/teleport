@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 )
@@ -390,6 +392,21 @@ func TestValidateTrustedCluster(t *testing.T) {
 			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
 			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
 		)
+	})
+
+	t.Run("trusted clusters prevented on cloud", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestFeatures: modules.Features{Cloud: true},
+		})
+
+		req := &ValidateTrustedClusterRequest{
+			Token: "invalidtoken",
+			CAs:   []types.CertAuthority{},
+		}
+
+		server := ServerWithRoles{authServer: a}
+		_, err := server.ValidateTrustedCluster(ctx, req)
+		require.True(t, trace.IsNotImplemented(err), "ValidateTrustedCluster returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
 	})
 }
 

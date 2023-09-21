@@ -24,6 +24,7 @@ import {
   Link,
   MenuItem,
   Text,
+  ButtonSecondary,
 } from 'design';
 import styled, { css } from 'styled-components';
 import { Transition } from 'react-transition-group';
@@ -38,11 +39,10 @@ import {
   CurrentAction,
   useConnectMyComputerContext,
 } from 'teleterm/ui/ConnectMyComputer';
-import Document from 'teleterm/ui/Document';
-import * as types from 'teleterm/ui/services/workspacesService';
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
+import { connectToServer } from 'teleterm/ui/services/workspacesService';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
@@ -50,39 +50,30 @@ import { Logs } from '../Logs';
 import type * as tsh from 'teleterm/services/tshd/types';
 import type { IconProps } from 'design/Icon/Icon';
 
-interface DocumentConnectMyComputerStatusProps {
-  visible: boolean;
-  doc: types.DocumentConnectMyComputerStatus;
-}
-
-// When the documents are reopened, doc.connect_my_computer_status is replaced
-// with doc.connect_my_computer_setup.
-// This is needed to prevent showing the status document when the agent is not configured
-// (or its configuration has been removed).
-//
-// Then we check if the agent is configured, and if it is, we replace setup
-// with the status document.
-export function DocumentConnectMyComputerStatus(
-  props: DocumentConnectMyComputerStatusProps
-) {
+// TODO(gzdunek): Rename to `Status`
+export function DocumentConnectMyComputerStatus() {
+  const ctx = useAppContext();
   const {
     currentAction,
     agentNode,
     downloadAndStartAgent,
     killAgent,
     isAgentConfiguredAttempt,
+    markAgentAsNotConfigured,
   } = useConnectMyComputerContext();
-  const { documentsService, rootClusterUri } = useWorkspaceContext();
   const { roleName, systemUsername, hostname } = useAgentProperties();
 
   const prettyCurrentAction = prettifyCurrentAction(currentAction);
 
-  function replaceWithSetupDocument(): void {
-    documentsService.replace(
-      props.doc.uri,
-      documentsService.createConnectMyComputerSetupDocument({
-        rootClusterUri,
-      })
+  function replaceWithSetup(): void {
+    markAgentAsNotConfigured();
+  }
+
+  function startSshSession(): void {
+    connectToServer(
+      ctx,
+      { uri: agentNode.uri, hostname, login: systemUsername },
+      { origin: 'resource_table' }
     );
   }
 
@@ -99,117 +90,129 @@ export function DocumentConnectMyComputerStatus(
     currentAction.kind === 'start' &&
     currentAction.attempt.status === 'processing';
 
-  const showDisconnectButton = isRunning || isKilling;
-  const disableDisconnectButton = isKilling;
-  const disableConnectButton = isDownloading || isStarting;
+  const showConnectAndStopAgentButtons = isRunning || isKilling;
+  const disableConnectAndStopAgentButtons = isKilling;
+  const disableStartAgentButton = isDownloading || isStarting;
 
   return (
-    <Document visible={props.visible}>
-      <Box maxWidth="590px" mx="auto" mt="4" px="5" width="100%">
-        {isAgentConfiguredAttempt.status === 'error' && (
-          <Alert
+    <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
+      {isAgentConfiguredAttempt.status === 'error' && (
+        <Alert
+          css={`
+            display: block;
+          `}
+        >
+          An error occurred while reading the agent config file:{' '}
+          {isAgentConfiguredAttempt.statusText}. <br />
+          You can try to{' '}
+          <Link
+            onClick={replaceWithSetup}
             css={`
-              display: block;
+              cursor: pointer;
             `}
           >
-            An error occurred while reading the agent config file:{' '}
-            {isAgentConfiguredAttempt.statusText}. <br />
-            You can try to{' '}
-            <Link
-              onClick={replaceWithSetupDocument}
-              css={`
-                cursor: pointer;
-              `}
-            >
-              run the setup
-            </Link>{' '}
-            again.
-          </Alert>
-        )}
-        <Flex justifyContent="space-between" mb={3}>
-          <Text
-            typography="h3"
-            css={`
-              display: flex;
-            `}
-          >
-            <Laptop mr={2} />
-            {/** The node name can be changed, so it might be different from the system hostname. */}
-            {agentNode?.hostname || hostname}
-          </Text>
-          <MenuIcon
-            buttonIconProps={{
-              css: css`
-                border-radius: ${props => props.theme.space[1]}px;
-                background: ${props => props.theme.colors.spotBackground[0]};
-              `,
-            }}
-            menuProps={{
-              anchorOrigin: {
-                vertical: 'bottom',
-                horizontal: 'right',
-              },
-              transformOrigin: {
-                vertical: 'top',
-                horizontal: 'right',
-              },
-            }}
-          >
-            <MenuItem onClick={() => alert('Not implemented')}>
-              Remove agent
-            </MenuItem>
-          </MenuIcon>
-        </Flex>
-
-        <Transition in={!!agentNode} timeout={1_800} mountOnEnter unmountOnExit>
-          {state => (
-            <LabelsContainer gap={1} className={state}>
-              {renderLabels(agentNode.labelsList)}
-            </LabelsContainer>
-          )}
-        </Transition>
-        <Flex mt={3} mb={2} gap={1} display="flex" alignItems="center">
-          {prettyCurrentAction.Icon && (
-            <prettyCurrentAction.Icon size="medium" />
-          )}
-          {prettyCurrentAction.title}
-        </Flex>
-        {prettyCurrentAction.error && (
-          <Alert
-            css={`
-              white-space: pre-wrap;
-            `}
-          >
-            {prettyCurrentAction.error}
-          </Alert>
-        )}
-        {prettyCurrentAction.logs && <Logs logs={prettyCurrentAction.logs} />}
-        <Text mb={4} mt={1}>
-          Connecting your computer will allow any cluster user with the role{' '}
-          <strong>{roleName}</strong> to access it as an SSH resource with the
-          user <strong>{systemUsername}</strong>.
+            run the setup
+          </Link>{' '}
+          again.
+        </Alert>
+      )}
+      <Flex justifyContent="space-between" mb={3}>
+        <Text
+          typography="h3"
+          css={`
+            display: flex;
+          `}
+        >
+          <Laptop mr={2} />
+          {/** The node name can be changed, so it might be different from the system hostname. */}
+          {agentNode?.hostname || hostname}
         </Text>
-        {showDisconnectButton ? (
-          <ButtonPrimary
-            block
-            disabled={disableDisconnectButton}
-            onClick={killAgent}
-            size="large"
-          >
-            Disconnect
-          </ButtonPrimary>
-        ) : (
-          <ButtonPrimary
-            block
-            disabled={disableConnectButton}
-            onClick={downloadAndStartAgent}
-            size="large"
-          >
-            Connect
-          </ButtonPrimary>
+        <MenuIcon
+          buttonIconProps={{
+            css: css`
+              border-radius: ${props => props.theme.space[1]}px;
+              background: ${props => props.theme.colors.spotBackground[0]};
+            `,
+          }}
+          menuProps={{
+            anchorOrigin: {
+              vertical: 'bottom',
+              horizontal: 'right',
+            },
+            transformOrigin: {
+              vertical: 'top',
+              horizontal: 'right',
+            },
+          }}
+        >
+          <MenuItem onClick={() => alert('Not implemented')}>
+            Remove agent
+          </MenuItem>
+        </MenuIcon>
+      </Flex>
+
+      <Transition in={!!agentNode} timeout={1_800} mountOnEnter unmountOnExit>
+        {state => (
+          <LabelsContainer gap={1} className={state}>
+            {renderLabels(agentNode.labelsList)}
+          </LabelsContainer>
         )}
-      </Box>
-    </Document>
+      </Transition>
+      <Flex
+        mt={3}
+        mb={2}
+        gap={1}
+        display="flex"
+        alignItems="center"
+        minHeight="32px"
+      >
+        {prettyCurrentAction.Icon && <prettyCurrentAction.Icon size="medium" />}
+        {prettyCurrentAction.title}
+        {showConnectAndStopAgentButtons && (
+          <ButtonSecondary
+            onClick={killAgent}
+            disabled={disableConnectAndStopAgentButtons}
+            ml={3}
+          >
+            Stop Agent
+          </ButtonSecondary>
+        )}
+      </Flex>
+      {prettyCurrentAction.error && (
+        <Alert
+          css={`
+            white-space: pre-wrap;
+          `}
+        >
+          {prettyCurrentAction.error}
+        </Alert>
+      )}
+      {prettyCurrentAction.logs && <Logs logs={prettyCurrentAction.logs} />}
+      <Text mb={4} mt={1}>
+        Connecting your computer will allow any cluster user with the role{' '}
+        <strong>{roleName}</strong> to access it as an SSH resource with the
+        user <strong>{systemUsername}</strong>.
+      </Text>
+      {showConnectAndStopAgentButtons ? (
+        <ButtonPrimary
+          block
+          disabled={disableConnectAndStopAgentButtons}
+          onClick={startSshSession}
+          size="large"
+        >
+          Connect
+        </ButtonPrimary>
+      ) : (
+        <ButtonPrimary
+          block
+          disabled={disableStartAgentButton}
+          onClick={downloadAndStartAgent}
+          size="large"
+        >
+          Start Agent
+        </ButtonPrimary>
+      )}
+    </Box>
   );
 }
 
@@ -255,7 +258,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
           return noop; // noop, not used, at this point it should be start processing.
         }
         default: {
-          return assertUnreachable(currentAction.attempt.status);
+          return assertUnreachable(currentAction.attempt);
         }
       }
     }
@@ -269,7 +272,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
           };
         }
         case 'error': {
-          if (currentAction.attempt.statusText !== AgentProcessError.name) {
+          if (!(currentAction.attempt.error instanceof AgentProcessError)) {
             return {
               Icon: StyledWarning,
               title: 'Failed to start agent',
@@ -303,7 +306,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
           return noop; // noop, not used, at this point it should be observe-process running.
         }
         default: {
-          return assertUnreachable(currentAction.attempt.status);
+          return assertUnreachable(currentAction.attempt);
         }
       }
       break;
@@ -374,7 +377,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
           return noop; // noop, not used, at this point it should be observe-process exited.
         }
         default: {
-          return assertUnreachable(currentAction.attempt.status);
+          return assertUnreachable(currentAction.attempt);
         }
       }
     }

@@ -535,6 +535,38 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_OktaAssignmentResult{
 			OktaAssignmentResult: e,
 		}
+	case *AccessListCreate:
+		out.Event = &OneOf_AccessListCreate{
+			AccessListCreate: e,
+		}
+	case *AccessListUpdate:
+		out.Event = &OneOf_AccessListUpdate{
+			AccessListUpdate: e,
+		}
+	case *AccessListDelete:
+		out.Event = &OneOf_AccessListDelete{
+			AccessListDelete: e,
+		}
+	case *AccessListReview:
+		out.Event = &OneOf_AccessListReview{
+			AccessListReview: e,
+		}
+	case *AccessListMemberCreate:
+		out.Event = &OneOf_AccessListMemberCreate{
+			AccessListMemberCreate: e,
+		}
+	case *AccessListMemberUpdate:
+		out.Event = &OneOf_AccessListMemberUpdate{
+			AccessListMemberUpdate: e,
+		}
+	case *AccessListMemberDelete:
+		out.Event = &OneOf_AccessListMemberDelete{
+			AccessListMemberDelete: e,
+		}
+	case *AccessListMemberDeleteAllForAccessList:
+		out.Event = &OneOf_AccessListMemberDeleteAllForAccessList{
+			AccessListMemberDeleteAllForAccessList: e,
+		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
 		unknown := &Unknown{}

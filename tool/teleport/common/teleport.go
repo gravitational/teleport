@@ -29,6 +29,8 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	awsConfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -454,6 +456,22 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEICECmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Region)
 	integrationConfEICECmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Role)
 
+	integrationConfAWSOIDCIdPCmd := integrationConfigureCmd.Command("awsoidc-idp", "Creates an IAM IdP (OIDC) in your AWS account to allow the AWS OIDC Integration to access AWS APIs.")
+	integrationConfAWSOIDCIdPCmd.Flag("cluster", "Teleport Cluster name.").Required().StringVar(&ccf.
+		IntegrationConfAWSOIDCIdPArguments.Cluster)
+	integrationConfAWSOIDCIdPCmd.Flag("name", "Integration name.").Required().StringVar(&ccf.
+		IntegrationConfAWSOIDCIdPArguments.Name)
+	integrationConfAWSOIDCIdPCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.
+		IntegrationConfAWSOIDCIdPArguments.Region)
+	integrationConfAWSOIDCIdPCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.
+		IntegrationConfAWSOIDCIdPArguments.Role)
+	integrationConfAWSOIDCIdPCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").Required().StringVar(&ccf.
+		IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL)
+
+	integrationConfListDatabasesCmd := integrationConfigureCmd.Command("listdatabases-iam", "Adds required IAM permissions to List RDS Databases (Instances and Clusters)")
+	integrationConfListDatabasesCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Region)
+	integrationConfListDatabasesCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Role)
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -543,6 +561,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onIntegrationConfDeployService(ccf.IntegrationConfDeployServiceIAMArguments)
 	case integrationConfEICECmd.FullCommand():
 		err = onIntegrationConfEICEIAM(ccf.IntegrationConfEICEIAMArguments)
+	case integrationConfAWSOIDCIdPCmd.FullCommand():
+		err = onIntegrationConfAWSOIDCIdP(ccf.IntegrationConfAWSOIDCIdPArguments)
+	case integrationConfListDatabasesCmd.FullCommand():
+		err = onIntegrationConfListDatabasesIAM(ccf.IntegrationConfListDatabasesIAMArguments)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -908,6 +930,57 @@ func onIntegrationConfEICEIAM(params config.IntegrationConfEICEIAM) error {
 	}
 
 	err = awsoidc.ConfigureEICEIAM(ctx, iamClient, awsoidc.EICEIAMConfigureRequest{
+		Region:          params.Region,
+		IntegrationRole: params.Role,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error {
+	ctx := context.Background()
+
+	iamClient, err := awsoidc.NewIdPIAMConfigureClient(ctx, params.Region)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = awsoidc.ConfigureIdPIAM(ctx, iamClient, awsoidc.IdPIAMConfigureRequest{
+		Cluster:            params.Cluster,
+		IntegrationName:    params.Name,
+		Region:             params.Region,
+		IntegrationRole:    params.Role,
+		ProxyPublicAddress: params.ProxyPublicURL,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabasesIAM) error {
+	ctx := context.Background()
+
+	// Ensure we show progress to the user.
+	// LogLevel at this point is set to Error.
+	log.SetLevel(log.InfoLevel)
+
+	if params.Region == "" {
+		return trace.BadParameter("region is required")
+	}
+
+	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	iamClient := iam.NewFromConfig(cfg)
+
+	err = awsoidc.ConfigureListDatabasesIAM(ctx, iamClient, awsoidc.ConfigureIAMListDatabasesRequest{
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 	})

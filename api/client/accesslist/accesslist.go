@@ -87,7 +87,7 @@ func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.Ac
 		return nil, trace.Wrap(err)
 	}
 
-	accessList, err := conv.FromProto(resp)
+	accessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
 	return accessList, trace.Wrap(err)
 }
 
@@ -128,9 +128,9 @@ func (c *Client) ListAccessListMembers(ctx context.Context, accessList string, p
 	}
 
 	members = make([]*accesslist.AccessListMember, len(resp.Members))
-	for i, accessList := range resp.Members {
+	for i, member := range resp.Members {
 		var err error
-		members[i], err = conv.FromMemberProto(accessList)
+		members[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -149,7 +149,7 @@ func (c *Client) GetAccessListMember(ctx context.Context, accessList string, mem
 		return nil, trace.Wrap(err)
 	}
 
-	member, err := conv.FromMemberProto(resp)
+	member, err := conv.FromMemberProto(resp, conv.WithMemberIneligibleStatusField(resp))
 	return member, trace.Wrap(err)
 }
 

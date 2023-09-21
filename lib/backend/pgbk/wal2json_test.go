@@ -109,11 +109,10 @@ func TestMessage(t *testing.T) {
 	t.Parallel()
 
 	s := func(s string) *string { return &s }
+	rev := uuid.New()
 
 	m := &wal2jsonMessage{
 		Action: "I",
-		Schema: "public",
-		Table:  "kv",
 		Columns: []wal2jsonColumn{
 			{Name: "key", Type: "bytea", Value: s("")},
 			{Name: "expires", Type: "bytea", Value: s("")},
@@ -125,15 +124,8 @@ func TestMessage(t *testing.T) {
 	_, err := m.Events()
 	require.ErrorContains(t, err, "missing column")
 
-	m.Table = "notkv"
-	evs, err := m.Events()
-	require.NoError(t, err)
-	require.Empty(t, evs)
-
 	m = &wal2jsonMessage{
 		Action: "I",
-		Schema: "public",
-		Table:  "kv",
 		Columns: []wal2jsonColumn{
 			{Name: "key", Type: "bytea", Value: s("")},
 			{Name: "value", Type: "bytea", Value: s("")},
@@ -147,36 +139,29 @@ func TestMessage(t *testing.T) {
 
 	m = &wal2jsonMessage{
 		Action: "I",
-		Schema: "public",
-		Table:  "kv",
 		Columns: []wal2jsonColumn{
 			{Name: "key", Type: "bytea", Value: s("666f6f")},
 			{Name: "value", Type: "bytea", Value: s("")},
 			{Name: "expires", Type: "timestamp with time zone", Value: nil},
-			{Name: "revision", Type: "uuid", Value: s(uuid.NewString())},
+			{Name: "revision", Type: "uuid", Value: s(rev.String())},
 		},
 		Identity: []wal2jsonColumn{},
 	}
-	evs, err = m.Events()
+	evs, err := m.Events()
 	require.NoError(t, err)
 	require.Len(t, evs, 1)
 	require.Empty(t, cmp.Diff(evs[0], backend.Event{
 		Type: types.OpPut,
 		Item: backend.Item{
-			Key:   []byte("foo"),
-			Value: []byte(""),
+			Key:      []byte("foo"),
+			Value:    []byte(""),
+			ID:       idFromRevision(rev),
+			Revision: revisionToString(rev),
 		},
 	}))
 
-	m.Table = "notkv"
-	evs, err = m.Events()
-	require.NoError(t, err)
-	require.Empty(t, evs)
-
 	m = &wal2jsonMessage{
 		Action: "U",
-		Schema: "public",
-		Table:  "kv",
 		Columns: []wal2jsonColumn{
 			{Name: "value", Type: "bytea", Value: s("666f6f32")},
 			{Name: "expires", Type: "timestamp with time zone", Value: nil},
@@ -184,7 +169,7 @@ func TestMessage(t *testing.T) {
 		Identity: []wal2jsonColumn{
 			{Name: "key", Type: "bytea", Value: s("666f6f")},
 			{Name: "value", Type: "bytea", Value: s("")},
-			{Name: "revision", Type: "uuid", Value: s(uuid.NewString())},
+			{Name: "revision", Type: "uuid", Value: s(rev.String())},
 		},
 	}
 	evs, err = m.Events()
@@ -193,15 +178,15 @@ func TestMessage(t *testing.T) {
 	require.Empty(t, cmp.Diff(evs[0], backend.Event{
 		Type: types.OpPut,
 		Item: backend.Item{
-			Key:   []byte("foo"),
-			Value: []byte("foo2"),
+			Key:      []byte("foo"),
+			Value:    []byte("foo2"),
+			ID:       idFromRevision(rev),
+			Revision: revisionToString(rev),
 		},
 	}))
 
 	m = &wal2jsonMessage{
 		Action: "U",
-		Schema: "public",
-		Table:  "kv",
 		Columns: []wal2jsonColumn{
 			{Name: "key", Type: "bytea", Value: s("666f6f32")},
 			{Name: "value", Type: "bytea", Value: s("666f6f32")},
@@ -213,7 +198,7 @@ func TestMessage(t *testing.T) {
 		Identity: []wal2jsonColumn{
 			{Name: "key", Type: "bytea", Value: s("666f6f")},
 			{Name: "value", Type: "bytea", Value: s("")},
-			{Name: "revision", Type: "uuid", Value: s(uuid.NewString())},
+			{Name: "revision", Type: "uuid", Value: s(rev.String())},
 		},
 	}
 	evs, err = m.Events()
@@ -228,16 +213,16 @@ func TestMessage(t *testing.T) {
 	require.Empty(t, cmp.Diff(evs[1], backend.Event{
 		Type: types.OpPut,
 		Item: backend.Item{
-			Key:     []byte("foo2"),
-			Value:   []byte("foo2"),
-			Expires: time.Date(2023, 9, 5, 15, 57, 1, 340426000, time.UTC),
+			Key:      []byte("foo2"),
+			Value:    []byte("foo2"),
+			Expires:  time.Date(2023, 9, 5, 15, 57, 1, 340426000, time.UTC),
+			ID:       idFromRevision(rev),
+			Revision: revisionToString(rev),
 		},
 	}))
 
 	m = &wal2jsonMessage{
 		Action: "U",
-		Schema: "public",
-		Table:  "kv",
 		Columns: []wal2jsonColumn{
 			{Name: "value", Type: "bytea", Value: s("666f6f32")},
 		},
@@ -253,8 +238,6 @@ func TestMessage(t *testing.T) {
 
 	m = &wal2jsonMessage{
 		Action: "D",
-		Schema: "public",
-		Table:  "kv",
 		Identity: []wal2jsonColumn{
 			{Name: "key", Type: "bytea", Value: s("666f6f")},
 			{Name: "value", Type: "bytea", Value: s("")},

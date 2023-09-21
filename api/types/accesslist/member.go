@@ -54,6 +54,9 @@ type AccessListMemberSpec struct {
 
 	// added_by is the user that added this user to the access list.
 	AddedBy string `json:"added_by" yaml:"added_by"`
+
+	// IneligibleStatus describes the reason why this member is not eligible.
+	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 }
 
 // NewAccessListMember will create a new access listm member.

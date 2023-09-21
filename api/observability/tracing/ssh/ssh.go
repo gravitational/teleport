@@ -37,9 +37,11 @@ const (
 	EnvsRequest = "envs@goteleport.com"
 
 	// TracingRequest is sent by clients to server to pass along tracing context.
+	// TODO(tross): DELETE in 15.0.0
 	TracingRequest = "tracing@goteleport.com"
 
 	// TracingChannel is a SSH channel used to indicate that servers support tracing.
+	// TODO(tross): DELETE in 15.0.0
 	TracingChannel = "tracing"
 
 	// instrumentationName is the name of this instrumentation package.

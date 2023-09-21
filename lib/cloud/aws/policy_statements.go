@@ -16,6 +16,8 @@ limitations under the License.
 
 package aws
 
+import "fmt"
+
 var (
 	allResources = []string{"*"}
 )
@@ -122,6 +124,38 @@ func StatementForEC2InstanceConnectEndpoint() *Statement {
 
 			"ec2-instance-connect:SendSSHPublicKey",
 			"ec2-instance-connect:OpenTunnel",
+		},
+		Resources: allResources,
+	}
+}
+
+// StatementForAWSOIDCRoleTrustRelationship returns the Trust Relationship to allow the OpenID Connect Provider
+// set up during the AWS OIDC Onboarding to assume this Role.
+func StatementForAWSOIDCRoleTrustRelationship(accountID, providerURL string, audiences []string) *Statement {
+	federatedARN := fmt.Sprintf("arn:aws:iam::%s:oidc-provider/%s", accountID, providerURL)
+	federatedAudience := fmt.Sprintf("%s:aud", providerURL)
+
+	return &Statement{
+		Effect:  EffectAllow,
+		Actions: SliceOrString{"sts:AssumeRoleWithWebIdentity"},
+		Principals: map[string]SliceOrString{
+			"Federated": []string{federatedARN},
+		},
+		Conditions: map[string]map[string]SliceOrString{
+			"StringEquals": {
+				federatedAudience: audiences,
+			},
+		},
+	}
+}
+
+// StatementForListRDSDatabases returns the statement that allows listing RDS DB Clusters and Instances.
+func StatementForListRDSDatabases() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"rds:DescribeDBInstances",
+			"rds:DescribeDBClusters",
 		},
 		Resources: allResources,
 	}

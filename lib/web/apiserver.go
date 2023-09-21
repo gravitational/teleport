@@ -174,6 +174,10 @@ type proxySettingsGetter interface {
 	GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error)
 }
 
+// PresenceChecker is a function that executes an mfa prompt to enforce
+// that a user is present.
+type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, promptMFA client.PromptMFAFunc, opts ...client.PresenceOption) error
+
 // Config represents web handler configuration parameters
 type Config struct {
 	// PluginRegistry handles plugin registration
@@ -271,6 +275,10 @@ type Config struct {
 	// NodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
 	NodeWatcher *services.NodeWatcher
+
+	// PresenceChecker periodically runs the mfa ceremony for moderated
+	// sessions.
+	PresenceChecker PresenceChecker
 }
 
 // SetDefaults ensures proper default values are set if
@@ -280,6 +288,10 @@ func (c *Config) SetDefaults() {
 
 	if c.TracerProvider == nil {
 		c.TracerProvider = tracing.NoopProvider()
+	}
+
+	if c.PresenceChecker == nil {
+		c.PresenceChecker = client.RunPresenceTask
 	}
 }
 
@@ -792,7 +804,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.DELETE("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsDelete))
 
 	// AWS OIDC Integration Actions
+	h.GET("/webapi/scripts/integrations/configure/awsoidc-idp.sh", h.WithLimiter(h.awsOIDCConfigureIdP))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
+	h.GET("/webapi/scripts/integrations/configure/listdatabases-iam.sh", h.WithLimiter(h.awsOIDCConfigureListDatabasesIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
@@ -2930,7 +2944,7 @@ func (h *Handler) siteNodeConnect(
 		ParticipantMode:    req.ParticipantMode,
 		PROXYSigner:        h.cfg.PROXYSigner,
 		Tracker:            tracker,
-		Clock:              h.clock,
+		PresenceChecker:    h.cfg.PresenceChecker,
 	}
 
 	term, err := NewTerminal(ctx, terminalConfig)
@@ -3776,7 +3790,7 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Ha
 			return nil, trace.AccessDenied("need auth")
 		}
 
-		token, err := h.consumeTokenForAPICall(ctx, creds.Password)
+		token, err := consumeTokenForAPICall(ctx, h.GetProxyClient(), creds.Password)
 		if err != nil {
 			return nil, trace.AccessDenied("need auth")
 		}
@@ -3798,17 +3812,39 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Ha
 // This is possible because the latest call - DeleteToken - returns an error if the resource doesn't exist
 // This is currently true for all the backends as explained here
 // https://github.com/gravitational/teleport/commit/24fcadc375d8359e80790b3ebeaa36bd8dd2822f
-func (h *Handler) consumeTokenForAPICall(ctx context.Context, tokenName string) (types.ProvisionToken, error) {
-	token, err := h.GetProxyClient().GetToken(ctx, tokenName)
+func consumeTokenForAPICall(ctx context.Context, proxyClient auth.ClientI, tokenName string) (types.ProvisionToken, error) {
+	token, err := proxyClient.GetToken(ctx, tokenName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := h.GetProxyClient().DeleteToken(ctx, token.GetName()); err != nil {
+	if token.GetJoinMethod() != types.JoinMethodToken {
+		return nil, trace.BadParameter("unexpected join method %q for token %q", token.GetJoinMethod(), token.GetSafeName())
+	}
+
+	if !checkTokenTTL(token) {
+		return nil, trace.BadParameter("expired token %q", token.GetSafeName())
+	}
+
+	if err := proxyClient.DeleteToken(ctx, token.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return token, nil
+
+}
+
+// checkTokenTTL returns true if the token is still valid.
+// This is similar to checkTokenTTL in auth.Server, but does not delete expired tokens.
+func checkTokenTTL(tok types.ProvisionToken) bool {
+	// Always accept tokens without an expiry configured.
+	if tok.Expiry().IsZero() {
+		return true
+	}
+
+	now := time.Now().UTC()
+
+	return tok.Expiry().After(now)
 }
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)

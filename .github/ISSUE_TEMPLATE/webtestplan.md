@@ -14,6 +14,8 @@ For main, test with a role that has access to all resources.
   - [ ] Connect to a Teleport node
   - [ ] Connect to a OpenSSH node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
+     - Set `forward_agent: true` under the `options` section of your role, and then test that your
+       teleport certs show up when you run `ssh-add -l` on the node.
 
 #### Top Nav
 - [ ] Verify that cluster selector displays all (root + leaf) clusters

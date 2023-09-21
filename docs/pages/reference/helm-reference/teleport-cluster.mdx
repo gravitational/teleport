@@ -117,6 +117,36 @@ auth:
   imagePullPolicy: Always
 ```
 
+### `proxyProtocol`
+
+| Component   | Type     | Default value  | Required? | `teleport.yaml` equivalent |
+|-------------|----------|----------------|-----------|----------------------------|
+| `proxy`     | `string` | `null`         | no        | `proxy_service.proxy_protocol`  |
+
+
+The `proxyProtocol` value controls whether the Proxy pods will
+accept PROXY lines with the client's IP address when they are
+behind a L4 load balancer (e.g. AWS ELB, GCP L4 LB, etc) with PROXY protocol
+enabled. Since L4 LBs do not preserve the client's IP address, PROXY protocol is
+required to ensure that Teleport can properly audit the client's IP address.
+
+When Teleport pods are not behind a L4 LB with PROXY protocol enabled, this
+value should be set to `off` to prevent Teleport from accepting PROXY headers
+from untrusted sources.
+
+Possible values are:
+- `on`: will enable the PROXY protocol for all connections and will require the
+  L4 LB to send a PROXY header.
+- `off` will disable the PROXY protocol for all connections and denies all
+  connections prefixed a PROXY header.
+
+If `proxyProtocol` is unspecified, Teleport does not require PROXY header for the
+connection, but will accept it if present. This mode is considered insecure
+and should only be used for testing purposes.
+
+See the [PROXY Protocol security section](../../management/security/proxy-protocol.mdx) for more details.
+
+
 ### `auth.teleportConfig`
 
 | Type     | Default value | Required? |
@@ -1081,6 +1111,26 @@ Setting `highAvailability.certManager.addCommonName` to `true` will instruct `ce
     certManager:
       enabled: true
       addCommonName: true
+      issuerName: letsencrypt-production
+  ```
+
+### `highAvailability.certManager.addPublicAddrs`
+
+| Type   | Default value | `teleport.yaml` equivalent                                        |
+|--------|---------------|-------------------------------------------------------------------|
+| `bool` | `false`       | `proxy_service.https_keypairs` (to provide your own certificates) |
+
+Setting `highAvailability.certManager.addPublicAddrs` to `true` will instruct `cert-manager` to also add any additional addresses configured under the `publicAddr` chart value
+in its certificate signing request to the issuing CA.
+
+`values.yaml` example:
+
+  ```yaml
+  publicAddr: ['teleport.example.com:443']
+  highAvailability:
+    certManager:
+      enabled: true
+      addPublicAddrs: true
       issuerName: letsencrypt-production
   ```
 

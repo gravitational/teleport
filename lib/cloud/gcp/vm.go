@@ -149,7 +149,7 @@ func isExternalNAT(s string) bool {
 	return slices.Contains(externalNATKeys, s)
 }
 
-func toInstance(origInstance *computepb.Instance) *Instance {
+func toInstance(origInstance *computepb.Instance, projectID string) *Instance {
 	zoneParts := strings.Split(origInstance.GetZone(), "/")
 	zone := zoneParts[len(zoneParts)-1]
 	var internalIP string
@@ -169,6 +169,7 @@ func toInstance(origInstance *computepb.Instance) *Instance {
 	}
 	inst := &Instance{
 		Name:              origInstance.GetName(),
+		ProjectID:         projectID,
 		Zone:              zone,
 		Labels:            origInstance.GetLabels(),
 		internalIPAddress: internalIP,
@@ -182,10 +183,10 @@ func toInstance(origInstance *computepb.Instance) *Instance {
 	return inst
 }
 
-func toInstances(origInstances []*computepb.Instance) []*Instance {
+func toInstances(origInstances []*computepb.Instance, projectID string) []*Instance {
 	instances := make([]*Instance, 0, len(origInstances))
 	for _, inst := range origInstances {
-		instances = append(instances, toInstance(inst))
+		instances = append(instances, toInstance(inst, projectID))
 	}
 	return instances
 }
@@ -217,7 +218,7 @@ func (clt *instancesClient) StreamInstances(ctx context.Context, projectID, zone
 			if resp.Value == nil {
 				return nil, trace.Wrap(err)
 			}
-			return toInstances(resp.Value.GetInstances()), trace.Wrap(err)
+			return toInstances(resp.Value.GetInstances(), projectID), trace.Wrap(err)
 		}
 	} else {
 		it := clt.InstanceClient.List(ctx, &computepb.ListInstancesRequest{
@@ -229,7 +230,7 @@ func (clt *instancesClient) StreamInstances(ctx context.Context, projectID, zone
 			if resp == nil {
 				return nil, trace.Wrap(err)
 			}
-			return []*Instance{toInstance(resp)}, trace.Wrap(err)
+			return []*Instance{toInstance(resp, projectID)}, trace.Wrap(err)
 		}
 	}
 
@@ -303,7 +304,7 @@ func (clt *instancesClient) GetInstance(ctx context.Context, req *InstanceReques
 	if err != nil {
 		return nil, trace.Wrap(convertAPIError(err))
 	}
-	inst := toInstance(resp)
+	inst := toInstance(resp, req.ProjectID)
 	inst.ProjectID = req.ProjectID
 
 	hostKeys, err := clt.getHostKeys(ctx, req)
@@ -365,7 +366,10 @@ func addSSHKey(meta *computepb.Metadata, pubKey ssh.PublicKey, expires time.Time
 		meta.Items = append(meta.Items, sshKeyItem)
 	}
 
-	existingKeys := strings.Split(sshKeyItem.GetValue(), "\n")
+	var existingKeys []string
+	if rawKeys := sshKeyItem.GetValue(); rawKeys != "" {
+		existingKeys = strings.Split(rawKeys, "\n")
+	}
 	existingKeys = append(existingKeys, formatSSHKey(pubKey, expires))
 	newKeys := strings.Join(existingKeys, "\n")
 	sshKeyItem.Value = &newKeys
@@ -407,7 +411,7 @@ func removeSSHKey(meta *computepb.Metadata) {
 				newKeys = append(newKeys, key)
 			}
 		}
-		item.Value = googleapi.String(strings.Join(newKeys, "\n"))
+		item.Value = googleapi.String(strings.TrimSpace(strings.Join(newKeys, "\n")))
 		return
 	}
 }

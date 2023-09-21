@@ -1,5 +1,5 @@
 ---
-title: Set Up Login Rules (Preview)
+title: Set Up Login Rules 
 description: Set up Login Rules to transform user traits
 ---
 
@@ -39,13 +39,13 @@ spec:
     rules:
       - resources: [login_rule]
         verbs: [list, create, read, update, delete]
-version: v6
+version: v7
 ```
 
 Create the role with `tctl`:
 
 ```code
-$ tctl create loginrule-manager.yaml 
+$ tctl create loginrule-manager.yaml
 role 'loginrule-manager' has been created
 ```
 
