@@ -18,8 +18,7 @@ package keys
 import (
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
+	"crypto/x509/pkix"
 	"os"
 	"testing"
 
@@ -45,7 +44,7 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test creating a self signed certificate with the key.
-	digest := []byte{100}
+	digest := make([]byte, 32)
 	_, err = priv.Sign(rand.Reader, digest, nil)
 	require.NoError(t, err)
 
@@ -79,13 +78,7 @@ func TestOverwriteSlot(t *testing.T) {
 	yk, err := y.open()
 	require.NoError(t, err)
 
-	priv, err := rsa.GenerateKey(rand.Reader, 512)
-	require.NoError(t, err)
-	cert, err := metadataCertificateTemplate()
-	require.NoError(t, err)
-	cert.Subject.Organization = []string{"not-teleport"}
-	cert.PublicKey = priv.Public()
-	cert.Raw, err = x509.CreateCertificate(rand.Reader, cert, cert, priv.Public(), priv)
+	cert, err := selfSignedMetadataCertificate(pkix.Name{Organization: []string{"not-teleport"}})
 	require.NoError(t, err)
 
 	require.NoError(t, yk.SetCertificate(piv.DefaultManagementKey, pivSlotNoTouch, cert))
