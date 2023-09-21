@@ -93,6 +93,14 @@ store well above 10,000 pinned resources per user. This is a very unlikely scena
 ### Automatic cleanup
 The case in which this cap _could_ be reached is when we allow unavailable/unauthorized/unreachable resources to exist and fester in a user's preferences. (lets discuss)
 
+Scenarios that would make a pinned resource ID stale
+1. User loses access to the resource. In that case, I'm not sure we'd want to remove the resource from their pinned. I could see 
+pinning a specific resource after assuming a role, and only caring about that resource's pin when you've assumed the role again.
+2. Resource loses connectivity. We probably wouldn't want to remove a resource's pin due to connection issues unless x amount of time
+has passed. 
+3. Resource changes it's name. Idk how frequent this happens.
+4. ...?
+
 ### "What happens if a resource I have pinned becomes unavailable?"
 Similarly to the normal resource view, if a resource becomes unavailable (due to RBAC or being removed) it just won't be visible in the pinned view either. 
 
