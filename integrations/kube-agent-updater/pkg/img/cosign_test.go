@@ -35,7 +35,7 @@ import (
 
 var distrolessKey = []byte("-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEWZzVzkb8A+DbgDpaJId/bOmV8n7Q\nOqxYbK0Iro6GzSmOzxkn+N2AKawLyXi84WSwJQBK//psATakCgAQKkNTAA==\n-----END PUBLIC KEY-----")
 
-func Test_NewCosignSignleKeyValidator(t *testing.T) {
+func Test_NewCosignSingleKeyValidator(t *testing.T) {
 	a, err := NewCosignSingleKeyValidator(distrolessKey, "distroless")
 	require.NoError(t, err)
 	require.Equal(t, "distroless-799a5c21a7f8c39707274cbd065ba2e1969d8d29", a.Name())
@@ -51,7 +51,6 @@ func Test_cosignKeyValidator_ValidateAndResolveDigest(t *testing.T) {
 	// This is the worst case scenario and also reduces the amount of noise and failed calls in the logs.
 	testRegistry := httptest.NewServer(registry.New(registry.WithReferrersSupport(true)))
 	t.Cleanup(testRegistry.Close)
-	t.Log(testRegistry.URL)
 
 	// Put test layers and manifests into the registry
 	for digest, contents := range blobs {

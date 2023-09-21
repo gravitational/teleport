@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -176,6 +176,10 @@ func getUsers(m userAPIGetter) ([]ui.UserListEntry, error) {
 
 	var uiUsers []ui.UserListEntry
 	for _, u := range users {
+		// Do not display system users in the WebUI
+		if types.IsSystemResource(u) {
+			continue
+		}
 		uiuser, err := ui.NewUserListEntry(u)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -221,7 +225,7 @@ type privilegeTokenRequest struct {
 	// SecondFactorToken is the totp code.
 	SecondFactorToken string `json:"secondFactorToken"`
 	// WebauthnResponse is the response from authenticators.
-	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // createPrivilegeTokenHandle creates and returns a privilege token.
@@ -240,7 +244,7 @@ func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Requ
 		}}
 	case req.WebauthnResponse != nil:
 		protoReq.ExistingMFAResponse = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(req.WebauthnResponse),
+			Webauthn: wantypes.CredentialAssertionResponseToProto(req.WebauthnResponse),
 		}}
 	default:
 		// Can be empty, which means user did not have a second factor registered.

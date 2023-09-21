@@ -30,6 +30,7 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
@@ -37,7 +38,7 @@ import (
 type Cluster struct {
 	// URI is the cluster URI
 	URI uri.ResourceURI
-	// Name is the cluster name
+	// Name is the cluster name, AKA SiteName.
 	Name string
 	// ProfileName is the name of the tsh profile
 	ProfileName string
@@ -64,6 +65,12 @@ type ClusterWithDetails struct {
 	SuggestedReviewers []string
 	// RequestableRoles for the given user.
 	RequestableRoles []string
+	// ACL contains user access control list.
+	ACL *api.ACL
+	// UserType identifies whether the user is a local user or comes from an SSO provider.
+	UserType types.UserType
+	// ProxyVersion is the cluster proxy's service version.
+	ProxyVersion string
 }
 
 // Connected indicates if connection to the cluster can be established
@@ -76,12 +83,19 @@ func (c *Cluster) Connected() bool {
 // and enabled enterprise features. This method requires a valid cert.
 func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, error) {
 	var (
-		pingResponse  proto.PingResponse
-		caps          *types.AccessCapabilities
-		authClusterID string
+		authPingResponse proto.PingResponse
+		caps             *types.AccessCapabilities
+		authClusterID    string
+		acl              *api.ACL
+		user             types.User
 	)
 
-	err := addMetadataToRetryableError(ctx, func() error {
+	clusterPingResponse, err := c.clusterClient.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -94,7 +108,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		}
 		defer authClient.Close()
 
-		pingResponse, err = authClient.Ping(ctx)
+		authPingResponse, err = authClient.Ping(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -113,6 +127,34 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		}
 		authClusterID = clusterName.GetClusterID()
 
+		user, err = authClient.GetCurrentUser(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		roles, err := authClient.GetCurrentUserRoles(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		roleSet := services.NewRoleSet(roles...)
+		userACL := services.NewUserACL(user, roleSet, *authPingResponse.ServerFeatures, false)
+
+		acl = &api.ACL{
+			RecordedSessions: convertToAPIResourceAccess(userACL.RecordedSessions),
+			ActiveSessions:   convertToAPIResourceAccess(userACL.ActiveSessions),
+			AuthConnectors:   convertToAPIResourceAccess(userACL.AuthConnectors),
+			Roles:            convertToAPIResourceAccess(userACL.Roles),
+			Users:            convertToAPIResourceAccess(userACL.Users),
+			TrustedClusters:  convertToAPIResourceAccess(userACL.TrustedClusters),
+			Events:           convertToAPIResourceAccess(userACL.Events),
+			Tokens:           convertToAPIResourceAccess(userACL.Tokens),
+			Servers:          convertToAPIResourceAccess(userACL.Nodes),
+			Apps:             convertToAPIResourceAccess(userACL.AppServers),
+			Dbs:              convertToAPIResourceAccess(userACL.DBServers),
+			Kubeservers:      convertToAPIResourceAccess(userACL.KubeServers),
+			AccessRequests:   convertToAPIResourceAccess(userACL.AccessRequests),
+		}
 		return nil
 	})
 	if err != nil {
@@ -123,17 +165,31 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		Cluster:            c,
 		SuggestedReviewers: caps.SuggestedReviewers,
 		RequestableRoles:   caps.RequestableRoles,
-		Features:           pingResponse.ServerFeatures,
+		Features:           authPingResponse.ServerFeatures,
 		AuthClusterID:      authClusterID,
+		ACL:                acl,
+		UserType:           user.GetUserType(),
+		ProxyVersion:       clusterPingResponse.ServerVersion,
 	}
 
 	return withDetails, nil
 }
 
+func convertToAPIResourceAccess(access services.ResourceAccess) *api.ResourceAccess {
+	return &api.ResourceAccess{
+		List:   access.List,
+		Read:   access.Read,
+		Edit:   access.Edit,
+		Create: access.Create,
+		Delete: access.Delete,
+		Use:    access.Use,
+	}
+}
+
 // GetRoles returns currently logged-in user roles
 func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 	var roles []*types.Role
-	err := addMetadataToRetryableError(ctx, func() error {
+	err := AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -176,7 +232,7 @@ func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 		})
 	}
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -233,10 +289,10 @@ type LoggedInUser struct {
 	ActiveRequests []string
 }
 
-// addMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the
+// AddMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the
 // metadata to the error, we're letting the Electron app know that the given error was caused by
 // expired certs and letting the user log in again should resolve the error upon another attempt.
-func addMetadataToRetryableError(ctx context.Context, fn func() error) error {
+func AddMetadataToRetryableError(ctx context.Context, fn func() error) error {
 	err := fn()
 	if err == nil {
 		return nil
@@ -248,4 +304,20 @@ func addMetadataToRetryableError(ctx context.Context, fn func() error) error {
 	}
 
 	return trace.Wrap(err)
+}
+
+// UserTypeFromString converts a string representation of UserType used internally by Teleport to
+// a proto representation used by TerminalService.
+func UserTypeFromString(userType types.UserType) (api.LoggedInUser_UserType, error) {
+	switch userType {
+	case "local":
+		return api.LoggedInUser_USER_TYPE_LOCAL, nil
+	case "sso":
+		return api.LoggedInUser_USER_TYPE_SSO, nil
+	case "":
+		return api.LoggedInUser_USER_TYPE_UNSPECIFIED, nil
+	default:
+		return api.LoggedInUser_USER_TYPE_UNSPECIFIED,
+			trace.BadParameter("unknown user type %q", userType)
+	}
 }

@@ -24,6 +24,8 @@ import {
   DiscoverEvent,
   DiscoverEventResource,
   DiscoverEventStatus,
+  DiscoverServiceDeployMethod,
+  DiscoverServiceDeployType,
   userEventService,
 } from 'teleport/services/userEvent';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
@@ -32,15 +34,6 @@ import cfg from 'teleport/config';
 
 import { useDiscover, DiscoverProvider } from './useDiscover';
 import { SERVERS } from './SelectResource/resources';
-
-const crypto = require('crypto');
-
-// eslint-disable-next-line jest/require-hook
-Object.defineProperty(globalThis, 'crypto', {
-  value: {
-    randomUUID: () => crypto.randomUUID(),
-  },
-});
 
 describe('emitting events', () => {
   const ctx = createTeleportContext();
@@ -154,6 +147,10 @@ describe('emitting events', () => {
           id,
           resource: DiscoverEventResource.Server,
           stepStatus: DiscoverEventStatus.Success,
+          serviceDeploy: {
+            method: DiscoverServiceDeployMethod.Unspecified,
+            type: DiscoverServiceDeployType.Unspecified,
+          },
         },
       })
     );
@@ -211,6 +208,10 @@ describe('emitting events', () => {
           id,
           resource: DiscoverEventResource.Server,
           stepStatus: DiscoverEventStatus.Success,
+          serviceDeploy: {
+            method: DiscoverServiceDeployMethod.Unspecified,
+            type: DiscoverServiceDeployType.Unspecified,
+          },
         },
       })
     );
@@ -264,6 +265,10 @@ describe('emitting events', () => {
           id,
           resource: DiscoverEventResource.Server,
           stepStatus: DiscoverEventStatus.Skipped,
+          serviceDeploy: {
+            method: DiscoverServiceDeployMethod.Unspecified,
+            type: DiscoverServiceDeployType.Unspecified,
+          },
         },
       })
     );
@@ -292,6 +297,12 @@ describe('emitting events', () => {
           resource: DiscoverEventResource.Server,
           stepStatus: DiscoverEventStatus.Error,
           stepStatusError: 'some error message',
+          selectedResourcesCount: 0,
+          autoDiscoverResourcesCount: 0,
+          serviceDeploy: {
+            method: DiscoverServiceDeployMethod.Unspecified,
+            type: DiscoverServiceDeployType.Unspecified,
+          },
         },
       })
     );

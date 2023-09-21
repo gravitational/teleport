@@ -111,22 +111,17 @@ func TestOktaAssignmentUnmarshal(t *testing.T) {
 		},
 		types.OktaAssignmentSpecV1{
 			User: "test-user@test.user",
-			Actions: []*types.OktaAssignmentActionV1{
+			Targets: []*types.OktaAssignmentTargetV1{
 				{
-					Status: types.OktaAssignmentActionV1_PENDING,
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_APPLICATION,
-						Id:   "123456",
-					},
+					Type: types.OktaAssignmentTargetV1_APPLICATION,
+					Id:   "123456",
 				},
 				{
-					Status: types.OktaAssignmentActionV1_SUCCESSFUL,
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_GROUP,
-						Id:   "234567",
-					},
+					Type: types.OktaAssignmentTargetV1_GROUP,
+					Id:   "234567",
 				},
 			},
+			Status: types.OktaAssignmentSpecV1_PENDING,
 		},
 	)
 	require.NoError(t, err)
@@ -145,22 +140,18 @@ func TestOktaAssignmentMarshal(t *testing.T) {
 		},
 		types.OktaAssignmentSpecV1{
 			User: "test-user@test.user",
-			Actions: []*types.OktaAssignmentActionV1{
+			Targets: []*types.OktaAssignmentTargetV1{
 				{
-					Status: types.OktaAssignmentActionV1_PENDING,
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_APPLICATION,
-						Id:   "123456",
-					},
+					Type: types.OktaAssignmentTargetV1_APPLICATION,
+					Id:   "123456",
 				},
 				{
-					Status: types.OktaAssignmentActionV1_SUCCESSFUL,
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_GROUP,
-						Id:   "234567",
-					},
+					Type: types.OktaAssignmentTargetV1_GROUP,
+					Id:   "234567",
 				},
 			},
+
+			Status: types.OktaAssignmentSpecV1_PENDING,
 		},
 	)
 	require.NoError(t, err)
@@ -196,14 +187,11 @@ metadata:
   name: test-assignment
 spec:
   user: test-user@test.user
-  actions:
-  - status: 1
-    target:
-      type: 1
-      id: "123456"
-  - status: 2
-    target:
-      type: 2
-      id: "234567"
+  targets:
+  - type: 1
+    id: "123456"
+  - type: 2
+    id: "234567"
+  status: 1
 `
 )

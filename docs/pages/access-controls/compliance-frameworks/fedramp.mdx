@@ -25,14 +25,14 @@ government agencies.
 | [IA-03 Device Identification and Authentication]((=fedramp.control_url=)IA-3) | Teleport requires valid x509 or SSH certificates issued by a Teleport Certificate Authority (CA) to establish a network connection for device-to-device network connection between Teleport components. |
 | [SC-12 Cryptographic Key Establish and Management]((=fedramp.control_url=)SC-12) | Teleport initializes cryptographic keys that act as a Certificate Authority (CA) to further issue x509 and SSH certificates. SSH and x509 user certificates that are issued are signed by the CA and are (by default) short-lived. SSH host certificates are also signed by the CA and rotated automatically (a manual force rotation can also be performed).<br/>Teleport Enterprise builds against a FIPS 140-2 compliant library (BoringCrypto) is available. <br/>In addition, when Teleport Enterprise is in FedRAMP/FIPS 140-2 mode, Teleport will only start and use FIPS 140-2 compliant cryptography. |
 
-Enterprise customers can download the custom FIPS package from the [Dashboard](https://dashboard.gravitational.com/web/login).  Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB packages are also available.
-
 ## Setup
 
-Customers can follow our [Enterprise Getting Started
-Guide](../../choose-an-edition/teleport-enterprise/getting-started.mdx) for
-instructions on how to set up Teleport Enterprise. You'll need to start with the
-Teleport Enterprise FIPS binary.
+If your Teleport cluster is running on AWS, it must be running in a GovCloud
+region to support FIPS.
+
+Sign in to your [Teleport account](https://teleport.sh) to download a FIPS binary
+for Teleport Enterprise. Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB
+packages are also available.
 
 After downloading the binary tarball, run:
 
@@ -45,9 +45,10 @@ $ sudo ./install
 
 ## Configuration
 
-### Teleport Auth Server
+### Teleport Auth Service
 
-Now, save the following configuration file as `/etc/teleport.yaml` on the auth server.
+Now, save the following configuration file as `/etc/teleport.yaml` on the Teleport Auth
+Service:
 
 ```yaml
 version: v3
@@ -128,18 +129,47 @@ $ sudo systemctl enable teleport
 
 When using `teleport start --fips`, Teleport will start in FIPS mode.
 
-Teleport will configure the TLS and SSH servers with FIPS compliant
-cryptographic algorithms.  In FIPS mode, if non-compliant algorithms are
-chosen, Teleport will fail to start.  In addition, Teleport checks if the
-binary was compiled against an approved cryptographic module (BoringCrypto) and
-fails to start if it was not.
-
-- For OSS and Enterprise binaries not compiled with BoringCrypto, this flag will report that this version of Teleport is not compiled with the appropriate cryptographic module.
-- Running commands like `ps aux` can be useful to note that Teleport is running in FIPS mode.
-- If no ciphersuites are provided, Teleport will set the default ciphersuites to be FIPS 140-2 compliant.
-- If ciphersuites, key exchange, and MAC algorithms are provided in the Teleport configuration, Teleport will validate that they are FIPS 140-2 compliant.
+- If the `--fips` flag is selected, Teleport will fail to start unless the
+  binaries are compiled with the appropriate cryptographic module
+  (BoringCrypto).
+- If no TLS or SSH cryptographic primitives are specified, Teleport will
+  default to FIPS compliant cryptographic algorithms.
+- If TLS or SSH cryptographic primitives are not FIPS 140-2 compliant, Teleport
+  will fail to start.
 - Teleport will always enable at-rest encryption for both DynamoDB and S3.
-- If recording proxy mode is selected, validation of host certificates should always happen.
+- If recording proxy mode is selected, validation of host certificates should
+  always happen.
+- Running commands like `ps aux` can be useful to note that Teleport is running
+  in FIPS mode.
+
+### Default Cryptographic Algorithms
+
+In FIPS mode, Teleport will use the following cryptographic algorithms by default.
+
+Default FIPS ciphers for SSH:
+
+- `aes128-ctr`
+- `aes192-ctr`
+- `aes256-ctr`
+- `aes128-gcm@openssh.com`
+
+Default FIPS Key Exchange Algorithms (KEX) for SSH:
+
+- `ecdh-sha2-nistp256`
+- `ecdh-sha2-nistp384`
+- `ecdh-sha2-nistp521`
+
+Default FIPS Message Authentication Codes (MAC) for SSH:
+
+- `hmac-sha2-256-etm@openssh.com`
+- `hmac-sha2-256`
+
+Default FIPS ciphersuites for TLS:
+
+- `tls-ecdhe-rsa-with-aes-128-gcm-sha256`
+- `tls-ecdhe-ecdsa-with-aes-128-gcm-sha256`
+- `tls-ecdhe-rsa-with-aes-256-gcm-sha384`
+- `tls-ecdhe-ecdsa-with-aes-256-gcm-sha384`
 
 ### FedRAMP Audit Log
 

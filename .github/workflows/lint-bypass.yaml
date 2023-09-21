@@ -14,10 +14,12 @@ on:
     paths:
       - 'docs/**'
       - 'rfd/**'
+      - '**/*.md*'
   merge_group:
     paths:
       - 'docs/**'
       - 'rfd/**'
+      - '**/*.md*'
 
 jobs:
   lint:

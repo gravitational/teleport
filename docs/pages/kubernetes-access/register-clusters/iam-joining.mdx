@@ -14,13 +14,8 @@ Once the Kubernetes cluster is registered for the first time, the agent will sto
 its Teleport identity in a Kubernetes secret. The agent will use this identity
 to automatically join the cluster on subsequent restarts.
 
-<Notice type="warning" scope={["oss", "enterprise"]}>
-
-The IAM join method will not work if TLS is terminated at a load balancer in
-front of your Teleport Proxy Service unless the service using this method is
-connecting directly to the Auth Service.
-
-</Notice>
+Support for joining a cluster with the Proxy Service behind a layer 7 load
+balancer or reverse proxy is available in Teleport 13.0+.
 
 ## Prerequisites
 
@@ -31,7 +26,6 @@ connecting directly to the Auth Service.
 - An existing [IAM OpenID Connect (OIDC)](https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html) provider for your cluster
 - Helm >= (=helm.version=)
 - AWS CLI >= `2.10.3` or `1.27.81`
-- A Teleport cluster with [TLS multiplexing](../../management/operations/tls-routing.mdx)
 
 (!docs/pages/includes/helm.mdx!)
 
@@ -254,6 +248,7 @@ $ CLUSTER=iam-cluster
 $ PROXY=tele.example.com:443
 $ helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=${CLUSTER?} \
+  --set roles="kube\,app\,discovery" \
   --set proxyAddr=${PROXY?} \
   --set joinParams.method=iam \
   --set joinParams.tokenName=<Var name="kube-iam-token"/> \
@@ -262,6 +257,15 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --create-namespace \
   --namespace=<Var name="teleport-agent"/> \
   --version (=teleport.version=)
+```
+
+Make sure that the Teleport agent pod is running. You should see one Teleport
+agent pod pod with a single ready container:
+
+```code
+$ kubectl -n teleport get pods
+NAME               READY   STATUS    RESTARTS   AGE
+teleport-agent-0   1/1     Running   0          32s
 ```
 
 List connected clusters using `tsh kube ls` and switch between

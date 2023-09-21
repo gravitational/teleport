@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"net/url"
 
 	"github.com/gravitational/trace"
 
@@ -25,10 +26,14 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// SAMLIdPServiceProvider defines an interface for managing SAML IdP service providers.
+// SAMLIdpServiceProviderGetter defines interface for fetching SAMLIdPServiceProvider resources.
+type SAMLIdpServiceProviderGetter interface {
+	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error)
+}
+
+// SAMLIdPServiceProviders defines an interface for managing SAML IdP service providers.
 type SAMLIdPServiceProviders interface {
-	// ListSAMLIdPServiceProviders returns a paginated list of all SAML IdP service provider resources.
-	ListSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
+	SAMLIdpServiceProviderGetter
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
 	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
 	// CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
@@ -96,4 +101,36 @@ func UnmarshalSAMLIdPServiceProvider(data []byte, opts ...MarshalOption) (types.
 		return &s, nil
 	}
 	return nil, trace.BadParameter("unsupported SAML IdP service provider resource version %q", h.Version)
+}
+
+// GenerateIdPServiceProviderFromFields takes `name` and `entityDescriptor` fields and returns a SAMLIdPServiceProvider.
+func GenerateIdPServiceProviderFromFields(name string, entityDescriptor string) (types.SAMLIdPServiceProvider, error) {
+	if len(name) == 0 {
+		return nil, trace.BadParameter("missing name")
+	}
+	if len(entityDescriptor) == 0 {
+		return nil, trace.BadParameter("missing entity descriptor")
+	}
+
+	var s types.SAMLIdPServiceProviderV1
+	s.SetName(name)
+	s.SetEntityDescriptor(entityDescriptor)
+	if err := s.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &s, nil
+}
+
+// ValidateAssertionConsumerServicesEndpoint ensures that the Assertion Consumer Service location
+// is a valid HTTPS endpoint.
+func ValidateAssertionConsumerServicesEndpoint(acs string) error {
+	endpoint, err := url.Parse(acs)
+	switch {
+	case err != nil:
+		return trace.Wrap(err)
+	case endpoint.Scheme != "https":
+		return trace.BadParameter("the assertion consumer services location must be an https endpoint")
+	}
+
+	return nil
 }

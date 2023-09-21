@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/darwin"
 )
 
@@ -108,6 +108,16 @@ type DiagResult struct {
 	// IsAvailable is true if Touch ID is considered functional.
 	// It means enough of the preceding tests to enable the feature.
 	IsAvailable bool
+
+	// isClamshellFailure is set when it's likely that clamshell mode is the sole
+	// culprit of Touch ID unavailability.
+	isClamshellFailure bool
+}
+
+// IsClamshellFailure returns true if the lack of touch ID availability could be
+// due to clamshell mode.
+func (d *DiagResult) IsClamshellFailure() bool {
+	return d.isClamshellFailure
 }
 
 // CredentialInfo holds information about a Secure Enclave credential.
@@ -175,7 +185,7 @@ func Diag() (*DiagResult, error) {
 // Confirm may replace equivalent keys with the new key, at the implementation's
 // discretion.
 type Registration struct {
-	CCR *wanlib.CredentialCreationResponse
+	CCR *wantypes.CredentialCreationResponse
 
 	credentialID string
 
@@ -207,7 +217,7 @@ func (r *Registration) Rollback() error {
 // Callers are encouraged to either explicitly Confirm or Rollback the returned
 // registration.
 // See Registration.
-func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, error) {
+func Register(origin string, cc *wantypes.CredentialCreation) (*Registration, error) {
 	if !IsAvailable() {
 		return nil, ErrNotAvailable
 	}
@@ -309,16 +319,16 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		return nil, trace.Wrap(err)
 	}
 
-	ccr := &wanlib.CredentialCreationResponse{
-		PublicKeyCredential: wanlib.PublicKeyCredential{
-			Credential: wanlib.Credential{
+	ccr := &wantypes.CredentialCreationResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
+			Credential: wantypes.Credential{
 				ID:   credentialID,
 				Type: string(protocol.PublicKeyCredentialType),
 			},
 			RawID: []byte(credentialID),
 		},
-		AttestationResponse: wanlib.AuthenticatorAttestationResponse{
-			AuthenticatorResponse: wanlib.AuthenticatorResponse{
+		AttestationResponse: wantypes.AuthenticatorAttestationResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
 				ClientDataJSON: attData.ccdJSON,
 			},
 			AttestationObject: attObj,
@@ -423,7 +433,7 @@ type CredentialPicker interface {
 // Login authenticates using a Secure Enclave-backed biometric credential.
 // It returns the assertion response and the user that owns the credential to
 // sign it.
-func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker CredentialPicker) (*wanlib.CredentialAssertionResponse, string, error) {
+func Login(origin, user string, assertion *wantypes.CredentialAssertion, picker CredentialPicker) (*wantypes.CredentialAssertionResponse, string, error) {
 	if !IsAvailable() {
 		return nil, "", ErrNotAvailable
 	}
@@ -493,16 +503,16 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker Cr
 		return nil, "", trace.Wrap(err)
 	}
 
-	return &wanlib.CredentialAssertionResponse{
-		PublicKeyCredential: wanlib.PublicKeyCredential{
-			Credential: wanlib.Credential{
+	return &wantypes.CredentialAssertionResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
+			Credential: wantypes.Credential{
 				ID:   cred.CredentialID,
 				Type: string(protocol.PublicKeyCredentialType),
 			},
 			RawID: []byte(cred.CredentialID),
 		},
-		AssertionResponse: wanlib.AuthenticatorAssertionResponse{
-			AuthenticatorResponse: wanlib.AuthenticatorResponse{
+		AssertionResponse: wantypes.AuthenticatorAssertionResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
 				ClientDataJSON: attData.ccdJSON,
 			},
 			AuthenticatorData: attData.rawAuthData,
@@ -514,7 +524,7 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker Cr
 
 func pickCredential(
 	actx AuthContext,
-	infos []CredentialInfo, allowedCredentials []protocol.CredentialDescriptor,
+	infos []CredentialInfo, allowedCredentials []wantypes.CredentialDescriptor,
 	picker CredentialPicker, promptOnce func(), userRequested bool,
 ) (*CredentialInfo, error) {
 	// Handle early exits.

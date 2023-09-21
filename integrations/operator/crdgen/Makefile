@@ -51,3 +51,16 @@ update-snapshot: build
 	rm -rf testdata/golden
 	cp -r $(CRD_OUT_PATH) testdata/golden
 	rm -rf $(CRD_OUT_PATH)
+
+.PHONY: debug-dump-request
+debug-dump-request:
+	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
+	for proto in $(PROTOS); do \
+		protoc \
+			-I=testdata/protofiles \
+			-I=$(PROTOBUF_MOD_PATH) \
+			--plugin=./hack/protoc-gen-dump \
+			--dump_out="." \
+			"$${proto}"; \
+	done
+

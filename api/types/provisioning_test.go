@@ -394,7 +394,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			expectedErr: &trace.BadParameterError{},
 		},
 		{
-			desc: "kubernetes valid",
+			desc: "kubernetes: in_cluster defaults",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
 					Name: "test",
@@ -411,9 +411,115 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
+			expected: &ProvisionTokenV2{
+				Kind:    "token",
+				Version: "v2",
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Type: KubernetesJoinTypeInCluster,
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "namespace:my-service-account",
+							},
+						},
+					},
+				},
+			},
 		},
 		{
-			desc: "kubernetes wrong service account name",
+			desc: "kubernetes: valid in_cluster",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Type: KubernetesJoinTypeInCluster,
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "namespace:my-service-account",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "kubernetes: valid static_jwks",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Type: KubernetesJoinTypeStaticJWKS,
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "namespace:my-service-account",
+							},
+						},
+						StaticJWKS: &ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig{
+							JWKS: `{"keys":[{"use":"sig","kty":"RSA","kid":"-snip-","alg":"RS256","n":"-snip-","e":"-snip-"}]}`,
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "kubernetes: missing static_jwks",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Type: KubernetesJoinTypeStaticJWKS,
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "namespace:my-service-account",
+							},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "kubernetes: missing static_jwks.jwks",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Type: KubernetesJoinTypeStaticJWKS,
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "namespace:my-service-account",
+							},
+						},
+						StaticJWKS: &ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig{},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "kubernetes: wrong service account name",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
 					Name: "test",
@@ -433,7 +539,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			expectedErr: &trace.BadParameterError{},
 		},
 		{
-			desc: "kubernetes allow rule blank",
+			desc: "kubernetes: allow rule blank",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
 					Name: "test",
@@ -593,6 +699,66 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 							},
 						},
 						Domain: "http://gitlab.example.com",
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "gcp method",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: "gcp",
+					GCP: &ProvisionTokenSpecV2GCP{
+						Allow: []*ProvisionTokenSpecV2GCP_Rule{
+							{
+								ProjectIDs: []string{"p1"},
+								Locations:  []string{"us-west1-b"},
+							},
+						},
+					},
+				},
+			},
+			expected: &ProvisionTokenV2{
+				Kind:    "token",
+				Version: "v2",
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: "gcp",
+					GCP: &ProvisionTokenSpecV2GCP{
+						Allow: []*ProvisionTokenSpecV2GCP_Rule{
+							{
+								ProjectIDs: []string{"p1"},
+								Locations:  []string{"us-west1-b"},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "gcp method no project ids",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: "gcp",
+					GCP: &ProvisionTokenSpecV2GCP{
+						Allow: []*ProvisionTokenSpecV2GCP_Rule{
+							{
+								Locations: []string{"us-west1-b"},
+							},
+						},
 					},
 				},
 			},

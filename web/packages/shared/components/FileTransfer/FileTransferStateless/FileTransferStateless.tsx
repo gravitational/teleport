@@ -17,7 +17,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { ButtonIcon, Flex, Text } from 'design';
-import { Close as CloseIcon } from 'design/Icon';
+import { Cross as CloseIcon } from 'design/Icon';
 
 import { FileTransferDialogDirection, TransferredFile } from './types';
 import { DownloadForm } from './DownloadForm';
@@ -84,21 +84,15 @@ export function FileTransferStateless(props: FileTransferStatelessProps) {
 function ButtonClose(props: { onClick(): void }) {
   return (
     <ButtonIcon title="Close" onClick={props.onClick}>
-      <CloseIcon />
+      <CloseIcon size="medium" />
     </ButtonIcon>
   );
 }
 
 const Container = styled.div`
-  background: ${props =>
-    props.backgroundColor || props.theme.colors.levels.surface};
+  background: ${props => props.theme.colors.levels.surface};
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   box-sizing: border-box;
   border-radius: ${props => props.theme.radii[2]}px;
   padding: 8px 16px 16px;
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  width: 500px;
-  z-index: 10;
 `;

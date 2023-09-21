@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -101,9 +102,7 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 			},
 			AccessRequests: accessRequests,
 			RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
-		}, func(opts *PromptMFAChallengeOpts) {
-			opts.HintBeforePrompt = hint
-		})
+		}, mfa.WithHintBeforePrompt(hint))
 		key = newKey
 		return trace.Wrap(err)
 	}); err != nil {
@@ -123,8 +122,7 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 		return trace.Wrap(err)
 	}
 	certTTL := leaf.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
-	fmt.Fprintf(c.tc.Stderr,
-		"Database certificate renewed: valid until %s [valid for %v]\n",
+	log.Debugf("Database certificate renewed: valid until %s [valid for %v]",
 		leaf.NotAfter.Format(time.RFC3339), certTTL)
 	// reduce per-handshake processing by setting the parsed leaf.
 	tlsCert.Leaf = leaf

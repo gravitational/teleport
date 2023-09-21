@@ -23,21 +23,25 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
@@ -155,7 +159,7 @@ func TryRun(commands []CLICommand, args []string) error {
 		BoolVar(&ccf.Insecure)
 
 	// "version" command is always available:
-	ver := app.Command("version", "Print the version of your tctl binary")
+	ver := app.Command("version", "Print the version of your tctl binary.")
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
@@ -175,7 +179,7 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	// "version" command?
 	if selectedCmd == ver.FullCommand() {
-		utils.PrintVersion()
+		modules.GetModules().PrintVersion()
 		return nil
 	}
 
@@ -192,16 +196,27 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	ctx := context.Background()
 
+	mfaPrompt := mfa.NewPrompt("")
+	mfaPrompt.HintBeforePrompt = mfa.AdminMFAHintBeforePrompt
+	clientConfig.PromptAdminRequestMFA = mfaPrompt.Run
+
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
 		if utils.IsUntrustedCertErr(err) {
 			err = trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
 		}
-		utils.Consolef(os.Stderr, log.WithField(trace.Component, teleport.ComponentClient), teleport.ComponentClient,
-			"Cannot connect to the auth server: %v.\nIs the auth server running on %q?",
-			err, cfg.AuthServerAddresses()[0].Addr)
+		fmt.Fprintf(os.Stderr,
+			"ERROR: Cannot connect to the auth server. Is the auth server running on %q?\n",
+			cfg.AuthServerAddresses()[0].Addr)
 		return trace.NewAggregate(&common.ExitCodeError{Code: 1}, err)
 	}
+
+	// Set proxy address for the MFA prompt from the ping response.
+	resp, err := client.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mfaPrompt.ProxyAddress = resp.ProxyPublicAddr
 
 	// execute whatever is selected:
 	var match bool
@@ -215,8 +230,10 @@ func TryRun(commands []CLICommand, args []string) error {
 		}
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
+	defer cancel()
 	if err := common.ShowClusterAlerts(ctx, client, os.Stderr, nil,
-		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+		types.AlertSeverity_HIGH); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
@@ -286,6 +303,12 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		}
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
+		} else if runtime.GOOS == constants.WindowsOS {
+			// On macOS/Linux, a not found error here is okay, as we can attempt
+			// to use the local auth identity. The auth server itself doesn't run
+			// on Windows though, so exit early with a clear error.
+			return nil, trace.BadParameter("tctl requires a tsh profile on Windows. " +
+				"Try logging in with tsh first.")
 		}
 	}
 

@@ -4,18 +4,17 @@ description: How to configure Teleport database access with self-hosted MongoDB.
 videoBanner: 6lgVObxoLkc
 ---
 
-In this guide you will:
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="MongoDB cluster" dbConfigure="MongoDB cluster with mutual TLS authentication" dbName="MongoDB" !)
 
-1. Install and configure Teleport for database access.
-2. Configure mutual TLS authentication between Teleport and your MongoDB cluster.
-3. Connect to your MongoDB instance via Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access MongoDB Self-Hosted](../../../img/database-access/guides/mongodb_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access MongoDB Cloud](../../../img/database-access/guides/mongodb_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -38,50 +37,26 @@ In this guide you will:
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-Install Teleport on the host where you will run the Teleport Database Service:
+Install and configure Teleport where you will run the Teleport Database Service:
+
+<Tabs>
+<TabItem label="Linux Server">
 
 (!docs/pages/includes/install-linux.mdx!)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-mongo" dbProtocol="mongodb" databaseAddress="mongo.example.com:27017" !)
 
-Start the Teleport Database Service, pointing the `--auth-server` flag to the
-address of your Teleport Proxy Service:
+</TabItem>
+<TabItem label="Kubernetes Cluster">
+  Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-```code
-$ teleport db start \
-  --token=/tmp/token \
-  --auth-server=teleport.example.com:3080 \
-  --name=example-mongo \
-  --protocol=mongodb \
-  --uri=mongo.example.com:27017 \
-  --labels=env=dev
-```
+  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-<Admonition type="note">
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-mongo" dbProtocol="mongodb" databaseAddress="mongo.example.com:27017" !)
+</TabItem>
+</Tabs>
 
-The `--auth-server` flag must point to the Teleport cluster's Proxy Service
-endpoint because the Database Service always connects back to the cluster over a
-reverse tunnel.
-
-</Admonition>
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-Start the Teleport Database Service, pointing the `--auth-server` flag to the
-address of your Teleport Cloud tenant:
-
-```code
-$ teleport db start \
-  --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh:443 \
-  --name=example-mongo \
-  --protocol=mongodb \
-  --uri=mongo.example.com:27017 \
-  --labels=env=dev
-```
-
-</ScopedBlock>
+(!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 
 You can specify either a single connection address or a MongoDB
 [connection string](https://docs.mongodb.com/manual/reference/connection-string/)
@@ -99,14 +74,11 @@ connection string setting:
 $ --uri="mongodb://mongo1.example.com:27017,mongo2.example.com:27017/?replicaSet=rs0&readPreference=secondary"
 ```
 
-<Admonition type="tip">
-  You can start the Database Service using a configuration file instead of CLI flags.
-  See the [YAML reference](../reference/configuration.mdx) for details.
-</Admonition>
-
 ### Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
+
+(!docs/pages/includes/database-access/mongodb-required-database-access.mdx!)
 
 ## Step 2/3. Configure MongoDB
 
@@ -182,8 +154,6 @@ Create the secrets:
   </TabItem>
 </Tabs>
 
-(!docs/pages/includes/database-access/rotation-note.mdx!)
-
 Use the generated secrets to enable mutual TLS in your `mongod.conf` configuration
 file and restart the database:
 
@@ -223,7 +193,8 @@ in the MongoDB documentation for more details.
 
 Log in to your Teleport cluster and see available databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -233,8 +204,8 @@ $ tsh db ls
 # example-mongo Example MongoDB env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -244,7 +215,9 @@ $ tsh db ls
 # example-mongo Example MongoDB env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To retrieve credentials for a database and connect to it:
 
@@ -278,3 +251,4 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

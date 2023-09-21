@@ -17,14 +17,30 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
+import makeNode from '../nodes/makeNode';
+
 import {
   Integration,
   IntegrationCreateRequest,
+  IntegrationUpdateRequest,
   IntegrationStatusCode,
   IntegrationListResponse,
-  IntegrationExecuteRequest,
-  AwsDatabase,
-  ListAwsDatabaseResponse,
+  AwsOidcListDatabasesRequest,
+  AwsRdsDatabase,
+  ListAwsRdsDatabaseResponse,
+  RdsEngineIdentifier,
+  AwsOidcDeployServiceRequest,
+  AwsOidcDeployServiceResponse,
+  ListEc2InstancesRequest,
+  ListEc2InstancesResponse,
+  Ec2InstanceConnectEndpoint,
+  ListEc2InstanceConnectEndpointsRequest,
+  ListEc2InstanceConnectEndpointsResponse,
+  ListAwsSecurityGroupsRequest,
+  ListAwsSecurityGroupsResponse,
+  DeployEc2InstanceConnectEndpointRequest,
+  DeployEc2InstanceConnectEndpointResponse,
+  SecurityGroup,
 } from './types';
 
 export const integrationService = {
@@ -42,34 +58,138 @@ export const integrationService = {
     });
   },
 
-  createIntegration(req: IntegrationCreateRequest): Promise<void> {
-    return api.post(cfg.getIntegrationsUrl(), req);
+  createIntegration(req: IntegrationCreateRequest): Promise<Integration> {
+    return api.post(cfg.getIntegrationsUrl(), req).then(makeIntegration);
   },
 
-  updateIntegration(name: string): Promise<void> {
-    return api.put(cfg.getIntegrationsUrl(name));
+  updateIntegration(
+    name: string,
+    req: IntegrationUpdateRequest
+  ): Promise<Integration> {
+    return api.put(cfg.getIntegrationsUrl(name), req).then(makeIntegration);
   },
 
   deleteIntegration(name: string): Promise<void> {
     return api.delete(cfg.getIntegrationsUrl(name));
   },
 
-  fetchAwsDatabases(
+  fetchThumbprint(): Promise<string> {
+    return api.get(cfg.api.thumbprintPath);
+  },
+
+  fetchAwsRdsDatabases(
     integrationName,
-    req: IntegrationExecuteRequest
-  ): Promise<ListAwsDatabaseResponse> {
+    rdsEngineIdentifier: RdsEngineIdentifier,
+    req: {
+      region: AwsOidcListDatabasesRequest['region'];
+      nextToken?: AwsOidcListDatabasesRequest['nextToken'];
+    }
+  ): Promise<ListAwsRdsDatabaseResponse> {
+    let body: AwsOidcListDatabasesRequest;
+    switch (rdsEngineIdentifier) {
+      case 'mysql':
+        body = {
+          ...req,
+          rdsType: 'instance',
+          engines: ['mysql', 'mariadb'],
+        };
+        break;
+      case 'postgres':
+        body = {
+          ...req,
+          rdsType: 'instance',
+          engines: ['postgres'],
+        };
+        break;
+      case 'aurora-mysql':
+        body = {
+          ...req,
+          rdsType: 'cluster',
+          engines: ['aurora-mysql'],
+        };
+        break;
+      case 'aurora-postgres':
+        body = {
+          ...req,
+          rdsType: 'cluster',
+          engines: ['aurora-postgresql'],
+        };
+        break;
+    }
+
     return api
-      .post(
-        cfg.getIntegrationExecuteUrl({
-          name: integrationName,
-          action: 'list_databases',
-        }),
-        req
-      )
+      .post(cfg.getAwsRdsDbListUrl(integrationName), body)
       .then(json => {
-        const dbs = json?.databases;
+        const dbs = json?.databases ?? [];
         return {
           databases: dbs.map(makeAwsDatabase),
+          nextToken: json?.nextToken,
+        };
+      });
+  },
+
+  deployAwsOidcService(
+    integrationName,
+    req: AwsOidcDeployServiceRequest
+  ): Promise<AwsOidcDeployServiceResponse> {
+    return api.post(cfg.getAwsDeployTeleportServiceUrl(integrationName), req);
+  },
+
+  // Returns a list of EC2 Instances using the ListEC2ICE action of the AWS OIDC Integration.
+  fetchAwsEc2Instances(
+    integrationName,
+    req: ListEc2InstancesRequest
+  ): Promise<ListEc2InstancesResponse> {
+    return api
+      .post(cfg.getListEc2InstancesUrl(integrationName), req)
+      .then(json => {
+        const instances = json?.servers ?? [];
+        return {
+          instances: instances.map(makeNode),
+          nextToken: json?.nextToken,
+        };
+      });
+  },
+
+  // Returns a list of EC2 Instance Connect Endpoints using the ListEC2ICE action of the AWS OIDC Integration.
+  fetchAwsEc2InstanceConnectEndpoints(
+    integrationName,
+    req: ListEc2InstanceConnectEndpointsRequest
+  ): Promise<ListEc2InstanceConnectEndpointsResponse> {
+    return api
+      .post(cfg.getListEc2InstanceConnectEndpointsUrl(integrationName), req)
+      .then(json => {
+        const endpoints = json?.ec2InstanceConnectEndpoints ?? [];
+
+        return {
+          endpoints: endpoints.map(makeEc2InstanceConnectEndpoint),
+          nextToken: json?.nextToken,
+        };
+      });
+  },
+
+  // Deploys an EC2 Instance Connect Endpoint.
+  deployAwsEc2InstanceConnectEndpoint(
+    integrationName,
+    req: DeployEc2InstanceConnectEndpointRequest
+  ): Promise<DeployEc2InstanceConnectEndpointResponse> {
+    return api
+      .post(cfg.getDeployEc2InstanceConnectEndpointUrl(integrationName), req)
+      .then(json => ({ name: json?.name }));
+  },
+
+  // Returns a list of VPC Security Groups using the ListSecurityGroups action of the AWS OIDC Integration.
+  fetchSecurityGroups(
+    integrationName,
+    req: ListAwsSecurityGroupsRequest
+  ): Promise<ListAwsSecurityGroupsResponse> {
+    return api
+      .post(cfg.getListSecurityGroupsUrl(integrationName), req)
+      .then(json => {
+        const securityGroups = json?.securityGroups ?? [];
+
+        return {
+          securityGroups: securityGroups.map(makeSecurityGroup),
           nextToken: json?.nextToken,
         };
       });
@@ -100,12 +220,47 @@ function makeIntegration(json: any): Integration {
   };
 }
 
-export function makeAwsDatabase(json: any): AwsDatabase {
+export function makeAwsDatabase(json: any): AwsRdsDatabase {
   json = json ?? {};
-  const { engine, name, endpoint } = json;
+  const { aws, name, uri, labels, protocol } = json;
+
   return {
-    engine,
+    engine: protocol,
     name,
-    endpoint,
+    uri,
+    status: aws?.status,
+    labels: labels ?? [],
+    subnets: aws?.rds?.subnets,
+    resourceId: aws?.rds?.resource_id,
+    vpcId: aws?.rds?.vpc_id,
+    accountId: aws?.account_id,
+    region: aws?.region,
+  };
+}
+
+function makeEc2InstanceConnectEndpoint(json: any): Ec2InstanceConnectEndpoint {
+  json = json ?? {};
+  const { name, state, stateMessage, dashboardLink, subnetId } = json;
+
+  return {
+    name,
+    state,
+    stateMessage,
+    dashboardLink,
+    subnetId,
+  };
+}
+
+function makeSecurityGroup(json: any): SecurityGroup {
+  json = json ?? {};
+
+  const { name, id, description = '', inboundRules, outboundRules } = json;
+
+  return {
+    name,
+    id,
+    description,
+    inboundRules: inboundRules ?? [],
+    outboundRules: outboundRules ?? [],
   };
 }

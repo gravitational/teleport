@@ -20,6 +20,10 @@ spec:
 {{- if $proxy.tolerations }}
       tolerations: {{- toYaml $proxy.tolerations | nindent 6 }}
 {{- end }}
+{{- if $proxy.imagePullSecrets }}
+      imagePullSecrets:
+  {{- toYaml $proxy.imagePullSecrets | nindent 6 }}
+{{- end }}
       restartPolicy: Never
       containers:
       - name: "teleport"
@@ -49,11 +53,7 @@ spec:
         securityContext: {{- toYaml $proxy.securityContext | nindent 10 }}
 {{- end }}
         volumeMounts:
-{{- if $proxy.highAvailability.certManager.enabled }}
-        - mountPath: /etc/teleport-tls
-          name: "teleport-tls"
-          readOnly: true
-{{- else if $proxy.tls.existingSecretName }}
+{{- if or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName }}
         - mountPath: /etc/teleport-tls
           name: "teleport-tls"
           readOnly: true

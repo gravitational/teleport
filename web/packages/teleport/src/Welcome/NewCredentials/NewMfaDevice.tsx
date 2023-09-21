@@ -30,10 +30,16 @@ import createMfaOptions from 'shared/utils/createMfaOptions';
 import { useRefAutoFocus } from 'shared/hooks';
 import { Auth2faType } from 'shared/services';
 
-import { Props as CredentialsProps, SliderProps } from './NewCredentials';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
+
+import {
+  SliderProps,
+  UseTokenState,
+} from 'teleport/Welcome/NewCredentials/types';
+
 import secKeyGraphic from './sec-key-with-bg.png';
 
-export function NewMfaDevice(props: Props) {
+export function NewMfaDevice(props: NewMfaDeviceProps) {
   const {
     resetToken,
     submitAttempt,
@@ -48,7 +54,7 @@ export function NewMfaDevice(props: Props) {
   } = props;
   const [otp, setOtp] = useState('');
   const mfaOptions = createMfaOptions({
-    auth2faType: auth2faType,
+    auth2faType: auth2faType as Auth2faType,
   });
   const [mfaType, setMfaType] = useState(mfaOptions[0]);
   const [deviceName, setDeviceName] = useState(() =>
@@ -99,10 +105,10 @@ export function NewMfaDevice(props: Props) {
   return (
     <Validation>
       {({ validator }) => (
-        <Box p={5} ref={refCallback}>
+        <OnboardCard ref={refCallback}>
           <Flex mb={3} alignItems="center">
             <ArrowBack
-              fontSize={30}
+              size="large"
               mr={3}
               onClick={() => {
                 clearSubmitAttempt();
@@ -111,16 +117,16 @@ export function NewMfaDevice(props: Props) {
               style={{ cursor: 'pointer' }}
             />
             <Box>
-              <Text color="text.secondary">Step 2 of 2</Text>
-              <Text typography="h4" color="text.primary" bold>
+              <Text typography="h4" color="text.main" bold>
                 Set Two-Factor Device
               </Text>
+              <Text color="text.slightlyMuted">Step 2 of 2</Text>
             </Box>
           </Flex>
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
-          <Text typography="subtitle1" color="text.primary" caps mb={1}>
+          <Text typography="subtitle1" color="text.main" caps mb={1}>
             Two-Factor Method
           </Text>
           <Box mb={1}>
@@ -156,7 +162,7 @@ export function NewMfaDevice(props: Props) {
                   fontSize={1}
                   textAlign="center"
                   mt={2}
-                  color="text.secondary"
+                  color="text.slightlyMuted"
                 >
                   Scan the QR Code with any authenticator app and enter the
                   generated code. We recommend{' '}
@@ -170,7 +176,11 @@ export function NewMfaDevice(props: Props) {
             {mfaType?.value === 'webauthn' && (
               <>
                 <Image src={imgSrc} width="220px" height="154px" />
-                <Text fontSize={1} color="text.secondary" textAlign="center">
+                <Text
+                  fontSize={1}
+                  color="text.slightlyMuted"
+                  textAlign="center"
+                >
                   We support a wide range of hardware devices including
                   YubiKeys, Touch ID, watches, and more.
                 </Text>
@@ -187,7 +197,7 @@ export function NewMfaDevice(props: Props) {
             <Flex alignItems="center" height={100}>
               <FieldInput
                 rule={requiredField('Device name is required')}
-                label="Device name"
+                label="Device Name"
                 placeholder="Name"
                 ref={deviceNameInputRef}
                 width={mfaType?.value === 'otp' ? '50%' : '100%'}
@@ -200,7 +210,7 @@ export function NewMfaDevice(props: Props) {
               {mfaType?.value === 'otp' && (
                 <FieldInput
                   width="50%"
-                  label="Authenticator code"
+                  label="Authenticator Code"
                   rule={requiredToken}
                   inputMode="numeric"
                   autoComplete="one-time-code"
@@ -221,7 +231,7 @@ export function NewMfaDevice(props: Props) {
           >
             Submit
           </ButtonPrimary>
-        </Box>
+        </OnboardCard>
       )}
     </Validation>
   );
@@ -237,7 +247,7 @@ function getDefaultDeviceName(mfaType: Auth2faType) {
   return '';
 }
 
-type Props = CredentialsProps &
+export type NewMfaDeviceProps = UseTokenState &
   SliderProps & {
     password: string;
     updatePassword(pwd: string): void;

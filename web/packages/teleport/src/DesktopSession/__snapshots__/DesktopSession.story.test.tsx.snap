@@ -62,7 +62,7 @@ exports[`another session active 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -185,7 +185,7 @@ exports[`another session active 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Another Session Is Active
         </div>
@@ -217,7 +217,7 @@ exports[`another session active 1`] = `
 `;
 
 exports[`connected settings false 1`] = `
-.c10 {
+.c6 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -245,42 +245,22 @@ exports[`connected settings false 1`] = `
   padding-right: 8px;
 }
 
-.c10:hover,
-.c10:focus {
+.c6:hover,
+.c6:focus {
   background: #B29DFF;
 }
 
-.c10:active {
+.c6:active {
   background: #C5B6FF;
 }
 
-.c10:disabled {
+.c6:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c6 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  padding-right: 16px;
-}
-
-.c13 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  margin-right: 8px;
-}
-
-.c16 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-}
-
-.c15 {
+.c10 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -299,28 +279,24 @@ exports[`connected settings false 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
-.c15 .c5 {
-  color: inherit;
+.c10:disabled {
+  color: rgba(255,255,255,0.36);
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
-}
-
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
+.c10:disabled {
+  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c15:hover:enabled,
-.c15:focus:enabled {
+.c10:hover:enabled,
+.c10:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c15:active:enabled {
+.c10:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -330,6 +306,26 @@ exports[`connected settings false 1`] = `
   margin: 0px;
   padding-left: 16px;
   padding-right: 16px;
+}
+
+.c5 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 16px;
+}
+
+.c9 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.c11 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .c0 {
@@ -361,47 +357,23 @@ exports[`connected settings false 1`] = `
   align-items: center;
 }
 
-.c12 {
+.c8 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c14 {
-  font-weight: 600;
-  font-size: 14px;
-  color: inherit;
-  transition: none;
-  align-self: 'center';
-}
-
-.c11 {
+.c7 {
   color: #FFFFFF;
   min-height: 0;
   height: 24px;
   background-color: rgba(255,255,255,0.13);
 }
 
-.c11:hover,
-.c11:focus {
+.c7:hover,
+.c7:focus {
   background-color: rgba(255,255,255,0.18);
-}
-
-.c9 {
-  position: relative;
-}
-
-.c8 {
-  font-weight: 600;
-  font-size: 18px;
-  align-self: 'center';
-}
-
-.c7 {
-  font-weight: 600;
-  font-size: 22px;
-  align-self: 'center';
 }
 
 <div>
@@ -415,7 +387,7 @@ exports[`connected settings false 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -426,60 +398,127 @@ exports[`connected settings false 1`] = `
           class="c4"
         >
           <span
-            class="c5 c6 icon icon-folder-shared c7"
-            style="color: rgba(255, 255, 255, 0.56);"
+            class="c5 icon icon-foldershared"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Directory Sharing Disabled"
-          />
-          <span
-            class="c5 c6 icon icon-clipboard-text c8"
-            style="color: rgba(255, 255, 255, 0.56);"
-            title="Clipboard Sharing Disabled"
-          />
-          <div
-            class="c9"
           >
-            <button
-              class="c10 c11"
-              kind="primary"
-              title="Warnings"
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
             >
-              <div
-                class="c12"
+              <path
+                d="M3.75 4.5C3.35217 4.5 2.97064 4.65804 2.68934 4.93934C2.40804 5.22064 2.25 5.60217 2.25 6V18.75C2.25 19.1478 2.40804 19.5294 2.68934 19.8107C2.97065 20.092 3.35218 20.25 3.75 20.25H11.25C11.6642 20.25 12 19.9142 12 19.5C12 19.0858 11.6642 18.75 11.25 18.75H3.75L3.75 6L8.74969 6L11.3503 7.95C11.6099 8.1447 11.9258 8.25 12.2503 8.25H20.25V11.25C20.25 11.6642 20.5858 12 21 12C21.4142 12 21.75 11.6642 21.75 11.25V8.25C21.75 7.85218 21.592 7.47065 21.3107 7.18934C21.0294 6.90804 20.6478 6.75 20.25 6.75H12.2503L9.64969 4.8C9.39006 4.6053 9.07421 4.5 8.74969 4.5H3.75Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M15 16.5C15 14.8431 16.3431 13.5 18 13.5C19.6569 13.5 21 14.8431 21 16.5C21 17.3283 20.6643 18.0783 20.1215 18.6212C20.8996 19.123 21.482 19.8946 21.7247 20.8072C21.8312 21.2075 21.593 21.6184 21.1927 21.7248C20.7924 21.8313 20.3816 21.5931 20.2751 21.1928C20.02 20.2334 19.1098 19.5 17.9999 19.5C16.8901 19.5 15.9799 20.2334 15.7247 21.1928C15.6183 21.5931 15.2075 21.8313 14.8072 21.7248C14.4069 21.6184 14.1687 21.2075 14.2751 20.8072C14.5179 19.8946 15.1003 19.123 15.8785 18.6211C15.3357 18.0782 15 17.3283 15 16.5ZM18 15C17.1716 15 16.5 15.6716 16.5 16.5C16.5 17.3284 17.1716 18 18 18C18.8284 18 19.5 17.3284 19.5 16.5C19.5 15.6716 18.8284 15 18 15Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+          <span
+            class="c5 icon icon-clipboard"
+            style="color: rgba(255, 255, 255, 0.72);"
+            title="Clipboard Sharing Disabled"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M9 10.5C8.58579 10.5 8.25 10.8358 8.25 11.25C8.25 11.6642 8.58579 12 9 12H15C15.4142 12 15.75 11.6642 15.75 11.25C15.75 10.8358 15.4142 10.5 15 10.5H9Z"
+              />
+              <path
+                d="M9 13.5C8.58579 13.5 8.25 13.8358 8.25 14.25C8.25 14.6642 8.58579 15 9 15H15C15.4142 15 15.75 14.6642 15.75 14.25C15.75 13.8358 15.4142 13.5 15 13.5H9Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M8.64589 3C8.70142 2.93792 8.75881 2.87723 8.81802 2.81802C9.66193 1.97411 10.8065 1.5 12 1.5C13.1935 1.5 14.3381 1.97411 15.182 2.81802C15.2412 2.87723 15.2986 2.93792 15.3541 3H18.75C19.1478 3 19.5294 3.15804 19.8107 3.43934C20.092 3.72065 20.25 4.10218 20.25 4.5V20.25C20.25 20.6478 20.092 21.0294 19.8107 21.3107C19.5294 21.592 19.1478 21.75 18.75 21.75H5.25C4.85218 21.75 4.47065 21.592 4.18934 21.3107C3.90804 21.0294 3.75 20.6478 3.75 20.25V4.5C3.75 4.10217 3.90804 3.72064 4.18934 3.43934C4.47064 3.15804 4.85217 3 5.25 3H8.64589ZM9.87868 3.87868C10.4413 3.31607 11.2044 3 12 3C12.7956 3 13.5587 3.31607 14.1213 3.87868C14.2202 3.97758 14.3115 4.08267 14.3948 4.19305C14.398 4.19746 14.4013 4.20184 14.4046 4.20617C14.7889 4.72126 15 5.34975 15 6H9C9 5.34975 9.21111 4.72126 9.59537 4.20617C9.5987 4.20183 9.60198 4.19746 9.60521 4.19305C9.6885 4.08268 9.77978 3.97758 9.87868 3.87868ZM7.75736 4.5H5.25L5.25 20.25H18.75L18.75 4.5H16.2426C16.4114 4.97731 16.5 5.48409 16.5 6V6.75C16.5 7.16421 16.1642 7.5 15.75 7.5H8.25C7.83579 7.5 7.5 7.16421 7.5 6.75V6C7.5 5.48409 7.58859 4.97731 7.75736 4.5Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+          <button
+            class="c6 c7"
+            kind="primary"
+            title="Warnings"
+          >
+            <div
+              class="c8"
+            >
+              <span
+                class="c9 icon icon-warning"
               >
-                <span
-                  class="c5 c13 icon icon-warning c14"
-                />
-                 
-                0
-              </div>
-            </button>
-          </div>
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    d="M12 9C12.4142 9 12.75 9.33579 12.75 9.75V13.5C12.75 13.9142 12.4142 14.25 12 14.25C11.5858 14.25 11.25 13.9142 11.25 13.5V9.75C11.25 9.33579 11.5858 9 12 9Z"
+                  />
+                  <path
+                    d="M12 17.8125C12.5178 17.8125 12.9375 17.3928 12.9375 16.875C12.9375 16.3572 12.5178 15.9375 12 15.9375C11.4822 15.9375 11.0625 16.3572 11.0625 16.875C11.0625 17.3928 11.4822 17.8125 12 17.8125Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M10.09 3.34287L1.88101 17.7086C1.04292 19.1753 2.10193 21.0001 3.79114 21.0001H20.2092C21.8984 21.0001 22.9574 19.1753 22.1193 17.7086L13.9103 3.34287C13.0657 1.86488 10.9346 1.86488 10.09 3.34287ZM3.18337 18.4528L11.3924 4.08708C11.6611 3.61681 12.3392 3.61681 12.6079 4.08708L20.8169 18.4528C21.0836 18.9195 20.7466 19.5001 20.2092 19.5001H3.79114C3.25367 19.5001 2.91671 18.9195 3.18337 18.4528Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+               
+              0
+            </div>
+          </button>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c15"
-            color="text.secondary"
+            class="c10"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c16 icon icon-ellipsis "
-            />
+              class="c11 icon icon-morehoriz"
+            >
+              <svg
+                fill="currentColor"
+                height="20"
+                viewBox="0 0 24 24"
+                width="20"
+              >
+                <path
+                  d="M4.5 13.5C5.32843 13.5 6 12.8284 6 12C6 11.1716 5.32843 10.5 4.5 10.5C3.67157 10.5 3 11.1716 3 12C3 12.8284 3.67157 13.5 4.5 13.5Z"
+                />
+                <path
+                  d="M12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5Z"
+                />
+                <path
+                  d="M19.5 13.5C20.3284 13.5 21 12.8284 21 12C21 11.1716 20.3284 10.5 19.5 10.5C18.6716 10.5 18 11.1716 18 12C18 12.8284 18.6716 13.5 19.5 13.5Z"
+                />
+              </svg>
+            </span>
           </button>
         </div>
       </div>
     </nav>
     <canvas
-      style="display: flex; flex: 1;"
+      style="display: flex;"
     />
   </div>
 </div>
 `;
 
 exports[`connected settings true 1`] = `
-.c10 {
+.c6 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -507,42 +546,22 @@ exports[`connected settings true 1`] = `
   padding-right: 8px;
 }
 
-.c10:hover,
-.c10:focus {
+.c6:hover,
+.c6:focus {
   background: #B29DFF;
 }
 
-.c10:active {
+.c6:active {
   background: #C5B6FF;
 }
 
-.c10:disabled {
+.c6:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c6 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  padding-right: 16px;
-}
-
-.c13 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  margin-right: 8px;
-}
-
-.c16 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-}
-
-.c15 {
+.c10 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -561,28 +580,24 @@ exports[`connected settings true 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
-.c15 .c5 {
-  color: inherit;
+.c10:disabled {
+  color: rgba(255,255,255,0.36);
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
-}
-
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
+.c10:disabled {
+  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c15:hover:enabled,
-.c15:focus:enabled {
+.c10:hover:enabled,
+.c10:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c15:active:enabled {
+.c10:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -592,6 +607,26 @@ exports[`connected settings true 1`] = `
   margin: 0px;
   padding-left: 16px;
   padding-right: 16px;
+}
+
+.c5 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 16px;
+}
+
+.c9 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.c11 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .c0 {
@@ -623,47 +658,23 @@ exports[`connected settings true 1`] = `
   align-items: center;
 }
 
-.c12 {
+.c8 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c14 {
-  font-weight: 600;
-  font-size: 14px;
-  color: inherit;
-  transition: none;
-  align-self: 'center';
-}
-
-.c11 {
+.c7 {
   color: #FFFFFF;
   min-height: 0;
   height: 24px;
   background-color: rgba(255,255,255,0.13);
 }
 
-.c11:hover,
-.c11:focus {
+.c7:hover,
+.c7:focus {
   background-color: rgba(255,255,255,0.18);
-}
-
-.c9 {
-  position: relative;
-}
-
-.c8 {
-  font-weight: 600;
-  font-size: 18px;
-  align-self: 'center';
-}
-
-.c7 {
-  font-weight: 600;
-  font-size: 22px;
-  align-self: 'center';
 }
 
 <div>
@@ -677,7 +688,7 @@ exports[`connected settings true 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -688,53 +699,120 @@ exports[`connected settings true 1`] = `
           class="c4"
         >
           <span
-            class="c5 c6 icon icon-folder-shared c7"
+            class="c5 icon icon-foldershared"
             style="color: rgb(255, 255, 255);"
             title="Directory Sharing Enabled"
-          />
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M3.75 4.5C3.35217 4.5 2.97064 4.65804 2.68934 4.93934C2.40804 5.22064 2.25 5.60217 2.25 6V18.75C2.25 19.1478 2.40804 19.5294 2.68934 19.8107C2.97065 20.092 3.35218 20.25 3.75 20.25H11.25C11.6642 20.25 12 19.9142 12 19.5C12 19.0858 11.6642 18.75 11.25 18.75H3.75L3.75 6L8.74969 6L11.3503 7.95C11.6099 8.1447 11.9258 8.25 12.2503 8.25H20.25V11.25C20.25 11.6642 20.5858 12 21 12C21.4142 12 21.75 11.6642 21.75 11.25V8.25C21.75 7.85218 21.592 7.47065 21.3107 7.18934C21.0294 6.90804 20.6478 6.75 20.25 6.75H12.2503L9.64969 4.8C9.39006 4.6053 9.07421 4.5 8.74969 4.5H3.75Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M15 16.5C15 14.8431 16.3431 13.5 18 13.5C19.6569 13.5 21 14.8431 21 16.5C21 17.3283 20.6643 18.0783 20.1215 18.6212C20.8996 19.123 21.482 19.8946 21.7247 20.8072C21.8312 21.2075 21.593 21.6184 21.1927 21.7248C20.7924 21.8313 20.3816 21.5931 20.2751 21.1928C20.02 20.2334 19.1098 19.5 17.9999 19.5C16.8901 19.5 15.9799 20.2334 15.7247 21.1928C15.6183 21.5931 15.2075 21.8313 14.8072 21.7248C14.4069 21.6184 14.1687 21.2075 14.2751 20.8072C14.5179 19.8946 15.1003 19.123 15.8785 18.6211C15.3357 18.0782 15 17.3283 15 16.5ZM18 15C17.1716 15 16.5 15.6716 16.5 16.5C16.5 17.3284 17.1716 18 18 18C18.8284 18 19.5 17.3284 19.5 16.5C19.5 15.6716 18.8284 15 18 15Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
           <span
-            class="c5 c6 icon icon-clipboard-text c8"
+            class="c5 icon icon-clipboard"
             style="color: rgb(255, 255, 255);"
             title="Clipboard Sharing Enabled"
-          />
-          <div
-            class="c9"
           >
-            <button
-              class="c10 c11"
-              kind="primary"
-              title="Warnings"
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
             >
-              <div
-                class="c12"
+              <path
+                d="M9 10.5C8.58579 10.5 8.25 10.8358 8.25 11.25C8.25 11.6642 8.58579 12 9 12H15C15.4142 12 15.75 11.6642 15.75 11.25C15.75 10.8358 15.4142 10.5 15 10.5H9Z"
+              />
+              <path
+                d="M9 13.5C8.58579 13.5 8.25 13.8358 8.25 14.25C8.25 14.6642 8.58579 15 9 15H15C15.4142 15 15.75 14.6642 15.75 14.25C15.75 13.8358 15.4142 13.5 15 13.5H9Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M8.64589 3C8.70142 2.93792 8.75881 2.87723 8.81802 2.81802C9.66193 1.97411 10.8065 1.5 12 1.5C13.1935 1.5 14.3381 1.97411 15.182 2.81802C15.2412 2.87723 15.2986 2.93792 15.3541 3H18.75C19.1478 3 19.5294 3.15804 19.8107 3.43934C20.092 3.72065 20.25 4.10218 20.25 4.5V20.25C20.25 20.6478 20.092 21.0294 19.8107 21.3107C19.5294 21.592 19.1478 21.75 18.75 21.75H5.25C4.85218 21.75 4.47065 21.592 4.18934 21.3107C3.90804 21.0294 3.75 20.6478 3.75 20.25V4.5C3.75 4.10217 3.90804 3.72064 4.18934 3.43934C4.47064 3.15804 4.85217 3 5.25 3H8.64589ZM9.87868 3.87868C10.4413 3.31607 11.2044 3 12 3C12.7956 3 13.5587 3.31607 14.1213 3.87868C14.2202 3.97758 14.3115 4.08267 14.3948 4.19305C14.398 4.19746 14.4013 4.20184 14.4046 4.20617C14.7889 4.72126 15 5.34975 15 6H9C9 5.34975 9.21111 4.72126 9.59537 4.20617C9.5987 4.20183 9.60198 4.19746 9.60521 4.19305C9.6885 4.08268 9.77978 3.97758 9.87868 3.87868ZM7.75736 4.5H5.25L5.25 20.25H18.75L18.75 4.5H16.2426C16.4114 4.97731 16.5 5.48409 16.5 6V6.75C16.5 7.16421 16.1642 7.5 15.75 7.5H8.25C7.83579 7.5 7.5 7.16421 7.5 6.75V6C7.5 5.48409 7.58859 4.97731 7.75736 4.5Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+          <button
+            class="c6 c7"
+            kind="primary"
+            title="Warnings"
+          >
+            <div
+              class="c8"
+            >
+              <span
+                class="c9 icon icon-warning"
               >
-                <span
-                  class="c5 c13 icon icon-warning c14"
-                />
-                 
-                0
-              </div>
-            </button>
-          </div>
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    d="M12 9C12.4142 9 12.75 9.33579 12.75 9.75V13.5C12.75 13.9142 12.4142 14.25 12 14.25C11.5858 14.25 11.25 13.9142 11.25 13.5V9.75C11.25 9.33579 11.5858 9 12 9Z"
+                  />
+                  <path
+                    d="M12 17.8125C12.5178 17.8125 12.9375 17.3928 12.9375 16.875C12.9375 16.3572 12.5178 15.9375 12 15.9375C11.4822 15.9375 11.0625 16.3572 11.0625 16.875C11.0625 17.3928 11.4822 17.8125 12 17.8125Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M10.09 3.34287L1.88101 17.7086C1.04292 19.1753 2.10193 21.0001 3.79114 21.0001H20.2092C21.8984 21.0001 22.9574 19.1753 22.1193 17.7086L13.9103 3.34287C13.0657 1.86488 10.9346 1.86488 10.09 3.34287ZM3.18337 18.4528L11.3924 4.08708C11.6611 3.61681 12.3392 3.61681 12.6079 4.08708L20.8169 18.4528C21.0836 18.9195 20.7466 19.5001 20.2092 19.5001H3.79114C3.25367 19.5001 2.91671 18.9195 3.18337 18.4528Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+               
+              0
+            </div>
+          </button>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c15"
-            color="text.secondary"
+            class="c10"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c16 icon icon-ellipsis "
-            />
+              class="c11 icon icon-morehoriz"
+            >
+              <svg
+                fill="currentColor"
+                height="20"
+                viewBox="0 0 24 24"
+                width="20"
+              >
+                <path
+                  d="M4.5 13.5C5.32843 13.5 6 12.8284 6 12C6 11.1716 5.32843 10.5 4.5 10.5C3.67157 10.5 3 11.1716 3 12C3 12.8284 3.67157 13.5 4.5 13.5Z"
+                />
+                <path
+                  d="M12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5Z"
+                />
+                <path
+                  d="M19.5 13.5C20.3284 13.5 21 12.8284 21 12C21 11.1716 20.3284 10.5 19.5 10.5C18.6716 10.5 18 11.1716 18 12C18 12.8284 18.6716 13.5 19.5 13.5Z"
+                />
+              </svg>
+            </span>
           </button>
         </div>
       </div>
     </nav>
     <canvas
-      style="display: flex; flex: 1;"
+      style="display: flex;"
     />
   </div>
 </div>
@@ -760,7 +838,7 @@ exports[`connection error 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 40px;
   font-size: 12px;
@@ -905,7 +983,7 @@ exports[`connection error 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Error
         </div>
@@ -938,7 +1016,7 @@ exports[`connection error 1`] = `
 `;
 
 exports[`disconnected 1`] = `
-.c10 {
+.c6 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -966,48 +1044,28 @@ exports[`disconnected 1`] = `
   padding-right: 8px;
 }
 
-.c10:hover,
-.c10:focus {
+.c6:hover,
+.c6:focus {
   background: #B29DFF;
 }
 
-.c10:active {
+.c6:active {
   background: #C5B6FF;
 }
 
-.c10:disabled {
+.c6:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c17 {
+.c12 {
   box-sizing: border-box;
   margin: 72px;
   text-align: center;
 }
 
-.c6 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  padding-right: 16px;
-}
-
-.c13 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  margin-right: 8px;
-}
-
-.c16 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-}
-
-.c15 {
+.c10 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1026,28 +1084,24 @@ exports[`disconnected 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
-.c15 .c5 {
-  color: inherit;
+.c10:disabled {
+  color: rgba(255,255,255,0.36);
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
-}
-
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
+.c10:disabled {
+  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c15:hover:enabled,
-.c15:focus:enabled {
+.c10:hover:enabled,
+.c10:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c15:active:enabled {
+.c10:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -1059,10 +1113,30 @@ exports[`disconnected 1`] = `
   padding-right: 16px;
 }
 
-.c18 {
+.c13 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
+}
+
+.c5 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 16px;
+}
+
+.c9 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.c11 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .c0 {
@@ -1094,47 +1168,23 @@ exports[`disconnected 1`] = `
   align-items: center;
 }
 
-.c12 {
+.c8 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c14 {
-  font-weight: 600;
-  font-size: 14px;
-  color: inherit;
-  transition: none;
-  align-self: 'center';
-}
-
-.c11 {
+.c7 {
   color: #FFFFFF;
   min-height: 0;
   height: 24px;
   background-color: rgba(255,255,255,0.13);
 }
 
-.c11:hover,
-.c11:focus {
+.c7:hover,
+.c7:focus {
   background-color: rgba(255,255,255,0.18);
-}
-
-.c9 {
-  position: relative;
-}
-
-.c8 {
-  font-weight: 600;
-  font-size: 18px;
-  align-self: 'center';
-}
-
-.c7 {
-  font-weight: 600;
-  font-size: 22px;
-  align-self: 'center';
 }
 
 <div>
@@ -1148,7 +1198,7 @@ exports[`disconnected 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -1159,62 +1209,129 @@ exports[`disconnected 1`] = `
           class="c4"
         >
           <span
-            class="c5 c6 icon icon-folder-shared c7"
-            style="color: rgba(255, 255, 255, 0.56);"
+            class="c5 icon icon-foldershared"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Directory Sharing Disabled"
-          />
-          <span
-            class="c5 c6 icon icon-clipboard-text c8"
-            style="color: rgba(255, 255, 255, 0.56);"
-            title="Clipboard Sharing Disabled"
-          />
-          <div
-            class="c9"
           >
-            <button
-              class="c10 c11"
-              kind="primary"
-              title="Warnings"
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
             >
-              <div
-                class="c12"
+              <path
+                d="M3.75 4.5C3.35217 4.5 2.97064 4.65804 2.68934 4.93934C2.40804 5.22064 2.25 5.60217 2.25 6V18.75C2.25 19.1478 2.40804 19.5294 2.68934 19.8107C2.97065 20.092 3.35218 20.25 3.75 20.25H11.25C11.6642 20.25 12 19.9142 12 19.5C12 19.0858 11.6642 18.75 11.25 18.75H3.75L3.75 6L8.74969 6L11.3503 7.95C11.6099 8.1447 11.9258 8.25 12.2503 8.25H20.25V11.25C20.25 11.6642 20.5858 12 21 12C21.4142 12 21.75 11.6642 21.75 11.25V8.25C21.75 7.85218 21.592 7.47065 21.3107 7.18934C21.0294 6.90804 20.6478 6.75 20.25 6.75H12.2503L9.64969 4.8C9.39006 4.6053 9.07421 4.5 8.74969 4.5H3.75Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M15 16.5C15 14.8431 16.3431 13.5 18 13.5C19.6569 13.5 21 14.8431 21 16.5C21 17.3283 20.6643 18.0783 20.1215 18.6212C20.8996 19.123 21.482 19.8946 21.7247 20.8072C21.8312 21.2075 21.593 21.6184 21.1927 21.7248C20.7924 21.8313 20.3816 21.5931 20.2751 21.1928C20.02 20.2334 19.1098 19.5 17.9999 19.5C16.8901 19.5 15.9799 20.2334 15.7247 21.1928C15.6183 21.5931 15.2075 21.8313 14.8072 21.7248C14.4069 21.6184 14.1687 21.2075 14.2751 20.8072C14.5179 19.8946 15.1003 19.123 15.8785 18.6211C15.3357 18.0782 15 17.3283 15 16.5ZM18 15C17.1716 15 16.5 15.6716 16.5 16.5C16.5 17.3284 17.1716 18 18 18C18.8284 18 19.5 17.3284 19.5 16.5C19.5 15.6716 18.8284 15 18 15Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+          <span
+            class="c5 icon icon-clipboard"
+            style="color: rgba(255, 255, 255, 0.72);"
+            title="Clipboard Sharing Disabled"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M9 10.5C8.58579 10.5 8.25 10.8358 8.25 11.25C8.25 11.6642 8.58579 12 9 12H15C15.4142 12 15.75 11.6642 15.75 11.25C15.75 10.8358 15.4142 10.5 15 10.5H9Z"
+              />
+              <path
+                d="M9 13.5C8.58579 13.5 8.25 13.8358 8.25 14.25C8.25 14.6642 8.58579 15 9 15H15C15.4142 15 15.75 14.6642 15.75 14.25C15.75 13.8358 15.4142 13.5 15 13.5H9Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M8.64589 3C8.70142 2.93792 8.75881 2.87723 8.81802 2.81802C9.66193 1.97411 10.8065 1.5 12 1.5C13.1935 1.5 14.3381 1.97411 15.182 2.81802C15.2412 2.87723 15.2986 2.93792 15.3541 3H18.75C19.1478 3 19.5294 3.15804 19.8107 3.43934C20.092 3.72065 20.25 4.10218 20.25 4.5V20.25C20.25 20.6478 20.092 21.0294 19.8107 21.3107C19.5294 21.592 19.1478 21.75 18.75 21.75H5.25C4.85218 21.75 4.47065 21.592 4.18934 21.3107C3.90804 21.0294 3.75 20.6478 3.75 20.25V4.5C3.75 4.10217 3.90804 3.72064 4.18934 3.43934C4.47064 3.15804 4.85217 3 5.25 3H8.64589ZM9.87868 3.87868C10.4413 3.31607 11.2044 3 12 3C12.7956 3 13.5587 3.31607 14.1213 3.87868C14.2202 3.97758 14.3115 4.08267 14.3948 4.19305C14.398 4.19746 14.4013 4.20184 14.4046 4.20617C14.7889 4.72126 15 5.34975 15 6H9C9 5.34975 9.21111 4.72126 9.59537 4.20617C9.5987 4.20183 9.60198 4.19746 9.60521 4.19305C9.6885 4.08268 9.77978 3.97758 9.87868 3.87868ZM7.75736 4.5H5.25L5.25 20.25H18.75L18.75 4.5H16.2426C16.4114 4.97731 16.5 5.48409 16.5 6V6.75C16.5 7.16421 16.1642 7.5 15.75 7.5H8.25C7.83579 7.5 7.5 7.16421 7.5 6.75V6C7.5 5.48409 7.58859 4.97731 7.75736 4.5Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+          <button
+            class="c6 c7"
+            kind="primary"
+            title="Warnings"
+          >
+            <div
+              class="c8"
+            >
+              <span
+                class="c9 icon icon-warning"
               >
-                <span
-                  class="c5 c13 icon icon-warning c14"
-                />
-                 
-                0
-              </div>
-            </button>
-          </div>
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    d="M12 9C12.4142 9 12.75 9.33579 12.75 9.75V13.5C12.75 13.9142 12.4142 14.25 12 14.25C11.5858 14.25 11.25 13.9142 11.25 13.5V9.75C11.25 9.33579 11.5858 9 12 9Z"
+                  />
+                  <path
+                    d="M12 17.8125C12.5178 17.8125 12.9375 17.3928 12.9375 16.875C12.9375 16.3572 12.5178 15.9375 12 15.9375C11.4822 15.9375 11.0625 16.3572 11.0625 16.875C11.0625 17.3928 11.4822 17.8125 12 17.8125Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M10.09 3.34287L1.88101 17.7086C1.04292 19.1753 2.10193 21.0001 3.79114 21.0001H20.2092C21.8984 21.0001 22.9574 19.1753 22.1193 17.7086L13.9103 3.34287C13.0657 1.86488 10.9346 1.86488 10.09 3.34287ZM3.18337 18.4528L11.3924 4.08708C11.6611 3.61681 12.3392 3.61681 12.6079 4.08708L20.8169 18.4528C21.0836 18.9195 20.7466 19.5001 20.2092 19.5001H3.79114C3.25367 19.5001 2.91671 18.9195 3.18337 18.4528Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+               
+              0
+            </div>
+          </button>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c15"
-            color="text.secondary"
+            class="c10"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c16 icon icon-ellipsis "
-            />
+              class="c11 icon icon-morehoriz"
+            >
+              <svg
+                fill="currentColor"
+                height="20"
+                viewBox="0 0 24 24"
+                width="20"
+              >
+                <path
+                  d="M4.5 13.5C5.32843 13.5 6 12.8284 6 12C6 11.1716 5.32843 10.5 4.5 10.5C3.67157 10.5 3 11.1716 3 12C3 12.8284 3.67157 13.5 4.5 13.5Z"
+                />
+                <path
+                  d="M12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5Z"
+                />
+                <path
+                  d="M19.5 13.5C20.3284 13.5 21 12.8284 21 12C21 11.1716 20.3284 10.5 19.5 10.5C18.6716 10.5 18 11.1716 18 12C18 12.8284 18.6716 13.5 19.5 13.5Z"
+                />
+              </svg>
+            </span>
           </button>
         </div>
       </div>
     </nav>
     <div
-      class="c17"
+      class="c12"
     >
       <div
-        class="c18"
+        class="c13"
       >
         Session successfully disconnected
       </div>
     </div>
     <canvas
-      style="display: none; flex: 1;"
+      style="display: none;"
     />
   </div>
 </div>
@@ -1240,7 +1357,7 @@ exports[`fetch error 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 40px;
   font-size: 12px;
@@ -1385,7 +1502,7 @@ exports[`fetch error 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Error
         </div>
@@ -1437,7 +1554,7 @@ exports[`invalid processing 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 40px;
   font-size: 12px;
@@ -1582,7 +1699,7 @@ exports[`invalid processing 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Error
         </div>
@@ -1615,7 +1732,7 @@ exports[`invalid processing 1`] = `
 `;
 
 exports[`processing 1`] = `
-.c10 {
+.c6 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1643,48 +1760,28 @@ exports[`processing 1`] = `
   padding-right: 8px;
 }
 
-.c10:hover,
-.c10:focus {
+.c6:hover,
+.c6:focus {
   background: #B29DFF;
 }
 
-.c10:active {
+.c6:active {
   background: #C5B6FF;
 }
 
-.c10:disabled {
+.c6:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c17 {
+.c12 {
   box-sizing: border-box;
   margin: 72px;
   text-align: center;
 }
 
-.c6 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  padding-right: 16px;
-}
-
-.c13 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  margin-right: 8px;
-}
-
-.c16 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-}
-
-.c15 {
+.c10 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1703,28 +1800,24 @@ exports[`processing 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
-.c15 .c5 {
-  color: inherit;
+.c10:disabled {
+  color: rgba(255,255,255,0.36);
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
-}
-
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
+.c10:disabled {
+  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c15:hover:enabled,
-.c15:focus:enabled {
+.c10:hover:enabled,
+.c10:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c15:active:enabled {
+.c10:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -1734,6 +1827,26 @@ exports[`processing 1`] = `
   margin: 0px;
   padding-left: 16px;
   padding-right: 16px;
+}
+
+.c5 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 16px;
+}
+
+.c9 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.c11 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .c0 {
@@ -1765,47 +1878,23 @@ exports[`processing 1`] = `
   align-items: center;
 }
 
-.c12 {
+.c8 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c14 {
-  font-weight: 600;
-  font-size: 14px;
-  color: inherit;
-  transition: none;
-  align-self: 'center';
-}
-
-.c11 {
+.c7 {
   color: #FFFFFF;
   min-height: 0;
   height: 24px;
   background-color: rgba(255,255,255,0.13);
 }
 
-.c11:hover,
-.c11:focus {
+.c7:hover,
+.c7:focus {
   background-color: rgba(255,255,255,0.18);
-}
-
-.c9 {
-  position: relative;
-}
-
-.c8 {
-  font-weight: 600;
-  font-size: 18px;
-  align-self: 'center';
-}
-
-.c7 {
-  font-weight: 600;
-  font-size: 22px;
-  align-self: 'center';
 }
 
 <div>
@@ -1819,7 +1908,7 @@ exports[`processing 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -1830,63 +1919,130 @@ exports[`processing 1`] = `
           class="c4"
         >
           <span
-            class="c5 c6 icon icon-folder-shared c7"
-            style="color: rgba(255, 255, 255, 0.56);"
+            class="c5 icon icon-foldershared"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Directory Sharing Disabled"
-          />
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M3.75 4.5C3.35217 4.5 2.97064 4.65804 2.68934 4.93934C2.40804 5.22064 2.25 5.60217 2.25 6V18.75C2.25 19.1478 2.40804 19.5294 2.68934 19.8107C2.97065 20.092 3.35218 20.25 3.75 20.25H11.25C11.6642 20.25 12 19.9142 12 19.5C12 19.0858 11.6642 18.75 11.25 18.75H3.75L3.75 6L8.74969 6L11.3503 7.95C11.6099 8.1447 11.9258 8.25 12.2503 8.25H20.25V11.25C20.25 11.6642 20.5858 12 21 12C21.4142 12 21.75 11.6642 21.75 11.25V8.25C21.75 7.85218 21.592 7.47065 21.3107 7.18934C21.0294 6.90804 20.6478 6.75 20.25 6.75H12.2503L9.64969 4.8C9.39006 4.6053 9.07421 4.5 8.74969 4.5H3.75Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M15 16.5C15 14.8431 16.3431 13.5 18 13.5C19.6569 13.5 21 14.8431 21 16.5C21 17.3283 20.6643 18.0783 20.1215 18.6212C20.8996 19.123 21.482 19.8946 21.7247 20.8072C21.8312 21.2075 21.593 21.6184 21.1927 21.7248C20.7924 21.8313 20.3816 21.5931 20.2751 21.1928C20.02 20.2334 19.1098 19.5 17.9999 19.5C16.8901 19.5 15.9799 20.2334 15.7247 21.1928C15.6183 21.5931 15.2075 21.8313 14.8072 21.7248C14.4069 21.6184 14.1687 21.2075 14.2751 20.8072C14.5179 19.8946 15.1003 19.123 15.8785 18.6211C15.3357 18.0782 15 17.3283 15 16.5ZM18 15C17.1716 15 16.5 15.6716 16.5 16.5C16.5 17.3284 17.1716 18 18 18C18.8284 18 19.5 17.3284 19.5 16.5C19.5 15.6716 18.8284 15 18 15Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
           <span
-            class="c5 c6 icon icon-clipboard-text c8"
+            class="c5 icon icon-clipboard"
             style="color: rgb(255, 255, 255);"
             title="Clipboard Sharing Enabled"
-          />
-          <div
-            class="c9"
           >
-            <button
-              class="c10 c11"
-              kind="primary"
-              title="Warnings"
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
             >
-              <div
-                class="c12"
+              <path
+                d="M9 10.5C8.58579 10.5 8.25 10.8358 8.25 11.25C8.25 11.6642 8.58579 12 9 12H15C15.4142 12 15.75 11.6642 15.75 11.25C15.75 10.8358 15.4142 10.5 15 10.5H9Z"
+              />
+              <path
+                d="M9 13.5C8.58579 13.5 8.25 13.8358 8.25 14.25C8.25 14.6642 8.58579 15 9 15H15C15.4142 15 15.75 14.6642 15.75 14.25C15.75 13.8358 15.4142 13.5 15 13.5H9Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M8.64589 3C8.70142 2.93792 8.75881 2.87723 8.81802 2.81802C9.66193 1.97411 10.8065 1.5 12 1.5C13.1935 1.5 14.3381 1.97411 15.182 2.81802C15.2412 2.87723 15.2986 2.93792 15.3541 3H18.75C19.1478 3 19.5294 3.15804 19.8107 3.43934C20.092 3.72065 20.25 4.10218 20.25 4.5V20.25C20.25 20.6478 20.092 21.0294 19.8107 21.3107C19.5294 21.592 19.1478 21.75 18.75 21.75H5.25C4.85218 21.75 4.47065 21.592 4.18934 21.3107C3.90804 21.0294 3.75 20.6478 3.75 20.25V4.5C3.75 4.10217 3.90804 3.72064 4.18934 3.43934C4.47064 3.15804 4.85217 3 5.25 3H8.64589ZM9.87868 3.87868C10.4413 3.31607 11.2044 3 12 3C12.7956 3 13.5587 3.31607 14.1213 3.87868C14.2202 3.97758 14.3115 4.08267 14.3948 4.19305C14.398 4.19746 14.4013 4.20184 14.4046 4.20617C14.7889 4.72126 15 5.34975 15 6H9C9 5.34975 9.21111 4.72126 9.59537 4.20617C9.5987 4.20183 9.60198 4.19746 9.60521 4.19305C9.6885 4.08268 9.77978 3.97758 9.87868 3.87868ZM7.75736 4.5H5.25L5.25 20.25H18.75L18.75 4.5H16.2426C16.4114 4.97731 16.5 5.48409 16.5 6V6.75C16.5 7.16421 16.1642 7.5 15.75 7.5H8.25C7.83579 7.5 7.5 7.16421 7.5 6.75V6C7.5 5.48409 7.58859 4.97731 7.75736 4.5Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+          <button
+            class="c6 c7"
+            kind="primary"
+            title="Warnings"
+          >
+            <div
+              class="c8"
+            >
+              <span
+                class="c9 icon icon-warning"
               >
-                <span
-                  class="c5 c13 icon icon-warning c14"
-                />
-                 
-                0
-              </div>
-            </button>
-          </div>
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    d="M12 9C12.4142 9 12.75 9.33579 12.75 9.75V13.5C12.75 13.9142 12.4142 14.25 12 14.25C11.5858 14.25 11.25 13.9142 11.25 13.5V9.75C11.25 9.33579 11.5858 9 12 9Z"
+                  />
+                  <path
+                    d="M12 17.8125C12.5178 17.8125 12.9375 17.3928 12.9375 16.875C12.9375 16.3572 12.5178 15.9375 12 15.9375C11.4822 15.9375 11.0625 16.3572 11.0625 16.875C11.0625 17.3928 11.4822 17.8125 12 17.8125Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M10.09 3.34287L1.88101 17.7086C1.04292 19.1753 2.10193 21.0001 3.79114 21.0001H20.2092C21.8984 21.0001 22.9574 19.1753 22.1193 17.7086L13.9103 3.34287C13.0657 1.86488 10.9346 1.86488 10.09 3.34287ZM3.18337 18.4528L11.3924 4.08708C11.6611 3.61681 12.3392 3.61681 12.6079 4.08708L20.8169 18.4528C21.0836 18.9195 20.7466 19.5001 20.2092 19.5001H3.79114C3.25367 19.5001 2.91671 18.9195 3.18337 18.4528Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+               
+              0
+            </div>
+          </button>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c15"
-            color="text.secondary"
+            class="c10"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c16 icon icon-ellipsis "
-            />
+              class="c11 icon icon-morehoriz"
+            >
+              <svg
+                fill="currentColor"
+                height="20"
+                viewBox="0 0 24 24"
+                width="20"
+              >
+                <path
+                  d="M4.5 13.5C5.32843 13.5 6 12.8284 6 12C6 11.1716 5.32843 10.5 4.5 10.5C3.67157 10.5 3 11.1716 3 12C3 12.8284 3.67157 13.5 4.5 13.5Z"
+                />
+                <path
+                  d="M12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5Z"
+                />
+                <path
+                  d="M19.5 13.5C20.3284 13.5 21 12.8284 21 12C21 11.1716 20.3284 10.5 19.5 10.5C18.6716 10.5 18 11.1716 18 12C18 12.8284 18.6716 13.5 19.5 13.5Z"
+                />
+              </svg>
+            </span>
           </button>
         </div>
       </div>
     </nav>
     <div
-      class="c17"
+      class="c12"
     />
     <canvas
-      style="display: none; flex: 1;"
+      style="display: none;"
     />
   </div>
 </div>
 `;
 
 exports[`tdp processing 1`] = `
-.c10 {
+.c6 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1914,48 +2070,28 @@ exports[`tdp processing 1`] = `
   padding-right: 8px;
 }
 
-.c10:hover,
-.c10:focus {
+.c6:hover,
+.c6:focus {
   background: #B29DFF;
 }
 
-.c10:active {
+.c6:active {
   background: #C5B6FF;
 }
 
-.c10:disabled {
+.c6:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c17 {
+.c12 {
   box-sizing: border-box;
   margin: 72px;
   text-align: center;
 }
 
-.c6 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  padding-right: 16px;
-}
-
-.c13 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  margin-right: 8px;
-}
-
-.c16 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-}
-
-.c15 {
+.c10 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1974,28 +2110,24 @@ exports[`tdp processing 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
-.c15 .c5 {
-  color: inherit;
+.c10:disabled {
+  color: rgba(255,255,255,0.36);
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
-}
-
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
+.c10:disabled {
+  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c15:hover:enabled,
-.c15:focus:enabled {
+.c10:hover:enabled,
+.c10:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c15:active:enabled {
+.c10:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -2005,6 +2137,26 @@ exports[`tdp processing 1`] = `
   margin: 0px;
   padding-left: 16px;
   padding-right: 16px;
+}
+
+.c5 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 16px;
+}
+
+.c9 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.c11 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .c0 {
@@ -2036,47 +2188,23 @@ exports[`tdp processing 1`] = `
   align-items: center;
 }
 
-.c12 {
+.c8 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c14 {
-  font-weight: 600;
-  font-size: 14px;
-  color: inherit;
-  transition: none;
-  align-self: 'center';
-}
-
-.c11 {
+.c7 {
   color: #FFFFFF;
   min-height: 0;
   height: 24px;
   background-color: rgba(255,255,255,0.13);
 }
 
-.c11:hover,
-.c11:focus {
+.c7:hover,
+.c7:focus {
   background-color: rgba(255,255,255,0.18);
-}
-
-.c9 {
-  position: relative;
-}
-
-.c8 {
-  font-weight: 600;
-  font-size: 18px;
-  align-self: 'center';
-}
-
-.c7 {
-  font-weight: 600;
-  font-size: 22px;
-  align-self: 'center';
 }
 
 <div>
@@ -2090,7 +2218,7 @@ exports[`tdp processing 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -2101,56 +2229,123 @@ exports[`tdp processing 1`] = `
           class="c4"
         >
           <span
-            class="c5 c6 icon icon-folder-shared c7"
-            style="color: rgba(255, 255, 255, 0.56);"
+            class="c5 icon icon-foldershared"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Directory Sharing Disabled"
-          />
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M3.75 4.5C3.35217 4.5 2.97064 4.65804 2.68934 4.93934C2.40804 5.22064 2.25 5.60217 2.25 6V18.75C2.25 19.1478 2.40804 19.5294 2.68934 19.8107C2.97065 20.092 3.35218 20.25 3.75 20.25H11.25C11.6642 20.25 12 19.9142 12 19.5C12 19.0858 11.6642 18.75 11.25 18.75H3.75L3.75 6L8.74969 6L11.3503 7.95C11.6099 8.1447 11.9258 8.25 12.2503 8.25H20.25V11.25C20.25 11.6642 20.5858 12 21 12C21.4142 12 21.75 11.6642 21.75 11.25V8.25C21.75 7.85218 21.592 7.47065 21.3107 7.18934C21.0294 6.90804 20.6478 6.75 20.25 6.75H12.2503L9.64969 4.8C9.39006 4.6053 9.07421 4.5 8.74969 4.5H3.75Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M15 16.5C15 14.8431 16.3431 13.5 18 13.5C19.6569 13.5 21 14.8431 21 16.5C21 17.3283 20.6643 18.0783 20.1215 18.6212C20.8996 19.123 21.482 19.8946 21.7247 20.8072C21.8312 21.2075 21.593 21.6184 21.1927 21.7248C20.7924 21.8313 20.3816 21.5931 20.2751 21.1928C20.02 20.2334 19.1098 19.5 17.9999 19.5C16.8901 19.5 15.9799 20.2334 15.7247 21.1928C15.6183 21.5931 15.2075 21.8313 14.8072 21.7248C14.4069 21.6184 14.1687 21.2075 14.2751 20.8072C14.5179 19.8946 15.1003 19.123 15.8785 18.6211C15.3357 18.0782 15 17.3283 15 16.5ZM18 15C17.1716 15 16.5 15.6716 16.5 16.5C16.5 17.3284 17.1716 18 18 18C18.8284 18 19.5 17.3284 19.5 16.5C19.5 15.6716 18.8284 15 18 15Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
           <span
-            class="c5 c6 icon icon-clipboard-text c8"
+            class="c5 icon icon-clipboard"
             style="color: rgb(255, 255, 255);"
             title="Clipboard Sharing Enabled"
-          />
-          <div
-            class="c9"
           >
-            <button
-              class="c10 c11"
-              kind="primary"
-              title="Warnings"
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
             >
-              <div
-                class="c12"
+              <path
+                d="M9 10.5C8.58579 10.5 8.25 10.8358 8.25 11.25C8.25 11.6642 8.58579 12 9 12H15C15.4142 12 15.75 11.6642 15.75 11.25C15.75 10.8358 15.4142 10.5 15 10.5H9Z"
+              />
+              <path
+                d="M9 13.5C8.58579 13.5 8.25 13.8358 8.25 14.25C8.25 14.6642 8.58579 15 9 15H15C15.4142 15 15.75 14.6642 15.75 14.25C15.75 13.8358 15.4142 13.5 15 13.5H9Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M8.64589 3C8.70142 2.93792 8.75881 2.87723 8.81802 2.81802C9.66193 1.97411 10.8065 1.5 12 1.5C13.1935 1.5 14.3381 1.97411 15.182 2.81802C15.2412 2.87723 15.2986 2.93792 15.3541 3H18.75C19.1478 3 19.5294 3.15804 19.8107 3.43934C20.092 3.72065 20.25 4.10218 20.25 4.5V20.25C20.25 20.6478 20.092 21.0294 19.8107 21.3107C19.5294 21.592 19.1478 21.75 18.75 21.75H5.25C4.85218 21.75 4.47065 21.592 4.18934 21.3107C3.90804 21.0294 3.75 20.6478 3.75 20.25V4.5C3.75 4.10217 3.90804 3.72064 4.18934 3.43934C4.47064 3.15804 4.85217 3 5.25 3H8.64589ZM9.87868 3.87868C10.4413 3.31607 11.2044 3 12 3C12.7956 3 13.5587 3.31607 14.1213 3.87868C14.2202 3.97758 14.3115 4.08267 14.3948 4.19305C14.398 4.19746 14.4013 4.20184 14.4046 4.20617C14.7889 4.72126 15 5.34975 15 6H9C9 5.34975 9.21111 4.72126 9.59537 4.20617C9.5987 4.20183 9.60198 4.19746 9.60521 4.19305C9.6885 4.08268 9.77978 3.97758 9.87868 3.87868ZM7.75736 4.5H5.25L5.25 20.25H18.75L18.75 4.5H16.2426C16.4114 4.97731 16.5 5.48409 16.5 6V6.75C16.5 7.16421 16.1642 7.5 15.75 7.5H8.25C7.83579 7.5 7.5 7.16421 7.5 6.75V6C7.5 5.48409 7.58859 4.97731 7.75736 4.5Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+          <button
+            class="c6 c7"
+            kind="primary"
+            title="Warnings"
+          >
+            <div
+              class="c8"
+            >
+              <span
+                class="c9 icon icon-warning"
               >
-                <span
-                  class="c5 c13 icon icon-warning c14"
-                />
-                 
-                0
-              </div>
-            </button>
-          </div>
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    d="M12 9C12.4142 9 12.75 9.33579 12.75 9.75V13.5C12.75 13.9142 12.4142 14.25 12 14.25C11.5858 14.25 11.25 13.9142 11.25 13.5V9.75C11.25 9.33579 11.5858 9 12 9Z"
+                  />
+                  <path
+                    d="M12 17.8125C12.5178 17.8125 12.9375 17.3928 12.9375 16.875C12.9375 16.3572 12.5178 15.9375 12 15.9375C11.4822 15.9375 11.0625 16.3572 11.0625 16.875C11.0625 17.3928 11.4822 17.8125 12 17.8125Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M10.09 3.34287L1.88101 17.7086C1.04292 19.1753 2.10193 21.0001 3.79114 21.0001H20.2092C21.8984 21.0001 22.9574 19.1753 22.1193 17.7086L13.9103 3.34287C13.0657 1.86488 10.9346 1.86488 10.09 3.34287ZM3.18337 18.4528L11.3924 4.08708C11.6611 3.61681 12.3392 3.61681 12.6079 4.08708L20.8169 18.4528C21.0836 18.9195 20.7466 19.5001 20.2092 19.5001H3.79114C3.25367 19.5001 2.91671 18.9195 3.18337 18.4528Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+               
+              0
+            </div>
+          </button>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c15"
-            color="text.secondary"
+            class="c10"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c16 icon icon-ellipsis "
-            />
+              class="c11 icon icon-morehoriz"
+            >
+              <svg
+                fill="currentColor"
+                height="20"
+                viewBox="0 0 24 24"
+                width="20"
+              >
+                <path
+                  d="M4.5 13.5C5.32843 13.5 6 12.8284 6 12C6 11.1716 5.32843 10.5 4.5 10.5C3.67157 10.5 3 11.1716 3 12C3 12.8284 3.67157 13.5 4.5 13.5Z"
+                />
+                <path
+                  d="M12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5Z"
+                />
+                <path
+                  d="M19.5 13.5C20.3284 13.5 21 12.8284 21 12C21 11.1716 20.3284 10.5 19.5 10.5C18.6716 10.5 18 11.1716 18 12C18 12.8284 18.6716 13.5 19.5 13.5Z"
+                />
+              </svg>
+            </span>
           </button>
         </div>
       </div>
     </nav>
     <div
-      class="c17"
+      class="c12"
     />
     <canvas
-      style="display: none; flex: 1;"
+      style="display: none;"
     />
   </div>
 </div>
@@ -2176,7 +2371,7 @@ exports[`unintended disconnect 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 40px;
   font-size: 12px;
@@ -2321,7 +2516,7 @@ exports[`unintended disconnect 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Error
         </div>
@@ -2416,7 +2611,7 @@ exports[`webauthn prompt 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -2548,7 +2743,7 @@ exports[`webauthn prompt 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Multi-factor authentication
         </div>

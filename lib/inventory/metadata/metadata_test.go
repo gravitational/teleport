@@ -25,6 +25,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestFetchInstallMethods(t *testing.T) {
@@ -82,6 +84,21 @@ func TestFetchInstallMethods(t *testing.T) {
 			},
 		},
 		{
+			desc: "awsoidc_deployservice if env var is present",
+			getenv: func(name string) string {
+				if name == types.InstallMethodAWSOIDCDeployServiceEnvVar {
+					return "true"
+				}
+				return ""
+			},
+			execCommand: func(name string, args ...string) ([]byte, error) {
+				return nil, trace.NotFound("command does not exist")
+			},
+			expected: []string{
+				"awsoidc_deployservice",
+			},
+		},
+		{
 			desc: "systemctl if systemctl",
 			getenv: func(name string) string {
 				return ""
@@ -97,7 +114,7 @@ func TestFetchInstallMethods(t *testing.T) {
 					return nil, trace.NotFound("command does not exist")
 				}
 				output := `
-● teleport.service - Teleport SSH Service
+● teleport.service - Teleport Service
 Loaded: loaded (/lib/systemd/system/teleport.service; enabled; vendor preset: enabled)
 Active: active (running) since Wed 2022-11-09 10:52:49 UTC; 3 months 22 days ago
 Main PID: 1815 (teleport)
@@ -282,18 +299,45 @@ func TestFetchCloudEnvironment(t *testing.T) {
 				if insecureSkipVerify {
 					return nil, trace.BadParameter("insecureSkipVerify should be false")
 				}
-				if req.URL.String() != "http://169.254.169.254/latest/meta-data/" {
-					return nil, trace.NotFound("not found")
+
+				if req.URL.String() == "http://169.254.169.254/latest/api/token" {
+					if req.Method != http.MethodPut {
+						return nil, trace.NotFound("not found")
+					}
+					if len(req.Header) != 1 {
+						return nil, trace.NotFound("not found")
+					}
+					if len(req.Header["X-Aws-Ec2-Metadata-Token-Ttl-Seconds"]) != 1 {
+						return nil, trace.NotFound("not found")
+					}
+					if req.Header["X-Aws-Ec2-Metadata-Token-Ttl-Seconds"][0] != "300" {
+						return nil, trace.NotFound("not found")
+					}
+					return &http.Response{
+						StatusCode: 200,
+						Body:       io.NopCloser(strings.NewReader("thisIsAFakeTestToken")),
+					}, nil
 				}
-				if len(req.Header) != 0 {
-					return nil, trace.NotFound("not found")
+
+				if req.URL.String() == "http://169.254.169.254/latest/meta-data/" {
+					if len(req.Header) != 1 {
+						return nil, trace.NotFound("not found")
+					}
+					if len(req.Header["X-Aws-Ec2-Metadata-Token"]) != 1 {
+						return nil, trace.NotFound("not found")
+					}
+					if req.Header["X-Aws-Ec2-Metadata-Token"][0] != "thisIsAFakeTestToken" {
+						return nil, trace.NotFound("not found")
+					}
+					return success, nil
 				}
-				return success, nil
+
+				return nil, trace.NotFound("not found")
 			},
 			expected: "aws",
 		},
 		{
-			desc: "gcp if on gcp ",
+			desc: "gcp if on gcp",
 			httpDo: func(req *http.Request, insecureSkipVerify bool) (*http.Response, error) {
 				if insecureSkipVerify {
 					return nil, trace.BadParameter("insecureSkipVerify should be false")

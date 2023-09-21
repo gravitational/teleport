@@ -7,14 +7,20 @@ layout: tocless-doc
 In this section, you can find guides on managing a Teleport cluster after
 deploying it. 
 
-## Join Teleport services to your cluster
+## Use dynamic resources
 
-Protect resources in your infrastructure with Teleport by joining Teleport
-services to proxy those resources. To do this, start a Teleport process that
-runs one or more services. The Teleport process establishes a trust relationship
-with your Teleport cluster through a variety of methods. Read [Joining Teleport
-Services to a Cluster](./join-services-to-your-cluster.mdx) for a detailed
-explanation of each method.
+In Teleport, **dynamic resources** let you adjust the behavior of your Teleport
+cluster as your infrastructure changes. Teleport provides three methods for
+applying dynamic resources: the `tctl` client tool, Teleport Terraform provider,
+and Kubernetes Operator. Read [Using Dynamic Resources](./dynamic-resources.mdx)
+for more information.
+
+## Configure your cluster
+
+Get to know the [tools you can use](./dynamic-resources.mdx) to apply
+settings to your cluster, all of which work well with infrastructure-as-code
+solutions, including the `tctl` client, Terraform provider, and Kubernetes
+Operator.
 
 ## Admin guides
 

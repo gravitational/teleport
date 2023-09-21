@@ -16,6 +16,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Box, ButtonPrimary, Flex, Indicator } from 'design';
+import { fade } from 'design/theme/utils/colorManipulator';
 
 interface CliCommandProps {
   cliCommand: string;
@@ -45,18 +46,24 @@ export function CliCommand({ cliCommand, onRun, isLoading }: CliCommandProps) {
       alignItems="center"
       justifyContent="space-between"
       borderRadius={2}
-      bg="levels.sunkenSecondary"
+      bg="bgTerminal"
       mb={2}
     >
       <Flex
         mr="2"
-        color={shouldDisplayIsLoading ? 'text.secondary' : 'text.primary'}
         width="100%"
+        shouldDisplayIsLoading={shouldDisplayIsLoading}
         css={`
           overflow: auto;
           white-space: pre;
           word-break: break-all;
           font-size: 12px;
+          color: ${props => {
+            // always use light colors
+            const { light } = props.theme.colors;
+            // 0.72 - text.slightlyMuted opacity
+            return props.shouldDisplayIsLoading ? fade(light, 0.72) : light;
+          }};
           font-family: ${props => props.theme.fonts.mono};
         `}
       >

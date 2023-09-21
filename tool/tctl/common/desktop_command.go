@@ -21,7 +21,7 @@ import (
 	"os"
 	"text/template"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -74,11 +74,10 @@ func (c *DesktopCommand) ListDesktop(ctx context.Context, client auth.ClientI) e
 	}
 	coll := windowsDesktopCollection{
 		desktops: desktops,
-		verbose:  c.verbose,
 	}
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout))
+		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
 	case teleport.JSON:
 		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:

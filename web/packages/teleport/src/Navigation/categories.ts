@@ -22,12 +22,14 @@ export enum NavigationCategory {
 export enum ManagementSection {
   Access = 'Access',
   Activity = 'Activity',
+  Billing = 'Billing',
   Clusters = 'Clusters',
 }
 
 export const MANAGEMENT_NAVIGATION_SECTIONS = [
   ManagementSection.Access,
   ManagementSection.Activity,
+  ManagementSection.Billing,
   ManagementSection.Clusters,
 ];
 

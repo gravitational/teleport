@@ -17,7 +17,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Box, Text, Flex, Link } from 'design';
-import { InfoFilled } from 'design/Icon';
+import { Info as InfoIcon } from 'design/Icon';
 
 import {
   SelectCreatable,
@@ -29,6 +29,7 @@ import {
 } from 'teleport/Discover/Shared/SetupAccess';
 import { Mark } from 'teleport/Discover/Shared';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { DbMeta } from 'teleport/Discover/useDiscover';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 
@@ -47,6 +48,8 @@ export function SetupAccess(props: State) {
     getFixedOptions,
     getSelectableOptions,
     resourceSpec,
+    onPrev,
+    agentMeta,
     ...restOfProps
   } = props;
   const [nameInputValue, setNameInputValue] = useState('');
@@ -105,6 +108,8 @@ export function SetupAccess(props: State) {
   const headerSubtitle =
     'Allow access from your Database names and users to interact with your Database.';
 
+  const dbMeta = agentMeta as DbMeta;
+
   return (
     <SetupAccessWrapper
       {...restOfProps}
@@ -114,6 +119,9 @@ export function SetupAccess(props: State) {
       hasTraits={hasTraits}
       onProceed={handleOnProceed}
       infoContent={<Info dbEngine={engine} dbLocation={location} />}
+      // Don't allow going back to previous screen when deploy db
+      // service got skipped or user auto deployed the db service.
+      onPrev={dbMeta.serviceDeployedMethod === 'manual' ? onPrev : null}
     >
       <Box mb={4}>
         Database Users
@@ -166,7 +174,7 @@ const Info = (props: {
 }) => (
   <StyledBox mt={5}>
     <Flex mb={2}>
-      <InfoFilled fontSize={18} mr={1} mt="2px" />
+      <InfoIcon size="medium" mr={1} />
       <Text bold>To allow access using your Database Users</Text>
     </Flex>
     <DbEngineInstructions {...props} />
@@ -200,19 +208,14 @@ function DbEngineInstructions({
 }) {
   switch (dbLocation) {
     case DatabaseLocation.Aws:
-      if (dbEngine === DatabaseEngine.Postgres) {
+      if (
+        dbEngine === DatabaseEngine.Postgres ||
+        dbEngine === DatabaseEngine.AuroraPostgres
+      ) {
         return (
           <Box mb={3}>
             <Text mb={2}>
-              Database users must allow{' '}
-              <Link
-                href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.PostgreSQL"
-                target="_blank"
-              >
-                IAM authentication
-              </Link>{' '}
-              in order to be used with Database Access for RDS. To enable, users
-              must have a <Mark>rds_iam</Mark> role:
+              Users must have an <Mark>rds_iam</Mark> role:
             </Text>
             <TextSelectCopyMulti
               bash={false}
@@ -227,20 +230,15 @@ function DbEngineInstructions({
           </Box>
         );
       }
-      if (dbEngine === DatabaseEngine.MySql) {
+      if (
+        dbEngine === DatabaseEngine.MySql ||
+        dbEngine === DatabaseEngine.AuroraMysql
+      ) {
         return (
           <Box mb={3}>
             <Box mb={2}>
               <Text mb={2}>
-                Database users must allow{' '}
-                <Link
-                  href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.MySQL"
-                  target="_blank"
-                >
-                  IAM authentication
-                </Link>{' '}
-                in order to be used with Database Access for RDS. Users must
-                have the RDS authentication plugin enabled:
+                Users must have the RDS authentication plugin enabled:
               </Text>
               <TextSelectCopyMulti
                 bash={false}
@@ -283,8 +281,8 @@ function DbEngineInstructions({
               >
                 host-based authentication
               </Link>{' '}
-              file named <Mark>pg_hba.conf</Mark>, so that PostgreSQL require's
-              client CA from clients connecting over TLS:
+              file named <Mark>pg_hba.conf</Mark>, so that PostgreSQL requires
+              client certificates from clients connecting over TLS:
             </Text>
             <TextSelectCopyMulti
               bash={false}
@@ -386,7 +384,7 @@ function DbEngineInstructions({
 
 const StyledBox = styled(Box)`
   max-width: 800px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 8px;
   padding: 20px;
 `;

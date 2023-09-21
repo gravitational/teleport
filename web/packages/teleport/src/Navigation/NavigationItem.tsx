@@ -31,7 +31,16 @@ import {
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import type { TeleportFeature } from 'teleport/types';
+import localStorage from 'teleport/services/localStorage';
+
+import { useTeleport } from 'teleport';
+
+import { NavTitle, RecommendationStatus } from 'teleport/types';
+
+import type {
+  TeleportFeature,
+  TeleportFeatureNavigationItem,
+} from 'teleport/types';
 
 interface NavigationItemProps {
   feature: TeleportFeature;
@@ -50,7 +59,7 @@ const ExternalLink = styled.a`
 
 const Link = styled(NavLink)`
   ${commonNavigationItemStyles};
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
 
   &:focus {
     background: ${props => props.theme.colors.spotBackground[0]};
@@ -76,9 +85,17 @@ const ExternalLinkIndicator = styled.div`
 `;
 
 export function NavigationItem(props: NavigationItemProps) {
+  const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
 
-  const { navigationItem, route } = props.feature;
+  const {
+    navigationItem,
+    route,
+    isLocked,
+    lockedNavigationItem,
+    lockedRoute,
+    hideFromNavigation,
+  } = props.feature;
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -147,6 +164,30 @@ export function NavigationItem(props: NavigationItemProps) {
     []
   );
 
+  if (hideFromNavigation) {
+    return null;
+  }
+
+  // renderHighlightFeature returns red dot component if the feature recommendation state is 'NOTIFY'
+  function renderHighlightFeature(featureName: NavTitle): JSX.Element {
+    // Get onboarding status. We'll only recommend features once user completes
+    // initial onboarding (i.e. connect resources to Teleport cluster).
+    const onboard = localStorage.getOnboardDiscover();
+    if (!onboard?.hasResource) {
+      return null;
+    }
+
+    const recommendFeatureStatus =
+      localStorage.getFeatureRecommendationStatus();
+    if (
+      featureName === NavTitle.TrustedDevices &&
+      recommendFeatureStatus?.TrustedDevices === RecommendationStatus.Notify
+    ) {
+      return <RedDot />;
+    }
+    return null;
+  }
+
   if (navigationItem) {
     const linkProps = {
       style: {
@@ -179,18 +220,34 @@ export function NavigationItem(props: NavigationItemProps) {
       );
     }
 
+    let navigationItemVersion: TeleportFeatureNavigationItem;
     if (route) {
+      navigationItemVersion = navigationItem;
+    }
+
+    // use locked item version if feature is locked
+    if (lockedRoute && isLocked?.(ctx.lockedFeatures)) {
+      if (!lockedNavigationItem) {
+        throw new Error(
+          'locked feature without an alternative navigation item'
+        );
+      }
+      navigationItemVersion = lockedNavigationItem;
+    }
+
+    if (navigationItemVersion) {
       return (
         <Link
           {...linkProps}
           onKeyDown={handleKeyDown}
           tabIndex={props.visible ? 0 : -1}
-          to={navigationItem.getLink(clusterId)}
-          exact={navigationItem.exact}
+          to={navigationItemVersion.getLink(clusterId)}
+          exact={navigationItemVersion.exact}
         >
           <LinkContent size={props.size}>
             {getIcon(props.feature, props.size)}
-            {navigationItem.title}
+            {navigationItemVersion.title}
+            {renderHighlightFeature(props.feature.navigationItem.title)}
           </LinkContent>
         </Link>
       );
@@ -206,3 +263,12 @@ export function NavigationItem(props: NavigationItemProps) {
     />
   );
 }
+
+const RedDot = styled.div`
+  margin-left: 15px;
+  margin-top: 2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: ${props => props.theme.colors.error.main};
+`;

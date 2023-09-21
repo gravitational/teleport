@@ -107,7 +107,7 @@ func (w *WatcherResponseWriter) Header() http.Header {
 func (w *WatcherResponseWriter) WriteHeader(code int) {
 	w.status = code
 	w.target.WriteHeader(code)
-	contentType := GetContentHeader(w.Header())
+	contentType := GetContentTypeHeader(w.Header())
 	w.group.Go(
 		func() error {
 			switch {
@@ -207,7 +207,7 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 	// wait for events received from upstream until the connection is terminated.
 	for {
 		eventType, obj, err := w.decodeStreamingMessage(streamingDecoder, objectDecoder)
-		if errors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
 			return nil
 		} else if err != nil {
 			return trace.Wrap(err)
@@ -235,7 +235,7 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 			if filter != nil {
 				// check if the event object matches the filtering criteria.
 				// If it does not match, ignore the event.
-				publish, err := filter.FilterObj(obj)
+				publish, _, err := filter.FilterObj(obj)
 				if err != nil {
 					return trace.Wrap(err)
 				}

@@ -49,7 +49,7 @@ export function ClientSidePager(props: Props) {
           disabled={isPrevDisabled}
           mx={0}
         >
-          <CircleArrowLeft fontSize="3" />
+          <CircleArrowLeft />
         </StyledArrowBtn>
         <StyledArrowBtn
           ml={0}
@@ -57,7 +57,7 @@ export function ClientSidePager(props: Props) {
           title="Next page"
           disabled={isNextDisabled}
         >
-          <CircleArrowRight fontSize="3" />
+          <CircleArrowRight />
         </StyledArrowBtn>
       </Flex>
     </Flex>
@@ -76,7 +76,7 @@ export function PageIndicatorText({
   return (
     <Text
       typography="body2"
-      color="text.primary"
+      color="text.main"
       mr={1}
       style={{ whiteSpace: 'nowrap', textTransform: 'uppercase' }}
     >

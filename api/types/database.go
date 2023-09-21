@@ -19,14 +19,15 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/utils"
+	atlasutils "github.com/gravitational/teleport/api/utils/atlas"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 )
@@ -45,8 +46,6 @@ type Database interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the database dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// String returns string representation of the database.
 	String() string
 	// GetDescription returns the database description.
@@ -69,6 +68,8 @@ type Database interface {
 	GetStatusCA() string
 	// GetMySQL returns the database options from spec.
 	GetMySQL() MySQLOptions
+	// GetOracle returns the database options from spec.
+	GetOracle() OracleOptions
 	// GetMySQLServerVersion returns the MySQL server version either from configuration or
 	// reported by the database.
 	GetMySQLServerVersion() string
@@ -98,6 +99,8 @@ type Database interface {
 	GetManagedUsers() []string
 	// SetManagedUsers sets a list of database users that are managed by Teleport.
 	SetManagedUsers(users []string)
+	// GetMongoAtlas returns Mongo Atlas database metadata.
+	GetMongoAtlas() MongoAtlas
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
 	// IsRDSProxy returns true if this is an RDS Proxy database.
@@ -119,8 +122,21 @@ type Database interface {
 	// RequireAWSIAMRolesAsUsers returns true for database types that require
 	// AWS IAM roles as database users.
 	RequireAWSIAMRolesAsUsers() bool
+	// SupportAWSIAMRoleARNAsUsers returns true for database types that support
+	// AWS IAM roles as database users.
+	SupportAWSIAMRoleARNAsUsers() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
+	// GetAdminUser returns database privileged user information.
+	GetAdminUser() string
+	// SupportsAutoUsers returns true if this database supports automatic
+	// user provisioning.
+	SupportsAutoUsers() bool
+	// GetEndpointType returns the endpoint type of the database, if available.
+	GetEndpointType() string
+	// GetCloud gets the cloud this database is running on, or an empty string if it
+	// isn't running on a cloud provider.
+	GetCloud() string
 }
 
 // NewDatabaseV3 creates a new database resource.
@@ -163,6 +179,16 @@ func (d *DatabaseV3) GetResourceID() int64 {
 // SetResourceID sets the database resource ID.
 func (d *DatabaseV3) SetResourceID(id int64) {
 	d.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (d *DatabaseV3) GetRevision() string {
+	return d.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (d *DatabaseV3) SetRevision(rev string) {
+	d.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns the database resource metadata.
@@ -244,11 +270,6 @@ func (d *DatabaseV3) GetAllLabels() map[string]string {
 	return CombineLabels(d.Metadata.Labels, d.Spec.DynamicLabels)
 }
 
-// LabelsString returns all database labels as a string.
-func (d *DatabaseV3) LabelsString() string {
-	return LabelsAsString(d.Metadata.Labels, d.Spec.DynamicLabels)
-}
-
 // GetDescription returns the database description.
 func (d *DatabaseV3) GetDescription() string {
 	return d.Metadata.Description
@@ -267,6 +288,34 @@ func (d *DatabaseV3) GetURI() string {
 // SetURI sets the database connection address.
 func (d *DatabaseV3) SetURI(uri string) {
 	d.Spec.URI = uri
+}
+
+// GetAdminUser returns database privileged user information.
+func (d *DatabaseV3) GetAdminUser() string {
+	// First check the spec.
+	if d.Spec.AdminUser != nil {
+		return d.Spec.AdminUser.Name
+	}
+	// If it's not in the spec, check labels (for auto-discovered databases).
+	return d.Metadata.Labels[DatabaseAdminLabel]
+}
+
+// GetOracle returns the Oracle options from spec.
+func (d *DatabaseV3) GetOracle() OracleOptions {
+	return d.Spec.Oracle
+}
+
+// SupportsAutoUsers returns true if this database supports automatic user
+// provisioning.
+func (d *DatabaseV3) SupportsAutoUsers() bool {
+	switch d.GetProtocol() {
+	case DatabaseProtocolPostgreSQL:
+		switch d.GetType() {
+		case DatabaseTypeSelfHosted, DatabaseTypeRDS:
+			return true
+		}
+	}
+	return false
 }
 
 // GetCA returns the database CA certificate. If more than one CA is set, then
@@ -445,6 +494,21 @@ func (d *DatabaseV3) IsCloudHosted() bool {
 	return d.IsAWSHosted() || d.IsCloudSQL() || d.IsAzure()
 }
 
+// GetCloud gets the cloud this database is running on, or an empty string if it
+// isn't running on a cloud provider.
+func (d *DatabaseV3) GetCloud() string {
+	switch {
+	case d.IsAWSHosted():
+		return CloudAWS
+	case d.IsCloudSQL():
+		return CloudGCP
+	case d.IsAzure():
+		return CloudAzure
+	default:
+		return ""
+	}
+}
+
 // getAWSType returns the database type.
 func (d *DatabaseV3) getAWSType() (string, bool) {
 	aws := d.GetAWS()
@@ -481,6 +545,10 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
+	if d.GetMongoAtlas().Name != "" {
+		return DatabaseTypeMongoAtlas
+	}
+
 	if awsType, ok := d.getAWSType(); ok {
 		return awsType
 	}
@@ -491,6 +559,7 @@ func (d *DatabaseV3) GetType() string {
 	if d.GetAzure().Name != "" {
 		return DatabaseTypeAzure
 	}
+
 	return DatabaseTypeSelfHosted
 }
 
@@ -502,7 +571,7 @@ func (d *DatabaseV3) String() string {
 
 // Copy returns a copy of this database resource.
 func (d *DatabaseV3) Copy() *DatabaseV3 {
-	return proto.Clone(d).(*DatabaseV3)
+	return utils.CloneProtoMsg(d)
 }
 
 // MatchSearch goes through select field values and tries to
@@ -527,11 +596,30 @@ func (d *DatabaseV3) setStaticFields() {
 	d.Version = V3
 }
 
+// validDatabaseNameRegexp filters the allowed characters in database names.
+// This is the (almost) the same regexp used to check for valid DNS 1035 labels,
+// except we allow uppercase chars.
+var validDatabaseNameRegexp = regexp.MustCompile(`^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`)
+
+// ValidateDatabaseName returns an error if a given string is not a valid
+// Database name.
+// Unlike application access proxy, database name doesn't necessarily
+// need to be a valid subdomain but use the same validation logic for the
+// simplicity and consistency, except two differences: don't restrict names to
+// 63 chars in length and allow upper case chars.
+func ValidateDatabaseName(name string) error {
+	return ValidateResourceName(validDatabaseNameRegexp, name)
+}
+
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (d *DatabaseV3) CheckAndSetDefaults() error {
 	d.setStaticFields()
 	if err := d.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if err := ValidateDatabaseName(d.GetName()); err != nil {
+		return trace.Wrap(err, "invalid database name")
 	}
 
 	for key := range d.Spec.DynamicLabels {
@@ -713,6 +801,12 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			}
 			d.Spec.Azure.Name = name
 		}
+	case atlasutils.IsAtlasEndpoint(d.Spec.URI):
+		name, err := atlasutils.ParseAtlasEndpoint(d.Spec.URI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		d.Spec.MongoAtlas.Name = name
 	}
 
 	// Validate AWS Specific configuration
@@ -739,6 +833,35 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("database %q missing Cloud SQL project ID",
 			d.GetName())
 	}
+
+	// Admin user (for automatic user provisioning) is only supported for
+	// PostgreSQL currently.
+	if d.GetAdminUser() != "" && !d.SupportsAutoUsers() {
+		return trace.BadParameter("cannot set admin user on database %q: %v/%v databases don't support automatic user provisioning yet",
+			d.GetName(), d.GetProtocol(), d.GetType())
+	}
+
+	switch protocol := d.GetProtocol(); protocol {
+	case DatabaseProtocolClickHouseHTTP, DatabaseProtocolClickHouse:
+		const (
+			clickhouseNativeSchema = "clickhouse"
+			clickhouseHTTPSchema   = "https"
+		)
+		parts := strings.Split(d.GetURI(), ":")
+		if len(parts) == 3 {
+			break
+		} else if len(parts) != 2 {
+			return trace.BadParameter("invalid ClickHouse URL %s", d.GetURI())
+		}
+
+		if !strings.HasPrefix(d.Spec.URI, clickhouseHTTPSchema) && protocol == DatabaseProtocolClickHouseHTTP {
+			d.Spec.URI = fmt.Sprintf("%s://%s", clickhouseHTTPSchema, d.Spec.URI)
+		}
+		if protocol == DatabaseProtocolClickHouse {
+			d.Spec.URI = fmt.Sprintf("%s://%s", clickhouseNativeSchema, d.Spec.URI)
+		}
+	}
+
 	return nil
 }
 
@@ -828,6 +951,11 @@ func (d *DatabaseV3) SetManagedUsers(users []string) {
 	d.Status.ManagedUsers = users
 }
 
+// GetMongoAtlas returns Mongo Atlas database metadata.
+func (d *DatabaseV3) GetMongoAtlas() MongoAtlas {
+	return d.Spec.MongoAtlas
+}
+
 // RequireAWSIAMRolesAsUsers returns true for database types that require AWS
 // IAM roles as database users.
 // IMPORTANT: if you add a database that requires AWS IAM Roles as users,
@@ -850,7 +978,38 @@ func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 	}
 }
 
+// SupportAWSIAMRoleARNAsUsers returns true for database types that support AWS
+// IAM roles as database users.
+func (d *DatabaseV3) SupportAWSIAMRoleARNAsUsers() bool {
+	return d.GetType() == DatabaseTypeMongoAtlas
+}
+
+// GetEndpointType returns the endpoint type of the database, if available.
+func (d *DatabaseV3) GetEndpointType() string {
+	if endpointType, ok := d.GetStaticLabels()[DiscoveryLabelEndpointType]; ok {
+		return endpointType
+	}
+	switch d.GetType() {
+	case DatabaseTypeElastiCache:
+		return d.GetAWS().ElastiCache.EndpointType
+	case DatabaseTypeMemoryDB:
+		return d.GetAWS().MemoryDB.EndpointType
+	case DatabaseTypeOpenSearch:
+		return d.GetAWS().OpenSearch.EndpointType
+	}
+	return ""
+}
+
 const (
+	// DatabaseProtocolPostgreSQL is the PostgreSQL database protocol.
+	DatabaseProtocolPostgreSQL = "postgres"
+	// DatabaseProtocolClickHouseHTTP is the ClickHouse database HTTP protocol.
+	DatabaseProtocolClickHouseHTTP = "clickhouse-http"
+	// DatabaseProtocolClickHouse is the ClickHouse database native write protocol.
+	DatabaseProtocolClickHouse = "clickhouse"
+	// DatabaseProtocolMySQL is the MySQL database protocol.
+	DatabaseProtocolMySQL = "mysql"
+
 	// DatabaseTypeSelfHosted is the self-hosted type of database.
 	DatabaseTypeSelfHosted = "self-hosted"
 	// DatabaseTypeRDS is AWS-hosted RDS or Aurora database.
@@ -877,6 +1036,8 @@ const (
 	DatabaseTypeDynamoDB = "dynamodb"
 	// DatabaseTypeOpenSearch is AWS-hosted OpenSearch instance.
 	DatabaseTypeOpenSearch = "opensearch"
+	// DatabaseTypeMongoAtlas
+	DatabaseTypeMongoAtlas = "mongo-atlas"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".
@@ -979,4 +1140,29 @@ func (d *DatabaseTLSMode) decodeName(name string) error {
 		return nil
 	}
 	return trace.BadParameter("DatabaseTLSMode invalid value %v", d)
+}
+
+// MarshalJSON supports marshaling enum value into it's string value.
+func (s *IAMPolicyStatus) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.String())
+}
+
+// UnmarshalJSON supports unmarshaling enum string value back to number.
+func (s *IAMPolicyStatus) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+
+	var stringVal string
+	if err := json.Unmarshal(data, &stringVal); err != nil {
+		return err
+	}
+
+	*s = IAMPolicyStatus(IAMPolicyStatus_value[stringVal])
+	return nil
+}
+
+// IsAuditLogEnabled returns if Oracle Audit Log was enabled
+func (o OracleOptions) IsAuditLogEnabled() bool {
+	return o.AuditUser != ""
 }

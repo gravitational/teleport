@@ -40,7 +40,9 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
+	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -109,14 +111,14 @@ func (f fakeDialer) DialSite(ctx context.Context, clusterName string, clientSrcA
 	return conn, nil
 }
 
-func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer func(context.Context) (ssh.Signer, error)) (_ net.Conn, teleportVersion string, err error) {
+func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, err error) {
 	key := fmt.Sprintf("%s.%s.%s", host, port, cluster)
 	conn, ok := f.hostConns[key]
 	if !ok {
-		return nil, "", trace.NotFound(key)
+		return nil, trace.NotFound(key)
 	}
 
-	return conn, "", nil
+	return conn, nil
 }
 
 // testPack used to test a [Service].
@@ -125,19 +127,54 @@ type testPack struct {
 	Server *Service
 }
 
+type listenerWithAddr struct {
+	*bufconn.Listener
+	localAddr net.Addr
+}
+
+func (l *listenerWithAddr) Addr() net.Addr {
+	return l.localAddr
+}
+
+func (l *listenerWithAddr) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	return &connWithAddr{
+		Conn: conn,
+		addr: l.localAddr,
+	}, err
+}
+
+type connWithAddr struct {
+	net.Conn
+	addr net.Addr
+}
+
+func (c *connWithAddr) RemoteAddr() net.Addr {
+	return c.addr
+}
+
+func (c *connWithAddr) LocalAddr() net.Addr {
+	return c.addr
+}
+
 // newServer creates a [Service] with the provided config and
 // an authenticated client to exercise various RPCs on the [Service].
 func newServer(t *testing.T, cfg ServerConfig) testPack {
 	// gRPC testPack.
 	const bufSize = 100 // arbitrary
+	var lisWithAddr net.Listener
 	lis := bufconn.Listen(bufSize)
+	lisWithAddr = &listenerWithAddr{
+		Listener:  lis,
+		localAddr: utils.MustParseAddr("127.0.0.1:4242"),
+	}
 	t.Cleanup(func() {
 		require.NoError(t, lis.Close())
 	})
 
 	s := grpc.NewServer(
-		grpc.StreamInterceptor(utils.GRPCServerStreamErrorInterceptor),
-		grpc.UnaryInterceptor(utils.GRPCServerUnaryErrorInterceptor),
+		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
+		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
 	t.Cleanup(func() {
 		s.GracefulStop()
@@ -152,7 +189,7 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 
 	// Start.
 	go func() {
-		if err := s.Serve(lis); err != nil {
+		if err := s.Serve(lisWithAddr); err != nil {
 			panic(fmt.Sprintf("Serve returned err = %v", err))
 		}
 	}()
@@ -162,11 +199,15 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 	defer cancel()
 	cc, err := grpc.DialContext(ctx, "unused",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return lis.DialContext(ctx)
+			conn, err := lis.DialContext(ctx)
+			return &connWithAddr{
+				Conn: conn,
+				addr: utils.MustParseAddr("127.0.0.1:8484"),
+			}, err
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
-		grpc.WithUnaryInterceptor(utils.GRPCClientUnaryErrorInterceptor),
+		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
+		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -179,16 +220,16 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 	}
 }
 
-func fakeSigner(authzCtx *authz.Context) func(context.Context) (ssh.Signer, error) {
-	return func(context.Context) (ssh.Signer, error) {
+func fakeSigner(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
+	return func(_ context.Context, _ agentless.CertGenerator) (ssh.Signer, error) {
 		return nil, nil
 	}
 }
 
 type fakeMonitor struct{}
 
-func (f fakeMonitor) MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, error) {
-	return ctx, nil
+func (f fakeMonitor) MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error) {
+	return ctx, conn, nil
 }
 
 // TestService_GetClusterDetails validates that a [Service] returns
@@ -218,7 +259,7 @@ func TestService_GetClusterDetails(t *testing.T) {
 				FIPS:              test.FIPS,
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
-				LocalAddr:         &utils.NetAddr{},
+				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 			})
 
 			resp, err := srv.Client.GetClusterDetails(context.Background(), &transportv1pb.GetClusterDetailsRequest{})
@@ -243,7 +284,7 @@ func TestService_ProxyCluster(t *testing.T) {
 			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxyClusterClient, conn *echoConn) {
 				require.NoError(t, stream.Send(&transportv1pb.ProxyClusterRequest{Cluster: cluster}))
 
-				var msg = []byte("hello")
+				msg := []byte("hello")
 				require.NoError(t, stream.Send(&transportv1pb.ProxyClusterRequest{Frame: &transportv1pb.Frame{Payload: msg}}))
 
 				resp, err := stream.Recv()
@@ -261,7 +302,7 @@ func TestService_ProxyCluster(t *testing.T) {
 				require.NoError(t, stream.Send(&transportv1pb.ProxyClusterRequest{Cluster: cluster}))
 
 				require.NoError(t, conn.Close())
-				var msg = []byte("hello")
+				msg := []byte("hello")
 				require.NoError(t, stream.Send(&transportv1pb.ProxyClusterRequest{Frame: &transportv1pb.Frame{Payload: msg}}))
 
 				resp, err := stream.Recv()
@@ -300,7 +341,7 @@ func TestService_ProxyCluster(t *testing.T) {
 				Logger:            utils.NewLoggerForTests(),
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
-				LocalAddr:         &utils.NetAddr{},
+				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 			})
 
 			stream, err := srv.Client.ProxyCluster(context.Background())
@@ -408,7 +449,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 				require.Nil(t, resp.Frame)
 
 				require.NoError(t, conn.Close())
-				var msg = []byte("hello")
+				msg := []byte("hello")
 				require.NoError(t, stream.Send(&transportv1pb.ProxySSHRequest{Frame: &transportv1pb.ProxySSHRequest_Ssh{Ssh: &transportv1pb.Frame{Payload: msg}}}))
 
 				resp, err = stream.Recv()
@@ -450,7 +491,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
 				Logger:            utils.NewLoggerForTests(),
-				LocalAddr:         &utils.NetAddr{},
+				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 				authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
 					checker, err := test.checkerFn(info)
 					if err != nil {
@@ -465,7 +506,6 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 			require.NoError(t, err)
 
 			test.fn(t, stream, conn)
-
 		})
 	}
 }
@@ -514,7 +554,7 @@ func TestService_ProxySSH(t *testing.T) {
 		Dialer:            sshSrv,
 		SignerFn:          fakeSigner,
 		Logger:            utils.NewLoggerForTests(),
-		LocalAddr:         &utils.NetAddr{},
+		LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 		ConnectionMonitor: fakeMonitor{},
 		agentGetterFn: func(rw io.ReadWriter) teleagent.Getter {
 			return func() (teleagent.Agent, error) {
@@ -609,7 +649,7 @@ func TestService_ProxySSH(t *testing.T) {
 
 	// send an ssh request to our server which will echo the payload
 	// back in the response.
-	var msg = []byte("hello")
+	msg := []byte("hello")
 	ok, response, err := client.SendRequest("echo", true, msg)
 	require.NoError(t, err)
 	require.True(t, ok)
@@ -620,6 +660,58 @@ func TestService_ProxySSH(t *testing.T) {
 	keys, err := agent.NewClient(agentRW).List()
 	require.NoError(t, err)
 	require.Len(t, keys, 2)
+}
+
+func TestGetDestinationAddress(t *testing.T) {
+	testCases := []struct {
+		listenerAddr string
+		srcAddr      string
+		expected     string
+	}{
+		{
+			srcAddr:      "4.3.2.1:65",
+			listenerAddr: "1.2.3.4:56",
+			expected:     "1.2.3.4:56",
+		},
+		{
+			srcAddr:      "4.3.2.1:65",
+			listenerAddr: "[2601:602:8700:4470:a3:813c:1d8c:30b9]:56",
+			expected:     "127.0.0.1:56",
+		},
+		{
+			srcAddr:      "[2601:602:8700:4470:a3:813c:1d8c:30b9]:65",
+			listenerAddr: "1.2.3.4:56",
+			expected:     "[::1]:56",
+		},
+		{
+			srcAddr:      "4.3.2.1:65",
+			listenerAddr: "0.0.0.0:56",
+			expected:     "127.0.0.1:56",
+		},
+		{
+			srcAddr:      "4.3.2.1:65",
+			listenerAddr: "[::]:56",
+			expected:     "127.0.0.1:56",
+		},
+		{
+			srcAddr:      "[2601:602:8700:4470:a3:813c:1d8c:30b9]:65",
+			listenerAddr: "[::]:56",
+			expected:     "[::1]:56",
+		},
+		{
+			srcAddr:      "[2601:602:8700:4470:a3:813c:1d8c:30b9]:65",
+			listenerAddr: "0.0.0.0:56",
+			expected:     "[::1]:56",
+		},
+	}
+
+	for i, tt := range testCases {
+		t.Run(fmt.Sprintf("Test #%d", i), func(t *testing.T) {
+			res, err := getDestinationAddress(utils.MustParseAddr(tt.srcAddr), utils.MustParseAddr(tt.listenerAddr))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, res.String())
+		})
+	}
 }
 
 // clientStream implements the [streamutils.Source] interface
@@ -686,31 +778,31 @@ func (s *sshServer) DialSite(ctx context.Context, clusterName string, clientSrcA
 // nil and is of type testAgent, then the server will serve its keyring
 // over the underlying [streamutils.ReadWriter] so that tests can exercise
 // ssh agent multiplexing.
-func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer func(context.Context) (ssh.Signer, error)) (_ net.Conn, teleportVersion string, err error) {
+func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, err error) {
 	conn, err := s.dial()
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if agentGetter == nil {
-		return conn, "", nil
+		return conn, nil
 	}
 
 	agnt, err := agentGetter()
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	rw, ok := agnt.(testAgent)
 	if !ok {
-		return conn, "", nil
+		return conn, nil
 	}
 
 	go func() {
 		agent.ServeAgent(s.keyring, rw)
 	}()
 
-	return conn, "", nil
+	return conn, nil
 }
 
 func (s *sshServer) Run() {

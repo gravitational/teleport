@@ -203,6 +203,7 @@ export const eventCodes = {
   TRUSTED_CLUSTER_CREATED: 'T7000I',
   TRUSTED_CLUSTER_DELETED: 'T7001I',
   TRUSTED_CLUSTER_TOKEN_CREATED: 'T7002I',
+  PROVISION_TOKEN_CREATED: 'TJT00I',
   UNKNOWN: 'TCC00E',
   USER_CREATED: 'T1002I',
   USER_DELETED: 'T1004I',
@@ -231,6 +232,29 @@ export const eventCodes = {
   SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE: 'TSI003W',
   SAML_IDP_SERVICE_PROVIDER_DELETE_ALL: 'TSI004I',
   SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE: 'TSI004W',
+  OKTA_GROUPS_UPDATE: 'TOK001I',
+  OKTA_APPLICATIONS_UPDATE: 'TOK002I',
+  OKTA_SYNC_FAILURE: 'TOK003E',
+  OKTA_ASSIGNMENT_PROCESS: 'TOK004I',
+  OKTA_ASSIGNMENT_PROCESS_FAILURE: 'TOK004E',
+  OKTA_ASSIGNMENT_CLEANUP: 'TOK005I',
+  OKTA_ASSIGNMENT_CLEANUP_FAILURE: 'TOK005E',
+  ACCESS_LIST_CREATE: 'TAL001I',
+  ACCESS_LIST_CREATE_FAILURE: 'TAL001E',
+  ACCESS_LIST_UPDATE: 'TAL002I',
+  ACCESS_LIST_UPDATE_FAILURE: 'TAL002E',
+  ACCESS_LIST_DELETE: 'TAL003I',
+  ACCESS_LIST_DELETE_FAILURE: 'TAL003E',
+  ACCESS_LIST_REVIEW: 'TAL004I',
+  ACCESS_LIST_REVIEW_FAILURE: 'TAL004E',
+  ACCESS_LIST_MEMBER_CREATE: 'TAL005I',
+  ACCESS_LIST_MEMBER_CREATE_FAILURE: 'TAL005E',
+  ACCESS_LIST_MEMBER_UPDATE: 'TAL006I',
+  ACCESS_LIST_MEMBER_UPDATE_FAILURE: 'TAL006E',
+  ACCESS_LIST_MEMBER_DELETE: 'TAL007I',
+  ACCESS_LIST_MEMBER_DELETE_FAILURE: 'TAL007E',
+  ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST: 'TAL008I',
+  ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE: 'TAL008E',
 } as const;
 
 /**
@@ -587,6 +611,13 @@ export type RawEvents = {
       name: string;
     }
   >;
+  [eventCodes.PROVISION_TOKEN_CREATED]: RawEvent<
+    typeof eventCodes.PROVISION_TOKEN_CREATED,
+    {
+      roles: string[];
+      join_method: string;
+    }
+  >;
   [eventCodes.KUBE_REQUEST]: RawEvent<
     typeof eventCodes.KUBE_REQUEST,
     {
@@ -621,6 +652,7 @@ export type RawEvents = {
       db_service: string;
       db_name: string;
       db_user: string;
+      db_roles: string[];
     }
   >;
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: RawEvent<
@@ -630,6 +662,7 @@ export type RawEvents = {
       db_service: string;
       db_name: string;
       db_user: string;
+      db_roles: string[];
     }
   >;
   [eventCodes.DATABASE_SESSION_ENDED]: RawEvent<
@@ -1243,6 +1276,169 @@ export type RawEvents = {
       updated_by: string;
     }
   >;
+  [eventCodes.OKTA_GROUPS_UPDATE]: RawEvent<
+    typeof eventCodes.OKTA_GROUPS_UPDATE,
+    {
+      added: number;
+      updated: number;
+      deleted: number;
+    }
+  >;
+  [eventCodes.OKTA_APPLICATIONS_UPDATE]: RawEvent<
+    typeof eventCodes.OKTA_APPLICATIONS_UPDATE,
+    {
+      added: number;
+      updated: number;
+      deleted: number;
+    }
+  >;
+  [eventCodes.OKTA_SYNC_FAILURE]: RawEvent<typeof eventCodes.OKTA_SYNC_FAILURE>;
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS]: RawEvent<
+    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS,
+    {
+      name: string;
+      source: string;
+    }
+  >;
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE]: RawEvent<
+    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE,
+    {
+      name: string;
+      source: string;
+    }
+  >;
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: RawEvent<
+    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS,
+    {
+      name: string;
+      source: string;
+    }
+  >;
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE]: RawEvent<
+    typeof eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE,
+    {
+      name: string;
+      source: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_CREATE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_CREATE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_CREATE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_CREATE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_UPDATE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_UPDATE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_UPDATE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_UPDATE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_DELETE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_DELETE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_DELETE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_DELETE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_REVIEW]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_REVIEW,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_REVIEW_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_REVIEW_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_CREATE,
+    {
+      access_list_name: string;
+      member_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE,
+    {
+      access_list_name: string;
+      member_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_UPDATE,
+    {
+      access_list_name: string;
+      member_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE,
+    {
+      access_list_name: string;
+      member_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE,
+    {
+      access_list_name: string;
+      member_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE,
+    {
+      access_list_name: string;
+      member_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST,
+    {
+      access_list_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE,
+    {
+      access_list_name: string;
+      updated_by: string;
+    }
+  >;
 };
 
 /**
@@ -1291,8 +1487,10 @@ type RawDeviceEvent<T extends EventCode> = RawEvent<
   T,
   {
     device: { asset_tag: string; device_id: string; os_type: number };
-    status: { success: boolean };
-    user: { user: string };
+    success?: boolean;
+    user?: string;
+    // status from "legacy" event format.
+    status?: { success: boolean };
   }
 >;
 

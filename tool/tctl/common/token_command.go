@@ -24,10 +24,11 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"text/template"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -41,6 +42,19 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+var mdmTokenAddTemplate = template.Must(
+	template.New("mdmTokenAdd").Parse(`The invite token: {{.token}}
+This token will expire in {{.minutes}} minutes.
+
+Use this token to add an MDM service to Teleport.
+
+> teleport start \
+   --token={{.token}} \{{range .ca_pins}}
+   --ca-pin={{.}} \{{end}}
+   --config=/path/to/teleport.yaml
+
+`))
 
 // TokensCommand implements `tctl tokens` group of commands
 type TokensCommand struct {
@@ -98,8 +112,8 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, config *servicecfg.
 	formats := []string{teleport.Text, teleport.JSON, teleport.YAML}
 
 	// tctl tokens add ..."
-	c.tokenAdd = tokens.Command("add", "Create a invitation token")
-	c.tokenAdd.Flag("type", "Type(s) of token to add, e.g. --type=node,app,db").Required().StringVar(&c.tokenType)
+	c.tokenAdd = tokens.Command("add", "Create a invitation token.")
+	c.tokenAdd.Flag("type", "Type(s) of token to add, e.g. --type=node,app,db,proxy,etc").Required().StringVar(&c.tokenType)
 	c.tokenAdd.Flag("value", "Override the default random generated token with a specified value").StringVar(&c.value)
 	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
 	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v minutes",
@@ -114,11 +128,11 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, config *servicecfg.
 	c.tokenAdd.Flag("format", "Output format, 'text', 'json', or 'yaml'").EnumVar(&c.format, formats...)
 
 	// "tctl tokens rm ..."
-	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token").Alias("del")
+	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token.").Alias("del")
 	c.tokenDel.Arg("token", "Token to delete").StringVar(&c.value)
 
 	// "tctl tokens ls"
-	c.tokenList = tokens.Command("ls", "List node and user invitation tokens")
+	c.tokenList = tokens.Command("ls", "List node and user invitation tokens.")
 	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
 
 	if c.stdout == nil {
@@ -147,6 +161,12 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 	roles, err := types.ParseTeleportRoles(c.tokenType)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// If it's Kube, then enable App and Discovery roles automatically so users
+	// don't have problems with running Kubernetes App Discovery by default.
+	if len(roles) == 1 && roles[0] == types.RoleKube {
+		roles = append(roles, types.RoleApp, types.RoleDiscovery)
 	}
 
 	token := c.value
@@ -243,11 +263,13 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 		if len(proxies) == 0 {
 			return trace.NotFound("cluster has no proxies")
 		}
+		setRoles := strings.ToLower(strings.Join(roles.StringSlice(), "\\,"))
 		return kubeMessageTemplate.Execute(c.stdout,
 			map[string]interface{}{
 				"auth_server": proxies[0].GetPublicAddr(),
 				"token":       token,
 				"minutes":     c.ttl.Minutes(),
+				"set_roles":   setRoles,
 			})
 	case roles.Include(types.RoleApp):
 		proxies, err := client.GetProxies()
@@ -297,6 +319,12 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 				"token":   token,
 				"minutes": c.ttl.Minutes(),
 			})
+	case roles.Include(types.RoleMDM):
+		return mdmTokenAddTemplate.Execute(c.stdout, map[string]interface{}{
+			"token":   token,
+			"minutes": c.ttl.Minutes(),
+			"ca_pins": caPins,
+		})
 	default:
 		authServer := authServers[0].GetAddr()
 

@@ -16,6 +16,11 @@ limitations under the License.
 
 import React from 'react';
 
+import { ContextProvider } from 'teleport';
+
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import useSessions from 'teleport/Sessions/useSessions';
+
 import { Sessions } from './Sessions';
 import { sessions } from './fixtures';
 
@@ -24,15 +29,58 @@ export default {
 };
 
 export function Loaded() {
-  const props = {
-    sessions,
-    attempt: {
-      isSuccess: true,
-      isProcessing: false,
-      isFailed: false,
-      message: '',
-    },
-  };
+  const props = makeSessionProps({ attempt: { isSuccess: true } });
 
-  return <Sessions {...props} />;
+  return (
+    <ContextProvider ctx={ctx}>
+      <Sessions {...props} />
+    </ContextProvider>
+  );
 }
+
+export function ActiveSessionsCTA() {
+  const props = makeSessionProps({
+    attempt: { isSuccess: true },
+    showActiveSessionsCTA: true,
+  });
+
+  return (
+    <ContextProvider ctx={ctx}>
+      <Sessions {...props} />
+    </ContextProvider>
+  );
+}
+
+export function ModeratedSessionsCTA() {
+  const props = makeSessionProps({
+    attempt: { isSuccess: true },
+    showModeratedSessionsCTA: true,
+  });
+
+  return (
+    <ContextProvider ctx={ctx}>
+      <Sessions {...props} />
+    </ContextProvider>
+  );
+}
+
+const ctx = createTeleportContext();
+
+const makeSessionProps = (
+  overrides: Partial<typeof useSessions> = {}
+): ReturnType<typeof useSessions> => {
+  return Object.assign(
+    {
+      sessions,
+      attempt: {
+        isSuccess: false,
+        isProcessing: false,
+        isFailed: false,
+        message: '',
+      },
+      showActiveSessionsCTA: false,
+      showModeratedSessionsCTA: false,
+    },
+    overrides
+  );
+};

@@ -14,28 +14,43 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  ThemeProvider as StyledThemeProvider,
   StyleSheetManager,
+  ThemeProvider as StyledThemeProvider,
 } from 'styled-components';
 
 import storage, { KeysEnum } from 'teleport/services/localStorage';
 
-import { darkTheme, lightTheme } from '../theme';
+import { ThemePreference } from 'teleport/services/userPreferences/types';
+import cfg from 'teleport/config';
+
+import { darkTheme, lightTheme, bblpTheme } from '../theme';
 
 import { GlobalStyle } from './globals';
 
-import type { ThemeOption } from '../theme';
+function themePreferenceToTheme(themePreference: ThemePreference) {
+  return themePreference === ThemePreference.Light ? lightTheme : darkTheme;
+}
 
 const ThemeProvider = props => {
+  const [themePreference, setThemePreference] = useState<ThemePreference>(
+    storage.getThemePreference()
+  );
+
   useEffect(() => {
     storage.subscribe(receiveMessage);
 
     function receiveMessage(event) {
       const { key, newValue } = event;
-      if (key === KeysEnum.THEME && newValue) {
-        setThemeOption(newValue);
+
+      if (!newValue || key !== KeysEnum.USER_PREFERENCES) {
+        return;
+      }
+
+      const preferences = JSON.parse(newValue);
+      if (preferences.theme !== themePreference) {
+        setThemePreference(preferences.theme);
       }
     }
 
@@ -43,16 +58,24 @@ const ThemeProvider = props => {
     return function unsubscribe() {
       storage.unsubscribe(receiveMessage);
     };
-  }, []);
+  }, [themePreference]);
 
-  const [themeOption, setThemeOption] = useState<ThemeOption>(
-    storage.getThemeOption()
-  );
+  const customThemes = {
+    bblp: bblpTheme,
+  };
 
-  const theme = themeOption === 'dark' ? darkTheme : lightTheme;
+  // If no props.theme is defined, use the custom theme instead of the user preference theme.
+  let theme;
+  if (props.theme) {
+    theme = props.theme;
+  } else if (customThemes[cfg.customTheme]) {
+    theme = customThemes[cfg.customTheme];
+  } else {
+    theme = themePreferenceToTheme(themePreference);
+  }
 
   return (
-    <StyledThemeProvider theme={props.theme || theme}>
+    <StyledThemeProvider theme={theme}>
       <StyleSheetManager disableVendorPrefixes>
         <React.Fragment>
           <GlobalStyle />

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
@@ -47,8 +48,8 @@ type Message interface {
 }
 
 // ReadMessage reads the next MongoDB wire protocol message from the reader.
-func ReadMessage(reader io.Reader) (Message, error) {
-	header, payload, err := readHeaderAndPayload(reader)
+func ReadMessage(reader io.Reader, maxMessageSize uint32) (Message, error) {
+	header, payload, err := readHeaderAndPayload(reader, maxMessageSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -66,7 +67,7 @@ func ReadMessage(reader io.Reader) (Message, error) {
 	case wiremessage.OpDelete:
 		return readOpDelete(*header, payload)
 	case wiremessage.OpCompressed:
-		return readOpCompressed(*header, payload)
+		return readOpCompressed(*header, payload, maxMessageSize)
 	case wiremessage.OpReply:
 		return readOpReply(*header, payload)
 	case wiremessage.OpKillCursors:
@@ -77,16 +78,15 @@ func ReadMessage(reader io.Reader) (Message, error) {
 }
 
 // ReadServerMessage reads wire protocol message from the MongoDB server connection.
-func ReadServerMessage(ctx context.Context, conn driver.Connection) (Message, error) {
-	var wm []byte
-	wm, err := conn.ReadWireMessage(ctx, wm)
+func ReadServerMessage(ctx context.Context, conn driver.Connection, maxMessageSize uint32) (Message, error) {
+	wm, err := conn.ReadWireMessage(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ReadMessage(bytes.NewReader(wm))
+	return ReadMessage(bytes.NewReader(wm), maxMessageSize)
 }
 
-func readHeaderAndPayload(reader io.Reader) (*MessageHeader, []byte, error) {
+func readHeaderAndPayload(reader io.Reader, maxMessageSize uint32) (*MessageHeader, []byte, error) {
 	// First read message header which is 16 bytes.
 	var header [headerSizeBytes]byte
 	if _, err := io.ReadFull(reader, header[:]); err != nil {
@@ -102,11 +102,8 @@ func readHeaderAndPayload(reader io.Reader) (*MessageHeader, []byte, error) {
 		return nil, nil, trace.BadParameter("invalid header size %v", header)
 	}
 
-	payloadLength := int64(length - headerSizeBytes)
-	// TODO: get the max limit from Mongo handshake
-	// https://github.com/gravitational/teleport/issues/21286
-	// For now allow 2x default mongoDB limit.
-	if payloadLength >= 2*defaultMaxMessageSizeBytes {
+	payloadLength := uint32(length - headerSizeBytes)
+	if payloadLength >= maxMessageSize {
 		return nil, nil, trace.BadParameter("exceeded the maximum message size, got length: %d", length)
 	}
 
@@ -115,8 +112,8 @@ func readHeaderAndPayload(reader io.Reader) (*MessageHeader, []byte, error) {
 	}
 
 	// Then read the entire message body.
-	payloadBuff := bytes.NewBuffer(make([]byte, 0, buffAllocCapacity(payloadLength)))
-	if _, err := io.CopyN(payloadBuff, reader, payloadLength); err != nil {
+	payloadBuff := bytes.NewBuffer(make([]byte, 0, min(payloadLength, maxMessageSize)))
+	if _, err := io.CopyN(payloadBuff, reader, int64(payloadLength)); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -129,19 +126,10 @@ func readHeaderAndPayload(reader io.Reader) (*MessageHeader, []byte, error) {
 	}, payloadBuff.Bytes(), nil
 }
 
-// defaultMaxMessageSizeBytes is the default max size of mongoDB message.
-// It can be obtained by following command:
-// db.isMaster().maxMessageSizeBytes    48000000 (default)
-const defaultMaxMessageSizeBytes = int64(48000000)
-
-// buffCapacity returns the capacity for the payload buffer.
-// If payloadLength is greater than defaultMaxMessageSizeBytes the defaultMaxMessageSizeBytes is returned.
-func buffAllocCapacity(payloadLength int64) int64 {
-	if payloadLength >= defaultMaxMessageSizeBytes {
-		return defaultMaxMessageSizeBytes
-	}
-	return payloadLength
-}
+// DefaultMaxMessageSizeBytes is the default max size of mongoDB message. This
+// value is only used if the MongoDB doesn't impose any value. Defaults to
+// double size of MongoDB default.
+const DefaultMaxMessageSizeBytes = uint32(48000000) * 2
 
 // MessageHeader represents parsed MongoDB wire protocol message header.
 //
@@ -158,3 +146,21 @@ type MessageHeader struct {
 const (
 	headerSizeBytes = 16
 )
+
+const (
+	// IsMasterCommand is legacy handshake command name.
+	IsMasterCommand = "isMaster"
+	// HelloCommand is the handshake command name.
+	HelloCommand = "hello"
+)
+
+// IsHandshake returns true if the message is a handshake request.
+func IsHandshake(m Message) bool {
+	cmd, err := m.GetCommand()
+	if err != nil {
+		return false
+	}
+
+	// Servers must accept alternative casing for IsMasterCommand.
+	return strings.EqualFold(cmd, IsMasterCommand) || cmd == HelloCommand
+}

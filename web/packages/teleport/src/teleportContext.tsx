@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2021 Gravitational, Inc.
+Copyright 2019-2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,12 +25,12 @@ import clusterService from './services/clusters';
 import sessionService from './services/session';
 import ResourceService from './services/resources';
 import userService from './services/user';
-import pingService from './services/ping';
 import appService from './services/apps';
 import JoinTokenService from './services/joinToken';
 import KubeService from './services/kube';
 import DatabaseService from './services/databases';
 import desktopService from './services/desktops';
+import userGroupService from './services/userGroups';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
 import localStorage from './services/localStorage';
@@ -48,19 +48,31 @@ class TeleportContext implements types.Context {
   sshService = sessionService;
   resourceService = new ResourceService();
   userService = userService;
-  pingService = pingService;
   appService = appService;
   joinTokenService = new JoinTokenService();
   kubeService = new KubeService();
   databaseService = new DatabaseService();
   desktopService = desktopService;
+  userGroupService = userGroupService;
   mfaService = new MfaService();
+
   isEnterprise = cfg.isEnterprise;
   isCloud = cfg.isCloud;
-
-  automaticUpgradesEnabled = false;
-
+  automaticUpgradesEnabled = cfg.automaticUpgrades;
+  assistEnabled = cfg.assistEnabled;
   agentService = agentService;
+
+  // lockedFeatures are the features disabled in the user's cluster.
+  // Mainly used to hide features and/or show CTAs when the user cluster doesn't support it.
+  // TODO(mcbattirola): use cluster features instead of only using `isUsageBasedBilling`
+  // to determine which feature is locked
+  lockedFeatures: types.LockedFeatures = {
+    authConnectors: cfg.isUsageBasedBilling,
+    activeSessions: cfg.isUsageBasedBilling,
+    accessRequests: cfg.isUsageBasedBilling,
+    premiumSupport: cfg.isUsageBasedBilling,
+    trustedDevices: cfg.isUsageBasedBilling,
+  };
 
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch
@@ -78,9 +90,6 @@ class TeleportContext implements types.Context {
         await userService.checkUserHasAccessToRegisteredResource();
       localStorage.setOnboardDiscover({ hasResource });
     }
-
-    const pingResponse = await pingService.fetchPing();
-    this.automaticUpgradesEnabled = pingResponse.automaticUpgrades;
   }
 
   getFeatureFlags(): types.FeatureFlags {
@@ -110,7 +119,46 @@ class TeleportContext implements types.Context {
         deviceTrust: false,
         enrollIntegrationsOrPlugins: false,
         enrollIntegrations: false,
+        locks: false,
+        newLocks: false,
+        assist: false,
+        managementSection: false,
       };
+    }
+
+    // If feature hiding is enabled in the license, this returns true if the user has no list access to any feature within the management section.
+    function hasManagementSectionAccess() {
+      if (!cfg.hideInaccessibleFeatures) {
+        return true;
+      }
+      return (
+        userContext.getUserAccess().list ||
+        userContext.getRoleAccess().list ||
+        userContext.getEventAccess().list ||
+        userContext.getSessionsAccess().list ||
+        userContext.getTrustedClusterAccess().list ||
+        userContext.getBillingAccess().list ||
+        userContext.getPluginsAccess().list ||
+        userContext.getIntegrationsAccess().list ||
+        userContext.hasDiscoverAccess() ||
+        userContext.getDeviceTrustAccess().list ||
+        userContext.getLockAccess().list
+      );
+    }
+
+    function hasAccessRequestsAccess() {
+      // If feature hiding is enabled in the license, only allow access to access requests if the user has permission to access them, either by
+      // having list access, requestable roles, or allowed search_as_roles.
+      if (cfg.hideInaccessibleFeatures) {
+        return !!(
+          userContext.getAccessRequestAccess().list ||
+          userContext.getRequestableRoles().length ||
+          userContext.getAllowedSearchAsRoles().length
+        );
+      }
+
+      // Return true if this isn't a Cloud dashboard cluster.
+      return !cfg.isDashboard;
     }
 
     return {
@@ -127,7 +175,7 @@ class TeleportContext implements types.Context {
       desktops: userContext.getDesktopAccess().list,
       nodes: userContext.getNodeAccess().list,
       activeSessions: userContext.getActiveSessionsAccess().list,
-      accessRequests: userContext.getAccessRequestAccess().list,
+      accessRequests: hasAccessRequestsAccess(),
       newAccessRequest: userContext.getAccessRequestAccess().create,
       downloadCenter: userContext.hasDownloadCenterListAccess(),
       discover: userContext.hasDiscoverAccess(),
@@ -138,6 +186,11 @@ class TeleportContext implements types.Context {
         userContext.getPluginsAccess().create ||
         userContext.getIntegrationsAccess().create,
       deviceTrust: userContext.getDeviceTrustAccess().list,
+      locks: userContext.getLockAccess().list,
+      newLocks:
+        userContext.getLockAccess().create && userContext.getLockAccess().edit,
+      assist: userContext.getAssistantAccess().list && this.assistEnabled,
+      managementSection: hasManagementSectionAccess(),
     };
   }
 }

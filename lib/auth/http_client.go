@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -90,7 +89,7 @@ func (c *HTTPClientConfig) CheckAndSetDefaults() error {
 	// Set the next protocol. This is needed due to the Auth Server using a
 	// multiplexer for protocol detection. Unless next protocol is specified
 	// it will attempt to upgrade to HTTP2 and at that point there is no way
-	// to distinguish between HTTP2/JSON or GPRC.
+	// to distinguish between HTTP2/JSON or gRPC.
 	c.TLS.NextProtos = []string{teleport.HTTPNextProtoTLS}
 
 	// Configure ALPN SNI direct dial TLS routing information used by ALPN SNI proxy in order to
@@ -359,65 +358,6 @@ func (c *HTTPClient) RotateExternalCertAuthority(ctx context.Context, ca types.C
 	return trace.Wrap(err)
 }
 
-// UpsertCertAuthority updates or inserts new cert authority
-// DELETE IN 14.0.0
-func (c *HTTPClient) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) error {
-	data, err := services.MarshalCertAuthority(ca)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = c.PostJSON(ctx, c.Endpoint("authorities", string(ca.GetType())),
-		&upsertCertAuthorityRawReq{CA: data})
-	return trace.Wrap(err)
-}
-
-// GetCertAuthorities returns a list of certificate authorities
-// DELETE IN 14.0.0
-func (c *HTTPClient) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
-	resp, err := c.Get(ctx, c.Endpoint("authorities", string(caType)), url.Values{
-		"load_keys": []string{fmt.Sprintf("%t", loadKeys)},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(resp.Bytes(), &items); err != nil {
-		return nil, err
-	}
-	cas := make([]types.CertAuthority, 0, len(items))
-	for _, raw := range items {
-		ca, err := services.UnmarshalCertAuthority(raw)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		cas = append(cas, ca)
-	}
-
-	return cas, nil
-}
-
-// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
-// controls if signing keys are loaded
-// DELETE IN 14.0.0
-func (c *HTTPClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
-	out, err := c.Get(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
-		"load_keys": []string{fmt.Sprintf("%t", loadSigningKeys)},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ca, err := services.UnmarshalCertAuthority(out.Bytes())
-	return ca, trace.Wrap(err)
-}
-
-// DeleteCertAuthority deletes cert authority by ID
-// DELETE IN 14.0.0
-func (c *HTTPClient) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
-	_, err := c.Delete(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName))
-	return trace.Wrap(err)
-}
-
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via CreateToken/UpsertToken.
 func (c *HTTPClient) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
@@ -632,7 +572,7 @@ func (c *HTTPClient) CreateRemoteCluster(rc types.RemoteCluster) error {
 
 // UpsertAuthServer is used by auth servers to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
-func (c *HTTPClient) UpsertAuthServer(s types.Server) error {
+func (c *HTTPClient) UpsertAuthServer(ctx context.Context, s types.Server) error {
 	data, err := services.MarshalServer(s)
 	if err != nil {
 		return trace.Wrap(err)
@@ -640,7 +580,7 @@ func (c *HTTPClient) UpsertAuthServer(s types.Server) error {
 	args := &upsertServerRawReq{
 		Server: data,
 	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("authservers"), args)
+	_, err = c.PostJSON(ctx, c.Endpoint("authservers"), args)
 	return trace.Wrap(err)
 }
 
@@ -667,7 +607,7 @@ func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
 
 // UpsertProxy is used by proxies to report their presence
 // to other auth servers in form of heartbeat expiring after ttl period.
-func (c *HTTPClient) UpsertProxy(s types.Server) error {
+func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
 	data, err := services.MarshalServer(s)
 	if err != nil {
 		return trace.Wrap(err)
@@ -675,7 +615,7 @@ func (c *HTTPClient) UpsertProxy(s types.Server) error {
 	args := &upsertServerRawReq{
 		Server: data,
 	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("proxies"), args)
+	_, err = c.PostJSON(ctx, c.Endpoint("proxies"), args)
 	return trace.Wrap(err)
 }
 
@@ -710,11 +650,11 @@ func (c *HTTPClient) DeleteAllProxies() error {
 }
 
 // DeleteProxy deletes proxy by name
-func (c *HTTPClient) DeleteProxy(name string) error {
+func (c *HTTPClient) DeleteProxy(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing parameter name")
 	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("proxies", name))
+	_, err := c.Delete(ctx, c.Endpoint("proxies", name))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -840,7 +780,7 @@ func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *OIDCAuthRawResponse
+	var rawResponse OIDCAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -878,7 +818,7 @@ func (c *HTTPClient) ValidateSAMLResponse(ctx context.Context, re string, connec
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *SAMLAuthRawResponse
+	var rawResponse SAMLAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}

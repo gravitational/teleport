@@ -43,6 +43,9 @@ spec:
       labels:
         {{- include "teleport-cluster.auth.labels" . | nindent 8 }}
         app: {{ .Release.Name }}
+{{- if eq $auth.chartMode "azure"}}
+        azure.workload.identity/use: "true"
+{{- end }}
     spec:
 {{- if $auth.nodeSelector }}
       nodeSelector: {{- toYaml $auth.nodeSelector | nindent 8 }}
@@ -245,6 +248,13 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
+        ports:
+          - name: op-metrics
+            containerPort: 8080
+            protocol: TCP
+          - name: op-health
+            containerPort: 8081
+            protocol: TCP
   {{- if .Values.operator.resources }}
         resources: {{- toYaml .Values.operator.resources | nindent 10 }}
   {{- end }}
@@ -265,11 +275,23 @@ spec:
 {{- end }}
       volumes:
 {{- if $projectedServiceAccountToken }}
+      # This projected token volume mimics the `automountServiceAccountToken`
+      # behaviour but defaults to a 1h TTL instead of 1y.
       - name: auth-serviceaccount-token
         projected:
           sources:
             - serviceAccountToken:
                 path: token
+            - configMap:
+                items:
+                - key: ca.crt
+                  path: ca.crt
+                name: kube-root-ca.crt
+            - downwardAPI:
+                items:
+                  - path: "namespace"
+                    fieldRef:
+                      fieldPath: metadata.namespace
 {{- end }}
 {{- if $auth.enterprise }}
       - name: license
@@ -290,7 +312,7 @@ spec:
         configMap:
           name: {{ .Release.Name }}-auth
       - name: "data"
-        {{- if and ($auth.persistence.enabled) ( and (not (eq $auth.chartMode "gcp")) (not (eq $auth.chartMode "aws"))) }}
+        {{- if and ($auth.persistence.enabled) ( and (not (eq $auth.chartMode "gcp")) (not (eq $auth.chartMode "aws")) (not (eq $auth.chartMode "azure"))) }}
         persistentVolumeClaim:
           claimName: {{ if $auth.persistence.existingClaimName }}{{ $auth.persistence.existingClaimName }}{{ else }}{{ .Release.Name }}{{ end }}
         {{- else }}

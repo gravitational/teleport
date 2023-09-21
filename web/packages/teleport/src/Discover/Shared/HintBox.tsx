@@ -25,25 +25,25 @@ import { TextIcon } from 'teleport/Discover/Shared/Text';
 
 const HintBoxContainer = styled(Box)`
   max-width: 1000px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
-  border: 2px solid ${props => props.theme.colors.warning}; ;
+  border: 2px solid ${props => props.theme.colors.warning.main}; ;
 `;
 
 export const WaitingInfo = styled(Box)`
   max-width: 1000px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
-  border: 2px solid #2f3659;
+  border: 2px solid ${props => props.theme.colors.text.muted};
   display: flex;
   align-items: center;
 `;
 
 export const SuccessInfo = styled(Box)`
   max-width: 1000px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
   border: 2px solid ${props => props.theme.colors.success};
@@ -66,7 +66,7 @@ export function HintBox(props: React.PropsWithChildren<HintBoxProps>) {
               white-space: pre;
             `}
           >
-            <Icons.Warning fontSize={4} color="warning.main" />
+            <Icons.Warning size="small" color="warning.main" mr={1} />
           </TextIcon>
           {props.header}
         </Flex>
@@ -85,7 +85,7 @@ export function SuccessBox(props: { children: React.ReactNode }) {
           white-space: pre;
         `}
       >
-        <Icons.CircleCheck fontSize={4} color="success" />
+        <Icons.CircleCheck size="medium" color="success" />
       </TextIcon>
       {props.children}
     </SuccessInfo>

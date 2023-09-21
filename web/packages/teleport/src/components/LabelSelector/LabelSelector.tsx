@@ -80,6 +80,7 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
                   fontSize: '16px',
                   paddingTop: '5px',
                 }}
+                size="medium"
                 onClick={() => setShowTooltip(!showTooltip)}
               />
             </div>
@@ -138,7 +139,7 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
         data-testid="label-container"
       >
         {labels.length === 0 && (
-          <Text color="text.placeholder">Click to add new labels.</Text>
+          <Text color="text.muted">Click to add new labels.</Text>
         )}
         {labelList({ labels, onDismiss: handleLabelDismiss })}
       </LabelContainer>
@@ -171,7 +172,7 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
           ) : (
             <CreateLabelError data-testid="create-label-error">
               <WarningIconWrapper>
-                <Warning style={{ padding: '3px' }} />
+                <Warning style={{ padding: '1px' }} size="medium" />
               </WarningIconWrapper>
               <WarningText>
                 <Text color="error.main" style={{ fontWeight: 700 }}>
@@ -216,7 +217,7 @@ const AddLabelInput = styled.input`
   background: ${props => props.theme.colors.sunken};
   border-radius: 52px;
   border: 1.5px solid ${({ theme }) => theme.colors.brand};
-  color: ${({ theme }) => theme.colors.text.primary};
+  color: ${({ theme }) => theme.colors.text.main};
   height: 40px;
   padding: 0 12px;
   width: calc(100% - 2rem);
@@ -225,7 +226,7 @@ const AddLabelInput = styled.input`
 const CreateLabel = styled.button`
   background: none;
   border: none;
-  color: ${({ theme }) => theme.colors.text.primary};
+  color: ${({ theme }) => theme.colors.text.main};
   cursor: pointer;
   font-size: 1rem;
   margin-left: 16px;

@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
@@ -313,6 +314,8 @@ type ProxySettings struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `json:"tls_routing_enabled"`
+	// AssistEnabled is true when Teleport Assist is enabled.
+	AssistEnabled bool `json:"assist_enabled"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
@@ -396,14 +399,20 @@ type AuthenticationSettings struct {
 	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"private_key_policy"`
 	// DeviceTrustDisabled provides a clue to Teleport clients on whether to avoid
 	// device authentication.
+	// Deprecated: Use DeviceTrust.Disabled instead.
+	// DELETE IN 16.0, replaced by the DeviceTrust field (codingllama).
 	DeviceTrustDisabled bool `json:"device_trust_disabled,omitempty"`
-
+	// DeviceTrust holds cluster-wide device trust settings.
+	DeviceTrust DeviceTrustSettings `json:"device_trust,omitempty"`
 	// HasMessageOfTheDay is a flag indicating that the cluster has MOTD
 	// banner text that must be retrieved, displayed and acknowledged by
 	// the user.
 	HasMessageOfTheDay bool `json:"has_motd"`
 	// LoadAllCAs tells tsh to load CAs for all clusters when trying to ssh into a node.
 	LoadAllCAs bool `json:"load_all_cas,omitempty"`
+	// DefaultSessionTTL is the TTL requested for user certs if
+	// a TTL is not otherwise specified.
+	DefaultSessionTTL types.Duration `json:"default_session_ttl"`
 }
 
 // LocalSettings holds settings for local authentication.
@@ -446,6 +455,13 @@ type GithubSettings struct {
 	Name string `json:"name"`
 	// Display is the connector display name
 	Display string `json:"display"`
+}
+
+// DeviceTrustSettings holds cluster-wide device trust settings that are liable
+// to change client behavior.
+type DeviceTrustSettings struct {
+	Disabled   bool `json:"disabled,omitempty"`
+	AutoEnroll bool `json:"auto_enroll,omitempty"`
 }
 
 func (ps *ProxySettings) TunnelAddr() (string, error) {

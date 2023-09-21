@@ -19,6 +19,7 @@ package proxy
 import (
 	"context"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -144,7 +145,7 @@ func TestWatcher(t *testing.T) {
 
 	// Update kube2 expiry so it gets re-registered.
 	kube2.SetExpiry(time.Now().Add(1 * time.Hour))
-	kube2.SetKubeconfig(newKubeConfig(t, "random", "https://api.cluster.com"))
+	kube2.SetKubeconfig(newKubeConfig(t, "random", kubeMock.URL))
 	err = testCtx.AuthServer.UpdateKubernetesCluster(ctx, kube2)
 	require.NoError(t, err)
 
@@ -156,7 +157,7 @@ func TestWatcher(t *testing.T) {
 			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		))
 		// make sure credentials were updated as well.
-		require.Equal(t, "api.cluster.com:443", testCtx.KubeServer.fwd.clusterDetails["kube2"].kubeCreds.getTargetAddr())
+		require.Equal(t, strings.TrimPrefix(kubeMock.URL, "https://"), testCtx.KubeServer.fwd.clusterDetails["kube2"].kubeCreds.getTargetAddr())
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
 	}

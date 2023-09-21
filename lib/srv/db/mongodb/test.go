@@ -18,8 +18,11 @@ package mongodb
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"net"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -29,6 +32,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -76,6 +80,15 @@ type TestServer struct {
 
 	wireVersion      int
 	activeConnection int32
+	maxMessageSize   uint32
+
+	// conversationIdx conversion ID control number. It is increased every time
+	// a SASL conversation is started.
+	conversationIdx int32
+
+	// saslConversionTracker map to track which SASL mechanism is being used by
+	// the conversion ID.
+	saslConversationTracker sync.Map
 }
 
 // TestServerOption allows to set test server options.
@@ -85,6 +98,13 @@ type TestServerOption func(*TestServer)
 func TestServerWireVersion(wireVersion int) TestServerOption {
 	return func(ts *TestServer) {
 		ts.wireVersion = wireVersion
+	}
+}
+
+// TestServerMaxMessageSize sets the test MongoDB server max message size.
+func TestServerMaxMessageSize(maxMessageSize uint32) TestServerOption {
+	return func(ts *TestServer) {
+		ts.maxMessageSize = maxMessageSize
 	}
 }
 
@@ -156,7 +176,7 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 	// Read client messages and reply to them - test server supports a very
 	// basic set of commands: "isMaster", "authenticate", "ping" and "find".
 	for {
-		message, err := protocol.ReadMessage(conn)
+		message, err := protocol.ReadMessage(conn, s.getMaxMessageSize())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -186,12 +206,23 @@ func (s *TestServer) handleMessage(message protocol.Message) (protocol.Message, 
 		return s.handlePing(message)
 	case commandFind:
 		return s.handleFind(message)
+	case commandSaslStart:
+		return s.handleSaslStart(message)
+	case commandSaslContinue:
+		return s.handleSaslContinue(message)
 	}
 	return nil, trace.NotImplemented("unsupported message: %v", message)
 }
 
 // handleAuth makes response to the client's "authenticate" command.
 func (s *TestServer) handleAuth(message protocol.Message) (protocol.Message, error) {
+	// If authentication token is set on the server, it should only use SASL.
+	// This avoid false positives where Teleport uses the wrong authentication
+	// method.
+	if s.cfg.AuthUser != "" || s.cfg.AuthToken != "" {
+		return nil, trace.BadParameter("expected SASL authentication but got certificate")
+	}
+
 	command, err := message.GetCommand()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -212,7 +243,7 @@ func (s *TestServer) handleAuth(message protocol.Message) (protocol.Message, err
 // isMaster command is used as a handshake by the client to determine the
 // cluster topology.
 func (s *TestServer) handleIsMaster(message protocol.Message) (protocol.Message, error) {
-	isMasterReply, err := makeIsMasterReply(s.getWireVersion())
+	isMasterReply, err := makeIsMasterReply(s.getWireVersion(), s.getMaxMessageSize())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -247,12 +278,123 @@ func (s *TestServer) handleFind(message protocol.Message) (protocol.Message, err
 	return protocol.MakeOpMsg(findReply), nil
 }
 
+// handleSaslStart makes response to the client's "saslStart" command.
+func (s *TestServer) handleSaslStart(message protocol.Message) (protocol.Message, error) {
+	opmsg, ok := message.(*protocol.MessageOpQuery)
+	if !ok {
+		return nil, trace.BadParameter("expected message type *protocol.MessageOpQuery but got %T", message)
+	}
+
+	mechanism := opmsg.Query.Lookup("mechanism").StringValue()
+	conversationID := atomic.AddInt32(&s.conversationIdx, 1)
+	s.saslConversationTracker.Store(conversationID, mechanism)
+
+	switch mechanism {
+	case authMechanismAWS:
+		return s.handleAWSIAMSaslStart(conversationID, opmsg)
+	default:
+		return nil, trace.NotImplemented("authentication mechanism %q not supported", mechanism)
+	}
+}
+
+// handleSaslContinue makes response to the client's "saslContinue" command.
+// It expects a conversion to be present at `saslConversationTracker`,
+// otherwise it won't be able to define which authentication mechanism to use.
+func (s *TestServer) handleSaslContinue(message protocol.Message) (protocol.Message, error) {
+	opmsg, ok := message.(*protocol.MessageOpQuery)
+	if !ok {
+		return nil, trace.BadParameter("expected message type *protocol.MessageOpQuery but got %T", message)
+	}
+
+	conversationID := opmsg.Query.Lookup("conversationId").Int32()
+	mechanism, ok := s.saslConversationTracker.Load(conversationID)
+	if !ok {
+		return nil, trace.NotFound("conversationID not found")
+	}
+
+	switch mechanism {
+	case authMechanismAWS:
+		return s.handleAWSIAMSaslContinue(conversationID, opmsg)
+	default:
+		return nil, trace.NotImplemented("authentication mechanism %q not supported", mechanism)
+	}
+}
+
+// handleAWSIAMSaslStart handles the "saslStart" command for "MONGODB-AWS"
+// authentication.
+func (s *TestServer) handleAWSIAMSaslStart(conversationID int32, opmsg *protocol.MessageOpQuery) (protocol.Message, error) {
+	_, userPass := opmsg.Query.Lookup("payload").Binary()
+	doc, _, ok := bsoncore.ReadDocument(userPass)
+	if !ok {
+		return nil, trace.BadParameter("invalid payload")
+	}
+
+	// Append server "Nonce" to client "Nonce".
+	_, clientNonce := doc.Lookup("r").Binary()
+	serverNonce := make([]byte, 32)
+	_, _ = rand.Read(serverNonce)
+
+	firstResponse, err := bson.Marshal(struct {
+		Nonce primitive.Binary `bson:"s"`
+		Host  string           `bson:"h"`
+	}{
+		Nonce: primitive.Binary{
+			Subtype: 0x00,
+			Data:    append(clientNonce, serverNonce...),
+		},
+		Host: "sts.amazonaws.com",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authReply, err := makeSaslReply(conversationID, firstResponse)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return protocol.MakeOpMsg(authReply), nil
+}
+
+// handleAWSIAMSaslContinue handles the "saslStart" command for "MONGODB-AWS"
+// authentication.
+func (s *TestServer) handleAWSIAMSaslContinue(conversationID int32, opmsg *protocol.MessageOpQuery) (protocol.Message, error) {
+	_, awsSaslPayload := opmsg.Query.Lookup("payload").Binary()
+	doc, _, ok := bsoncore.ReadDocument(awsSaslPayload)
+	if !ok {
+		return nil, trace.BadParameter("invalid payload")
+	}
+
+	if !strings.Contains(doc.Lookup("a").StringValue(), s.cfg.AuthUser) {
+		return nil, trace.AccessDenied("invalid username")
+	}
+
+	if s.cfg.AuthToken != doc.Lookup("t").StringValue() {
+		return nil, trace.AccessDenied("invalid session token")
+	}
+
+	authReply, err := makeSaslReply(conversationID, []byte{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return protocol.MakeOpMsg(authReply), nil
+}
+
 // getWireVersion returns the server's wire protocol version.
 func (s *TestServer) getWireVersion() int {
 	if s.wireVersion != 0 {
 		return s.wireVersion
 	}
 	return 9 // Latest MongoDB server sends maxWireVersion=9.
+}
+
+// getMaxMessageSize returns the server's max message size.
+func (s *TestServer) getMaxMessageSize() uint32 {
+	if s.maxMessageSize != 0 {
+		return s.maxMessageSize
+	}
+	return protocol.DefaultMaxMessageSizeBytes
 }
 
 // Port returns the port server is listening on.
@@ -271,10 +413,14 @@ func (s *TestServer) Close() error {
 }
 
 const (
-	commandAuth     = "authenticate"
-	commandIsMaster = "isMaster"
-	commandPing     = "ping"
-	commandFind     = "find"
+	authMechanismAWS = "MONGODB-AWS"
+
+	commandAuth         = "authenticate"
+	commandIsMaster     = "isMaster"
+	commandPing         = "ping"
+	commandFind         = "find"
+	commandSaslStart    = "saslStart"
+	commandSaslContinue = "saslContinue"
 )
 
 // makeOKReply builds a generic document used to indicate success e.g.
@@ -286,12 +432,13 @@ func makeOKReply() ([]byte, error) {
 }
 
 // makeIsMasterReply builds a document used as a "isMaster" command reply.
-func makeIsMasterReply(wireVersion int) ([]byte, error) {
+func makeIsMasterReply(wireVersion int, maxMessageSize uint32) ([]byte, error) {
 	return bson.Marshal(bson.M{
-		"ok":             1,
-		"maxWireVersion": wireVersion,
-		"compression":    []string{"zlib"},
-		"serviceId":      primitive.NewObjectID(),
+		"ok":              1,
+		"maxWireVersion":  wireVersion,
+		"maxMessageBytes": maxMessageSize,
+		"compression":     []string{"zlib"},
+		"serviceId":       primitive.NewObjectID(),
 	})
 }
 
@@ -302,5 +449,16 @@ func makeFindReply(result interface{}) ([]byte, error) {
 		"cursor": bson.M{
 			"firstBatch": result,
 		},
+	})
+}
+
+// makeSaslReply builds a document used as reply for "saslStart" and "saslContinue"
+// commands.
+func makeSaslReply(conversationID int32, payload []byte) ([]byte, error) {
+	return bson.Marshal(bson.M{
+		"ok":             1,
+		"conversationId": conversationID,
+		"done":           true,
+		"payload":        payload,
 	})
 }

@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from 'react';
 import {
   makeEmptyAttempt,
   makeSuccessAttempt,
@@ -29,27 +35,82 @@ import {
   useResourceSearch,
 } from 'teleterm/ui/Search/useSearch';
 import { mapToActions } from 'teleterm/ui/Search/actions';
-import Logger from 'teleterm/logger';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useSearchContext } from 'teleterm/ui/Search/SearchContext';
+import { SearchFilter } from 'teleterm/ui/Search/searchResult';
+import { routing } from 'teleterm/ui/uri';
+import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 
 export function useActionAttempts() {
-  const searchLogger = useRef(new Logger('search'));
   const ctx = useAppContext();
-  // Both states are used by mapToActions.
-  ctx.workspacesService.useState();
-  ctx.clustersService.useState();
+  const { modalsService, workspacesService } = ctx;
   const searchContext = useSearchContext();
-  const { inputValue, filters } = searchContext;
+  const { inputValue, filters, pauseUserInteraction } = searchContext;
 
   const [resourceSearchAttempt, runResourceSearch, setResourceSearchAttempt] =
     useAsync(useResourceSearch());
-  const runResourceSearchDebounced = useDebounce(runResourceSearch, 200);
+  /**
+   * runRetryableResourceSearch implements retryWithRelogin logic for resource search. We check if
+   * among all resource search requests there's a request belonging to the current workspace and if
+   * it failed with a retryable error. If so, we show the login modal.
+   *
+   * We're interested only in errors coming from clusters within the current workspace because
+   * otherwise we'd nag the user to log in to each cluster they've added to the app.
+   *
+   * Technically we could wrap runResourceSearch into a custom promise which would make it fit into
+   * retryWithRelogin. However, by doing this we'd give up some of the finer control over the whole
+   * process, for example we couldn't as easily call pauseUserInteraction only when necessary.
+   *
+   * This logic _cannot_ be included within the callback passed to useAsync and has to be performed
+   * outside of it. If it was included within useAsync, then this logic would fire for any request
+   * made to the cluster, even for stale requests which are ignored by useAsync.
+   */
+  const runRetryableResourceSearch = useCallback(
+    async (search: string, filters: SearchFilter[]): Promise<void> => {
+      const activeRootClusterUri = workspacesService.getRootClusterUri();
+      const [results, err] = await runResourceSearch(search, filters);
+      // Since resource search uses Promise.allSettled underneath, the only error that could be
+      // returned here is CanceledError from useAsync. In that case, we can just return early.
+      if (err) {
+        return;
+      }
+
+      const hasActiveWorkspaceRequestFailedWithRetryableError =
+        results.errors.some(
+          error =>
+            routing.belongsToProfile(activeRootClusterUri, error.clusterUri) &&
+            isRetryable(error.cause)
+        );
+
+      if (!hasActiveWorkspaceRequestFailedWithRetryableError) {
+        return;
+      }
+
+      await pauseUserInteraction(
+        () =>
+          new Promise<void>(resolve => {
+            modalsService.openClusterConnectDialog({
+              clusterUri: activeRootClusterUri,
+              onSuccess: () => resolve(),
+              onCancel: () => resolve(),
+            });
+          })
+      );
+
+      // Retrying the request no matter if the user logged in through the modal or not, for the same
+      // reasons as described in retryWithRelogin.
+      runResourceSearch(search, filters);
+    },
+    [modalsService, workspacesService, runResourceSearch, pauseUserInteraction]
+  );
+  const runDebouncedResourceSearch = useDebounce(
+    runRetryableResourceSearch,
+    200
+  );
   const resourceActionsAttempt = useMemo(
     () =>
       mapAttempt(resourceSearchAttempt, ({ results, search }) => {
         const sortedResults = rankResults(results, search);
-        searchLogger.current.info('results for', search, sortedResults);
 
         return mapToActions(ctx, searchContext, sortedResults);
       }),
@@ -74,13 +135,13 @@ export function useActionAttempts() {
     // 3. Now you see the stale results for `foo`, because the debounce didn't kick in yet.
     setResourceSearchAttempt(makeEmptyAttempt());
 
-    runResourceSearchDebounced(inputValue, filters);
+    runDebouncedResourceSearch(inputValue, filters);
   }, [
     inputValue,
     filters,
     setResourceSearchAttempt,
     runFilterSearch,
-    runResourceSearchDebounced,
+    runDebouncedResourceSearch,
   ]);
 
   return {

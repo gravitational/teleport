@@ -25,15 +25,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -108,7 +113,34 @@ func createBotUser(
 		return nil, trace.Wrap(err)
 	}
 
+	uls, err := ulsFromUser(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := s.UserLoginStates.UpsertUserLoginState(ctx, uls); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return user, nil
+}
+
+func ulsFromUser(user types.User) (*userloginstate.UserLoginState, error) {
+	uls, err := userloginstate.New(header.Metadata{
+		Name: user.GetName(),
+		Labels: map[string]string{
+			types.BotLabel:           user.GetMetadata().Labels[types.BotLabel],
+			types.BotGenerationLabel: user.GetMetadata().Labels[types.BotGenerationLabel],
+		},
+	}, userloginstate.Spec{
+		Roles:  user.GetRoles(),
+		Traits: user.GetTraits(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return uls, nil
 }
 
 // createBot creates a new certificate renewal bot from a bot request.
@@ -168,6 +200,16 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 	if exp := provisionToken.Expiry(); !exp.IsZero() {
 		tokenTTL = time.Until(exp)
 	}
+
+	// Emit usage analytics event for bot creation.
+	s.AnonymizeAndSubmit(&usagereporter.BotCreateEvent{
+		UserName:    authz.ClientUsername(ctx),
+		BotUserName: resourceName,
+		RoleName:    resourceName,
+		BotName:     req.Name,
+		RoleCount:   int64(len(req.Roles)),
+		JoinMethod:  string(provisionToken.GetJoinMethod()),
+	})
 
 	return &proto.CreateBotResponse{
 		TokenID:    provisionToken.GetName(),
@@ -250,6 +292,19 @@ func (s *Server) getBotUsers(ctx context.Context) ([]types.User, error) {
 	return botUsers, nil
 }
 
+// supportedBotJoinMethods should match SupportedJoinMethods declared in
+// lib/tbot/config
+var supportedBotJoinMethods = []types.JoinMethod{
+	types.JoinMethodAzure,
+	types.JoinMethodCircleCI,
+	types.JoinMethodGCP,
+	types.JoinMethodGitHub,
+	types.JoinMethodGitLab,
+	types.JoinMethodIAM,
+	types.JoinMethodKubernetes,
+	types.JoinMethodToken,
+}
+
 // checkOrCreateBotToken checks the existing token if given, or creates a new
 // random dynamic provision token which allows bots to join with the given
 // botName. Returns the token and any error.
@@ -274,24 +329,14 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 			return nil, trace.BadParameter("token %q is valid for bot with name %q, not %q",
 				req.TokenID, provisionToken.GetBotName(), botName)
 		}
-		switch provisionToken.GetJoinMethod() {
-		case types.JoinMethodToken,
-			types.JoinMethodIAM,
-			types.JoinMethodGitHub,
-			types.JoinMethodGitLab,
-			types.JoinMethodAzure,
-			types.JoinMethodCircleCI:
-		default:
+
+		if !slices.Contains(supportedBotJoinMethods, provisionToken.GetJoinMethod()) {
 			return nil, trace.BadParameter(
 				"token %q has join method %q which is not supported for bots. Supported join methods are %v",
-				req.TokenID, provisionToken.GetJoinMethod(), []types.JoinMethod{
-					types.JoinMethodToken,
-					types.JoinMethodIAM,
-					types.JoinMethodGitHub,
-					types.JoinMethodGitLab,
-					types.JoinMethodAzure,
-					types.JoinMethodCircleCI,
-				})
+				req.TokenID,
+				provisionToken.GetJoinMethod(),
+				supportedBotJoinMethods,
+			)
 		}
 		return provisionToken, nil
 	}
@@ -327,17 +372,17 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 }
 
 // validateGenerationLabel validates and updates a generation label.
-func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, certReq *certRequest, currentIdentityGeneration uint64) error {
+func (s *Server) validateGenerationLabel(ctx context.Context, username string, certReq *certRequest, currentIdentityGeneration uint64) error {
 	// Fetch the user, bypassing the cache. We might otherwise fetch a stale
 	// value in case of a rapid certificate renewal.
-	user, err := s.Services.GetUser(user.GetName(), false)
+	user, err := s.Services.GetUser(username, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var currentUserGeneration uint64
-	label, labelOk := user.GetMetadata().Labels[types.BotGenerationLabel]
-	if labelOk {
+	label := user.BotGenerationLabel()
+	if label != "" {
 		currentUserGeneration, err = strconv.ParseUint(label, 10, 64)
 		if err != nil {
 			return trace.BadParameter("user has invalid value for label %q", types.BotGenerationLabel)
@@ -373,19 +418,14 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 			return trace.BadParameter("explicitly requested generation %d is not equal to 1, this is a logic error", certReq.generation)
 		}
 
-		// Fetch a fresh copy of the user we can mutate safely. We can't
-		// implement a protobuf clone on User due to protobuf's proto.Clone()
-		// panicing when the user object has traits set, and a JSON
-		// marshal/unmarshal creates an import cycle so... here we are.
-		// There's a tiny chance the underlying user is mutated between calls
-		// to GetUser() but we're comparing with an older value so it'll fail
-		// safely.
-		newUser, err := s.Services.GetUser(user.GetName(), false)
-		if err != nil {
-			return trace.Wrap(err)
+		userV2, ok := user.(*types.UserV2)
+		if !ok {
+			return trace.BadParameter("unsupported version of user: %T", user)
 		}
+		newUser := apiutils.CloneProtoMsg(userV2)
 		metadata := newUser.GetMetadata()
-		metadata.Labels[types.BotGenerationLabel] = fmt.Sprint(certReq.generation)
+		generation := fmt.Sprint(certReq.generation)
+		metadata.Labels[types.BotGenerationLabel] = generation
 		newUser.SetMetadata(metadata)
 
 		// Note: we bypass the RBAC check on purpose as bot users should not
@@ -395,6 +435,22 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 			// write. The request should be tried again - if it's malicious,
 			// someone will get a generation mismatch and trigger a lock.
 			return trace.CompareFailed("Database comparison failed, try the request again")
+		}
+
+		uls, err := s.GetUserLoginState(ctx, user.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		if uls == nil {
+			uls, err = ulsFromUser(user)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		uls.ResourceHeader.Metadata.Labels[types.BotGenerationLabel] = generation
+		if _, err := s.UpsertUserLoginState(ctx, uls); err != nil {
+			return trace.Wrap(err)
 		}
 
 		return nil
@@ -478,14 +534,14 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 	// This call bypasses RBAC check for users read on purpose.
 	// Users who are allowed to impersonate other users might not have
 	// permissions to read user data.
-	user, err := s.GetUser(username, false)
+	userState, err := s.GetUserOrLoginState(ctx, username)
 	if err != nil {
 		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", username)
 		return nil, trace.AccessDenied("access denied")
 	}
 
 	// Do not allow SSO users to be impersonated.
-	if user.GetUserType() == types.UserTypeSSO {
+	if userState.GetUserType() == types.UserTypeSSO {
 		log.Warningf("Tried to issue a renewable cert for externally managed user %v, this is not supported.", username)
 		return nil, trace.AccessDenied("access denied")
 	}
@@ -496,7 +552,7 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 	}
 
 	// Inherit the user's roles and traits verbatim.
-	accessInfo := services.AccessInfoFromUser(user)
+	accessInfo := services.AccessInfoFromUserState(userState)
 	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -514,7 +570,7 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 
 	// Generate certificate
 	certReq := certRequest{
-		user:          user,
+		user:          userState,
 		ttl:           expires.Sub(s.GetClock().Now()),
 		publicKey:     pubKey,
 		checker:       checker,
@@ -524,7 +580,7 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 		generation:    generation,
 	}
 
-	if err := s.validateGenerationLabel(ctx, user, &certReq, 0); err != nil {
+	if err := s.validateGenerationLabel(ctx, userState.GetName(), &certReq, 0); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

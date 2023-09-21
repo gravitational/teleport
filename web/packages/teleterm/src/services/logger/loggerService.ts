@@ -25,6 +25,8 @@ import split2 from 'split2';
 
 import { Logger, LoggerService, NodeLoggerService } from './types';
 
+import type { ChildProcess } from 'node:child_process';
+
 /**
  * stdout logger should be used in child processes.
  * It sends logs directly to stdout, so the parent logger can process that output
@@ -71,14 +73,17 @@ export function createFileLoggerService(
         const contextAndLevel = opts.passThroughMode
           ? ''
           : ` [${context}] ${level}:`;
-        return `[${timestamp}]${contextAndLevel} ${text}`;
+        const contextLevelAndText = `${contextAndLevel} ${text}`;
+        return opts.omitTimestamp
+          ? contextLevelAndText
+          : `[${timestamp}]${contextLevelAndText}`;
       })
     ),
     transports: [
       new transports.File({
         maxsize: 4194304, // 4 MB - max size of a single file
         maxFiles: 5,
-        dirname: opts.dir + '/logs',
+        dirname: opts.dir,
         filename: `${opts.name}.log`,
       }),
     ],
@@ -104,10 +109,24 @@ export function createFileLoggerService(
   }
 
   return {
-    pipeProcessOutputIntoLogger(stream): void {
-      stream
-        .pipe(split2(line => ({ level: 'info', message: [line] })))
-        .pipe(instance);
+    pipeProcessOutputIntoLogger(childProcess: ChildProcess): void {
+      const splitStream = split2(line => ({ level: 'info', message: [line] }));
+
+      childProcess.stdout.pipe(splitStream, { end: false });
+      childProcess.stderr.pipe(splitStream, { end: false });
+
+      splitStream.pipe(instance);
+
+      // Because the .pipe calls above use { end: false }, the split stream won't end when the
+      // source streams end. This gives us a chance to wait for both stdout and stderr to get closed
+      // and only then end the stream.
+      //
+      // Otherwise the split stream would end the moment either stdout or stderr get closed, not
+      // giving a chance for the other stream to pipe its data to the instance stream. This could
+      // result in lost stderr logs when a process fails to start.
+      childProcess.on('close', () => {
+        splitStream.end();
+      });
     },
     createLogger(context = 'default'): Logger {
       const logger = instance.child({ context });
@@ -121,6 +140,7 @@ export enum LoggerColor {
   Magenta = '45',
   Cyan = '46',
   Yellow = '43',
+  Green = '42',
 }
 
 function createLoggerFromWinston(logger: winston.Logger): Logger {
@@ -165,4 +185,9 @@ type FileLoggerOptions = {
    * Mode for logger handling logs from other sources. Log level and context are not included in the log message.
    */
   passThroughMode?: boolean;
+  /**
+   * Does not add timestamp to log entries.
+   * This has no effect on dev (console) logs, where timestamps are never added.
+   * */
+  omitTimestamp?: boolean;
 };

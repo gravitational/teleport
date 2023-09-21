@@ -22,12 +22,18 @@ import "teleport/lib/teleterm/v1/cluster.proto";
 import "teleport/lib/teleterm/v1/database.proto";
 import "teleport/lib/teleterm/v1/gateway.proto";
 import "teleport/lib/teleterm/v1/kube.proto";
+import "teleport/lib/teleterm/v1/label.proto";
 import "teleport/lib/teleterm/v1/server.proto";
 import "teleport/lib/teleterm/v1/usage_events.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
-// TerminalService describes Teleterm service
+// TerminalService is used by the Electron app to communicate with the tsh daemon.
+//
+// While we aim to preserve backwards compatibility in order to satisfy CI checks and follow the
+// proto practices used within the company, this service is not guaranteed to be stable across
+// versions. The packaging process of Teleport Connect ensures that the server and the client use
+// the same version of the service.
 service TerminalService {
   // UpdateTshdEventsServerAddress lets the Electron app update the address the tsh daemon is
   // supposed to use when connecting to the tshd events gRPC service. This RPC needs to be made
@@ -114,6 +120,30 @@ service TerminalService {
   rpc TransferFile(FileTransferRequest) returns (stream FileTransferProgress);
   // ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
   rpc ReportUsageEvent(ReportUsageEventRequest) returns (EmptyResponse);
+
+  // UpdateHeadlessAuthenticationState updates a headless authentication resource's state.
+  // An MFA challenge will be prompted when approving a headless authentication.
+  rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (UpdateHeadlessAuthenticationStateResponse);
+
+  // CreateConnectMyComputerRole creates a role which allows access to nodes with the label
+  // teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
+  // the current system user.
+  rpc CreateConnectMyComputerRole(CreateConnectMyComputerRoleRequest) returns (CreateConnectMyComputerRoleResponse);
+  // CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
+  rpc CreateConnectMyComputerNodeToken(CreateConnectMyComputerNodeTokenRequest) returns (CreateConnectMyComputerNodeTokenResponse);
+  // DeleteConnectMyComputerToken deletes a join token
+  rpc DeleteConnectMyComputerToken(DeleteConnectMyComputerTokenRequest) returns (DeleteConnectMyComputerTokenResponse);
+  // WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
+  // that the Connect My Computer node for the particular cluster has joined the cluster (the
+  // OpPut event).
+  //
+  // This RPC times out by itself after a minute to prevent the request from hanging forever, in
+  // case the client didn't set a deadline or doesn't abort the request.
+  rpc WaitForConnectMyComputerNodeJoin(WaitForConnectMyComputerNodeJoinRequest) returns (WaitForConnectMyComputerNodeJoinResponse);
+  // DeleteConnectMyComputerNode deletes the Connect My Computer node.
+  rpc DeleteConnectMyComputerNode(DeleteConnectMyComputerNodeRequest) returns (DeleteConnectMyComputerNodeResponse);
+  // GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
+  rpc GetConnectMyComputerNodeName(GetConnectMyComputerNodeNameRequest) returns (GetConnectMyComputerNodeNameResponse);
 }
 
 message EmptyResponse {}
@@ -414,3 +444,63 @@ message UpdateTshdEventsServerAddressRequest {
   string address = 1;
 }
 message UpdateTshdEventsServerAddressResponse {}
+
+message UpdateHeadlessAuthenticationStateRequest {
+  string root_cluster_uri = 1;
+  string headless_authentication_id = 2;
+  HeadlessAuthenticationState state = 3;
+}
+
+// HeadlessAuthenticationState is a headless authentication state.
+enum HeadlessAuthenticationState {
+  HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED = 0;
+  HEADLESS_AUTHENTICATION_STATE_PENDING = 1;
+  HEADLESS_AUTHENTICATION_STATE_DENIED = 2;
+  HEADLESS_AUTHENTICATION_STATE_APPROVED = 3;
+}
+
+message UpdateHeadlessAuthenticationStateResponse {}
+
+message CreateConnectMyComputerRoleRequest {
+  string root_cluster_uri = 1;
+}
+message CreateConnectMyComputerRoleResponse {
+  // certs_reloaded signals to the Electron app that tshd has reloaded the certs in order to refresh
+  // the role list. The Electron app should refresh the details from the user cert as well.
+  bool certs_reloaded = 1;
+}
+
+message CreateConnectMyComputerNodeTokenRequest {
+  string root_cluster_uri = 1;
+}
+message CreateConnectMyComputerNodeTokenResponse {
+  string token = 1;
+  repeated Label labels = 2;
+}
+
+message DeleteConnectMyComputerTokenRequest {
+  string root_cluster_uri = 1;
+  string token = 2;
+}
+message DeleteConnectMyComputerTokenResponse {}
+
+message WaitForConnectMyComputerNodeJoinRequest {
+  string root_cluster_uri = 1;
+}
+message WaitForConnectMyComputerNodeJoinResponse {
+  Server server = 1;
+}
+
+message DeleteConnectMyComputerNodeRequest {
+  string root_cluster_uri = 1;
+}
+
+message DeleteConnectMyComputerNodeResponse {}
+
+message GetConnectMyComputerNodeNameRequest {
+  string root_cluster_uri = 1;
+}
+
+message GetConnectMyComputerNodeNameResponse {
+  string name = 1;
+}

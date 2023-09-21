@@ -16,30 +16,40 @@
 import { useEffect, useState } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { getErrMessage } from 'shared/utils/errorType';
 
 import useTeleport from 'teleport/useTeleport';
 import { useDiscover } from 'teleport/Discover/useDiscover';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { compareByString } from 'teleport/lib/util';
+import { ApiError } from 'teleport/services/api/parseError';
+import { DatabaseLocation } from 'teleport/Discover/SelectResource';
+import { IamPolicyStatus } from 'teleport/services/databases';
 
-import { matchLabels, makeLabelMaps } from '../util';
+import { matchLabels } from '../common';
 
-import type { AgentStepProps } from '../../types';
 import type {
   CreateDatabaseRequest,
   Database as DatabaseResource,
   DatabaseService,
 } from 'teleport/services/databases';
-import type { AgentLabel } from 'teleport/services/agents';
+import type { ResourceLabel } from 'teleport/services/agents';
 import type { DbMeta } from 'teleport/Discover/useDiscover';
 
 export const WAITING_TIMEOUT = 30000; // 30 seconds
 
-export function useCreateDatabase(props: AgentStepProps) {
+export function useCreateDatabase() {
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
   const { attempt, setAttempt } = useAttempt('');
-  const { emitErrorEvent } = useDiscover();
+  const {
+    emitErrorEvent,
+    updateAgentMeta,
+    agentMeta,
+    nextStep,
+    prevStep,
+    resourceSpec,
+  } = useDiscover();
 
   // isDbCreateErr is a flag that indicates
   // attempt failed from trying to create a database.
@@ -59,13 +69,15 @@ export function useCreateDatabase(props: AgentStepProps) {
   //      backend error or network failure)
   const [createdDb, setCreatedDb] = useState<CreateDatabaseRequest>();
 
-  const result = usePoll<DatabaseResource>(
+  const isAws = resourceSpec.dbMeta.location === DatabaseLocation.Aws;
+
+  const dbPollingResult = usePoll<DatabaseResource>(
     signal => fetchDatabaseServer(signal),
-    pollActive,
+    pollActive, // does not poll on init, since the value is false.
     3000 // interval: poll every 3 seconds
   );
 
-  // Handles polling timeout.
+  // Handles setting a timeout when polling becomes active.
   useEffect(() => {
     if (pollActive && pollTimeout > Date.now()) {
       const id = window.setTimeout(() => {
@@ -76,6 +88,7 @@ export function useCreateDatabase(props: AgentStepProps) {
     }
   }, [pollActive, pollTimeout]);
 
+  // Handles polling timeout.
   useEffect(() => {
     if (timedOut) {
       // reset timer fields and set errors.
@@ -96,22 +109,27 @@ export function useCreateDatabase(props: AgentStepProps) {
   // Handles when polling successfully gets
   // a response.
   useEffect(() => {
-    if (!result) return;
+    if (!dbPollingResult) return;
 
     setPollTimeout(null);
     setPollActive(false);
 
-    const numStepsToSkip = 2;
-    props.updateAgentMeta({
-      ...(props.agentMeta as DbMeta),
+    updateAgentMeta({
+      ...(agentMeta as DbMeta),
       resourceName: createdDb.name,
-      agentMatcherLabels: createdDb.labels,
-      db: result,
+      agentMatcherLabels: dbPollingResult.labels,
+      db: dbPollingResult,
+      serviceDeployedMethod:
+        dbPollingResult.aws?.iamPolicyStatus === IamPolicyStatus.Success
+          ? 'skipped'
+          : undefined, // User has to deploy a service (can be auto or manual)
     });
 
-    props.nextStep(numStepsToSkip);
-  }, [result]);
+    setAttempt({ status: 'success' });
+  }, [dbPollingResult]);
 
+  // fetchDatabaseServer is the callback that is run every interval by the poller.
+  // The poller will stop polling once a result returns (a dbServer).
   function fetchDatabaseServer(signal: AbortSignal) {
     const request = {
       search: createdDb.name,
@@ -121,13 +139,34 @@ export function useCreateDatabase(props: AgentStepProps) {
       .fetchDatabases(clusterId, request, signal)
       .then(res => {
         if (res.agents.length) {
-          return res.agents[0];
+          const dbServer = res.agents[0];
+          if (
+            !isAws || // If not AWS, then we return the first thing we get back.
+            // If AWS and aws.iamPolicyStatus is undefined or non-pending,
+            // return the dbServer.
+            dbServer.aws?.iamPolicyStatus !== IamPolicyStatus.Pending
+          ) {
+            return dbServer;
+          }
         }
+        // Returning nothing here will continue the polling.
+        // Either no result came back back yet or
+        // a result did come back but we are waiting for a specific
+        // marker to appear in the result. Specifically for AWS dbs,
+        // we wait for a non-pending flag to appear.
         return null;
       });
   }
 
-  async function registerDatabase(db: CreateDatabaseRequest) {
+  function fetchDatabaseServers(query: string, limit: number) {
+    const request = {
+      query,
+      limit,
+    };
+    return ctx.databaseService.fetchDatabases(clusterId, request);
+  }
+
+  async function registerDatabase(db: CreateDatabaseRequest, newDb = false) {
     // Set the timeout now, because this entire registering process
     // should take less than WAITING_TIMEOUT.
     setPollTimeout(Date.now() + WAITING_TIMEOUT);
@@ -135,49 +174,26 @@ export function useCreateDatabase(props: AgentStepProps) {
     setIsDbCreateErr(false);
 
     // Attempt creating a new Database resource.
-    // Handles a case where if there was a later failure point
-    // and user decides to change the database fields, a new database
-    // is created (ONLY if the database name has changed since this
-    // request operation is only a CREATE operation).
-    if (!createdDb) {
+    if (!createdDb || newDb) {
       try {
         await ctx.databaseService.createDatabase(clusterId, db);
         setCreatedDb(db);
       } catch (err) {
+        // Check if the error is a result of an existing database.
+        if (err instanceof ApiError) {
+          if (err.response.status === 409) {
+            const isAwsRds = Boolean(db.awsRds && db.awsRds.accountId);
+            return attemptDbServerQueryAndBuildErrMsg(db.name, isAwsRds);
+          }
+        }
         handleRequestError(err, 'failed to create database: ');
         setIsDbCreateErr(true);
         return;
       }
     }
 
-    function requiresDbUpdate() {
-      if (!createdDb) {
-        return false;
-      }
-
-      if (createdDb.labels.length === db.labels.length) {
-        // Sort by label keys.
-        const a = createdDb.labels.sort((a, b) =>
-          compareByString(a.name, b.name)
-        );
-        const b = db.labels.sort((a, b) => compareByString(a.name, b.name));
-
-        for (let i = 0; i < a.length; i++) {
-          if (JSON.stringify(a[i]) !== JSON.stringify(b[i])) {
-            return true;
-          }
-        }
-      }
-
-      return (
-        createdDb.uri !== db.uri ||
-        createdDb.awsRds?.accountId !== db.awsRds?.accountId ||
-        createdDb.awsRds?.resourceId !== db.awsRds?.resourceId
-      );
-    }
-
     // Check and see if database resource need to be updated.
-    if (requiresDbUpdate()) {
+    if (!newDb && requiresDbUpdate(db)) {
       try {
         await ctx.databaseService.updateDatabase(clusterId, {
           ...db,
@@ -198,12 +214,13 @@ export function useCreateDatabase(props: AgentStepProps) {
       );
 
       if (!findActiveDatabaseSvc(db.labels, services)) {
-        props.updateAgentMeta({
-          ...(props.agentMeta as DbMeta),
+        updateAgentMeta({
+          ...(agentMeta as DbMeta),
           resourceName: db.name,
           agentMatcherLabels: db.labels,
+          selectedAwsRdsDb: db.awsRds,
         });
-        props.nextStep();
+        setAttempt({ status: 'success' });
         return;
       }
     } catch (err) {
@@ -216,57 +233,129 @@ export function useCreateDatabase(props: AgentStepProps) {
     setPollActive(true);
   }
 
+  // attemptDbServerQueryAndBuildErrMsg tests if the duplicated `dbName`
+  // (determined by an error returned from the initial register db attempt)
+  // is already a part of the cluster by querying for its db server.
+  // This is an attempt to provide accurate actionable steps for the
+  // user.
+  async function attemptDbServerQueryAndBuildErrMsg(
+    dbName: string,
+    isAwsRds = false
+  ) {
+    const preErrMsg = 'failed to register database: ';
+    const nonAwsMsg = `use a different name and try again`;
+    const awsMsg = `change (or define) the value of the \
+    tag "TeleportDatabaseName" on the RDS instance and try again`;
+
+    try {
+      await ctx.databaseService.fetchDatabase(clusterId, dbName);
+      let message = `a database with the name "${dbName}" is already \
+      a part of this cluster, ${isAwsRds ? awsMsg : nonAwsMsg}`;
+      handleRequestError(new Error(message), preErrMsg);
+    } catch (e) {
+      // No database server were found for the database name.
+      if (e instanceof ApiError) {
+        if (e.response.status === 404) {
+          let message = `a database with the name "${dbName}" already exists \
+          but there are no database servers for it, you can remove this \
+          database using the command, “tctl rm db/${dbName}”, or ${
+            isAwsRds ? awsMsg : nonAwsMsg
+          }`;
+          handleRequestError(new Error(message), preErrMsg);
+        }
+        return;
+      }
+
+      // Display other errors as is.
+      handleRequestError(e, preErrMsg);
+    }
+    setIsDbCreateErr(true);
+  }
+
+  function requiresDbUpdate(db: CreateDatabaseRequest) {
+    if (!createdDb) {
+      return false;
+    }
+
+    if (createdDb.labels.length === db.labels.length) {
+      // Sort by label keys.
+      const a = createdDb.labels.sort((a, b) =>
+        compareByString(a.name, b.name)
+      );
+      const b = db.labels.sort((a, b) => compareByString(a.name, b.name));
+
+      for (let i = 0; i < a.length; i++) {
+        if (JSON.stringify(a[i]) !== JSON.stringify(b[i])) {
+          return true;
+        }
+      }
+    }
+
+    return (
+      createdDb.uri !== db.uri ||
+      createdDb.awsRds?.resourceId !== db.awsRds?.resourceId ||
+      createdDb.awsRds?.vpcId !== db.awsRds?.vpcId ||
+      createdDb.awsRds?.subnets !== db.awsRds?.subnets ||
+      createdDb.awsRds?.accountId !== db.awsRds?.accountId
+    );
+  }
+
   function clearAttempt() {
     setAttempt({ status: '' });
   }
 
   function handleRequestError(err: Error, preErrMsg = '') {
-    let message = 'something went wrong';
-    if (err instanceof Error) message = err.message;
-    setAttempt({ status: 'failed', statusText: message });
+    const message = getErrMessage(err);
+    setAttempt({ status: 'failed', statusText: `${preErrMsg}${message}` });
     emitErrorEvent(`${preErrMsg}${message}`);
   }
 
+  function handleNextStep() {
+    if (dbPollingResult) {
+      if (
+        isAws &&
+        dbPollingResult.aws?.iamPolicyStatus === IamPolicyStatus.Success
+      ) {
+        // Skips the deploy db service step AND setting up IAM policy step.
+        return nextStep(3);
+      }
+      // Skips the deploy database service step.
+      return nextStep(2);
+    }
+    nextStep(); // Goes to deploy database service step.
+  }
+
   const access = ctx.storeUser.getDatabaseAccess();
-  const resource = props.resourceSpec;
   return {
+    createdDb,
     attempt,
     clearAttempt,
     registerDatabase,
+    fetchDatabaseServers,
     canCreateDatabase: access.create,
     pollTimeout,
-    dbEngine: resource.dbMeta.engine,
-    dbLocation: resource.dbMeta.location,
+    dbEngine: resourceSpec.dbMeta.engine,
+    dbLocation: resourceSpec.dbMeta.location,
     isDbCreateErr,
-    prevStep: props.prevStep,
+    prevStep,
+    nextStep: handleNextStep,
   };
 }
 
 export type State = ReturnType<typeof useCreateDatabase>;
 
 export function findActiveDatabaseSvc(
-  newDbLabels: AgentLabel[],
+  newDbLabels: ResourceLabel[],
   dbServices: DatabaseService[]
 ) {
   if (!dbServices.length) {
     return null;
   }
 
-  // Create maps for easy lookup and matching.
-  const { labelKeysToMatchMap, labelValsToMatchMap, labelToMatchSeenMap } =
-    makeLabelMaps(newDbLabels);
-
-  const hasLabelsToMatch = newDbLabels.length > 0;
   for (let i = 0; i < dbServices.length; i++) {
     // Loop through the current service label keys and its value set.
     const currService = dbServices[i];
-    const match = matchLabels({
-      hasLabelsToMatch,
-      labelKeysToMatchMap,
-      labelValsToMatchMap,
-      labelToMatchSeenMap,
-      matcherLabels: currService.matcherLabels,
-    });
+    const match = matchLabels(newDbLabels, currService.matcherLabels);
 
     if (match) {
       return currService;

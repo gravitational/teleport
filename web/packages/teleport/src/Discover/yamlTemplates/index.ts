@@ -22,7 +22,7 @@ import kubeAccessRO from './kubeAccessRO.yaml?raw';
 import dbAccessRW from './dbAccessRW.yaml?raw';
 import dbAccessRO from './dbAccessRO.yaml?raw';
 import dbCU from './dbCU.yaml?raw';
-import integrationRWE from './integrationRWE.yaml?raw';
+import integrationRWEAndDbCU from './integrationRWEAndDbCU.yaml?raw';
 
 export {
   nodeAccessRO,
@@ -33,5 +33,5 @@ export {
   dbAccessRO,
   dbAccessRW,
   dbCU,
-  integrationRWE,
+  integrationRWEAndDbCU,
 };

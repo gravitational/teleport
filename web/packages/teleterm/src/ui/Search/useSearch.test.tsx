@@ -24,14 +24,13 @@ import {
   makeServer,
   makeKube,
   makeLabelsList,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 
 import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
 
 import { makeResourceResult } from './testHelpers';
 import { rankResults, useFilterSearch, useResourceSearch } from './useSearch';
-
-import type * as tsh from 'teleterm/services/tshd/types';
 
 beforeEach(() => {
   jest.restoreAllMocks();
@@ -128,24 +127,18 @@ describe('rankResults', () => {
 });
 
 describe('useResourceSearch', () => {
-  it('does not limit results', async () => {
+  it('does not limit results returned by ResourcesService', async () => {
     const appContext = new MockAppContext();
+    const cluster = makeRootCluster();
+    appContext.clustersService.setState(draftState => {
+      draftState.clusters.set(cluster.uri, cluster);
+    });
     const servers: SearchResult[] = Array(20)
       .fill(undefined)
       .map(() => ({
         kind: 'server' as const,
         resource: makeServer({}),
       }));
-    appContext.clustersService.setState(draftState => {
-      draftState.clusters.set('/clusters/teleport-local', {
-        connected: true,
-        authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-        leaf: false,
-        name: 'teleport-local',
-        proxyHost: 'localhost:3080',
-        uri: '/clusters/teleport-local',
-      });
-    });
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
       .mockResolvedValue([{ status: 'fulfilled', value: servers }]);
@@ -158,7 +151,69 @@ describe('useResourceSearch', () => {
       ),
     });
     const searchResult = await result.current('foo', []);
+
     expect(searchResult.results).toEqual(servers);
+    expect(appContext.resourcesService.searchResources).toHaveBeenCalledWith({
+      clusterUri: cluster.uri,
+      search: 'foo',
+      filter: undefined,
+      limit: 100,
+    });
+    expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
+      1
+    );
+  });
+
+  it('fetches only a preview if search is empty and there is at least one filter selected', async () => {
+    const appContext = new MockAppContext();
+    const cluster = makeRootCluster();
+    appContext.clustersService.setState(draftState => {
+      draftState.clusters.set(cluster.uri, cluster);
+    });
+    jest
+      .spyOn(appContext.resourcesService, 'searchResources')
+      .mockResolvedValue([{ status: 'fulfilled', value: [] }]);
+
+    const { result } = renderHook(() => useResourceSearch(), {
+      wrapper: ({ children }) => (
+        <MockAppContextProvider appContext={appContext}>
+          {children}
+        </MockAppContextProvider>
+      ),
+    });
+    const filter = { filter: 'cluster' as const, clusterUri: cluster.uri };
+    await result.current('', [filter]);
+
+    expect(appContext.resourcesService.searchResources).toHaveBeenCalledWith({
+      clusterUri: cluster.uri,
+      search: '',
+      filter: undefined,
+      limit: 5,
+    });
+    expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
+      1
+    );
+  });
+
+  it('does not fetch any resources if search is empty and there are no filters selected', async () => {
+    const appContext = new MockAppContext();
+    const cluster = makeRootCluster();
+    appContext.clustersService.setState(draftState => {
+      draftState.clusters.set(cluster.uri, cluster);
+    });
+    jest
+      .spyOn(appContext.resourcesService, 'searchResources')
+      .mockResolvedValue([{ status: 'fulfilled', value: [] }]);
+
+    const { result } = renderHook(() => useResourceSearch(), {
+      wrapper: ({ children }) => (
+        <MockAppContextProvider appContext={appContext}>
+          {children}
+        </MockAppContextProvider>
+      ),
+    });
+    await result.current('', []);
+    expect(appContext.resourcesService.searchResources).not.toHaveBeenCalled();
   });
 });
 
@@ -166,14 +221,8 @@ describe('useFiltersSearch', () => {
   it('does not return cluster filters if there is only one cluster', () => {
     const appContext = new MockAppContext();
     appContext.clustersService.setState(draftState => {
-      draftState.clusters.set('/clusters/teleport-local', {
-        connected: true,
-        authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-        leaf: false,
-        name: 'teleport-local',
-        proxyHost: 'localhost:3080',
-        uri: '/clusters/teleport-local',
-      });
+      const rootCluster = makeRootCluster();
+      draftState.clusters.set(rootCluster.uri, rootCluster);
     });
 
     const { result } = renderHook(() => useFilterSearch(), {
@@ -191,22 +240,16 @@ describe('useFiltersSearch', () => {
 
   it('returns one cluster filter if the search term matches it', () => {
     const appContext = new MockAppContext();
-    const clusterA: tsh.Cluster = {
-      connected: true,
-      authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-      leaf: false,
+    const clusterA = makeRootCluster({
       name: 'teleport-a',
       proxyHost: 'localhost:3080',
       uri: '/clusters/teleport-a',
-    };
-    const clusterB: tsh.Cluster = {
-      connected: true,
-      authClusterId: '73c4746b-d956-4f16-1848-4e3469f70762',
-      leaf: false,
+    });
+    const clusterB = makeRootCluster({
       name: 'teleport-b',
       proxyHost: 'localhost:3080',
       uri: '/clusters/teleport-b',
-    };
+    });
     appContext.clustersService.setState(draftState => {
       draftState.clusters.set(clusterA.uri, clusterA);
       draftState.clusters.set(clusterB.uri, clusterB);

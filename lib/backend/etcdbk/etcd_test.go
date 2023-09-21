@@ -58,7 +58,7 @@ var commonEtcdOptions = []Option{
 
 func TestEtcd(t *testing.T) {
 	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
+		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 
 	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
@@ -82,7 +82,7 @@ func TestEtcd(t *testing.T) {
 		// we can't fiddle with clocks inside the etcd client, so instead of creating
 		// and returning a fake clock, we wrap the real clock used by the etcd client
 		// in a FakeClock interface that sleeps instead of instantly advancing.
-		sleepingClock := blockingFakeClock{bk.clock}
+		sleepingClock := test.BlockingFakeClock{Clock: bk.clock}
 
 		return bk, sleepingClock, nil
 	}
@@ -92,7 +92,7 @@ func TestEtcd(t *testing.T) {
 
 func TestPrefix(t *testing.T) {
 	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
+		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 
 	ctx := context.Background()
@@ -153,7 +153,7 @@ func TestPrefix(t *testing.T) {
 func requireKV(ctx context.Context, t *testing.T, bk *EtcdBackend, key, val string) {
 	t.Logf("assert that key %q contains value %q", key, val)
 
-	resp, err := bk.client.Get(ctx, key)
+	resp, err := bk.clients.Next().Get(ctx, key)
 	require.NoError(t, err)
 	require.Len(t, resp.Kvs, 1)
 	require.Equal(t, key, string(resp.Kvs[0].Key))
@@ -169,7 +169,7 @@ func requireKV(ctx context.Context, t *testing.T, bk *EtcdBackend, key, val stri
 // See https://github.com/gravitational/teleport/issues/4786
 func TestCompareAndSwapOversizedValue(t *testing.T) {
 	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
+		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 	// setup
 	const maxClientMsgSize = 128
@@ -202,7 +202,7 @@ func TestLeaseBucketing(t *testing.T) {
 	const count = 40
 
 	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
+		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -254,22 +254,4 @@ func etcdTestEndpoint() string {
 		return host
 	}
 	return "https://127.0.0.1:2379"
-}
-
-func (r blockingFakeClock) Advance(d time.Duration) {
-	if d < 0 {
-		panic("Invalid argument, negative duration")
-	}
-
-	// We cannot rewind time for etcd since it will not have any effect on the server
-	// so we actually sleep in this case
-	time.Sleep(d)
-}
-
-func (r blockingFakeClock) BlockUntil(int) {
-	panic("Not implemented")
-}
-
-type blockingFakeClock struct {
-	clockwork.Clock
 }

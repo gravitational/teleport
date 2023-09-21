@@ -39,7 +39,7 @@ const mainProcessClient = createMainProcessClient();
 const runtimeSettings = mainProcessClient.getRuntimeSettings();
 const loggerService = createFileLoggerService({
   dev: runtimeSettings.dev,
-  dir: runtimeSettings.userDataDir,
+  dir: runtimeSettings.logsDir,
   name: 'renderer',
 });
 

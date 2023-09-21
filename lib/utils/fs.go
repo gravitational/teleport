@@ -21,8 +21,11 @@ import (
 	"crypto/rand"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -35,6 +38,11 @@ import (
 // ErrUnsuccessfulLockTry designates an error when we temporarily couldn't acquire lock
 // (most probably it was already locked by someone else), another try might succeed.
 var ErrUnsuccessfulLockTry = errors.New("could not acquire lock on the file at this time")
+
+const (
+	// FSLockRetryDelay is a delay between attempts to acquire lock.
+	FSLockRetryDelay = 10 * time.Millisecond
+)
 
 // OpenFileWithFlagsFunc defines a function used to open files providing options.
 type OpenFileWithFlagsFunc func(name string, flag int, perm os.FileMode) (*os.File, error)
@@ -79,30 +87,69 @@ func IsDir(path string) bool {
 
 // NormalizePath normalises path, evaluating symlinks and converting local
 // paths to absolute
-func NormalizePath(path string) (string, error) {
+func NormalizePath(path string, evaluateSymlinks bool) (string, error) {
 	s, err := filepath.Abs(path)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}
-	abs, err := filepath.EvalSymlinks(s)
-	if err != nil {
-		return "", trace.ConvertSystemError(err)
+	if evaluateSymlinks {
+		s, err = filepath.EvalSymlinks(s)
+		if err != nil {
+			return "", trace.ConvertSystemError(err)
+		}
 	}
-	return abs, nil
+	return s, nil
 }
 
-// OpenFile opens  file and returns file handle
-func OpenFile(path string) (*os.File, error) {
-	newPath, err := NormalizePath(path)
+// OpenFileAllowingUnsafeLinks opens a file, if the path includes a symlink, the returned os.File will be resolved to
+// the actual file.  This will return an error if the file is not found or is a directory.
+func OpenFileAllowingUnsafeLinks(path string) (*os.File, error) {
+	return openFile(path, true /* allowSymlink */, true /* allowMultipleHardlinks */)
+}
+
+// OpenFileNoUnsafeLinks opens a file, ensuring it's an actual file and not a directory or symlink.  Depending on
+// the os, it may also prevent hardlinks.  This is important because MacOS allows hardlinks without validating write
+// permissions (similar to a symlink in that regard).
+func OpenFileNoUnsafeLinks(path string) (*os.File, error) {
+	return openFile(path, false /* allowSymlink */, runtime.GOOS != "darwin" /* allowMultipleHardlinks */)
+}
+
+func openFile(path string, allowSymlink, allowMultipleHardlinks bool) (*os.File, error) {
+	newPath, err := NormalizePath(path, allowSymlink)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fi, err := os.Stat(newPath)
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
+	var fi os.FileInfo
+	if allowSymlink {
+		fi, err = os.Stat(newPath)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+	} else {
+		components := strings.Split(newPath, string(os.PathSeparator))
+		var subPath string
+		for _, p := range components {
+			subPath = filepath.Join(subPath, p)
+			if subPath == "" {
+				subPath = string(os.PathSeparator)
+			}
+
+			fi, err = os.Lstat(subPath)
+			if err != nil {
+				return nil, trace.ConvertSystemError(err)
+			} else if fi.Mode().Type()&os.ModeSymlink != 0 {
+				return nil, trace.BadParameter("opening file %s, symlink not allowed in path: %s", path, subPath)
+			}
+		}
+	}
+	if !allowMultipleHardlinks {
+		// hardlinks can only exist at the end file, not for directories within the path
+		if linkCount, ok := getHardLinkCount(fi); ok && linkCount > 1 {
+			return nil, trace.BadParameter("file has hardlink count greater than 1: %s", path)
+		}
 	}
 	if fi.IsDir() {
-		return nil, trace.BadParameter("%v is not a file", path)
+		return nil, trace.BadParameter("%s is not a file", path)
 	}
 	f, err := os.Open(newPath)
 	if err != nil {
@@ -113,7 +160,7 @@ func OpenFile(path string) (*os.File, error) {
 
 // StatFile stats path, returns error if it exists but a directory.
 func StatFile(path string) (os.FileInfo, error) {
-	newPath, err := NormalizePath(path)
+	newPath, err := NormalizePath(path, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -160,7 +207,7 @@ func FSTryWriteLockTimeout(ctx context.Context, filePath string, timeout time.Du
 	fileLock := flock.New(getPlatformLockFilePath(filePath))
 	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if _, err := fileLock.TryLockContext(timedCtx, 10*time.Millisecond); err != nil {
+	if _, err := fileLock.TryLockContext(timedCtx, FSLockRetryDelay); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -188,7 +235,7 @@ func FSTryReadLockTimeout(ctx context.Context, filePath string, timeout time.Dur
 	fileLock := flock.New(getPlatformLockFilePath(filePath))
 	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if _, err := fileLock.TryRLockContext(timedCtx, 10*time.Millisecond); err != nil {
+	if _, err := fileLock.TryRLockContext(timedCtx, FSLockRetryDelay); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -238,11 +285,102 @@ func overwriteFile(filePath string) (err error) {
 }
 
 // RemoveFileIfExist removes file if exits.
-func RemoveFileIfExist(filePath string) {
+func RemoveFileIfExist(filePath string) error {
 	if !FileExists(filePath) {
-		return
+		return nil
 	}
 	if err := os.Remove(filePath); err != nil {
-		log.WithError(err).Warnf("Failed to remove %v", filePath)
+		return trace.ConvertSystemError(err)
 	}
+	return nil
+}
+
+func RecursiveChown(dir string, uid, gid int) error {
+	if err := os.Chown(dir, uid, gid); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = os.Chown(path, uid, gid)
+		if os.IsNotExist(err) { // empty symlinks cause an error here
+			return nil
+		}
+		return trace.Wrap(err)
+	}))
+}
+
+func CopyFile(src, dest string, perm os.FileMode) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	destFile, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	_, err = destFile.ReadFrom(srcFile)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
+// RecursivelyCopy will copy a directory from src to dest, if the
+// directory exists, files will be overwritten. The skip paramater, if
+// provided, will be passed the source and destination paths, and will
+// skip files upon returning true
+func RecursiveCopy(src, dest string, skip func(src, dest string) (bool, error)) error {
+	return trace.Wrap(fs.WalkDir(os.DirFS(src), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		absSrcPath := filepath.Join(src, path)
+		destPath := filepath.Join(dest, path)
+		info, err := d.Info()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		originalPerm := info.Mode().Perm()
+
+		if skip != nil {
+			doSkip, err := skip(absSrcPath, destPath)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if doSkip {
+				return nil
+			}
+		}
+
+		if d.IsDir() {
+			err := os.Mkdir(destPath, originalPerm)
+			if os.IsExist(err) {
+				return nil
+			}
+			return trace.ConvertSystemError(err)
+		}
+
+		if d.Type().IsRegular() {
+			if err := CopyFile(absSrcPath, destPath, originalPerm); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}
+
+		if info.Mode().Type()&os.ModeSymlink != 0 {
+			linkDest, err := os.Readlink(absSrcPath)
+			if err != nil {
+				return trace.ConvertSystemError(err)
+			}
+			if err := os.Symlink(linkDest, destPath); err != nil {
+				return trace.ConvertSystemError(err)
+			}
+			return nil
+		}
+
+		return nil
+	}))
 }

@@ -159,6 +159,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_TrustedClusterTokenCreate{
 			TrustedClusterTokenCreate: e,
 		}
+	case *ProvisionTokenCreate:
+		out.Event = &OneOf_ProvisionTokenCreate{
+			ProvisionTokenCreate: e,
+		}
 	case *GithubConnectorCreate:
 		out.Event = &OneOf_GithubConnectorCreate{
 			GithubConnectorCreate: e,
@@ -278,6 +282,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *DeviceEvent:
 		out.Event = &OneOf_DeviceEvent{
 			DeviceEvent: e,
+		}
+	case *DeviceEvent2:
+		out.Event = &OneOf_DeviceEvent2{
+			DeviceEvent2: e,
 		}
 	case *BillingCardCreate:
 		out.Event = &OneOf_BillingCardCreate{
@@ -514,6 +522,50 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *SAMLIdPServiceProviderDeleteAll:
 		out.Event = &OneOf_SAMLIdPServiceProviderDeleteAll{
 			SAMLIdPServiceProviderDeleteAll: e,
+		}
+	case *OktaResourcesUpdate:
+		out.Event = &OneOf_OktaResourcesUpdate{
+			OktaResourcesUpdate: e,
+		}
+	case *OktaSyncFailure:
+		out.Event = &OneOf_OktaSyncFailure{
+			OktaSyncFailure: e,
+		}
+	case *OktaAssignmentResult:
+		out.Event = &OneOf_OktaAssignmentResult{
+			OktaAssignmentResult: e,
+		}
+	case *AccessListCreate:
+		out.Event = &OneOf_AccessListCreate{
+			AccessListCreate: e,
+		}
+	case *AccessListUpdate:
+		out.Event = &OneOf_AccessListUpdate{
+			AccessListUpdate: e,
+		}
+	case *AccessListDelete:
+		out.Event = &OneOf_AccessListDelete{
+			AccessListDelete: e,
+		}
+	case *AccessListReview:
+		out.Event = &OneOf_AccessListReview{
+			AccessListReview: e,
+		}
+	case *AccessListMemberCreate:
+		out.Event = &OneOf_AccessListMemberCreate{
+			AccessListMemberCreate: e,
+		}
+	case *AccessListMemberUpdate:
+		out.Event = &OneOf_AccessListMemberUpdate{
+			AccessListMemberUpdate: e,
+		}
+	case *AccessListMemberDelete:
+		out.Event = &OneOf_AccessListMemberDelete{
+			AccessListMemberDelete: e,
+		}
+	case *AccessListMemberDeleteAllForAccessList:
+		out.Event = &OneOf_AccessListMemberDeleteAllForAccessList{
+			AccessListMemberDeleteAllForAccessList: e,
 		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

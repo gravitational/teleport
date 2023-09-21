@@ -18,6 +18,7 @@ package reversetunnel
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -33,6 +34,18 @@ import (
 	"github.com/gravitational/teleport/lib/utils/proxy"
 )
 
+const proxyAlreadyClaimedError = "proxy already claimed"
+
+// isProxyAlreadyClaimed returns true if the error is non-nil and its message
+// ends with "proxy already claimed" (we can't extract a better sentinel out of
+// a SSH handshake, unfortunately).
+func isProxyAlreadyClaimed(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.HasSuffix(err.Error(), proxyAlreadyClaimedError)
+}
+
 // agentDialer dials an ssh server on behalf of an agent.
 type agentDialer struct {
 	client      auth.AccessCache
@@ -41,61 +54,68 @@ type agentDialer struct {
 	fips        bool
 	options     []proxy.DialerOptionFunc
 	log         logrus.FieldLogger
+	isClaimed   func(principals ...string) bool
 }
 
 // DialContext creates an ssh connection to the given address.
 func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHClient, error) {
-
-	for _, authMethod := range d.authMethods {
-		// Create a dialer (that respects HTTP proxies) and connect to remote host.
-		dialer := proxy.DialerFromEnvironment(addr.Addr, d.options...)
-		pconn, err := dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, apidefaults.DefaultIOTimeout)
-		if err != nil {
-			d.log.WithError(err).Debugf("Failed to dial %s.", addr.Addr)
-			continue
-		}
-
-		principals := make([]string, 0)
-		callback, err := apisshutils.NewHostKeyCallback(
-			apisshutils.HostKeyCallbackConfig{
-				GetHostCheckers: d.hostCheckerFunc(ctx),
-				OnCheckCert: func(c *ssh.Certificate) {
-					principals = c.ValidPrincipals
-				},
-				FIPS: d.fips,
-			})
-		if err != nil {
-			d.log.Debugf("Failed to create host key callback for %v: %v.", addr.Addr, err)
-			continue
-		}
-
-		// Build a new client connection. This is done to get access to incoming
-		// global requests which dialer.Dial would not provide.
-		conn, chans, reqs, err := tracessh.NewClientConn(ctx, pconn, addr.Addr, &ssh.ClientConfig{
-			User:            d.username,
-			Auth:            []ssh.AuthMethod{authMethod},
-			HostKeyCallback: callback,
-			Timeout:         apidefaults.DefaultIOTimeout,
-		})
-		if err != nil {
-			d.log.WithError(err).Debugf("Failed to create client to %v.", addr.Addr)
-			continue
-		}
-
-		emptyRequests := make(chan *ssh.Request)
-		close(emptyRequests)
-
-		client := tracessh.NewClient(conn, chans, emptyRequests)
-
-		return &sshClient{
-			Client:      client,
-			requests:    reqs,
-			newChannels: chans,
-			principals:  principals,
-		}, nil
+	// Create a dialer (that respects HTTP proxies) and connect to remote host.
+	dialer := proxy.DialerFromEnvironment(addr.Addr, d.options...)
+	pconn, err := dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, apidefaults.DefaultIOTimeout)
+	if err != nil {
+		d.log.WithError(err).Debugf("Failed to dial %s.", addr.Addr)
+		return nil, trace.Wrap(err)
 	}
 
-	return nil, trace.BadParameter("failed to dial: all auth methods failed")
+	var principals []string
+	callback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: d.hostCheckerFunc(ctx),
+			OnCheckCert: func(c *ssh.Certificate) error {
+				if d.isClaimed != nil && d.isClaimed(c.ValidPrincipals...) {
+					d.log.Debugf("Aborting SSH handshake because the proxy %q is already claimed by some other agent.", c.ValidPrincipals[0])
+					// the error message must end with
+					// [proxyAlreadyClaimedError] to be recognized by
+					// [isProxyAlreadyClaimed]
+					return trace.Errorf(proxyAlreadyClaimedError)
+				}
+
+				principals = c.ValidPrincipals
+				return nil
+			},
+			FIPS: d.fips,
+		})
+	if err != nil {
+		d.log.Debugf("Failed to create host key callback for %v: %v.", addr.Addr, err)
+		return nil, trace.Wrap(err)
+	}
+
+	// Build a new client connection. This is done to get access to incoming
+	// global requests which dialer.Dial would not provide.
+	conn, chans, reqs, err := tracessh.NewClientConn(ctx, pconn, addr.Addr, &ssh.ClientConfig{
+		User:            d.username,
+		Auth:            d.authMethods,
+		HostKeyCallback: callback,
+		Timeout:         apidefaults.DefaultIOTimeout,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// ssh.NewClient will loop over the global requests channel in a goroutine,
+	// rejecting all requests; we want to handle the global requests ourselves,
+	// so we feed it a closed channel to have the goroutine exit immediately.
+	emptyRequests := make(chan *ssh.Request)
+	close(emptyRequests)
+
+	client := tracessh.NewClient(conn, chans, emptyRequests)
+
+	return &sshClient{
+		Client:      client,
+		requests:    reqs,
+		newChannels: chans,
+		principals:  principals,
+	}, nil
 }
 
 // hostCheckerFunc wraps a apisshutils.CheckersGetter function with a context.

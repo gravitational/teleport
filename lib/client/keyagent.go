@@ -30,6 +30,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -381,10 +382,26 @@ func (a *LocalKeyAgent) checkHostCertificateForClusters(clusters ...string) func
 	return func(key ssh.PublicKey, addr string) bool {
 		// Check the local cache (where all Teleport CAs are placed upon login) to
 		// see if any of them match.
-		keys, err := a.clientStore.GetTrustedHostKeys(clusters...)
+		var keys []ssh.PublicKey
+		trustedCerts, err := a.clientStore.GetTrustedCerts(a.proxyHost)
 		if err != nil {
-			a.log.Errorf("Unable to fetch certificate authorities: %v.", err)
+			a.log.Errorf("Failed to get trusted certs: %v.", err)
 			return false
+		}
+
+		// In case of a know host entry added by insecure flow (checkHostKey function)
+		// the parsed know_hosts entry (trustedCerts.ClusterName) contains node address.
+		clusters = append(clusters, addr)
+		for _, cert := range trustedCerts {
+			if !a.loadAllCAs && !slices.Contains(clusters, cert.ClusterName) {
+				continue
+			}
+			key, err := sshutils.ParseAuthorizedKeys(cert.AuthorizedKeys)
+			if err != nil {
+				a.log.Errorf("Failed to parse authorized keys: %v.", err)
+				return false
+			}
+			keys = append(keys, key...)
 		}
 
 		for i := range keys {

@@ -1341,7 +1341,8 @@ proto.teleport.lib.teleterm.v1.ResourceDetails.prototype.toObject = function(opt
  */
 proto.teleport.lib.teleterm.v1.ResourceDetails.toObject = function(includeInstance, msg) {
   var f, obj = {
-    hostname: jspb.Message.getFieldWithDefault(msg, 1, "")
+    hostname: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    friendlyName: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -1382,6 +1383,10 @@ proto.teleport.lib.teleterm.v1.ResourceDetails.deserializeBinaryFromReader = fun
       var value = /** @type {string} */ (reader.readString());
       msg.setHostname(value);
       break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setFriendlyName(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -1418,6 +1423,13 @@ proto.teleport.lib.teleterm.v1.ResourceDetails.serializeBinaryToWriter = functio
       f
     );
   }
+  f = message.getFriendlyName();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
 };
 
 
@@ -1436,6 +1448,24 @@ proto.teleport.lib.teleterm.v1.ResourceDetails.prototype.getHostname = function(
  */
 proto.teleport.lib.teleterm.v1.ResourceDetails.prototype.setHostname = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string friendly_name = 2;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.ResourceDetails.prototype.getFriendlyName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.ResourceDetails} returns this
+ */
+proto.teleport.lib.teleterm.v1.ResourceDetails.prototype.setFriendlyName = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
 };
 
 

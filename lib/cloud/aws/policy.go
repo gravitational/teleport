@@ -19,7 +19,6 @@ package aws
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"sort"
 
@@ -29,6 +28,8 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // Policy represents an AWS IAM policy.
@@ -72,7 +73,15 @@ type Statement struct {
 	// Actions is a list of actions.
 	Actions SliceOrString `json:"Action"`
 	// Resources is a list of resources.
-	Resources SliceOrString `json:"Resource"`
+	Resources SliceOrString `json:"Resource,omitempty"`
+	// Principals is a list of principals.
+	Principals map[string]SliceOrString `json:"Principal,omitempty"`
+	// Conditions is a list of conditions that must be satisfied for the action to be allowed.
+	// Example:
+	// Condition:
+	//    StringEquals:
+	//        "proxy.example.com:aud": "discover.teleport"
+	Conditions map[string]map[string]SliceOrString `json:"Condition,omitempty"`
 }
 
 // ensureResource ensures that the statement contains the specified resource.
@@ -318,7 +327,7 @@ func NewPolicies(partitionID string, accountID string, iamClient iamiface.IAMAPI
 // * `iam:DeletePolicyVersion`: wildcard ("*") or policy that will be created;
 // * `iam:CreatePolicyVersion`: wildcard ("*") or policy that will be created;
 func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
-	policyARN := fmt.Sprintf("arn:%s:iam::%s:policy/%s", p.partitionID, p.accountID, policy.Name)
+	policyARN := awsutils.PolicyARN(p.partitionID, p.accountID, policy.Name)
 	encodedPolicyDocument, err := json.Marshal(policy.Document)
 	if err != nil {
 		return "", trace.Wrap(err)

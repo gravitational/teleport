@@ -42,7 +42,7 @@ const startLines = [
     isCommand: true,
   },
   {
-    text: `• teleport.service - Teleport SSH Service
+    text: `• teleport.service - Teleport Service
    Loaded: loaded
    Active: active (running)`,
     isCommand: false,
@@ -92,7 +92,7 @@ export function StartTeleportTerminalAnimation() {
   const [animationFinished, setAnimationFinished] = useState(false);
   const [lines, setLines] = useState<TerminalLine[]>([...startLines]);
 
-  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
+  const { joinToken } = useJoinTokenSuspender([ResourceKind.Desktop]);
   const { active, result } = usePingTeleport<WindowsDesktopService>(joinToken);
 
   const [ranConnectingAnimation, setRanConnectingAnimation] = useState(false);

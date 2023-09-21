@@ -22,9 +22,19 @@ import { useCallback, useState, useRef, useEffect } from 'react';
  *
  * * The first element is the representation of the attempt to run that async function as data, the
  *   so called attempt object.
- * * The second element is a function which when called starts to execute the async function.
+ * * The second element is a function which when called starts to execute the async function (the
+ * `run` function).
  * * The third element is a function that lets you directly update the attempt object if needed.
  *
+ * `useAsync` automatically ignores stale promises either when the underlying component gets
+ * unmounted. If the `run` function gets executed again while the promise from the previous
+ * execution still hasn't finished, the return value of the previous promise will be ignored.
+ *
+ * The primary interface through which you should interact with the result of the callback is the
+ * attempt object. The `run` function has a return value as well which is useful if you need to
+ * chain its result with some other action inside an event handler or in `useEffect`. The return
+ * value of the `run` function corresponds to the return value of that specific invocation of the
+ * callback passed to `useAsync`. This means you need to manually handle the `CanceledError` case.
  *
  * @example
  * export function useUserProfile(userId) {
@@ -44,7 +54,7 @@ import { useCallback, useState, useRef, useEffect } from 'react';
  *     if (!fetchUserProfileAttempt.status) {
  *       fetchUserProfile()
  *     }
- *   }, [fetchUserProfileAttempt])
+ *   }, [fetchUserProfileAttempt, fetchUserProfile])
  *
  *    switch (fetchUserProfileAttempt.status) {
  *      case '':
@@ -55,6 +65,21 @@ import { useCallback, useState, useRef, useEffect } from 'react';
  *      case 'success':
  *       return <UserAvatar url={fetchUserProfileAttempt.data.avatarUrl} />;
  *    }
+ * }
+ *
+ * @example Consuming the `run` return value
+ * function UserProfile(props) {
+ *   const { fetchUserProfileAttempt, fetchUserProfile } = useUserProfile(props.id);
+ *
+ *   useEffect(async () => {
+ *     if (!fetchUserProfileAttempt.status) {
+ *       const [profile, err] = fetchUserProfile()
+ *
+ *       if (err && !(err instanceof CanceledError)) {
+ *         // Handle the error.
+ *       }
+ *     }
+ *   }, [fetchUserProfileAttempt, fetchUserProfile])
  * }
  *
  */
@@ -68,8 +93,9 @@ export function useAsync<Args extends unknown[], AttemptData>(
   const run = useCallback(
     (...args: Args) => {
       setState(prevState => ({
-        ...prevState,
         status: 'processing',
+        data: prevState['data'],
+        statusText: prevState['statusText'],
       }));
 
       const promise = cb(...args);
@@ -100,9 +126,9 @@ export function useAsync<Args extends unknown[], AttemptData>(
             return [null, new CanceledError()] as [AttemptData, Error];
           }
 
-          setState(prevState => ({
-            ...prevState,
+          setState(() => ({
             status: 'error',
+            error: err,
             statusText: err?.message,
             data: null,
           }));
@@ -114,14 +140,7 @@ export function useAsync<Args extends unknown[], AttemptData>(
     [setState, cb, isMounted]
   );
 
-  const setAttempt = useCallback(
-    (attempt: Attempt<AttemptData>) => {
-      setState(attempt);
-    },
-    [setState]
-  );
-
-  return [state, run, setAttempt] as const;
+  return [state, run, setState] as const;
 }
 
 function useIsMounted() {
@@ -145,13 +164,43 @@ export class CanceledError extends Error {
   }
 }
 
-export type AttemptStatus = 'processing' | 'success' | 'error' | '';
+export type AttemptStatus = Attempt<any>['status'];
 
-export type Attempt<T> = {
-  data?: T;
-  status: AttemptStatus;
-  statusText: string;
-};
+export type Attempt<T> =
+  | {
+      status: '';
+      data: null;
+      /**
+       * @deprecated statusText is present for compatibility purposes only. To use statusText, check
+       * if status equals 'error' first.
+       */
+      statusText: string;
+    }
+  | {
+      status: 'processing';
+      /** data is either null or contains data from the previous success attempt if the attempt was retried. */
+      data: null | T;
+      /**
+       * @deprecated statusText is present for compatibility purposes only. To use statusText, check
+       * if status equals 'error' first.
+       */
+      statusText: string;
+    }
+  | {
+      status: 'success';
+      data: T;
+      /**
+       * @deprecated statusText is present for compatibility purposes only. To use statusText, check
+       * if status equals 'error' first.
+       */
+      statusText: string;
+    }
+  | {
+      status: 'error';
+      data: null;
+      statusText: string;
+      error: any;
+    };
 
 export function hasFinished<T>(attempt: Attempt<T>): boolean {
   return attempt.status === 'success' || attempt.status === 'error';
@@ -181,11 +230,26 @@ export function makeProcessingAttempt<T>(): Attempt<T> {
   };
 }
 
-export function makeErrorAttempt<T>(statusText: string): Attempt<T> {
+export function makeErrorAttempt<T>(error: Error): Attempt<T> {
+  return {
+    data: null,
+    status: 'error',
+    error: error,
+    statusText: error.message,
+  };
+}
+
+/**
+ * @deprecated Use makeErrorAttempt instead.
+ */
+export function makeErrorAttemptWithStatusText<T>(
+  statusText: string
+): Attempt<T> {
   return {
     data: null,
     status: 'error',
     statusText,
+    error: new Error(statusText),
   };
 }
 

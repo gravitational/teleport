@@ -17,11 +17,13 @@ limitations under the License.
 import React from 'react';
 
 import { Box } from 'design';
-import { Attempt } from 'shared/hooks/useAsync';
+import { Attempt, makeErrorAttempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
-
-import { gateway } from 'teleterm/services/tshd/fixtures/mocks';
+import {
+  makeDatabaseGateway,
+  makeKubeGateway,
+} from 'teleterm/services/tshd/testHelpers';
 
 import {
   ClusterLoginPresentation,
@@ -68,12 +70,9 @@ function makeProps(): ClusterLoginPresentationProps {
   };
 }
 
-export const Error = () => {
+export const Err = () => {
   const props = makeProps();
-  props.initAttempt = {
-    status: 'error',
-    statusText: 'some error message',
-  };
+  props.initAttempt = makeErrorAttempt(new Error('some error message'));
 
   return (
     <TestContainer>
@@ -116,14 +115,31 @@ export const LocalOnly = () => {
   );
 };
 
-export const LocalOnlyWithReasonGatewayCertExpiredWithGateway = () => {
+export const LocalOnlyWithReasonGatewayCertExpiredWithDbGateway = () => {
   const props = makeProps();
   props.initAttempt.data.secondFactor = 'off';
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.gateway-cert-expired',
-    targetUri: gateway.targetUri,
-    gateway: gateway,
+    targetUri: dbGateway.targetUri,
+    gateway: dbGateway,
+  };
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const LocalOnlyWithReasonGatewayCertExpiredWithKubeGateway = () => {
+  const props = makeProps();
+  props.initAttempt.data.secondFactor = 'off';
+  props.initAttempt.data.allowPasswordless = false;
+  props.reason = {
+    kind: 'reason.gateway-cert-expired',
+    targetUri: kubeGateway.targetUri,
+    gateway: kubeGateway,
   };
 
   return (
@@ -139,7 +155,7 @@ export const LocalOnlyWithReasonGatewayCertExpiredWithoutGateway = () => {
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.gateway-cert-expired',
-    targetUri: gateway.targetUri,
+    targetUri: dbGateway.targetUri,
     gateway: undefined,
   };
 
@@ -316,10 +332,30 @@ const TestContainer: React.FC = ({ children }) => (
       css={`
         width: 450px;
         border: 1px solid ${props => props.theme.colors.levels.elevated};
-        background: ${props => props.theme.colors.levels.surfaceSecondary};
+        background: ${props => props.theme.colors.levels.surface};
       `}
     >
       {children}
     </Box>
   </>
 );
+
+const dbGateway = makeDatabaseGateway({
+  uri: '/gateways/gateway1',
+  targetName: 'postgres',
+  targetUri: '/clusters/teleport-local/dbs/postgres',
+  targetUser: 'alice',
+  targetSubresourceName: '',
+  localAddress: 'localhost',
+  localPort: '59116',
+  protocol: 'postgres',
+});
+
+const kubeGateway = makeKubeGateway({
+  uri: '/gateways/gateway2',
+  targetName: 'minikube',
+  targetUri: '/clusters/teleport-local/kubes/minikube',
+  targetSubresourceName: '',
+  localAddress: 'localhost',
+  localPort: '59117',
+});

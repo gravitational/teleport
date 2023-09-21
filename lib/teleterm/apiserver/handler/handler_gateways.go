@@ -16,6 +16,9 @@ package handler
 
 import (
 	"context"
+	"fmt"
+	"os/exec"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -38,7 +41,7 @@ func (s *Handler) CreateGateway(ctx context.Context, req *api.CreateGatewayReque
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
+	apiGateway, err := s.newAPIGateway(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -52,7 +55,7 @@ func (s *Handler) ListGateways(ctx context.Context, req *api.ListGatewaysRequest
 
 	apiGws := make([]*api.Gateway, 0, len(gws))
 	for _, gw := range gws {
-		apiGateway, err := newAPIGateway(gw)
+		apiGateway, err := s.newAPIGateway(gw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -74,23 +77,37 @@ func (s *Handler) RemoveGateway(ctx context.Context, req *api.RemoveGatewayReque
 	return &api.EmptyResponse{}, nil
 }
 
-func newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
-	command, err := gateway.CLICommand()
+func (s *Handler) newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
+	command, err := s.DaemonService.GetGatewayCLICommand(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &api.Gateway{
 		Uri:                   gateway.URI().String(),
-		TargetUri:             gateway.TargetURI(),
+		TargetUri:             gateway.TargetURI().String(),
 		TargetName:            gateway.TargetName(),
 		TargetUser:            gateway.TargetUser(),
 		TargetSubresourceName: gateway.TargetSubresourceName(),
 		Protocol:              gateway.Protocol(),
 		LocalAddress:          gateway.LocalAddress(),
 		LocalPort:             gateway.LocalPort(),
-		CliCommand:            command,
+		GatewayCliCommand:     makeGatewayCLICommand(command),
 	}, nil
+}
+
+func makeGatewayCLICommand(cmd *exec.Cmd) *api.GatewayCLICommand {
+	cmdString := strings.TrimSpace(
+		fmt.Sprintf("%s %s",
+			strings.Join(cmd.Env, " "),
+			strings.Join(cmd.Args, " ")))
+
+	return &api.GatewayCLICommand{
+		Path:    cmd.Path,
+		Args:    cmd.Args,
+		Env:     cmd.Env,
+		Preview: cmdString,
+	}
 }
 
 // SetGatewayTargetSubresourceName changes the TargetSubresourceName field of gateway.Gateway
@@ -103,7 +120,7 @@ func (s *Handler) SetGatewayTargetSubresourceName(ctx context.Context, req *api.
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
+	apiGateway, err := s.newAPIGateway(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -118,7 +135,7 @@ func (s *Handler) SetGatewayLocalPort(ctx context.Context, req *api.SetGatewayLo
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
+	apiGateway, err := s.newAPIGateway(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

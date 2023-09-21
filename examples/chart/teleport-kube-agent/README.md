@@ -5,6 +5,7 @@ with an existing Teleport cluster:
 - Teleport Kubernetes access
 - Teleport Application access
 - Teleport Database access
+- Teleport Kubernetes App Discovery
 
 To use it, you will need:
 - an existing Teleport cluster (at least proxy and auth services)
@@ -22,7 +23,7 @@ To use it, you will need:
 
 ## Combining roles
 
-You can combine multiple roles as a comma-separated list: `--set roles=kube\,db\,app`
+You can combine multiple roles as a comma-separated list: `--set roles=kube\,db\,app\,discovery`
 
 Note that commas must be escaped if the values are provided on the command line. This is due to the way that
 Helm parses arguments.
@@ -231,6 +232,28 @@ You can add multiple databases using `databases[1].name`, `databases[1].uri`, `d
 `databases[2].name`, `databases[2].uri`, `databases[2].protocol` etc.
 
 After installing, the new database should show up in `tsh db ls` after a few minutes.
+
+## Kubernetes App Discovery
+
+Teleport can be used to automatically discover apps based on services found in the Kubernetes cluster.
+To run Teleport discovery you will need to enabled roles `discovery` and `app` and also provide token that allows access for these roles.
+
+To install the agent, run:
+
+```sh
+$ helm install teleport-kube-agent . \
+  --create-namespace \
+  --namespace teleport \
+  --set roles=kube,app,discovery \
+  --set proxyAddr=${PROXY_ENDPOINT?} \
+  --set authToken=${JOIN_TOKEN?}
+```
+
+With default settings Teleport will try to discovery all apps available in the cluster. To control what namespaces and what service labels
+to use for discovery you can use `kubernetesDiscovery` property of the chart.
+
+When discovery is running, `kubeClusterName` should be set in values, since it is used as a name for discovery field and as a target label
+for the app service, so it can expose discovered apps.
 
 ## Troubleshooting
 

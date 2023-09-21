@@ -35,6 +35,9 @@ type Event struct {
 //     eg: All user related events are grouped under 1xxx.
 //
 //   - Suffix code with one of these letters: I (info), W (warn), E (error).
+//
+// After defining an event code, make sure to keep
+// `web/packages/teleport/src/services/audit/types.ts` in sync.
 const (
 	// UserLocalLoginCode is the successful local user login event code.
 	UserLocalLoginCode = "T1000I"
@@ -346,9 +349,15 @@ const (
 	TrustedClusterCreateCode = "T7000I"
 	// TrustedClusterDeleteCode is the event code for removing a trusted cluster.
 	TrustedClusterDeleteCode = "T7001I"
-	// TrustedClusterTokenCreateCode is the event code for
-	// creating new join token for a trusted cluster.
+	// TrustedClusterTokenCreateCode is the event code for creating new
+	// provisioning token for a trusted cluster. Deprecated in favor of
+	// [ProvisionTokenCreateEvent].
 	TrustedClusterTokenCreateCode = "T7002I"
+
+	// ProvisionTokenCreateCode is the event code for creating a provisioning
+	// token, also known as Join Token. See
+	// [github.com/gravitational/teleport/api/types.ProvisionToken].
+	ProvisionTokenCreateCode = "TJT00I"
 
 	// GithubConnectorCreatedCode is the Github connector created event code.
 	GithubConnectorCreatedCode = "T8000I"
@@ -441,6 +450,75 @@ const (
 
 	// SAMLIdPServiceProviderDeleteAllFailureCode is the SAML IdP service provider delete all failure code.
 	SAMLIdPServiceProviderDeleteAllFailureCode = "TSI004W"
+
+	// OktaGroupsUpdateCode is the Okta groups updated code.
+	OktaGroupsUpdateCode = "TOK001I"
+
+	// OktaApplicationsUpdateCode is the Okta applications updated code.
+	OktaApplicationsUpdateCode = "TOK002I"
+
+	// OktaSyncFailureCode is the Okta synchronization failure code.
+	OktaSyncFailureCode = "TOK003E"
+
+	// OktaAssignmentProcessSuccessCode is the Okta assignment process success code.
+	OktaAssignmentProcessSuccessCode = "TOK004I"
+
+	// OktaAssignmentProcessFailureCode is the Okta assignment process failure code.
+	OktaAssignmentProcessFailureCode = "TOK004E"
+
+	// OktaAssignmentCleanupSuccessCode is the Okta assignment cleanup success code.
+	OktaAssignmentCleanupSuccessCode = "TOK005I"
+
+	// OktaAssignmentCleanupFailureCode is the Okta assignment cleanup failure code.
+	OktaAssignmentCleanupFailureCode = "TOK005E"
+
+	// AccessListCreateSuccessCode is the access list create success code.
+	AccessListCreateSuccessCode = "TAL001I"
+
+	// AccessListCreateFailureCode is the access list create failure code.
+	AccessListCreateFailureCode = "TAL001E"
+
+	// AccessListUpdateSuccessCode is the access list update success code.
+	AccessListUpdateSuccessCode = "TAL002I"
+
+	// AccessListUpdateFailureCode is the access list update failure code.
+	AccessListUpdateFailureCode = "TAL002E"
+
+	// AccessListDeleteSuccessCode is the access list delete success code.
+	AccessListDeleteSuccessCode = "TAL003I"
+
+	// AccessListDeleteFailureCode is the access list delete failure code.
+	AccessListDeleteFailureCode = "TAL003E"
+
+	// AccessListReviewSuccessCode is the access list review success code.
+	AccessListReviewSuccessCode = "TAL004I"
+
+	// AccessListReviewFailureCode is the access list review failure code.
+	AccessListReviewFailureCode = "TAL004E"
+
+	// AccessListMemberCreateSuccessCode is the access list member create success code.
+	AccessListMemberCreateSuccessCode = "TAL005I"
+
+	// AccessListMemberCreateFailureCode is the access list member create failure code.
+	AccessListMemberCreateFailureCode = "TAL005E"
+
+	// AccessListMemberUpdateSuccessCode is the access list member update success code.
+	AccessListMemberUpdateSuccessCode = "TAL006I"
+
+	// AccessListMemberUpdateFailureCode is the access list member update failure code.
+	AccessListMemberUpdateFailureCode = "TAL006E"
+
+	// AccessListMemberDeleteSuccessCode is the access list member delete success code.
+	AccessListMemberDeleteSuccessCode = "TAL007I"
+
+	// AccessListMemberDeleteFailureCode is the access list member delete failure code.
+	AccessListMemberDeleteFailureCode = "TAL007E"
+
+	// AccessListMemberDeleteAllForAccessListSuccessCode is the access list all member delete success code.
+	AccessListMemberDeleteAllForAccessListSuccessCode = "TAL008I"
+
+	// AccessListMemberDeleteAllForAccessListFailureCode is the access list member delete failure code.
+	AccessListMemberDeleteAllForAccessListFailureCode = "TAL008E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

@@ -35,14 +35,14 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport13
+      image: ghcr.io/gravitational/teleport-buildbox:teleport14
       options: --cap-add=SYS_ADMIN --privileged
       env:
         WEBASSETS_SKIP_BUILD: 1
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
@@ -50,4 +50,4 @@ jobs:
       - name: Run tests
         timeout-minutes: 40
         run: |
-          make rdpclient integration-root
+          make integration-root RDPCLIENT_SKIP_BUILD=1

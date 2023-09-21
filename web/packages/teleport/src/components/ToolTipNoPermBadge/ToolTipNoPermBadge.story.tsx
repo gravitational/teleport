@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Box } from 'design';
 
-import { ToolTipNoPermBadge } from './ToolTipNoPermBadge';
+import { ToolTipNoPermBadge, BadgeTitle } from './ToolTipNoPermBadge';
 
 export default {
   title: 'Teleport/ToolTip',
@@ -40,6 +40,28 @@ export const NoPermissionBadgeComp = () => (
   </SomeBox>
 );
 
+export const EnterpriseOnly = () => (
+  <SomeBox>
+    I'm a sample container
+    <ToolTipNoPermBadge
+      badgeTitle={BadgeTitle.LackingEnterpriseLicense}
+      children={'Lacking enterprise license'}
+    />
+  </SomeBox>
+);
+
+export const StickyTooltip = () => (
+  <SomeBox>
+    I'm a sample container
+    <ToolTipNoPermBadge
+      sticky={true}
+      children={
+        <Box p={3}>I will only disappear after this component is unhovered</Box>
+      }
+    />
+  </SomeBox>
+);
+
 const SomeBox = styled.div`
   width: 240px;
   border-radius: 8px;
@@ -47,5 +69,5 @@ const SomeBox = styled.div`
   display: flex;
   position: relative;
   align-items: center;
-  background: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
 `;

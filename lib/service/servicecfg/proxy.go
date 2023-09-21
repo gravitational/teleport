@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -52,8 +53,8 @@ type ProxyConfig struct {
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
 	ReverseTunnelListenAddr utils.NetAddr
 
-	// EnableProxyProtocol enables proxy protocol support
-	EnableProxyProtocol bool
+	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
+	PROXYProtocolMode multiplexer.PROXYProtocolMode
 
 	// WebAddr is address for web portal of the proxy
 	WebAddr utils.NetAddr
@@ -132,12 +133,42 @@ type ProxyConfig struct {
 
 	// UI provides config options for the web UI
 	UI webclient.UIConfig
+
+	// AssistAPIKey is the OpenAI API key.
+	// TODO: This key will be moved to a plugin once support for plugins is implemented.
+	AssistAPIKey string
+
+	// TrustXForwardedFor enables the service to take client source IPs from
+	// the "X-Forwarded-For" headers for web APIs recevied from layer 7 load
+	// balancers or reverse proxies.
+	TrustXForwardedFor bool
+
+	// ProxyGroupID is the reverse tunnel group ID, advertised as a label and
+	// used by reverse tunnel agents in proxy peering mode. The empty group ID
+	// is a valid group ID.
+	ProxyGroupID string
+
+	// ProxyGroupGeneration is the reverse tunnel group generation, advertised
+	// as a label and used by reverse tunnel agents in proxy peering mode. Zero
+	// is a valid generation.
+	ProxyGroupGeneration uint64
 }
 
 // WebPublicAddr returns the address for the web endpoint on this proxy that
 // can be reached by clients.
 func (c ProxyConfig) WebPublicAddr() (string, error) {
-	return c.getDefaultAddr(c.WebAddr.Port(defaults.HTTPListenPort)), nil
+	// Use the port from the first public address if possible.
+	if len(c.PublicAddrs) > 0 {
+		publicAddr := c.PublicAddrs[0]
+		u := url.URL{
+			Scheme: "https",
+			Host:   net.JoinHostPort(publicAddr.Host(), strconv.Itoa(publicAddr.Port(defaults.HTTPListenPort))),
+		}
+		return u.String(), nil
+	}
+
+	port := c.WebAddr.Port(defaults.HTTPListenPort)
+	return c.getDefaultAddr(port), nil
 }
 
 func (c ProxyConfig) getDefaultAddr(port int) string {

@@ -116,3 +116,44 @@ func GetAnyHeader(header http.Header, keys ...string) string {
 	}
 	return ""
 }
+
+// GetSingleHeader will return the header value for the key if there is exactly one value present.  If the header is
+// missing or specified multiple times, an error will be returned.
+func GetSingleHeader(headers http.Header, key string) (string, error) {
+	values := headers.Values(key)
+	if len(values) > 1 {
+		return "", trace.BadParameter("multiple %q headers", key)
+	} else if len(values) == 0 {
+		return "", trace.NotFound("missing %q headers", key)
+	} else {
+		return values[0], nil
+	}
+}
+
+// HTTPDoClient is an interface that defines the Do function of http.Client.
+type HTTPDoClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+// HTTPMiddleware defines a HTTP middleware.
+type HTTPMiddleware func(next http.Handler) http.Handler
+
+// ChainHTTPMiddlewares wraps an http.Handler with a list of middlewares. Inner
+// middlewares should be provided before outer middlewares.
+func ChainHTTPMiddlewares(handler http.Handler, middlewares ...HTTPMiddleware) http.Handler {
+	if len(middlewares) == 0 {
+		return handler
+	}
+	apply := middlewares[0]
+	middlewares = middlewares[1:]
+	if apply != nil {
+		handler = apply(handler)
+	}
+	return ChainHTTPMiddlewares(handler, middlewares...)
+}
+
+// NoopHTTPMiddleware is a no-operation HTTPMiddleware that returns the
+// original handler.
+func NoopHTTPMiddleware(next http.Handler) http.Handler {
+	return next
+}

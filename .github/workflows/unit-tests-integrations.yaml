@@ -41,18 +41,18 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport13
+      image: ghcr.io/gravitational/teleport-buildbox:teleport14
       options: --cap-add=SYS_ADMIN --privileged
-      env: 
-        TELEPORT_GET_VERSION: v12.1.0
-        TELEPORT_ENTERPRISE_LICENSE: ${{ secrets.TELEPORT_ENTERPRISE_LICENSE }}
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
+
+      - name: Build teleport binaries
+        run: make build/tctl build/teleport build/tsh && echo "$PWD/build" >> "$GITHUB_PATH"
 
       - name: Run access plugin tests
         run: make test-access-integrations

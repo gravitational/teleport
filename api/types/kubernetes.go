@@ -22,7 +22,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
@@ -47,8 +46,6 @@ type KubeCluster interface {
 	GetKubeconfig() []byte
 	// SetKubeconfig sets the kubeconfig.
 	SetKubeconfig([]byte)
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// String returns string representation of the kube cluster.
 	String() string
 	// GetDescription returns the kube cluster description.
@@ -75,6 +72,9 @@ type KubeCluster interface {
 	IsKubeconfig() bool
 	// Copy returns a copy of this kube cluster resource.
 	Copy() *KubernetesClusterV3
+	// GetCloud gets the cloud this kube cluster is running on, or an empty string if it
+	// isn't running on a cloud provider.
+	GetCloud() string
 }
 
 // NewKubernetesClusterV3FromLegacyCluster creates a new Kubernetes cluster resource
@@ -154,6 +154,16 @@ func (k *KubernetesClusterV3) GetResourceID() int64 {
 // SetResourceID sets the resource ID.
 func (k *KubernetesClusterV3) SetResourceID(id int64) {
 	k.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (k *KubernetesClusterV3) GetRevision() string {
+	return k.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (k *KubernetesClusterV3) SetRevision(rev string) {
+	k.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns the resource metadata.
@@ -245,11 +255,6 @@ func (k *KubernetesClusterV3) GetAllLabels() map[string]string {
 	return CombineLabels(k.Metadata.Labels, k.Spec.DynamicLabels)
 }
 
-// LabelsString returns all labels as a string.
-func (k *KubernetesClusterV3) LabelsString() string {
-	return LabelsAsString(k.Metadata.Labels, k.Spec.DynamicLabels)
-}
-
 // GetDescription returns the description.
 func (k *KubernetesClusterV3) GetDescription() string {
 	return k.Metadata.Description
@@ -300,6 +305,21 @@ func (k *KubernetesClusterV3) IsGCP() bool {
 	return !protoKnownFieldsEqual(&k.Spec.GCP, &KubeGCP{})
 }
 
+// GetCloud gets the cloud this kube cluster is running on, or an empty string if it
+// isn't running on a cloud provider.
+func (k *KubernetesClusterV3) GetCloud() string {
+	switch {
+	case k.IsAzure():
+		return CloudAzure
+	case k.IsAWS():
+		return CloudAWS
+	case k.IsGCP():
+		return CloudGCP
+	default:
+		return ""
+	}
+}
+
 // IsKubeconfig identifies if the KubeCluster contains kubeconfig data.
 func (k *KubernetesClusterV3) IsKubeconfig() bool {
 	return len(k.Spec.Kubeconfig) > 0
@@ -313,7 +333,7 @@ func (k *KubernetesClusterV3) String() string {
 
 // Copy returns a copy of this resource.
 func (k *KubernetesClusterV3) Copy() *KubernetesClusterV3 {
-	return proto.Clone(k).(*KubernetesClusterV3)
+	return utils.CloneProtoMsg(k)
 }
 
 // MatchSearch goes through select field values and tries to
@@ -335,6 +355,12 @@ func (k *KubernetesClusterV3) setStaticFields() {
 // sneaky cluster names being used for client directory traversal and exploits.
 var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
+// ValidateKubeClusterName returns an error if a given string is not a valid
+// KubeCluster name.
+func ValidateKubeClusterName(name string) error {
+	return ValidateResourceName(validKubeClusterName, name)
+}
+
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 	k.setStaticFields()
@@ -347,8 +373,8 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 		}
 	}
 
-	if !validKubeClusterName.MatchString(k.Metadata.Name) {
-		return trace.BadParameter("invalid kubernetes cluster name: %q", k.Metadata.Name)
+	if err := ValidateKubeClusterName(k.Metadata.Name); err != nil {
+		return trace.Wrap(err, "invalid kubernetes cluster name")
 	}
 
 	if err := k.Spec.Azure.CheckAndSetDefaults(); err != nil && k.IsAzure() {
@@ -590,6 +616,16 @@ func (k *KubernetesResourceV1) SetResourceID(id int64) {
 	k.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (k *KubernetesResourceV1) GetRevision() string {
+	return k.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (k *KubernetesResourceV1) SetRevision(rev string) {
+	k.Metadata.SetRevision(rev)
+}
+
 // CheckAndSetDefaults validates the Resource and sets any empty fields to
 // default values.
 func (k *KubernetesResourceV1) CheckAndSetDefaults() error {
@@ -601,7 +637,8 @@ func (k *KubernetesResourceV1) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if len(k.Spec.Namespace) == 0 {
+	// Unless the resource is cluster-wide, it must have a namespace.
+	if len(k.Spec.Namespace) == 0 && !slices.Contains(KubernetesClusterWideResourceKinds, k.Kind) {
 		return trace.BadParameter("missing kubernetes namespace")
 	}
 

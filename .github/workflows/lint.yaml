@@ -3,16 +3,17 @@ run-name: make lint
 on:
   pull_request:
     paths-ignore:
-      - 'docs/**'
-      - 'rfd/**'
+      - "docs/**"
+      - "rfd/**"
+      - "**/*.md*"
   merge_group:
     paths-ignore:
-      - 'docs/**'
-      - 'rfd/**'
+      - "docs/**"
+      - "rfd/**"
+      - "**/*.md*"
 
 jobs:
   lint:
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     name: Lint (Go)
     runs-on: ubuntu-22.04-16core
 
@@ -20,24 +21,80 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport13
-      env:
-        GO_LINT_FLAGS: --timeout=15m
+      image: ghcr.io/gravitational/teleport-buildbox:teleport14
+
+    env:
+      GOLANGCI_LINT_VERSION: v1.54.2
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Run `go mod tidy`
         run: rm go.sum api/go.sum && go mod tidy && (cd api && go mod tidy)
 
-      - name: Check for changes
+      - name: Check for no changes after `go mod tidy`
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $( realpath . ) && git diff --exit-code -- go.mod go.sum api/go.mod api/go.sum
 
-      - name: Run linter
-        run: make lint
+      # Run various golangci-lint checks.
+      # TODO(codingllama): Using go.work could save a bunch of repetition here.
+      - name: golangci-lint (api)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: api
+          skip-cache: true
+      - name: golangci-lint (teleport)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --build-tags libfido2,piv
+          skip-cache: true
+      - name: golangci-lint (kube-agent-updater)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: integrations/kube-agent-updater
+          skip-cache: true
+      - name: golangci-lint (assets/backport)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: assets/backport
+          skip-cache: true
+      - name: golangci-lint (build.assets/tooling)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: build.assets/tooling
+          skip-cache: true
 
-      - name: Check if protobufs are up to date
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ github.token }}
+          version: v1.26.1
+      - uses: bufbuild/buf-lint-action@v1
+      - name: buf breaking from parent to self
+        uses: bufbuild/buf-breaking-action@v1
+        with:
+          against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
+      - name: buf breaking from self to master
+        uses: bufbuild/buf-breaking-action@v1
+        if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
+        with:
+          input: "https://github.com/${GITHUB_REPOSITORY}.git#branch=master"
+          against: "."
+
+      # TODO(codingllama): Consider https://github.com/actions-rs/clippy-check
+      #  for Rust.
+      - name: Run (non-action) linters
+        run: make lint-no-actions
+
+      - name: Check if protos are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make protos-up-to-date/host
+
+      - name: Check if Operator CRDs are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make crds-up-to-date

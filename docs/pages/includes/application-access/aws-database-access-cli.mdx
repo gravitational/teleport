@@ -1,0 +1,25 @@
+Log into the previously configured AWS app on your desktop:
+
+```code
+$ tsh apps login --aws-role {{ iam-role }} aws
+Logged into AWS app aws. Example AWS CLI command:
+
+$ tsh aws s3 ls
+```
+
+The `--aws-role` flag allows you to specify the AWS IAM role to assume when
+accessing the AWS API. You can either provide a role name like `--aws-role
+ExampleTeleportDynamoDBRole` or a full role ARN like
+`arn:aws:iam::123456789000:role/{{iam-role}}`.
+
+Now you can use the `tsh aws` command like the native `aws` command-line tool:
+
+```code
+$ {{ tsh-example }}
+```
+
+To log out of the `aws` application and remove credentials:
+
+```code
+$ tsh apps logout aws
+```

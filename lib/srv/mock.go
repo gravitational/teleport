@@ -61,6 +61,8 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	sshConn.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 
 	ctx, cancel := context.WithCancel(context.Background())
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordOff)
 	clusterName := "localhost"
 	scx := &ServerContext{
 		Entry: logrus.NewEntry(logrus.StandardLogger()),
@@ -68,7 +70,7 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 			ServerConn: &ssh.ServerConn{Conn: sshConn},
 		},
 		env:                    make(map[string]string),
-		SessionRecordingConfig: types.DefaultSessionRecordingConfig(),
+		SessionRecordingConfig: recConfig,
 		IsTestStub:             true,
 		ClusterName:            clusterName,
 		srv:                    srv,
@@ -92,6 +94,9 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	require.NoError(t, err)
 
 	scx.contr, scx.contw, err = os.Pipe()
+	require.NoError(t, err)
+
+	scx.readyr, scx.readyw, err = os.Pipe()
 	require.NoError(t, err)
 
 	scx.killShellr, scx.killShellw, err = os.Pipe()
@@ -138,15 +143,15 @@ func newMockServer(t *testing.T) *mockServer {
 	require.NoError(t, err)
 
 	return &mockServer{
-		auth:        authServer,
-		datadir:     t.TempDir(),
-		MockEmitter: &eventstest.MockEmitter{},
-		clock:       clock,
+		auth:                authServer,
+		datadir:             t.TempDir(),
+		MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
+		clock:               clock,
 	}
 }
 
 type mockServer struct {
-	*eventstest.MockEmitter
+	*eventstest.MockRecorderEmitter
 	datadir   string
 	auth      *auth.Server
 	component string
@@ -246,7 +251,6 @@ func (m *mockServer) UseTunnel() bool {
 // GetBPF returns the BPF service used for enhanced session recording.
 func (m *mockServer) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
-
 }
 
 // GetRestrictedSessionManager returns the manager for restricting user activity
@@ -259,9 +263,9 @@ func (m *mockServer) Context() context.Context {
 	return context.Background()
 }
 
-// GetUtmpPath returns the path of the user accounting database and log. Returns empty for system defaults.
-func (m *mockServer) GetUtmpPath() (utmp, wtmp string) {
-	return "test", "test"
+// GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
+func (m *mockServer) GetUserAccountingPaths() (utmp, wtmp, btmp string) {
+	return "test", "test", "test"
 }
 
 // GetLockWatcher gets the server's lock watcher.

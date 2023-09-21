@@ -35,9 +35,11 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -121,7 +123,7 @@ func ExtractMySQLEngineVersion(fn func(ctx context.Context, conn net.Conn) error
 			}
 			// The version should never be longer than 255 characters including
 			// the prefix, but better to be safe.
-			var versionEnd = 255
+			versionEnd := 255
 			if len(alpn) < versionEnd {
 				versionEnd = len(alpn)
 			}
@@ -150,7 +152,7 @@ func (r *Router) CheckAndSetDefaults() error {
 	return nil
 }
 
-// AddKubeHandler adds the handle for Kubernetes protocol (distinguishable by  "kube." SNI prefix).
+// AddKubeHandler adds the handle for Kubernetes protocol (distinguishable by  "kube-teleport-proxy-alpn." SNI prefix).
 func (r *Router) AddKubeHandler(handler HandlerFunc) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
@@ -393,6 +395,13 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 		return trace.Wrap(err)
 	}
 
+	// We try to do quick early IP pinning check, if possible, and stop it on the proxy, without going further.
+	// It's based only on client cert. Client can still fail full IP pinning check later if their role now requires
+	// IP pinning but cert isn't pinned.
+	if err := p.checkCertIPPinning(tlsConn); err != nil {
+		return trace.Wrap(err)
+	}
+
 	var handlerConn net.Conn = tlsConn
 	// Check if ping is supported/required by the client.
 	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
@@ -407,6 +416,36 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 		return trace.Wrap(p.handleDatabaseConnection(ctx, handlerConn, connInfo))
 	}
 	return trace.Wrap(handlerDesc.handle(ctx, handlerConn, connInfo))
+}
+
+func (p *Proxy) checkCertIPPinning(tlsConn *tls.Conn) error {
+	state := tlsConn.ConnectionState()
+
+	if len(state.PeerCertificates) == 0 {
+		return nil
+	}
+
+	identity, err := tlsca.FromSubject(state.PeerCertificates[0].Subject, state.PeerCertificates[0].NotAfter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clientIP, port, err := net.SplitHostPort(tlsConn.RemoteAddr().String())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if identity.PinnedIP != "" && (clientIP != identity.PinnedIP || port == "0") {
+		if port == "0" {
+			p.log.WithFields(logrus.Fields{
+				"client_ip": clientIP,
+				"pinned_ip": identity.PinnedIP,
+			}).Debug(authz.ErrIPPinningMismatch.Error())
+		}
+		return trace.Wrap(authz.ErrIPPinningMismatch)
+	}
+
+	return nil
 }
 
 // handlePingConnection starts the server ping routine and returns `pingConn`.
@@ -563,11 +602,6 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 }
 
 func shouldRouteToKubeService(sni string) bool {
-	// DELETE IN 14.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
-	if strings.HasPrefix(sni, constants.KubeSNIPrefix) {
-		return true
-	}
-
 	return strings.HasPrefix(sni, constants.KubeTeleportProxyALPNPrefix)
 }
 

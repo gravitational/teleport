@@ -28,9 +28,11 @@ import (
 	wan "github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // loginIdentity contains the subset of services.Identity methods used by
@@ -49,8 +51,8 @@ type loginIdentity interface {
 // * Passwordless uses global variants
 // (services.Identity.Update/Get/DeleteGlobalWebauthnSessionData methods).
 type sessionIdentity interface {
-	Upsert(ctx context.Context, user string, sd *wantypes.SessionData) error
-	Get(ctx context.Context, user string, challenge string) (*wantypes.SessionData, error)
+	Upsert(ctx context.Context, user string, sd *wanpb.SessionData) error
+	Get(ctx context.Context, user string, challenge string) (*wanpb.SessionData, error)
 	Delete(ctx context.Context, user string, challenge string) error
 }
 
@@ -63,7 +65,7 @@ type loginFlow struct {
 	sessionData sessionIdentity
 }
 
-func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*CredentialAssertion, error) {
+func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*wantypes.CredentialAssertion, error) {
 	if user == "" && !passwordless {
 		return nil, trace.BadParameter("user required")
 	}
@@ -83,6 +85,29 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 			return nil, trace.Wrap(err)
 		}
 
+		// Filter devices with the wrong RPID and log an error.
+		foundInvalid := false
+		for i := 0; i < len(devices); i++ {
+			webDev := devices[i].GetWebauthn()
+			if webDev == nil || webDev.CredentialRpId == "" || webDev.CredentialRpId == f.Webauthn.RPID {
+				continue
+			}
+
+			log.Errorf(""+
+				"User device %q/%q has unexpected RPID=%q, excluding from allowed credentials. "+
+				"RPID changes are not supported by WebAuthn, this is likely to cause permanent authentication problems for your users. "+
+				"Consider reverting the change or reset your users so they may register their devices again.",
+				user,
+				devices[i].GetName(),
+				webDev.CredentialRpId)
+
+			// "Cut" device from slice.
+			devices = slices.Delete(devices, i, i+1)
+			i--
+
+			foundInvalid = true
+		}
+
 		// Sort non-resident keys first, which may cause clients to favor them for
 		// MFA in some scenarios (eg, tsh).
 		sort.Slice(devices, func(i, j int) bool {
@@ -98,6 +123,9 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 		// Let's make sure we have at least one registered credential here, since we
 		// have to allow zero credentials for passwordless below.
 		if len(u.credentials) == 0 {
+			if foundInvalid {
+				return nil, trace.Wrap(ErrInvalidCredentials)
+			}
 			return nil, trace.NotFound("found no credentials for user %q", user)
 		}
 	}
@@ -107,7 +135,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	if f.U2F != nil && f.U2F.AppID != "" {
 		// See https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
 		opts = append(opts, wan.WithAssertionExtensions(protocol.AuthenticationExtensions{
-			AppIDExtension: f.U2F.AppID,
+			wantypes.AppIDExtension: f.U2F.AppID,
 		}))
 	}
 
@@ -141,7 +169,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 		return nil, trace.Wrap(err)
 	}
 
-	return (*CredentialAssertion)(assertion), nil
+	return wantypes.CredentialAssertionFromProtocol(assertion), nil
 }
 
 func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
@@ -155,7 +183,7 @@ func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
 	return wla.UserID, nil
 }
 
-func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
+func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
 	switch {
 	case user == "" && !passwordless:
 		return nil, "", trace.BadParameter("user required")
@@ -272,6 +300,12 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAss
 	if err := setCounterAndTimestamps(dev, credential); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+	// Retroactively write the credential RPID, now that it cleared authn.
+	if webDev := dev.GetWebauthn(); webDev != nil && webDev.CredentialRpId == "" {
+		log.Debugf("WebAuthn: Recording RPID=%q in device %q/%q", rpID, user, dev.GetName())
+		webDev.CredentialRpId = rpID
+	}
+
 	if err := f.identity.UpsertMFADevice(ctx, user, dev); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -285,7 +319,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAss
 	return dev, user, nil
 }
 
-func parseCredentialResponse(resp *CredentialAssertionResponse) (*protocol.ParsedCredentialAssertionData, error) {
+func parseCredentialResponse(resp *wantypes.CredentialAssertionResponse) (*protocol.ParsedCredentialAssertionData, error) {
 	// Do not pass extensions on to duo-labs/webauthn, they won't go past JSON
 	// unmarshal.
 	exts := resp.Extensions

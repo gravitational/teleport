@@ -41,16 +41,16 @@ import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
 import {
   ActionButtons,
+  Header,
   HeaderSubtitle,
   Mark,
   ResourceKind,
   TextIcon,
   useShowHint,
-  HeaderWithBackBtn,
 } from '../../Shared';
 
 import type { AgentStepProps } from '../../types';
-import type { JoinToken } from 'teleport/services/joinToken';
+import type { JoinRole, JoinToken } from 'teleport/services/joinToken';
 import type { AgentMeta, KubeMeta } from 'teleport/Discover/useDiscover';
 import type { Kube } from 'teleport/services/kube';
 
@@ -63,10 +63,16 @@ export default function Container(props: AgentStepProps) {
     // This outer CatchError and Suspense handles
     // join token api fetch error and loading states.
     <CatchError
-      onRetry={() => clearCachedJoinTokenResult(ResourceKind.Kubernetes)}
+      onRetry={() =>
+        clearCachedJoinTokenResult([
+          ResourceKind.Kubernetes,
+          ResourceKind.Application,
+          ResourceKind.Discovery,
+        ])
+      }
       fallbackFn={fallbackProps => (
         <Box>
-          <Heading prevStep={props.prevStep} />
+          <Heading />
           <StepOne />
           <StepTwo
             onEdit={() => setShowHelmChart(false)}
@@ -76,14 +82,18 @@ export default function Container(props: AgentStepProps) {
             clusterName={clusterName}
             setClusterName={setClusterName}
           />
-          <ActionButtons onProceed={() => null} disableProceed={true} />
+          <ActionButtons
+            onProceed={() => null}
+            disableProceed={true}
+            onPrev={props.prevStep}
+          />
         </Box>
       )}
     >
       <Suspense
         fallback={
           <Box>
-            <Heading prevStep={props.prevStep} />
+            <Heading />
             <StepOne />
             <StepTwo
               onEdit={() => setShowHelmChart(false)}
@@ -92,13 +102,17 @@ export default function Container(props: AgentStepProps) {
               clusterName={clusterName}
               setClusterName={setClusterName}
             />
-            <ActionButtons onProceed={() => null} disableProceed={true} />
+            <ActionButtons
+              onProceed={() => null}
+              disableProceed={true}
+              onPrev={props.prevStep}
+            />
           </Box>
         }
       >
         {!showHelmChart && (
           <Box>
-            <Heading prevStep={props.prevStep} />
+            <Heading />
             <StepOne />
             <StepTwo
               onEdit={() => setShowHelmChart(false)}
@@ -108,7 +122,11 @@ export default function Container(props: AgentStepProps) {
               clusterName={clusterName}
               setClusterName={setClusterName}
             />
-            <ActionButtons onProceed={() => null} disableProceed={true} />
+            <ActionButtons
+              onProceed={() => null}
+              disableProceed={true}
+              onPrev={props.prevStep}
+            />
           </Box>
         )}
         {showHelmChart && (
@@ -135,13 +153,15 @@ export function HelmChart(
     setClusterName(c: string): void;
   }
 ) {
-  const { joinToken, reloadJoinToken } = useJoinTokenSuspender(
-    ResourceKind.Kubernetes
-  );
+  const { joinToken, reloadJoinToken } = useJoinTokenSuspender([
+    ResourceKind.Kubernetes,
+    ResourceKind.Application,
+    ResourceKind.Discovery,
+  ]);
 
   return (
     <Box>
-      <Heading prevStep={props.prevStep} />
+      <Heading />
       <StepOne />
       <StepTwo
         disabled={true}
@@ -153,6 +173,7 @@ export function HelmChart(
         setClusterName={props.setClusterName}
       />
       <InstallHelmChart
+        prevStep={props.prevStep}
         namespace={props.namespace}
         clusterName={props.clusterName}
         joinToken={joinToken}
@@ -163,12 +184,10 @@ export function HelmChart(
   );
 }
 
-const Heading = ({ prevStep }: { prevStep(): void }) => {
+const Heading = () => {
   return (
     <>
-      <HeaderWithBackBtn onPrev={prevStep}>
-        Configure Resource
-      </HeaderWithBackBtn>
+      <Header>Configure Resource</Header>
       <HeaderSubtitle>
         Install Teleport Service in your cluster via Helm to easily connect your
         Kubernetes cluster with Teleport.
@@ -288,7 +307,7 @@ const StepTwo = ({
       {error && (
         <Box>
           <TextIcon mt={3}>
-            <Icons.Warning ml={1} color="error.main" />
+            <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
             Encountered Error: {error.message}
           </TextIcon>
         </Box>
@@ -307,6 +326,7 @@ const generateCmd = (data: {
   isEnterprise: boolean;
   isCloud: boolean;
   automaticUpgradesEnabled: boolean;
+  roles: JoinRole[];
 }) => {
   let extraYAMLConfig = '';
 
@@ -325,8 +345,10 @@ const generateCmd = (data: {
     extraYAMLConfig += '        minAvailable: 1\n';
   }
 
+  const yamlRoles = data.roles.join(',').toLowerCase();
+
   return `cat << EOF > prod-cluster-values.yaml
-roles: kube
+roles: ${yamlRoles}
 authToken: ${data.tokenId}
 proxyAddr: ${data.proxyAddr}
 kubeClusterName: ${data.clusterName}
@@ -342,12 +364,14 @@ const InstallHelmChart = ({
   clusterName,
   joinToken,
   nextStep,
+  prevStep,
   updateAgentMeta,
 }: {
   namespace: string;
   clusterName: string;
   joinToken: JoinToken;
   nextStep(): void;
+  prevStep(): void;
   updateAgentMeta(a: AgentMeta): void;
 }) => {
   const ctx = useTeleport();
@@ -400,7 +424,7 @@ const InstallHelmChart = ({
             white-space: pre;
           `}
         >
-          <Icons.Restore fontSize={4} />
+          <Icons.Restore size="medium" mr={2} />
         </TextIcon>
         After running the command above, we'll automatically detect your new
         Kubernetes cluster.
@@ -427,6 +451,7 @@ const InstallHelmChart = ({
     isEnterprise: ctx.isEnterprise,
     isCloud: ctx.isCloud,
     automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
+    roles: ['Kube', 'App', 'Discovery'],
   });
 
   return (
@@ -446,15 +471,18 @@ const InstallHelmChart = ({
         <TextSelectCopyMulti lines={[{ text: command }]} />
       </CommandBox>
       {hint}
-      <ActionButtons onProceed={handleOnProceed} disableProceed={!result} />
+      <ActionButtons
+        onProceed={handleOnProceed}
+        disableProceed={!result}
+        onPrev={prevStep}
+      />
     </>
   );
 };
 
 const StyledBox = styled(Box)`
   max-width: 1000px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
-  border: 2px solid #2f3659;
 `;

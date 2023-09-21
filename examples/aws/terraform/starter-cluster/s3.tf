@@ -13,8 +13,17 @@ resource "aws_s3_bucket" "storage" {
 }
 
 resource "aws_s3_bucket_acl" "storage" {
-  bucket = aws_s3_bucket.storage.bucket
-  acl    = "private"
+  depends_on = [aws_s3_bucket_ownership_controls.storage]
+  bucket     = aws_s3_bucket.storage.bucket
+  acl        = "private"
+}
+
+resource "aws_s3_bucket_ownership_controls" "storage" {
+  bucket = aws_s3_bucket.storage.id
+
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
 }
 
 // For demo purposes, CMK is not needed

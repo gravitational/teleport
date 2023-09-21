@@ -35,7 +35,7 @@ func TestOpMsgSingleBody(t *testing.T) {
 	message := makeTestOpMsg(t)
 
 	// Read it back.
-	parsed, err := ReadMessage(bytes.NewReader(message.bytes))
+	parsed, err := ReadMessage(bytes.NewReader(message.bytes), DefaultMaxMessageSizeBytes)
 	require.NoError(t, err)
 	require.Equal(t, message, parsed)
 
@@ -98,7 +98,7 @@ func TestMalformedOpMsg(t *testing.T) {
 			require.NoError(t, err)
 
 			message := makeTestOpMsgWithBody(t, document)
-			parsed, err := ReadMessage(bytes.NewReader(message.bytes))
+			parsed, err := ReadMessage(bytes.NewReader(message.bytes), DefaultMaxMessageSizeBytes)
 			require.NoError(t, err)
 
 			_, err = parsed.GetDatabase()
@@ -130,7 +130,7 @@ func TestOpMsgDocumentSequence(t *testing.T) {
 	message.bytes = message.ToWire(0)
 
 	// Read it back.
-	parsed, err := ReadMessage(bytes.NewReader(message.bytes))
+	parsed, err := ReadMessage(bytes.NewReader(message.bytes), DefaultMaxMessageSizeBytes)
 	require.NoError(t, err)
 
 	// Make sure we got the same message back.
@@ -146,7 +146,7 @@ func TestOpReply(t *testing.T) {
 	message := makeTestOpReply(t)
 
 	// Read it back.
-	parsed, err := ReadMessage(bytes.NewReader(message.bytes))
+	parsed, err := ReadMessage(bytes.NewReader(message.bytes), DefaultMaxMessageSizeBytes)
 	require.NoError(t, err)
 	require.Equal(t, message, parsed)
 }
@@ -159,7 +159,7 @@ func TestOpQuery(t *testing.T) {
 	message := makeTestOpQuery(t)
 
 	// Read it back.
-	parsed, err := ReadMessage(bytes.NewReader(message.bytes))
+	parsed, err := ReadMessage(bytes.NewReader(message.bytes), DefaultMaxMessageSizeBytes)
 	require.NoError(t, err)
 	require.Equal(t, message, parsed)
 
@@ -182,7 +182,7 @@ func TestOpGetMore(t *testing.T) {
 	message := makeTestOpGetMore(t)
 
 	// Read it back.
-	parsed, err := ReadMessage(bytes.NewReader(message.bytes))
+	parsed, err := ReadMessage(bytes.NewReader(message.bytes), DefaultMaxMessageSizeBytes)
 	require.NoError(t, err)
 	require.Equal(t, message, parsed)
 
@@ -200,7 +200,7 @@ func TestOpInsert(t *testing.T) {
 	message := makeTestOpInsert(t)
 
 	// Read it back.
-	parsed, err := ReadMessage(bytes.NewReader(message.bytes))
+	parsed, err := ReadMessage(bytes.NewReader(message.bytes), DefaultMaxMessageSizeBytes)
 	require.NoError(t, err)
 	require.Equal(t, message, parsed)
 
@@ -218,7 +218,7 @@ func TestOpUpdate(t *testing.T) {
 	message := makeTestOpUpdate(t)
 
 	// Read it back.
-	parsed, err := ReadMessage(bytes.NewReader(message.bytes))
+	parsed, err := ReadMessage(bytes.NewReader(message.bytes), DefaultMaxMessageSizeBytes)
 	require.NoError(t, err)
 	require.Equal(t, message, parsed)
 
@@ -236,7 +236,7 @@ func TestOpDelete(t *testing.T) {
 	message := makeTestOpDelete(t)
 
 	// Read it back.
-	parsed, err := ReadMessage(bytes.NewReader(message.bytes))
+	parsed, err := ReadMessage(bytes.NewReader(message.bytes), DefaultMaxMessageSizeBytes)
 	require.NoError(t, err)
 	require.Equal(t, message, parsed)
 
@@ -254,7 +254,7 @@ func TestOpKillCursors(t *testing.T) {
 	message := makeTestOpKillCursors(t)
 
 	// Read it back.
-	parsed, err := ReadMessage(bytes.NewReader(message.bytes))
+	parsed, err := ReadMessage(bytes.NewReader(message.bytes), DefaultMaxMessageSizeBytes)
 	require.NoError(t, err)
 	require.Equal(t, message, parsed)
 }
@@ -305,7 +305,7 @@ func TestOpCompressed(t *testing.T) {
 			compressedMessage := makeTestOpCompressed(t, test.message)
 
 			// Read it back.
-			parsed, err := ReadMessage(bytes.NewReader(compressedMessage.bytes))
+			parsed, err := ReadMessage(bytes.NewReader(compressedMessage.bytes), DefaultMaxMessageSizeBytes)
 			require.NoError(t, err)
 			require.Equal(t, compressedMessage, parsed)
 
@@ -331,14 +331,16 @@ func TestInvalidPayloadSize(t *testing.T) {
 		},
 		{
 			name:        "exceeded payload size",
-			payloadSize: int32(2*defaultMaxMessageSizeBytes + 1024),
+			payloadSize: int32(2*DefaultMaxMessageSizeBytes + 1024),
 			errMsg:      "exceeded the maximum message size",
 		},
 	}
 
 	for _, tt := range tests {
+		payloadSize := tt.payloadSize
+		errMsg := tt.errMsg
 		t.Run(tt.name, func(t *testing.T) {
-			payloadSize := tt.payloadSize
+			t.Parallel()
 
 			src := [4]byte{}
 			src[0] = byte(payloadSize & 0xFF)
@@ -347,7 +349,7 @@ func TestInvalidPayloadSize(t *testing.T) {
 			src[3] = byte((payloadSize >> 24) & 0xFF)
 
 			buf := bytes.NewBuffer(src[:])
-			size := tt.payloadSize
+			size := payloadSize
 			if size < 0 {
 				size = 1024
 			}
@@ -355,10 +357,26 @@ func TestInvalidPayloadSize(t *testing.T) {
 			buf.Write(bytes.Repeat([]byte{0x1}, int(size)))
 			msg := bytes.NewReader(buf.Bytes())
 
-			_, err := ReadMessage(msg)
-			require.ErrorContains(t, err, tt.errMsg)
+			_, err := ReadMessage(msg, DefaultMaxMessageSizeBytes)
+			require.ErrorContains(t, err, errMsg)
 		})
 	}
+}
+
+func TestInvalidDecompressPayloadSize(t *testing.T) {
+	t.Parallel()
+
+	msgBytes := []byte{
+		0x1b, 0x0, 0x0, 0x0, 0x30, 0x30, 0x30, 0x30, 0x7f, 0x30, 0x30, 0x30, // size and id header
+		0xdc, 0x7, 0x0, 0x0, // compressed message op code
+		0x30, 0x30, 0x30, 0x30, // original op code
+		0x30, 0x30, 0x30, 0x30, // excessive large size for test
+		0x3, 0x30, 0x30, // fake data
+	}
+	msg := bytes.NewReader(msgBytes)
+
+	_, err := ReadMessage(msg, DefaultMaxMessageSizeBytes)
+	require.ErrorContains(t, err, "uncompressed size exceeded max")
 }
 
 func makeTestOpCompressed(t *testing.T, message Message) *MessageOpCompressed {

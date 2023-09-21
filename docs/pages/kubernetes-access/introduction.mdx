@@ -8,8 +8,8 @@ Teleport provides secure access to Kubernetes clusters:
 - Users can access Kubernetes clusters with Single Sign-On (SSO) providers like
   Okta and switch between clusters without logging in twice.
 - Operators can implement granular role-based access controls, including
-  limiting access to specific Kubernetes clusters or even specific pods within a
-  namespace.
+  limiting access to specific Kubernetes clusters or even specific resources within a
+  cluster.
 - Organizations can achieve compliance by recording `kubectl` sessions.
 
 Here is an example of using Teleport to access a Kubernetes cluster, execute
@@ -62,9 +62,6 @@ on your cloud:
 In some cases, you will want to register a Kubernetes cluster with Teleport
 manually when you create the cluster. There are a few ways to do this:
 
-- [Deploy the Teleport Kubernetes
-  Service](./register-clusters/register-via-deployment.mdx) on your cluster of
-  choice.
 - [Deploy the Teleport Kubernetes
   Service with IAM Joining](./register-clusters/iam-joining.mdx) on your cluster of
   choice.

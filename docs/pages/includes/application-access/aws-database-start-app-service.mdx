@@ -1,0 +1,64 @@
+### Generate a token
+
+A join token is required to authorize a Teleport Application Service instance
+to join the cluster. Generate a short-lived join token and save the output of
+the command:
+
+```code
+$ tctl tokens add \
+    --type=app \
+    --app-name=aws \
+    --app-uri=https://console.aws.amazon.com/console/home
+```
+
+On the host where you will run the Teleport Application Service, copy the token
+to a file called `/tmp/token`.
+
+<Admonition type="tip" title="non-standard AWS regions">
+Replace `https://console.aws.amazon.com` with
+`https://console.amazonaws-us-gov.com` for AWS GovCloud (US) regions or
+`https://console.amazonaws.cn` for AWS China regions.
+</Admonition>
+
+### Install and start Teleport
+
+Install Teleport on the host where you will run the Teleport Application
+Service. See our [Installation](../../installation.mdx) page for options
+besides Linux servers.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+Edit the Teleport configuration file (`/etc/teleport.yaml`) to include the
+following information, adjusting the value of `proxy_server` to specify the host
+and port of your Teleport Proxy Service:
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "teleport.example.com:443"
+auth_service:
+  enabled: off
+proxy_service:
+  enabled: off
+ssh_service:
+  enabled: off
+app_service:
+  enabled: true
+  apps:
+  - name: aws
+    uri: https://console.aws.amazon.com/home/home
+```
+
+(!docs/pages/includes/aws-credentials.mdx service="the Teleport Application Service"!)
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Application Service"!)
+
+<Admonition type="warning" title="non-standard AWS regions">
+For non-standard AWS regions such as AWS GovCloud (US) regions and AWS China
+regions, please set the corresponding region in the `AWS_REGION` environment
+variable or in the AWS credentials file so that the Application Service can use
+the correct STS endpoint.
+</Admonition>

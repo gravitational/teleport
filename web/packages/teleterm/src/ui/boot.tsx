@@ -47,8 +47,30 @@ async function boot(): Promise<void> {
   }
 }
 
+/**
+ * getElectronGlobals retrieves privileged APIs exposed through the contextBridge from preload.ts.
+ *
+ * It also immediately removes them from the window object so that if an attacker gets to execute
+ * arbitrary JS on the page, they don't get easy access to those privileged APIs.
+ */
 async function getElectronGlobals(): Promise<ElectronGlobals> {
-  return await window['electron'];
+  const globals = await window['electron'];
+  const globalsCopy = { ...globals };
+
+  // Technically, each value exposed through the contextBridge gets frozen. [1] Since we expose a
+  // promise returning an object however, we can delete properties from that object, effectively
+  // removing the APIs from the window object.
+  //
+  // We suspect that the semantics of this might change between Electron or Chromium updates.
+  // At the moment we're in the process of investigating how brittle this workaround is. [2]
+  //
+  // [1] https://www.electronjs.org/docs/latest/api/context-bridge#api
+  // [2] https://github.com/electron/electron/issues/38243
+  for (const property in globals) {
+    delete globals[property];
+  }
+
+  return globalsCopy;
 }
 
 function renderApp(content: React.ReactElement): void {

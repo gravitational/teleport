@@ -105,19 +105,19 @@ describe('design/Table SortIndicator', () => {
   test('sort indicator defaults to sort vertical (neither ASC or DESC)', () => {
     render(<SortIndicator />);
     expect(screen.getByTitle('sort items')).toHaveClass(
-      'icon-chevrons-expand-vertical'
+      'icon-chevronsvertical'
     );
   });
 
   test('sort indicator respects sortDir prop set to ASC', () => {
     render(<SortIndicator sortDir={'ASC'} />);
-    expect(screen.getByTitle('sort items asc')).toHaveClass('icon-chevron-up');
+    expect(screen.getByTitle('sort items asc')).toHaveClass('icon-chevronup');
   });
 
   test('sort indicator respects sortDir prop set to DESC', () => {
     render(<SortIndicator sortDir={'DESC'} />);
     expect(screen.getByTitle('sort items desc')).toHaveClass(
-      'icon-chevron-down'
+      'icon-chevrondown'
     );
   });
 

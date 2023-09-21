@@ -40,7 +40,7 @@ export function OfflineDocumentGateway(props: OfflineDocumentGatewayProps) {
 
   return (
     <Flex
-      maxWidth="590px"
+      maxWidth="680px"
       width="100%"
       flexDirection="column"
       mx="auto"
@@ -49,11 +49,12 @@ export function OfflineDocumentGateway(props: OfflineDocumentGatewayProps) {
     >
       <Text
         typography="h5"
-        color="text.primary"
+        color="text.main"
         mb={2}
         style={{ position: 'relative' }}
       >
         The database connection is {statusDescription}
+        {/* TODO(ravicious): Use doc.status instead of LinearProgress. */}
         {props.connectAttempt.status === 'processing' && <LinearProgress />}
       </Text>
       {props.connectAttempt.status === 'error' && (

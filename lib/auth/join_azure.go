@@ -27,9 +27,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/coreos/go-oidc"
+	"github.com/digitorus/pkcs7"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"go.mozilla.org/pkcs7"
 	"golang.org/x/exp/slices"
 	"gopkg.in/square/go-jose.v2/jwt"
 
@@ -268,7 +268,7 @@ func verifyVMIdentity(ctx context.Context, cfg *azureRegisterConfig, accessToken
 		// If the token is from a user-assigned managed identity, the resource ID is
 		// for the identity and we need to look the VM up by VM ID.
 	} else {
-		vm, err = vmClient.GetByVMID(ctx, resourceID.ResourceGroupName, vmID)
+		vm, err = vmClient.GetByVMID(ctx, types.Wildcard, vmID)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return nil, trace.AccessDenied("no VM found with matching VM ID")

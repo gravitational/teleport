@@ -19,10 +19,10 @@ package common
 import (
 	"net/http"
 
-	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 )
 
 // SetTeleportAPIErrorHeader saves the provided error in X-Teleport-API-Error header of response.
@@ -57,14 +57,13 @@ const (
 // ReservedHeaders is a list of headers injected by Teleport.
 var ReservedHeaders = append([]string{
 	teleport.AppJWTHeader,
-	teleport.AppCFHeader,
 	XForwardedSSL,
 	TeleportAPIErrorHeader,
 	TeleportAPIInfoHeader,
 	TeleportAWSAssumedRole,
 	TeleportAWSAssumedRoleAuthorization,
 },
-	forward.XHeaders...,
+	reverseproxy.XHeaders...,
 )
 
 // IsReservedHeader returns true if the provided header is one of headers

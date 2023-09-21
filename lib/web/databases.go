@@ -18,7 +18,10 @@ package web
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"net/http"
 
@@ -30,8 +33,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
+	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -46,8 +50,10 @@ type createDatabaseRequest struct {
 }
 
 type awsRDS struct {
-	AccountID  string `json:"accountId,omitempty"`
-	ResourceID string `json:"resourceId,omitempty"`
+	AccountID  string   `json:"accountId,omitempty"`
+	ResourceID string   `json:"resourceId,omitempty"`
+	Subnets    []string `json:"subnets,omitempty"`
+	VPCID      string   `json:"vpcId,omitempty"`
 }
 
 func (r *createDatabaseRequest) checkAndSetDefaults() error {
@@ -70,13 +76,19 @@ func (r *createDatabaseRequest) checkAndSetDefaults() error {
 		if r.AWSRDS.AccountID == "" {
 			return trace.BadParameter("missing aws rds field account id")
 		}
+		if len(r.AWSRDS.Subnets) == 0 {
+			return trace.BadParameter("missing aws rds field subnets")
+		}
+		if r.AWSRDS.VPCID == "" {
+			return trace.BadParameter("missing aws rds field vpc id")
+		}
 	}
 
 	return nil
 }
 
 // handleDatabaseCreate creates a database's metadata.
-func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	var req *createDatabaseRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -152,7 +164,7 @@ func (r *updateDatabaseRequest) checkAndSetDefaults() error {
 }
 
 // handleDatabaseUpdate updates the database
-func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("a database name is required")
@@ -241,7 +253,7 @@ type databaseIAMPolicyAWS struct {
 }
 
 // handleDatabaseGetIAMPolicy returns the required IAM policy for database.
-func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("missing database name")
@@ -278,6 +290,76 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 	default:
 		return nil, trace.BadParameter("IAM policy not supported for database type %q", database.GetType())
 	}
+}
+
+func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	tokenStr := p.ByName("token")
+	if tokenStr == "" {
+		return "", trace.BadParameter("invalid token")
+	}
+
+	dbAddress := r.URL.Query().Get("uri")
+	if dbAddress == "" {
+		return "", trace.BadParameter("invalid database address")
+	}
+
+	// verify that the token exists
+	_, err := h.GetProxyClient().GetToken(r.Context(), tokenStr)
+	if err != nil {
+		return "", trace.BadParameter("invalid token")
+	}
+
+	proxyServers, err := h.GetProxyClient().GetProxies()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if len(proxyServers) == 0 {
+		return "", trace.NotFound("no proxy servers found")
+	}
+
+	clusterName, err := h.GetProxyClient().GetDomainName(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certAuthority, err := h.GetProxyClient().GetCertAuthority(
+		r.Context(),
+		types.CertAuthID{Type: types.DatabaseCA, DomainName: clusterName},
+		false,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	caCRL, err := h.GetProxyClient().GenerateCertAuthorityCRL(r.Context(), types.DatabaseCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(certAuthority.GetActiveKeys().TLS) != 1 {
+		return nil, trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
+	}
+
+	keyPair := certAuthority.GetActiveKeys().TLS[0]
+	block, _ := pem.Decode(keyPair.Cert)
+	if block == nil {
+		return nil, trace.BadParameter("no PEM data in CA data")
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	w.WriteHeader(http.StatusOK)
+	err = scripts.DatabaseAccessSQLServerConfigureScript.Execute(w, scripts.DatabaseAccessSQLServerConfigureParams{
+		CACertPEM:       string(keyPair.Cert),
+		CACertSHA1:      fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
+		CACertBase64:    base64.StdEncoding.EncodeToString(createCertificateBlob(block.Bytes)),
+		CRLPEM:          string(encodeCRLPEM(caCRL)),
+		ProxyPublicAddr: proxyServers[0].GetPublicAddr(),
+		ProvisionToken:  tokenStr,
+		DBAddress:       dbAddress,
+	})
+
+	return nil, trace.Wrap(err)
 }
 
 // fetchDatabaseWithName fetch a database with provided database name.
@@ -321,6 +403,8 @@ func getNewDatabaseResource(req createDatabaseRequest) (*types.DatabaseV3, error
 			AccountID: req.AWSRDS.AccountID,
 			RDS: types.RDS{
 				ResourceID: req.AWSRDS.ResourceID,
+				Subnets:    req.AWSRDS.Subnets,
+				VPCID:      req.AWSRDS.VPCID,
 			},
 		}
 	}
@@ -337,4 +421,12 @@ func getNewDatabaseResource(req createDatabaseRequest) (*types.DatabaseV3, error
 	database.SetOrigin(types.OriginDynamic)
 
 	return database, nil
+}
+
+// encodeCRLPEM takes DER encoded CRL and encodes into PEM.
+func encodeCRLPEM(contents []byte) []byte {
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "X509 CRL",
+		Bytes: contents,
+	})
 }

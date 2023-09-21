@@ -16,7 +16,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import Icon, { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
+import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 import { Text, Flex } from 'design';
 
 export default function Pager({
@@ -44,10 +44,10 @@ export default function Pager({
           title="Previous Page"
           disabled={isPrevDisabled}
         >
-          <CircleArrowLeft fontSize="3" />
+          <CircleArrowLeft />
         </button>
         <button onClick={onNext} title="Next Page" disabled={isNextDisabled}>
-          <CircleArrowRight fontSize="3" />
+          <CircleArrowRight />
         </button>
       </StyledButtons>
     </Flex>
@@ -74,22 +74,23 @@ export const StyledButtons = styled(Flex)`
     border: none;
     background: #fff;
 
-    ${Icon} {
+    svg {
       opacity: 0.8;
-      font-size: 20px;
+      height: 20px;
+      width: 20px;
       transition: all 0.3s;
       color: #4b4b4b;
     }
 
     &:hover:not(:disabled) {
-      ${Icon} {
+      svg {
         opacity: 1;
         color: #000;
       }
     }
 
     &:disabled {
-      ${Icon} {
+      svg {
         opacity: 0.35;
       }
     }

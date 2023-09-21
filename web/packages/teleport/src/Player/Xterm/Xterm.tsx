@@ -26,14 +26,17 @@ import StyledXterm from 'teleport/Console/StyledXterm';
 export default function Xterm({ tty }: { tty: Tty }) {
   const refContainer = useRef<HTMLElement>();
   const theme = useTheme();
+  const terminalPlayer = useRef<TerminalPlayer>();
 
   useEffect(() => {
     const term = new TerminalPlayer(tty, {
       el: refContainer.current,
       fontFamily: theme.fonts.mono,
       fontSize: getPlatform().isMac ? 12 : 14,
+      theme: theme.colors.terminal,
     });
 
+    terminalPlayer.current = term;
     term.open();
     term.term.focus();
 
@@ -56,7 +59,13 @@ export default function Xterm({ tty }: { tty: Tty }) {
     }
 
     return cleanup;
+    // do not re-initialize xterm when theme changes, use specialized handlers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tty]);
+
+  useEffect(() => {
+    terminalPlayer.current?.updateTheme(theme.colors.terminal);
+  }, [theme]);
 
   return <StyledXterm ref={refContainer} />;
 }

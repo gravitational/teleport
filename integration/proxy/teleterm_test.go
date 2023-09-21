@@ -17,66 +17,104 @@ package proxy
 import (
 	"context"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"k8s.io/client-go/kubernetes"
 
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/integration/kube"
+	"github.com/gravitational/teleport/lib"
 	libclient "github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
+	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // testTeletermGatewaysCertRenewal is run from within TestALPNSNIProxyDatabaseAccess to amortize the
 // cost of setting up clusters in tests.
 func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack) {
-	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
-	require.NoError(t, err)
-
-	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-		Process:  pack.Root.Cluster.Process,
-		Username: pack.Root.User.GetName(),
-	})
-	require.NoError(t, err)
-
 	t.Run("root cluster", func(t *testing.T) {
-		databaseURI := uri.NewClusterURI(rootClusterName).
+		profileName := mustGetProfileName(t, pack.Root.Cluster.Web)
+		databaseURI := uri.NewClusterURI(profileName).
 			AppendDB(pack.Root.MysqlService.Name)
 
-		testGatewayCertRenewal(t, pack, creds, databaseURI)
+		testDBGatewayCertRenewal(t, pack, "", databaseURI)
 	})
 	t.Run("leaf cluster", func(t *testing.T) {
+		profileName := mustGetProfileName(t, pack.Root.Cluster.Web)
 		leafClusterName := pack.Leaf.Cluster.Secrets.SiteName
-		databaseURI := uri.NewClusterURI(rootClusterName).
+		databaseURI := uri.NewClusterURI(profileName).
 			AppendLeafCluster(leafClusterName).
 			AppendDB(pack.Leaf.MysqlService.Name)
 
-		testGatewayCertRenewal(t, pack, creds, databaseURI)
+		testDBGatewayCertRenewal(t, pack, "", databaseURI)
+	})
+	t.Run("ALPN connection upgrade", func(t *testing.T) {
+		// Make a mock ALB which points to the Teleport Proxy Service. Then
+		// ALPN local proxies will point to this ALB instead.
+		albProxy := helpers.MustStartMockALBProxy(t, pack.Root.Cluster.Web)
+
+		// Note that profile name is taken from tc.WebProxyAddr. Use
+		// albProxy.Addr() as profile name in case it's different from
+		// pack.Root.Cluster.Web (e.g. 127.0.0.1 vs localhost).
+		profileName := mustGetProfileName(t, albProxy.Addr().String())
+		databaseURI := uri.NewClusterURI(profileName).
+			AppendDB(pack.Root.MysqlService.Name)
+
+		testDBGatewayCertRenewal(t, pack, albProxy.Addr().String(), databaseURI)
 	})
 }
 
-func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds, databaseURI uri.ResourceURI) {
-	tc, err := pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
-		Login:   pack.Root.User.GetName(),
-		Cluster: pack.Root.Cluster.Secrets.SiteName,
-	}, *creds)
+func testDBGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr string, databaseURI uri.ResourceURI) {
+	t.Helper()
+
+	testGatewayCertRenewal(
+		t,
+		pack.Root.Cluster,
+		pack.Root.User.GetName(),
+		albAddr,
+		daemon.CreateGatewayParams{
+			TargetURI:  databaseURI.String(),
+			TargetUser: pack.Root.User.GetName(),
+		},
+		mustConnectDatabaseGateway,
+	)
+}
+
+type testGatewayConnectionFunc func(*testing.T, *daemon.Service, gateway.Gateway)
+
+func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, albAddr string, params daemon.CreateGatewayParams, testConnection testGatewayConnectionFunc) {
+	t.Helper()
+
+	tc, err := inst.NewClient(helpers.ClientConfig{
+		Login:   username,
+		Cluster: inst.Secrets.SiteName,
+		ALBAddr: albAddr,
+	})
 	require.NoError(t, err)
-	// The profile on disk created by NewClientWithCreds doesn't have WebProxyAddr set.
-	tc.WebProxyAddr = pack.Root.Cluster.Web
-	tc.SaveProfile(false /* makeCurrent */)
+
+	// Save the profile yaml file to disk as NewClientWithCreds doesn't do that by itself.
+	err = tc.SaveProfile(false /* makeCurrent */)
+	require.NoError(t, err)
 
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
-
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
@@ -86,105 +124,115 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *h
 	})
 	require.NoError(t, err)
 
-	tshdEventsClient := &mockTSHDEventsClient{
-		tc:         tc,
-		pack:       pack,
-		callCounts: make(map[string]int),
-	}
-
-	gatewayCertReissuer := &daemon.GatewayCertReissuer{
-		Log:              logrus.NewEntry(logrus.StandardLogger()).WithField(trace.Component, "reissuer"),
-		TSHDEventsClient: tshdEventsClient,
-	}
-
 	daemonService, err := daemon.New(daemon.Config{
+		Clock:   fakeClock,
 		Storage: storage,
 		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
 			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 		},
-		GatewayCertReissuer: gatewayCertReissuer,
+		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		daemonService.Stop()
 	})
 
-	// Here the test setup ends and actual test code starts.
+	// Create a mock tshd events service server and have the daemon connect to it,
+	// like it would during normal initialization of the app.
+	tshdEventsService, tshEventsServerAddr := newMockTSHDEventsServiceServer(t, tc, inst, username)
+	err = daemonService.UpdateAndDialTshdEventsServerAddress(tshEventsServerAddr)
+	require.NoError(t, err)
 
-	gateway, err := daemonService.CreateGateway(context.Background(), daemon.CreateGatewayParams{
-		TargetURI:  databaseURI.String(),
-		TargetUser: "root",
-	})
+	// Here the test setup ends and actual test code starts.
+	gateway, err := daemonService.CreateGateway(context.Background(), params)
 	require.NoError(t, err, trace.DebugReport(err))
 
-	// Open a new connection.
-	client, err := mysql.MakeTestClientWithoutTLS(
-		net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort()),
-		gateway.RouteToDatabase())
-	require.NoError(t, err)
-
-	// Execute a query.
-	result, err := client.Execute("select 1")
-	require.NoError(t, err)
-	require.Equal(t, mysql.TestQueryResponse, result)
-
-	// Disconnect.
-	require.NoError(t, client.Close())
+	testConnection(t, daemonService, gateway)
 
 	// Advance the fake clock to simulate the db cert expiry inside the middleware.
 	fakeClock.Advance(time.Hour * 48)
+
 	// Overwrite user certs with expired ones to simulate the user cert expiry.
 	expiredCreds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-		Process:  pack.Root.Cluster.Process,
-		Username: pack.Root.User.GetName(),
+		Process:  inst.Process,
+		Username: username,
 		TTL:      -time.Hour,
 	})
 	require.NoError(t, err)
-	err = helpers.SetupUserCreds(tc, pack.Root.Cluster.Config.Proxy.SSHAddr.Addr, *expiredCreds)
+	err = helpers.SetupUserCreds(tc, inst.Config.Proxy.SSHAddr.Addr, *expiredCreds)
 	require.NoError(t, err)
 
 	// Open a new connection.
-	// This should trigger the relogin flow. The middleware will notice that the db cert has expired
-	// and then it will attempt to reissue the db cert using an expired user cert.
+	// This should trigger the relogin flow. The middleware will notice that the cert has expired
+	// and then it will attempt to reissue the user cert using an expired user cert.
 	// The mocked tshdEventsClient will issue a valid user cert, save it to disk, and the middleware
 	// will let the connection through.
-	client, err = mysql.MakeTestClientWithoutTLS(
-		net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort()),
-		gateway.RouteToDatabase())
-	require.NoError(t, err)
+	testConnection(t, daemonService, gateway)
 
-	// Execute a query.
-	result, err = client.Execute("select 1")
-	require.NoError(t, err)
-	require.Equal(t, mysql.TestQueryResponse, result)
-
-	// Disconnect.
-	require.NoError(t, client.Close())
-
-	require.Equal(t, 1, tshdEventsClient.callCounts["Relogin"],
+	require.Equal(t, 1, tshdEventsService.callCounts["Relogin"],
 		"Unexpected number of calls to TSHDEventsClient.Relogin")
-	require.Equal(t, 0, tshdEventsClient.callCounts["SendNotification"],
+	require.Equal(t, 0, tshdEventsService.callCounts["SendNotification"],
 		"Unexpected number of calls to TSHDEventsClient.SendNotification")
 }
 
-type mockTSHDEventsClient struct {
+type mockTSHDEventsService struct {
+	*api.UnimplementedTshdEventsServiceServer
+
 	tc         *libclient.TeleportClient
-	pack       *dbhelpers.DatabasePack
+	inst       *helpers.TeleInstance
+	username   string
 	callCounts map[string]int
+}
+
+func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, inst *helpers.TeleInstance, username string) (service *mockTSHDEventsService, addr string) {
+	t.Helper()
+
+	tshdEventsService := &mockTSHDEventsService{
+		tc:         tc,
+		inst:       inst,
+		username:   username,
+		callCounts: make(map[string]int),
+	}
+
+	ls, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	grpcServer := grpc.NewServer()
+	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
+
+	serveErr := make(chan error)
+	go func() {
+		serveErr <- grpcServer.Serve(ls)
+	}()
+
+	t.Cleanup(func() {
+		grpcServer.GracefulStop()
+
+		// For test cases that did not send any grpc calls, test may finish
+		// before grpcServer.Serve is called and grpcServer.Serve will return
+		// grpc.ErrServerStopped.
+		err := <-serveErr
+		if err != grpc.ErrServerStopped {
+			assert.NoError(t, err)
+		}
+	})
+
+	return tshdEventsService, ls.Addr().String()
 }
 
 // Relogin simulates the act of the user logging in again in the Electron app by replacing the user
 // cert on disk with a valid one.
-func (c *mockTSHDEventsClient) Relogin(context.Context, *api.ReloginRequest, ...grpc.CallOption) (*api.ReloginResponse, error) {
+func (c *mockTSHDEventsService) Relogin(context.Context, *api.ReloginRequest) (*api.ReloginResponse, error) {
 	c.callCounts["Relogin"]++
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-		Process:  c.pack.Root.Cluster.Process,
-		Username: c.pack.Root.User.GetName(),
+		Process:  c.inst.Process,
+		Username: c.username,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = helpers.SetupUserCreds(c.tc, c.pack.Root.Cluster.Config.Proxy.SSHAddr.Addr, *creds)
+	err = helpers.SetupUserCreds(c.tc, c.inst.Config.Proxy.SSHAddr.Addr, *creds)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -192,7 +240,138 @@ func (c *mockTSHDEventsClient) Relogin(context.Context, *api.ReloginRequest, ...
 	return &api.ReloginResponse{}, nil
 }
 
-func (c *mockTSHDEventsClient) SendNotification(context.Context, *api.SendNotificationRequest, ...grpc.CallOption) (*api.SendNotificationResponse, error) {
+func (c *mockTSHDEventsService) SendNotification(context.Context, *api.SendNotificationRequest) (*api.SendNotificationResponse, error) {
 	c.callCounts["SendNotification"]++
 	return &api.SendNotificationResponse{}, nil
+}
+
+// TestTeletermKubeGateway tests making kube API calls against Teleterm kube
+// gateway and reissuing certs.
+//
+// Note that this test does NOT reuse existing kube test setups as IP Pinning
+// is enabled in those tests. User certs with pinned IPs are injected during
+// those tests, which is not feasible for Teleterm daemon flow.
+func TestTeletermKubeGateway(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	const (
+		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
+		k8User     = "alice@example.com"
+		k8RoleName = "kubemaster"
+	)
+
+	kubeAPIMockSvr := startKubeAPIMock(t)
+	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvr.URL, localK8SNI))
+
+	username := helpers.MustGetCurrentUser(t).Username
+	kubeRoleSpec := types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:           []string{username},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubeGroups:       []string{kube.TestImpersonationGroup},
+			KubeUsers:        []string{k8User},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+				},
+			},
+		},
+	}
+	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
+	require.NoError(t, err)
+	suite := newSuite(t,
+		withRootClusterConfig(rootClusterStandardConfig(t), func(config *servicecfg.Config) {
+			config.Version = defaults.TeleportConfigVersionV2
+			config.Proxy.Kube.Enabled = true
+			config.Kube.Enabled = true
+			config.Kube.KubeconfigPath = kubeConfigPath
+			config.Kube.ListenAddr = utils.MustParseAddr(
+				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
+		}),
+		withLeafClusterConfig(leafClusterStandardConfig(t), func(config *servicecfg.Config) {
+			config.Version = defaults.TeleportConfigVersionV2
+			config.Proxy.Kube.Enabled = true
+			config.Kube.Enabled = true
+			config.Kube.KubeconfigPath = kubeConfigPath
+			config.Kube.ListenAddr = utils.MustParseAddr(
+				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
+		}),
+		withRootClusterRoles(kubeRole),
+		withLeafClusterRoles(kubeRole),
+		withRootAndLeafTrustedClusterReset(),
+		withTrustedCluster(),
+	)
+
+	t.Run("root", func(t *testing.T) {
+		profileName := mustGetProfileName(t, suite.root.Web)
+		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
+		testKubeGatewayCertRenewal(t, suite, "", kubeURI)
+	})
+	t.Run("leaf", func(t *testing.T) {
+		profileName := mustGetProfileName(t, suite.root.Web)
+		kubeURI := uri.NewClusterURI(profileName).AppendLeafCluster(suite.leaf.Secrets.SiteName).AppendKube(kubeClusterName)
+		testKubeGatewayCertRenewal(t, suite, "", kubeURI)
+	})
+	t.Run("ALPN connection upgrade", func(t *testing.T) {
+		// Make a mock ALB which points to the Teleport Proxy Service. Then
+		// ALPN local proxies will point to this ALB instead.
+		albProxy := helpers.MustStartMockALBProxy(t, suite.root.Web)
+
+		// Note that profile name is taken from tc.WebProxyAddr. Use
+		// albProxy.Addr() as profile name in case it's different from
+		// suite.root.Web (e.g. 127.0.0.1 vs localhost).
+		profileName := mustGetProfileName(t, albProxy.Addr().String())
+
+		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
+		testKubeGatewayCertRenewal(t, suite, albProxy.Addr().String(), kubeURI)
+	})
+}
+
+func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kubeURI uri.ResourceURI) {
+	t.Helper()
+
+	var client *kubernetes.Clientset
+	var clientOnce sync.Once
+
+	kubeCluster := kubeURI.GetKubeName()
+	teleportCluster := suite.root.Secrets.SiteName
+	if kubeURI.GetLeafClusterName() != "" {
+		teleportCluster = kubeURI.GetLeafClusterName()
+	}
+
+	testKubeConnection := func(t *testing.T, daemonService *daemon.Service, gw gateway.Gateway) {
+		t.Helper()
+
+		clientOnce.Do(func() {
+			kubeGateway, err := gateway.AsKube(gw)
+			require.NoError(t, err)
+
+			kubeconfigPath := kubeGateway.KubeconfigPath()
+			checkKubeconfigPathInCommandEnv(t, daemonService, gw, kubeconfigPath)
+
+			client = kubeClientForLocalProxy(t, kubeconfigPath, teleportCluster, kubeCluster)
+		})
+
+		mustGetKubePod(t, client)
+	}
+
+	testGatewayCertRenewal(
+		t,
+		suite.root,
+		suite.username,
+		albAddr,
+		daemon.CreateGatewayParams{
+			TargetURI: kubeURI.String(),
+		},
+		testKubeConnection,
+	)
+}
+
+func checkKubeconfigPathInCommandEnv(t *testing.T, daemonService *daemon.Service, gw gateway.Gateway, wantKubeconfigPath string) {
+	t.Helper()
+
+	cmd, err := daemonService.GetGatewayCLICommand(gw)
+	require.NoError(t, err)
+	require.Equal(t, cmd.Env, []string{"KUBECONFIG=" + wantKubeconfigPath})
 }

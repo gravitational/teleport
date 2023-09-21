@@ -48,7 +48,7 @@ func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferReq
 		return trace.BadParameter("server URI does not include server UUID")
 	}
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		err := c.clusterClient.TransferFiles(ctx, request.GetLogin(), serverUUID+":0", config)
 		return trace.Wrap(err)
 	})

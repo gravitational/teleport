@@ -186,7 +186,7 @@ func New(config *servicecfg.BPFConfig, restrictedSession *servicecfg.RestrictedS
 		"disk=%v, network=%v), restricted session (bufferSize=%v) "+
 		"and cgroup mount path: %v. Took %v.",
 		*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize,
-		restrictedSession.EventsBufferSize,
+		*restrictedSession.EventsBufferSize,
 		s.CgroupPath, time.Since(start))
 
 	go s.processNetworkEvents()
@@ -199,9 +199,12 @@ func New(config *servicecfg.BPFConfig, restrictedSession *servicecfg.RestrictedS
 }
 
 // Close will stop any running BPF programs. Note this is only for a graceful
-// shutdown, from the man page for BPF: "Generally, eBPF programs are loaded
-// by the user process and automatically unloaded when the process exits."
-func (s *Service) Close() error {
+// shutdown, from the man page for BPF: "Generally, eBPF programs are loaded by
+// the user process and automatically unloaded when the process exits". The
+// restarting parameter indicates that Teleport is shutting down because of a
+// restart, and thus we should skip any deinitialization that would interfere
+// with the new Teleport instance.
+func (s *Service) Close(restarting bool) error {
 	// Unload the BPF programs.
 	s.exec.close()
 	s.open.close()
@@ -209,8 +212,10 @@ func (s *Service) Close() error {
 		s.conn.close()
 	}
 
-	// Close cgroup service.
-	if err := s.cgroup.Close(); err != nil {
+	// Close cgroup service. We should not unmount the cgroup filesystem if
+	// we're restarting.
+	skipCgroupUnmount := restarting
+	if err := s.cgroup.Close(skipCgroupUnmount); err != nil {
 		log.WithError(err).Warn("Failed to close cgroup")
 	}
 
@@ -490,16 +495,8 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		return
 	}
 
-	// Source.
-	src := make([]byte, 4)
-	binary.LittleEndian.PutUint32(src, event.SrcAddr)
-	srcAddr := net.IP(src)
-
-	// Destination.
-	dst := make([]byte, 4)
-	binary.LittleEndian.PutUint32(dst, event.DstAddr)
-	dstAddr := net.IP(dst)
-
+	srcAddr := ipv4HostToIP(event.SrcAddr)
+	dstAddr := ipv4HostToIP(event.DstAddr)
 	sessionNetworkEvent := &apievents.SessionNetwork{
 		Metadata: apievents.Metadata{
 			Type: events.SessionNetworkEvent,
@@ -554,22 +551,8 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		return
 	}
 
-	// Source.
-	src := make([]byte, 16)
-	binary.LittleEndian.PutUint32(src[0:], event.SrcAddr[0])
-	binary.LittleEndian.PutUint32(src[4:], event.SrcAddr[1])
-	binary.LittleEndian.PutUint32(src[8:], event.SrcAddr[2])
-	binary.LittleEndian.PutUint32(src[12:], event.SrcAddr[3])
-	srcAddr := net.IP(src)
-
-	// Destination.
-	dst := make([]byte, 16)
-	binary.LittleEndian.PutUint32(dst[0:], event.DstAddr[0])
-	binary.LittleEndian.PutUint32(dst[4:], event.DstAddr[1])
-	binary.LittleEndian.PutUint32(dst[8:], event.DstAddr[2])
-	binary.LittleEndian.PutUint32(dst[12:], event.DstAddr[3])
-	dstAddr := net.IP(dst)
-
+	srcAddr := ipv6HostToIP(event.SrcAddr)
+	dstAddr := ipv6HostToIP(event.DstAddr)
 	sessionNetworkEvent := &apievents.SessionNetwork{
 		Metadata: apievents.Metadata{
 			Type: events.SessionNetworkEvent,
@@ -600,6 +583,21 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit network event.")
 	}
+}
+
+func ipv4HostToIP(addr uint32) net.IP {
+	val := make([]byte, 4)
+	binary.LittleEndian.PutUint32(val, addr)
+	return net.IP(val)
+}
+
+func ipv6HostToIP(addr [4]uint32) net.IP {
+	val := make([]byte, 16)
+	binary.LittleEndian.PutUint32(val[0:], addr[0])
+	binary.LittleEndian.PutUint32(val[4:], addr[1])
+	binary.LittleEndian.PutUint32(val[8:], addr[2])
+	binary.LittleEndian.PutUint32(val[12:], addr[3])
+	return net.IP(val)
 }
 
 // unmarshalEvent will unmarshal the perf event.

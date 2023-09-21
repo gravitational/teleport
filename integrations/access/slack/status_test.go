@@ -17,45 +17,12 @@ limitations under the License.
 package slack
 
 import (
-	"fmt"
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 )
-
-func TestStatusFromStatusCode(t *testing.T) {
-	testCases := []struct {
-		httpCode int
-		want     types.PluginStatusCode
-	}{
-		{
-			httpCode: http.StatusOK,
-			want:     types.PluginStatusCode_RUNNING,
-		},
-		{
-			httpCode: http.StatusNoContent,
-			want:     types.PluginStatusCode_RUNNING,
-		},
-
-		{
-			httpCode: http.StatusUnauthorized,
-			want:     types.PluginStatusCode_UNAUTHORIZED,
-		},
-		{
-			httpCode: http.StatusInternalServerError,
-			want:     types.PluginStatusCode_OTHER_ERROR,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("%d", tc.httpCode), func(t *testing.T) {
-			require.Equal(t, tc.want, statusFromStatusCode(tc.httpCode).GetCode())
-		})
-	}
-}
 
 func TestStatusFromResponse(t *testing.T) {
 	testCases := []struct {

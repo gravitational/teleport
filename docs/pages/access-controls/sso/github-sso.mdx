@@ -10,10 +10,17 @@ Teleport.
 
 ## Prerequisites
 
-- A GitHub organization with at least one team. <ScopedBlock scope="oss">This organization must not have external SSO set up, or Teleport
-will refuse to create the GitHub authentication connector.</ScopedBlock><ScopedBlock scope={["enterprise", "cloud"]}>This organization can be hosted
-from either GitHub Cloud or GitHub Enterprise Server.</ScopedBlock>
-- Teleport role with access to maintaining `github` resources for using `tctl` from the Desktop. This is available in the default `editor` role.
+- A GitHub organization with at least one team. 
+
+  In Teleport Community Edition and Teleport Team, this organization must not
+  have external SSO set up, or Teleport will refuse to create the GitHub
+  authentication connector.
+
+  In Teleport Enterprise and Enterprise Cloud, organization can be hosted from
+  either GitHub Cloud or GitHub Enterprise Server.
+
+- Teleport role with access to maintaining `github` resources for using `tctl`
+  from the Desktop. This is available in the default `editor` role.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
@@ -28,90 +35,212 @@ App's "Authentication callback URL" is the following:
 https://PROXY_ADDRESS/v1/webapi/github/
 ```
 
-`PROXY_ADDRESS` must be <ScopedBlock scope={["oss", "enterprise"]}>the public
-address of the Teleport Proxy Service</ScopedBlock><ScopedBlock
-scope="cloud">your Teleport Cloud tenant address</ScopedBlock>.
+Replace `PROXY_ADDRESS` with be the public address of the Teleport Proxy Service
+or your Teleport Cloud workspace URL (e.g., `example.teleport.sh`).
 
-Instructions for creating a GitHub OAuth app are available here:
+The app must have the `read:org` scope in order to be able to read org and team
+membership details.
 
-[Creating an OAuth App](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
+Instructions for creating a GitHub OAuth app are available in [GitHub's
+documentation](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
+
+Create a client secret to use along with the client ID in the next step:
+
+![A GitHub Oauth App, highlighting Client ID and secret](../../../img/sso/github-app-vars.png)
 
 ## Step 2/3. Create a GitHub authentication connector
 
-Define a GitHub authentication connector by creating a file called `github.yaml`
-with the following content:
+In this section, you will define a GitHub authentication connector using `tctl`.
+
+On your workstation, create a file called `client-secret.txt` consisting only of
+your client secret.
+
+Update this example command with:
+
+- Your OAuth app's client ID and client secret created during the previous step.
+- The roles you want to map from your GitHub organization to Teleport roles.
+  Roles are defined in the **Repository roles** section of your organization's
+  settings.
+
+See [tctl sso configure github](../../reference/cli/tctl.mdx#tctl-sso-configure-github)
+for a full reference of flags for this command:
+
+```code
+$ tctl sso configure github \
+--id=<Var name="GITHUB-CLIENT-ID"/> \
+--secret=$(cat client-secret.txt) \
+--teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
+> github.yaml
+```
+<Admonition type="tip">
+  GitHub organizations and teams should be referred to by their slug, not display name.
+  To create the slug, GitHub replaces special characters in the name string, changes all words to lowercase,
+  and replaces spaces with a `-` separator. For example, `My TEam Näme` would become `my-team-name`.
+  You can confirm the slug in GitHub Web application URLs or via the GitHub API.
+  Example: navigate to the team `My Team` in the GitHub web application.
+  The URL `https://github.com/orgs/org-name/teams/my-team`
+  shows the slug is `my-team`.
+</Admonition>
+
+The contents of `github.yaml` should resemble the following:
 
 <Tabs>
-<TabItem label="Open Source" scope="oss">
-
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```yaml
 kind: github
-version: v3
 metadata:
-  # Connector name that will be used with `tsh --auth=github login`
   name: github
 spec:
-  # Client ID of your GitHub OAuth App
+  api_endpoint_url: https://api.github.com
   client_id: <client-id>
-  # Client secret of your GitHub OAuth App
   client_secret: <client-secret>
-  # Connector display name that will be shown on the Web UI login screen
   display: GitHub
-  # Callback URL that will be called after successful authentication
+  endpoint_url: https://github.com
   redirect_url: https://<proxy-address>/v1/webapi/github/callback
-  # Mapping of org/team memberships onto allowed roles
+  teams_to_logins: null
   teams_to_roles:
-    - organization: octocats # GitHub organization name
-      team: admins # GitHub team name within that organization
-      # Maps octocats/admins to the "access" Teleport role
+    - organization: ORG-NAME
       roles:
         - access
+        - editor
+      team: github-team
+version: v3
 ```
-
 </TabItem>
-<TabItem label="Enterprise / Cloud" scope={["enterprise", "cloud"]}>
 
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```yaml
 kind: github
-version: v3
 metadata:
-  # Connector name that will be used with `tsh --auth=github login`
   name: github
 spec:
-  # Client ID of your GitHub OAuth App
+  api_endpoint_url: ""
   client_id: <client-id>
-  # Client secret of your GitHub OAuth App
   client_secret: <client-secret>
-  # Connector display name that will be shown on the Web UI login screen
   display: GitHub
-  # URL of your GitHub Enterprise Server instance (if applicable)
-  endpoint_url: https://<github-enterprise-server-address>
-  # Callback URL that will be called after successful authentication
+  endpoint_url: ""
   redirect_url: https://<proxy-address>/v1/webapi/github/callback
-  # Mapping of org/team memberships onto allowed roles
+  teams_to_logins: null
   teams_to_roles:
-    - organization: octocats # GitHub organization name
-      team: admins # GitHub team name within that organization
-      # Maps octocats/admins to the "access" Teleport role
+    - organization: org-name
       roles:
         - access
+        - editor
+        - reviewer
+      team: github-team
+version: v3
 ```
-
 </TabItem>
+
 </Tabs>
 
-The values of `client_id`, `client_secret`, and `redirect_url` come from the
-GitHub OAuth App you created earlier.
+<Details title="Mapping multiple roles">
+You can add multiple instances of the `--teams-to-roles` flag or edit the connector
+file to define multiple mappings. For example:
 
-Teleport will request only the `read:org` OAuth scope. Read more about OAuth scopes in GitHub's documentation:
+```code
+$  tctl sso configure github \
+--id=<Var name="GITHUB-CLIENT-ID"/> \
+--secret=$(cat client-secret.txt) \
+--teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
+--teams-to-roles="org-name,administrators,admins \
+--teams-to-roles="different-org,developers,dev \
+> github.yaml
+```
 
-[GitHub OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/)
+```yaml
+spec.
+  teams_to_roles:
+    - organization: org-name
+      roles:
+        - access
+        - editor
+      team: github-team
+    - organization: org-name
+      roles:
+        - admins
+      team: administrators
+    - organization: different-org
+      roles:
+        - devs
+      team: developers
+```
+
+</Details>
+
+<Details title="Self-hosting GitHub Enterprise?" scope={["enterprise", "cloud"]} opened>
+
+For self-hosted GitHub Enterprise servers, you can specify the server
+instance endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters:
+
+```code
+$ tctl sso configure github \
+--id=<Var name="GITHUB-CLIENT-ID"/> \
+--secret=$(cat client-secret.txt) \
+--teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
+--endpoint-url=https://<Var name="github-enterprise-server-address"/>
+--api-endpoint-url=https://<Var name="api-github-enterprise-server-address"/>
+> github.yaml
+```
+
+```yaml
+...
+spec:
+  ...
+  api_endpoint_url: https://<api-github-enterprise-server-address>
+  endpoint_url: https://<github-enterprise-server-address>
+  ...
+```
+
+</Details>
+
+You can test the connector configuration before applying it to your cluster.
+This is strongly encouraged to avoid interruption to active clusters:
+
+```code
+$ cat github.yaml | tctl sso test
+If browser window does not open automatically, open it by clicking on the link:
+ http://127.0.0.1:52690/35714f6b-...
+Success! Logged in as: alice
+--------------------------------------------------------------------------------
+Authentication details:
+   roles:
+   - access
+   - editor
+   traits:
+     github_teams:
+     - admins
+     kubernetes_groups: null
+     kubernetes_users: null
+     logins:
+     - alice
+   username: alice
+--------------------------------------------------------------------------------
+[GitHub] Received claims:
+organization_to_teams:
+  Octocats:
+  - admins
+teams:
+- admins
+username: alice
+
+--------------------------------------------------------------------------------
+[GitHub] Connector team to roles mapping:
+- organization: Octocats
+  roles:
+  - access
+  - editor
+  team: admins
+
+--------------------------------------------------------------------------------
+For more details repeat the command with --debug flag.
+```
 
 Finally, create the connector using `tctl`:
 
 ```code
-$ tctl create github.yaml
-# authentication connector "github" has been created
+$ tctl create -f github.yaml
+authentication connector "github" has been created
 ```
 
 <Admonition type="tip">
@@ -136,18 +265,122 @@ Here is an example role configuration snippet using the trait variable:
       '*': '*'
 ```
 
-## Step 3/3. Configure authentication preference
+## Step 3/4. Log in to Teleport using GitHub
 
-Configure the Teleport Auth Service to enable the GitHub authentication
-connector.
+You can now log in with Teleport using GitHub SSO. Run the following to log out
+of Teleport and log in again using GitHub SSO.
 
-Obtain your existing `cluster_auth_preference` resource:
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
-$ tctl get cap > cap.yaml
+$ tsh logout
+# Logged out all users from all proxies.
+$ tsh login --proxy=tele.example.com --auth=github
+If browser window does not open automatically, open it by clicking on the link:
+ http://127.0.0.1:56334/6bf976e6-a4be-4898-94eb-8a7b01af2158
 ```
 
-If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+```code
+$ tsh logout
+# Logged out all users from all proxies.
+$ tsh login --proxy=mytenant.teleport.sh --auth=github
+If browser window does not open automatically, open it by clicking on the link:
+ http://127.0.0.1:56334/6bf976e6-a4be-4898-94eb-8a7b01af2158
+```
+
+</TabItem>
+
+</Tabs>
+
+You can also log to the web UI using GitHub by clicking **Other sign-in options** at the login screen.
+
+When you sign in for the first time, you will see a prompt to authorize your
+GitHub OAuth app:
+
+![GitHub SSO authorization view](../../../img/github-sso-auth-screen.jpg)
+
+Teleport will request only the `read:org` OAuth scope. Read more about OAuth scopes in GitHub's documentation:
+[GitHub OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/)
+
+After logging in successfully, you will see the following:
+
+![Login success view](../../../img/login-success.png)
+
+You will receive the details of your user session within the CLI:
+
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
+
+```code
+> Profile URL:        https://tele.example.com:443
+  Logged in as:       jeff
+  Cluster:            tele.example.com
+  Roles:              access
+  Logins:             jeff, ubuntu, debian
+  Kubernetes:         enabled
+  Kubernetes users:   dev
+  Kubernetes groups:  developer
+  Valid until:        2023-03-08 17:13:50 -0600 CST [valid for 7h51m0s]
+  Extensions:         permit-port-forwarding, permit-pty, private-key-policy
+```
+
+</TabItem>
+
+
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
+
+```code
+> Profile URL:        https://tele.example.com:443
+  Logged in as:       jeff
+  Cluster:            tele.example.com
+  Roles:              access, requester
+  Logins:             jeff, ubuntu, debian
+  Kubernetes:         enabled
+  Kubernetes users:   dev
+  Kubernetes groups:  developer
+  Valid until:        2023-03-08 17:13:50 -0600 CST [valid for 7h51m0s]
+  Extensions:         permit-port-forwarding, permit-pty, private-key-policy
+```
+
+</TabItem>
+
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+```code
+> Profile URL:        https://mytenant.teleport.sh:443
+  Logged in as:       jeff
+  Cluster:            mytenant.teleport.sh
+  Roles:              access, requester
+  Logins:             jeff, ubuntu, debian
+  Kubernetes:         enabled
+  Kubernetes users:   dev
+  Kubernetes groups:  developer
+  Valid until:        2023-03-08 17:13:50 -0600 CST [valid for 7h51m0s]
+  Extensions:         permit-port-forwarding, permit-pty, private-key-policy
+
+```
+
+</TabItem>
+
+</Tabs>
+
+## Step 4/4. Configure authentication preference
+
+In the previous step we signed in to Teleport using GitHub credentials by
+specifying GitHub as our auth type. By editing the `cluster_auth_preference`
+resource we can make it the default auth type.
+
+Edit the existing `cluster_auth_preference` resource using `tctl`:
+
+```code
+$ tctl edit cap
+```
+
+A temporary file will open in your default editor with your `cluster_auth_preference` definition.
 
 Ensure that `cap.yaml` includes the following content:
 
@@ -162,16 +395,16 @@ spec:
 version: v2
 ```
 
-For `rp_id`, use the public address of your <ScopedBlock scope={["oss", "enterprise"]}>Teleport Proxy Service</ScopedBlock><ScopedBlock scope="cloud">Teleport Cloud tenant</ScopedBlock>.
+For `rp_id`, use the public address of your Teleport Proxy Service or Teleport
+Cloud workspace.
 
-Create the resource:
+When you save and close the temporary file, `tctl` will update the resource:
 
 ```code
-$ tctl create -f cap.yaml
-# cluster auth preference has been updated
+#cluster auth preference has been updated
 ```
 
-<Details scope={["enterprise", "oss"]} scopeOnly={false} opened title="Static configuration file">
+<Details scope={["enterprise", "oss"]} opened title="Static configuration file">
 
 You can also edit your Teleport configuration file to include the following:
 
@@ -181,80 +414,36 @@ auth_service:
   authentication:
     type: github
 ```
+
 </Details>
 
-You can now log in with Teleport using GitHub SSO.
-
-Run the following to log out of Teleport and log in again using GitHub SSO.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-```code
-$ tsh logout
-# Logged out all users from all proxies.
-$ tsh login --proxy=tele.example.com
-If browser window does not open automatically, open it by clicking on the link:
- http://127.0.0.1:56334/6bf976e6-a4be-4898-94eb-8a7b01af2158
-```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-$ tsh logout
-# Logged out all users from all proxies.
-$ tsh login --proxy=mytenant.teleport.sh
-If browser window does not open automatically, open it by clicking on the link:
- http://127.0.0.1:56334/6bf976e6-a4be-4898-94eb-8a7b01af2158
-```
-
-</ScopedBlock>
-
-When you sign in for the first time, you will see a prompt to authorize your
-GitHub OAuth app:
-
-![GitHub SSO authorization view](../../../img/github-sso-auth-screen.jpg)
-
-After logging in successfully, you will see the following:
-
-![Login success view](../../../img/login-success.jpg)
-
-You will receive the details of your user session within the CLI. 
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-```code
-> Profile URL:        https://tele.example.com:443
-  Logged in as:       jeff
-  Cluster:            tele.example.com
-  Roles:              access
-  Logins:             jeff, ubuntu, debian, -teleport-internal-join
-  Kubernetes:         enabled
-  Kubernetes users:   dev
-  Kubernetes groups:  developer
-  Valid until:        2023-03-08 17:13:50 -0600 CST [valid for 7h51m0s]
-  Extensions:         permit-port-forwarding, permit-pty, private-key-policy
-```
-
-</ScopedBlock>
-
-<ScopedBlock scope={["cloud"]}>
-
-```code
-> Profile URL:        https://mytenant.teleport.sh:443
-  Logged in as:       jeff
-  Cluster:            mytenant.teleport.sh
-  Roles:              access
-  Logins:             jeff, ubuntu, debian, -teleport-internal-join
-  Kubernetes:         enabled
-  Kubernetes users:   dev
-  Kubernetes groups:  developer
-  Valid until:        2023-03-08 17:13:50 -0600 CST [valid for 7h51m0s]
-  Extensions:         permit-port-forwarding, permit-pty, private-key-policy
-
-```
-</ScopedBlock>
+After logging out of `tsh`, you can log back in without specifying
+`--auth=github`. You will automatically be redirected to the GitHub auth flow.
 
 ## Troubleshooting
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
+
+### Teams Not Mapping to Roles
+
+If you are not seeing teams mapping to roles as expected confirm you 
+are using the slug of the organizations and teams in the connector.
+To create the slug, GitHub replaces special characters in the name string,
+changes all words to lowercase, and replaces spaces with a `-` separator.
+For example, "My TEam Näme" would become `my-team-name`.
+The GitHub Web application URLs and GitHub API can provide the slug.
+
+Example: navigate to the team `My Team` in the GitHub web application.
+The URL `https://github.com/orgs/org-name/teams/my-team`
+shows the slug is `my-team`. Update the teams to roles mapping.
+
+```yaml
+  teams_to_roles:
+    - organization: my-org
+      roles:
+        - access
+        - editor
+        - reviewer
+      team: my-team
+```
+

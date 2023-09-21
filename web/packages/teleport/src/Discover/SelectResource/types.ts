@@ -14,9 +14,15 @@
  * limitations under the License.
  */
 
+import { Platform } from 'design/theme/utils';
+
+import { ClusterResource } from 'teleport/services/userPreferences/types';
+
 import { ResourceKind } from '../Shared/ResourceKind';
 
 import type { DiscoverEventResource } from 'teleport/services/userEvent';
+
+import type { ResourceIconName } from 'design/ResourceIcon';
 
 export enum DatabaseLocation {
   Aws,
@@ -31,7 +37,9 @@ export enum DatabaseLocation {
 // DatabaseEngine represents the db "protocol".
 export enum DatabaseEngine {
   Postgres,
+  AuroraPostgres,
   MySql,
+  AuroraMysql,
   MongoDb,
   Redis,
   CoackroachDb,
@@ -50,7 +58,7 @@ export interface ResourceSpec {
   name: string;
   popular?: boolean;
   kind: ResourceKind;
-  Icon: React.ReactElement;
+  icon: ResourceIconName;
   // keywords are filter words that user may use to search for
   // this resource.
   keywords: string;
@@ -61,8 +69,29 @@ export interface ResourceSpec {
   // It is used as a flag, that when defined, means that
   // this resource is not "guided" (has no UI interactive flow).
   unguidedLink?: string;
+  // isDialog indicates whether the flow for this resource is a popover dialog as opposed to a Discover flow.
+  // This is the case for the 'Application' resource.
+  isDialog?: boolean;
   // event is the expected backend enum event name that describes
-  // the type of this resource (eg. server v. kubernetes),
+  // the type of this resource (e.g. server v. kubernetes),
   // used for usage reporting.
   event: DiscoverEventResource;
+  // platform indicates a particular platform the resource is associated with.
+  // Set this value if the resource should be prioritized based on the platform.
+  platform?: Platform;
 }
+
+export enum SearchResource {
+  UNSPECIFIED = '',
+  APPLICATION = 'application',
+  DATABASE = 'database',
+  DESKTOP = 'desktop',
+  KUBERNETES = 'kubernetes',
+  SERVER = 'server',
+  UNIFIED_RESOURCE = 'unified_resource',
+}
+
+export type PrioritizedResources = {
+  preferredResources: ClusterResource[];
+  hasPreferredResources: boolean;
+};

@@ -16,12 +16,13 @@ package tester
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
@@ -97,7 +98,7 @@ func (cmd *SSOTestCommand) getSupportedKinds() []string {
 func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c auth.ClientI) error {
 	reader := os.Stdin
 	if cmd.connectorFileName != "" {
-		f, err := utils.OpenFile(cmd.connectorFileName)
+		f, err := utils.OpenFileAllowingUnsafeLinks(cmd.connectorFileName)
 		if err != nil {
 			return trace.Wrap(err, "could not open connector spec file %v", cmd.connectorFileName)
 		}
@@ -110,7 +111,7 @@ func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c auth.ClientI) e
 		var raw services.UnknownResource
 		err := decoder.Decode(&raw)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return trace.Wrap(err, "Unable to load resource. Make sure the file is in correct format.")

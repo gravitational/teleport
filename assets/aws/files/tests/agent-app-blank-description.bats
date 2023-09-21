@@ -17,6 +17,12 @@ load fixtures/common
     [ ${GENERATE_EXIT_CODE?} -eq 0 ]
 }
 
+@test "[${TEST_SUITE?}] config file version is v3" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    cat "${TELEPORT_CONFIG_PATH?}"
+    cat "${TELEPORT_CONFIG_PATH?}" | grep -E "^version: v3"
+}
+
 @test "[${TEST_SUITE?}] app_service.apps.description is blank" {
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${APP_APPS_BLOCK?}"

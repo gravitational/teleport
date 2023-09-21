@@ -17,6 +17,7 @@
 import api from 'teleport/services/api';
 
 import user from './user';
+import { makeTraits } from './makeUser';
 
 test('undefined values in context response gives proper default values', async () => {
   const mockContext = {
@@ -49,6 +50,13 @@ test('undefined values in context response gives proper default values', async (
     username: 'foo',
     authType: 'local',
     acl: {
+      accessList: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
       authConnectors: {
         list: true,
         read: true,
@@ -87,6 +95,13 @@ test('undefined values in context response gives proper default values', async (
         use: false,
       },
       roles: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+      lock: {
         list: false,
         read: false,
         edit: false,
@@ -205,6 +220,20 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
+      assist: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+      samlIdpServiceProvider: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
       clipboardSharingEnabled: true,
       desktopSessionRecordingEnabled: true,
       directorySharingEnabled: true,
@@ -224,6 +253,7 @@ test('undefined values in context response gives proper default values', async (
     accessStrategy: { type: 'optional', prompt: '' },
     // Test undefined roles and reviewers are set to empty arrays.
     accessCapabilities: { requestableRoles: [], suggestedReviewers: [] },
+    allowedSearchAsRoles: [],
   });
 });
 
@@ -241,6 +271,7 @@ test('fetch users, null response values gives empty array', async () => {
       isLocal: false,
       name: '',
       roles: [],
+      allTraits: {},
       traits: {
         awsRoleArns: [],
         databaseNames: [],
@@ -275,5 +306,28 @@ test('createResetPasswordToken', async () => {
     username: 'llama',
     expires: new Date(1677273148317),
     value: 'some-id',
+  });
+});
+
+test('makeTraits', async () => {
+  expect(makeTraits(null)).toStrictEqual({});
+  expect(makeTraits({})).toStrictEqual({});
+
+  const mockTraits = {
+    fruit: null,
+    drink: [],
+    pet: [''],
+    movie: null,
+    holiday: ['halloween', 'christmas'],
+    color: null,
+  };
+
+  expect(makeTraits(mockTraits)).toStrictEqual({
+    fruit: [],
+    drink: [],
+    pet: [''],
+    movie: [],
+    holiday: ['halloween', 'christmas'],
+    color: [],
   });
 });

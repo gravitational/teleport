@@ -101,10 +101,10 @@ func (c *CompareAndSwap[T]) Create(
 // Update tries to perform compare-and-swap update of a plugin data assuming that it exist
 //
 // modifyT will receive existing plugin data and should return a modified version of the data.
-
+//
 // If existing plugin data does not match expected data, then a trace.CompareFailed error should
 // be returned to backoff and try again.
-
+//
 // To abort the update, modifyT should return an error other, than trace.CompareFailed, which
 // will be propagated back to the caller of `Update`.
 func (c *CompareAndSwap[T]) Update(
@@ -131,6 +131,7 @@ func (c *CompareAndSwap[T]) Update(
 		if trace.IsCompareFailed(err) {
 			failedAttempts = append(failedAttempts, trace.Wrap(err))
 			backoffErr := backoff.Do(ctx)
+			// backoffErr is not nil when the context has expired and we must return
 			if backoffErr != nil {
 				failedAttempts = append(failedAttempts, trace.Wrap(backoffErr))
 				return emptyData, trace.NewAggregate(failedAttempts...)
@@ -152,6 +153,7 @@ func (c *CompareAndSwap[T]) Update(
 		// A conflict happened, we register the failed attempt and wait before retrying
 		failedAttempts = append(failedAttempts, trace.Wrap(err))
 		backoffErr := backoff.Do(ctx)
+		// backoffErr is not nil when the context has expired and we must return
 		if backoffErr != nil {
 			failedAttempts = append(failedAttempts, trace.Wrap(backoffErr))
 			return emptyData, trace.NewAggregate(failedAttempts...)

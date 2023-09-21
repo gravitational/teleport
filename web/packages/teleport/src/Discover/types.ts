@@ -15,6 +15,7 @@
  */
 
 import { State } from './useDiscover';
+import { ResourceViewConfig } from './flow';
 
 export type AgentStepProps = {
   // agentMeta describes fields specific to an agent kind.
@@ -30,3 +31,6 @@ export type AgentStepProps = {
 };
 
 export type AgentStepComponent = (props: AgentStepProps) => JSX.Element;
+
+/** EViewConfigs are enterprise-only view configs to add to Discover that arent defined in `Discover/resourceViewConfigs.ts`. */
+export type EViewConfigs = ResourceViewConfig[];

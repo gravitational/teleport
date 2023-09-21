@@ -1,4 +1,4 @@
-suite: Auth StatefulSet
+suite: Auth Deployment
 templates:
   - auth/deployment.yaml
   - auth/config.yaml
@@ -748,6 +748,16 @@ tests:
               sources:
                 - serviceAccountToken:
                     path: token
+                - configMap:
+                    items:
+                      - key: ca.crt
+                        path: ca.crt
+                    name: kube-root-ca.crt
+                - downwardAPI:
+                    items:
+                      - path: "namespace"
+                        fieldRef:
+                          fieldPath: metadata.namespace
       - notContains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -782,6 +792,16 @@ tests:
               sources:
                 - serviceAccountToken:
                     path: token
+                - configMap:
+                    items:
+                      - key: ca.crt
+                        path: ca.crt
+                    name: kube-root-ca.crt
+                - downwardAPI:
+                    items:
+                      - path: "namespace"
+                        fieldRef:
+                          fieldPath: metadata.namespace
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -794,3 +814,13 @@ tests:
             mountPath: /var/run/secrets/kubernetes.io/serviceaccount
             name: auth-serviceaccount-token
             readOnly: true
+
+  - it: should add the azure workload identity label to auth pods in azure mode
+    template: auth/deployment.yaml
+    set:
+      chartMode: azure
+      clusterName: teleport.example.com
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.azure\.workload\.identity/use
+          value: "true"

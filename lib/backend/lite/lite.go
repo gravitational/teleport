@@ -101,7 +101,7 @@ type Config struct {
 	// Journal sets the journal_mode pragma
 	Journal string `json:"journal,omitempty"`
 	// Mirror turns on mirror mode for the backend,
-	// which will use record IDs for Put and PutRange passed from
+	// which will use record IDs for Put passed from
 	// the resources, not generate a new one
 	Mirror bool `json:"mirror"`
 }
@@ -179,7 +179,8 @@ func (cfg *Config) ConnectionURI() string {
 
 	u := url.URL{
 		Scheme:   "file",
-		Opaque:   url.QueryEscape(filepath.Join(cfg.Path, defaultDBFile)),
+		OmitHost: true,
+		Path:     filepath.Join(cfg.Path, defaultDBFile),
 		RawQuery: params.Encode(),
 	}
 	return u.String()
@@ -224,7 +225,10 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 
 	if setPermissions {
 		// Ensure the database has restrictive access permissions.
-		db.PingContext(ctx)
+		err = db.PingContext(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		err = os.Chmod(path, dbMode)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
@@ -273,6 +277,10 @@ type Backend struct {
 
 	// closedFlag is set to indicate that the database is closed
 	closedFlag int32
+}
+
+func (l *Backend) GetName() string {
+	return GetName()
 }
 
 // showPragmas is used to debug SQLite database connection
@@ -572,23 +580,6 @@ func (l *Backend) Import(ctx context.Context, items []backend.Item) error {
 			return trace.Wrap(err)
 		}
 		return nil
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// PutRange puts range of items into backend (creates if items doe not
-// exists, updates it otherwise)
-func (l *Backend) PutRange(ctx context.Context, items []backend.Item) error {
-	for i := range items {
-		if items[i].Key == nil {
-			return trace.BadParameter("missing parameter key in item %v", i)
-		}
-	}
-	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
-		return l.putRangeInTransaction(ctx, tx, items, false)
 	})
 	if err != nil {
 		return trace.Wrap(err)

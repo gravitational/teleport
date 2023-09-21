@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import Menu from 'design/Menu';
 import { ButtonIcon } from 'design';
-import { Ellipsis } from 'design/Icon';
+import { MoreHoriz } from 'design/Icon';
 
 import { MenuProps, AnchorProps } from './types';
 
@@ -53,9 +53,10 @@ export default class MenuActionIcon extends React.Component<Props> {
           onClick={this.onOpen}
           data-testid="button"
         >
-          <Ellipsis />
+          <MoreHoriz size="medium" />
         </ButtonIcon>
         <Menu
+          getContentAnchorEl={null}
           menuListCss={menuListCss}
           anchorEl={this.anchorEl}
           open={open}

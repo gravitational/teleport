@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
 )
@@ -94,7 +95,7 @@ type SessionTracker interface {
 	RemoveParticipant(string) error
 
 	// UpdatePresence updates presence timestamp of a participant.
-	UpdatePresence(string) error
+	UpdatePresence(string, time.Time) error
 
 	// GetKubeCluster returns the name of the kubernetes cluster the session is running in.
 	GetKubeCluster() string
@@ -118,6 +119,12 @@ type SessionTracker interface {
 
 	// GetLastActive returns the time at which the session was last active (i.e used by any participant).
 	GetLastActive() time.Time
+
+	// HostID is the target host id that created the session tracker.
+	GetHostID() string
+
+	// GetTargetSubKind returns the sub kind of the target server.
+	GetTargetSubKind() string
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
@@ -252,7 +259,7 @@ func (s *SessionTrackerV1) AddParticipant(participant Participant) {
 func (s *SessionTrackerV1) RemoveParticipant(id string) error {
 	for i, participant := range s.Spec.Participants {
 		if participant.ID == id {
-			s.Spec.Participants = append(s.Spec.Participants[:i], s.Spec.Participants[i+1:]...)
+			s.Spec.Participants[i], s.Spec.Participants = s.Spec.Participants[len(s.Spec.Participants)-1], s.Spec.Participants[:len(s.Spec.Participants)-1]
 			return nil
 		}
 	}
@@ -265,6 +272,11 @@ func (s *SessionTrackerV1) RemoveParticipant(id string) error {
 // This is only valid for kubernetes sessions.
 func (s *SessionTrackerV1) GetKubeCluster() string {
 	return s.Spec.KubernetesCluster
+}
+
+// HostID is the target host id that created the session tracker.
+func (s *SessionTrackerV1) GetHostID() string {
+	return s.Spec.HostID
 }
 
 // GetDesktopName returns the name of the Windows desktop the session is running in.
@@ -295,15 +307,17 @@ func (s *SessionTrackerV1) GetHostUser() string {
 }
 
 // UpdatePresence updates presence timestamp of a participant.
-func (s *SessionTrackerV1) UpdatePresence(user string) error {
-	for _, participant := range s.Spec.Participants {
-		if participant.User == user {
-			participant.LastActive = time.Now().UTC()
-			return nil
-		}
+func (s *SessionTrackerV1) UpdatePresence(user string, t time.Time) error {
+	idx := slices.IndexFunc(s.Spec.Participants, func(participant Participant) bool {
+		return participant.User == user
+	})
+
+	if idx < 0 {
+		return trace.NotFound("participant %v not found", user)
 	}
 
-	return trace.NotFound("participant %v not found", user)
+	s.Spec.Participants[idx].LastActive = t
+	return nil
 }
 
 // GetHostPolicySets returns a list of policy sets held by the host user at the time of session creation.
@@ -323,6 +337,11 @@ func (s *SessionTrackerV1) GetLastActive() time.Time {
 	}
 
 	return last
+}
+
+// GetTargetSubKind returns the sub kind of the target server.
+func (s *SessionTrackerV1) GetTargetSubKind() string {
+	return s.Spec.TargetSubKind
 }
 
 // Match checks if a given session tracker matches this filter.

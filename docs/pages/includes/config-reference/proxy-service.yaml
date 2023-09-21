@@ -3,10 +3,17 @@ proxy_service:
     # Turns 'proxy' role on. Default is 'yes'
     enabled: yes
 
-    # ProxyProtocol enables support for HAProxy proxy protocol version 1 when
-    # it is turned 'on'.
-    # Verify whether the service is in front of a trusted load balancer.
-    # The default value is 'on'.
+    # proxy_protocol controls support for HAProxy PROXY protocol.
+    # Unspecified by default, possible values:
+    # 'on' - PROXY protocol is enabled and required.
+    # 'off' - PROXY protocol is disabled and forbidden.
+    #
+    # If unspecified, PROXY protocol is allowed, but not required. This is
+    # suitable for test environments, but not recommended for production use.
+    # Teleport's IP pinning functionality will not work if this field is left
+    # unspecified and PROXY headers are received.
+    # Set to `on` if Proxy service runs behind a L4 load balancer that sends PROXY
+    # headers, otherwise set to `off`.
     proxy_protocol: on
 
     # SSH forwarding/proxy address. Command line (CLI) clients always begin
@@ -138,3 +145,19 @@ proxy_service:
       # rows that are retained when lines are scrolled beyond the initial
       # viewport. Does not apply to session recording view.
       scrollback_lines: 1000
+
+    # Enables the Proxy service to take client source IPs from the
+    # "X-Forwarded-For" headers for web APIs.
+    #
+    # In order to prevent IP spoofing, it is important to ensure that the Proxy
+    # service is placed behind a layer 7 load balancer or reverse proxy that
+    # sets client IPs in the "X-Forwarded-For" headers. Requests with more than
+    # one IPs will be rejected.
+    trust_x_forwarded_for: false
+
+    # Configuration for the Teleport Assist functionality
+    assist:
+      openai:
+        # An absolute path to the file containing the API token for OpenAI.
+        # This is required for Assist functionality.
+        api_token_path: /etc/teleport/openai_key

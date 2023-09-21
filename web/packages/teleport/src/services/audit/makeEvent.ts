@@ -87,7 +87,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: {
     type: 'access_request.search',
-    desc: 'Resource Access Request Search',
+    desc: 'Resource Access Search',
     format: ({ user, resource_type, search_as_roles }) =>
       `User [${user}] searched for resource type [${resource_type}] with role(s) [${search_as_roles}]`,
   },
@@ -719,6 +719,12 @@ export const formatters: Formatters = {
     format: ({ user, name }) =>
       `User [${user}] has created a trusted relationship with cluster [${name}]`,
   },
+  [eventCodes.PROVISION_TOKEN_CREATED]: {
+    type: 'join_token.create',
+    desc: 'Join Token Created',
+    format: ({ user, roles, join_method }) =>
+      `User [${user}] created a join token with role(s) [${roles}] and a join method [${join_method}]`,
+  },
   [eventCodes.TRUSTED_CLUSTER_DELETED]: {
     type: 'trusted_cluster.delete',
     desc: 'Trusted Cluster Deleted',
@@ -752,10 +758,12 @@ export const formatters: Formatters = {
   [eventCodes.DATABASE_SESSION_STARTED]: {
     type: 'db.session.start',
     desc: 'Database Session Started',
-    format: ({ user, db_service, db_name, db_user }) =>
+    format: ({ user, db_service, db_name, db_user, db_roles }) =>
       `User [${user}] has connected ${
         db_name ? `to database [${db_name}] ` : ''
-      }as [${db_user}] on [${db_service}]`,
+      }as [${db_user}] ${
+        db_roles ? `with roles [${db_roles}] ` : ''
+      }on [${db_service}]`,
   },
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: {
     type: 'db.session.start',
@@ -1103,20 +1111,36 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_STARTED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
-      `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}]`,
+    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
+      let message = `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_addr}]`;
+      if (windows_domain) {
+        message += ` on [${windows_domain}]`;
+      }
+      return message;
+    },
   },
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Denied',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
-      `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}]`,
+    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
+      let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_addr}]`;
+      if (windows_domain) {
+        message += ` on [${windows_domain}]`;
+      }
+      return message;
+    },
   },
   [eventCodes.DESKTOP_SESSION_ENDED]: {
     type: 'windows.desktop.session.end',
     desc: 'Windows Desktop Session Ended',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
-      `Session for Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}] has ended for user [${user}]`,
+    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
+      let desktopMessage = `[${windows_user}@${desktop_addr}]`;
+      if (windows_domain) {
+        desktopMessage += ` on [${windows_domain}]`;
+      }
+      let message = `Session for Windows desktop ${desktopMessage} has ended for user [${user}]`;
+      return message;
+    },
   },
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: {
     type: 'desktop.clipboard.receive',
@@ -1167,60 +1191,60 @@ export const formatters: Formatters = {
       `User [${user}] failed to write [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
   },
   [eventCodes.DEVICE_CREATE]: {
-    type: 'device',
+    type: 'device.create',
     desc: 'Device Register',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has registered a device`
-        : `User [${user.user}] has failed to register a device`,
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has registered a device`
+        : `User [${user}] has failed to register a device`,
   },
   [eventCodes.DEVICE_DELETE]: {
-    type: 'device',
+    type: 'device.delete',
     desc: 'Device Delete',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has deleted a device`
-        : `User [${user.user}] has failed to delete a device`,
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has deleted a device`
+        : `User [${user}] has failed to delete a device`,
   },
   [eventCodes.DEVICE_AUTHENTICATE]: {
-    type: 'device',
+    type: 'device.authenticate',
     desc: 'Device Authenticate',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has successfully authenticated their device`
-        : `User [${user.user}] has failed to authenticate their device`,
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has successfully authenticated their device`
+        : `User [${user}] has failed to authenticate their device`,
   },
   [eventCodes.DEVICE_ENROLL]: {
-    type: 'device',
+    type: 'device.enroll',
     desc: 'Device Enrollment',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has successfully enrolled their device`
-        : `User [${user.user}] has failed to enroll their device`,
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has successfully enrolled their device`
+        : `User [${user}] has failed to enroll their device`,
   },
   [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: {
-    type: 'device',
+    type: 'device.token.create',
     desc: 'Device Enroll Token Create',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] created a device enroll token`
-        : `User [${user.user}] has failed to create a device enroll token`,
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] created a device enroll token`
+        : `User [${user}] has failed to create a device enroll token`,
   },
   [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: {
-    type: 'device',
+    type: 'device.token.spent',
     desc: 'Device Enroll Token Spent',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has spent a device enroll token`
-        : `User [${user.user}] has failed to spend a device enroll token`,
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has spent a device enroll token`
+        : `User [${user}] has failed to spend a device enroll token`,
   },
   [eventCodes.DEVICE_UPDATE]: {
-    type: 'device',
+    type: 'device.update',
     desc: 'Device Update',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has updated a device`
-        : `User [${user.user}] has failed to update a device`,
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has updated a device`
+        : `User [${user}] has failed to update a device`,
   },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
@@ -1367,6 +1391,143 @@ export const formatters: Formatters = {
     desc: 'SAML IdP service provider delete failed',
     format: ({ updated_by }) =>
       `User [${updated_by}] failed to delete all service providers`,
+  },
+  [eventCodes.OKTA_GROUPS_UPDATE]: {
+    type: 'okta.groups.update',
+    desc: 'Okta groups have been updated',
+    format: ({ added, updated, deleted }) =>
+      `[${added}] added, [${updated}] updated, [${deleted}] deleted`,
+  },
+  [eventCodes.OKTA_APPLICATIONS_UPDATE]: {
+    type: 'okta.applications.update',
+    desc: 'Okta applications have been updated',
+    format: ({ added, updated, deleted }) =>
+      `[${added}] added, [${updated}] updated, [${deleted}] deleted`,
+  },
+  [eventCodes.OKTA_SYNC_FAILURE]: {
+    type: 'okta.sync.failure',
+    desc: 'Okta synchronization failed',
+    format: () => `Okta synchronization failed`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS]: {
+    type: 'okta.assignment.process',
+    desc: 'Okta assignment has been processed',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] has been successfully processed`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE]: {
+    type: 'okta.assignment.process',
+    desc: 'Okta assignment failed to process',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] processing has failed`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: {
+    type: 'okta.assignment.cleanup',
+    desc: 'Okta assignment has been cleaned up',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] has been successfully cleaned up`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE]: {
+    type: 'okta.assignment.cleanup',
+    desc: 'Okta assignment failed to clean up',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
+  },
+  [eventCodes.ACCESS_LIST_CREATE]: {
+    type: 'access_list.create',
+    desc: 'Access list created',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] created access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_CREATE_FAILURE]: {
+    type: 'access_list.create',
+    desc: 'Access list create failed',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] failed to create access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_UPDATE]: {
+    type: 'access_list.update',
+    desc: 'Access list updated',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] updated access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_UPDATE_FAILURE]: {
+    type: 'access_list.update',
+    desc: 'Access list update failed',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] failed to update access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_DELETE]: {
+    type: 'access_list.delete',
+    desc: 'Access list deleted',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] deleted access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_DELETE_FAILURE]: {
+    type: 'access_list.delete',
+    desc: 'Access list delete failed',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] failed to delete access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_REVIEW]: {
+    type: 'access_list.review',
+    desc: 'Access list reviewed',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] reviewed access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_REVIEW_FAILURE]: {
+    type: 'access_list.review',
+    desc: 'Access list review failed',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] failed to to review access list [${name}]]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
+    type: 'access_list.member.create',
+    desc: 'Access list member added',
+    format: ({ access_list_name, member_name, updated_by }) =>
+      `User [${updated_by}] added member [${member_name}] to access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: {
+    type: 'access_list.member.create',
+    desc: 'Access list member addition failure',
+    format: ({ access_list_name, member_name, updated_by }) =>
+      `User [${updated_by}] failed to add member [${member_name}] to access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: {
+    type: 'access_list.member.update',
+    desc: 'Access list member updated',
+    format: ({ access_list_name, member_name, updated_by }) =>
+      `User [${updated_by}] updated member [${member_name}] in access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: {
+    type: 'access_list.member.update',
+    desc: 'Access list member update failure',
+    format: ({ access_list_name, member_name, updated_by }) =>
+      `User [${updated_by}] failed to update member [${member_name}] in access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE]: {
+    type: 'access_list.member.delete',
+    desc: 'Access list member removed',
+    format: ({ access_list_name, member_name, updated_by }) =>
+      `User [${updated_by}] removed member [${member_name}] from access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: {
+    type: 'access_list.member.delete',
+    desc: 'Access list member removal failure',
+    format: ({ access_list_name, member_name, updated_by }) =>
+      `User [${updated_by}] failed to remove member [${member_name}] from access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: {
+    type: 'access_list.member.delete_all_members',
+    desc: 'All members removed from access list',
+    format: ({ access_list_name, updated_by }) =>
+      `User [${updated_by}] removed all members from access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]: {
+    type: 'access_list.member.delete_all_members',
+    desc: 'Access list member delete all members failure',
+    format: ({ access_list_name, updated_by }) =>
+      `User [${updated_by}] failed to remove all members from access list [${access_list_name}]`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

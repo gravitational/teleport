@@ -74,7 +74,7 @@ export default function LoginForm(props: Props) {
   // and display sso providers if any.
   if (!isLocalAuthEnabled && ssoEnabled) {
     return (
-      <Card bg="levels.surface" my="5" mx="auto" width="464px" pb={4}>
+      <Card my="5" mx="auto" width="464px" pb={4}>
         <Text typography="h3" pt={4} textAlign="center">
           {title}
         </Text>
@@ -83,14 +83,14 @@ export default function LoginForm(props: Props) {
             {attempt.message}
           </Alerts.Danger>
         )}
-        <SsoList {...props} />
+        <SsoList {...props} autoFocus={true} hasTransitionEnded={true} />
       </Card>
     );
   }
 
   if (!isLocalAuthEnabled) {
     return (
-      <Card bg="levels.surface" my="5" mx="auto" width="464px" px={5} pb={4}>
+      <Card my="5" mx="auto" width="464px" px={5} pb={4}>
         <Text typography="h3" pt={4} textAlign="center">
           {title}
         </Text>
@@ -105,7 +105,7 @@ export default function LoginForm(props: Props) {
 
   // Everything below requires local auth to be enabled.
   return (
-    <Card bg="levels.surface" my="5" mx="auto" width={464} pb={4}>
+    <Card my="5" mx="auto" width={464} pb={4}>
       <Text typography="h3" pt={4} textAlign="center">
         {title}
       </Text>
@@ -128,7 +128,11 @@ const SsoList = ({
   authProviders,
   onLoginWithSso,
   autoFocus = false,
-}: Props) => {
+  hasTransitionEnded,
+}: Props & { hasTransitionEnded?: boolean }) => {
+  const ref = useRefAutoFocus<HTMLInputElement>({
+    shouldFocus: hasTransitionEnded && autoFocus,
+  });
   const { isProcessing } = attempt;
   return (
     <SSOButtonList
@@ -136,7 +140,7 @@ const SsoList = ({
       isDisabled={isProcessing}
       providers={authProviders}
       onClick={onLoginWithSso}
-      autoFocus={autoFocus}
+      ref={ref}
     />
   );
 };
@@ -145,7 +149,11 @@ const Passwordless = ({
   onLoginWithWebauthn,
   attempt,
   autoFocus = false,
-}: Props) => {
+  hasTransitionEnded,
+}: Props & { hasTransitionEnded: boolean }) => {
+  const ref = useRefAutoFocus<HTMLInputElement>({
+    shouldFocus: hasTransitionEnded && autoFocus,
+  });
   // Firefox currently does not support passwordless and when
   // logging in, it will return an ambigugous error.
   // We display a soft warning because firefox may provide
@@ -162,25 +170,30 @@ const Passwordless = ({
         </Alerts.Info>
       )}
       <StyledPaswordlessBtn
+        setRef={ref}
         mt={3}
         py={2}
         px={3}
         width="100%"
         onClick={() => onLoginWithWebauthn()}
         disabled={attempt.isProcessing}
-        autoFocus={autoFocus}
       >
         <Flex alignItems="center" justifyContent="space-between">
           <Flex alignItems="center">
-            <Key mr={3} fontSize={16} />
+            <Key mr={3} size="medium" />
             <Box>
               <Text typography="h6">Passwordless</Text>
-              <Text fontSize={1} color="text.secondary">
+              <Text
+                fontSize={1}
+                color={
+                  attempt.isProcessing ? 'text.disabled' : 'text.slightlyMuted'
+                }
+              >
                 Follow the prompt from your browser
               </Text>
             </Box>
           </Flex>
-          <ArrowForward fontSize={16} />
+          <ArrowForward size="medium" />
         </Flex>
       </StyledPaswordlessBtn>
     </Box>
@@ -292,7 +305,7 @@ const LocalForm = ({
                   maxWidth="50%"
                   width="100%"
                   data-testid="mfa-select"
-                  label="Two-factor type"
+                  label="Two-factor Type"
                   value={mfaType}
                   options={mfaOptions}
                   onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
@@ -304,7 +317,7 @@ const LocalForm = ({
                 {mfaType.value === 'otp' && (
                   <FieldInput
                     width="50%"
-                    label="Authenticator code"
+                    label="Authenticator Code"
                     rule={requiredToken}
                     autoComplete="one-time-code"
                     inputMode="numeric"
@@ -356,10 +369,22 @@ const Primary = ({
 
   switch (otherProps.primaryAuthType) {
     case 'passwordless':
-      $primary = <Passwordless {...otherProps} autoFocus={true} />;
+      $primary = (
+        <Passwordless
+          {...otherProps}
+          autoFocus={true}
+          hasTransitionEnded={hasTransitionEnded}
+        />
+      );
       break;
     case 'sso':
-      $primary = <SsoList {...otherProps} autoFocus={true} />;
+      $primary = (
+        <SsoList
+          {...otherProps}
+          autoFocus={true}
+          hasTransitionEnded={hasTransitionEnded}
+        />
+      );
       break;
     case 'local':
       otherOptionsAvailable = otherProps.isPasswordlessEnabled || ssoEnabled;
@@ -472,7 +497,7 @@ const Divider = () => (
     justifyContent="center"
     flexDirection="column"
     borderBottom={1}
-    borderColor="text.placeholder"
+    borderColor="text.muted"
     mx={5}
     mt={5}
     mb={2}
@@ -484,18 +509,21 @@ const Divider = () => (
 const StyledPaswordlessBtn = styled(ButtonText)`
   display: block;
   text-align: left;
-  border: 1px solid ${({ theme }) => theme.colors.text.placeholder};
+  border: 1px solid ${({ theme }) => theme.colors.buttons.border.border};
 
   &:hover,
-  &:active,
   &:focus {
-    border-color: ${({ theme }) => theme.colors.text.secondary};
+    background: ${({ theme }) => theme.colors.buttons.border.hover};
     text-decoration: none;
+  }
+
+  &:active {
+    background: ${({ theme }) => theme.colors.buttons.border.active};
   }
 
   &[disabled] {
     pointer-events: none;
-    opacity: 0.7;
+    background: ${({ theme }) => theme.colors.buttons.bgDisabled};
   }
 `;
 

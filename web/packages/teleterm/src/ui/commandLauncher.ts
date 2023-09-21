@@ -15,41 +15,9 @@ limitations under the License.
 */
 
 import { IAppContext } from 'teleterm/ui/types';
-import { ClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
-import { Platform } from 'teleterm/mainProcess/types';
-import { DocumentOrigin } from 'teleterm/ui/services/workspacesService';
+import { ClusterUri, RootClusterUri } from 'teleterm/ui/uri';
 
 const commands = {
-  // For handling "tsh ssh" executed from the command bar.
-  'tsh-ssh': {
-    displayName: '',
-    description: '',
-    async run(
-      ctx: IAppContext,
-      args: {
-        loginHost: string;
-        localClusterUri: ClusterUri;
-        origin: DocumentOrigin;
-      }
-    ) {
-      const { loginHost, localClusterUri, origin } = args;
-      const rootClusterUri = routing.ensureRootClusterUri(localClusterUri);
-      const documentsService =
-        ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
-
-      const doc = documentsService.createTshNodeDocumentFromLoginHost(
-        localClusterUri,
-        loginHost,
-        { origin }
-      );
-
-      await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
-
-      documentsService.add(doc);
-      documentsService.setLocation(doc.uri);
-    },
-  },
-
   'tsh-install': {
     displayName: '',
     description: '',
@@ -147,31 +115,6 @@ const commands = {
   },
 };
 
-const autocompleteCommands: {
-  displayName: string;
-  description: string;
-  platforms?: Array<Platform>;
-}[] = [
-  {
-    displayName: 'tsh ssh',
-    description: 'Run shell or execute a command on a remote SSH node',
-  },
-  {
-    displayName: 'tsh proxy db',
-    description: 'Start a local proxy for a database connection',
-  },
-  {
-    displayName: 'tsh install',
-    description: 'Install tsh in PATH',
-    platforms: ['darwin'],
-  },
-  {
-    displayName: 'tsh uninstall',
-    description: 'Uninstall tsh from PATH',
-    platforms: ['darwin'],
-  },
-];
-
 export class CommandLauncher {
   appContext: IAppContext;
 
@@ -182,15 +125,6 @@ export class CommandLauncher {
   executeCommand<T extends CommandName>(name: T, args: CommandArgs<T>) {
     commands[name].run(this.appContext, args as any);
     return undefined;
-  }
-
-  getAutocompleteCommands() {
-    const { platform } = this.appContext.mainProcessClient.getRuntimeSettings();
-
-    return autocompleteCommands.filter(command => {
-      const platforms = command.platforms;
-      return !command.platforms || platforms.includes(platform);
-    });
   }
 }
 

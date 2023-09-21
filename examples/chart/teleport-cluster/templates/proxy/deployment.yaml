@@ -120,11 +120,7 @@ spec:
     {{- list $initContainer | toYaml | nindent 8 }}
     {{- /* Note: this will break if the user sets volumeMounts to its initContainer */}}
           volumeMounts:
-    {{- if $proxy.highAvailability.certManager.enabled }}
-          - mountPath: /etc/teleport-tls
-            name: "teleport-tls"
-            readOnly: true
-    {{- else if $proxy.tls.existingSecretName }}
+    {{- if or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName }}
           - mountPath: /etc/teleport-tls
             name: "teleport-tls"
             readOnly: true
@@ -236,11 +232,7 @@ spec:
         securityContext: {{- toYaml $proxy.securityContext | nindent 10 }}
 {{- end }}
         volumeMounts:
-{{- if $proxy.highAvailability.certManager.enabled }}
-        - mountPath: /etc/teleport-tls
-          name: "teleport-tls"
-          readOnly: true
-{{- else if $proxy.tls.existingSecretName }}
+{{- if or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName }}
         - mountPath: /etc/teleport-tls
           name: "teleport-tls"
           readOnly: true
@@ -268,11 +260,23 @@ spec:
 {{- end }}
       volumes:
 {{- if $projectedServiceAccountToken }}
+      # This projected token volume mimics the `automountServiceAccountToken`
+      # behaviour but defaults to a 1h TTL instead of 1y.
       - name: proxy-serviceaccount-token
         projected:
           sources:
             - serviceAccountToken:
                 path: token
+            - configMap:
+                items:
+                - key: ca.crt
+                  path: ca.crt
+                name: kube-root-ca.crt
+            - downwardAPI:
+                items:
+                  - path: "namespace"
+                    fieldRef:
+                      fieldPath: metadata.namespace
 {{- end }}
 {{- if $proxy.highAvailability.certManager.enabled }}
       - name: teleport-tls

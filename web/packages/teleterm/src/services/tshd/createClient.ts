@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ChannelCredentials, ClientDuplexStream } from '@grpc/grpc-js';
+import grpc from '@grpc/grpc-js';
 import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
 import { TerminalServiceClient } from 'gen-proto-js/teleport/lib/teleterm/v1/service_grpc_pb';
 import {
@@ -30,11 +30,14 @@ import middleware, { withLogging } from './middleware';
 import * as types from './types';
 import createAbortController from './createAbortController';
 import { mapUsageEvent } from './mapUsageEvent';
-import { ReportUsageEventRequest } from './types';
+import {
+  ReportUsageEventRequest,
+  UpdateHeadlessAuthenticationStateParams,
+} from './types';
 
 export default function createClient(
   addr: string,
-  credentials: ChannelCredentials
+  credentials: grpc.ChannelCredentials
 ) {
   const logger = new Logger('tshd');
   const tshd = middleware(new TerminalServiceClient(addr, credentials), [
@@ -434,7 +437,7 @@ export default function createClient(
 
         return new Promise<void>((resolve, reject) => {
           callRef.current = tshd.loginPasswordless();
-          const stream = callRef.current as ClientDuplexStream<
+          const stream = callRef.current as grpc.ClientDuplexStream<
             api.LoginPasswordlessRequest,
             api.LoginPasswordlessResponse
           >;
@@ -648,7 +651,146 @@ export default function createClient(
         });
       });
     },
+
+    createConnectMyComputerRole(rootClusterUri: uri.RootClusterUri) {
+      const req =
+        new api.CreateConnectMyComputerRoleRequest().setRootClusterUri(
+          rootClusterUri
+        );
+
+      return new Promise<types.CreateConnectMyComputerRoleResponse>(
+        (resolve, reject) => {
+          tshd.createConnectMyComputerRole(req, (err, response) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(response.toObject());
+            }
+          });
+        }
+      );
+    },
+
+    createConnectMyComputerNodeToken(uri: uri.RootClusterUri) {
+      return new Promise<types.CreateConnectMyComputerNodeTokenResponse>(
+        (resolve, reject) => {
+          tshd.createConnectMyComputerNodeToken(
+            new api.CreateConnectMyComputerNodeTokenRequest().setRootClusterUri(
+              uri
+            ),
+            (err, response) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(response.toObject());
+              }
+            }
+          );
+        }
+      );
+    },
+
+    deleteConnectMyComputerToken(uri: uri.RootClusterUri, token: string) {
+      return new Promise<void>((resolve, reject) => {
+        tshd.deleteConnectMyComputerToken(
+          new api.DeleteConnectMyComputerTokenRequest()
+            .setRootClusterUri(uri)
+            .setToken(token),
+          err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          }
+        );
+      });
+    },
+
+    waitForConnectMyComputerNodeJoin(
+      uri: uri.RootClusterUri,
+      abortSignal: types.TshAbortSignal
+    ) {
+      const req =
+        new api.WaitForConnectMyComputerNodeJoinRequest().setRootClusterUri(
+          uri
+        );
+
+      return withAbort(
+        abortSignal,
+        callRef =>
+          new Promise<types.WaitForConnectMyComputerNodeJoinResponse>(
+            (resolve, reject) => {
+              callRef.current = tshd.waitForConnectMyComputerNodeJoin(
+                req,
+                (err, response) => {
+                  if (err) {
+                    reject(err);
+                  } else {
+                    resolve(
+                      response.toObject() as types.WaitForConnectMyComputerNodeJoinResponse
+                    );
+                  }
+                }
+              );
+            }
+          )
+      );
+    },
+
+    deleteConnectMyComputerNode(uri: uri.RootClusterUri) {
+      return new Promise<void>((resolve, reject) => {
+        tshd.deleteConnectMyComputerNode(
+          new api.DeleteConnectMyComputerNodeRequest().setRootClusterUri(uri),
+          err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          }
+        );
+      });
+    },
+
+    getConnectMyComputerNodeName(uri: uri.RootClusterUri) {
+      return new Promise<string>((resolve, reject) => {
+        tshd.getConnectMyComputerNodeName(
+          new api.GetConnectMyComputerNodeNameRequest().setRootClusterUri(uri),
+          (err, response) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(response.getName() as uri.ServerUri);
+            }
+          }
+        );
+      });
+    },
+
+    updateHeadlessAuthenticationState(
+      params: UpdateHeadlessAuthenticationStateParams,
+      abortSignal?: types.TshAbortSignal
+    ) {
+      return withAbort(abortSignal, callRef => {
+        const req = new api.UpdateHeadlessAuthenticationStateRequest()
+          .setRootClusterUri(params.rootClusterUri)
+          .setHeadlessAuthenticationId(params.headlessAuthenticationId)
+          .setState(params.state);
+
+        return new Promise<void>((resolve, reject) => {
+          callRef.current = tshd.updateHeadlessAuthenticationState(req, err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+      });
+    },
   };
+
   return client;
 }
 

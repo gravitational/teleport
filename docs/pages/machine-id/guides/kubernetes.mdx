@@ -3,6 +3,8 @@ title: Machine ID with Kubernetes Access
 description: Accessing Kubernetes clusters via Machine ID
 ---
 
+(!docs/pages/includes/machine-id/v2-config-warning.mdx!)
+
 In this guide, we will demonstrate how to configure an automated service to use
 Machine ID to access a Kubernetes cluster protected by Teleport.
 
@@ -44,7 +46,7 @@ First, create a file named `role.yaml` with the following content:
 kind: role
 metadata:
   name: machine-id-kube-role
-version: v6
+version: v7
 spec:
   allow:
     kubernetes_labels:
@@ -152,8 +154,8 @@ note the bot join token and CA PIN.
 Next, on the bot node, create a Machine ID configuration file at
 `/etc/tbot.yaml`:
 
-<ScopedBlock scope={["cloud"]}>
 ```yaml
+version: v2
 auth_server: "example.teleport.sh:443"
 onboarding:
   join_method: "token"
@@ -161,27 +163,15 @@ onboarding:
   ca_pins:
   - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
 storage:
-  directory: /var/lib/teleport/bot
-destinations:
-  - directory: /opt/machine-id
+  type: directory
+  path: /var/lib/teleport/bot
+outputs:
+  - type: kubernetes
+    destination:
+      type: directory
+      path: /opt/machine-id
     kubernetes_cluster: example-k8s-cluster
 ```
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
-```yaml
-auth_server: "teleport.example.com:443"
-onboarding:
-  join_method: "token"
-  token: "(=presets.tokens.first=)"
-  ca_pins:
-  - "(=presets.ca_pin=)"
-storage:
-  directory: /var/lib/teleport/bot
-destinations:
-  - directory: /opt/machine-id
-    kubernetes_cluster: example-k8s-cluster
-```
-</ScopedBlock>
 
 Be sure to configure the `token` and `ca_pins` fields to match the output from
 `tctl bots add ...`, and set `kubernetes_cluster` to match the cluster name as
@@ -259,7 +249,7 @@ $ kubectl --kubeconfig /opt/machine-id/kubeconfig.yaml get pods -n demo
 ```
 
 This `kubeconfig.yaml` can also be passed to any other Kubernetes API clients
-that support credential provider plugins, including those built with 
+that support credential provider plugins, including those built with
 [`kubernetes/client-go`](https://github.com/kubernetes/client-go) and most other
 language libraries.
 

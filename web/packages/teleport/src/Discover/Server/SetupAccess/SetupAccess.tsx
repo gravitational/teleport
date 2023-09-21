@@ -72,7 +72,7 @@ export function SetupAccess(props: State) {
   const hasTraits = selectedLogins.length > 0;
   const canAddTraits = !props.isSsoUser && props.canEditUser;
   const headerSubtitle =
-    'Select the OS users you will use to connect to server.';
+    'Select or create the OS users you will use to connect to server.';
 
   return (
     <SetupAccessWrapper

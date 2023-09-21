@@ -50,7 +50,7 @@ type Credentials struct {
 
 // GenerateSelfSignedCert generates a self-signed certificate that
 // is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
-func GenerateSelfSignedCert(hostNames []string) (*Credentials, error) {
+func GenerateSelfSignedCert(hostNames []string, ipAddresses []string) (*Credentials, error) {
 	priv, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -87,6 +87,14 @@ func GenerateSelfSignedCert(hostNames []string) (*Credentials, error) {
 	if ips != nil {
 		template.IPAddresses = append(ips, net.ParseIP("::1"))
 	}
+	for _, ip := range ipAddresses {
+		ipParsed := net.ParseIP(ip)
+		if ipParsed == nil {
+			return nil, trace.Errorf("Unable to parse IP address for self-signed certificate (%v)", ip)
+		}
+		template.IPAddresses = append(template.IPAddresses, ipParsed)
+	}
+
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
 	if err != nil {
 		return nil, trace.Wrap(err)

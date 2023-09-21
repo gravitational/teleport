@@ -59,6 +59,9 @@ const (
 	// join method. Documentation regarding implementation of this
 	// can be found in lib/gitlab
 	JoinMethodGitLab JoinMethod = "gitlab"
+	// JoinMethodGCP indicates that the node will join with the GCP join method.
+	// Documentation regarding implementation of this can be found in lib/gcp.
+	JoinMethodGCP JoinMethod = "gcp"
 )
 
 var JoinMethods = []JoinMethod{
@@ -70,6 +73,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodKubernetes,
 	JoinMethodAzure,
 	JoinMethodGitLab,
+	JoinMethodGCP,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -81,9 +85,17 @@ func ValidateJoinMethod(method JoinMethod) error {
 	return nil
 }
 
+type KubernetesJoinType string
+
+var (
+	KubernetesJoinTypeUnspecified KubernetesJoinType = ""
+	KubernetesJoinTypeInCluster   KubernetesJoinType = "in_cluster"
+	KubernetesJoinTypeStaticJWKS  KubernetesJoinType = "static_jwks"
+)
+
 // ProvisionToken is a provisioning token
 type ProvisionToken interface {
-	Resource
+	ResourceWithOrigin
 	// SetMetadata sets resource metatada
 	SetMetadata(meta Metadata)
 	// GetRoles returns a list of teleport roles
@@ -94,6 +106,8 @@ type ProvisionToken interface {
 	SetRoles(SystemRoles)
 	// GetAllowRules returns the list of allow rules
 	GetAllowRules() []*TokenRule
+	// SetAllowRules sets the allow rules
+	SetAllowRules([]*TokenRule)
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -259,7 +273,7 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			)
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "spec.kubernetes:")
 		}
 	case JoinMethodAzure:
 		providerCfg := p.Spec.Azure
@@ -278,6 +292,17 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			return trace.BadParameter(
 				`"gitlab" configuration must be provided for the join method %q`,
 				JoinMethodGitLab,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case JoinMethodGCP:
+		providerCfg := p.Spec.GCP
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"gcp" configuration must be provided for the join method %q`,
+				JoinMethodGCP,
 			)
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
@@ -310,6 +335,11 @@ func (p *ProvisionTokenV2) SetRoles(r SystemRoles) {
 // GetAllowRules returns the list of allow rules
 func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
 	return p.Spec.Allow
+}
+
+// SetAllowRules sets the allow rules.
+func (p *ProvisionTokenV2) SetAllowRules(rules []*TokenRule) {
+	p.Spec.Allow = rules
 }
 
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
@@ -352,6 +382,16 @@ func (p *ProvisionTokenV2) SetResourceID(id int64) {
 	p.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (p *ProvisionTokenV2) GetRevision() string {
+	return p.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (p *ProvisionTokenV2) SetRevision(rev string) {
+	p.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns metadata
 func (p *ProvisionTokenV2) GetMetadata() Metadata {
 	return p.Metadata
@@ -360,6 +400,16 @@ func (p *ProvisionTokenV2) GetMetadata() Metadata {
 // SetMetadata sets resource metatada
 func (p *ProvisionTokenV2) SetMetadata(meta Metadata) {
 	p.Metadata = meta
+}
+
+// Origin returns the origin value of the resource.
+func (p *ProvisionTokenV2) Origin() string {
+	return p.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (p *ProvisionTokenV2) SetOrigin(origin string) {
+	p.Metadata.SetOrigin(origin)
 }
 
 // GetSuggestedLabels returns the labels the resource should set when using this token
@@ -543,26 +593,49 @@ func (a *ProvisionTokenSpecV2CircleCI) checkAndSetDefaults() error {
 
 func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
-		return trace.BadParameter(
-			"the %q join method requires defined kubernetes allow rules",
-			JoinMethodKubernetes,
-		)
+		return trace.BadParameter("allow: at least one rule must be set")
 	}
-	for _, allowRule := range a.Allow {
+	for i, allowRule := range a.Allow {
 		if allowRule.ServiceAccount == "" {
 			return trace.BadParameter(
-				"the %q join method requires kubernetes allow rules with non-empty service account name",
-				JoinMethodKubernetes,
+				"allow[%d].service_account: name of service account must be set",
+				i,
 			)
 		}
 		if len(strings.Split(allowRule.ServiceAccount, ":")) != 2 {
 			return trace.BadParameter(
-				`the %q join method service account rule format is "namespace:service_account", got %q instead`,
-				JoinMethodKubernetes,
+				`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
+				i,
 				allowRule.ServiceAccount,
 			)
 		}
 	}
+
+	if a.Type == KubernetesJoinTypeUnspecified {
+		// For compatibility with older resources which did not have a Type
+		// field we default to "in_cluster".
+		a.Type = KubernetesJoinTypeInCluster
+	}
+	switch a.Type {
+	case KubernetesJoinTypeInCluster:
+		if a.StaticJWKS != nil {
+			return trace.BadParameter("static_jwks: must not be set when type is %q", KubernetesJoinTypeInCluster)
+		}
+	case KubernetesJoinTypeStaticJWKS:
+		if a.StaticJWKS == nil {
+			return trace.BadParameter("static_jwks: must be set when type is %q", KubernetesJoinTypeStaticJWKS)
+		}
+		if a.StaticJWKS.JWKS == "" {
+			return trace.BadParameter("static_jwks.jwks: must be set when type is %q", KubernetesJoinTypeStaticJWKS)
+		}
+	default:
+		return trace.BadParameter(
+			"type: must be one of (%s), got %q",
+			apiutils.JoinStrings(JoinMethods, ", "),
+			a.Type,
+		)
+	}
+
 	return nil
 }
 
@@ -608,6 +681,21 @@ func (a *ProvisionTokenSpecV2GitLab) checkAndSetDefaults() error {
 		if strings.Contains(a.Domain, "/") {
 			return trace.BadParameter(
 				"'spec.gitlab.domain' should not contain the scheme or path",
+			)
+		}
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2GCP) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodGCP)
+	}
+	for _, allowRule := range a.Allow {
+		if len(allowRule.ProjectIDs) == 0 {
+			return trace.BadParameter(
+				"the %q join method requires gcp allow rules with at least one project ID",
+				JoinMethodGCP,
 			)
 		}
 	}

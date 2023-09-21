@@ -17,18 +17,19 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Cell } from 'design/DataTable';
-import Icon, * as Icons from 'design/Icon/Icon';
+import * as Icons from 'design/Icon';
 
 import { eventCodes, Event, EventCode } from 'teleport/services/audit';
 import cfg from 'teleport/config';
 
-const EventIconMap: Record<EventCode, React.FC> = {
+const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTH_ATTEMPT_FAILURE]: Icons.Info,
   [eventCodes.EXEC_FAILURE]: Icons.Cli,
   [eventCodes.EXEC]: Icons.Cli,
   [eventCodes.TRUSTED_CLUSTER_TOKEN_CREATED]: Icons.Info,
   [eventCodes.TRUSTED_CLUSTER_CREATED]: Icons.Info,
   [eventCodes.TRUSTED_CLUSTER_DELETED]: Icons.Info,
+  [eventCodes.PROVISION_TOKEN_CREATED]: Icons.Info,
   [eventCodes.GITHUB_CONNECTOR_CREATED]: Icons.Info,
   [eventCodes.GITHUB_CONNECTOR_DELETED]: Icons.Info,
   [eventCodes.OIDC_CONNECTOR_CREATED]: Icons.Info,
@@ -177,10 +178,10 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.DEVICE_UPDATE]: Icons.Info,
   [eventCodes.MFA_DEVICE_ADD]: Icons.Info,
   [eventCodes.MFA_DEVICE_DELETE]: Icons.Info,
-  [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCardAlt2,
-  [eventCodes.BILLING_CARD_DELETE]: Icons.CreditCardAlt2,
-  [eventCodes.BILLING_CARD_UPDATE]: Icons.CreditCardAlt2,
-  [eventCodes.BILLING_INFORMATION_UPDATE]: Icons.CreditCardAlt2,
+  [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCard,
+  [eventCodes.BILLING_CARD_DELETE]: Icons.CreditCard,
+  [eventCodes.BILLING_CARD_UPDATE]: Icons.CreditCard,
+  [eventCodes.BILLING_INFORMATION_UPDATE]: Icons.CreditCard,
   [eventCodes.CLIENT_DISCONNECT]: Icons.Info,
   [eventCodes.PORTFORWARD]: Icons.Info,
   [eventCodes.PORTFORWARD_FAILURE]: Icons.Info,
@@ -213,16 +214,39 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: Icons.Info,
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL]: Icons.Info,
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE]: Icons.Info,
+  [eventCodes.OKTA_GROUPS_UPDATE]: Icons.Info,
+  [eventCodes.OKTA_APPLICATIONS_UPDATE]: Icons.Info,
+  [eventCodes.OKTA_SYNC_FAILURE]: Icons.Warning,
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS]: Icons.Info,
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE]: Icons.Warning,
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: Icons.Info,
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_CREATE]: Icons.Info,
+  [eventCodes.ACCESS_LIST_CREATE_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_UPDATE]: Icons.Info,
+  [eventCodes.ACCESS_LIST_UPDATE_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_DELETE]: Icons.Info,
+  [eventCodes.ACCESS_LIST_DELETE_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_REVIEW]: Icons.Info,
+  [eventCodes.ACCESS_LIST_REVIEW_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE]: Icons.User,
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: Icons.User,
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE]: Icons.User,
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: Icons.Warning,
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: Icons.User,
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]:
+    Icons.Warning,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 
 export default function renderTypeCell(event: Event, clusterId: string) {
-  const IconType = EventIconMap[event.code] || Icons.List;
+  const Icon = EventIconMap[event.code] || Icons.ListThin;
 
   const iconProps = {
-    p: '1',
-    mr: '3',
-    fontSize: '3',
+    p: 1,
+    mr: 3,
   };
 
   // use button for interactive ssh sessions
@@ -259,7 +283,7 @@ export default function renderTypeCell(event: Event, clusterId: string) {
   return (
     <Cell style={{ verticalAlign: 'inherit' }}>
       <StyledEventType>
-        <Icon {...iconProps} as={IconType} />
+        <Icon {...iconProps} size="medium" />
         {event.codeDesc}
       </StyledEventType>
     </Cell>
@@ -270,7 +294,7 @@ const StyledCliIcon = styled(Icons.Cli)(
   props => `
   background: ${props.theme.colors.levels.deep};
   border: 2px solid ${props.theme.colors.brand};
-  color: ${props.theme.colors.text.secondary};
+  color: ${props.theme.colors.text.slightlyMuted};
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -285,7 +309,7 @@ const StyledCliIcon = styled(Icons.Cli)(
   &:active,
   &:focus {
     background: ${props.theme.colors.levels.sunken};
-    color: ${props.theme.colors.text.primary};
+    color: ${props.theme.colors.text.main};
   }
 
   &:active {

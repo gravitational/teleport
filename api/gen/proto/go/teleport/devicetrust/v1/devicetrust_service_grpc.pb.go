@@ -46,6 +46,7 @@ const (
 	DeviceTrustService_EnrollDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/EnrollDevice"
 	DeviceTrustService_AuthenticateDevice_FullMethodName      = "/teleport.devicetrust.v1.DeviceTrustService/AuthenticateDevice"
 	DeviceTrustService_SyncInventory_FullMethodName           = "/teleport.devicetrust.v1.DeviceTrustService/SyncInventory"
+	DeviceTrustService_GetDevicesUsage_FullMethodName         = "/teleport.devicetrust.v1.DeviceTrustService/GetDevicesUsage"
 )
 
 // DeviceTrustServiceClient is the client API for DeviceTrustService service.
@@ -133,6 +134,11 @@ type DeviceTrustServiceClient interface {
 	// Authorized either by a valid MDM service certificate or the appropriate
 	// "device" permissions (create/update/delete).
 	SyncInventory(ctx context.Context, opts ...grpc.CallOption) (DeviceTrustService_SyncInventoryClient, error)
+	// GetDevicesUsage retrieves device limits and usage numbers for the
+	// underlying account/license.
+	// Requires an authenticated user with billing/read permissions.
+	// See [DevicesUsage] for details.
+	GetDevicesUsage(ctx context.Context, in *GetDevicesUsageRequest, opts ...grpc.CallOption) (*DevicesUsage, error)
 }
 
 type deviceTrustServiceClient struct {
@@ -317,6 +323,15 @@ func (x *deviceTrustServiceSyncInventoryClient) Recv() (*SyncInventoryResponse, 
 	return m, nil
 }
 
+func (c *deviceTrustServiceClient) GetDevicesUsage(ctx context.Context, in *GetDevicesUsageRequest, opts ...grpc.CallOption) (*DevicesUsage, error) {
+	out := new(DevicesUsage)
+	err := c.cc.Invoke(ctx, DeviceTrustService_GetDevicesUsage_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DeviceTrustServiceServer is the server API for DeviceTrustService service.
 // All implementations must embed UnimplementedDeviceTrustServiceServer
 // for forward compatibility
@@ -402,6 +417,11 @@ type DeviceTrustServiceServer interface {
 	// Authorized either by a valid MDM service certificate or the appropriate
 	// "device" permissions (create/update/delete).
 	SyncInventory(DeviceTrustService_SyncInventoryServer) error
+	// GetDevicesUsage retrieves device limits and usage numbers for the
+	// underlying account/license.
+	// Requires an authenticated user with billing/read permissions.
+	// See [DevicesUsage] for details.
+	GetDevicesUsage(context.Context, *GetDevicesUsageRequest) (*DevicesUsage, error)
 	mustEmbedUnimplementedDeviceTrustServiceServer()
 }
 
@@ -444,6 +464,9 @@ func (UnimplementedDeviceTrustServiceServer) AuthenticateDevice(DeviceTrustServi
 }
 func (UnimplementedDeviceTrustServiceServer) SyncInventory(DeviceTrustService_SyncInventoryServer) error {
 	return status.Errorf(codes.Unimplemented, "method SyncInventory not implemented")
+}
+func (UnimplementedDeviceTrustServiceServer) GetDevicesUsage(context.Context, *GetDevicesUsageRequest) (*DevicesUsage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDevicesUsage not implemented")
 }
 func (UnimplementedDeviceTrustServiceServer) mustEmbedUnimplementedDeviceTrustServiceServer() {}
 
@@ -698,6 +721,24 @@ func (x *deviceTrustServiceSyncInventoryServer) Recv() (*SyncInventoryRequest, e
 	return m, nil
 }
 
+func _DeviceTrustService_GetDevicesUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDevicesUsageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceTrustServiceServer).GetDevicesUsage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceTrustService_GetDevicesUsage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceTrustServiceServer).GetDevicesUsage(ctx, req.(*GetDevicesUsageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DeviceTrustService_ServiceDesc is the grpc.ServiceDesc for DeviceTrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -740,6 +781,10 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateDeviceEnrollToken",
 			Handler:    _DeviceTrustService_CreateDeviceEnrollToken_Handler,
+		},
+		{
+			MethodName: "GetDevicesUsage",
+			Handler:    _DeviceTrustService_GetDevicesUsage_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -16,9 +16,12 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib"
 )
 
 // TestOIDCIdPPublicEndpoints ensures the public endpoints for the AWS OIDC integration are available.
@@ -68,4 +71,29 @@ func TestOIDCIdPPublicEndpoints(t *testing.T) {
 	require.Equal(t, key.KeyType, "RSA")
 	require.Equal(t, key.Alg, "RS256")
 	require.NotNil(t, key.KeyID) // AWS requires this to be present (even if empty string).
+}
+
+func TestThumbprint(t *testing.T) {
+	ctx := context.Background()
+
+	// Proxy starts with self-signed certificates.
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	// Request OpenID Configuration public endpoint.
+	publicClt := proxy.newClient(t)
+	resp, err := publicClt.Get(ctx, proxy.webURL.String()+"/webapi/thumbprint", nil)
+	require.NoError(t, err)
+
+	thumbprint := strings.Trim(string(resp.Bytes()), "\"")
+
+	// The Proxy is started using httptest.NewTLSServer, which uses a hard-coded cert
+	// located at go/src/net/http/internal/testcert/testcert.go
+	// The following value is the sha1 fingerprint of that certificate.
+	expectedThumbprint := "15dbd260c7465ecca6de2c0b2181187f66ee0d1a"
+
+	require.Equal(t, expectedThumbprint, thumbprint)
 }

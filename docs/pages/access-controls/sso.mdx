@@ -46,7 +46,8 @@ information about the temporary user.
 You can inspect a temporary `user` resource created via your SSO integration
 by using the `tctl` command:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl remotely
@@ -54,8 +55,8 @@ $ tsh login --proxy=proxy.example.com --user=myuser
 $ tctl get users/<username>
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl remotely
@@ -63,7 +64,9 @@ $ tsh login --proxy=mytenant.teleport.sh --user=myuser
 $ tctl get users
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Here is an example of a temporary `user` resource created when the GitHub user
 `myuser` signed in to GitHub to authenticate to Teleport. This resource
@@ -210,7 +213,8 @@ users.
 
 The following authentication connectors are supported:
 
-<ScopedBlock scope={["cloud", "enterprise"]}>
+<Tabs>
+<TabItem scope={["cloud", "enterprise"]} label="Commercial">
 
 |Type|Description|
 |---|---|
@@ -219,29 +223,32 @@ The following authentication connectors are supported:
 |`oidc`| The OIDC connector type uses the [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect) to authenticate users<br/> and query their group membership.|
 |`github`| The GitHub connector uses GitHub SSO to authenticate users and query their group membership.|
 
-</ScopedBlock>
-<ScopedBlock scope={["oss"]}>
+</TabItem>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 |Type|Description|
 |---|---|
 |None|If no authentication connector is created, Teleport will use local authentication based user information stored in the Auth Service backend. You can manage user data via the `tctl users` command. |
 |`github`| The GitHub connector uses GitHub SSO to authenticate users and query their group membership.|
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ### Creating an authentication connector
 
-<ScopedBlock scope={["cloud", "enterprise"]}>
+<Tabs>
+<TabItem scope={["cloud", "enterprise"]} label="Commercial">
 
 Before you can create an authentication connector, you must enable
 authentication via that connector's protocol.
 
-To set the default authentication type as `saml` or `oidc`, <ScopedBlock
-scope={["enterprise"]}>either modify your Auth Service configuration file
-or </ScopedBlock>create a `cluster_auth_preference` resource.
+To set the default authentication type as `saml` or `oidc`, either modify your
+Auth Service configuration file (if using a self-hosted edition of Teleport) or
+create a `cluster_auth_preference` resource.
 
 <Tabs>
-  <TabItem label="Static Config (Self-Hosted)" scope={["enterprise"]}>
+  <TabItem label="Static Config (Self-Hosted)" scope={["enterprise","oss"]}>
  Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
   ```yaml
   auth_service:
@@ -252,7 +259,7 @@ or </ScopedBlock>create a `cluster_auth_preference` resource.
 
   (!docs/pages/includes/sso/idp-initiated.mdx!)
   </TabItem>
-  <TabItem scope={["cloud"]} label="Dynamic Resources (All Editions)">
+  <TabItem scope={["cloud","team"]} label="Dynamic Resources (All Editions)">
   Create a file called `cap.yaml`:
   ```yaml
   kind: cluster_auth_preference
@@ -266,52 +273,15 @@ or </ScopedBlock>create a `cluster_auth_preference` resource.
 
   Create the resource:
 
-  <ScopedBlock scope={["enterprise"]}>
-
   ```code
   # Log in to your cluster with tsh so you can run tctl commands.
-  # You can also run tctl directly on the Auth Service host.
-  $ tsh login --proxy=teleport.example.com --user=myuser
+  $ tsh login --proxy=<Var name="mytenant.teleport.sh" /> --user=myuser
   $ tctl create -f cap.yaml
   ```
 
-  </ScopedBlock>
-  <ScopedBlock scope={["cloud"]}>
-
-  ```code
-  # Log in to your cluster with tsh so you can run tctl commands.
-  $ tsh login --proxy=mytenant.teleport.sh --user=myuser
-  $ tctl create -f cap.yaml
-  ```
-
-  </ScopedBlock>
   (!docs/pages/includes/sso/idp-initiated.mdx!)
   </TabItem>
 </Tabs>
-
-</ScopedBlock>
-
-<ScopedBlock scope="oss">
-
-Next, define an authentication connector. Create a file called `connector.yaml`
-with the following content:
-
-```yaml
-kind: cluster_auth_preference
-metadata:
-  name: cluster-auth-preference
-spec:
-  type: github
-  webauthn:
-    # Replace with the address of your Teleport cluster
-    rp_id: 'example.teleport.sh'
-version: v2
-
-```
-
-</ScopedBlock>
-
-<ScopedBlock scope={["cloud", "enterprise"]}>
 
 Next, define an authentication connector. Create a file called `connector.yaml`
 based on one of the following examples.
@@ -415,13 +385,35 @@ the entity descriptor from your IDP.
 We recommend "pinning" the entity descriptor by including the XML rather than
 fetching from a URL.
 
-</ScopedBlock>
+</TabItem>
+<TabItem scope="oss" label="Teleport Community Edition">
+
+Next, define an authentication connector. Create a file called `connector.yaml`
+with the following content:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: github
+  webauthn:
+    # Replace with the address of your Teleport cluster
+    rp_id: 'example.teleport.sh'
+version: v2
+
+```
+
+</TabItem>
+</Tabs>
 
 Create the connector: 
 
 ```code
 $ tctl create -f connector.yaml
 ```
+
+
 
 ### User logins
 
@@ -453,7 +445,7 @@ flow. These provider-specific changes can be enabled by setting the
 values to match your identity provider:
 
 - `adfs` (SAML): Required for compatibility with Active Directory (ADFS); refer
-  to the full [ADFS guide](./sso/adfs.mdx#create-teleport-roles) for details.
+  to the full [ADFS guide](./sso/adfs.mdx#step-23-create-teleport-roles) for details.
 - `netiq` (OIDC): Used to enable NetIQ-specific ACR value processing; refer to
   the [OIDC guide](./sso/oidc.mdx#optional-acr-values) for details.
 - `ping` (SAML and OIDC): Required for compatibility with Ping Identity (including
@@ -546,10 +538,13 @@ of SSO buttons in the Teleport Web UI.
 Troubleshooting SSO configuration can be challenging. Usually a Teleport administrator
 must be able to:
 
-<ScopedBlock scope={["oss","enterprise"]}>
+<Tabs>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
 - Ensure that HTTP/TLS certificates are configured properly for both Teleport
   proxy and the SSO provider.
-</ScopedBlock>
+</TabItem>
+</Tabs>
+
 - Be able to see what SAML/OIDC claims and values are getting exported and passed
   by the SSO provider to Teleport.
 - Be able to see how Teleport maps the received claims to role mappings as defined
@@ -602,3 +597,4 @@ spec:
       'env': 'dev'
 version: v5
 ```
+

@@ -29,6 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
@@ -127,6 +128,16 @@ type AuthPreference interface {
 	// SetSAMLIdPEnabled sets the SAML IdP to enabled.
 	SetSAMLIdPEnabled(bool)
 
+	// GetDefaultSessionTTL retrieves the max session ttl
+	GetDefaultSessionTTL() Duration
+	// SetDefaultSessionTTL sets the max session ttl
+	SetDefaultSessionTTL(Duration)
+
+	// GetOktaSyncPeriod returns the duration between Okta synchronization calls if the Okta service is running.
+	GetOktaSyncPeriod() time.Duration
+	// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
+	SetOktaSyncPeriod(timeBetweenSyncs time.Duration)
+
 	// String represents a human readable version of authentication settings.
 	String() string
 }
@@ -205,6 +216,16 @@ func (c *AuthPreferenceV2) GetResourceID() int64 {
 // SetResourceID sets resource ID.
 func (c *AuthPreferenceV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (c *AuthPreferenceV2) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *AuthPreferenceV2) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
 }
 
 // Origin returns the origin value of the resource.
@@ -435,6 +456,26 @@ func (c *AuthPreferenceV2) SetSAMLIdPEnabled(enabled bool) {
 	c.Spec.IDP.SAML.Enabled = NewBoolOption(enabled)
 }
 
+// SetDefaultSessionTTL sets the default session ttl
+func (c *AuthPreferenceV2) SetDefaultSessionTTL(sessionTTL Duration) {
+	c.Spec.DefaultSessionTTL = sessionTTL
+}
+
+// GetDefaultSessionTTL retrieves the default session ttl
+func (c *AuthPreferenceV2) GetDefaultSessionTTL() Duration {
+	return c.Spec.DefaultSessionTTL
+}
+
+// GetOktaSyncPeriod returns the duration between Okta synchronization calls if the Okta service is running.
+func (c *AuthPreferenceV2) GetOktaSyncPeriod() time.Duration {
+	return c.Spec.Okta.SyncPeriod.Duration()
+}
+
+// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
+func (c *AuthPreferenceV2) SetOktaSyncPeriod(syncPeriod time.Duration) {
+	c.Spec.Okta.SyncPeriod = Duration(syncPeriod)
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (c *AuthPreferenceV2) setStaticFields() {
 	c.Kind = KindClusterAuthPreference
@@ -466,6 +507,10 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 	if c.Origin() == "" {
 		c.SetOrigin(OriginDynamic)
+	}
+
+	if c.Spec.DefaultSessionTTL == 0 {
+		c.Spec.DefaultSessionTTL = Duration(defaults.CertDuration)
 	}
 
 	switch c.Spec.Type {
@@ -585,6 +630,13 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		default:
 			return trace.BadParameter("device trust mode %q not supported", dt.Mode)
 		}
+
+		// Ensure configured ekcert_allowed_cas are valid
+		for _, pem := range dt.EKCertAllowedCAs {
+			if err := isValidCertificatePEM(pem); err != nil {
+				return trace.BadParameter("device trust has invalid EKCert allowed CAs entry: %v", err)
+			}
+		}
 	}
 
 	// Make sure the IdP section is populated.
@@ -603,6 +655,11 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.IDP.SAML.Enabled = NewBoolOption(true)
 	}
 
+	// Make sure the Okta field is populated.
+	if c.Spec.Okta == nil {
+		c.Spec.Okta = &OktaOptions{}
+	}
+
 	return nil
 }
 
@@ -616,7 +673,7 @@ func (u *U2F) Check() error {
 		return trace.BadParameter("u2f configuration missing app_id")
 	}
 	for _, ca := range u.DeviceAttestationCAs {
-		if err := isValidAttestationCert(ca); err != nil {
+		if err := isValidCertificatePEM(ca); err != nil {
 			return trace.BadParameter("u2f configuration has an invalid attestation CA: %v", err)
 		}
 	}
@@ -661,7 +718,7 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 		w.AttestationAllowedCAs = u.DeviceAttestationCAs
 	default:
 		for _, pem := range w.AttestationAllowedCAs {
-			if err := isValidAttestationCert(pem); err != nil {
+			if err := isValidCertificatePEM(pem); err != nil {
 				return trace.BadParameter("webauthn allowed CAs entry invalid: %v", err)
 			}
 		}
@@ -669,7 +726,7 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 
 	// AttestationDeniedCAs.
 	for _, pem := range w.AttestationDeniedCAs {
-		if err := isValidAttestationCert(pem); err != nil {
+		if err := isValidCertificatePEM(pem); err != nil {
 			return trace.BadParameter("webauthn denied CAs entry invalid: %v", err)
 		}
 	}
@@ -677,8 +734,8 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 	return nil
 }
 
-func isValidAttestationCert(certOrPath string) error {
-	_, err := tlsutils.ParseCertificatePEM([]byte(certOrPath))
+func isValidCertificatePEM(pem string) error {
+	_, err := tlsutils.ParseCertificatePEM([]byte(pem))
 	return err
 }
 
@@ -761,8 +818,10 @@ func (d *MFADevice) GetVersion() string      { return d.Version }
 func (d *MFADevice) GetMetadata() Metadata   { return d.Metadata }
 func (d *MFADevice) GetName() string         { return d.Metadata.GetName() }
 func (d *MFADevice) SetName(n string)        { d.Metadata.SetName(n) }
-func (d *MFADevice) GetResourceID() int64    { return d.Metadata.ID }
+func (d *MFADevice) GetResourceID() int64    { return d.Metadata.GetID() }
 func (d *MFADevice) SetResourceID(id int64)  { d.Metadata.SetID(id) }
+func (d *MFADevice) GetRevision() string     { return d.Metadata.GetRevision() }
+func (d *MFADevice) SetRevision(rev string)  { d.Metadata.SetRevision(rev) }
 func (d *MFADevice) Expiry() time.Time       { return d.Metadata.Expiry() }
 func (d *MFADevice) SetExpiry(exp time.Time) { d.Metadata.SetExpiry(exp) }
 
@@ -787,12 +846,14 @@ func (d *MFADevice) MarshalJSON() ([]byte, error) {
 }
 
 func (d *MFADevice) UnmarshalJSON(buf []byte) error {
-	return jsonpb.Unmarshal(bytes.NewReader(buf), d)
+	unmarshaler := jsonpb.Unmarshaler{AllowUnknownFields: true}
+	err := unmarshaler.Unmarshal(bytes.NewReader(buf), d)
+	return trace.Wrap(err)
 }
 
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.
 func (r RequireMFAType) IsSessionMFARequired() bool {
-	return r == RequireMFAType_SESSION || r == RequireMFAType_SESSION_AND_HARDWARE_KEY
+	return r != RequireMFAType_OFF
 }
 
 // MarshalJSON marshals RequireMFAType to boolean or string.

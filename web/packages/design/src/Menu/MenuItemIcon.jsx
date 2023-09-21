@@ -16,12 +16,14 @@ limitations under the License.
 
 import styled from 'styled-components';
 
-import Icon from './../Icon';
-
-const MenuItemIcon = styled(Icon)`
+const MenuItemIcon = styled.span`
   &:hover,
   &:focus {
-    color: ${props => props.theme.colors.text.primary};
+    color: ${props => props.theme.colors.text.main};
+  }
+  svg {
+    height: ${props => `${props.size}px` || '18px'};
+    height: ${props => `${props.size}px` || '18px'};
   }
 `;
 

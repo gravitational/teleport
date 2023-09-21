@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestEKSFetcher(t *testing.T) {
@@ -197,6 +198,7 @@ func eksClustersToResources(t *testing.T, clusters ...*eks.Cluster) types.Resour
 		kubeCluster, err := services.NewKubeClusterFromAWSEKS(cluster)
 		require.NoError(t, err)
 		require.True(t, kubeCluster.IsAWS())
+		common.ApplyEKSNameSuffix(kubeCluster)
 		kubeClusters = append(kubeClusters, kubeCluster)
 	}
 	return kubeClusters.AsResources()

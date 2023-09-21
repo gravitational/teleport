@@ -66,14 +66,14 @@ func TestRootHostUsersBackend(t *testing.T) {
 	})
 
 	t.Run("Test CreateGroup", func(t *testing.T) {
-		err := backend.CreateGroup(testgroup)
+		err := backend.CreateGroup(testgroup, "")
 		require.NoError(t, err)
-		err = backend.CreateGroup(testgroup)
+		err = backend.CreateGroup(testgroup, "")
 		require.True(t, trace.IsAlreadyExists(err))
 	})
 
 	t.Run("Test CreateUser and group", func(t *testing.T) {
-		err := backend.CreateUser(testuser, []string{testgroup})
+		err := backend.CreateUser(testuser, []string{testgroup}, "", "")
 		require.NoError(t, err)
 
 		tuser, err := backend.Lookup(testuser)
@@ -86,9 +86,13 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, tuserGids, group.Gid)
 
-		err = backend.CreateUser(testuser, []string{})
+		err = backend.CreateUser(testuser, []string{}, "", "")
 		require.True(t, trace.IsAlreadyExists(err))
 
+		require.NoFileExists(t, filepath.Join("/home", testuser))
+		err = backend.CreateHomeDirectory(testuser, tuser.Uid, tuser.Gid)
+		require.NoError(t, err)
+		require.FileExists(t, filepath.Join("/home", testuser, ".bashrc"))
 	})
 
 	t.Run("Test DeleteUser", func(t *testing.T) {
@@ -107,7 +111,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 			}
 		})
 		for _, u := range checkUsers {
-			err := backend.CreateUser(u, []string{})
+			err := backend.CreateUser(u, []string{}, "", "")
 			require.NoError(t, err)
 		}
 
@@ -125,7 +129,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, err)
 		invalidSudoersEntry := []byte("yipee i broke sudo!!!!")
 		err = backend.CheckSudoers(invalidSudoersEntry)
-		require.EqualError(t, err, "parse error in stdin near line 1\n\n\tvisudo: invalid sudoers file")
+		require.Contains(t, err.Error(), "visudo: invalid sudoers file")
 		// test sudoers entry containing . or ~
 		require.NoError(t, backend.WriteSudoersFile("user.name", validSudoersEntry))
 		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
@@ -133,6 +137,31 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, backend.RemoveSudoersFile("user.name"))
 		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
 		require.True(t, os.IsNotExist(err))
+	})
+
+	t.Run("Test CreateHomeDirectory does not follow symlinks", func(t *testing.T) {
+		err := backend.CreateUser(testuser, []string{testgroup}, "", "")
+		require.NoError(t, err)
+
+		tuser, err := backend.Lookup(testuser)
+		require.NoError(t, err)
+
+		require.NoError(t, os.WriteFile("/etc/skel/testfile", []byte("test\n"), 0o700))
+
+		bashrcPath := filepath.Join("/home", testuser, ".bashrc")
+		require.NoFileExists(t, bashrcPath)
+
+		require.NoError(t, os.MkdirAll(filepath.Join("/home", testuser), 0o700))
+
+		require.NoError(t, os.Symlink("/tmp/ignoreme", bashrcPath))
+		require.NoFileExists(t, "/tmp/ignoreme")
+
+		err = backend.CreateHomeDirectory(testuser, tuser.Uid, tuser.Gid)
+		t.Cleanup(func() {
+			os.RemoveAll(filepath.Join("/home", testuser))
+		})
+		require.NoError(t, err)
+		require.NoFileExists(t, "/tmp/ignoreme")
 	})
 }
 
@@ -175,7 +204,7 @@ func TestRootHostUsers(t *testing.T) {
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
 
 		testGroups := []string{"group1", "group2"}
-		_, closer, err := users.CreateUser(testuser, &services.HostUsersInfo{Groups: testGroups})
+		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{Groups: testGroups, Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP})
 		require.NoError(t, err)
 
 		testGroups = append(testGroups, types.TeleportServiceGroup)
@@ -184,6 +213,41 @@ func TestRootHostUsers(t *testing.T) {
 		u, err := user.Lookup(testuser)
 		require.NoError(t, err)
 		requireUserInGroups(t, u, testGroups)
+
+		require.NoError(t, closer.Close())
+		_, err = user.Lookup(testuser)
+		require.Equal(t, err, user.UnknownUserError(testuser))
+	})
+
+	t.Run("test create user with uid and gid", func(t *testing.T) {
+		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
+
+		testUID := "1234"
+		testGID := "1337"
+
+		_, err := user.LookupGroupId(testGID)
+		require.ErrorIs(t, err, user.UnknownGroupIdError(testGID))
+
+		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{
+			Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+			UID:  testUID,
+			GID:  testGID,
+		})
+		require.NoError(t, err)
+
+		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportServiceGroup}))
+
+		group, err := user.LookupGroupId(testGID)
+		require.NoError(t, err)
+		require.Equal(t, testuser, group.Name)
+
+		u, err := user.Lookup(testuser)
+		require.NoError(t, err)
+
+		require.Equal(t, u.Uid, testUID)
+		require.Equal(t, u.Gid, testGID)
+
+		require.FileExists(t, filepath.Join("/home", testuser, ".bashrc"))
 
 		require.NoError(t, closer.Close())
 		_, err = user.Lookup(testuser)
@@ -205,9 +269,10 @@ func TestRootHostUsers(t *testing.T) {
 			os.Remove(sudoersPath(testuser, uuid))
 			host.UserDel(testuser)
 		})
-		_, closer, err := users.CreateUser(testuser,
+		closer, err := users.CreateUser(testuser,
 			&services.HostUsersInfo{
 				Sudoers: []string{"ALL=(ALL) ALL"},
+				Mode:    types.CreateHostUserMode_HOST_USER_MODE_DROP,
 			})
 		require.NoError(t, err)
 		_, err = os.Stat(sudoersPath(testuser, uuid))
@@ -219,9 +284,10 @@ func TestRootHostUsers(t *testing.T) {
 		require.True(t, os.IsNotExist(err))
 
 		// ensure invalid sudoers entries dont get written
-		_, closer, err = users.CreateUser(testuser,
+		closer, err = users.CreateUser(testuser,
 			&services.HostUsersInfo{
 				Sudoers: []string{"badsudoers entry!!!"},
+				Mode:    types.CreateHostUserMode_HOST_USER_MODE_DROP,
 			})
 		require.Error(t, err)
 		defer closer.Close()
@@ -235,11 +301,16 @@ func TestRootHostUsers(t *testing.T) {
 
 		deleteableUsers := []string{"teleport-user1", "teleport-user2", "teleport-user3"}
 		for _, user := range deleteableUsers {
-			_, _, err := users.CreateUser(user, &services.HostUsersInfo{})
+			_, err := users.CreateUser(user, &services.HostUsersInfo{Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP})
 			require.NoError(t, err)
 		}
-		_, err = host.UserAdd("teleport-user4", []string{})
+
+		// this user should not be in the service group as it was created with mode keep.
+		closer, err := users.CreateUser("teleport-user4", &services.HostUsersInfo{
+			Mode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+		})
 		require.NoError(t, err)
+		require.Nil(t, closer)
 
 		t.Cleanup(cleanupUsersAndGroups(
 			[]string{"teleport-user1", "teleport-user2", "teleport-user3", "teleport-user4"},

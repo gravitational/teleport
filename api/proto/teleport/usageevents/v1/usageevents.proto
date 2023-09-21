@@ -47,6 +47,13 @@ message UIOnboardSetCredentialSubmitEvent {
   string username = 1;
 }
 
+// UIOnboardQuestionnaireSubmitEvent is a UI event sent during registration when
+// the user submits their onboarding questionnaire.
+message UIOnboardQuestionnaireSubmitEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
 // UIOnboardRegisterChallengeSubmitEvent is a UI event sent during registration
 // when the MFA challenge is completed.
 message UIOnboardRegisterChallengeSubmitEvent {
@@ -128,6 +135,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY = 34;
   DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35;
   DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36;
+
+  DISCOVER_RESOURCE_SAML_APPLICATION = 37;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -194,6 +203,26 @@ message UIDiscoverDatabaseRDSEnrollEvent {
   int64 selected_resources_count = 4;
 }
 
+// UICallToActionClickEvent is emmited when a user clicks a Teleport Web UI's CTA.
+message UICallToActionClickEvent {
+  CTA cta = 1;
+}
+
+// CTA represents teleport web UI's call to action buttons.
+// We can't use prehog.v1alpha.CTA here because AuthService (and thus this file)
+// is generated with gogofast, so we just copy the enum definition here instead.
+// Make sure you update both.
+enum CTA {
+  CTA_UNSPECIFIED = 0;
+  CTA_AUTH_CONNECTOR = 1;
+  CTA_ACTIVE_SESSIONS = 2;
+  CTA_ACCESS_REQUESTS = 3;
+  CTA_PREMIUM_SUPPORT = 4;
+  CTA_TRUSTED_DEVICES = 5;
+  CTA_UPGRADE_BANNER = 6;
+  CTA_BILLING_SUMMARY = 7;
+}
+
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
 // For SSH this is the Teleport 'install-node' script.
 //
@@ -205,6 +234,34 @@ message UIDiscoverDeployServiceEvent {
   DiscoverMetadata metadata = 1;
   DiscoverResourceMetadata resource = 2;
   DiscoverStepStatus status = 3;
+
+  // DeployMethod describes the method used to deploy a service.
+  enum DeployMethod {
+    // DEPLOY_METHOD_UNSPECIFIED means there was an existing service
+    // so deploying step got skipped.
+    DEPLOY_METHOD_UNSPECIFIED = 0;
+    // DEPLOY_METHOD_AUTO means Teleport deployed a service for the user.
+    DEPLOY_METHOD_AUTO = 1;
+    // DEPLOY_METHOD_MANUAL means a user deployed a service by themselves.
+    DEPLOY_METHOD_MANUAL = 2;
+  }
+
+  DeployMethod deploy_method = 4;
+
+  // DeployType describes the type of deployment.
+  enum DeployType {
+    // DEPLOY_METHOD_UNSPECIFIED means there was an existing service
+    // so deploying step got skipped.
+    DEPLOY_TYPE_UNSPECIFIED = 0;
+    // DEPLOY_TYPE_INSTALL_SCRIPT means service was deployed using an
+    // install script.
+    DEPLOY_TYPE_INSTALL_SCRIPT = 1;
+    // DEPLOY_TYPE_AMAZON_ECS means service was deployed using amazon's
+    // elastic container service.
+    DEPLOY_TYPE_AMAZON_ECS = 2;
+  }
+
+  DeployType deploy_type = 5;
 }
 
 // UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.
@@ -285,6 +342,216 @@ message UICreateNewRoleCancelClickEvent {}
 // UICreateNewRoleViewDocumentationClickEvent is an event that can be triggered during custom role creation
 message UICreateNewRoleViewDocumentationClickEvent {}
 
+// AssistCompletionEvent is an event that is emitted when a completion occurs in the Assistant
+message AssistCompletionEvent {
+  // ConversationId is the UUID that identifies a single Assist conversation
+  string conversation_id = 1;
+  // TotalTokens is the total amount of token used to satisfy this request
+  int64 total_tokens = 2;
+  // PromptTokens is the amount of estimated tokens used by the prompt
+  int64 prompt_tokens = 3;
+  // CompletionTokens is the amount of tokens that the completion response consists of
+  int64 completion_tokens = 4;
+}
+
+// AssistExecutionEvent is an event that is emitted when an Assist command
+// execution is triggered by the user.
+message AssistExecutionEvent {
+  // ConversationId is the UUID that identifies a single Assist conversation
+  string conversation_id = 1;
+  // NodeCount is the number of nodes the command was executed on
+  int64 node_count = 2;
+  // TotalTokens is the total amount of token used to satisfy this request
+  int64 total_tokens = 3;
+  // PromptTokens is the amount of estimated tokens used by the prompt
+  int64 prompt_tokens = 4;
+  // CompletionTokens is the amount of tokens that the completion response consists of
+  int64 completion_tokens = 5;
+}
+
+// AssistNewConversationEvent is an event that is emitted for each new Assist
+// conversation and contains the conversation category.
+message AssistNewConversationEvent {
+  // Category is the conversation category. This represents what kind of request
+  // the user is asking Assist.
+  string category = 1;
+}
+
+// AssistAccessRequest is an event that is emitted when a user requests access
+// to a resource via Assist.
+message AssistAccessRequest {
+  // ResourceType describes the type of resource the user is requesting access to, e.g. "node", "db", "k8s" or "role".
+  string resource_type = 1;
+  // TotalTokens is the total amount of token used to generate the command summary
+  int64 total_tokens = 2;
+  // PromptTokens is the amount of estimated tokens used by the prompt to generate the command summary
+  int64 prompt_tokens = 3;
+  // CompletionTokens is the amount of tokens that the summary completion response consists of
+  int64 completion_tokens = 4;
+}
+
+// AssistAction is an event that is emitted when a user triggers an action (SSH command generation, output explain, etc.)
+// via Assist.
+message AssistAction {
+  // Action is the action that was triggered, e.g. "ssh-explain", "ssh-command-generate", etc.
+  string action = 1;
+  // TotalTokens is the total amount of token used to generate the command summary
+  int64 total_tokens = 2;
+  // PromptTokens is the amount of estimated tokens used by the prompt to generate the command summary
+  int64 prompt_tokens = 3;
+  // CompletionTokens is the amount of tokens that the summary completion response consists of
+  int64 completion_tokens = 4;
+}
+
+// AccessListMetadata contains common metadata for Access List related events.
+message AccessListMetadata {
+  // Uniquely identifies an Access List. Will allow correlation of events within an access list.
+  string id = 1;
+}
+
+// AccessListCreate is an event that is emitted when an access list is created.
+message AccessListCreate {
+  AccessListMetadata metadata = 1;
+}
+
+// AccessListUpdate is an event that is emitted when an access list is updated.
+message AccessListUpdate {
+  AccessListMetadata metadata = 1;
+}
+
+// AccessListDelete is an event that is emitted when an access list is deleted.
+message AccessListDelete {
+  AccessListMetadata metadata = 1;
+}
+
+// AccessListMemberCreate is an event that is emitted when a member is added to an access list.
+message AccessListMemberCreate {
+  AccessListMetadata metadata = 1;
+}
+
+// AccessListMemberCreate is an event that is emitted when a member is updated in an access list.
+message AccessListMemberUpdate {
+  AccessListMetadata metadata = 1;
+}
+
+// AccessListMemberDelete is an event that is emitted when a member is removed from an access list.
+message AccessListMemberDelete {
+  AccessListMetadata metadata = 1;
+}
+
+// AccessListGrantsToUser is an event that is emitted when access list permissions are granted to a user
+// on login.
+message AccessListGrantsToUser {
+  // count_roles_granted is the number of roles granted to a user.
+  int32 count_roles_granted = 1;
+
+  // count_traits_granted is the number of traits granted to a user.
+  int32 count_traits_granted = 2;
+}
+
+// IntegrationEnrollKind represents the types of integration that
+// can be enrolled.
+enum IntegrationEnrollKind {
+  INTEGRATION_ENROLL_KIND_UNSPECIFIED = 0;
+  INTEGRATION_ENROLL_KIND_SLACK = 1;
+  INTEGRATION_ENROLL_KIND_AWS_OIDC = 2;
+  INTEGRATION_ENROLL_KIND_PAGERDUTY = 3;
+  INTEGRATION_ENROLL_KIND_EMAIL = 4;
+  INTEGRATION_ENROLL_KIND_JIRA = 5;
+  INTEGRATION_ENROLL_KIND_DISCORD = 6;
+  INTEGRATION_ENROLL_KIND_MATTERMOST = 7;
+  INTEGRATION_ENROLL_KIND_MS_TEAMS = 8;
+  INTEGRATION_ENROLL_KIND_OPSGENIE = 9;
+  INTEGRATION_ENROLL_KIND_OKTA = 10;
+  INTEGRATION_ENROLL_KIND_JAMF = 11;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID = 12;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS = 13;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_CIRCLECI = 14;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_GITLAB = 15;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_JENKINS = 16;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE = 17;
+  INTEGRATION_ENROLL_KIND_SERVICENOW = 18;
+}
+
+// IntegrationEnrollMetadata contains common metadata
+// for Integration Enroll related events.
+message IntegrationEnrollMetadata {
+  // id is used as a unique identifier to correlate events within the
+  // same enroll wizard run.
+  string id = 1;
+  // kind identifies what type of integration the user clicked on to enroll.
+  IntegrationEnrollKind kind = 2;
+  // user_name is anonymized.
+  string user_name = 3;
+}
+
+// UIIntegrationEnrollEvent is an event that is emitted when a user
+// clicks on a integration to enroll.
+message UIIntegrationEnrollStartEvent {
+  IntegrationEnrollMetadata metadata = 1;
+}
+
+// UIIntegrationEnrollEvent is an event that is emitted when a user
+// completed enrolling an integration.
+message UIIntegrationEnrollCompleteEvent {
+  IntegrationEnrollMetadata metadata = 1;
+}
+
+// ResourceCreateEvent is emitted when a resource is created.
+message ResourceCreateEvent {
+  // resource_type is the type of resource ("node", "node.openssh", "db", "k8s").
+  string resource_type = 1;
+  // resource_origin is the origin of the resource ("cloud").
+  string resource_origin = 2;
+  // cloud_provider is the cloud provider the resource came from ("AWS", "Azure", "GCP").
+  string cloud_provider = 3;
+  // database contains additional database information if resource_type == "db".
+  DiscoveredDatabaseMetadata database = 4;
+}
+
+// DiscoveredDatabaseMetadata contains additional database information.
+message DiscoveredDatabaseMetadata {
+  // database type.
+  string db_type = 1;
+  // database protocol.
+  string db_protocol = 2;
+}
+
+// FeatureRecommendationEvent captures event emitted when a feature is recommended to user or
+// when user completes the desired CTA for the feature.
+//
+// PostHost event: tp.ui.feature.recommendation
+message FeatureRecommendationEvent {
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
+  //
+  // PostHog property: tp.user_name
+  string user_name = 1;
+  // feature is name of the Teleport feature.
+  //
+  // PostHost property: tp.feature
+  Feature feature = 2;
+  // feature_recommendation_status records recommendation state, which can be 'NOTIFIED' (feature is recommended)
+  // OR 'DONE' (user completes desired CTA)
+  //
+  // PostHost property: tp.feature_recommendation_status
+  FeatureRecommendationStatus feature_recommendation_status = 3;
+}
+
+// Feature is name of Teleport feature
+enum Feature {
+  FEATURE_UNSPECIFIED = 0;
+  FEATURE_TRUSTED_DEVICES = 1;
+}
+
+// FeatureRecommendationStatus is feature recommendation status.
+enum FeatureRecommendationStatus {
+  FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0;
+  // FEATURE_RECOMMENDATION_STATUS_NOTIFIED is emitted when a feature is recommended (notified in UI) to user.
+  FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1;
+  // FEATURE_RECOMMENDATION_STATUS_DONE is emitted when user completes the desired CTA.
+  FEATURE_RECOMMENDATION_STATUS_DONE = 2;
+}
+
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
@@ -316,6 +583,24 @@ message UsageEventOneOf {
     UICreateNewRoleViewDocumentationClickEvent ui_create_new_role_view_documentation_click = 26;
     UIDiscoverIntegrationAWSOIDCConnectEvent ui_discover_integration_aws_oidc_connect_event = 27;
     UIDiscoverDatabaseRDSEnrollEvent ui_discover_database_rds_enroll_event = 28;
+    UICallToActionClickEvent ui_call_to_action_click_event = 29;
+    AssistCompletionEvent assist_completion = 30;
+    UIIntegrationEnrollStartEvent ui_integration_enroll_start_event = 31;
+    UIIntegrationEnrollCompleteEvent ui_integration_enroll_complete_event = 32;
+    UIOnboardQuestionnaireSubmitEvent ui_onboard_questionnaire_submit = 33;
+    AssistExecutionEvent assist_execution = 34;
+    AssistNewConversationEvent assist_new_conversation = 35;
+    ResourceCreateEvent resource_create_event = 36;
+    FeatureRecommendationEvent feature_recommendation_event = 37;
+    AssistAccessRequest assist_access_request = 38;
+    AssistAction assist_action = 39;
+    AccessListCreate access_list_create = 40;
+    AccessListUpdate access_list_update = 41;
+    AccessListDelete access_list_delete = 42;
+    AccessListMemberCreate access_list_member_create = 43;
+    AccessListMemberUpdate access_list_member_update = 44;
+    AccessListMemberDelete access_list_member_delete = 45;
+    AccessListGrantsToUser access_list_grants_to_user = 46;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

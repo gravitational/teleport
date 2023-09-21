@@ -90,14 +90,7 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] Login via platform authenticator
       - [ ] Touch ID
       - [ ] Windows Hello
-    - [ ] Login via WebAuthn using an U2F device
-
-    U2F devices must be registered in a previous version of Teleport.
-
-    Using Teleport v9, set `auth_service.authentication.second_factor = u2f`,
-    restart the server and then register an U2F device (`tsh mfa add`). Upgrade
-    the installation to the current Teleport version (one major at a time) and try to
-    log in using the U2F device as your second factor - it should work.
+    - [ ] Login via WebAuthn using an U2F/CTAP1 device
 
   - [ ] Login OIDC
   - [ ] Login SAML
@@ -106,9 +99,12 @@ as well as an upgrade of the previous version of Teleport.
 
 - [ ] Backends
   - [ ] Teleport runs with etcd
-  - [ ] Teleport runs with dynamodb
+  - [ ] Teleport runs with DynamoDB
+    - [ ] AWS integration tests are passing
   - [ ] Teleport runs with SQLite
   - [ ] Teleport runs with Firestore
+    - [ ] GCP integration tests are passing
+  - [ ] Teleport runs with Postgres
 
 - [ ] Session Recording
   - [ ] Session recording can be disabled
@@ -125,11 +121,20 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Recorded events can be enforced by the `enhanced_recording` role option.
   - [ ] Enhanced session recording can be enabled on CentOS 7 with kernel 5.8+.
 
-- [ ] Restricted Session
-  - [ ] Network request are allowed when a policy allow them.
-  - [ ] Network request are blocked when a policy deny them.
+- [ ] Auditd
+  - [ ] When auditd is enabled, audit events are recorded — https://github.com/gravitational/teleport/blob/7744f72c6eb631791434b648ba41083b5f6d2278/lib/auditd/common.go#L25-L34
+    - [ ] SSH session start — user login event
+    - [ ] SSH session end
+    - [ ] SSH Login failures — SSH auth error
+    - [ ] SSH Login failures — unknown OS user
+    - [ ] Session ID is correct (only true when Teleport runs as systemd service)
+    - [ ] Teleport user is recorded as an auditd event field
 
 - [ ] Audit Log
+  - [ ] Audit log with dynamodb
+    - [ ] AWS integration tests are passing
+  - [ ] Audit log with Firestore
+    - [ ] GCP integration tests are passing
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID
     - [ ] `server_id` is the ID of the node in "session_recording: node" mode
@@ -178,8 +183,6 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] tsh ssh \<agentless-node-remote-cluster\> ls
   - [ ] tsh join \<regular-node\>
   - [ ] tsh join \<node-remote-cluster\>
-  - [ ] tsh join \<agentless-node\>
-  - [ ] tsh join \<agentless-node-remote-cluster\>
   - [ ] tsh play \<regular-node\>
   - [ ] tsh play \<node-remote-cluster\>
   - [ ] tsh play \<agentless-node\>
@@ -263,24 +266,31 @@ as well as an upgrade of the previous version of Teleport.
 For some manual testing, many combinations need to be tested. For example, for
 interactive sessions the 12 combinations are below.
 
-- [ ] Connect to a OpenSSH node in a local cluster using OpenSSH.
-- [ ] Connect to a OpenSSH node in a local cluster using Teleport.
-- [ ] Connect to a OpenSSH node in a local cluster using the Web UI.
-- [ ] Connect to an Agentless node in a local cluster using OpenSSH.
-- [ ] Connect to an Agentless node in a local cluster using Teleport.
-- [ ] Connect to an Agentless node in a local cluster using the Web UI.
-- [ ] Connect to a Teleport node in a local cluster using OpenSSH.
-- [ ] Connect to a Teleport node in a local cluster using Teleport.
-- [ ] Connect to a Teleport node in a local cluster using the Web UI.
-- [ ] Connect to a OpenSSH node in a remote cluster using OpenSSH.
-- [ ] Connect to a OpenSSH node in a remote cluster using Teleport.
-- [ ] Connect to a OpenSSH node in a remote cluster using the Web UI.
-- [ ] Connect to an Agentless node in a remote cluster using OpenSSH.
-- [ ] Connect to an Agentless node in a remote cluster using Teleport.
-- [ ] Connect to an Agentless node in a remote cluster using the Web UI.
-- [ ] Connect to a Teleport node in a remote cluster using OpenSSH.
-- [ ] Connect to a Teleport node in a remote cluster using Teleport.
-- [ ] Connect to a Teleport node in a remote cluster using the Web UI.
+- Add an agentless Node in a local cluster.
+  - [ ] Connect using OpenSSH.
+  - [ ] Connect using Teleport.
+  - [ ] Connect using the Web UI.
+  - Remove the Node (but keep its custom CA in sshd config).
+    - [ ] Verify that it fails to connect when using OpenSSH.
+    - [ ] Verify that it fails to connect when using Teleport.
+    - [ ] Verify that it fails to connect when using the Web UI.
+- Add a Teleport Node in a local cluster.
+  - [ ] Connect using OpenSSH.
+  - [ ] Connect using Teleport.
+  - [ ] Connect using the Web UI.
+
+- Add an agentless Node in a remote (leaf) cluster.
+  - [ ] Connect using OpenSSH from root cluster.
+  - [ ] Connect using Teleport from root cluster.
+  - [ ] Connect using the Web UI from root cluster.
+  - Remove the Node (but keep its custom CA in sshd config).
+    - [ ] Verify that it fails to connect when using OpenSSH from root cluster.
+    - [ ] Verify that it fails to connect when using Teleport from root cluster.
+    - [ ] Verify that it fails to connect when using the Web UI from root cluster.
+- Add a Teleport Node in a remote (leaf) cluster.
+  - [ ] Connect using OpenSSH from root cluster.
+  - [ ] Connect using Teleport from root cluster.
+  - [ ] Connect using the Web UI from root cluster.
 
 ### Teleport with EKS/GKE
 
@@ -430,6 +440,8 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
     - [ ] OIDC Screenshots are up-to-date
 - [ ] All providers with guides in docs are covered in this test plan
 - [ ] Login Rules work to transform traits from SSO provider
+- [ ] SAML IdP guide instructions work
+    - [ ] SAML IdP screenshots are up to date
 
 ### GitHub External SSO
 
@@ -479,8 +491,12 @@ connectors are accepted, invalid are rejected with sensible error messages.
 - [ ] Join a Teleport node running in the same Kubernetes cluster via a Kubernetes ProvisionToken
 
 ### Azure Node Joining
-[Docs](https://goteleport.com/docs/management/guides/joining-nodes-azure/)
+[Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/azure/)
 - [ ] Join a Teleport node running in an Azure VM
+
+### GCP Node Joining
+[Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/gcp/)
+- [ ] Join a Teleport node running in a GCP VM.
 
 ### Cloud Labels
 - [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/management/guides/ec2-tags/)
@@ -491,7 +507,9 @@ instance has label `azure/foo=bar`.
 
 ### Passwordless
 
-This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+This feature has additional build requirements, so it should be tested with a
+pre-release build from Drone (eg:
+`https://get.gravitational.com/tsh-v10.0.0-alpha.2.pkg`).
 
 This sections complements "Users -> Managing MFA devices". `tsh` binaries for
 each operating system (Linux, macOS and Windows) must be tested separately for
@@ -553,7 +571,7 @@ Device Trust requires Teleport Enterprise.
 
 This feature has additional build requirements, so it should be tested with a
 pre-release build from Drone (eg:
-`https://get.gravitational.com/teleport-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+`https://get.gravitational.com/teleport-ent-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
 Client-side enrollment requires a signed `tsh` for macOS, make sure to use the
 `tsh` binary from `tsh.app`.
@@ -590,6 +608,7 @@ tsh ssh node-that-requires-device-trust
 
 - [ ] Device enrollment
   - [ ] Enroll device on macOS (`tsh device enroll`)
+  - [ ] Enroll device on Windows (`tsh device enroll`)
   - [ ] Verify device extensions on TLS certificate
 
     Note that different accesses have different certificates (Database, Kube,
@@ -652,6 +671,12 @@ tsh ssh node-that-requires-device-trust
   - [ ] Non-signed and/or non-notarized `tsh` for macOS gives a sane error
         message for `tsh device enroll` attempts.
 
+- [ ] Device support commands
+  - [ ] `tsh device collect`   (macOS)
+  - [ ] `tsh device asset-tag` (macOS)
+  - [ ] `tsh device collect`   (Windows)
+  - [ ] `tsh device asset-tag` (Windows)
+
 [device_event_codes]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/lib/events/codes.go#L389-L400
 [event_trusted_device]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/api/proto/teleport/legacy/types/events/events.proto#L88-L90
 
@@ -708,7 +733,7 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
   - [ ] Migrating a software cluster to YubiHSM2 works
   - [ ] CA rotation works
 - [ ] AWS CloudHSM Support
-  - [ ] Make sure docs/links are up to date (they currently aren't https://github.com/gravitational/teleport/issues/24503)
+  - [ ] Make sure docs/links are up to date
   - [ ] New cluster with CloudHSM CA works
   - [ ] Migrating a software cluster to CloudHSM works
   - [ ] CA rotation works
@@ -740,6 +765,7 @@ Scale up the number of nodes/clusters a few times for each configuration below.
   - [ ] etcd - 10k
   - [ ] DynamoDB - 10k
   - [ ] Firestore - 10k
+  - [ ] Postgres - 10k
 
   Perform the following additional scaling tests on DynamoDB:
  - [ ] 10k direct dial nodes.
@@ -839,7 +865,7 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Test Applications screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all apps registered are shown
   - [ ] Verify that clicking on the app icon takes you to another tab
-  - [ ] Verify using the bash command produced from `Add Application` dialogue works (refresh app screen to see it registered)
+  - [ ] Verify `Add Application` links to documentation.
 
 ## Database Access
 
@@ -869,12 +895,14 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Azure single-server MySQL and Postgres
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
+  - [ ] OpenSearch.
   - [ ] Cassandra/ScyllaDB.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Dynamodb.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Azure SQL Server.
   - [ ] Oracle.
+  - [ ] ClickHouse.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
@@ -899,10 +927,15 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Azure single-server MySQL and Postgres
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
+  - [ ] OpenSearch.
   - [ ] Cassandra/ScyllaDB.
   - [ ] Dynamodb.
   - [ ] Azure SQL Server.
   - [ ] Oracle.
+  - [ ] ClickHouse.
+- [ ] Verify auto user provisioning.
+  - [ ] Self-hosted Postgres.
+  - [ ] AWS RDS Postgres.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -921,6 +954,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Can update registered database using `tctl create -f`.
   - [ ] Can delete registered database using `tctl rm`.
 - [ ] Verify discovery.
+  Please configure discovery in Discovery Service instead of Database Service.
     - [ ] AWS
       - [ ] Can detect and register RDS instances.
         - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
@@ -931,6 +965,7 @@ tsh bench web sessions --max=5000 --web user ls
       - [ ] Can detect and register Redshift serverless workgroups, and their VPC endpoints.
       - [ ] Can detect and register ElastiCache Redis clusters.
       - [ ] Can detect and register MemoryDB clusters.
+      - [ ] Can detect and register OpenSearch domains.
     - [ ] Azure
       - [ ] Can detect and register MySQL and Postgres single-server instances.
       - [ ] Can detect and register MySQL and Postgres flexible-server instances.
@@ -996,6 +1031,7 @@ tsh bench web sessions --max=5000 --web user ls
     - [ ] MSSQL
     - [ ] Snowflake
     - [ ] Elasticsearch.
+    - [ ] OpenSearch.
     - [ ] Cassandra/ScyllaDB.
     - [ ] Oracle.
   - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
@@ -1140,7 +1176,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] `desktop.directory.share` (`TDP04I`) emitted when Teleport starts sharing a directory
   - [ ] `desktop.directory.read` (`TDP05I`) emitted when a file is read over the shared directory
   - [ ] `desktop.directory.write` (`TDP06I`) emitted when a file is written to over the shared directory
-- Warnings/Errors
+- Warnings/Errors (test by applying [this patch](https://gist.github.com/ibeckermayer/7591333275e87ad0d7afa028a7bb54cb))
   - [ ] Induce the backend to send a TDP Notification of severity warning (1), confirm that a warning is logged in the warning dropdown
   - [ ] Induce the backend to send a TDP Notification of severity error (2), confirm that session is terminated and error popup is shown
   - [ ] Induce the backend to send a TDP Error, confirm that session is terminated and error popup is shown (confirms backwards compatibility w/ older w_d_s starting in Teleport 12)
@@ -1148,6 +1184,19 @@ tsh bench web sessions --max=5000 --web user ls
   - Set up Teleport in a trusted cluster configuration where the root and leaf cluster has a w_d_s connected via tunnel (w_d_s running as a separate process)
     - [ ] Confirm that windows desktop sessions can be made on root cluster
     - [ ] Confirm that windows desktop sessions can be made on leaf cluster
+- Non-AD setup
+  - [ ] Installer in GUI mode finishes successfully on instance that is not part of domain
+  - [ ] Installer works correctly invoked from command line
+  - [ ] Non-AD instance can be added to `non_ad_hosts` section in config file and is visible in UI
+  - [ ] Non-AD can be added as dynamic resource and is visible in UI
+  - [ ] Non-AD instance has label `teleport.dev/ad: false`
+  - [ ] Connecting to non-AD instance works with OSS if there are no more than 5 non-AD desktops
+  - [ ] Connecting to non-AD instance fails with OSS if there are more than 5 non-AD desktops
+  - [ ] Connecting to non-AD instance works with Enterprise license always
+  - [ ] In OSS version, if there are more than 5 non-AD desktops banner shows up telling you to upgrade
+  - [ ] Banner goes away if you reduce number of non-AD desktops to less or equal 5
+  - [ ] Installer in GUI mode successfully uninstalls Authentication Package (logging in is not possible)
+  - [ ] Installer successfully uninstalls Authentication Package (logging in is not possible) when invoked from command line
 
 ## Binaries compatibility
 
@@ -1157,26 +1206,31 @@ tsh bench web sessions --max=5000 --web user ls
 
 ## Machine ID
 
-### SSH
-
-With a default Teleport instance configured with a SSH node:
-
 - [ ] Verify you are able to create a new bot user with `tctl bots add robot --roles=access`. Follow the instructions provided in the output to start `tbot`
-- [ ] Verify you are able to connect to the SSH node using openssh with the generated `ssh_config` in the destination directory
+  - [ ] Directly connecting to the auth server
+  - [ ] Connecting to the auth server via the proxy reverse tunnel
 - [ ] Verify that after the renewal period (default 20m, but this can be reduced via configuration), that newly generated certificates are placed in the destination directory
 - [ ] Verify that sending both `SIGUSR1` and `SIGHUP` to a running tbot process causes a renewal and new certificates to be generated
-- [ ] Verify that you are able to make a connection to the SSH node using the `ssh_config` provided by `tbot` after each phase of a manual CA rotation.
 
-Ensure the above tests are completed for both:
+With an SSH node registered to the Teleport cluster:
 
-- [ ] Directly connecting to the auth server
-- [ ] Connecting to the auth server via the proxy reverse tunnel
+- [ ] Verify you are able to connect to the SSH node using openssh with the generated `ssh_config` in the destination directory
+- [ ] Verify you are able to connect to the SSH node using `tsh` with the identity file in the destination directory
 
-### DB Access
+With a Postgres DB registered to the Teleport cluster:
 
-With a default Postgres DB instance, a Teleport instance configured with DB access and a bot user configured:
+- [ ] Verify you are able to interact with a database using `tbot db connect` with a database output
+- [ ] Verify you are able to connect to the database using `tbot proxy db` with a database output
+- [ ] Verify you are able to produce an authenticated tunnel using `tbot proxy db --tunnel` with a database output and then able to connect to the database through the tunnel without credentials
 
-- [ ] Verify you are able to connect to and interact with a database using `tbot db` while `tbot start` is running
+With a Kubernetes cluster registered to the Teleport cluster:
+
+- [ ] Verify the `kubeconfig` produced by a Kubernetes output can be used to run basic commands (e.g `kubectl get pods`)
+
+With a HTTP application registered to the Teleport cluster:
+
+- [ ] Verify the certificates produced by an application output can be used directly against the proxy (e.g `curl --cert ./out/tlscert --key ./out/key https://httpbin.teleport.example.com/headers`)
+- [ ] Verify you are able to produce an authenticated tunnel using `tbot proxy app httpbin` with an application output and then able to connect to the application through the tunnel without credentials `curl localhost:port/headers`
 
 ## Host users creation
 
@@ -1223,9 +1277,21 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] `kubectl get po` after `tsh kube login`
   - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
 
+
+## Proxy Peering
+
+[Proxy Peering docs](https://goteleport.com/docs/architecture/proxy-peering/)
+
+- Verify that Proxy Peering works for the following protocols:
+  - [ ] SSH
+  - [ ] Kubernetes
+  - [ ] Database
+  - [ ] Windows Desktop
+  - [ ] App Access
+
 ## EC2 Discovery
 
-[EC2 Discovery docs](https://goteleport.com/docs/ver/11.0/server-access/guides/ec2-discovery/)
+[EC2 Discovery docs](https://goteleport.com/docs/server-access/guides/ec2-discovery/)
 
 - Verify EC2 instance discovery
   - [ ]  Only EC2 instances matching given AWS tags have the installer executed on them
@@ -1236,47 +1302,92 @@ TODO(lxea): replace links with actual docs once merged
     - [ ] Large numbers of EC2 instances (51+) are all successfully added to the cluster
   - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
 
-## Documentation
+## Azure Discovery
 
-Checks should be performed on the version of documentation corresponding to the
-major release we're testing for. For example, for Teleport 12 release use
-`branch/v12` branch and make sure to select "Version 12.0" in the documentation
-version switcher.
+[Azure Discovery docs](https://goteleport.com/docs/server-access/guides/azure-discovery/)
+- Verify Azure VM discovery
+  - [ ] Only Azure VMs matching given Azure tags have the installer executed on them
+  - [ ] Only the IAM permissions mentioned in the discovery docs are required for operation
+  - [ ] Custom scripts specified in different matchers are executed
+  - [ ] New Azure VMs with matching Azure tags are discovered and added to the teleport cluster
+    - [ ] Large numbers of Azure VMs (51+) are all successfully added to the cluster
+  - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
 
-- [ ] Verify installation instructions are accurate:
-  - [ ] Self-hosted: https://goteleport.com/docs/installation
-  - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/downloads/?scope=cloud
+## GCP Discovery
 
-- [ ] Verify getting started instructions are accurate:
-  - [ ] OSS: https://goteleport.com/docs/deploy-a-cluster/open-source/
-  - [ ] Enterprise: https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise
-  - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/introduction/?scope=cloud
-  - [ ] Helm: https://goteleport.com/docs/deploy-a-cluster/helm-deployments/kubernetes-cluster/?scope=enterprise
+[GCP Discovery docs](https://goteleport.com/docs/server-access/guides/gcp-discovery/)
 
-- [ ] Verify upcoming releases page is accurate:
-  - [ ] https://goteleport.com/docs/preview/upcoming-releases/?scope=enterprise
-  - [ ] Only exists for the default docs version.
+- Verify GCP instance discovery
+  - [ ] Only GCP instances matching given GCP tags have the installer executed on them
+  - [ ] Only the IAM permissions mentioned in the discovery docs are required for operation
+  - [ ] Custom scripts specified in different matchers are executed
+  - [ ] New GCP instances with matching GCP tags are discovered and added to the teleport cluster
+    - [ ] Large numbers of GCP instances (51+) are all successfully added to the cluster
+  - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
 
-- [ ] Verify Teleport versions throughout documentation are correct and reflect upcoming release:
-  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1128
-  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1176-L1186
-  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1146-L1153
+## IP Pinning
 
-- [ ] Verify that all necessary documentation for the release was backported to release branch:
-  - [ ] Diff between master and release branch and make sure there are no missed PRs
+Add a role with `pin_source_ip: true` (requires Enterprise) to test IP pinning.
+Testing will require changing your IP (that Teleport Proxy sees).
+Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning/?scope=enterprise)
 
-- [ ] Verify deprecated Teleport versions are added to the older versions page
-  - [ ] https://goteleport.com/docs/older-versions/
+- Verify that it works for SSH Access
+  - [ ] You can access tunnel node with `tsh ssh` on root cluster
+  - [ ] You can access direct access node with `tsh ssh` on root cluster
+  - [ ] You can access tunnel node from Web UI on root cluster
+  - [ ] You can access direct access node from Web UI on root cluster
+  - [ ] You can access tunnel node with `tsh ssh` on leaf cluster
+  - [ ] You can access direct access node with `tsh ssh` on leaf cluster
+  - [ ] You can access tunnel node from Web UI on leaf cluster
+  - [ ] You can access direct access node from Web UI on leaf cluster
+  - [ ] You can download files from nodes in Web UI (small arrows at top left corner)
+  - [ ] If you change your IP you no longer can access nodes.
+- Verify that it works for Kube Access
+  - [ ] You can access Kubernetes cluster through standalone Kube service on root cluster
+  - [ ] You can access Kubernetes cluster through agent inside Kubernetes on root cluster
+  - [ ] You can access Kubernetes cluster through standalone Kube service on leaf cluster
+  - [ ] You can access Kubernetes cluster through agent inside Kubernetes on leaf cluster
+  - [ ] If you change your IP you no longer can access Kube clusters.
+- Verify that it works for DB Access
+  - [ ] You can access DB servers on root cluster
+  - [ ] You can access DB servers on leaf cluster
+  - [ ] If you change your IP you no longer can access DB servers.
+- Verify that it works for App Access
+  - [ ] You can access App service on root cluster
+  - [ ] You can access App service on leaf cluster
+  - [ ] If you change your IP you no longer can access App services.
+- Verify that it works for Desktop Access
+  - [ ] You can access Desktop service on root cluster
+  - [ ] You can access Desktop service on leaf cluster
+  - [ ] If you change your IP you no longer can access Desktop services.
 
-- [ ] Verify `gravitational/docs` version configuration:
-  - [ ] Verify latest version in `gravitational/docs/config.json`
-  - [ ] Verify `gravitational/docs/.gitmodules` contains latest release
+## Assist
 
-- [ ] Verify changelog is up-to-date and complete for the default docs version:
-  - [ ] https://goteleport.com/docs/changelog/
+Assist is not supported by `tsh` and WebUI is the only way to use it.
+Assist test plan is in the core section instead of WebUI as most functionality is implemented in the core.
 
-- [ ] Verify supported versions table in FAQ:
-  - [ ] https://goteleport.com/docs/faq/#supported-versions
+- Configuration
+  - [ ] Assist is disabled by default (OSS, Enterprise)
+  - [ ] Assist can be enabled in the configuration file.
+  - [ ] Assist is disabled in the Cloud.
+  - [ ] Assist is enabled by default in the Cloud Team plan.
+  - [ ] Assist is always disabled when etcd is used as a backend.
+
+- Conversations
+  - [ ] A new conversation can be started.
+  - [ ] SSH command can be executed on one server.
+  - [ ] SSH command can be executed on multiple servers.
+  - [ ] SSH command can be executed on a node with per session MFA enabled.
+  - [ ] Execution output is explained when it fits the context window.
+  - [ ] Assist can list all nodes/execute a command on all nodes (using embeddings).
+  - [ ] Access request can be created.
+  - [ ] Access request is created when approved.
+  - [ ] Conversation title is set after the first message.
+
+- SSH integration
+  - [ ] Assist icon is visible in WebUI's Terminal
+  - [ ] A Bash command can be generated in the above window.
+  - [ ] When an output is selected in the Terminal "Explain" option is available, and it generates the summary.
 
 ## Resources
 

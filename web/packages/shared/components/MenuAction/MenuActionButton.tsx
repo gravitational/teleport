@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import Menu from 'design/Menu';
 import { ButtonBorder } from 'design';
-import { CarrotDown } from 'design/Icon';
+import { ChevronDown } from 'design/Icon';
 
 import { MenuProps, AnchorProps } from './types';
 
@@ -55,7 +55,7 @@ export default class MenuActionIcon extends React.Component<Props> {
           {...buttonProps}
         >
           OPTIONS
-          <CarrotDown ml={2} mr={-2} fontSize="2" color="text.secondary" />
+          <ChevronDown ml={2} mr={-2} size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           getContentAnchorEl={null}

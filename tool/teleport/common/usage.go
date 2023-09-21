@@ -23,7 +23,7 @@ const (
   This flag tells Teleport which services to run. By default it runs auth,
   proxy, and node. In a production environment you may want to separate them.
 
-  --token=xyz
+  --token=xyz or --token=/tmp/token
 
   This token is needed to connect a node or web app to an auth server. Get it
   by running "tctl tokens add --type=node" or "tctl tokens add --type=app" to
@@ -87,7 +87,7 @@ the "us-west-1" and "us-west-2" regions.
    --proxy=localhost:3080 \
    --name=sample-db \
    --protocol=postgres \
-   --uri=postgres://localhost:5432 \
+   --uri=localhost:5432 \
    --labels=env=prod
 Generates a configuration with a Postgres database.
 
@@ -119,7 +119,7 @@ const (
 # A Sample Teleport configuration file.
 #
 # Things to update:
-#  1. license.pem: You only need a license from https://dashboard.goteleport.com
+#  1. license.pem: Retrieve a license from your Teleport account https://teleport.sh
 #     if you are an Enterprise customer.
 #`
 )

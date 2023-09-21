@@ -155,7 +155,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 // ServicesTestSuite is an acceptance test suite
 // for services. It is used for local implementations and implementations
-// using GRPC to guarantee consistency between local and remote services
+// using gRPC to guarantee consistency between local and remote services
 type ServicesTestSuite struct {
 	Access        services.Access
 	CAS           services.Trust
@@ -363,8 +363,7 @@ func NewServer(kind, name, addr, namespace string) *types.ServerV2 {
 			Namespace: namespace,
 		},
 		Spec: types.ServerSpecV2{
-			Addr:       addr,
-			PublicAddr: addr,
+			Addr: addr,
 		},
 	}
 }
@@ -405,7 +404,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Equal(t, len(out), 0)
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
-	require.NoError(t, s.PresenceS.UpsertProxy(proxy))
+	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
 
 	out, err = s.PresenceS.GetProxies()
 	require.NoError(t, err)
@@ -413,7 +412,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	proxy.SetResourceID(out[0].GetResourceID())
 	require.Empty(t, cmp.Diff(out, []types.Server{proxy}))
 
-	err = s.PresenceS.DeleteProxy(proxy.GetName())
+	err = s.PresenceS.DeleteProxy(ctx, proxy.GetName())
 	require.NoError(t, err)
 
 	out, err = s.PresenceS.GetProxies()
@@ -426,7 +425,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Equal(t, len(out), 0)
 
 	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", apidefaults.Namespace)
-	require.NoError(t, s.PresenceS.UpsertAuthServer(auth))
+	require.NoError(t, s.PresenceS.UpsertAuthServer(ctx, auth))
 
 	out, err = s.PresenceS.GetAuthServers()
 	require.NoError(t, err)
@@ -1510,7 +1509,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			crud: func(context.Context) types.Resource {
 				srv := NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 
-				err := s.PresenceS.UpsertProxy(srv)
+				err := s.PresenceS.UpsertProxy(ctx, srv)
 				require.NoError(t, err)
 
 				out, err := s.PresenceS.GetProxies()
@@ -1884,10 +1883,6 @@ waitLoop:
 			if event.Type != types.OpPut {
 				log.Debugf("Skipping event %+v", event)
 				continue
-			}
-			if resource.GetResourceID() > event.Resource.GetResourceID() {
-				log.Debugf("Skipping stale event %v %v %v %v, latest object version is %v", event.Type, event.Resource.GetKind(), event.Resource.GetName(), event.Resource.GetResourceID(), resource.GetResourceID())
-				continue waitLoop
 			}
 			if resource.GetName() != event.Resource.GetName() || resource.GetKind() != event.Resource.GetKind() || resource.GetSubKind() != event.Resource.GetSubKind() {
 				log.Debugf("Skipping event %v resource %v, expecting %v", event.Type, event.Resource.GetMetadata(), event.Resource.GetMetadata())

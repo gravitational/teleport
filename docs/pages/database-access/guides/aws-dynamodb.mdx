@@ -3,22 +3,17 @@ title: Database Access with AWS DynamoDB
 description: How to access AWS DynamoDB with Teleport database access
 ---
 
-Access to AWS DynamoDB can be provided by [Teleport Database
-Access](../introduction.mdx). This allows for
-fine-grain access control through [Teleport's RBAC](../../database-access/rbac.mdx).
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS DynamoDB" dbConfigure="AWS DynamoDB database with IAM authentication" dbName="AWS DynamoDB" !)
 
-This guide will help you to:
-
-- Install the Teleport Database Service.
-- Set up the Teleport Database Service to access DynamoDB.
-- Connect to your DynamoDB databases through the Teleport Database Service.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![DynamoDB Self-Hosted](../../../img/database-access/guides/aws-dynamodb_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![DynamoDB Cloud](../../../img/database-access/guides/aws-dynamodb_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -31,7 +26,6 @@ This guide will help you to:
 - A host, e.g., an EC2 instance, where you will run the Teleport Database Service.
   This guide assumes an EC2 instance when creating and applying IAM roles, and
   must be adjusted accordingly for custom configurations.
-
 - (!docs/pages/includes/tctl.mdx!)
 
 <Admonition type="note" title="Example Access Control">
@@ -74,7 +68,7 @@ Click **Next**. Find the AWS-managed policy `AmazonDynamoDBFullAccess` and then 
 <Admonition type="note" title="Apply least-privilege permissions">
 The `AmazonDynamoDBFullAccess` policy may grant more permissions than desired.
 If you want to use a different IAM policy to reduce permissions, refer to
-[Managing access permissions to your Amazon DynamoDB 
+[Managing access permissions to your Amazon DynamoDB
 Resources](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-overview.html)
 for more information.
 </Admonition>
@@ -116,7 +110,7 @@ listing the IAM role ARN created in the previous step. Create a file called
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: aws-dynamodb-access
 spec:
@@ -152,31 +146,9 @@ the correct STS endpoint.
 
 ### Generate a token
 
-<Details title="Alterative methods">
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
-For users with a lot of infrastructure in AWS, or who might create or recreate
-many instances, consider alternative methods for joining new EC2 instances running
-Teleport:
-
-- [Configure Teleport to Automatically Enroll EC2 instances (Preview)](../../server-access/guides/ec2-discovery.mdx)
-- [Joining Nodes via AWS IAM
-  Role](../../management/join-services-to-your-cluster/aws-iam.mdx)
-- [Joining Nodes via AWS EC2 Identity Document](../../management/join-services-to-your-cluster/aws-ec2.mdx)
-
-</Details>
-
-A join token is required to authorize a Teleport Database Service instance
-to join the cluster. Generate a short-lived join token and save the output of
-the command:
-
-```code
-$ tctl tokens add \
-    --type=db \
-    --db-name=example-dynamodb \
-    --db-protocol=dynamodb
-```
-
-Use the token provided by the output of this command in the next step.
+(!docs/pages/includes/database-access/token.mdx!)
 
 ### Install and start Teleport
 
@@ -194,12 +166,9 @@ teleport:
   nodename: CHANGEME
   data_dir: /var/lib/teleport
   proxy_server: teleport.example.com:443
-  auth_token: (=presets.tokens.first=)
+  auth_token: /tmp/token
 db_service:
   enabled: "yes"
-  resources:
-  - labels:
-      "*": "*"
   # Lists statically registered databases proxied by this agent.
   databases:
     - name: "example-dynamodb"
@@ -216,7 +185,7 @@ db_service:
 
 Substitute `teleport.example.com` with the address of your Teleport Proxy Service.
 (For Teleport Cloud customers, this will be similar to `mytenant.teleport.sh`.)
-Replace the value of `auth_token` with the token generated in the previous step.
+The token generated should have been placed in the file `/tmp/token`.
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
@@ -257,7 +226,7 @@ Type "help", "copyright", "credits" or "license" for more information.
 >>> res = clt.list_tables()
 >>> print(res)
 {'TableNames': *snip output*}
->>> 
+>>>
 ```
 
 ## Next Steps
@@ -265,3 +234,4 @@ Type "help", "copyright", "credits" or "license" for more information.
 - See [Dynamic Database Registration](./dynamic-registration.mdx) to learn how
   to use resource labels to keep Teleport up to date with accessible databases in
   your infrastructure.
+

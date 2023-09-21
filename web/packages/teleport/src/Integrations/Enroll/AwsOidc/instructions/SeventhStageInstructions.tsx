@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router';
 import { Link } from 'react-router-dom';
 import { Danger } from 'design/Alert';
@@ -30,23 +30,31 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { requiredField } from 'shared/components/Validation/rules';
+import {
+  requiredField,
+  requiredRoleArn,
+} from 'shared/components/Validation/rules';
 
 import {
+  Integration,
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
+import { IntegrationEnrollEvent } from 'teleport/services/userEvent';
 
-import { InstructionsContainer } from './common';
+import { InstructionsContainer, PreviousStepProps } from './common';
 
-export function SeventhStageInstructions() {
-  const location = useLocation<{ discoverEventId: string }>();
+type EmitEvent = (event: IntegrationEnrollEvent) => void;
 
+export function SeventhStageInstructions(
+  props: PreviousStepProps & { emitEvent: EmitEvent }
+) {
   const { attempt, setAttempt } = useAttempt('');
-  const [showConfirmBox, setShowConfirmBox] = useState(false);
-  const [roleArn, setRoleArn] = useState('');
-  const [name, setName] = useState('');
+  const [createdIntegration, setCreatedIntegration] = useState<Integration>();
+  const [roleArn, setRoleArn] = useState(props.awsOidc.roleArn);
+  const [name, setName] = useState(props.awsOidc.integrationName);
 
   function handleSubmit(validator: Validator) {
     if (!validator.validate()) {
@@ -60,7 +68,7 @@ export function SeventhStageInstructions() {
         subKind: IntegrationKind.AwsOidc,
         awsoidc: { roleArn },
       })
-      .then(() => setShowConfirmBox(true))
+      .then(setCreatedIntegration)
       .catch((err: Error) =>
         setAttempt({ status: 'failed', statusText: err.message })
       );
@@ -79,11 +87,18 @@ export function SeventhStageInstructions() {
             <Text mt={5}>Copy the role ARN and paste it below</Text>
             <Box mt={2}>
               <FieldInput
+                autoFocus
                 label="Role ARN"
                 onChange={e => setRoleArn(e.target.value)}
                 value={roleArn}
                 placeholder="Role ARN"
-                rule={requiredField('Role ARN is required')}
+                rule={requiredRoleArn}
+                toolTipContent={
+                  <Text>
+                    Role ARN can be found in the format: <br />
+                    {`arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>`}
+                  </Text>
+                }
               />
             </Box>
             <Text mt={5}>Give this AWS integration a name</Text>
@@ -103,14 +118,27 @@ export function SeventhStageInstructions() {
               >
                 Next
               </ButtonPrimary>
+              <ButtonSecondary
+                ml={3}
+                onClick={() =>
+                  props.onPrev({
+                    ...props.awsOidc,
+                    roleArn,
+                    integrationName: name,
+                  })
+                }
+                disabled={attempt.status === 'processing'}
+              >
+                Back
+              </ButtonSecondary>
             </Box>
           </>
         )}
       </Validation>
-      {showConfirmBox && (
+      {createdIntegration && (
         <SuccessfullyAddedIntegrationDialog
-          discoverEventId={location.state?.discoverEventId}
-          integrationName={name}
+          integration={createdIntegration}
+          emitEvent={props.emitEvent}
         />
       )}
     </InstructionsContainer>
@@ -118,12 +146,23 @@ export function SeventhStageInstructions() {
 }
 
 export function SuccessfullyAddedIntegrationDialog({
-  discoverEventId,
-  integrationName,
+  integration,
+  emitEvent,
 }: {
-  discoverEventId: string;
-  integrationName: string;
+  integration: Integration;
+  emitEvent: EmitEvent;
 }) {
+  const location = useLocation<DiscoverUrlLocationState>();
+
+  useEffect(() => {
+    if (location.state?.discover) {
+      return;
+    }
+    emitEvent(IntegrationEnrollEvent.Complete);
+    // Only send event once on init.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <Dialog
       dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
@@ -132,24 +171,23 @@ export function SuccessfullyAddedIntegrationDialog({
       open={true}
     >
       <DialogHeader css={{ margin: '0 auto' }}>
-        <CircleCheck mb={4} fontSize={60} color="success" />
+        <CircleCheck mb={4} size={60} color="success" />
       </DialogHeader>
       <DialogContent>
         <Text textAlign="center">
-          AWS integration "{integrationName}" successfully added
+          AWS integration "{integration.name}" successfully added
         </Text>
       </DialogContent>
       <DialogFooter css={{ margin: '0 auto' }}>
-        {discoverEventId ? (
+        {location.state?.discover ? (
           <ButtonPrimary
             size="large"
             as={Link}
             to={{
               pathname: cfg.routes.discover,
               state: {
-                integrationSubKind: IntegrationKind.AwsOidc,
-                integrationName,
-                discoverEventId,
+                integration,
+                discover: location.state.discover,
               },
             }}
           >

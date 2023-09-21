@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -48,7 +48,7 @@ import (
 type passwordSuite struct {
 	bk          backend.Backend
 	a           *Server
-	mockEmitter *eventstest.MockEmitter
+	mockEmitter *eventstest.MockRecorderEmitter
 }
 
 func setupPasswordSuite(t *testing.T) *passwordSuite {
@@ -95,7 +95,7 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 	err = s.a.SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	s.mockEmitter = &eventstest.MockEmitter{}
+	s.mockEmitter = &eventstest.MockRecorderEmitter{}
 	s.a.emitter = s.mockEmitter
 	return &s
 }
@@ -312,7 +312,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 					TokenID:     resetTokenID,
 					NewPassword: []byte("password2"),
 					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_Webauthn{
-						Webauthn: &wantypes.CredentialCreationResponse{},
+						Webauthn: &wanpb.CredentialCreationResponse{},
 					}},
 				}
 			},

@@ -18,7 +18,6 @@ import React from 'react';
 
 import { TestLayout } from 'teleport/Console/Console.story';
 import ConsoleContext from 'teleport/Console/consoleContext';
-import { ConsoleThemeProvider } from 'teleport/Console/ThemeProvider';
 
 import ClusterSelector from './ClusterSelector';
 
@@ -58,17 +57,15 @@ export const Failed = () => {
 function renderlusterSelector(ctx, { ...props } = {}) {
   return (
     <TestLayout ctx={ctx}>
-      <ConsoleThemeProvider>
-        <ClusterSelector
-          mx="auto"
-          open={true}
-          value={'clusterId'}
-          width="400px"
-          maxMenuHeight={200}
-          onChange={() => null}
-          {...props}
-        />
-      </ConsoleThemeProvider>
+      <ClusterSelector
+        mx="auto"
+        open={true}
+        value={'clusterId'}
+        width="400px"
+        maxMenuHeight={200}
+        onChange={() => null}
+        {...props}
+      />
     </TestLayout>
   );
 }

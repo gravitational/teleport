@@ -21,7 +21,8 @@ the Database Service, including:
 
 Starts Teleport Database Service.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ teleport db start \
@@ -32,8 +33,8 @@ $ teleport db start \
     --uri=postgres.example.com:5432
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ teleport db start \
@@ -44,7 +45,9 @@ $ teleport db start \
     --uri=postgres.mytenant.teleport.sh:5432
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 | Flag | Description |
 | - | - |
@@ -70,7 +73,8 @@ $ teleport db start \
 
 Creates a sample Database Service configuration.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ teleport db configure create --rds-discovery=us-west-1 --rds-discovery=us-west-2
@@ -83,8 +87,8 @@ $ teleport db configure create \
   --labels=env=prod
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ teleport db configure create --rds-discovery=us-west-1 --rds-discovery=us-west-2
@@ -97,7 +101,9 @@ $ teleport db configure create \
   --labels=env=prod
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 | Flag | Description |
 | - | - |
@@ -152,7 +158,8 @@ configuring the Database Service with self-hosted database instances.
 
 <Admonition type="note" title="Note">
   For database formats, `tctl` must be run on an Auth Service host or the remote
-  user must be be able to impersonate the built-in `Db` role and user. See the [impersonation guide](../../access-controls/guides/impersonation.mdx)
+  user must be be able to impersonate the built-in `Db` role and user. See the
+  [impersonation guide](../../access-controls/guides/impersonation.mdx)
   for details on how to allow impersonation.
 </Admonition>
 
@@ -160,6 +167,10 @@ configuring the Database Service with self-hosted database instances.
 $ tctl auth sign --format=db --host=db.example.com --out=db --ttl=2190h
 $ tctl auth sign --format=db --host=host1,localhost,127.0.0.1 --out=db --ttl=2190h
 ```
+
+In this example, `db.example.com` is the hostname where the Teleport Database
+Service can reach the database server. The second example assumes a
+database running on the same host as Teleport.
 
 | Flag | Description |
 | - | - |
@@ -342,3 +353,4 @@ $ tsh db config --format=cmd example
 | Flag | Description |
 | - | - |
 | `--format` | Output format: `text` is default, `cmd` to print native database client connect command. |
+

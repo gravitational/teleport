@@ -39,10 +39,12 @@ const Container = styled.div`
   position: relative;
   align-self: center;
   user-select: none;
+  margin-bottom: 25px;
+  margin-top: 26px;
 `;
 
 const ActiveValue = styled.div<OpenProps>`
-  border: 1px solid ${props => props.theme.colors.text.secondary};
+  border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
   border-radius: 4px;
   padding: 12px 16px;
   width: 190px;
@@ -51,7 +53,7 @@ const ActiveValue = styled.div<OpenProps>`
   cursor: pointer;
 
   &:focus {
-    background: rgba(255, 255, 255, 0.05);
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;
 
@@ -73,7 +75,7 @@ const Dropdown = styled.div<OpenProps>`
 `;
 
 const DropdownItem = styled.div<ActiveProps & OpenProps>`
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   padding: 12px 16px;
   width: 190px;
   font-weight: ${p => (p.active ? 700 : 400)};
@@ -95,7 +97,7 @@ const Arrow = styled.div<OpenProps>`
   top: 50%;
   right: 16px;
   transform: translate(0, -50%);
-  color: ${props => props.theme.colors.text.primary}
+  color: ${props => props.theme.colors.text.main}
   line-height: 0;
 
   svg {
@@ -103,8 +105,8 @@ const Arrow = styled.div<OpenProps>`
     transition: 0.1s linear transform;
 
     path {
-    fill: ${props => props.theme.colors.text.primary}
-  }
+      fill: ${props => props.theme.colors.text.main}
+    }
   }
 `;
 

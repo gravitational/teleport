@@ -26,8 +26,10 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -59,6 +61,10 @@ const (
 	// it can continue after the parent process assigns a cgroup to the
 	// child process.
 	ContinueFile
+	// ReadyFile is used to communicate to the parent process that
+	// the child has completed any setup operations that must occur before
+	// the child is placed into its cgroup.
+	ReadyFile
 	// TerminateFile is used to communicate to the child process that
 	// the interactive terminal should be killed as the client ended the
 	// SSH session and without termination the terminal process will be assigned
@@ -68,7 +74,7 @@ const (
 	// X11File is used to communicate to the parent process that the child
 	// process has set up X11 forwarding.
 	X11File
-	// ErrorFile  is used to communicate any errors terminating the child process
+	// ErrorFile is used to communicate any errors terminating the child process
 	// to the parent process
 	ErrorFile
 	// PTYFile is a PTY the parent process passes to the child process.
@@ -187,11 +193,20 @@ type UaccMetadata struct {
 
 	// WtmpPath is the path of the system wtmp log.
 	WtmpPath string `json:"wtmp_path,omitempty"`
+
+	// BtmpPath is the path of the system btmp log.
+	BtmpPath string `json:"btmp_path,omitempty"`
 }
 
 // RunCommand reads in the command to run from the parent process (over a
 // pipe) then constructs and runs the command.
 func RunCommand() (errw io.Writer, code int, err error) {
+	// SIGQUIT is used by teleport to initiate graceful shutdown, waiting for
+	// existing exec sessions to close before ending the process. For this to
+	// work when closing the entire teleport process group, exec sessions must
+	// ignore SIGQUIT signals.
+	signal.Ignore(syscall.SIGQUIT)
+
 	// errorWriter is used to return any error message back to the client. By
 	// default, it writes to stdout, but if a TTY is allocated, it will write
 	// to it instead.
@@ -206,6 +221,21 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if contfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 	}
+	readyfd := os.NewFile(ReadyFile, fdName(ReadyFile))
+	if readyfd == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("ready pipe not found")
+	}
+
+	// Ensure that the ready signal is sent if a failure causes execution
+	// to terminate prior to actually becoming ready to unblock the parent process.
+	defer func() {
+		if readyfd == nil {
+			return
+		}
+
+		_ = readyfd.Close()
+	}()
+
 	termiantefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if termiantefd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
@@ -258,13 +288,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
 		errorWriter = tty
-		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
-		// uacc support is best-effort, only enable it if Open is successful.
-		// Currently, there is no way to log this error out-of-band with the
-		// command output, so for now we essentially ignore it.
-		if err == nil {
-			uaccEnabled = true
-		}
 	}
 
 	// If PAM is enabled, open a PAM context. This has to be done before anything
@@ -310,9 +333,32 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		pamEnvironment = pamContext.Environment()
 	}
 
+	// Alert the parent process that the child process has completed any setup operations,
+	// and that we are now waiting for the continue signal before proceeding. This is needed
+	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
+	if err := readyfd.Close(); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+	readyfd = nil
+
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
+		if uaccErr := uacc.LogFailedLogin(c.UaccMetadata.BtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr); uaccErr != nil {
+			log.WithError(uaccErr).Debug("uacc unsupported.")
+		}
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	if c.Terminal {
+		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
+		// uacc support is best-effort, only enable it if Open is successful.
+		// Currently, there is no way to log this error out-of-band with the
+		// command output, so for now we essentially ignore it.
+		if err == nil {
+			uaccEnabled = true
+		} else {
+			log.WithError(err).Debug("uacc unsupported.")
+		}
 	}
 
 	// Build the actual command that will launch the shell.
@@ -323,7 +369,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
-	err = waitForContinue(contfd)
+	err = waitForSignal(contfd, 10*time.Second)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -442,7 +488,7 @@ func waitForShell(termiantefd *os.File, cmd *exec.Cmd) error {
 		// Wait for the terminate file descriptor to be closed. The FD will be closed when Teleport
 		// parent process wants to terminate the remote command and all childs.
 		_, err := termiantefd.Read(buf)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			// Kill the shell process
 			err = trace.Errorf("shell process has been killed: %w", cmd.Process.Kill())
 		} else {
@@ -893,6 +939,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
 			ctx.contr,
+			ctx.readyw,
 			ctx.killShellr,
 			ctx.x11rdyw,
 			ctx.errw,
@@ -1002,13 +1049,24 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 // getCmdCredentials parses the uid, gid, and groups of the
 // given user into a credential object for a command to use.
 func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
-	uid, err := strconv.Atoi(localUser.Uid)
+	uid, err := strconv.ParseUint(localUser.Uid, 10, 32)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	gid, err := strconv.Atoi(localUser.Gid)
+	gid, err := strconv.ParseUint(localUser.Gid, 10, 32)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if runtime.GOOS == "darwin" {
+		// on macOS we should rely on the list of groups managed by the system
+		// (the use of setgroups is "highly discouraged", as per the setgroups
+		// man page in macOS 13.5)
+		return &syscall.Credential{
+			Uid:         uint32(uid),
+			Gid:         uint32(gid),
+			NoSetGroups: true,
+		}, nil
 	}
 
 	// Lookup supplementary groups for the user.
@@ -1018,7 +1076,7 @@ func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
 	}
 	groups := make([]uint32, 0)
 	for _, sgid := range userGroups {
-		igid, err := strconv.Atoi(sgid)
+		igid, err := strconv.ParseUint(sgid, 10, 32)
 		if err != nil {
 			log.Warnf("Cannot interpret user group: '%v'", sgid)
 		} else {

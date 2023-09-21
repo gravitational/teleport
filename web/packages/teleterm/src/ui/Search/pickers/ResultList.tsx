@@ -20,12 +20,16 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useCallback,
 } from 'react';
+import { Flex } from 'design';
+import { IconProps } from 'design/Icon/Icon';
 import styled, { css } from 'styled-components';
-
 import { Attempt } from 'shared/hooks/useAsync';
 
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
+
+import { AddWindowEventListener } from '../SearchContext';
 
 type ResultListProps<T> = {
   /**
@@ -41,12 +45,26 @@ type ResultListProps<T> = {
   onPick(item: T): void;
   onBack(): void;
   render(item: T): { Component: ReactElement; key: string };
+  addWindowEventListener: AddWindowEventListener;
 };
 
 export function ResultList<T>(props: ResultListProps<T>) {
-  const { attempts, ExtraTopComponent, onPick, onBack } = props;
+  const {
+    attempts,
+    ExtraTopComponent,
+    onPick,
+    onBack,
+    addWindowEventListener,
+  } = props;
   const activeItemRef = useRef<HTMLDivElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
+  const pickAndResetActiveItem = useCallback(
+    (item: T) => {
+      setActiveItemIndex(0);
+      onPick(item);
+    },
+    [onPick]
+  );
 
   const items = useMemo(() => {
     return attempts.map(a => a.data || []).flat();
@@ -75,7 +93,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
 
           const item = items[activeItemIndex];
           if (item) {
-            onPick(item);
+            pickAndResetActiveItem(item);
           }
           break;
         }
@@ -98,9 +116,17 @@ export function ResultList<T>(props: ResultListProps<T>) {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [items, onPick, onBack, activeItemIndex]);
+    const { cleanup } = addWindowEventListener('keydown', handleKeyDown, {
+      capture: true,
+    });
+    return cleanup;
+  }, [
+    items,
+    pickAndResetActiveItem,
+    onBack,
+    activeItemIndex,
+    addWindowEventListener,
+  ]);
 
   return (
     <>
@@ -121,7 +147,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
               role="menuitem"
               active={isActive}
               key={key}
-              onClick={() => props.onPick(r)}
+              onClick={() => pickAndResetActiveItem(r)}
             >
               {Component}
             </InteractiveItem>
@@ -139,13 +165,11 @@ export const NonInteractiveItem = styled.div`
   }
 
   :not(:last-of-type) {
-    border-bottom: 1px solid
-      ${props => props.theme.colors.levels.surfaceSecondary};
+    border-bottom: 1px solid ${props => props.theme.colors.spotBackground[0]};
   }
 
   padding: ${props => props.theme.space[2]}px;
-  color: ${props => props.theme.colors.text.contrast};
-  background: ${props => props.theme.colors.levels.surface};
+  color: ${props => props.theme.colors.text.main};
 `;
 
 const InteractiveItem = styled(NonInteractiveItem)`
@@ -153,17 +177,39 @@ const InteractiveItem = styled(NonInteractiveItem)`
 
   &:hover,
   &:focus {
-    background: ${props => props.theme.colors.levels.elevated};
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 
   ${props => {
     if (props.active) {
       return css`
-        background: ${props => props.theme.colors.levels.elevated};
+        background: ${props => props.theme.colors.spotBackground[0]};
       `;
     }
   }}
 `;
+
+/**
+ * IconAndContent is supposed to be used within InteractiveItem & NonInteractiveItem.
+ */
+export function IconAndContent(
+  props: React.PropsWithChildren<{
+    Icon: React.ComponentType<IconProps>;
+    iconColor: string;
+  }>
+) {
+  return (
+    <Flex alignItems="flex-start" gap={2}>
+      {/* lineHeight of the icon needs to match the line height of the first row of props.children */}
+      <Flex height="24px">
+        <props.Icon color={props.iconColor} size="medium" />
+      </Flex>
+      <Flex flexDirection="column" gap={1} minWidth={0} flex="1">
+        {props.children}
+      </Flex>
+    </Flex>
+  );
+}
 
 function getNext(selectedIndex = 0, max = 0) {
   let index = selectedIndex % max;
@@ -175,7 +221,7 @@ function getNext(selectedIndex = 0, max = 0) {
 
 const Separator = styled.div`
   position: relative;
-  background: ${props => props.theme.colors.action.hover};
+  background: ${props => props.theme.colors.spotBackground[0]};
   height: 1px;
 `;
 

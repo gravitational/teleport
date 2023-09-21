@@ -1,0 +1,1440 @@
+---
+title: tctl CLI reference
+description: Comprehensive reference of subcommands, flags, and arguments for the tctl CLI tool.
+---
+
+`tctl` is a CLI tool that allows a cluster administrator to manage all resources
+in a cluster, including nodes, users, tokens, certificates, and devices.
+
+`tctl` can also be used to modify the dynamic configuration of the cluster, such as
+creating new user roles or connecting Trusted Clusters.
+
+## Authentication
+
+Before running `tctl` commands, administrators must authenticate to a Teleport
+cluster. This section explains how `tctl` authenticates to the cluster.
+
+<Tabs>
+  <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
+
+### On a remote host with an identity file
+
+`tctl` can authenticate with a user-provided identity file. The Teleport Auth
+Service signs an identity file when a user runs `tctl auth sign` or
+`tsh login --out=<output-path>`, and the user can include the path to the
+identity file in the `--identity` flag when running `tctl` commands.
+
+When using the `--identity` flag, the user must provide the `--auth-server` flag
+with the address of an Auth Service or Proxy Service so `tctl` knows which
+cluster to authenticate to.
+
+### On the same host as the Teleport Auth Service
+
+If there is a Teleport configuration file on the host where `tctl` is run,
+`tctl` attempts to authenticate to the Auth Service named in the configuration
+file using an identity stored in its local backend.
+
+`tctl` only authenticates using this method if an identity file is not provided.
+
+<Admonition type="note">
+
+  Note that when a `tctl` command is run locally on the Auth Service, the audit
+  logs will show that it was performed by the Auth Service itself.
+
+  To provide an accurate audit trail, it is important to limit direct SSH access
+  to the Auth Service with
+  [Access Controls](../../access-controls/introduction.mdx) and ensure that
+  admins use `tctl` remotely instead.
+
+</Admonition>
+
+### On a remote host after running `tsh login`
+
+If `tctl` cannot find a local Teleport configuration file or a user-provided
+identity file, it attempts to load the user's `tsh` profile to authenticate to
+the cluster. The `tsh` profile is created when a user runs `tsh login`.
+
+`tctl` reads the `TELEPORT_CONFIG_FILE` environment variable to determine if
+a Teleport configuration file is present. If you are using your `tsh` profile to
+authenticate `tctl`, you must ensure that one of these conditions is true:
+
+- `TELEPORT_CONFIG_FILE` is blank
+- No file exists at `/etc/teleport.yaml`
+
+Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine,
+which could result in the error,
+`ERROR: open /var/lib/teleport/host_uuid: permission denied`.
+
+  </TabItem>
+  <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
+
+### On a remote host with an identity file
+
+`tctl` can authenticate with a user-provided identity file. The Teleport Auth
+Service signs an identity file when a user runs `tctl auth sign` or
+`tsh login --out=<output-path>`, and the user can include the path to the
+identity file in the `--identity` flag when running `tctl` commands.
+
+When using the `--identity` flag, the user must alo provide the `--auth-server`
+flag with the address of an Auth Service or Proxy Service so `tctl` knows which
+cluster to authenticate to.
+
+### On a remote host after running `tsh login`
+
+If `tctl` cannot find a local Teleport configuration file or a user-provided
+identity file, it attempts to load the user's `tsh` profile to authenticate to
+the cluster. The `tsh` profile is created when a user runs `tsh login`.
+
+`tctl` reads the `TELEPORT_CONFIG_FILE` environment variable to determine if
+a Teleport configuration file is present. If you are using your `tsh` profile to
+authenticate `tctl`, you must ensure that one of these conditions is true:
+
+- `TELEPORT_CONFIG_FILE` is blank
+- No file exists at `/etc/teleport.yaml`
+
+Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine,
+which could result in the error,
+`ERROR: open /var/lib/teleport/host_uuid: permission denied`.
+
+  </TabItem>
+</Tabs>
+
+## tctl global flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-d, --debug` | none | none | Enable verbose logging to stderr |
+| `-c, --config` | `/etc/teleport.yaml` | **string** filepath | Path to a configuration file |
+| `--auth-server` | none | `host:port` | Attempts to connect to specific Auth/Proxy Service address(es) instead of a local Auth Service (`127.0.0.1:3025`) |
+| `-i, --identity` | none | **string** filepath | Path to an identity file |
+| `--insecure` | none | none | When specifying a Proxy Service address in `--auth-server`, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker |
+
+## tctl help
+
+Shows help:
+
+```code
+$ tctl help
+```
+
+## tctl users add
+
+Generates a user invitation token:
+
+```code
+$ tctl users add [<flags>] <account>
+```
+
+### Arguments
+
+- `<account>` - The Teleport user account name.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--roles` | none | Comma-separated strings | List of Teleport roles to assign to the new user |
+| `--logins` | none | Comma-separated strings | List of allowed SSH logins for the new user |
+| `--kubernetes-groups` | none | Comma-separated strings | Kubernetes groups to assign to a user, e.g. `system:masters` |
+| `--kubernetes-users` | none | Comma-separated strings | Kubernetes user to assign to a user, e.g. `jenkins` |
+| `--db-users` | none | Comma-separated strings | List of allowed database users for the new user |
+| `--db-names` | none | Comma-separated strings | List of allowed database names for the new user |
+| `--windows-logins` | none | Comma-separated strings | List of allowed Windows logins for the new user |
+| `--aws-role-arns` | none | Comma-separated strings | List of allowed AWS role ARNs for the new user |
+| `--gcp-service-accounts` | none | Comma-separated strings | List of allowed GCP service accounts for the new user |
+| `--azure-identities` | none | Comma-separated strings | List of Azure managed identities to allow the user to assume. Must be the full URIs of the identities |
+| `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token |
+| `--host-user-uid` | none | Unix UID | UID for auto provisioned host users to use |
+| `--host-user-gid` | none | Unix GID | GID for auto provisioned host users to use |
+
+### Global flags
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+```code
+# Adds teleport user "joe" with mappings to
+# OS users and {{ internal.logins }} to "joe" and "ubuntu"
+$ tctl users add joe --roles=access,requester joe,ubuntu
+# Adds Teleport user "joe" with mappings to the editor role
+$ tctl users add joe --roles=editor,reviewer
+```
+
+## tctl users update
+
+Update user account:
+
+```code
+$ tctl users update [<flags>] <account>
+```
+
+### Arguments
+
+- `<account>` - The Teleport user account name.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--set-roles` | none | Comma-separated list of roles for the user to assume. | Assigns the user's roles to the ones provided, replacing the user's current roles. |
+| `--set-azure-identities` | none | Comma-separated list of allowed Azure identity URIs. |  Assigns the user's allowed Azure identities to the ones provided, replacing the user's currently allowed Azure identities. |
+
+### Examples
+
+Set the user `joe`'s roles to `access` and `editor`:
+
+```code
+$ tctl users update joe --set-roles=access,editor
+```
+
+Set the user `priya`'s Azure identities to `developer` and `dba`:
+
+```code
+$ tctl users update priya --set-azure-identities \
+ `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/developer,\
+ `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dba
+```
+
+## tctl users ls
+
+Lists all user accounts:
+
+```code
+$ tctl users ls [<flags>]
+```
+
+## tctl users rm
+
+Deletes user accounts:
+
+```code
+$ tctl users rm <logins>
+```
+
+### Arguments
+
+- `<logins>` - comma-separated list of Teleport users
+
+### Examples
+
+```code
+$ tctl users rm sally,tim
+# Removes users sally and tim
+```
+
+## tctl users reset
+
+Reset local user account password and any associated second factor with expiring link to populate values. **Usage**: `tctl users reset <account>`
+
+### Arguments
+
+- `<account>` - Teleport Local DB User
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--ttl` | `8h` | relative duration like `5s`, `2m`, or `3h` | Set the expiration time for token, default is `8h0m0s`, maximum is `24h0m0s` |
+
+### Examples
+
+```code
+$ tctl users reset jeff
+# User jeff has been reset. Share this URL with the user to complete password reset, the link is valid for 8h0m0s:
+# https://teleport.example.com:3080/web/reset/8a4a40bec3a31a28db44fa64c0c70ca3
+# Resets jeff's password and any associated second factor.  Jeff populates the password and confirms the token with the link.
+```
+
+## tctl request ls
+
+List of open requests:
+
+```code
+$ tctl request ls
+```
+
+### Examples
+
+```code
+$ tctl request ls
+
+# Token                                Requestor Metadata       Created At (UTC)    Status
+# ------------------------------------ --------- -------------- ------------------- -------
+# request-id-1                         alice     roles=dictator 07 Nov 19 19:38 UTC PENDING
+```
+
+## tctl request approve
+
+Approve a user's request:
+
+```code
+$ tctl request approve [token]
+```
+
+### Arguments
+
+- `<tokens>` - comma-separated list of Teleport tokens.
+
+### Examples
+
+```code
+$ tctl request approve request-id-1, request-id-2
+```
+
+## tctl request deny
+
+Denies a user's request:
+
+```code
+$ tctl request deny [token]
+```
+
+### Arguments
+
+- `<tokens>` - comma-separated list of Teleport tokens.
+
+### Examples
+
+```code
+$ tctl request deny request-id-1, request-id-2
+```
+
+## tctl request rm
+
+Delete a users role request:
+
+```code
+$ tctl request rm [token]
+```
+
+### Arguments
+
+- `<tokens>` - comma-separated list of Teleport tokens.
+
+### Examples
+
+```code
+$ tctl request rm request-id-1
+```
+
+## tctl nodes add
+
+Generate a node invitation token:
+
+```code
+$ tctl nodes add [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--roles` | `node` | `proxy, auth, node, db, app` or `windowsdesktop` | Comma-separated list of roles for the new node to assume |
+| `--ttl` | 30m | relative duration like 5s, 2m, or 3h | Time to live for a generated token |
+| `--token` | none | **string** token value | A custom token to use, auto-generated if not provided. Should match token set with `teleport start --token` |
+
+### Global flags
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+```code
+# Generates a token that can be used by a node to join the cluster, default ttl is 30 minutes
+$ tctl nodes add
+# Generates a token that can be used to add an SSH node to the cluster.
+# The node will run both the proxy service and the node (ssh) service.
+# This token can be used within an hour.
+$ tctl nodes add --roles=node,proxy --ttl=1h
+```
+
+## tctl nodes ls
+
+List all active SSH nodes within the cluster:
+
+```code
+$ tctl nodes ls [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--namespace` | none | **string** namespace | Namespace of the nodes |
+
+### Global flags
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+## tctl tokens add
+
+Create an invitation token:
+
+```code
+$ tctl tokens add --type=TYPE [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| <nobr>`--format`</nobr> | none | `text`, `json`, `yaml` | Output format |
+| `--labels` | none | `text` | Sets token labels |
+| `--ttl` | 1h | Duration like 5s, 2m, or 3h | Sets how long the token is valid for. |
+| `--type` | none | `proxy`, `auth`, `trusted_cluster`, `node`,  `db`, `kube`, `app`, `windowsdesktop` | Type of token to add |
+| `--value` | none | **string** token value | Value of token to add |
+
+### Global flags
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+```code
+# Generate an invite token for a trusted_cluster
+$ tctl tokens add --type=trusted_cluster --ttl=5m
+# Generate an invite token for a trusted_cluster with labels
+$ tctl tokens add --type=trusted_cluster --labels=env=prod,region=us-west
+# Generate an invite token for a node
+# This is equivalent to `tctl nodes add`
+$ tctl tokens add --type=node
+# Generate a join token for both a Node and the Database Service
+$ tctl tokens add --type=node,db
+# Generate an invite token for a kubernetes_service
+$ tctl tokens add --type=kube
+# Generate an invite token for an app_service
+$ tctl tokens add --type=app
+```
+
+## tctl tokens rm
+
+Delete/revoke an invitation token:
+
+```code
+$ tctl tokens rm [<token>]
+```
+
+### Arguments
+
+- `<token>` The full-length token string to delete
+
+## tctl tokens ls
+
+List node and user invitation tokens:
+
+```code
+$ tctl tokens ls [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | none | `text`, `json`, `yaml` | Output format |
+
+### Global flags
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Example
+
+```code
+$ tctl tokens ls
+
+# Token                            Type            Expiry Time (UTC)
+# -------------------------------- --------------- -------------------
+# (=presets.tokens.first=) Node            11 Oct 19 22:17 UTC
+# (=presets.tokens.second=) trusted_cluster 11 Oct 19 22:19 UTC
+# (=presets.tokens.third=) User signup     11 Oct 19 22:20 UTC
+```
+
+## tctl auth export
+
+Export public cluster (CA) keys to stdout:
+
+```code
+$ tctl auth export [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--keys` | none | none | if set, only exports private keys |
+| `--fingerprint` | none | **string** e.g. `SHA256:<fingerprint>` | filter authority by fingerprint |
+| `--compat` | none | version number | export certificates compatible with specific version of Teleport |
+| `--type` | none | `user`, `host`, `tls-host`, `tls-user`, `tls-user-der`, `windows`, `db`, `openssh`, `saml-idp` | certificate type |
+
+### Global flags
+
+These flags are available for all commands `--debug, --config`. Run:
+
+```code
+$ tctl help <subcommand>
+```
+
+or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+```code
+# Export all keys
+$ tctl auth export
+# Filter by fingerprint
+$ tctl auth export --fingerprint=SHA256:8xu5kh1CbHCZRrGuitbQd4hM+d9V+I7YA1mUwA/2tAo
+# Export tls certs only
+$ tctl auth export --type tls
+```
+
+## tctl auth sign
+
+<Admonition type="tip" title="Automation">
+`tctl auth sign` is commonly used to generate long-lived certificates for
+automation purposes. On supported platforms,
+[Machine ID](../../machine-id/introduction.mdx) is a more secure alternative that
+generates short-lived certificates for automation workflows.
+</Admonition>
+
+Create an identity file(s) for a given user:
+
+```code
+$ tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--user` | none | existing user | Teleport user name |
+| `--host` | none | auth host | Teleport host name |
+| `-o, --out` | none | filepath | identity output |
+| `--overwrite` | none | none | When specified, write new identity files, even if they already exist |
+| `--format` | `file` | `file`, `openssh`, `tls` or `kubernetes` | identity format |
+| `--identity` | none | `file` | Identity file to use for logging in to the Auth Service |
+| `--auth-server` | none | auth host & port | Remote Teleport host name |
+| `--ttl` | `12h` | relative duration like `5s`, `2m`, or `3h` | TTL (time to live) for the generated certificate |
+| `--compat` | `""` | `standard` or `oldssh` | OpenSSH compatibility flag |
+| `--proxy` | `""` | Address of the Teleport Proxy Service | When --format is set to `kubernetes`, this address will be set as the cluster address in the generated kubeconfig file |
+| `--leaf-cluster` | `""` | The name of a leaf cluster. | |
+| `--kube-cluster-name` | `""` | Kubernetes Cluster Name | |
+| `--app-name` | `""` | application name | Generate a certificate for accessing the specified web application |
+| `--db-service` | `""` | Database Service name | Generate a certificate for accessing the specified Database Service instance |
+| `--db-user` | `""` | database user | When `--db-service` is specified, encode this database user in the certificate |
+| `--db-name` | `""` | database name | When `--db-service` is specified, encode this database name in the certificate |
+
+### Global flags
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+```code
+# Export identity file to teleport_id.pem
+# for user `teleport` with a ttl set to 5m
+$ tctl auth sign --format file --ttl=5m --user teleport -o teleport_id.pem
+# Export identity formatted for openssh to teleport_id.pem
+$ tctl auth sign --format openssh --user teleport -o teleport_id.pem
+# Export host identity, `--format openssh` must be set with `--host`
+# Generates grav-01 (private key) and grav-01-cert.pub in the current directory
+$ tctl auth sign --format openssh --host grav-00
+# Invalid command, only one of --user or --host should be set
+$ tctl auth sign --format openssh --host grav-00 --user teleport -o grav_host
+# error: --user or --host must be specified
+# create a certificate with a TTL of 24 hours for the jenkins user
+# the jenkins.pem file can later be used with `tsh`
+$ tctl auth sign --ttl=24h --user=jenkins --out=jenkins.pem
+# create a certificate with a TTL of 3 months for the jenkins user
+# the jenkins.pem file can later be used with `tsh`
+$ tctl auth sign --ttl=2190h --user=jenkins --out=jenkins.pem
+# create a certificate with a TTL of 1 day for the jenkins user
+# The kubeconfig file can later be used with `kubectl` or compatible tooling.
+$ tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
+# Exports an identity from the Auth Server in preparation for remote
+# tctl execution.
+$ tctl auth sign --user=admin --out=identity.pem
+```
+
+## tctl auth rotate
+
+Rotate certificate authorities in the cluster:
+
+```code
+$ tctl auth rotate [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--grace-period` | none | relative duration like 5s, 2m, or 3h | Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to log in again and nodes to re-register. |
+| `--manual` | none | none | Activate manual rotation, set rotation phases manually |
+| `--type` | `user,host` | `user` or `host` | Certificate authority to rotate |
+| `--phase` | | `init, standby, update_clients, update_servers, rollback` | Target rotation phase to set, used in manual rotation |
+
+### Global flags
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+```code
+# Rotate only user certificates with a grace period of 200 hours:
+$ tctl auth rotate --type=user --grace-period=200h
+
+# Rotate only host certificates with a grace period of 8 hours:
+$ tctl auth rotate --type=host --grace-period=8h
+```
+
+## tctl sso test
+
+Perform an end-to-end test of an SSO authentication flow using the provided auth connector definition.
+
+The command supports all auth connector types: `github`, `oidc` and `saml`. The latter two require Teleport Enterprise.
+
+```code
+$ tctl [<global-flags>] sso test [<auth-connector.yaml>]
+```
+
+The testing consists of running a single end-to-end authentication request using the provided auth connector definition.
+Once the request is finished, the results will be printed to standard output along with context-specific diagnostic information.
+The test process is safe from side effects in that:
+- it will not change the list of configured auth connectors
+- the audit log will clearly state the login attempts as "test" ones
+- there will be no certificates issued for the authenticated user
+
+<Admonition
+  type="note"
+  title="Important"
+>
+  To use this command, you must have access to the `github_request`, `oidc_request`, and `saml_request` resources (depending on the type of connector being tested).
+
+  If you receive a "permission denied" error, ensure that you have access to the following resources in one of your Teleport roles:
+
+```yaml
+- resources: [github_request]
+  verbs: [list,create,read,update,delete]
+- resources: [oidc_request]
+  verbs: [list,create,read,update,delete]
+- resources: [saml_request]
+  verbs: [list,create,read,update,delete]
+```
+</Admonition>
+
+### Arguments
+
+- `[<filename>]` Connector resource definition file. Optional. Empty for stdin.
+
+### Flags
+
+This command defines no flags.
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+Test the auth connector from `connector.yaml`:
+
+```code
+$ tctl sso test connector.yaml
+```
+
+The command is designed to be used in conjunction with the `tctl sso configure` family of commands:
+
+```code
+$ tctl sso configure ... | tctl sso test
+```
+
+The pipeline may also utilize `tee` to capture the connector generated with `tctl sso configure`. This will save the connector in `connector.yaml`:
+
+```code
+$ tctl sso configure ... | tee connector.yaml | tctl sso test
+```
+
+You can test an existing auth connector by combining the command with `tctl get`:
+
+```bsh
+$ tctl get saml/your-connector-name --with-secrets | tctl sso test
+````
+
+<Admonition
+  type="note"
+  title="Important"
+>
+  Make sure to include `--with-secrets` flag, or the exported auth connector will not be testable.
+</Admonition>
+
+## tctl sso configure github
+
+Configure the GitHub auth connector.
+
+Required params `--id` and `--secret` come from registering a GitHub OAuth app, which you can read about in the [GitHub documentation](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app).
+
+The flag `--teams-to-roles` can be provided multiple times to specify which GitHub Teams are assigned which roles.
+In this example, members of the `devs` team in the GitHub org `octocats` will be assigned the `access`, and `editor` roles in Teleport.
+
+```code
+$ tctl sso configure github --id=GITHUB_CLIENT_ID --secret=GITHUB_SECRET --teams-to-roles=octocats,devs,access,editor [<other-flags>]
+```
+
+### Arguments
+
+This command accepts no arguments.
+
+### Flags
+
+Mandatory flags: `--id`, `--secret`, `--teams-to-roles`.
+
+| Name                      | Default Value(s) | Allowed Value(s)           | Description                                             |
+|---------------------------|------------------|----------------------------|---------------------------------------------------------|
+| `-n`, `--name`            | `github`         | resource name              | Connector name.                                         |
+| `-r`, `--teams-to-roles`  | none             | `org,team,role1,role2,...` | Sets teams-to-roles mapping. Repeatable.                |
+| `--display`               | none             | display name               | Controls how this connector is displayed.               |
+| `--id`                    | none             | GitHub OAuth2 client id    | GitHub app client ID.                                   |
+| `--secret`                | none             | GitHub OAuth2 secret       | GitHub app client secret.                               |
+| `--redirect-url`          | none             | Valid callback URL.        | Authorization callback URL.                             |
+| `--ignore-missing-roles`  |                  |                            | Ignore missing roles referenced in `--teams-to-roles`.  |
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+Generate a GitHub auth connector. Two role mappings are defined:
+  - members of the `admin` team in the `octocats` org will receive `access`, `editor` and `auditor` roles.
+  - members of the `dev` team in `octocats` org will receive the `access` role.
+
+<Admonition type="note">
+  `tctl sso configure gh` is an alias for `tctl sso configure github`.
+</Admonition>
+
+```code
+$ tctl sso configure gh -r octocats,admin,access,editor,auditor -r octocats,dev,access --secret GH_SECRET --id CLIENT_ID
+INFO [CLIENT]    RedirectURL empty, resolving automatically.
+INFO [CLIENT]    RedirectURL set to "https://teleport.example.com:3080/v1/webapi/github/callback"
+kind: github
+metadata:
+  name: github
+spec:
+  client_id: CLIENT_ID
+  client_secret: GH_SECRET
+  display: ""
+  redirect_url: https://teleport.example.com:3080/v1/webapi/github/callback
+  teams_to_logins:
+  - logins:
+    - access
+    - editor
+    - auditor
+    organization: octocats
+    team: admin
+  - logins:
+    - access
+    organization: octocats
+    team: dev
+version: v3
+```
+
+Generate the configuration and immediately test it using `tctl sso test` command.
+
+```code
+$ tctl sso configure gh ... | tctl sso test
+```
+
+## tctl sso configure oidc
+
+Configure an OIDC auth connector, optionally using a preset.
+
+The flag `--claims-to-roles` can be provided multiple times.
+
+```code
+$ tctl sso configure oidc --id=CLIENT_ID --secret=SECRET --claims-to-roles=... [<other-flags>]
+```
+
+### Arguments
+
+This command accepts no arguments.
+
+### Flags
+
+Mandatory flags: `--id`, `--secret`, `--claims-to-roles`. Other flags may be required depending on chosen preset.
+
+General flags:
+
+| Name                      | Description                                                                                                                               |
+|---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `-p`, `--preset`          | Preset. One of: `google`, `gitlab`, `okta`.                                                                                               |
+| `-n`, `--name`            | Connector name. Required, unless implied from preset.                                                                                     |
+| `-r`, `--claims-to-roles` | Sets claim-to-roles mapping using format `claim_name,claim_value,role1,role2,...`. Repeatable.                                            |
+| `--display`               | Display controls how this connector is displayed.                                                                                         |
+| `--id`                    | OIDC app client ID.                                                                                                                       |
+| `--secret`                | OIDC app client secret.                                                                                                                   |
+| `--issuer-url`            | Issuer URL.                                                                                                                               |
+| `--redirect-url`          | Authorization callback URL.                                                                                                               |
+| `--prompt`                | Optional OIDC prompt. Example values: `none`, `select_account`, `login`, `consent`.                                                       |
+| `--scope`                 | Scope specifies additional scopes set by provider. Each repetition of the flag declares one scope. Examples: `email`, `groups`, `openid`. |
+| `--acr`                   | Authentication Context Class Reference values.                                                                                            |
+| `--provider`              | Sets the external identity provider type to enable IdP specific workarounds. Examples: `ping`, `adfs`, `netiq`, `okta``.                  |
+| `--ignore-missing-roles`  | Ignore missing roles referenced in `--claims-to-roles`.                                                                                   |
+
+Supported presets:
+
+| Name     | Description      | Display | Issuer URL                    |
+|----------|------------------|---------|-------------------------------|
+| `google` | Google Workspace | Google  | `https://accounts.google.com` |
+| `gitlab` | GitLab           | GitLab  | `https://gitlab.com`          |
+| `okta`   | Okta             | Okta    | `https://oktaice.okta.com`    |
+
+The above values for `--issuer-url` are defaults which may need to be updated depending on your IdP configuration.
+
+The following flags are specific to Google Workspace:
+
+| Name               | Description                                                                                            |
+|--------------------|--------------------------------------------------------------------------------------------------------|
+| `--google-acc-uri` | URI of your service account credentials file. Example: `file:///var/lib/teleport/gworkspace-creds.json`.|
+| `--google-acc`      | String containing Google service account credentials.                                                  |
+| `--google-admin`   | Email of a Google admin to impersonate.                                                                |
+| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../access-controls/sso/google-workspace.mdx#how-teleport-uses-google-workspace-apis) |
+| `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+1. Generate an OIDC auth connector configuration called `myauth`. Two mappings from OIDC claims to roles are defined:
+   - members of `admin` group will receive `access`, `editor` and `auditor` roles.
+   - members of `developer` group will receive `access` role.
+
+The values for `--secret`, `--id` and `--issuer-url` are provided by the IdP.
+
+```code
+$ tctl sso configure oidc -n myauth -r groups,admin,access,editor,auditor -r group,developer,access \
+      --secret IDP_SECRET --id CLIENT_ID                                                            \
+      --issuer-url https://idp.example.com
+```
+
+2. Generate an OIDC auth connector with the Okta preset, enabling the `groups` scope and mapping the `okta-admin` group to roles `access`, `editor`, `auditor`.
+Issuer URL is set to match a custom Okta domain.
+
+```code
+$ tctl sso configure oidc --preset okta --scope groups -r groups,okta-admin,access,editor,auditor \
+      --secret IDP_SECRET --id CLIENT_ID                                                          \
+      --issuer-url dev-123456.oktapreview.com
+```
+
+3. Generate an OIDC auth connector with the Google preset. Service account credentials are set to be loaded from `/var/lib/teleport/gacc.json` with `--google-acc-uri`.
+
+```code
+$ tctl sso configure oidc --preset google -r groups,mygroup@mydomain.example.com,access \
+      --secret SECRET --google-id GOOGLE_ID --google-acc-uri /var/lib/teleport/gacc.json \
+      --google-admin admin@mydomain.example.com
+```
+
+4. Generate the configuration and immediately test it using the `tctl sso test` command.
+
+```code
+$ tctl sso configure oidc ... | tctl sso test
+```
+
+## tctl sso configure saml
+
+Configure the SAML auth connector, optionally using a preset.
+
+The flag `--attributes-to-roles/-r` can be provided multiple times.
+
+To avoid errors when pasting XML to a YAML file, we encourage the usage of the flag `--entity-descriptor`/`-e`.
+
+```code
+$ tctl sso configure saml -e entity_desc.xml -r attr,value,role1 [<other-flags>]
+```
+
+### Arguments
+
+This command accepts no arguments.
+
+### Flags
+
+Mandatory flags: `--name`, `--attributes-to-roles`, `--entity-descriptor`. These flags may become non-mandatory when other flags are present; see table below for details.
+
+| Name                        | Required?                                                             | Description                                                                                                                                                      |
+|-----------------------------|-----------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `-p/--preset`               |                                                                       | Preset. One of: `okta`, `onelogin`, `ad`, `adfs`.                                                                                                                |
+| `-n/--name`                 | Yes, unless `--preset` is given.                                         | Connector name.                                                                                                                                                  |
+| `-e/--entity-descriptor`    | Yes, unless `--sso`, `--acs`, `--cert` and `--issuer` are also given. | Set the Entity Descriptor. Valid values: file path, URL, XML content. Supplies configuration parameters as a single XML document instead of individual elements. |
+| `-r/--attributes-to-roles`  | Yes, at least one occurrence must be present.                         | Sets attribute-to-role mapping using format `attr_name,attr_value,role1,role2,...`. Repeatable.                                                                  |
+| `--display`                 |                                                                       | Sets the connector display name.                                                                                                                                 |
+| `--issuer`                  |                                                                       | Sets identity provider issuer.                                                                                                                                   |
+| `--sso`                     |                                                                       | URL of the identity provider's SSO service.                                                                                                                      |
+| `--cert`                    |                                                                       | Path to your IdP's certificate PEM file. Your IdP signs responses using this certificate.                                                                        |
+| `--acs`                     |                                                                       | URL for the assertion consumer service on the service provider (Teleport's side).                                                  |
+| `--audience`                |                                                                       | Uniquely identifies our service provider.                                                                                                               |
+| `--service-provider-issuer` |                                                                       | Issuer of the service provider (Teleport).                                                                                          |
+| `--signing-key-file`        |                                                                       | A file with request signing key. Must be used together with `--signing-cert-file`.                                                                               |
+| `--signing-cert-file`       |                                                                       | A file with request certificate. Must be used together with `--signing-key-file`.                                                                                |
+| `--assertion-key-file`      |                                                                       | A file with key used for securing SAML assertions. Must be used together with `--assertion-cert-file`.                                                           |
+| `--assertion-cert-file`     |                                                                       | A file with cert used for securing SAML assertions. Must be used together with `--assertion-key-file`.                                                           |
+| `--provider`                |                                                                       | Sets the external identity provider type, enabling workarounds. Examples: ping, adfs.                                                                            |
+| `--ignore-missing-roles`    |                                                                       | Ignore missing roles referenced in `--attributes-to-roles`.                                                                                                      |
+
+Supported presets:
+
+| Name       | Description                          | Display   |
+|------------|--------------------------------------|-----------|
+| `okta`     | Okta                                 | Okta      |
+| `onelogin` | OneLogin                             | OneLogin  |
+| `ad`       | Azure Active Directory               | Microsoft |
+| `adfs`     | Active Directory Federation Services | ADFS      |
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+1. Generate a SAML auth connector configuration called `myauth`. Two mappings from SAML attributes to roles are defined:
+   - members of `admin` group will receive `access`, `editor` and `auditor` roles.
+   - members of `developer` group will receive `access` role.
+The IdP metadata will be read from `entity-desc.xml` file.
+
+```code
+$ tctl sso configure saml -n myauth -r group,admin,access,editor,auditor -r group,developer,access -e entity-desc.xml
+```
+
+2. Generate a SAML auth connector configuration using the `okta` preset. The choice of preset affects the default name and display attribute, and may apply IdP-specific tweaks.
+Instead of an XML file, a URL was provided to the -e flag, which will be fetched by Teleport during runtime.
+
+```code
+$ tctl sso configure saml -p okta -r group,dev,access -e https://dev-123456.oktapreview.com/app/ex30h8/sso/saml/metadata
+```
+
+3. Generate a configuration and immediately test it using the `tctl sso test` command:
+
+```code
+$ tctl sso configure saml -p okta -r group,developer,access -e entity-desc.xml | tctl sso test
+```
+
+## tctl login_rule test
+
+Test a Login Rule resource without installing it in the cluster.
+
+### Arguments
+
+- `<traits-file>` input traits file in JSON or YAML format. Empty for stdin.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--resource-file` | none | **string** filepath | Path to Login Rule resource path, can be repeated for multiple files |
+| `--load-from-cluster` | `false` | `true, false` | When true, all Login Rules currently installed in the cluster will be loaded for the test. Can be combined with `--resource-file` to test interactions. |
+| `--format` | `yaml` | `yaml, json` | Output format for traits |
+
+### Global flags
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+Test evaluation of the Login Rules from rule1.yaml and rule2.yaml with input traits from traits.json
+
+```code
+$tctl login_rule test --resource-file rule1.yaml --resource-file rule2.yaml traits.json
+```
+
+Test the Login Rule in rule.yaml along with all Login Rules already present in the cluster
+
+```code
+$ tctl login_rule test --resource-file rule.yaml --load-from-cluster traits.json
+```
+
+Read the input traits from stdin
+
+```code
+$ echo '{"groups": ["example"]}' | tctl login_rule test --resource-file rule.yaml
+```
+
+## tctl create
+
+Create or update a Teleport resource from a YAML file.
+
+The supported resource types are: user, node, cluster, role, connector, and device.
+See the [Resources Reference](../resources.mdx) for complete docs on how to build these yaml files.
+
+```code
+$ tctl create [<flags>] <filename>
+```
+
+### Arguments
+
+- `<filename>` resource definition file
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-f, --force` | none | none | Overwrite the resource if already exists |
+
+### Global flags
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+```code
+# Update a user record
+$ tctl create -f joe.yaml
+# Add a trusted cluster
+$ tctl create cluster.yaml
+# Update a trusted cluster
+$ tctl create -f cluster.yaml
+```
+
+## tctl rm
+
+Delete a resource:
+
+```code
+$ tctl rm <resource-type/resource-name>
+```
+
+### Arguments
+
+- `<resource-type/resource-name>` Resource to delete
+  - `<resource type>` Type of a resource \[for example: `saml,oidc,github,user,cluster,tokens,device`]
+  - `<resource name>` Resource name to delete
+
+### Examples
+
+```code
+# Delete a SAML connector called "okta":
+$ tctl rm saml/okta
+
+# Delete a local user called "admin":
+$ tctl rm users/admin
+```
+
+## tctl get
+
+Print a YAML declaration of various Teleport resources:
+
+```code
+$ tctl get [<flags>] <resource-type/resource-name>,...
+```
+
+### Arguments
+
+- `<resource-type/resource-name>` The resource to get
+  - `<resource type>` The type of the resource \[for example: `user,cluster,token,device`]
+  - `<resource name>` The name of the resource
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | | `yaml, json` or `text` | Output format |
+| `--with-secrets` | none | none | Include secrets in resources like certificate authorities or OIDC connectors |
+
+### Global flags
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+```code
+$ tctl get users
+# Dump the user definition into a file:
+$ tctl get user/joe > joe.yaml
+# Prints the trusted cluster 'east'
+$ tctl get cluster/east
+# Prints all trusted clusters and all users
+$ tctl get clusters,users
+# Dump all resources for backup into state.yaml
+$ tctl get all > state.yaml
+```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+```code
+$ tctl get users
+# Dump the user definition into a file:
+$ tctl get user/joe > joe.yaml
+# Prints the trusted cluster 'east'
+$ tctl get cluster/east
+# Prints all trusted clusters and all users
+$ tctl get clusters,users
+```
+
+</TabItem>
+
+</Tabs>
+
+## tctl edit
+
+Modify a Teleport resource using your preferred text editor.
+
+```code
+$ tctl edit <resource-type/resource-name>
+```
+
+The text editor is selected by checking the following, in order of precedence:
+
+- the `TELEPORT_EDITOR` environment variable
+- the `VISUAL` environment variable
+- the `EDITOR` environment variable
+- defaulting to `vi`
+
+`tctl` will fetch the resource from the backend and open it in the selected editor.
+When the editor process terminates, `tctl` will push the updates to the Teleport cluster.
+To abandon the edit, close the editor without saving the file.
+
+Some graphical editors like VS Code launch a background process rather than running
+in the foreground. This prevents `tctl` from properly detecting when the editor
+process terminates. To work around this, check whether your editor supports a "wait"
+option that waits for files to be closed before terminating. For example, to edit a
+Teleport resource with VS Code, you can set `TELEPORT_EDITOR="code --wait"`.
+
+**Note:** Renaming resources with `tctl edit` is not supported since Teleport resources
+often refer to other resources by name. To rename a resource, we recommend you:
+
+- fetch the resource with `tctl get` and redirect the output to a file
+- change the name of the resource in the file
+- save the new resource with `tctl create -f`
+- update any references to the old resource
+
+### Arguments
+
+- `<resource-type/resource-name>` The resource to edit
+  - `<resource type>` The type of the resource \[for example: `user,cluster,token`]
+  - `<resource name>` The name of the resource
+
+### Global flags
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+```code
+# edit the sre role
+$ tctl edit role/sre
+
+# edit the alice user with the nano editor
+$ TELEPORT_EDITOR=nano tctl edit user/alice
+```
+
+## tctl status
+
+Report cluster status:
+
+```code
+$ tctl status
+```
+
+### Examples
+
+```code
+# Checks status of cluster.
+$ tctl status Cluster  grav-00 User CA  never updated Host CA  never updated CA
+# pin   sha256:1146cdd2b887772dcc2e879232c8f60012a839f7958724ce5744005474b15b9d
+# Checks remote auth status using exported identity.
+$ tctl status \
+    --auth-server=192.168.99.102:3025 \
+    --identity=identity.pem
+```
+
+## tctl alerts create
+
+Creates cluster alerts. Cluster alerts can be displayed to Teleport users
+in the web UI or upon logging via `tsh`.
+
+```code
+$ tctl alerts create [<flags>] <message>
+```
+
+### Arguments
+
+- `<message>`: The message for the alert to display
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--severity` | `low` | `low`, `medium`, `high` | Alert severity |
+| `--ttl` | none | Any duration | Optional expiry for alert (alert does not expire if no TTL is specified) |
+| `--labels` | none | any | A list of labels to attach to the alert. |
+
+While any labels can be applied to an alert, there are several internal labels that can be used to configure
+the behavior of alerts:
+
+- `teleport.internal/alert-on-login: yes`: ensures that the alert is displayed to users upon login
+- `teleport.internal/alert-permit-all: yes`: ensures that the alert is displayed to all users
+
+If no labels are specified, `tctl` will automatically add both of these labels.
+
+### Examples
+
+```code
+$ tctl alerts create \
+    --severity=low \
+    --ttl=4h \
+    "The system is under maintenance, functionality may be limited."
+```
+
+## tctl alerts list
+
+Lists cluster alerts. This command can also be invoked as `tctl alerts ls`.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--verbose` (`-v`) | false |boolean | If set, display detailed alert info (including acknowledged alerts) |
+| `--labels` | none | Comma-separated strings | A list of labels to filter by |
+
+## tctl alerts ack
+
+Temporarily acknowledges a cluster alert, preventing the alert from being
+displayed to users. Acknowledgements last for 24 hours by default. Users
+will begin seeing the alert again when the acknowledgement expires.
+
+```code
+$ tctl alerts ack [<flags>] <id>
+```
+
+### Arguments
+
+- `<id>`: the ID of the cluster alert to acknowledge
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--ttl` | 24h | Any duration | Time duration to acknowledge the alert for |
+| `--clear` | none | | Clear an existing alert acknowledgement |
+| `--reason` | none | | The reason for suppressing this alert |
+
+### Examples
+
+Suppress the cluster alert notifying users that an upgrade is available:
+
+```code
+$ tctl alerts ack --reason="upgrade scheduled" upgrade-suggestion
+Successfully acknowledged alert 'upgrade-suggestion'. Alerts with this ID won't be pushed for 24h0m0s.
+```
+
+Clear an existing alert acknowledgement:
+
+```code
+$ tctl alerts ack --clear upgrade-suggestion
+```
+
+## tctl alerts ack ls
+
+Lists alert acknowledgements.
+
+```code
+$ tctl alerts ack ls
+ID                 Reason                 Expires
+------------------ ---------------------- --------------------
+upgrade-suggestion "upgrade is scheduled" Wed Apr 12 16:52 UTC
+```
+
+## tctl devices add
+
+Register a device.
+
+```code
+$ tctl devices add --os=OS --asset-tag=SERIAL_NUMBER
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--os` | none | `linux`, `macos`, `windows` | Device operating system |
+| `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
+| `--enroll` | false | boolean | If set, creates a device enrollment token |
+
+### Examples
+
+```code
+$ tctl devices add --os=macos --asset-tag=(=devicetrust.asset_tag=)
+Device (=devicetrust.asset_tag=)/macOS added to the inventory
+
+$ tctl devices add --os=macos --asset-tag=(=devicetrust.asset_tag=) --enroll
+Device (=devicetrust.asset_tag=)/macOS added to the inventory
+Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
+tsh device enroll --token=(=devicetrust.enroll_token=)
+```
+
+## tctl devices enroll
+
+Create an enrollment token for a device.
+
+```code
+$ tctl devices enroll [--device-id=ID] [--asset-tag=ASSET_TAG]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--device-id` | none | string | Teleport device identifier |
+| `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
+
+One of `--device-id` or `--asset-tag` must be present.
+
+### Examples
+
+```code
+$ tctl devices enroll --device-id=d40f2ee4-856d-4aef-b784-c4371e39c036
+Run the command below on device "d40f2ee4-856d-4aef-b784-c4371e39c036" to enroll it:
+tsh device enroll --token=(=devicetrust.enroll_token=)
+
+$ tctl devices enroll --asset-tag=(=devicetrust.asset_tag=)
+Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
+tsh device enroll --token=(=devicetrust.enroll_token=)
+```
+
+## tctl devices ls
+
+List registered devices.
+
+```code
+$ tctl devices ls
+```
+
+### Examples
+
+```code
+$ tctl devices ls
+
+Asset Tag    OS    Enroll Status Device ID
+------------ ----- ------------- ------------------------------------
+(=devicetrust.asset_tag=) macOS enrolled      d40f2ee4-856d-4aef-b784-c4371e39c036
+```
+
+## tctl devices rm
+
+Removes a registered device.
+
+A removed device is not considered a trusted device for future device
+authentication attempts.
+
+```code
+$ tctl devices rm [--device-id=ID] [--asset-tag=ASSET_TAG]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--device-id` | none | string | Teleport device identifier |
+| `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
+
+One of `--device-id` or `--asset-tag` must be present.
+
+### Examples
+
+```code
+$ tctl devices rm --device-id=d40f2ee4-856d-4aef-b784-c4371e39c036
+Device "ac3590ec-87d4-4519-8e9e-2f35af0a9f85" removed
+
+$ tctl devices rm --asset-tag=(=devicetrust.asset_tag=)
+Device "(=devicetrust.asset_tag=)" removed
+```
+
+### tctl acl ls
+
+Lists Access Lists on the cluster.
+
+```code
+$ tctl acl ls
+```
+
+### tctl acl get
+
+Gets and displays information about a particular access list.
+
+```code
+$ tctl acl get <id>
+```
+
+### tctl acl users add
+
+Adds a user to an access list.
+
+```code
+$ tctl acl users add <access-list-name> <user> [<expires>] [<reason>]
+```
+
+### tctl acl users rm
+
+Removes a user from an access list.
+
+```code
+$ tctl acl users rm <access-list-name> <user>
+```
+
+### tctl acl users ls
+
+Lists the users in an access list.
+
+```code
+$ tctl acl users ls <access-list-name>
+```
+
+## tctl top
+
+Reports diagnostic information.
+
+The diagnostic metrics endpoint must be enabled with `teleport start --diag-addr=<bind-addr>` for `tctl top` to work.
+
+```code
+$ tctl top [<diag-addr>] [<refresh>]
+```
+
+### Argument
+
+- `[<diag-addr>]` Diagnostic HTTP URL (HTTPS not supported)
+- `[<refresh>]` Refresh period e.g. `5s`, `2m`, or `3h`
+
+### Example
+
+```code
+$ sudo teleport start --diag-addr=127.0.0.1:3000
+# View stats with a refresh period of 5 seconds
+$ tctl top http://127.0.0.1:3000 5s
+```
+
+## tctl version
+
+Print the version of your `tctl` binary:
+
+```code
+tctl version
+```
+
+

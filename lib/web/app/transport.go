@@ -34,7 +34,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -42,14 +42,14 @@ import (
 
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
-	proxyClient  reversetunnel.Tunnel
+	proxyClient  reversetunnelclient.Tunnel
 	accessPoint  auth.ReadProxyAccessPoint
 	cipherSuites []uint16
 	identity     *tlsca.Identity
 	servers      []types.AppServer
 	ws           types.WebSession
 	clusterName  string
-	log          *logrus.Entry
+	log          logrus.FieldLogger
 }
 
 // Check validates configuration.
@@ -95,10 +95,8 @@ type transport struct {
 	// clientTLSConfig is the TLS config used for mutual authentication.
 	clientTLSConfig *tls.Config
 
-	// servers is the list of servers that the transport can connect to
-	// organized in a map where the key is the server ID, and the value is the
-	// `types.AppServer`.
-	servers *sync.Map
+	// mu protects access to servers in the transportConfig
+	mu sync.Mutex
 }
 
 // newTransport creates a new transport.
@@ -108,7 +106,7 @@ func newTransport(c *transportConfig) (*transport, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	t := &transport{c: c, servers: &sync.Map{}}
+	t := &transport{c: c}
 
 	t.clientTLSConfig, err = configureTLS(c)
 	if err != nil {
@@ -123,10 +121,6 @@ func newTransport(c *transportConfig) (*transport, error) {
 	tr.DialContext = t.DialContext
 	tr.TLSClientConfig = t.clientTLSConfig
 
-	for _, server := range t.c.servers {
-		t.servers.Store(server.GetResourceID(), server)
-	}
-
 	t.tr = tr
 	return t, nil
 }
@@ -134,6 +128,12 @@ func newTransport(c *transportConfig) (*transport, error) {
 // RoundTrip will rewrite the request, forward the request to the target
 // application, emit an event to the audit log, then rewrite the response.
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
+	// Clone the request so we can modify it without affecting the original.
+	// This is necessary because the request cookies are deleted when the web
+	// handler forward the request to the app proxy. When this happens, the
+	// cookies are lost and the error handler will not be able to find the
+	// session based on cookies.
+	r = r.Clone(r.Context())
 	// Perform any request rewriting needed before forwarding the request.
 	if err := t.rewriteRequest(r); err != nil {
 		return nil, trace.Wrap(err)
@@ -187,12 +187,15 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 	// We want the rewrite to happen using our own public address.
 	if host == t.c.identity.RouteToApp.PublicAddr {
 		// drop scheme and host, leaving only the relative path.
-		// since the path can be an empty string, canonicalize it as "/".
+		u.Host = ""
+		u.Scheme = ""
+
+		// since the path can be an empty string, canonicalize it to "/".
 		if u.Path == "" {
-			resp.Header.Set("Location", "/")
-		} else {
-			resp.Header.Set("Location", u.Path)
+			u.Path = "/"
 		}
+
+		resp.Header.Set("Location", u.String())
 	}
 	return nil
 }
@@ -225,41 +228,36 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 
 // DialContext dials and connect to the application service over the reverse
 // tunnel subsystem.
-func (t *transport) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
-	var err error
-	var conn net.Conn
+func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn, err error) {
+	t.mu.Lock()
+	servers := make([]types.AppServer, len(t.c.servers))
+	copy(servers, t.c.servers)
+	t.mu.Unlock()
 
-	t.servers.Range(func(serverID, appServerInterface interface{}) bool {
-		appServer, ok := appServerInterface.(types.AppServer)
-		if !ok {
-			t.c.log.Warnf("Failed to load AppServer, invalid type %T", appServerInterface)
-			return true
+	var i int
+	for ; i < len(servers); i++ {
+		appServer := servers[i]
+		conn, err = dialAppServer(ctx, t.c.proxyClient, t.c.identity.RouteToApp.ClusterName, appServer)
+		if err != nil && isReverseTunnelDownError(err) {
+			t.c.log.Warnf("Failed to connect to application server %q: %v.", appServer, err)
+			// Continue to the next server if there is an issue
+			// establishing a connection because the tunnel is not
+			// healthy. Reset the error to avoid returning it if
+			// this is the last server.
+			err = nil
+			continue
 		}
 
-		var dialErr error
-		conn, dialErr = dialAppServer(ctx, t.c.proxyClient, t.c.identity.RouteToApp.ClusterName, appServer)
-		if dialErr != nil {
-			if isReverseTunnelDownError(dialErr) {
-				t.c.log.Warnf("Failed to connect to application server %q: %v.", serverID, dialErr)
-				t.servers.Delete(serverID)
-				// Only goes for the next server if the error returned is a
-				// connection problem. Otherwise, stop iterating over the
-				// servers and return the error.
-				return true
-			}
-		}
-
-		// "save" dial error to return as the function error.
-		err = dialErr
-		return false
-	})
-
-	if err != nil {
-		return nil, trace.Wrap(err)
+		break
 	}
 
-	if conn != nil {
-		return conn, nil
+	// eliminate any servers from the head of the list that were unreachable
+	t.mu.Lock()
+	t.c.servers = t.c.servers[i:]
+	t.mu.Unlock()
+
+	if conn != nil || err != nil {
+		return conn, trace.Wrap(err)
 	}
 
 	return nil, trace.ConnectionProblem(nil, "no application servers remaining to connect")
@@ -278,7 +276,7 @@ func (t *transport) DialWebsocket(network, address string) (net.Conn, error) {
 
 // dialAppServer dial and connect to the application service over the reverse
 // tunnel subsystem.
-func dialAppServer(ctx context.Context, proxyClient reversetunnel.Tunnel, clusterName string, server types.AppServer) (net.Conn, error) {
+func dialAppServer(ctx context.Context, proxyClient reversetunnelclient.Tunnel, clusterName string, server types.AppServer) (net.Conn, error) {
 	clusterClient, err := proxyClient.GetSite(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -291,9 +289,9 @@ func dialAppServer(ctx context.Context, proxyClient reversetunnel.Tunnel, cluste
 		from = clientSrcAddr
 	}
 
-	conn, err := clusterClient.Dial(reversetunnel.DialParams{
+	conn, err := clusterClient.Dial(reversetunnelclient.DialParams{
 		From:                  from,
-		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
+		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
 		OriginalClientDstAddr: originalDst,
 		ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), clusterName),
 		ConnType:              server.GetTunnelType(),
@@ -342,5 +340,5 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 // the reverse tunnel connection is down e.g. because the agent is down.
 func isReverseTunnelDownError(err error) bool {
 	return trace.IsConnectionProblem(err) ||
-		strings.Contains(err.Error(), reversetunnel.NoApplicationTunnel)
+		strings.Contains(err.Error(), reversetunnelclient.NoApplicationTunnel)
 }

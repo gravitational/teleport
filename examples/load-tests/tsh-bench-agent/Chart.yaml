@@ -1,9 +1,0 @@
-apiVersion: v2
-name: tsh-bench-agents
-description: Deploys load-tests agents running `tsh bench sessions`.
-
-type: application
-
-version: 0.1.0
-
-appVersion: "12.0.0-dev"

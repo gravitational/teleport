@@ -19,7 +19,7 @@ import React from 'react';
 import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
 
-import useDocumentGateway from './useDocumentGateway';
+import { useDocumentGateway } from './useDocumentGateway';
 import { OfflineDocumentGateway } from './OfflineDocumentGateway';
 import { OnlineDocumentGateway } from './OnlineDocumentGateway';
 

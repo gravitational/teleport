@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { ButtonBorder, Text } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
-import { CarrotDown } from 'design/Icon';
+import { ChevronDown } from 'design/Icon';
 
 import cfg from 'teleport/config';
 import { AwsRole } from 'teleport/services/apps';
@@ -45,13 +45,14 @@ export default class AwsLaunchButton extends React.Component<Props> {
     return (
       <>
         <ButtonBorder
-          width="88px"
+          textTransform="none"
+          width="90px"
           size="small"
           setRef={e => (this.anchorEl = e)}
           onClick={this.onOpen}
         >
-          LAUNCH
-          <CarrotDown ml={1} fontSize={2} color="text.secondary" />
+          Launch
+          <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           menuListCss={() => ({
@@ -122,7 +123,7 @@ function RoleItemList({
         fontSize="11px"
         mb="2"
         css={`
-          color: ${props => props.theme.colors.text.primary};
+          color: ${props => props.theme.colors.text.main};
           background: ${props => props.theme.colors.spotBackground[2]};
         `}
       >
@@ -148,13 +149,13 @@ type Props = {
 
 const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
-  color: ${theme.colors.text.secondary};
+  color: ${theme.colors.text.slightlyMuted};
   font-size: 12px;
   border-bottom: 1px solid ${theme.colors.spotBackground[0]};
   min-height: 32px;
   &:hover {
     background: ${theme.colors.spotBackground[0]};
-    color: ${theme.colors.text.primary};
+    color: ${theme.colors.text.main};
   }
 
   :last-child {

@@ -17,6 +17,12 @@
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
+import {
+  makeDatabaseGateway,
+  makeKubeGateway,
+  makeRootCluster,
+  makeLeafCluster,
+} from 'teleterm/services/tshd/testHelpers';
 
 import { ClustersService } from './clustersService';
 
@@ -28,55 +34,21 @@ jest.mock('teleterm/ui/services/usage');
 
 const clusterUri: uri.RootClusterUri = '/clusters/test';
 
-const clusterMock: tsh.Cluster = {
+const clusterMock = makeRootCluster({
   uri: clusterUri,
   name: 'Test',
-  connected: true,
-  leaf: false,
   proxyHost: 'localhost:3080',
-  authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-  loggedInUser: {
-    activeRequestsList: [],
-    assumedRequests: {},
-    name: 'admin',
-    acl: {},
-    sshLoginsList: [],
-    rolesList: [],
-    requestableRolesList: [],
-    suggestedReviewersList: [],
-  },
-};
+});
 
-const leafClusterMock: tsh.Cluster = {
+const leafClusterMock = makeLeafCluster({
   uri: `${clusterUri}/leaves/test2`,
   name: 'Leaf',
-  connected: true,
-  leaf: true,
-  proxyHost: 'localhost:3085',
-  authClusterId: '98dc94c8-c9a0-40e7-9a09-016cde91c652',
-  loggedInUser: {
-    activeRequestsList: [],
-    assumedRequests: {},
-    name: 'admin',
-    acl: {},
-    sshLoginsList: [],
-    rolesList: [],
-    requestableRolesList: [],
-    suggestedReviewersList: [],
-  },
-};
+});
 
-const gatewayMock: tsh.Gateway = {
+const gatewayMock = makeDatabaseGateway({
   uri: '/gateways/gatewayTestUri',
-  localAddress: 'localhost',
-  localPort: '2000',
-  protocol: 'https',
-  targetName: 'Name',
-  targetSubresourceName: '',
-  targetUser: 'sam',
   targetUri: `${clusterUri}/dbs/databaseTestUri`,
-  cliCommand: 'psql postgres://postgres@localhost:5432/postgres',
-};
+});
 
 const NotificationsServiceMock = NotificationsService as jest.MockedClass<
   typeof NotificationsService
@@ -123,9 +95,19 @@ test('add cluster', async () => {
 });
 
 test('remove cluster', async () => {
-  const { removeCluster } = getClientMocks();
-  const service = createService({
-    removeCluster,
+  const { removeGateway } = getClientMocks();
+  const service = createService({ removeGateway });
+  const gatewayFromRootCluster = makeDatabaseGateway({
+    uri: '/gateways/1',
+    targetUri: `${clusterMock.uri}/dbs/foo`,
+  });
+  const gatewayFromLeafCluster = makeDatabaseGateway({
+    uri: '/gateways/2',
+    targetUri: `${leafClusterMock.uri}/dbs/foo`,
+  });
+  const gatewayFromOtherCluster = makeDatabaseGateway({
+    uri: '/gateways/3',
+    targetUri: `/clusters/bogus-cluster/dbs/foo`,
   });
 
   service.setState(draftState => {
@@ -133,13 +115,24 @@ test('remove cluster', async () => {
       [clusterMock.uri, clusterMock],
       [leafClusterMock.uri, leafClusterMock],
     ]);
+    draftState.gateways = new Map([
+      [gatewayFromRootCluster.uri, gatewayFromRootCluster],
+      [gatewayFromLeafCluster.uri, gatewayFromLeafCluster],
+      [gatewayFromOtherCluster.uri, gatewayFromOtherCluster],
+    ]);
   });
 
-  await service.removeCluster(clusterUri);
+  await service.removeClusterAndResources(clusterUri);
 
-  expect(removeCluster).toHaveBeenCalledWith(clusterUri);
   expect(service.findCluster(clusterUri)).toBeUndefined();
   expect(service.findCluster(leafClusterMock.uri)).toBeUndefined();
+  expect(service.state.gateways).toEqual(
+    new Map([[gatewayFromOtherCluster.uri, gatewayFromOtherCluster]])
+  );
+
+  expect(removeGateway).toHaveBeenCalledWith(gatewayFromRootCluster.uri);
+  expect(removeGateway).toHaveBeenCalledWith(gatewayFromLeafCluster.uri);
+  expect(removeGateway).not.toHaveBeenCalledWith(gatewayFromOtherCluster.uri);
 });
 
 test('sync root cluster', async () => {
@@ -192,8 +185,9 @@ test('logout from cluster', async () => {
   await service.logout(clusterUri);
 
   expect(logout).toHaveBeenCalledWith(clusterUri);
-  expect(service.findCluster(clusterUri)).toBeUndefined();
-  expect(service.findCluster(leafClusterMock.uri)).toBeUndefined();
+  expect(removeCluster).toHaveBeenCalledWith(clusterUri);
+  expect(service.findCluster(clusterMock.uri).connected).toBe(false);
+  expect(service.findCluster(leafClusterMock.uri).connected).toBe(false);
 });
 
 test('create a gateway', async () => {
@@ -224,6 +218,30 @@ test('remove a gateway', async () => {
 
   expect(removeGateway).toHaveBeenCalledWith(gatewayUri);
   expect(service.findGateway(gatewayUri)).toBeUndefined();
+});
+
+test('remove a kube gateway', async () => {
+  const { removeGateway } = getClientMocks();
+  const service = createService({
+    removeGateway,
+  });
+  const kubeGatewayMock = makeKubeGateway({
+    uri: '/gateways/gatewayTestUri',
+    targetUri: `${clusterUri}/kubes/testKubeId`,
+  });
+
+  service.setState(draftState => {
+    draftState.gateways = new Map([[kubeGatewayMock.uri, kubeGatewayMock]]);
+  });
+
+  await service.removeKubeGateway(kubeGatewayMock.targetUri as uri.KubeUri);
+  expect(removeGateway).toHaveBeenCalledTimes(1);
+  expect(removeGateway).toHaveBeenCalledWith(kubeGatewayMock.uri);
+  expect(service.findGateway(kubeGatewayMock.uri)).toBeUndefined();
+
+  // Calling it again should not increase mock calls.
+  await service.removeKubeGateway(kubeGatewayMock.targetUri as uri.KubeUri);
+  expect(removeGateway).toHaveBeenCalledTimes(1);
 });
 
 test('sync gateways', async () => {

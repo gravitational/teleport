@@ -18,107 +18,169 @@ package client
 
 import (
 	"context"
-	"crypto/tls"
+	"flag"
 	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 )
 
-// mockServer mocks an Auth Server.
-type mockServer struct {
-	addr string
-	grpc *grpc.Server
+func TestMain(m *testing.M) {
+	flag.Parse()
+	if testing.Verbose() {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+	os.Exit(m.Run())
+}
+
+type pingService struct {
 	*proto.UnimplementedAuthServiceServer
 }
 
-func newMockServer(addr string) *mockServer {
-	m := &mockServer{
-		addr:                           addr,
-		grpc:                           grpc.NewServer(),
-		UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
-	}
-	proto.RegisterAuthServiceServer(m.grpc, m)
-	return m
-}
-
-func (m *mockServer) Stop() {
-	m.grpc.Stop()
-}
-
-func (m *mockServer) Addr() string {
-	return m.addr
-}
-
-type ConfigOpt func(*Config)
-
-func WithConfig(cfg Config) ConfigOpt {
-	return func(config *Config) {
-		*config = cfg
-	}
-}
-
-func (m *mockServer) NewClient(ctx context.Context, opts ...ConfigOpt) (*Client, error) {
-	cfg := Config{
-		Addrs: []string{m.addr},
-		Credentials: []Credentials{
-			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
-		},
-		DialOpts: []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-		},
-	}
-
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-
-	return New(ctx, cfg)
-}
-
-// startMockServer starts a new mock server. Parallel tests cannot use the same addr.
-func startMockServer(t *testing.T) *mockServer {
-	l, err := net.Listen("tcp", "")
-	require.NoError(t, err)
-	return startMockServerWithListener(t, l)
-}
-
-// startMockServerWithListener starts a new mock server with the provided listener
-func startMockServerWithListener(t *testing.T, l net.Listener) *mockServer {
-	srv := newMockServer(l.Addr().String())
-
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- srv.grpc.Serve(l)
-	}()
-
-	t.Cleanup(func() {
-		srv.grpc.Stop()
-		require.NoError(t, <-errCh)
-	})
-
-	return srv
-}
-
-func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
+func (s *pingService) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
 	return &proto.PingResponse{}, nil
 }
 
-func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+func TestNew(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := startMockServer(t, &pingService{})
+
+	tests := []struct {
+		desc         string
+		modifyConfig func(*Config)
+		assertErr    require.ErrorAssertionFunc
+	}{{
+		desc:         "successfully dial tcp address.",
+		modifyConfig: func(c *Config) { /* noop */ },
+		assertErr:    require.NoError,
+	}, {
+		desc: "synchronously dial addr/cred pairs and succeed with the 1 good pair.",
+		modifyConfig: func(c *Config) {
+			c.Addrs = append(c.Addrs, "bad addr", "bad addr")
+			c.Credentials = append([]Credentials{&tlsConfigCreds{nil}, &tlsConfigCreds{nil}}, c.Credentials...)
+		},
+		assertErr: require.NoError,
+	}, {
+		desc: "fail to dial with a bad address.",
+		modifyConfig: func(c *Config) {
+			c.Addrs = []string{"bad addr"}
+		},
+		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+			require.Error(t, err)
+			require.ErrorContains(t, err, "all connection methods failed")
+		},
+	}, {
+		desc: "fail to dial with no address or dialer.",
+		modifyConfig: func(c *Config) {
+			c.Addrs = nil
+		},
+		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+			require.Error(t, err)
+			require.ErrorContains(t, err, "no connection methods found, try providing Dialer or Addrs in config")
+		},
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			cfg := srv.clientCfg()
+			tt.modifyConfig(&cfg)
+
+			clt, err := New(ctx, cfg)
+			tt.assertErr(t, err)
+			if err != nil {
+				return
+			}
+
+			// Requests to the server should succeed.
+			_, err = clt.Ping(ctx)
+			assert.NoError(t, err, "Ping failed")
+			assert.NoError(t, clt.Close(), "Close failed")
+		})
+	}
+}
+
+func TestNewDialBackground(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	// Create a server but don't serve it yet.
+	l, err := net.Listen("tcp", "localhost:")
+	require.NoError(t, err)
+	addr := l.Addr().String()
+	srv := newMockServer(t, addr, &pingService{})
+
+	// Create client before the server is listening.
+	cfg := srv.clientCfg()
+	cfg.DialInBackground = true
+	clt, err := New(ctx, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	// requests to the server will result in a connection error.
+	cancelCtx, cancel := context.WithTimeout(ctx, time.Second*3)
+	defer cancel()
+	_, err = clt.Ping(cancelCtx)
+	require.Error(t, err)
+
+	// Server the listener and wait for the client connection to be ready.
+	srv.serve(t, l)
+	require.NoError(t, clt.waitForConnectionReady(ctx))
+
+	// requests to the server should succeed.
+	_, err = clt.Ping(ctx)
+	require.NoError(t, err)
+}
+
+func TestWaitForConnectionReady(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	// Create a server but don't serve it yet.
+	l, err := net.Listen("tcp", "localhost:")
+	require.NoError(t, err)
+	addr := l.Addr().String()
+	srv := newMockServer(t, addr, &proto.UnimplementedAuthServiceServer{})
+
+	// Create client before the server is listening.
+	cfg := srv.clientCfg()
+	cfg.DialInBackground = true
+	clt, err := New(ctx, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	// WaitForConnectionReady should return an error once the
+	// context is canceled if the server isn't open to connections.
+	cancelCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	require.Error(t, clt.waitForConnectionReady(cancelCtx))
+
+	// WaitForConnectionReady should return nil if the server is open to connections.
+	srv.serve(t, l)
+	require.NoError(t, clt.waitForConnectionReady(ctx))
+
+	// WaitForConnectionReady should return an error if the grpc connection is closed.
+	require.NoError(t, clt.Close())
+	require.Error(t, clt.waitForConnectionReady(ctx))
+}
+
+type listResourcesService struct {
+	*proto.UnimplementedAuthServiceServer
+}
+
+func (s *listResourcesService) ListResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
 	resources, err := testResources[types.ResourceWithLabels](req.ResourceType, req.Namespace)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
@@ -180,8 +242,14 @@ func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
-		}
+		case types.KindAppOrSAMLIdPServiceProvider:
+			appServerOrSP, ok := resource.(*types.AppServerOrSAMLIdPServiceProviderV1)
+			if !ok {
+				return nil, trace.Errorf("AppServerOrSAMLIdPServiceProvider has invalid type %T", resource)
+			}
 
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{AppServerOrSAMLIdPServiceProvider: appServerOrSP}}
+		}
 		resp.Resources = append(resp.Resources, protoResource)
 		lastResourceName = resource.GetName()
 		if len(resp.Resources) == int(req.Limit) {
@@ -194,10 +262,6 @@ func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResources
 	}
 
 	return resp, nil
-}
-
-func (m *mockServer) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
-	return nil, status.Error(codes.AlreadyExists, "Already Exists")
 }
 
 const fiveMBNode = "fiveMBNode"
@@ -218,10 +282,17 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 					"label": string(make([]byte, labelSize)),
 				},
 			}, types.DatabaseServerSpecV3{
-				Protocol: "",
-				URI:      "localhost:5432",
 				Hostname: "localhost",
 				HostID:   fmt.Sprintf("host-%d", i),
+				Database: &types.DatabaseV3{
+					Metadata: types.Metadata{
+						Name: fmt.Sprintf("db-%d", i),
+					},
+					Spec: types.DatabaseSpecV3{
+						Protocol: types.DatabaseProtocolPostgreSQL,
+						URI:      "localhost",
+					},
+				},
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -249,7 +320,6 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 				HostID: fmt.Sprintf("host-%d", i),
 				App:    app,
 			})
-
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -325,6 +395,52 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 
 			resources = append(resources, any(resource).(T))
 		}
+	case types.KindAppOrSAMLIdPServiceProvider:
+		for i := 0; i < size; i++ {
+			// Alternate between adding Apps and SAMLIdPServiceProviders. If `i` is even, add an app.
+			if i%2 == 0 {
+				app, err := types.NewAppV3(types.Metadata{
+					Name: fmt.Sprintf("app-%d", i),
+				}, types.AppSpecV3{
+					URI: "localhost",
+				})
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				appServer, err := types.NewAppServerV3(types.Metadata{
+					Name: fmt.Sprintf("app-%d", i),
+					Labels: map[string]string{
+						"label": string(make([]byte, labelSize)),
+					},
+				}, types.AppServerSpecV3{
+					HostID: fmt.Sprintf("host-%d", i),
+					App:    app,
+				})
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				resource := &types.AppServerOrSAMLIdPServiceProviderV1{
+					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+						AppServer: appServer,
+					},
+				}
+
+				resources = append(resources, any(resource).(T))
+			} else {
+				sp := &types.SAMLIdPServiceProviderV1{ResourceHeader: types.ResourceHeader{Metadata: types.Metadata{Name: fmt.Sprintf("saml-app-%d", i), Labels: map[string]string{
+					"label": string(make([]byte, labelSize)),
+				}}}}
+
+				resource := &types.AppServerOrSAMLIdPServiceProviderV1{
+					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+						SAMLIdPServiceProvider: sp,
+					},
+				}
+				resources = append(resources, any(resource).(T))
+			}
+		}
 	default:
 		return nil, trace.Errorf("unsupported resource type %s", resourceType)
 	}
@@ -332,185 +448,10 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 	return resources, nil
 }
 
-// mockInsecureCredentials mocks insecure Client credentials.
-// it returns a nil tlsConfig which allows the client to run in insecure mode.
-// TODO(Joerger) replace insecure credentials with proper TLS credentials.
-type mockInsecureTLSCredentials struct{}
-
-func (mc *mockInsecureTLSCredentials) Dialer(cfg Config) (ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
-}
-
-func (mc *mockInsecureTLSCredentials) TLSConfig() (*tls.Config, error) {
-	return nil, nil
-}
-
-func (mc *mockInsecureTLSCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
-	return nil, trace.NotImplemented("no ssh config")
-}
-
-func TestNew(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	srv := startMockServer(t)
-
-	tests := []struct {
-		desc      string
-		config    Config
-		assertErr require.ErrorAssertionFunc
-	}{{
-		desc: "successfully dial tcp address.",
-		config: Config{
-			Addrs: []string{srv.Addr()},
-			Credentials: []Credentials{
-				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
-			},
-			DialOpts: []grpc.DialOption{
-				grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-			},
-		},
-		assertErr: require.NoError,
-	}, {
-		desc: "synchronously dial addr/cred pairs and succeed with the 1 good pair.",
-		config: Config{
-			Addrs: []string{"bad addr", srv.Addr(), "bad addr"},
-			Credentials: []Credentials{
-				&tlsConfigCreds{nil},
-				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
-				&tlsConfigCreds{nil},
-			},
-			DialOpts: []grpc.DialOption{
-				grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-			},
-		},
-		assertErr: require.NoError,
-	}, {
-		desc: "fail to dial with a bad address.",
-		config: Config{
-			DialTimeout: time.Second,
-			Addrs:       []string{"bad addr"},
-			Credentials: []Credentials{
-				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
-			},
-			DialOpts: []grpc.DialOption{
-				grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-			},
-		},
-		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "all connection methods failed")
-		},
-	}, {
-		desc: "fail to dial with no address or dialer.",
-		config: Config{
-			DialTimeout: time.Second,
-			Credentials: []Credentials{
-				&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
-			},
-			DialOpts: []grpc.DialOption{
-				grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-			},
-		},
-		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "no connection methods found, try providing Dialer or Addrs in config")
-		},
-	}}
-
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			clt, err := srv.NewClient(ctx, WithConfig(tt.config))
-			tt.assertErr(t, err)
-
-			if err == nil {
-				t.Cleanup(func() { require.NoError(t, clt.Close()) })
-				// requests to the server should succeed.
-				_, err = clt.Ping(ctx)
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestNewDialBackground(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	// get listener but don't serve it yet.
-	l, err := net.Listen("tcp", "")
-	require.NoError(t, err)
-	addr := l.Addr().String()
-
-	// Create client before the server is listening.
-	clt, err := New(ctx, Config{
-		DialInBackground: true,
-		Addrs:            []string{addr},
-		Credentials: []Credentials{
-			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
-		},
-		DialOpts: []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, clt.Close()) })
-
-	// requests to the server will result in a connection error.
-	cancelCtx, cancel := context.WithTimeout(ctx, time.Second*3)
-	defer cancel()
-	_, err = clt.Ping(cancelCtx)
-	require.Error(t, err)
-
-	// Start the server and wait for the client connection to be ready.
-	startMockServerWithListener(t, l)
-	require.NoError(t, clt.waitForConnectionReady(ctx))
-
-	// requests to the server should succeed.
-	_, err = clt.Ping(ctx)
-	require.NoError(t, err)
-}
-
-func TestWaitForConnectionReady(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	l, err := net.Listen("tcp", "")
-	require.NoError(t, err)
-	addr := l.Addr().String()
-
-	// Create client before the server is listening.
-	clt, err := New(ctx, Config{
-		DialInBackground: true,
-		Addrs:            []string{addr},
-		Credentials: []Credentials{
-			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
-		},
-		DialOpts: []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, clt.Close()) })
-
-	// WaitForConnectionReady should return false once the
-	// context is canceled if the server isn't open to connections.
-	cancelCtx, cancel := context.WithTimeout(ctx, time.Second*3)
-	defer cancel()
-	require.Error(t, clt.waitForConnectionReady(cancelCtx))
-
-	// WaitForConnectionReady should return nil if the server is open to connections.
-	startMockServerWithListener(t, l)
-	require.NoError(t, clt.waitForConnectionReady(ctx))
-
-	// WaitForConnectionReady should return an error if the grpc connection is closed.
-	require.NoError(t, clt.Close())
-	require.Error(t, clt.waitForConnectionReady(ctx))
-}
-
 func TestListResources(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := startMockServer(t)
+	srv := startMockServer(t, &listResourcesService{})
 
 	testCases := map[string]struct {
 		resourceType   string
@@ -539,7 +480,7 @@ func TestListResources(t *testing.T) {
 	}
 
 	// Create client
-	clt, err := srv.NewClient(ctx)
+	clt, err := New(ctx, srv.clientCfg())
 	require.NoError(t, err)
 
 	for name, test := range testCases {
@@ -611,10 +552,11 @@ func testGetResources[T types.ResourceWithLabels](t *testing.T, clt *Client, kin
 
 func TestGetResources(t *testing.T) {
 	t.Parallel()
-	srv := startMockServer(t)
+	ctx := context.Background()
+	srv := startMockServer(t, &listResourcesService{})
 
 	// Create client
-	clt, err := srv.NewClient(context.Background())
+	clt, err := New(ctx, srv.clientCfg())
 	require.NoError(t, err)
 
 	t.Run("DatabaseServer", func(t *testing.T) {
@@ -641,15 +583,20 @@ func TestGetResources(t *testing.T) {
 		t.Parallel()
 		testGetResources[types.WindowsDesktop](t, clt, types.KindWindowsDesktop)
 	})
+
+	t.Run("AppServerAndSAMLIdPServiceProvider", func(t *testing.T) {
+		t.Parallel()
+		testGetResources[types.AppServerOrSAMLIdPServiceProvider](t, clt, types.KindAppOrSAMLIdPServiceProvider)
+	})
 }
 
 func TestGetResourcesWithFilters(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := startMockServer(t)
+	srv := startMockServer(t, &listResourcesService{})
 
 	// Create client
-	clt, err := srv.NewClient(ctx)
+	clt, err := New(ctx, srv.clientCfg())
 	require.NoError(t, err)
 
 	testCases := map[string]struct {
@@ -669,6 +616,9 @@ func TestGetResourcesWithFilters(t *testing.T) {
 		},
 		"WindowsDesktop": {
 			resourceType: types.KindWindowsDesktop,
+		},
+		"AppAndIdPServiceProvider": {
+			resourceType: types.KindAppOrSAMLIdPServiceProvider,
 		},
 	}
 

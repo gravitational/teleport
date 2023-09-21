@@ -97,6 +97,14 @@ func MakeTracingHandler(h http.Handler, component string) http.Handler {
 	return otelhttp.NewHandler(http.HandlerFunc(handler), component, otelhttp.WithSpanNameFormatter(tracehttp.HandlerFormatter))
 }
 
+// MakeTracingMiddleware returns an HTTP middleware that makes tracing
+// handlers.
+func MakeTracingMiddleware(component string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return MakeTracingHandler(next, component)
+	}
+}
+
 // MakeHandlerWithErrorWriter returns a httprouter.Handle from the HandlerFunc,
 // and sends all errors to ErrorWriter.
 func MakeHandlerWithErrorWriter(fn HandlerFunc, errWriter ErrorWriter) httprouter.Handle {

@@ -31,9 +31,9 @@ func TestServerLabels(t *testing.T) {
 	// empty
 	server := &types.ServerV2{}
 	require.Empty(t, cmp.Diff(server.GetAllLabels(), emptyLabels))
-	require.Equal(t, server.LabelsString(), "")
-	require.Equal(t, server.MatchAgainst(emptyLabels), true)
-	require.Equal(t, server.MatchAgainst(map[string]string{"a": "b"}), false)
+	require.Empty(t, server.GetAllLabels())
+	require.Equal(t, types.MatchLabels(server, emptyLabels), true)
+	require.Equal(t, types.MatchLabels(server, map[string]string{"a": "b"}), false)
 
 	// more complex
 	server = &types.ServerV2{
@@ -58,10 +58,9 @@ func TestServerLabels(t *testing.T) {
 		"time": "now",
 	}))
 
-	require.Equal(t, server.LabelsString(), "role=database,time=now")
-	require.Equal(t, server.MatchAgainst(emptyLabels), true)
-	require.Equal(t, server.MatchAgainst(map[string]string{"a": "b"}), false)
-	require.Equal(t, server.MatchAgainst(map[string]string{"role": "database"}), true)
-	require.Equal(t, server.MatchAgainst(map[string]string{"time": "now"}), true)
-	require.Equal(t, server.MatchAgainst(map[string]string{"time": "now", "role": "database"}), true)
+	require.Equal(t, types.MatchLabels(server, emptyLabels), true)
+	require.Equal(t, types.MatchLabels(server, map[string]string{"a": "b"}), false)
+	require.Equal(t, types.MatchLabels(server, map[string]string{"role": "database"}), true)
+	require.Equal(t, types.MatchLabels(server, map[string]string{"time": "now"}), true)
+	require.Equal(t, types.MatchLabels(server, map[string]string{"time": "now", "role": "database"}), true)
 }

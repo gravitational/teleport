@@ -15,7 +15,6 @@
  */
 
 // these constants are 1:1 with constants found in lib/usagereporter/web/userevent.go
-
 export enum CaptureEvent {
   // UserEvent types
   BannerClickEvent = 'tp.ui.banner.click',
@@ -25,18 +24,49 @@ export enum CaptureEvent {
   CreateNewRoleSaveClickEvent = 'tp.ui.createNewRoleSave.click',
   CreateNewRoleCancelClickEvent = 'tp.ui.createNewRoleCancel.click',
   CreateNewRoleViewDocumentationClickEvent = 'tp.ui.createNewRoleViewDocumentation.click',
+  UiCallToActionClickEvent = 'tp.ui.callToAction.click',
+  FeatureRecommendationEvent = 'tp.ui.feature.recommendation',
 
   // PreUserEvent types
   //   these events are unauthenticated,
   //   and require username in the request
-
   PreUserOnboardSetCredentialSubmitEvent = 'tp.ui.onboard.setCredential.submit',
   PreUserOnboardRegisterChallengeSubmitEvent = 'tp.ui.onboard.registerChallenge.submit',
   PreUserCompleteGoToDashboardClickEvent = 'tp.ui.onboard.completeGoToDashboard.click',
-
   PreUserRecoveryCodesContinueClickEvent = 'tp.ui.recoveryCodesContinue.click',
   PreUserRecoveryCodesCopyClickEvent = 'tp.ui.recoveryCodesCopy.click',
   PreUserRecoveryCodesPrintClickEvent = 'tp.ui.recoveryCodesPrint.click',
+
+  // Shared types; used in both pre-user and authenticated user settings
+  OnboardQuestionnaireSubmitEvent = 'tp.ui.onboard.questionnaire.submit',
+}
+
+export enum IntegrationEnrollEvent {
+  Started = 'tp.ui.integrationEnroll.start',
+  Complete = 'tp.ui.integrationEnroll.complete',
+}
+
+// IntegrationEnrollKind represents a integration type.
+export enum IntegrationEnrollKind {
+  Unspecified = 'INTEGRATION_ENROLL_KIND_UNSPECIFIED',
+  Slack = 'INTEGRATION_ENROLL_KIND_SLACK',
+  AwsOidc = 'INTEGRATION_ENROLL_KIND_AWS_OIDC',
+  PagerDuty = 'INTEGRATION_ENROLL_KIND_PAGERDUTY',
+  Email = 'INTEGRATION_ENROLL_KIND_EMAIL',
+  Jira = 'INTEGRATION_ENROLL_KIND_JIRA',
+  Discord = 'INTEGRATION_ENROLL_KIND_DISCORD',
+  Mattermost = 'INTEGRATION_ENROLL_KIND_MATTERMOST',
+  MsTeams = 'INTEGRATION_ENROLL_KIND_MS_TEAMS',
+  OpsGenie = 'INTEGRATION_ENROLL_KIND_OPSGENIE',
+  Okta = 'INTEGRATION_ENROLL_KIND_OKTA',
+  Jamf = 'INTEGRATION_ENROLL_KIND_JAMF',
+  ServiceNow = 'INTEGRATION_ENROLL_KIND_SERVICENOW',
+  MachineID = 'INTEGRATION_ENROLL_KIND_MACHINE_ID',
+  MachineIDGitHubActions = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS',
+  MachineIDCircleCI = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_CIRCLECI',
+  MachineIDGitLab = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITLAB',
+  MachineIDJenkins = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_JENKINS',
+  MachineIDAnsible = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE',
 }
 
 export enum DiscoverEvent {
@@ -101,6 +131,8 @@ export enum DiscoverEventResource {
   ApplicationHttp = 'DISCOVER_RESOURCE_APPLICATION_HTTP',
   ApplicationTcp = 'DISCOVER_RESOURCE_APPLICATION_TCP',
   WindowsDesktop = 'DISCOVER_RESOURCE_WINDOWS_DESKTOP',
+
+  SamlApplication = 'DISCOVER_RESOURCE_SAML_APPLICATION',
 }
 
 export enum DiscoverEventStatus {
@@ -123,6 +155,16 @@ export type EventMeta = {
 
 export type PreUserEvent = UserEvent & EventMeta;
 
+export type IntegrationEnrollEventData = {
+  id: string;
+  kind: IntegrationEnrollKind;
+};
+
+export type IntegrationEnrollEventRequest = {
+  event: IntegrationEnrollEvent;
+  eventData: IntegrationEnrollEventData;
+};
+
 export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
   event: DiscoverEvent;
   eventData: DiscoverEventData;
@@ -142,9 +184,57 @@ export type DiscoverEventData = DiscoverEventStepStatus & {
   // in the RDS enrollment screen for event
   // tp.ui.discover.database.enroll.rds
   selectedResourcesCount?: number;
+
+  // serviceDeploy is only considered for 'tp.ui.discover.deployService'
+  // event and describes how an agent got deployed.
+  serviceDeploy?: DiscoverServiceDeploy;
 };
 
 export type DiscoverEventStepStatus = {
   stepStatus: DiscoverEventStatus;
   stepStatusError?: string;
+};
+
+export type DiscoverServiceDeploy = {
+  method: DiscoverServiceDeployMethod;
+  type: DiscoverServiceDeployType;
+};
+
+export enum DiscoverServiceDeployMethod {
+  Unspecified = 'DEPLOY_METHOD_UNSPECIFIED',
+  Auto = 'DEPLOY_METHOD_AUTO',
+  Manual = 'DEPLOY_METHOD_MANUAL',
+}
+
+export enum DiscoverServiceDeployType {
+  Unspecified = 'DEPLOY_TYPE_UNSPECIFIED',
+  InstallScript = 'DEPLOY_TYPE_INSTALL_SCRIPT',
+  AmazonEcs = 'DEPLOY_TYPE_AMAZON_ECS',
+}
+
+export enum CtaEvent {
+  CTA_UNSPECIFIED = 0,
+  CTA_AUTH_CONNECTOR = 1,
+  CTA_ACTIVE_SESSIONS = 2,
+  CTA_ACCESS_REQUESTS = 3,
+  CTA_PREMIUM_SUPPORT = 4,
+  CTA_TRUSTED_DEVICES = 5,
+  CTA_UPGRADE_BANNER = 6,
+  CTA_BILLING_SUMMARY = 7,
+}
+
+export enum Feature {
+  FEATURES_UNSPECIFIED = 0,
+  FEATURES_TRUSTED_DEVICES = 1,
+}
+
+export enum FeatureRecommendationStatus {
+  FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0,
+  FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1,
+  FEATURE_RECOMMENDATION_STATUS_DONE = 2,
+}
+
+export type FeatureRecommendationEvent = {
+  Feature: Feature;
+  FeatureRecommendationStatus: FeatureRecommendationStatus;
 };

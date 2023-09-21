@@ -245,6 +245,8 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 	if fileTransferRequestID, ok := ctx.Value(FileTransferRequestID).(string); ok {
 		s.Setenv(string(FileTransferRequestID), fileTransferRequestID)
 	}
+	// set dstPath in env var to check against file transfer request location
+	s.Setenv(FileTransferDstPath, c.dstPath)
 
 	pe, err := s.StderrPipe()
 	if err != nil {

@@ -12,12 +12,206 @@ Redshift databases, or 20 RDS databases due to the IAM policy character limits.
 A role policy can maintain permissions for approximately 30 Redshift databases,
 or 100 RDS databases.
 
-One way to work around this is to manually manage the IAM policy used for database
-connections, and use a wildcard `"*"` for `"Resource"` to reduce the policy size:
+To get around this limit, try using one or a combination of the following
+methods:
 
-<Details title="use a wildcard policy" opened={false}>
+<Details title="Method 1: Organize IAM roles with &quot;assume_role_arn&quot;">
+You can reduce the policy size by separating them into multiple IAM roles. Use
+`assume_role_arn` to specify different IAM roles for accessing the databases:
 
-Attach a policy with the following permissions to the IAM user or role:
+<Tabs>
+  <TabItem label="Auto-Discovery by Discovery Service">
+  You can specify `assume_role_arn` in the AWS matchers of Discovery Service's
+  configuration:
+  ```yaml
+  discovery_service:
+    enabled: "yes"
+    aws:
+      - types: ["rds"]
+        regions: ["us-west-1", "us-west-2"]
+        assume_role_arn: "arn:aws:iam::123456789012:role/example-role-rds-env-prod-discovery"
+        tags:
+          "env": "prod"
+
+      - types: ["redshift", "redshift-serverless"]
+        regions: ["us-west-2"]
+        assume_role_arn: "arn:aws:iam::123456789012:role/example-role-redshift-env-dev"
+        tags:
+          "env": "dev"
+  ```
+  The Discovery Service will use the IAM roles specified in `assume_role_arn`
+  for discovery, and by default the Database Service will use the same IAM
+  roles for authentication.
+
+  However, you can also overwrite the IAM roles for authentication by Database
+  Service if you wish to use different roles:
+  ```yaml
+  db_service:
+    enabled: "yes"
+    resources:
+      # Matches us-west-1 env=prod RDS databases from Discovery Service, and
+      # overwrites assume_role_arn.
+      - labels:
+          "env": "prod"
+          "region": "us-west-1"
+        aws:
+          assume_role_arn: "arn:aws:iam::123456789012:role/example-role-rds-env-prod-us-west-1-access"
+
+      # Matches us-west-2 env=prod RDS databases from Discovery Service, and
+      # overwrites assume_role_arn.
+      - labels:
+          "env": "prod"
+          "region": "us-west-2"
+        aws:
+          assume_role_arn: "arn:aws:iam::123456789012:role/example-role-rds-env-prod-us-west-2-access"
+
+      # Matches env=dev Redshift databases from Discovery Service and inherits
+      # "arn:aws:iam::123456789012:role/example-role-redshift-env-dev"
+      - labels:
+          "env": "dev"
+  ```
+
+  <Admonition type="tip" title="Auto-discovery labels">
+  Teleport generates certain labels derived from the cloud resource attributes
+  during discovery. See [Auto-Discovery
+  labels](../../database-access/reference/labels.mdx#auto-discovery)
+  /labels/#auto-discovery)
+  for more details.
+  </Admonition>
+
+  Create or print the required IAM policies with the following commands and
+  attach them to the respective IAM roles:
+
+  ```code
+  $ teleport db configure aws create-iam --types redshift,redshift-serverless --name teleport-redshift-access
+  $ teleport db configure aws print-iam --types redshift,redshift-serverless
+  ```
+
+  Refer to the command usage for a complete list of database types supported by
+  the `--types` option.
+
+  </TabItem>
+
+  <TabItem label="Auto-Discovery by Database Service">
+  You can specify `assume_role_arn` in the AWS matchers of Database Service's
+  configuration:
+  ```yaml
+  db_service:
+    enabled: "yes"
+    aws:
+      - types: ["rds"]
+        regions: ["us-west-1", "us-west-2"]
+        assume_role_arn: "arn:aws:iam::123456789012:role/example-role-rds-env-prod"
+        tags:
+          "env": "prod"
+
+      - types: ["redshift", "redshift-serverless"]
+        regions: ["us-west-2"]
+        assume_role_arn: "arn:aws:iam::123456789012:role/example-role-redshift-env-dev"
+        tags:
+          "env": "dev"
+  ```
+  The Database Service will use the IAM roles specified `assume_role_arn` for
+  both discovery and authentication.
+
+  To bootstrap IAM permissions, run the bootstrap command for each `assume_role_arn`:
+
+   ```code
+   $ teleport db configure bootstrap \
+       -c /etc/teleport.yaml \
+       --policy-name teleport-policy-rds-env-prod \
+       --attach-to-role "arn:aws:iam::123456789012:role/example-role-rds-env-prod"
+  ```
+  </TabItem>
+
+  <TabItem label="Static config">
+  You can specify `aws.assume_role_arn` when defining databases in Database
+  Service's configuration:
+  ```yaml
+  db_service:
+    enabled: "yes"
+    databases:
+    - name: "rds-postgres"
+      protocol: "postgres"
+      uri: "rds-postgres.abcdef012345.us-west-1.rds.amazonaws.com:5432"
+      aws:
+          assume_role_arn: "arn:aws:iam::123456789012:role/example-rds-access-role"
+  ```
+
+  To bootstrap IAM permissions, run the bootstrap command for each `assume_role_arn`:
+
+   ```code
+   $ teleport db configure bootstrap \
+       -c /etc/teleport.yaml \
+       --policy-name teleport-policy-rds-access \
+       --attach-to-role "arn:aws:iam::123456789012:role/example-rds-access-role"
+  ```
+  </TabItem>
+
+  <TabItem label="Other dynamic resources">
+  You can specify `aws.assume_role_arn` when defining databases:
+  ```yaml
+  kind: db
+  version: v3
+  metadata:
+    name: "rds-postgres"
+    labels:
+      env: "dev"
+  spec:
+    protocol: "postgres"
+    uri: "rds-postgres.abcdef012345.us-west-1.rds.amazonaws.com:5432"
+    aws:
+      assume_role_arn: "arn:aws:iam::123456789012:role/example-rds-access-role"
+  ```
+
+  Alternatively, you can overwrite the IAM roles for authentication by Database
+  Service:
+  ```yaml
+  db_service:
+    enabled: "yes"
+    resources:
+      # Matches env=dev databases and overwrites assume_role_arn.
+      - labels:
+          "env": "dev"
+        aws:
+          assume_role_arn: "arn:aws:iam::123456789012:role/example-env-dev-access"
+
+      # Matches env=prod database, and use the assume_role_arn in the database's
+      # definition or use the host IAM identity if assume_role_arn is empty.
+      - labels:
+          "env": "prod"
+  ```
+
+  Create or print the required IAM policies with the following commands and
+  attach them to the respective IAM roles:
+
+  ```code
+  $ teleport db configure aws create-iam --types rds --name teleport-rds-access
+  $ teleport db configure aws print-iam --types rds
+  ```
+
+  Refer to the command usage for a complete list of database types supported by
+  the `--types` option.
+  </TabItem>
+
+</Tabs>
+
+The IAM roles specified in `assume_role_arn` must
+[trust](https://aws.amazon.com/blogs/security/how-to-use-trust-policies-with-iam-roles/)
+the IAM identity of the host running the Database Service.
+
+The `assume_role_arn` is not limited to the same AWS account so you can also
+use this feature for [AWS Cross-Account
+Access](../../database-access/guides/aws-cross-account.mdx).
+
+</Details>
+
+<Details title="Method 2: Manually manage your IAM policies">
+You can manually manage IAM policies for database connections instead of
+relying on the Database Service to update them.
+
+For example, you can limit the character size by attaching a policy with a
+wildcard "*" for "Resource":
 
 <Tabs>
   <TabItem label="RDS or RDS Proxy">
@@ -56,9 +250,18 @@ policy.
 
 </Details>
 
-Another option is to deploy [the Database Service in a highly available (HA)
+<Details title="Method 3: Separate Database Services">
+
+You can deploy [the Database Service in a highly available (HA)
 configuration](../../database-access/guides/ha.mdx) where databases can be
 sharded to separate Database Services with different IAM roles.
 
-If the limit is exceeded for a user policy, it is also recommended to use an
-IAM role for the Database Service instead.
+</Details>
+
+<Details title="Method 4: Use IAM roles instead of IAM users">
+
+IAM users have a lower character limit compared to IAM roles. If the limit is
+exceeded for a user policy, it is recommended to use IAM roles for the Database
+Service instead.
+
+</Details>

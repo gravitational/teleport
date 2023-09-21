@@ -26,7 +26,8 @@ import { AppInitializer } from 'teleterm/ui/AppInitializer';
 import CatchError from './components/CatchError';
 import AppContextProvider from './appContextProvider';
 import AppContext from './appContext';
-import { ThemeProvider } from './ThemeProvider';
+import { StaticThemeProvider, ThemeProvider } from './ThemeProvider';
+import { darkTheme } from './ThemeProvider/theme';
 
 export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
   return (
@@ -47,7 +48,9 @@ export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
 export const FailedApp = (props: { message: string }) => {
   return (
     <StyledApp>
-      <Failed alignSelf={'baseline'} message={props.message} />
+      <StaticThemeProvider theme={darkTheme}>
+        <Failed alignSelf={'baseline'} message={props.message} />
+      </StaticThemeProvider>
     </StyledApp>
   );
 };

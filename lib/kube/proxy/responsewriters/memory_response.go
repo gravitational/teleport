@@ -19,9 +19,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/maps"
+
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 )
 
 // NewMemoryResponseWriter creates a MemoryResponseWriter that satisfies
@@ -92,6 +93,6 @@ func (f *MemoryResponseWriter) CopyInto(dst http.ResponseWriter) error {
 // includes the size of the response with the excluded resources.
 // For the "Content-Length" header, we replace the value with the new body size.
 func copyHeader(dst, src http.Header, contentLength int) {
-	src.Set(forward.ContentLength, strconv.Itoa(contentLength))
+	src.Set(reverseproxy.ContentLength, strconv.Itoa(contentLength))
 	maps.Copy(dst, src)
 }

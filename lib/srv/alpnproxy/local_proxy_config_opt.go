@@ -42,7 +42,7 @@ type GetClusterCACertPoolFunc func(ctx context.Context) (*x509.CertPool, error)
 // already been set.
 func WithALPNConnUpgradeTest(ctx context.Context, getClusterCertPool GetClusterCACertPoolFunc) LocalProxyConfigOpt {
 	return func(config *LocalProxyConfig) error {
-		config.ALPNConnUpgradeRequired = client.IsALPNConnUpgradeRequired(config.RemoteProxyAddr, config.InsecureSkipVerify)
+		config.ALPNConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, config.RemoteProxyAddr, config.InsecureSkipVerify)
 		return trace.Wrap(WithClusterCAsIfConnUpgrade(ctx, getClusterCertPool)(config))
 	}
 }

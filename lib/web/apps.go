@@ -21,18 +21,20 @@ package web
 import (
 	"context"
 	"net/http"
+	"sort"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport/api/client"
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -40,7 +42,8 @@ import (
 )
 
 // clusterAppsGet returns a list of applications in a form the UI can present.
-func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+// This includes Application Servers as well as SAML IdP Service providers.
+func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	identity, err := sctx.GetIdentity()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -52,28 +55,78 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := convertListResourcesRequest(r, types.KindAppServer)
+	req, err := convertListResourcesRequest(r, types.KindAppOrSAMLIdPServiceProvider)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	page, err := client.GetResourcePage[types.AppServer](r.Context(), clt, req)
+	page, err := apiclient.GetResourcePage[types.AppServerOrSAMLIdPServiceProvider](r.Context(), clt, req)
+
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// If the error returned is due to types.KindAppOrSAMLIdPServiceProvider being unsupported, then fallback to attempting to just fetch types.AppServers.
+		// This is for backwards compatibility with leaf clusters that don't support this new type yet.
+		// DELETE IN 15.0
+		if trace.IsNotImplemented(err) {
+			req, err = convertListResourcesRequest(r, types.KindAppServer)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			appServerPage, err := apiclient.GetResourcePage[types.AppServer](r.Context(), clt, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// Convert the ResourcePage returned containing AppServers to a ResourcePage containing AppServerOrSAMLIdPServiceProviders.
+			page = appServerOrSPPageFromAppServerPage(appServerPage)
+		} else {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	var apps types.Apps
-	for _, server := range page.Resources {
-		apps = append(apps, server.GetApp())
+	userGroups, err := apiclient.GetAllResources[types.UserGroup](r.Context(), clt, &proto.ListResourcesRequest{
+		ResourceType:     types.KindUserGroup,
+		Namespace:        apidefaults.Namespace,
+		UseSearchAsRoles: true,
+	})
+	if err != nil {
+		h.log.Debugf("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
+	}
+
+	userGroupLookup := make(map[string]types.UserGroup, len(userGroups))
+	for _, userGroup := range userGroups {
+		userGroupLookup[userGroup.GetName()] = userGroup
+	}
+
+	var appsAndSPs types.AppServersOrSAMLIdPServiceProviders
+	appsToUserGroups := map[string]types.UserGroups{}
+	for _, appOrSP := range page.Resources {
+		appsAndSPs = append(appsAndSPs, appOrSP)
+
+		if appOrSP.IsAppServer() {
+			app := appOrSP.GetAppServer().GetApp()
+
+			ugs := types.UserGroups{}
+			for _, userGroupName := range app.GetUserGroups() {
+				userGroup := userGroupLookup[userGroupName]
+				if userGroup == nil {
+					h.log.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
+					continue
+				}
+
+				ugs = append(ugs, userGroup)
+			}
+			sort.Sort(ugs)
+			appsToUserGroups[app.GetName()] = ugs
+		}
 	}
 
 	return listResourcesGetResponse{
 		Items: ui.MakeApps(ui.MakeAppsConfig{
-			LocalClusterName:  h.auth.clusterName,
-			LocalProxyDNSName: h.proxyDNSName(),
-			AppClusterName:    site.GetName(),
-			Identity:          identity,
-			Apps:              apps,
+			LocalClusterName:                     h.auth.clusterName,
+			LocalProxyDNSName:                    h.proxyDNSName(),
+			AppClusterName:                       site.GetName(),
+			Identity:                             identity,
+			AppsToUserGroups:                     appsToUserGroups,
+			AppServersAndSAMLIdPServiceProviders: appsAndSPs,
 		}),
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
@@ -283,7 +336,7 @@ type resolveAppResult struct {
 	App types.Application
 }
 
-func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, params resolveAppParams) (*resolveAppResult, error) {
+func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reversetunnelclient.Tunnel, params resolveAppParams) (*resolveAppResult, error) {
 	var (
 		server         types.AppServer
 		appClusterName string
@@ -317,7 +370,7 @@ func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reverset
 
 // resolveDirect takes a public address and cluster name and exactly resolves
 // the application and the server on which it is running.
-func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel, publicAddr string, clusterName string) (types.AppServer, string, error) {
+func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnelclient.Tunnel, publicAddr string, clusterName string) (types.AppServer, string, error) {
 	clusterClient, err := proxy.GetSite(clusterName)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -342,7 +395,7 @@ func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel,
 
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running within a root or leaf cluster.
-func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, fqdn string) (types.AppServer, string, error) {
+func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnelclient.Tunnel, fqdn string) (types.AppServer, string, error) {
 	return app.ResolveFQDN(ctx, clt, proxy, h.proxyDNSNames(), fqdn)
 }
 
@@ -370,4 +423,27 @@ func (h *Handler) proxyDNSNames() (dnsNames []string) {
 		return []string{h.auth.clusterName}
 	}
 	return dnsNames
+}
+
+// appServerOrSPPageFromAppServerPage converts a ResourcePage containing AppServers to a ResourcePage containing AppServerOrSAMLIdPServiceProviders.
+// DELETE IN 15.0
+func appServerOrSPPageFromAppServerPage(appServerPage apiclient.ResourcePage[types.AppServer]) apiclient.ResourcePage[types.AppServerOrSAMLIdPServiceProvider] {
+	resources := make([]types.AppServerOrSAMLIdPServiceProvider, len(appServerPage.Resources))
+
+	for i, appServer := range appServerPage.Resources {
+		// Create AppServerOrSAMLIdPServiceProvider object from appServer.
+		appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+			Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+				AppServer: appServer.(*types.AppServerV3),
+			},
+		}
+
+		resources[i] = appServerOrSP
+	}
+
+	return apiclient.ResourcePage[types.AppServerOrSAMLIdPServiceProvider]{
+		Resources: resources,
+		Total:     appServerPage.Total,
+		NextKey:   appServerPage.NextKey,
+	}
 }

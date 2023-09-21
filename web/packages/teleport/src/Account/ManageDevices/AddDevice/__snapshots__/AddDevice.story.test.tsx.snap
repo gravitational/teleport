@@ -83,7 +83,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 40px;
   font-size: 12px;
@@ -126,7 +126,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 
 .c17 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -143,7 +143,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 .c17:hover,
 .c17:focus,
 .c17:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c17::-ms-clear {
@@ -151,7 +151,8 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 }
 
 .c17::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c17:read-only {
@@ -159,16 +160,14 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 }
 
 .c17:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c12 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -176,9 +175,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 .c16 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -279,20 +276,20 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c13 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c13 .react-select__control:hover,
 .c13 .react-select__control:focus,
 .c13 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -313,7 +310,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 }
 
 .c13 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -327,7 +324,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 }
 
 .c13 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c13 .react-select__multi-value {
@@ -373,7 +370,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 }
 
 .c13 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c13 .react-select__clear-indicator:hover,
@@ -407,20 +404,24 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 
 .c13 .react-select--is-disabled,
 .c13 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c13 .react-select--is-disabled .react-select__single-value,
 .c13 .react-select__control--is-disabled .react-select__single-value,
 .c13 .react-select--is-disabled .react-select__placeholder,
 .c13 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c13 .react-select--is-disabled .react-select__indicator,
 .c13 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+}
+
+.c13 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c7 {
@@ -459,7 +460,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             Add New Two-Factor Device
           </div>
@@ -495,7 +496,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
                 font-size="0"
                 for="select"
               >
-                Two-factor type
+                Two-factor Type
               </label>
               <div
                 class="c13"
@@ -625,7 +626,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
               class="c16"
               font-size="0"
             >
-              Device name
+              Device Name
               <input
                 autocomplete="off"
                 class="c17"
@@ -768,7 +769,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 40px;
   font-size: 12px;
@@ -811,7 +812,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 
 .c18 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -828,7 +829,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 .c18:hover,
 .c18:focus,
 .c18:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c18::-ms-clear {
@@ -836,7 +837,8 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 }
 
 .c18::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c18:read-only {
@@ -844,16 +846,14 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 }
 
 .c18:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c13 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -861,9 +861,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 .c17 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -964,20 +962,20 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c14 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c14 .react-select__control:hover,
 .c14 .react-select__control:focus,
 .c14 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -998,7 +996,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 }
 
 .c14 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1012,7 +1010,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 }
 
 .c14 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c14 .react-select__multi-value {
@@ -1058,7 +1056,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 }
 
 .c14 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c14 .react-select__clear-indicator:hover,
@@ -1092,20 +1090,24 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 
 .c14 .react-select--is-disabled,
 .c14 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c14 .react-select--is-disabled .react-select__single-value,
 .c14 .react-select__control--is-disabled .react-select__single-value,
 .c14 .react-select--is-disabled .react-select__placeholder,
 .c14 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c14 .react-select--is-disabled .react-select__indicator,
 .c14 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+}
+
+.c14 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c8 {
@@ -1144,7 +1146,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             Add New Two-Factor Device
           </div>
@@ -1187,7 +1189,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
                 font-size="0"
                 for="select"
               >
-                Two-factor type
+                Two-factor Type
               </label>
               <div
                 class="c14"
@@ -1317,7 +1319,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
               class="c17"
               font-size="0"
             >
-              Device name
+              Device Name
               <input
                 autocomplete="off"
                 class="c18"
@@ -1460,7 +1462,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 40px;
   font-size: 12px;
@@ -1507,12 +1509,12 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c19 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -1529,7 +1531,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 .c19:hover,
 .c19:focus,
 .c19:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c19::-ms-clear {
@@ -1537,7 +1539,8 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 }
 
 .c19::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c19:read-only {
@@ -1545,16 +1548,14 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 }
 
 .c19:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c15 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -1562,9 +1563,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 .c18 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -1675,20 +1674,20 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c16 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c16 .react-select__control:hover,
 .c16 .react-select__control:focus,
 .c16 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1709,7 +1708,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 }
 
 .c16 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1723,7 +1722,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 }
 
 .c16 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c16 .react-select__multi-value {
@@ -1769,7 +1768,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 }
 
 .c16 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c16 .react-select__clear-indicator:hover,
@@ -1803,20 +1802,24 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 
 .c16 .react-select--is-disabled,
 .c16 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c16 .react-select--is-disabled .react-select__single-value,
 .c16 .react-select__control--is-disabled .react-select__single-value,
 .c16 .react-select--is-disabled .react-select__placeholder,
 .c16 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c16 .react-select--is-disabled .react-select__indicator,
 .c16 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+}
+
+.c16 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c8 {
@@ -1855,7 +1858,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             Add New Two-Factor Device
           </div>
@@ -1886,7 +1889,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
                
               <div
                 class="c11"
-                color="text.secondary"
+                color="text.slightlyMuted"
               >
                 We recommend
                  
@@ -1915,7 +1918,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
                 font-size="0"
                 for="select"
               >
-                Two-factor type
+                Two-factor Type
               </label>
               <div
                 class="c16"
@@ -1979,7 +1982,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
                 class="c18"
                 font-size="0"
               >
-                Authenticator code
+                Authenticator Code
                 <input
                   autocomplete="one-time-code"
                   class="c19"
@@ -1999,7 +2002,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
               class="c18"
               font-size="0"
             >
-              Device name
+              Device Name
               <input
                 autocomplete="off"
                 class="c19"

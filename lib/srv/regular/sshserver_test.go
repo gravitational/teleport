@@ -344,7 +344,10 @@ func TestMultipleExecCommands(t *testing.T) {
 
 	// Set up a mock emitter so we can capture audit events.
 	emitter := eventstest.NewChannelEmitter(32)
-	f.ssh.srv.StreamEmitter = emitter
+	f.ssh.srv.StreamEmitter = events.StreamerAndEmitter{
+		Streamer: events.NewDiscardStreamer(),
+		Emitter:  emitter,
+	}
 
 	// Manually open an ssh channel
 	channel, _, err := f.ssh.clt.OpenChannel(ctx, "session", nil)
@@ -571,7 +574,7 @@ func TestLockInForce(t *testing.T) {
 			return false
 		}
 	}
-	require.Eventually(t, sessionHasFinished, 1*time.Second, 100*time.Millisecond,
+	require.Eventually(t, sessionHasFinished, 3*time.Second, 100*time.Millisecond,
 		"Timed out waiting for session to finish")
 
 	// Expect the lock-in-force message to have been delivered via stderr.
@@ -592,26 +595,12 @@ func TestLockInForce(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), lockInForceMsg)
 
-	// As long as the lock is in force, global requests are rejected.
-	newClient2, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		// The client is expected to be closed by the lock monitor therefore expect
-		// an error on this second attempt.
-		require.Error(t, newClient2.Close())
-	})
-	ok, _, err := newClient2.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
-	require.False(t, ok)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), lockInForceMsg)
-
 	// Once the lock is lifted, new sessions should go through without error.
 	require.NoError(t, f.testSrv.Auth().DeleteLock(ctx, "test-lock"))
-	newClient3, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+	newClient2, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
 	require.NoError(t, err)
-
-	t.Cleanup(func() { require.NoError(t, newClient3.Close()) })
-	_, err = newClient3.NewSession(ctx)
+	t.Cleanup(func() { require.NoError(t, newClient2.Close()) })
+	_, err = newClient2.NewSession(ctx)
 	require.NoError(t, err)
 }
 
@@ -1024,7 +1013,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 
 	// Create a fake client XServer listener which echos
 	// back whatever it receives.
-	fakeClientDisplay, err := net.Listen("tcp", ":0")
+	fakeClientDisplay, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	go func() {
 		for {

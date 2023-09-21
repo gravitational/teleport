@@ -3,28 +3,17 @@ title: Database Access with Snowflake
 description: How to configure Teleport database access with Snowflake.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="10.0"
->
-  Database access for Snowflake is available starting from Teleport `10.0`.
-</Details>
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Snowflake" dbConfigure="Snowflake database with key pair authentication" dbName="Snowflake" !)
 
-This guide will help you to:
-
-- Install and configure Teleport.
-- Assign Teleport's public key to a Snowflake user.
-- Connect to Snowflake through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
   ![Teleport Database Access Snowflake Self-Hosted](../../../img/database-access/guides/snowflake_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
   ![Teleport Database Access Snowflake Cloud](../../../img/database-access/guides/snowflake_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -44,55 +33,26 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-Install Teleport on the host where you will run the Teleport Database Service:
+Install and configure Teleport where you will run the Teleport Database Service:
+
+<Tabs>
+<TabItem label="Linux Server">
 
 (!docs/pages/includes/install-linux.mdx!)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="https://abc12345.snowflakecomputing.com" !)
 
-  Start the Teleport Database Service, pointing the `--auth-server` flag to the
-  address of your Teleport Proxy Service:
+</TabItem>
+<TabItem label="Kubernetes Cluster">
+  Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-  ```code
-  $ teleport db start \
-  --token=/tmp/token \
-  --auth-server=teleport.example.com:3080 \
-  --name=example-snowflake \
-  --protocol=snowflake \
-  --uri=https://abc12345.snowflakecomputing.com \
-  --labels=env=dev
-  ```
+  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-  <Admonition type="note">
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="https://abc12345.snowflakecomputing.com" !)
+</TabItem>
+</Tabs>
 
-    The `--auth-server` flag must point to the Teleport cluster's Proxy Service
-    endpoint because the Database Service always connects back to the cluster over a
-    reverse tunnel.
-
-  </Admonition>
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-  Start the Teleport Database Service, pointing the `--auth-server` flag to the
-  address of your Teleport Cloud tenant:
-
-  ```code
-  $ teleport db start \
-  --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh:443 \
-  --name=example-snowflake \
-  --protocol=snowflake \
-  --uri=https://abc12345.snowflakecomputing.com \
-  --labels=env=dev
-  ```
-
-</ScopedBlock>
-
-<Admonition type="tip">
-  You can start the Database Service using a configuration file instead of CLI flags.
-  See the [YAML reference](../reference/configuration.mdx) for details.
-</Admonition>
+(!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 
 ## Step 2/5. Create a Teleport user
 
@@ -109,7 +69,6 @@ $ tctl auth sign --format=snowflake --out=server
 The command will create a `server.pub` file with Teleport's public key. Teleport will use the corresponding private key to
 generate a JWT (JSON Web Token) that will be used to authenticate to Snowflake.
 
-(!docs/pages/includes/database-access/rotation-note.mdx!)
 
 ## Step 4/5. Add the public key to your Snowflake user
 
@@ -147,7 +106,7 @@ Log in to your Teleport cluster and see the available databases:
     # example-snowflake Example Snowflake ❄ env=dev
     ```
   </TabItem>
-  <TabItem scope={["cloud"]} label="Teleport Cloud">
+  <TabItem scope={["cloud","team"]} label="Cloud-Hosted">
     ```code
     $ tsh login --proxy=mytenant.teleport.sh --user=alice
     $ tsh db ls
@@ -186,3 +145,4 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

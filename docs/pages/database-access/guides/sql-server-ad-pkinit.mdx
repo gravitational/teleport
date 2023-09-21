@@ -1,21 +1,13 @@
 ---
-title: Microsoft SQL Server access with PKINIT authentication (Preview)
+title: Microsoft SQL Server access with PKINIT authentication
 description: How to configure Microsoft SQL Server access with Active Directory PKINIT authentication.
 ---
 
-<Admonition type="warning" title="Preview">
-  Microsoft SQL Server access is currently in Preview mode.
-</Admonition>
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Microsoft SQL Server" dbConfigure="Microsoft SQL Server database with PKINIT authentication" dbName="Microsoft SQL Server" !)
 
-This guide will help you to:
-
-- Install and configure Teleport.
-- Set up access to SQL Server using Active Directory PKINIT authentication.
-- Connect to SQL Server through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-![SQL Server with self-hosted Teleport](../../../img/database-access/guides/sqlserver_selfhosted.png)
-{/*```mermaid
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+```mermaid
 %%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
 graph LR
 a(Users)
@@ -37,11 +29,10 @@ style local fill:#C0C0C0,stroke: #000000
   c-->e
   e-->d
 end
-```*/}
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-![Teleport SQL Server access with Teleport Cloud](../../../img/database-access/guides/sqlserver_cloud.png)
-{/*```mermaid
+```
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+```mermaid
 %%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
 graph LR
 a(Users)
@@ -63,8 +54,10 @@ style local fill:#C0C0C0,stroke: #000000
   c-->e
   e-->d
 end
-```*/}
-</ScopedBlock>
+```
+</TabItem>
+
+</Tabs>
 
 This guide will focus on SQL Servers using self-hosted Active Directory
 authentication.
@@ -122,13 +115,13 @@ You will need to repeat these steps if you rotate Teleport's database certificat
    $ tctl auth export --type=db-der > db-ca.cer
    ```
 
-2. Get the Teleport database CRL by running:
+1. Get the Teleport database CRL by running:
 
    ```code
    $ tctl auth crl --type=db > db-ca.crl
    ```
 
-3. Transfer the `db-ca.cer` and `db-ca.crl` files to a Windows machine where you can manage your group policy.
+1. Transfer the `db-ca.cer` and `db-ca.crl` files to a Windows machine where you can manage your group policy.
 
 ### Create a GPO and import the Teleport CA
 
@@ -146,20 +139,20 @@ You will need to repeat these steps if you rotate Teleport's database certificat
    New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
    ```
 
-2. Open the `Group Policy Management` program, and on the left pane,
+1. Open the `Group Policy Management` program, and on the left pane,
    navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`.
 
-3. Right click on the GPO you just made (`Teleport DB Access`), and select `Edit...`.
+1. Right click on the GPO you just made (`Teleport DB Access`), and select `Edit...`.
 
-4. In the group policy editor, select:
+1. In the group policy editor, select:
 
    ```text
    Computer Configuration > Policies > Windows Settings > Security Settings > Public Key Policies
    ```
 
-5. Right click on `Trusted Root Certification Authorities` and select `Import`.
+1. Right click on `Trusted Root Certification Authorities` and select `Import`.
 
-6. Click through the wizard, selecting your CA file (`db-ca.cer`).
+1. Click through the wizard, selecting your CA file (`db-ca.cer`).
 
 <Figure align="left" bordered caption="Import Teleport CA">
   ![Import Teleport CA](../../../img/desktop-access/ca.png)
@@ -175,7 +168,7 @@ Teleport performs certificate-based authentication by emulating a smart card.
    Computer Configuration > Policies > Windows Settings > Security Settings > System Services
    ```
 
-2. Double click on `Smart Card`, select `Define this policy setting` and switch
+1. Double click on `Smart Card`, select `Define this policy setting` and switch
    to `Automatic` then click `OK`.
 
 <Figure align="left" bordered caption="Enable the Smart Card service">
@@ -304,11 +297,10 @@ db_service:
 </Admonition>
 
 ## Step 5/7. Start the Database Service
-Start the Database Service:
 
-```code
-$ teleport start --config=/etc/teleport.yaml
-```
+Start the Teleport Database Service in your environment:
+
+(!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
 
 ## Step 6/7. Create SQL Server AD users
 
@@ -329,7 +321,8 @@ master> CREATE LOGIN [EXAMPLE\alice] FROM WINDOWS WITH DEFAULT_DATABASE = [maste
 Log in to your Teleport cluster. Your SQL Server database should appear in the
 list of available databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -339,8 +332,8 @@ $ tsh db ls
 # sqlserver                     env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -350,7 +343,9 @@ $ tsh db ls
 # sqlserver                     env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To retrieve credentials for a database and connect to it:
 
@@ -358,13 +353,7 @@ To retrieve credentials for a database and connect to it:
 $ tsh db connect --db-user=teleport sqlserver
 ```
 
-<Admonition type="note">
-  The `mssql-cli` command-line client should be available in `PATH` of the machine
-  you're running `tsh db connect` from.  
-  
-  `mssql-cli` is not required for SQL Server connections.  Use `tsh proxy db --db-user=teleport --tunnel sqlserver`
-   to connect from other DB Clients such as Microsoft SQL Server Management Studio.
-</Admonition>
+(!docs/pages/includes/database-access/sql-server-connect-note.mdx!)
 
 To log out of the database and remove credentials:
 
@@ -431,3 +420,4 @@ skipping TLS verification in production environments.
 ## Further reading
 
 - [Kerberos PKINIT authentication](https://web.mit.edu/kerberos/krb5-1.13/doc/admin/pkinit.html).
+

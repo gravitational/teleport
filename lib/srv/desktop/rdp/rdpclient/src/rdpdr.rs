@@ -49,6 +49,7 @@ use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::ffi::CString;
 use std::io::{Read, Seek, SeekFrom};
+use std::vec;
 
 /// Client implements a device redirection (RDPDR) client, as defined in
 /// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
@@ -326,24 +327,29 @@ impl Client {
             return Err(Error::TryError("received a drive redirection major function when drive redirection was not allowed".to_string()));
         }
 
-        let output = if is_smart_card_op {
+        let device_control_responses = if is_smart_card_op {
             // Smart card control
-            if let Some(res) = self.scard.ioctl(ioctl.io_control_code, payload)? {
-                res
-            } else {
-                return Ok(vec![]);
-            }
+            self.scard.ioctl(&ioctl, payload)?
         } else {
             // Drive redirection, mimic FreeRDP's "no-op"
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L677-L684
-            Box::new(NoOp::new())
+            vec![DeviceControlResponse::new(
+                &ioctl,
+                NTSTATUS::STATUS_SUCCESS,
+                Box::new(NoOp::new()),
+            )]
         };
-        let resp = DeviceControlResponse::new(&ioctl, NTSTATUS::STATUS_SUCCESS, output);
 
-        debug!("sending RDP: {:?}", resp);
-        let resp = self
-            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
-        Ok(resp)
+        let mut messages: Messages = vec![];
+        for resp in device_control_responses {
+            debug!("sending RDP: {:?}", resp);
+            messages.extend(self.add_headers_and_chunkify(
+                PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                resp.encode()?,
+            )?);
+        }
+
+        Ok(messages)
     }
 
     fn process_irp_create(
@@ -1959,39 +1965,18 @@ impl ClientDeviceListAnnounceRequest {
     // We only need to announce the smartcard in this Client Device List Announce Request.
     // Drives (directories) can be announced at any time with a Client Drive Device List Announce.
     fn new_smartcard(device_id: u32) -> Self {
-        Self {
-            device_count: 1,
-            device_list: vec![DeviceAnnounceHeader {
-                device_type: DeviceType::RDPDR_DTYP_SMARTCARD,
-                device_id,
-                // This name is a constant defined by the spec.
-                preferred_dos_name: "SCARD".to_string(),
-                device_data_length: 0,
-                device_data: vec![],
-            }],
-        }
+        Self::new(vec![DeviceAnnounceHeader::new_smartcard(device_id)])
     }
 
     /// A new drive can be announced at any time during RDP's operation. It is up to the caller
-    pub fn new_drive(device_id: u32, drive_name: String) -> Self {
-        // If the client supports DRIVE_CAPABILITY_VERSION_02 in the Drive Capability Set,
-        // then the full name MUST also be specified in the DeviceData field, as a null-terminated
-        // Unicode string. If the DeviceDataLength field is nonzero, the content of the
-        // PreferredDosName field is ignored.
-        //
-        // In the RDP spec, Unicode typically means null-terminated UTF-16LE, however empirically it
-        // appears that this field expects null-terminated UTF-8.
-        let device_data = util::to_utf8(&drive_name);
+    pub fn new_drive(device_id: u32, name: String) -> Self {
+        Self::new(vec![DeviceAnnounceHeader::new_drive(device_id, name)])
+    }
 
+    fn new(device_list: Vec<DeviceAnnounceHeader>) -> Self {
         Self {
-            device_count: 1,
-            device_list: vec![DeviceAnnounceHeader {
-                device_type: DeviceType::RDPDR_DTYP_FILESYSTEM,
-                device_id,
-                preferred_dos_name: drive_name,
-                device_data_length: device_data.len() as u32,
-                device_data,
-            }],
+            device_count: device_list.len() as u32,
+            device_list,
         }
     }
 }
@@ -2011,27 +1996,72 @@ impl Encode for ClientDeviceListAnnounceRequest {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/32e34332-774b-4ead-8c9d-5d64720d6bf9
 #[derive(Debug)]
 struct DeviceAnnounceHeader {
+    name: String,
     device_type: DeviceType,
     device_id: u32,
-    preferred_dos_name: String,
-    device_data_length: u32,
-    device_data: Vec<u8>,
 }
 
 impl DeviceAnnounceHeader {
+    fn new_smartcard(device_id: u32) -> Self {
+        Self {
+            name: "".to_string(), // ignored for smartcards
+            device_type: DeviceType::RDPDR_DTYP_SMARTCARD,
+            device_id,
+        }
+    }
+
+    fn new_drive(device_id: u32, name: String) -> Self {
+        Self {
+            name,
+            device_type: DeviceType::RDPDR_DTYP_FILESYSTEM,
+            device_id,
+        }
+    }
+
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.device_type.to_u32().unwrap())?;
         w.write_u32::<LittleEndian>(self.device_id)?;
-        let mut name: &str = &self.preferred_dos_name;
-        // See "PreferredDosName" at
-        // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/32e34332-774b-4ead-8c9d-5d64720d6bf9
-        if name.len() > 7 {
-            name = &name[..7];
+        // Initially preferred_dos_name was set to the first 7 ASCII characters (per the spec)
+        // of the drive name when the drive was of type DeviceType::RDPDR_DTYP_FILESYSTEM,
+        // however this was causing a panic when the user shared a directory with a name with
+        // non-ASCII characters (e.g. 中文测试).
+        let mut preferred_dos_name: &str = match self.device_type {
+            // In this case we can just use any random value, since it will be ignored in favor
+            // of the UTF-8 encoded drive name in the DeviceData field.
+            //
+            // We may need to revisit this if we ever support multiple drives
+            // (i.e. do "FILE1", "FILE2", etc).
+            DeviceType::RDPDR_DTYP_FILESYSTEM => "FILE",
+            // If DeviceType is set to RDPDR_DTYP_SMARTCARD, the PreferredDosName MUST be set to "SCARD".
+            // See: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/32e34332-774b-4ead-8c9d-5d64720d6bf9
+            DeviceType::RDPDR_DTYP_SMARTCARD => "SCARD",
+            _ => {
+                return Err(RdpError::TryError(format!(
+                    "unsupported device type {device_type:?}",
+                    device_type = self.device_type
+                )))
+            }
+        };
+        // Sanity check to make sure we don't write more than
+        // 8 bytes (including the null terminator) for PreferredDosName.
+        if preferred_dos_name.len() > 7 {
+            preferred_dos_name = &preferred_dos_name[..7];
         }
-        w.extend_from_slice(&format!("{name:\x00<8}").into_bytes());
-        w.write_u32::<LittleEndian>(self.device_data_length)?;
-        w.extend_from_slice(&self.device_data);
+        w.extend_from_slice(&format!("{preferred_dos_name:\x00<8}").into_bytes());
+
+        // If the client supports DRIVE_CAPABILITY_VERSION_02 in the Drive Capability Set (which we do),
+        // then the full name MUST also be specified in the DeviceData field, as a null-terminated
+        // Unicode string. If the DeviceDataLength field is nonzero, the content of the
+        // PreferredDosName field is ignored.
+        //
+        // In the RDP spec, Unicode typically means null-terminated UTF-16LE, however empirically it
+        // appears that this field expects null-terminated UTF-8.
+        let device_data = util::to_utf8(&self.name);
+        let device_data_length = device_data.len() as u32;
+
+        w.write_u32::<LittleEndian>(device_data_length)?;
+        w.extend_from_slice(&device_data);
         Ok(w)
     }
 }
@@ -2129,6 +2159,23 @@ pub struct DeviceIoRequest {
 }
 
 impl DeviceIoRequest {
+    #[cfg(test)]
+    fn new(
+        device_id: u32,
+        file_id: u32,
+        completion_id: u32,
+        major_function: MajorFunction,
+        minor_function: MinorFunction,
+    ) -> Self {
+        Self {
+            device_id,
+            file_id,
+            completion_id,
+            major_function,
+            minor_function,
+        }
+    }
+
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let device_id = payload.read_u32::<LittleEndian>()?;
         let file_id = payload.read_u32::<LittleEndian>()?;
@@ -2192,6 +2239,21 @@ struct DeviceControlRequest {
 }
 
 impl DeviceControlRequest {
+    #[cfg(test)]
+    fn new(
+        header: DeviceIoRequest,
+        output_buffer_length: u32,
+        input_buffer_length: u32,
+        io_control_code: IoctlCode,
+    ) -> Self {
+        Self {
+            header,
+            output_buffer_length,
+            input_buffer_length,
+            io_control_code,
+        }
+    }
+
     fn decode(header: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
         let output_buffer_length = payload.read_u32::<LittleEndian>()?;
         let input_buffer_length = payload.read_u32::<LittleEndian>()?;

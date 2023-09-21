@@ -29,9 +29,10 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -49,6 +50,9 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// DialTimeout determines how long to wait for dialing to succeed before aborting.
 	DialTimeout time.Duration
+	// PromptAdminRequestMFA is used to prompt the user for MFA on admin requests when needed.
+	// If nil, the client will not prompt for MFA.
+	PromptAdminRequestMFA func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 }
 
 // Connect creates a valid client connection to the auth service.  It may
@@ -56,8 +60,32 @@ type Config struct {
 func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 	cfg.Log.Debugf("Connecting to: %v.", cfg.AuthServers)
 
+	directClient, err := connectViaAuthDirect(ctx, cfg)
+	if err == nil {
+		return directClient, nil
+	}
+	directErr := trace.Wrap(err, "failed direct dial to auth server: %v", err)
+
+	// If it fails, we now want to try tunneling to the auth server through a
+	// proxy, we can only do this with SSH credentials.
+	if cfg.SSH == nil {
+		return nil, trace.Wrap(directErr)
+	}
+	proxyTunnelClient, err := connectViaProxyTunnel(ctx, cfg)
+	if err == nil {
+		return proxyTunnelClient, nil
+	}
+	proxyTunnelErr := trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err)
+
+	return nil, trace.NewAggregate(
+		directErr,
+		proxyTunnelErr,
+	)
+}
+
+func connectViaAuthDirect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 	// Try connecting to the auth server directly over TLS.
-	client, err := auth.NewClient(apiclient.Config{
+	directClient, err := auth.NewClient(apiclient.Config{
 		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
@@ -65,67 +93,70 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		CircuitBreakerConfig:     cfg.CircuitBreakerConfig,
 		InsecureAddressDiscovery: cfg.TLS.InsecureSkipVerify,
 		DialTimeout:              cfg.DialTimeout,
+		PromptAdminRequestMFA:    cfg.PromptAdminRequestMFA,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)
+		return nil, trace.Wrap(err)
 	}
 
-	// Check connectivity by calling something on the client.
-	_, err = client.GetClusterName()
+	// Check connectivity with a ping.
+	if _, err := directClient.Ping(ctx); err != nil {
+		// This client didn't work for us, so we close it.
+		_ = directClient.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	return directClient, nil
+}
+
+func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, error) {
+	// If direct dial failed, we may have a proxy address in
+	// cfg.AuthServers. Try connecting to the reverse tunnel
+	// endpoint and make a client over that.
+	//
+	// TODO(nic): this logic should be implemented once and reused in IoT
+	// nodes.
+	resolver := reversetunnelclient.WebClientResolver(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: cfg.AuthServers[0].String(),
+		Insecure:  cfg.TLS.InsecureSkipVerify,
+		Timeout:   cfg.DialTimeout,
+	})
+
+	resolver, err := reversetunnelclient.CachingResolver(ctx, resolver, nil /* clock */)
 	if err != nil {
-		directDialErr := trace.Wrap(err, "failed direct dial to auth server: %v", err)
-		if cfg.SSH == nil {
-			// No identity file was provided, don't try dialing via a reverse
-			// tunnel on the proxy.
-			return nil, trace.Wrap(directDialErr)
-		}
-
-		// If direct dial failed, we may have a proxy address in
-		// cfg.AuthServers. Try connecting to the reverse tunnel
-		// endpoint and make a client over that.
-		//
-		// TODO(nic): this logic should be implemented once and reused in IoT
-		// nodes.
-
-		resolver := reversetunnel.WebClientResolver(&webclient.Config{
-			Context:   ctx,
-			ProxyAddr: cfg.AuthServers[0].String(),
-			Insecure:  cfg.TLS.InsecureSkipVerify,
-			Timeout:   cfg.DialTimeout,
-		})
-
-		resolver, err = reversetunnel.CachingResolver(ctx, resolver, nil /* clock */)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
-		// within an SSH tunnel.
-		dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
-			Resolver:              resolver,
-			ClientConfig:          cfg.SSH,
-			Log:                   cfg.Log,
-			InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
-			ClusterCAs:            cfg.TLS.RootCAs,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		client, err = auth.NewClient(apiclient.Config{
-			Dialer: dialer,
-			Credentials: []apiclient.Credentials{
-				apiclient.LoadTLS(cfg.TLS),
-			},
-		})
-		if err != nil {
-			tunnelClientErr := trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err)
-			return nil, trace.NewAggregate(directDialErr, tunnelClientErr)
-		}
-		// Check connectivity by calling something on the client.
-		if _, err := client.GetClusterName(); err != nil {
-			tunnelClientErr := trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err)
-			return nil, trace.NewAggregate(directDialErr, tunnelClientErr)
-		}
+		return nil, trace.Wrap(err)
 	}
-	return client, nil
+
+	// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
+	// within an SSH tunnel.
+	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+		Resolver:              resolver,
+		ClientConfig:          cfg.SSH,
+		Log:                   cfg.Log,
+		InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
+		ClusterCAs:            cfg.TLS.RootCAs,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tunnelClient, err := auth.NewClient(apiclient.Config{
+		Dialer: dialer,
+		Credentials: []apiclient.Credentials{
+			apiclient.LoadTLS(cfg.TLS),
+		},
+		PromptAdminRequestMFA: cfg.PromptAdminRequestMFA,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Check connectivity with a ping.
+	if _, err = tunnelClient.Ping(ctx); err != nil {
+		// This client didn't work for us, so we close it.
+		_ = tunnelClient.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	return tunnelClient, nil
 }

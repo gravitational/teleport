@@ -1,0 +1,6 @@
+type: identity
+destination:
+  type: memory
+roles:
+  - access
+cluster: leaf.example.com

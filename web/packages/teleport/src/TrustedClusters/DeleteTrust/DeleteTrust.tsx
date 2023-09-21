@@ -45,7 +45,7 @@ export default function DeleteTrustedClusterDialog(props: Props) {
         )}
         <Text typography="paragraph" mb="6">
           Are you sure you want to delete trusted cluster{' '}
-          <Text as="span" bold color="text.primary">
+          <Text as="span" bold color="text.main">
             {name}
           </Text>
           ?

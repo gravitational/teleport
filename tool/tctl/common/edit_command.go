@@ -26,7 +26,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
@@ -50,7 +50,7 @@ type EditCommand struct {
 func (e *EditCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	e.app = app
 	e.config = config
-	e.cmd = app.Command("edit", "Edit a Teleport resource")
+	e.cmd = app.Command("edit", "Edit a Teleport resource.")
 	e.cmd.Arg("resource type/resource name", `Resource to update
 	<resource type>  Type of a resource [for example: rc]
 	<resource name>  Resource name to update
@@ -153,7 +153,7 @@ func editor() string {
 }
 
 func checksum(filename string) (string, error) {
-	f, err := utils.OpenFile(filename)
+	f, err := utils.OpenFileAllowingUnsafeLinks(filename)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -168,7 +168,7 @@ func checksum(filename string) (string, error) {
 }
 
 func resourceName(filename string) (string, error) {
-	f, err := utils.OpenFile(filename)
+	f, err := utils.OpenFileAllowingUnsafeLinks(filename)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

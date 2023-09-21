@@ -79,7 +79,7 @@ export function ReAuthenticate({
           <form>
             <DialogHeader style={{ flexDirection: 'column' }}>
               <DialogTitle>Verify your identity</DialogTitle>
-              <Text textAlign="center" color="text.secondary">
+              <Text textAlign="center" color="text.slightlyMuted">
                 You must verify your identity with one of your existing
                 two-factor devices before {actionText}.
               </Text>
@@ -93,7 +93,7 @@ export function ReAuthenticate({
               <Flex mt={2} alignItems="flex-end">
                 <FieldSelect
                   width="50%"
-                  label="Two-factor type"
+                  label="Two-factor Type"
                   value={mfaOption}
                   options={mfaOptions}
                   onChange={(o: MfaOption) => {
@@ -109,7 +109,7 @@ export function ReAuthenticate({
                 <Box width="50%">
                   {mfaOption.value === 'otp' && (
                     <FieldInput
-                      label="Authenticator code"
+                      label="Authenticator Code"
                       rule={requiredToken}
                       inputMode="numeric"
                       autoComplete="one-time-code"

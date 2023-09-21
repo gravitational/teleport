@@ -97,9 +97,11 @@ VUP+3jgenPrd7OyCWPSwOoOBMhSlAAAAAAAA`),
 	}
 )
 
-type ec2ClientNoInstance struct{}
-type ec2ClientNotRunning struct{}
-type ec2ClientRunning struct{}
+type (
+	ec2ClientNoInstance struct{}
+	ec2ClientNotRunning struct{}
+	ec2ClientRunning    struct{}
+)
 
 func (c ec2ClientNoInstance) DescribeInstances(ctx context.Context, params *ec2.DescribeInstancesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
 	return &ec2.DescribeInstancesOutput{}, nil
@@ -594,6 +596,9 @@ func TestHostUniqueCheck(t *testing.T) {
 				types.RoleDatabase,
 				types.RoleApp,
 				types.RoleWindowsDesktop,
+				types.RoleMDM,
+				types.RoleDiscovery,
+				types.RoleOkta,
 			},
 			Allow: []*types.TokenRule{
 				{
@@ -643,14 +648,13 @@ func TestHostUniqueCheck(t *testing.T) {
 						Namespace: defaults.Namespace,
 					},
 				}
-				err := a.UpsertProxy(proxy)
+				err := a.UpsertProxy(context.Background(), proxy)
 				require.NoError(t, err)
 			},
 		},
 		{
 			role: types.RoleKube,
 			upserter: func(name string) {
-
 				kube, err := types.NewKubernetesServerV3(
 					types.Metadata{
 						Name:      name,
@@ -669,7 +673,6 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 				_, err = a.UpsertKubernetesServer(context.Background(), kube)
 				require.NoError(t, err)
-
 			},
 		},
 		{
@@ -683,6 +686,16 @@ func TestHostUniqueCheck(t *testing.T) {
 					types.DatabaseServerSpecV3{
 						HostID:   name,
 						Hostname: "test-db",
+						Database: &types.DatabaseV3{
+							Metadata: types.Metadata{
+								Name:      "test-db",
+								Namespace: defaults.Namespace,
+							},
+							Spec: types.DatabaseSpecV3{
+								Protocol: types.DatabaseProtocolPostgreSQL,
+								URI:      "https://db.localhost",
+							},
+						},
 					})
 				require.NoError(t, err)
 				_, err = a.UpsertDatabaseServer(context.Background(), db)
@@ -729,6 +742,39 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 		},
+		{
+			role: types.RoleOkta,
+			upserter: func(name string) {
+				app, err := types.NewAppV3(
+					types.Metadata{
+						Name:      "test-app",
+						Namespace: defaults.Namespace,
+					},
+					types.AppSpecV3{
+						URI: "https://app.localhost",
+					})
+				require.NoError(t, err)
+				appServer, err := types.NewAppServerV3(
+					types.Metadata{
+						Name:      name,
+						Namespace: defaults.Namespace,
+					},
+					types.AppServerSpecV3{
+						HostID: name,
+						App:    app,
+					})
+				require.NoError(t, err)
+				appServer.SetOrigin(types.OriginOkta)
+				_, err = a.UpsertApplicationServer(context.Background(), appServer)
+				require.NoError(t, err)
+			},
+		},
+		{
+			role: types.RoleDiscovery,
+		},
+		{
+			role: types.RoleMDM,
+		},
 	}
 
 	ctx = context.WithValue(ctx, ec2ClientKey{}, ec2ClientRunning{})
@@ -749,14 +795,16 @@ func TestHostUniqueCheck(t *testing.T) {
 			_, err = a.RegisterUsingToken(ctx, &request)
 			require.NoError(t, err)
 
-			// add the server
-			name := instance1.account + "-" + instance1.instanceID
-			tc.upserter(name)
+			if tc.upserter != nil {
+				// add the server
+				name := instance1.account + "-" + instance1.instanceID
+				tc.upserter(name)
 
-			// request should fail
-			_, err = a.RegisterUsingToken(ctx, &request)
-			expectedErr := &trace.AccessDeniedError{}
-			require.ErrorAs(t, err, &expectedErr)
+				// request should fail
+				_, err = a.RegisterUsingToken(ctx, &request)
+				expectedErr := &trace.AccessDeniedError{}
+				require.ErrorAs(t, err, &expectedErr)
+			}
 		})
 	}
 }

@@ -114,7 +114,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 	})
 	auditorRoleSet := services.NewRoleSet(auditorRole)
 	auditScx := newTestServerContext(t, reg.Srv, auditorRoleSet)
-	// change the teleport user so we dont match the user in the test cases
+	// change the teleport user so we don't match the user in the test cases
 	auditScx.Identity.TeleportUser = "mod"
 	auditSess, _ := testOpenSession(t, reg, auditorRoleSet)
 	approvers := make(map[string]*party)
@@ -141,8 +141,8 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		expectedError  string
 		req            *fileTransferRequest
 		reqID          string
+		location       string
 	}{
-
 		{
 			name:           "no file request found with supplied ID",
 			expectedResult: false,
@@ -164,19 +164,19 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			reqID:          "123",
 			req: &fileTransferRequest{
 				requester: "michael",
-				shellCmd:  "/usr/bin/scp -f ~/logs.txt",
 				approvers: make(map[string]*party),
 			},
 		},
 		{
-			name:           "current payload does not match original payload",
+			name:           "current request location does not match original location",
 			expectedResult: false,
-			expectedError:  "Incoming request does not match the approved request",
+			expectedError:  "requested destination path does not match the current request",
 			reqID:          "123",
+			location:       "~/Downloads",
 			req: &fileTransferRequest{
-				requester: "teleportUser",
-				shellCmd:  "badcommand",
+				requester: "michael",
 				approvers: make(map[string]*party),
+				location:  "~/badlocation",
 			},
 		},
 		{
@@ -184,10 +184,11 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedResult: true,
 			expectedError:  "",
 			reqID:          "123",
+			location:       "~/Downloads",
 			req: &fileTransferRequest{
 				requester: "teleportUser",
-				shellCmd:  "/usr/bin/scp -f ~/logs.txt",
 				approvers: approvers,
+				location:  "~/Downloads",
 			},
 		},
 	}
@@ -204,12 +205,9 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 
 			// new exec request context
 			scx := newTestServerContext(t, reg.Srv, accessRoleSet)
-			scx.sshRequest = &ssh.Request{
-				Payload: []byte("/usr/bin/scp -f ~/logs.txt"),
-			}
-
 			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
 			scx.SetEnv(string(sftp.FileTransferRequestID), tt.reqID)
+			scx.SetEnv(sftp.FileTransferDstPath, tt.location)
 			result, err := reg.isApprovedFileTransfer(scx)
 			if err != nil {
 				require.Equal(t, tt.expectedError, err.Error())
@@ -242,6 +240,16 @@ func TestSession_newRecorder(t *testing.T) {
 		trace.Component: teleport.ComponentAuth,
 	})
 
+	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
+		require.NotNil(t, i)
+		//nolint:govet // events.setterAndRecorder is returned when
+		//events will be discarded so we can't do a type assertion on that.
+		// Assert that what is returned isn't an event.SessionWriter, which
+		// is what is used normally.
+		_, ok := i.(events.SessionWriter)
+		require.False(t, ok)
+	}
+
 	cases := []struct {
 		desc         string
 		sess         *session
@@ -266,11 +274,7 @@ func TestSession_newRecorder(t *testing.T) {
 				SessionRecordingConfig: proxyRecording,
 			},
 			errAssertion: require.NoError,
-			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
-				require.NotNil(t, i)
-				_, ok := i.(*events.DiscardStream)
-				require.True(t, ok)
-			},
+			recAssertion: isNotSessionWriter,
 		},
 		{
 			desc: "discard-stream--when-proxy-sync-recording",
@@ -289,11 +293,7 @@ func TestSession_newRecorder(t *testing.T) {
 				SessionRecordingConfig: proxyRecordingSync,
 			},
 			errAssertion: require.NoError,
-			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
-				require.NotNil(t, i)
-				_, ok := i.(*events.DiscardStream)
-				require.True(t, ok)
-			},
+			recAssertion: isNotSessionWriter,
 		},
 		{
 			desc: "strict-err-new-audit-writer-fails",
@@ -351,6 +351,7 @@ func TestSession_newRecorder(t *testing.T) {
 				SessionRecordingConfig: nodeRecordingSync,
 				srv: &mockServer{
 					component: teleport.ComponentNode,
+					datadir:   t.TempDir(),
 				},
 				Identity: IdentityContext{
 					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
@@ -372,9 +373,9 @@ func TestSession_newRecorder(t *testing.T) {
 			errAssertion: require.NoError,
 			recAssertion: func(t require.TestingT, i interface{}, _ ...interface{}) {
 				require.NotNil(t, i)
-				aw, ok := i.(*events.AuditWriter)
+				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
-				require.NoError(t, aw.Close(context.Background()))
+				require.NoError(t, sw.Close(context.Background()))
 			},
 		},
 		{
@@ -394,15 +395,16 @@ func TestSession_newRecorder(t *testing.T) {
 				ClusterName:            "test",
 				SessionRecordingConfig: nodeRecordingSync,
 				srv: &mockServer{
-					MockEmitter: &eventstest.MockEmitter{},
+					MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
+					datadir:             t.TempDir(),
 				},
 			},
 			errAssertion: require.NoError,
 			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.NotNil(t, i)
-				aw, ok := i.(*events.AuditWriter)
+				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
-				require.NoError(t, aw.Close(context.Background()))
+				require.NoError(t, sw.Close(context.Background()))
 			},
 		},
 	}
@@ -433,9 +435,13 @@ func TestSession_emitAuditEvent(t *testing.T) {
 		t.Cleanup(func() { reg.Close() })
 
 		sess := &session{
-			id:       "test",
-			log:      logger,
-			recorder: &mockRecorder{done: true},
+			id:  "test",
+			log: logger,
+			recorder: &mockRecorder{
+				SessionPreparerRecorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
+				done:                    true,
+			},
+			emitter:  srv,
 			registry: reg,
 			scx:      newTestServerContext(t, srv, nil),
 		}
@@ -456,7 +462,7 @@ func TestSession_emitAuditEvent(t *testing.T) {
 		// Wait for the events on the new recorder
 		require.Eventually(t, func() bool {
 			return len(srv.Events()) == 2
-		}, 1000*time.Millisecond, 100*time.Millisecond)
+		}, 1000*time.Second, 100*time.Millisecond)
 	})
 }
 
@@ -558,7 +564,7 @@ func TestParties(t *testing.T) {
 
 	// If a party leaves, the session should remove the party and continue.
 	p := sess.getParties()[0]
-	p.Close()
+	require.NoError(t, p.Close())
 
 	partyIsRemoved := func() bool {
 		return len(sess.getParties()) == 2 && !sess.isStopped()
@@ -567,8 +573,7 @@ func TestParties(t *testing.T) {
 
 	// If a party's session context is closed, the party should leave the session.
 	p = sess.getParties()[0]
-	err = p.ctx.Close()
-	require.NoError(t, err)
+	require.NoError(t, p.ctx.Close())
 
 	partyIsRemoved = func() bool {
 		return len(sess.getParties()) == 1 && !sess.isStopped()
@@ -580,7 +585,8 @@ func TestParties(t *testing.T) {
 	})
 
 	// If all parties are gone, the session should linger for a short duration.
-	sess.getParties()[0].Close()
+	p = sess.getParties()[0]
+	require.NoError(t, p.Close())
 	require.False(t, sess.isStopped())
 
 	// Wait for session to linger (time.Sleep)
@@ -590,12 +596,13 @@ func TestParties(t *testing.T) {
 	testJoinSession(t, reg, sess)
 	require.Equal(t, 1, len(sess.getParties()))
 
-	// andvance clock and give lingerAndDie goroutine a second to complete.
+	// advance clock and give lingerAndDie goroutine a second to complete.
 	regClock.Advance(defaults.SessionIdlePeriod)
 	require.False(t, sess.isStopped())
 
 	// If no parties remain it should be closed after the duration.
-	sess.getParties()[0].Close()
+	p = sess.getParties()[0]
+	require.NoError(t, p.Close())
 	require.False(t, sess.isStopped())
 
 	// Wait for session to linger (time.Sleep)
@@ -727,8 +734,8 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSe
 }
 
 type mockRecorder struct {
-	events.StreamWriter
-	emitter eventstest.MockEmitter
+	events.SessionPreparerRecorder
+	emitter eventstest.MockRecorderEmitter
 	done    bool
 }
 
@@ -890,9 +897,104 @@ func TestTrackingSession(t *testing.T) {
 				access:    sessionEvaluator{moderated: tt.moderated},
 			}
 
-			err = sess.trackSession(ctx, me.Name, nil)
+			p := &party{
+				user: me.Name,
+				id:   rsession.NewID(),
+				mode: types.SessionPeerMode,
+			}
+			err = sess.trackSession(ctx, me.Name, nil, p)
 			tt.assertion(t, err)
 			tt.createAssertion(t, trackingService.CreatedCount())
+		})
+	}
+}
+
+func TestSessionRecordingMode(t *testing.T) {
+	tests := []struct {
+		name          string
+		serverSubKind string
+		mode          string
+		expectedMode  string
+	}{
+		{
+			name:          "teleport node record at node",
+			serverSubKind: types.SubKindTeleportNode,
+			mode:          types.RecordAtNode,
+			expectedMode:  types.RecordAtNode,
+		},
+		{
+			name:          "teleport node record at proxy",
+			serverSubKind: types.SubKindTeleportNode,
+			mode:          types.RecordAtProxy,
+			expectedMode:  types.RecordAtProxy,
+		},
+		{
+			name:          "agentless node record at node",
+			serverSubKind: types.SubKindOpenSSHNode,
+			mode:          types.RecordAtNode,
+			expectedMode:  types.RecordAtProxy,
+		},
+		{
+			name:          "agentless node record at proxy",
+			serverSubKind: types.SubKindOpenSSHNode,
+			mode:          types.RecordAtProxy,
+			expectedMode:  types.RecordAtProxy,
+		},
+		{
+			name:          "agentless node record at node sync",
+			serverSubKind: types.SubKindOpenSSHNode,
+			mode:          types.RecordAtNodeSync,
+			expectedMode:  types.RecordAtProxySync,
+		},
+		{
+			name:          "agentless node record at proxy sync",
+			serverSubKind: types.SubKindOpenSSHNode,
+			mode:          types.RecordAtProxySync,
+			expectedMode:  types.RecordAtProxySync,
+		},
+		{
+			name:          "ec2 node record at node",
+			serverSubKind: types.SubKindOpenSSHEICENode,
+			mode:          types.RecordAtNode,
+			expectedMode:  types.RecordAtProxy,
+		},
+		{
+			name:          "ec2 node record at proxy",
+			serverSubKind: types.SubKindOpenSSHEICENode,
+			mode:          types.RecordAtProxy,
+			expectedMode:  types.RecordAtProxy,
+		},
+		{
+			name:          "ec2 node record at node sync",
+			serverSubKind: types.SubKindOpenSSHEICENode,
+			mode:          types.RecordAtNodeSync,
+			expectedMode:  types.RecordAtProxySync,
+		},
+		{
+			name:          "ec2 node record at proxy sync",
+			serverSubKind: types.SubKindOpenSSHEICENode,
+			mode:          types.RecordAtProxySync,
+			expectedMode:  types.RecordAtProxySync,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sess := session{
+				scx: &ServerContext{
+					SessionRecordingConfig: &types.SessionRecordingConfigV2{
+						Spec: types.SessionRecordingConfigSpecV2{
+							Mode: tt.mode,
+						},
+					},
+				},
+				serverMeta: apievents.ServerMetadata{
+					ServerSubKind: tt.serverSubKind,
+				},
+			}
+
+			gotMode := sess.sessionRecordingMode()
+			require.Equal(t, tt.expectedMode, gotMode)
 		})
 	}
 }

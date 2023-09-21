@@ -18,30 +18,28 @@ import React from 'react';
 import styled from 'styled-components';
 import { Flex } from 'design';
 
-import QuickInput from '../QuickInput';
 import { SearchBar } from '../Search';
-import { useAppContext } from '../appContextProvider';
 
 import { Connections } from './Connections';
 import { Clusters } from './Clusters';
 import { Identity } from './Identity';
-import { MoreOptions } from './MoreOptions';
+import { AdditionalActions } from './AdditionalActions';
 
-export function TopBar() {
-  const { configService } = useAppContext();
-  const isSearchBarEnabled = configService.get('feature.searchBar').value;
-
+export function TopBar(props: {
+  topBarContainerRef: React.MutableRefObject<HTMLDivElement>;
+}) {
   return (
     <Grid>
       <JustifyLeft>
         <Connections />
+        <div ref={props.topBarContainerRef} />
       </JustifyLeft>
       <CentralContainer>
         <Clusters />
-        {isSearchBarEnabled ? <SearchBar /> : <QuickInput />}
+        <SearchBar />
       </CentralContainer>
       <JustifyRight>
-        <MoreOptions />
+        <AdditionalActions />
         <Identity />
       </JustifyRight>
     </Grid>
@@ -49,7 +47,7 @@ export function TopBar() {
 }
 
 const Grid = styled(Flex).attrs({ gap: 3, py: 2, px: 3 })`
-  background: ${props => props.theme.colors.levels.surfaceSecondary};
+  background: ${props => props.theme.colors.levels.surface};
   width: 100%;
   height: 56px;
   align-items: center;
@@ -64,10 +62,9 @@ const CentralContainer = styled(Flex).attrs({ gap: 3 })`
   max-width: calc(${props => props.theme.space[10]}px * 9);
 `;
 
-const JustifyLeft = styled.div`
-  display: flex;
-  justify-self: start;
+const JustifyLeft = styled(Flex).attrs({ gap: 3 })`
   align-items: center;
+  min-width: 80px; // reserves space for CMC icon to prevent layout shifting
   height: 100%;
 `;
 

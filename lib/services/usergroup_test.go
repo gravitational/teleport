@@ -30,8 +30,7 @@ func TestUserGroupUnmarshal(t *testing.T) {
 	expected, err := types.NewUserGroup(
 		types.Metadata{
 			Name: "test-group",
-		},
-	)
+		}, types.UserGroupSpecV1{})
 	require.NoError(t, err)
 	data, err := utils.ToJSON([]byte(userGroupYAML))
 	require.NoError(t, err)
@@ -45,8 +44,7 @@ func TestUserGroupMarshal(t *testing.T) {
 	expected, err := types.NewUserGroup(
 		types.Metadata{
 			Name: "test-group",
-		},
-	)
+		}, types.UserGroupSpecV1{})
 	require.NoError(t, err)
 	data, err := MarshalUserGroup(expected)
 	require.NoError(t, err)

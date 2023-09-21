@@ -30,9 +30,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -43,21 +45,28 @@ func Test_querier_prepareQuery(t *testing.T) {
 		whereTimeRange   = ` WHERE event_date BETWEEN date(?) AND date(?) AND event_time BETWEEN ? and ?`
 	)
 	fromTimeUTC := time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC)
-	toTimeUTC := time.Date(2023, 3, 1, 0, 0, 0, 0, time.UTC)
+	toTimeUTC := time.Date(2023, 6, 1, 0, 0, 0, 0, time.UTC)
 	fromDateParam := "'2023-02-01'"
 	fromTimestampParam := "timestamp '2023-02-01 00:00:00'"
-	toDateParam := "'2023-03-01'"
-	toTimestampParam := "timestamp '2023-03-01 00:00:00'"
+	toDateParam := "'2023-06-01'"
+	toTimestampParam := "timestamp '2023-06-01 00:00:00'"
 	timeRangeParams := []string{fromDateParam, toDateParam, fromTimestampParam, toTimestampParam}
 
-	otherTimeUTC := time.Date(2023, 2, 15, 0, 0, 0, 0, time.UTC)
-	otherTimestampParam := "timestamp '2023-02-15 00:00:00'"
+	keysetTimeUTC := time.Date(2023, 2, 15, 0, 0, 0, 0, time.UTC)
+	keysetDateParam := "'2023-02-15'"
+	keysetTimestampParam := "timestamp '2023-02-15 00:00:00'"
+
+	keySetFrom9762a4fe := &keyset{
+		t:   keysetTimeUTC,
+		uid: uuid.MustParse("9762a4fe-ac4b-47b5-ba4f-5f70d065849a"),
+	}
 
 	tests := []struct {
 		name         string
 		searchParams searchParams
 		wantQuery    string
 		wantParams   []string
+		wantErr      string
 	}{
 		{
 			name: "query on time range",
@@ -68,8 +77,8 @@ func Test_querier_prepareQuery(t *testing.T) {
 				tablename: tablename,
 			},
 			wantQuery: selectFromPrefix + whereTimeRange +
-				` ORDER BY event_time ASC, uid ASC LIMIT ?`,
-			wantParams: append(timeRangeParams, "100"),
+				` ORDER BY event_time ASC, uid ASC LIMIT 100;`,
+			wantParams: timeRangeParams,
 		},
 		{
 			name: "query on time range order DESC",
@@ -81,8 +90,8 @@ func Test_querier_prepareQuery(t *testing.T) {
 				tablename: tablename,
 			},
 			wantQuery: selectFromPrefix + whereTimeRange +
-				` ORDER BY event_time DESC, uid DESC LIMIT ?`,
-			wantParams: append(timeRangeParams, "100"),
+				` ORDER BY event_time DESC, uid DESC LIMIT 100;`,
+			wantParams: timeRangeParams,
 		},
 		{
 			name: "query with event types",
@@ -94,8 +103,8 @@ func Test_querier_prepareQuery(t *testing.T) {
 				tablename: tablename,
 			},
 			wantQuery: selectFromPrefix + whereTimeRange +
-				` AND event_type IN (?,?) ORDER BY event_time ASC, uid ASC LIMIT ?`,
-			wantParams: append(timeRangeParams, "'app.create'", "'app.delete'", "100"),
+				` AND event_type IN (?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`,
+			wantParams: append(timeRangeParams, "'app.create'", "'app.delete'"),
 		},
 		{
 			name: "session id",
@@ -107,54 +116,115 @@ func Test_querier_prepareQuery(t *testing.T) {
 				tablename: tablename,
 			},
 			wantQuery: selectFromPrefix + whereTimeRange +
-				` AND session_id = ? ORDER BY event_time ASC, uid ASC LIMIT ?`,
-			wantParams: append(timeRangeParams, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", "100"),
+				` AND session_id = ? ORDER BY event_time ASC, uid ASC LIMIT 100;`,
+			wantParams: append(timeRangeParams, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'"),
 		},
 		{
 			name: "query on time range with keyset",
 			searchParams: searchParams{
-				fromUTC: fromTimeUTC,
-				toUTC:   toTimeUTC,
-				limit:   100,
-				startKeyset: &keyset{
-					t:   otherTimeUTC,
-					uid: uuid.MustParse("9762a4fe-ac4b-47b5-ba4f-5f70d065849a"),
-				},
+				fromUTC:   fromTimeUTC,
+				toUTC:     toTimeUTC,
+				limit:     100,
+				startKey:  keySetFrom9762a4fe.ToKey(),
 				tablename: tablename,
 			},
 			wantQuery: selectFromPrefix + whereTimeRange +
-				` AND (event_time, uid) > (?,?) ORDER BY event_time ASC, uid ASC LIMIT ?`,
-			wantParams: append(timeRangeParams, otherTimestampParam, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", "100"),
+				` AND (event_time, uid) > (?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`,
+			wantParams: []string{
+				// in ASC order and valid value in keyset, instead of from, use value from ketset.
+				keysetDateParam, toDateParam, // event_date BETWEEN date(?) AND date(?)
+				keysetTimestampParam, toTimestampParam, // event_time BETWEEN ? and ?`
+				keysetTimestampParam, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?)
+			},
 		},
 		{
 			name: "query on time range DESC with keyset",
+			searchParams: searchParams{
+				fromUTC:   fromTimeUTC,
+				toUTC:     toTimeUTC,
+				limit:     100,
+				order:     types.EventOrderDescending,
+				startKey:  keySetFrom9762a4fe.ToKey(),
+				tablename: tablename,
+			},
+			wantQuery: selectFromPrefix + whereTimeRange +
+				` AND (event_time, uid) < (?,?) ORDER BY event_time DESC, uid DESC LIMIT 100;`,
+			wantParams: []string{
+				// in DESC order and valid value in keyset, instead of from, use value from ketset.
+				fromDateParam, keysetDateParam, // event_date BETWEEN date(?) AND date(?)
+				fromTimestampParam, keysetTimestampParam, // event_time BETWEEN ? and ?`
+				keysetTimestampParam, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", // AND (event_time, uid) < (?,?)
+			},
+		},
+		{
+			name: "query on time range with keyset from dynamo",
+			searchParams: searchParams{
+				fromUTC: fromTimeUTC,
+				toUTC:   toTimeUTC,
+				limit:   100,
+				order:   types.EventOrderAscending,
+				// startKey generated by dynamo which points to Apr 27 2023 08:22:58 UTC
+				startKey:  `{"date":"2023-04-27","iterator":{"CreatedAt":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":"1682583778","NS":null,"NULL":null,"S":null,"SS":null},"CreatedAtDate":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":null,"NS":null,"NULL":null,"S":"2023-04-27","SS":null},"EventIndex":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":"0","NS":null,"NULL":null,"S":null,"SS":null},"SessionID":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":null,"NS":null,"NULL":null,"S":"4bc51fd7-4f0c-47ee-b9a5-da621fbdbabb","SS":null}}}`,
+				tablename: tablename,
+			},
+			wantQuery: selectFromPrefix + whereTimeRange +
+				` AND (event_time, uid) > (?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`,
+			wantParams: []string{
+				// in ASC order and valid value in keyset, instead of from, use value from ketset.
+				"'2023-04-27'", toDateParam, // event_date BETWEEN date(?) AND date(?)
+				`timestamp '2023-04-27 08:22:58'`, toTimestampParam, // event_time BETWEEN ? and ?`
+				`timestamp '2023-04-27 08:22:58'`, "'00000000-0000-0000-0000-000000000000'", // AND (event_time, uid) > (?,?)
+			},
+		},
+		{
+			name: "query on time range with keyset from dynamo and desc order",
 			searchParams: searchParams{
 				fromUTC: fromTimeUTC,
 				toUTC:   toTimeUTC,
 				limit:   100,
 				order:   types.EventOrderDescending,
-				startKeyset: &keyset{
-					t:   otherTimeUTC,
-					uid: uuid.MustParse("9762a4fe-ac4b-47b5-ba4f-5f70d065849a"),
-				},
+				// startKey generated by dynamo which points to Apr 27 2023 08:22:58 UTC
+				startKey:  `{"date":"2023-04-27","iterator":{"CreatedAt":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":"1682583778","NS":null,"NULL":null,"S":null,"SS":null},"CreatedAtDate":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":null,"NS":null,"NULL":null,"S":"2023-04-27","SS":null},"EventIndex":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":"0","NS":null,"NULL":null,"S":null,"SS":null},"SessionID":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":null,"NS":null,"NULL":null,"S":"4bc51fd7-4f0c-47ee-b9a5-da621fbdbabb","SS":null}}}`,
 				tablename: tablename,
 			},
 			wantQuery: selectFromPrefix + whereTimeRange +
-				` AND (event_time, uid) < (?,?) ORDER BY event_time DESC, uid DESC LIMIT ?`,
-			wantParams: append(timeRangeParams, otherTimestampParam, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", "100"),
+				` AND (event_time, uid) < (?,?) ORDER BY event_time DESC, uid DESC LIMIT 100;`,
+			wantParams: []string{
+				// in DESC order and valid value in keyset, instead of from, use value from ketset.
+				fromDateParam, "'2023-04-27'", // event_date BETWEEN date(?) AND date(?)
+				fromTimestampParam, `timestamp '2023-04-27 08:22:58'`, // event_time BETWEEN ? and ?`
+				`timestamp '2023-04-27 08:22:58'`, "'ffffffff-ffff-ffff-ffff-ffffffffffff'", // AND (event_time, uid) < (?,?)
+			},
+		},
+		{
+			name: "invalid keyset",
+			searchParams: searchParams{
+				fromUTC:   fromTimeUTC,
+				toUTC:     toTimeUTC,
+				limit:     100,
+				order:     types.EventOrderDescending,
+				startKey:  "invalid-keyset",
+				tablename: tablename,
+			},
+			wantErr: "unsupported keyset format",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotQuery, gotParams := prepareQuery(tt.searchParams)
-			require.Empty(t, cmp.Diff(gotQuery, tt.wantQuery), "query")
-			require.Empty(t, cmp.Diff(gotParams, tt.wantParams), "params")
+			gotQuery, gotParams, err := prepareQuery(tt.searchParams)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(gotQuery, tt.wantQuery), "query")
+				require.Empty(t, cmp.Diff(gotParams, tt.wantParams), "params")
+			}
 		})
 	}
 }
 
 func Test_keyset(t *testing.T) {
-	// ketset using microseconds precision,that's why truncate is needed.
+	// keyset using microseconds precision,that's why truncate is needed.
 	wantT := clockwork.NewFakeClock().Now().UTC().Truncate(time.Microsecond)
 	wantUID := uuid.New()
 	ks := &keyset{
@@ -162,7 +232,7 @@ func Test_keyset(t *testing.T) {
 		uid: wantUID,
 	}
 	key := ks.ToKey()
-	fromKs, err := fromKey(key)
+	fromKs, err := fromAthenaKey(key)
 	require.NoError(t, err)
 	require.Equal(t, wantT, fromKs.t)
 	require.Equal(t, wantUID, fromKs.uid)
@@ -294,6 +364,7 @@ func Test_querier_fetchResults(t *testing.T) {
 				querierConfig: querierConfig{
 					tablename: tableName,
 					logger:    utils.NewLoggerForTests(),
+					tracer:    tracing.NoopTracer(teleport.ComponentAthena),
 				},
 				athenaClient: &fakeAthenaResultsGetter{
 					resp: tt.fakeResp,
