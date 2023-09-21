@@ -861,7 +861,7 @@ func (g *GRPCServer) SubmitAccessReview(ctx context.Context, review *types.Acces
 	return r, nil
 }
 
-func (g *GRPCServer) GetAccessRequestSuggestions(ctx context.Context, request *authpb.AccessRequestSuggestionRequest) (*authpb.AccessRequestSuggestionsResponse, error) {
+func (g *GRPCServer) GetAccessRequestAllowedPromotions(ctx context.Context, request *authpb.AccessRequestAllowedPromotionRequest) (*authpb.AccessRequestAllowedPromotionResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -877,12 +877,12 @@ func (g *GRPCServer) GetAccessRequestSuggestions(ctx context.Context, request *a
 		return nil, trace.NotFound("access request not found")
 	}
 
-	suggestions, err := auth.ServerWithRoles.GetAccessRequestSuggestions(ctx, accessRequest[0])
+	allowedPromotions, err := auth.ServerWithRoles.GetAccessRequestAllowedPromotions(ctx, accessRequest[0])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &authpb.AccessRequestSuggestionsResponse{
-		Suggestions: suggestions,
+	return &authpb.AccessRequestAllowedPromotionResponse{
+		AllowedPromotions: allowedPromotions,
 	}, nil
 }
 

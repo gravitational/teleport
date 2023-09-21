@@ -748,8 +748,8 @@ func TestCreateSuggestions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create the suggestions.
-	err = authSrvClient.UpsertAccessRequestSuggestions(context.Background(), adminRequest, &types.AccessRequestSuggestions{
-		Suggestions: []*types.AccessRequestSuggestion{
+	err = authSrvClient.UpsertAccessRequestAllowedPromotions(context.Background(), adminRequest, &types.AccessRequestAllowedPromotions{
+		Promotions: []*types.AccessRequestAllowedPromotion{
 			{AccessListName: "a"},
 			{AccessListName: "b"},
 			{AccessListName: "c"}},
@@ -757,13 +757,13 @@ func TestCreateSuggestions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get the suggestions and verify them.
-	suggestions, err := authSrvClient.GetAccessRequestSuggestions(context.Background(), adminRequest)
+	suggestions, err := authSrvClient.GetAccessRequestAllowedPromotions(context.Background(), adminRequest)
 	require.NoError(t, err)
-	require.Len(t, suggestions.Suggestions, 3)
+	require.Len(t, suggestions.Promotions, 3)
 	require.Equal(t, []string{"a", "b", "c"},
 		[]string{
-			suggestions.Suggestions[0].AccessListName,
-			suggestions.Suggestions[1].AccessListName,
-			suggestions.Suggestions[2].AccessListName,
+			suggestions.Promotions[0].AccessListName,
+			suggestions.Promotions[1].AccessListName,
+			suggestions.Promotions[2].AccessListName,
 		})
 }

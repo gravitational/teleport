@@ -1056,14 +1056,14 @@ func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
 	return trace.Wrap(err)
 }
 
-func (c *Client) GetAccessRequestSuggestions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestSuggestions, error) {
-	resp, err := c.grpc.GetAccessRequestSuggestions(ctx, &proto.AccessRequestSuggestionRequest{
+func (c *Client) GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	resp, err := c.grpc.GetAccessRequestAllowedPromotions(ctx, &proto.AccessRequestAllowedPromotionRequest{
 		AccessRequestID: req.GetName(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return resp.Suggestions, nil
+	return resp.AllowedPromotions, nil
 }
 
 // SetAccessRequestState updates the state of an existing access request.

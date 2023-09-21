@@ -4252,15 +4252,15 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
-	// calculate the suggestions
+	// calculate the promotions
 	reqCopy := req.Copy()
-	suggestions, err := modules.GetModules().GenerateAccessListSuggestions(ctx, a.Services, reqCopy)
+	promotions, err := modules.GetModules().GenerateAccessListSuggestions(ctx, a.Services, reqCopy)
 	if err != nil {
-		log.WithError(err).Warn("Failed to generate access list suggestions.")
-	} else if suggestions != nil && len(suggestions.Suggestions) > 0 {
+		log.WithError(err).Warn("Failed to generate access list promotions.")
+	} else if promotions != nil && len(promotions.Promotions) > 0 {
 		// Spare the call if there is nothing to add.
-		if err := a.Services.UpsertAccessRequestSuggestions(ctx, reqCopy, suggestions); err != nil {
-			log.WithError(err).Warn("Failed to update access request with suggestions.")
+		if err := a.Services.UpsertAccessRequestAllowedPromotions(ctx, reqCopy, promotions); err != nil {
+			log.WithError(err).Warn("Failed to update access request with promotions.")
 		}
 	}
 

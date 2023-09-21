@@ -183,8 +183,8 @@ type DynamicAccess interface {
 	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error
 	// SubmitAccessReview applies a review to a request and returns the post-application state.
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
-	// GetAccessRequestSuggestions returns suggested access lists for the given access request.
-	GetAccessRequestSuggestions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestSuggestions, error)
+	// GetAccessRequestAllowedPromotions returns suggested access lists for the given access request.
+	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 }
 
 // DynamicAccessOracle is a service capable of answering questions related
@@ -271,10 +271,10 @@ type DynamicAccessExt interface {
 	DeleteAllAccessRequests(ctx context.Context) error
 	// SetAccessRequestState updates the state of an existing access request.
 	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) (types.AccessRequest, error)
-	// UpsertAccessRequestSuggestions creates access list suggestions for the given access request.
-	UpsertAccessRequestSuggestions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestSuggestions) error
-	// GetAccessRequestSuggestions returns suggested access lists for the given access request.
-	GetAccessRequestSuggestions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestSuggestions, error)
+	// UpsertAccessRequestAllowedPromotions creates a list of allowed access list promotions for the given access request.
+	UpsertAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestAllowedPromotions) error
+	// GetAccessRequestAllowedPromotions returns a lists of allowed access list promotions for the given access request.
+	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 }
 
 // reviewParamsContext is a simplified view of an access review
@@ -1609,15 +1609,15 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 	}
 }
 
-// MarshalAccessRequestSuggestion marshals the list of access list IDs to JSON.
-func MarshalAccessRequestSuggestion(accessListIDs *types.AccessRequestSuggestions) ([]byte, error) {
+// MarshalAccessRequestAllowedPromotion marshals the list of access list IDs to JSON.
+func MarshalAccessRequestAllowedPromotion(accessListIDs *types.AccessRequestAllowedPromotions) ([]byte, error) {
 	payload, err := utils.FastMarshal(accessListIDs)
 	return payload, trace.Wrap(err)
 }
 
-// UnmarshalAccessRequestSuggestion unmarshals the list of access list IDs from JSON.
-func UnmarshalAccessRequestSuggestion(data []byte) (*types.AccessRequestSuggestions, error) {
-	var accessListIDs types.AccessRequestSuggestions
+// UnmarshalAccessRequestAllowedPromotion unmarshals the list of access list IDs from JSON.
+func UnmarshalAccessRequestAllowedPromotion(data []byte) (*types.AccessRequestAllowedPromotions, error) {
+	var accessListIDs types.AccessRequestAllowedPromotions
 	if err := utils.FastUnmarshal(data, &accessListIDs); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -156,7 +156,7 @@ type Modules interface {
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
 	// GenerateAccessListSuggestions generates access list suggestions for the given access request.
-	GenerateAccessListSuggestions(context.Context, AccessListGetter, types.AccessRequest) (*types.AccessRequestSuggestions, error)
+	GenerateAccessListSuggestions(context.Context, AccessListGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	// EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
 	EnableRecoveryCodes()
 	// EnablePlugins enables the hosted plugins runtime
@@ -255,9 +255,9 @@ func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ k
 	return keys.PrivateKeyPolicyNone, nil
 }
 
-func (p *defaultModules) GenerateAccessListSuggestions(_ context.Context, _ AccessListGetter, _ types.AccessRequest) (*types.AccessRequestSuggestions, error) {
+func (p *defaultModules) GenerateAccessListSuggestions(_ context.Context, _ AccessListGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	// The default module does not support generating access list suggestions.
-	return &types.AccessRequestSuggestions{}, nil
+	return types.NewAccessRequestAllowedPromotions(nil), nil
 }
 
 // EnableRecoveryCodes enables recovery codes. This is a noop since OSS teleport does not

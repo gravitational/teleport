@@ -285,7 +285,8 @@ func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req type
 	return nil
 }
 
-func (s *DynamicAccessService) UpsertAccessRequestSuggestions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestSuggestions) error {
+// UpsertAccessRequestAllowedPromotions upserts AccessRequestAllowedPromotions object.
+func (s *DynamicAccessService) UpsertAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestAllowedPromotions) error {
 	// create the new access request suggestion object
 	item, err := itemFromAccessListSuggestion(req, accessLists)
 	if err != nil {
@@ -298,19 +299,20 @@ func (s *DynamicAccessService) UpsertAccessRequestSuggestions(ctx context.Contex
 	return nil
 }
 
-func (s *DynamicAccessService) GetAccessRequestSuggestions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestSuggestions, error) {
+// GetAccessRequestAllowedPromotions returns AccessRequestAllowedPromotions object.
+func (s *DynamicAccessService) GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	// get the access request suggestions from the backend
-	item, err := s.Get(ctx, accessRequestSuggestionKey(req.GetName()))
+	item, err := s.Get(ctx, AccessRequestAllowedPromotionKey(req.GetName()))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// do not return nil as the caller will assume that nil error
 			// means that there are some suggestions
-			return types.NewAccessRequestSuggestions(nil), nil
+			return types.NewAccessRequestAllowedPromotions(nil), nil
 		}
 		return nil, trace.Wrap(err)
 	}
 	// unmarshal the access request suggestions
-	suggestions, err := services.UnmarshalAccessRequestSuggestion(item.Value)
+	suggestions, err := services.UnmarshalAccessRequestAllowedPromotion(item.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -485,13 +487,13 @@ func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 	}, nil
 }
 
-func itemFromAccessListSuggestion(req types.AccessRequest, suggestedItems *types.AccessRequestSuggestions) (backend.Item, error) {
-	value, err := services.MarshalAccessRequestSuggestion(suggestedItems)
+func itemFromAccessListSuggestion(req types.AccessRequest, suggestedItems *types.AccessRequestAllowedPromotions) (backend.Item, error) {
+	value, err := services.MarshalAccessRequestAllowedPromotion(suggestedItems)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
 	return backend.Item{
-		Key:     accessRequestSuggestionKey(req.GetName()),
+		Key:     AccessRequestAllowedPromotionKey(req.GetName()),
 		Value:   value,
 		Expires: req.Expiry(), // expire the suggestion at the same time as the access request
 		ID:      req.GetResourceID(),
@@ -548,8 +550,8 @@ func accessRequestKey(name string) []byte {
 	return backend.Key(accessRequestsPrefix, name, paramsPrefix)
 }
 
-func accessRequestSuggestionKey(name string) []byte {
-	return backend.Key(accessRequestSuggestionsPrefix, name, paramsPrefix)
+func AccessRequestAllowedPromotionKey(name string) []byte {
+	return backend.Key(accessRequestPromotionPrefix, name, paramsPrefix)
 }
 
 func pluginDataKey(kind string, name string) []byte {
@@ -557,9 +559,9 @@ func pluginDataKey(kind string, name string) []byte {
 }
 
 const (
-	accessRequestsPrefix           = "access_requests"
-	accessRequestSuggestionsPrefix = "access_request_suggestions"
-	pluginDataPrefix               = "plugin_data"
-	maxCmpAttempts                 = 7
-	retryPeriodMs                  = 2048
+	accessRequestsPrefix         = "access_requests"
+	accessRequestPromotionPrefix = "access_request_promotions"
+	pluginDataPrefix             = "plugin_data"
+	maxCmpAttempts               = 7
+	retryPeriodMs                = 2048
 )
