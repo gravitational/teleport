@@ -17,6 +17,7 @@ import { EligibleUsersFieldSelectAndCreate } from 'e-teleport/AccessListManageme
 
 import { CalendarDateSelect, UserOption } from '../../Shared';
 import {
+  filterExistingUsersAndConvertToOption,
   getEligibleUsersForAddingNewUsers,
   getNewAndExistingUsersForAddingNewUsers,
 } from '../Shared';
@@ -50,11 +51,26 @@ export function EnrollNewMembers({
   const [duplicatedMembers, setDuplicatedMembers] = useState<string[]>([]);
 
   useEffect(() => {
-    const filteredMembers = getEligibleUsersForAddingNewUsers(
-      membershipRequires,
-      userOptions,
-      existingMembers
-    );
+    let filteredMembers: Option[] = [];
+
+    // If no required traits or roles are defined,
+    // Then all users are allowed to be added, except
+    // for users who were already added.
+    if (
+      membershipRequires.roles.length > 0 ||
+      membershipRequires.traitLabels.length > 0
+    ) {
+      filteredMembers = getEligibleUsersForAddingNewUsers(
+        membershipRequires,
+        userOptions,
+        existingMembers
+      );
+    } else {
+      filteredMembers = filterExistingUsersAndConvertToOption(
+        userOptions,
+        existingMembers
+      );
+    }
 
     setEligibleUsers(filteredMembers);
   }, []);
@@ -136,8 +152,8 @@ export function EnrollNewMembers({
               isDisabled={attempt.status === 'processing'}
               onChange={vals => setSelectedMembers(vals || [])}
               options={eligibleUsers}
-              label="Add Eligible Members"
-              requiredErrMsg="Eligible members are required"
+              label="Add Members"
+              requiredErrMsg="Members are required"
               noEligibleUsersFromNoAccess={userOptions.length === 0}
             />
             <Box mb={4}>

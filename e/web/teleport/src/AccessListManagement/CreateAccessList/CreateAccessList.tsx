@@ -20,6 +20,7 @@ import {
 import Validation, { Validator } from 'shared/components/Validation';
 import useTeleport from 'teleport/useTeleport';
 import { Option } from 'shared/components/Select';
+import { AllUserTraits } from 'teleport/services/user';
 
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
@@ -33,7 +34,7 @@ import {
   matchTraits,
 } from '../Shared';
 import { useFetchUserAndRoles } from '../useFetchUsersAndRoles';
-import { TraitLookup, convertTraitLabelsToAllUserTraits } from '../Traits';
+import { convertTraitLabelsToAllUserTraits } from '../Traits';
 
 import { Spec, SpecSection } from './SpecSection';
 import { Members, MembersSection } from './MemberSection';
@@ -89,47 +90,60 @@ export function CreateAccessList() {
 
   // Update owners.
   useEffect(() => {
-    let eligibleOwners: UserOption[] = [];
+    let eligibleOwners: UserOption[] = userOptions;
     let selectedOwners: HybridUserOption[] = [];
     const rolesRequiredToBeEligible = owners.selectedRolesRequired;
 
-    eligibleOwners = getEligibleUsers(
-      rolesRequiredToBeEligible,
-      owners.traitLookup,
-      userOptions
-    );
-
-    if (eligibleOwners.length > 0 && owners.selectedOwners.length > 0) {
-      selectedOwners = getEligibleUsersAmongSelectedUsers({
-        eligibleUsers: eligibleOwners,
-        selectedUsers: owners.selectedOwners,
-      });
+    // Only filter for eligible owners if required roles or traits
+    // are defined. Otherwise all users are eligible.
+    if (
+      owners.selectedRolesRequired.length > 0 ||
+      owners.traitLabels.length > 0
+    ) {
+      eligibleOwners = getEligibleUsers(
+        rolesRequiredToBeEligible,
+        owners.traitLookup,
+        userOptions
+      );
+      if (eligibleOwners.length > 0 && owners.selectedOwners.length > 0) {
+        selectedOwners = getEligibleUsersAmongSelectedUsers({
+          eligibleUsers: eligibleOwners,
+          selectedUsers: owners.selectedOwners,
+        });
+      }
     }
 
     setOwners({ ...owners, eligibleOwners, selectedOwners });
-  }, [owners.selectedRolesRequired]);
+  }, [userOptions, owners.selectedRolesRequired, owners.traitLabels]);
 
   // Update members.
   useEffect(() => {
-    let eligibleMembers: UserOption[] = [];
+    let eligibleMembers: UserOption[] = userOptions;
     let selectedMembers: HybridUserOption[] = [];
     const rolesRequiredToBeEligible = members.selectedRolesRequired;
 
-    eligibleMembers = getEligibleUsers(
-      rolesRequiredToBeEligible,
-      members.traitLookup,
-      userOptions
-    );
+    // Only filter for eligible members if required roles or traits
+    // are defined. Otherwise all users are eligible.
+    if (
+      members.selectedRolesRequired.length > 0 ||
+      members.traitLabels.length > 0
+    ) {
+      eligibleMembers = getEligibleUsers(
+        rolesRequiredToBeEligible,
+        members.traitLookup,
+        userOptions
+      );
 
-    if (eligibleMembers.length > 0 && members.selectedMembers.length > 0) {
-      selectedMembers = getEligibleUsersAmongSelectedUsers({
-        eligibleUsers: eligibleMembers,
-        selectedUsers: members.selectedMembers,
-      });
+      if (eligibleMembers.length > 0 && members.selectedMembers.length > 0) {
+        selectedMembers = getEligibleUsersAmongSelectedUsers({
+          eligibleUsers: eligibleMembers,
+          selectedUsers: members.selectedMembers,
+        });
+      }
     }
 
     setMembers({ ...members, eligibleMembers, selectedMembers });
-  }, [members.selectedRolesRequired]);
+  }, [userOptions, members.selectedRolesRequired, members.traitLabels]);
 
   function handleOnCreate(validator: Validator) {
     if (!validator.validate()) {
@@ -281,7 +295,7 @@ export function CreateAccessList() {
 // that match with the required roles and traits.
 export function getEligibleUsers(
   rolesRequiredToBeEligible: Option[],
-  requiredTraitsToBeEligible: TraitLookup,
+  requiredTraitsToBeEligible: AllUserTraits,
   users: UserOption[]
 ): UserOption[] {
   if (

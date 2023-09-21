@@ -11,7 +11,6 @@ import {
 } from 'e-teleport/services/accessmanagement';
 
 import { ToolTipText, matchRoles, matchTraits, UserOption } from '../Shared';
-import { convertToTraitConvenience } from '../Traits';
 
 export const CustomCell: React.FC<{ disabled: boolean }> = ({
   disabled,
@@ -120,13 +119,18 @@ export function getEligibleUsersForAddingNewUsers(
   }
 
   let filteredUsers = matchRoles(eligibility.roles, fetchedUsers);
+  filteredUsers = matchTraits(eligibility.traits, filteredUsers);
 
-  const { traitLookup } = convertToTraitConvenience(eligibility.traits);
-  filteredUsers = matchTraits(traitLookup, filteredUsers);
+  return filterExistingUsersAndConvertToOption(filteredUsers, existingUsers);
+}
 
+export function filterExistingUsersAndConvertToOption(
+  userOpts: UserOption[],
+  existingUsers: { name: string }[]
+) {
   return (
-    filteredUsers
-      // Filter out existing existing users among filtered users.
+    userOpts
+      // Filter out existing existing users among users.
       .filter(u => existingUsers.every(m => m.name !== u.value.name))
       // Convert to type Option for dropdowns.
       .map(u => ({ label: u.value.name, value: u.value.name }))

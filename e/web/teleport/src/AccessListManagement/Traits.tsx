@@ -44,7 +44,7 @@ export function TraitsCreator({
 
   let addBtnTxt =
     traitLabels.length === 0
-      ? `Add ${kind} Required Trait`
+      ? `Add ${kind} Required Trait (optional)`
       : `Add Another Required ${kind} Trait`;
 
   if (kind === 'Grants') {
@@ -145,9 +145,6 @@ export type TraitLabel = {
   value: string;
 };
 
-// TraitLookup is a map of trait keys to a map of trait values.
-export type TraitLookup = Record<string, Record<string, boolean>>;
-
 // TraitConvenience provides convenient data formats for traits
 // to be used for:
 //    - rendering trait creator/editor
@@ -155,7 +152,6 @@ export type TraitLookup = Record<string, Record<string, boolean>>;
 //    - rendering list of traits
 export type TraitConvenience = {
   traitLabels: TraitLabel[];
-  traitLookup: TraitLookup;
   traitList: string[];
 };
 
@@ -190,23 +186,6 @@ export function convertTraitLabelsToAllUserTraits(
   return traits;
 }
 
-export function convertTraitLabelsToTraitLookup(
-  labels: TraitLabel[]
-): TraitLookup {
-  const traitLookup: TraitLookup = {};
-
-  labels.forEach(label => {
-    if (traitLookup[label.name]) {
-      // Effectively removes duplicates.
-      traitLookup[label.name][label.value] = true;
-      return;
-    }
-    traitLookup[label.name] = { [label.value]: true };
-  });
-
-  return traitLookup;
-}
-
 export function convertToTraitConvenience(
   traits: AllUserTraits
 ): TraitConvenience {
@@ -226,7 +205,6 @@ export function convertToTraitConvenience(
   return {
     traitLabels,
     traitList,
-    traitLookup: convertTraitLabelsToTraitLookup(traitLabels),
   };
 }
 

@@ -30,7 +30,7 @@ test('getEligibleUsers: match by roles only (empty traits)', async () => {
 
 test('getEligibleUsers: match by traits only (empty roles)', async () => {
   expect(
-    getEligibleUsers([], { fruit: { apple: true } }, [
+    getEligibleUsers([], { fruit: ['apple'] }, [
       {
         label: 'foo',
         value: { allTraits: { fruit: ['apple'] } } as any,
@@ -47,8 +47,8 @@ test('getEligibleUsers: match by traits only (empty roles)', async () => {
 test('getEligibleUsers: match by both roles and traits', async () => {
   expect(
     getEligibleUsers(
-      [{ label: 'access', value: 'access' }],
-      { fruit: { apple: true } },
+      [{ label: 'access', value: 'access' }], // rolesRequired
+      { fruit: ['apple', 'banana'] }, // traitsRequired
       [
         {
           label: 'foo',
@@ -58,7 +58,7 @@ test('getEligibleUsers: match by both roles and traits', async () => {
           label: 'bar',
           value: {
             roles: ['access'],
-            allTraits: { fruit: ['apple'] },
+            allTraits: { fruit: ['apple', 'banana'] },
           },
         },
         {
@@ -84,7 +84,7 @@ test('getEligibleUsers: match by both roles and traits', async () => {
   ).toStrictEqual([
     {
       label: 'bar',
-      value: { roles: ['access'], allTraits: { fruit: ['apple'] } },
+      value: { roles: ['access'], allTraits: { fruit: ['apple', 'banana'] } },
     },
     {
       label: 'qux',

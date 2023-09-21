@@ -4,11 +4,10 @@ import { format } from 'date-fns';
 import { Popover, Text, Box, LabelInput, Flex, Label } from 'design';
 import { Calendar as CalendarIcon } from 'design/Icon';
 import { StyledSelect, Option } from 'shared/components/Select';
-import { User } from 'teleport/services/user';
+import { AllUserTraits, User } from 'teleport/services/user';
 import { useRule } from 'shared/components/Validation';
 
 import { DatePicker } from './DatePicker';
-import { TraitLookup } from './Traits';
 
 // HybridUserOption
 //
@@ -258,7 +257,7 @@ export function matchRoles(
 }
 
 export function matchTraits(
-  traitsRequiredToBeEligible: TraitLookup,
+  traitsRequiredToBeEligible: AllUserTraits,
   userOptions: UserOption[]
 ): UserOption[] {
   const requiredTraitKeys = Object.keys(traitsRequiredToBeEligible);
@@ -266,10 +265,11 @@ export function matchTraits(
   return userOptions.filter(userOpt => {
     const currTraits = userOpt.value.allTraits;
     return requiredTraitKeys.every(requiredTraitKey => {
+      const matchRequiredVals = traitsRequiredToBeEligible[requiredTraitKey];
       return (
         currTraits[requiredTraitKey] &&
-        currTraits[requiredTraitKey].some(
-          val => traitsRequiredToBeEligible[requiredTraitKey][val]
+        matchRequiredVals.every(requiredVal =>
+          currTraits[requiredTraitKey].some(currVal => requiredVal == currVal)
         )
       );
     });

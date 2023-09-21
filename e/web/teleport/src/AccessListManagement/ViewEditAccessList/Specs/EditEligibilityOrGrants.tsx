@@ -133,7 +133,7 @@ export function EditEligibilityOrGrantRoles({
               selected={selectedRoles}
               autoFocus={true}
               editKind={editKind}
-              optional={traitLabels.length > 0}
+              optional={true}
             />
             <Box mt={2}>
               <TraitsCreator

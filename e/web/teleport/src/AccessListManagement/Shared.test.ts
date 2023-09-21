@@ -142,7 +142,7 @@ describe('matchTraits', () => {
     },
     {
       case: 'no user options should return empty array',
-      traitsRequired: { fruit: { apple: true } },
+      traitsRequired: { fruit: ['apple'] },
       userOptions: [],
       output: [],
     },
@@ -160,7 +160,7 @@ describe('matchTraits', () => {
     },
     {
       case: 'no users match required traits',
-      traitsRequired: { fruit: { apple: true } },
+      traitsRequired: { fruit: ['apple'] },
       userOptions: [
         { label: 'foo', value: { allTraits: { fruit: ['banana'] } } },
         { label: 'bar', value: { allTraits: { drink: ['water'] } } },
@@ -169,7 +169,7 @@ describe('matchTraits', () => {
     },
     {
       case: 'all users match required allTraits',
-      traitsRequired: { fruit: { apple: true } },
+      traitsRequired: { fruit: ['apple'] },
       userOptions: [
         { label: 'foo', value: { allTraits: { fruit: ['apple'] } } },
         {
@@ -210,19 +210,22 @@ describe('matchTraits', () => {
       ],
     },
     {
-      case: 'require 1 trait',
-      traitsRequired: { fruit: { apple: true } },
+      case: 'require 1 trait (require all values)',
+      traitsRequired: { fruit: ['apple', 'banana'] },
       userOptions: [
         { label: 'foo', value: { allTraits: { fruit: ['banana'] } } },
         {
           label: 'bar',
           value: {
-            allTraits: { drink: ['water', 'latte'], fruit: ['apple'] },
+            allTraits: {
+              drink: ['water', 'latte'],
+              fruit: ['apple', 'banana'],
+            },
           },
         },
         {
           label: 'baz',
-          value: { allTraits: { drink: ['apple'], month: ['apple'] } },
+          value: { allTraits: { drink: ['apple'], fruit: ['apple'] } },
         },
         {
           label: 'qux',
@@ -235,7 +238,10 @@ describe('matchTraits', () => {
         {
           label: 'bar',
           value: {
-            allTraits: { drink: ['water', 'latte'], fruit: ['apple'] },
+            allTraits: {
+              drink: ['water', 'latte'],
+              fruit: ['apple', 'banana'],
+            },
           },
         },
         {
@@ -247,14 +253,17 @@ describe('matchTraits', () => {
       ],
     },
     {
-      case: 'require 2 traits',
-      traitsRequired: { fruit: { apple: true }, drink: { coffee: true } },
+      case: 'require 2 traits (require all values)',
+      traitsRequired: {
+        fruit: ['apple', 'banana'],
+        drink: ['coffee', 'water', 'latte'],
+      },
       userOptions: [
         {
           label: 'foo',
           value: {
             allTraits: {
-              drink: ['water', 'latte', 'coffee'],
+              drink: ['water', 'latte', 'coffee', 'coffee2'],
               fruit: ['banana', 'apple'],
             },
           },
@@ -277,7 +286,7 @@ describe('matchTraits', () => {
           value: {
             allTraits: {
               fruit: ['banana', 'carrot', 'apple'],
-              drink: ['coffee'],
+              drink: ['coffee', 'water'],
             },
           },
         },
@@ -287,17 +296,8 @@ describe('matchTraits', () => {
           label: 'foo',
           value: {
             allTraits: {
-              drink: ['water', 'latte', 'coffee'],
+              drink: ['water', 'latte', 'coffee', 'coffee2'],
               fruit: ['banana', 'apple'],
-            },
-          },
-        },
-        {
-          label: 'qux',
-          value: {
-            allTraits: {
-              fruit: ['banana', 'carrot', 'apple'],
-              drink: ['coffee'],
             },
           },
         },

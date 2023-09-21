@@ -31,7 +31,7 @@ export function EligibilityOrGrantRolesFieldSelectAndCreate({
 
   if (editKind !== 'Grants') {
     requiredErrMsg = `${editKind} eligibility roles are required`;
-    label = 'Eligibility: Roles Required';
+    label = `${editKind} Required Roles (optional)`;
   }
 
   return (

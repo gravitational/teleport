@@ -16,6 +16,7 @@ import { EligibleUsersFieldSelectAndCreate } from 'e-teleport/AccessListManageme
 import { UserOption } from 'e-teleport/AccessListManagement/Shared';
 
 import {
+  filterExistingUsersAndConvertToOption as filterOutExistingUsersAndConvertToOptionType,
   getEligibleUsersForAddingNewUsers,
   getNewAndExistingUsersForAddingNewUsers,
 } from '../Shared';
@@ -46,11 +47,26 @@ export function EnrollNewOwners({
   const [duplicatedOwners, setDuplicatedOwners] = useState<string[]>([]);
 
   useEffect(() => {
-    const filteredOwners = getEligibleUsersForAddingNewUsers(
-      ownershipRequires,
-      userOptions,
-      existingOwners
-    );
+    let filteredOwners: Option[] = [];
+
+    // If no required traits or roles are defined,
+    // Then all users are allowed to be added, except
+    // for users who were already added.
+    if (
+      ownershipRequires.roles.length > 0 ||
+      ownershipRequires.traitLabels.length > 0
+    ) {
+      filteredOwners = getEligibleUsersForAddingNewUsers(
+        ownershipRequires,
+        userOptions,
+        existingOwners
+      );
+    } else {
+      filteredOwners = filterOutExistingUsersAndConvertToOptionType(
+        userOptions,
+        existingOwners
+      );
+    }
 
     setEligibleUsers(filteredOwners);
   }, []);
@@ -129,8 +145,8 @@ export function EnrollNewOwners({
               isDisabled={attempt.status === 'processing'}
               onChange={vals => setSelectedOwners(vals || [])}
               options={eligibleUsers}
-              label="Add Eligible List Owners"
-              requiredErrMsg="Eligible owners are required"
+              label="Add List Owners"
+              requiredErrMsg="List Owners are required"
               noEligibleUsersFromNoAccess={userOptions.length === 0}
             />
             <FieldTextArea

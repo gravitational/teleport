@@ -1,13 +1,13 @@
 import React from 'react';
 import { Text, Box } from 'design';
 import { Option } from 'shared/components/Select';
+import { AllUserTraits } from 'teleport/services/user';
 
 import { HybridUserOption, UserOption } from '../Shared';
 import {
   TraitLabel,
-  TraitLookup,
   TraitsCreator,
-  convertTraitLabelsToTraitLookup,
+  convertTraitLabelsToAllUserTraits,
 } from '../Traits';
 
 import {
@@ -28,7 +28,7 @@ export type Owners = {
   eligibleOwners: UserOption[];
   selectedOwners: HybridUserOption[];
   traitLabels: TraitLabel[];
-  traitLookup: TraitLookup;
+  traitLookup: AllUserTraits;
 };
 
 export const OwnersSection = ({
@@ -52,7 +52,7 @@ export const OwnersSection = ({
             setOwners({
               ...owners,
               traitLabels,
-              traitLookup: convertTraitLabelsToTraitLookup(traitLabels),
+              traitLookup: convertTraitLabelsToAllUserTraits(traitLabels),
             })
           }
         />
@@ -69,7 +69,7 @@ export const OwnersSection = ({
             })
           }
           selected={owners.selectedRolesRequired}
-          optional={owners.traitLabels.length > 0}
+          optional={true}
         />
       </Box>
       <EligibleUsersFieldSelectAndCreate
@@ -77,8 +77,8 @@ export const OwnersSection = ({
         isDisabled={isDisabled}
         onChange={vals => setOwners({ ...owners, selectedOwners: vals || [] })}
         options={owners.eligibleOwners}
-        label="Add Eligible List Owners"
-        requiredErrMsg="Eligible owners are required"
+        label={'Add List Owners'}
+        requiredErrMsg="List Owners are required"
         noEligibleUsersFromNoAccess={noAccess}
       />
     </>

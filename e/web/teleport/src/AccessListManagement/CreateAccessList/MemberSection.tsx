@@ -1,13 +1,13 @@
 import React from 'react';
 import { Box, Text } from 'design';
 import { Option } from 'shared/components/Select';
+import { AllUserTraits } from 'teleport/services/user';
 
 import { HybridUserOption, UserOption } from '../Shared';
 import {
   TraitLabel,
-  TraitLookup,
   TraitsCreator,
-  convertTraitLabelsToTraitLookup,
+  convertTraitLabelsToAllUserTraits,
 } from '../Traits';
 
 import {
@@ -28,7 +28,7 @@ export type Members = {
   eligibleMembers: UserOption[];
   selectedMembers: HybridUserOption[];
   traitLabels: TraitLabel[];
-  traitLookup: TraitLookup;
+  traitLookup: AllUserTraits;
 };
 
 export const MembersSection = ({
@@ -52,14 +52,14 @@ export const MembersSection = ({
             setMembers({
               ...members,
               traitLabels,
-              traitLookup: convertTraitLabelsToTraitLookup(traitLabels),
+              traitLookup: convertTraitLabelsToAllUserTraits(traitLabels),
             })
           }
         />
       </Box>
       <EligibilityOrGrantRolesFieldSelectAndCreate
         editKind="Member"
-        optional={members.selectedMembers.length === 0}
+        optional={true}
         options={roleOptions}
         isDisabled={isDisabled}
         onChange={(option: Option[]) =>
@@ -77,7 +77,7 @@ export const MembersSection = ({
           setMembers({ ...members, selectedMembers: vals || [] })
         }
         options={members.eligibleMembers}
-        label="Add Eligible Members (optional)"
+        label="Add Members"
         noEligibleUsersFromNoAccess={noAccess}
       />
     </>
