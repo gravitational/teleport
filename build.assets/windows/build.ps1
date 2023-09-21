@@ -164,7 +164,7 @@ function Install-Node {
     begin {
         New-Item -Path "$ToolchainDir" -ItemType Directory -Force | Out-Null
         $NodeZipfile = "$ToolchainDir/node-$NodeVersion-win-x64.zip"
-        Invoke-WebRequest -Uri https://nodejs.org/download/release/v$NodeVersion/node-v$NodeVersion-win-x64.zip -OutFile $NodeZipfile
+        Invoke-WebRequest -Uri https://nodejs.org/download/release/v18.18.0/node-v18.18.0-win-x64.zip -OutFile "$here/node-$NodeVersion-win-x64.zip"
         Expand-Archive -Path $NodeZipfile -DestinationPath $ToolchainDir
         Rename-Item -Path "$ToolchainDir/node-v$NodeVersion-win-x64" -NewName "$ToolchainDir/node"
         Enable-Node -ToolchainDir $ToolchainDir
