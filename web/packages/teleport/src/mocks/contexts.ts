@@ -66,6 +66,8 @@ export const allAccessAcl: Acl = {
   assist: fullAccess,
   samlIdpServiceProvider: fullAccess,
   accessList: fullAccess,
+  auditQuery: fullAccess,
+  securityReport: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {
