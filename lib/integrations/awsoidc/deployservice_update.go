@@ -30,45 +30,84 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
+// UpdateDeployServiceAgents updates the deploy service agents with the specified teleportVersionTag.
+func UpdateDeployServiceAgents(ctx context.Context, clt DeployServiceClient, teleportClusterName, teleportVersionTag string, ownershipTags AWSTags) error {
+	teleportFlavor := teleportOSS
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		teleportFlavor = teleportEnt
+	}
+	teleportImage := fmt.Sprintf("public.ecr.aws/gravitational/%s-distroless:%s", teleportFlavor, teleportVersionTag)
+
+	if err := updateDeployServiceAgent(ctx, clt, teleportClusterName, teleportImage, ownershipTags); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func updateDeployServiceAgent(ctx context.Context, clt DeployServiceClient, teleportClusterName, teleportImage string, ownershipTags AWSTags) error {
+	service, err := getManagedService(ctx, clt, teleportClusterName, ownershipTags)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	taskDefinition, err := getManagedTaskDefinition(ctx, clt, aws.ToString(service.TaskDefinition), ownershipTags)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	currentTeleportImage, err := getTaskDefinitionTeleportImage(taskDefinition)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if currentTeleportImage == teleportImage {
+		return nil
+	}
+
+	registerTaskDefinitionIn, err := generateTaskDefinitionWithImage(taskDefinition, teleportImage, ownershipTags.ToECSTags())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	registerTaskDefinitionOut, err := clt.RegisterTaskDefinition(ctx, registerTaskDefinitionIn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update service with new task definition
+	_, err = updateServiceOrRollback(ctx, clt, service, registerTaskDefinitionOut.TaskDefinition)
+	if err != nil {
+		// If update failed, then rollback task definition
+		_, rollbackErr := clt.DeregisterTaskDefinition(ctx, &ecs.DeregisterTaskDefinitionInput{
+			TaskDefinition: registerTaskDefinitionOut.TaskDefinition.TaskDefinitionArn,
+		})
+		if rollbackErr != nil {
+			return trace.Wrap(err, "failed to rollback task definition: %v", rollbackErr)
+		}
+		return trace.Wrap(err)
+	}
+
+	// Attempt to deregister previous task definition but ignore error on failure
+	clt.DeregisterTaskDefinition(ctx, &ecs.DeregisterTaskDefinitionInput{
+		TaskDefinition: taskDefinition.TaskDefinitionArn,
+	})
+	return nil
+}
+
 // waitDuration specifies the amount of time to wait for a service to become healthy after an update.
 const waitDuration = time.Minute * 5
 
-func listManagedClusters(ctx context.Context, clt DeployServiceClient, ownershipTags AWSTags) (clusterARNs []string, err error) {
-	listClustersOut, err := clt.ListClusters(ctx, &ecs.ListClustersInput{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func getManagedService(ctx context.Context, clt DeployServiceClient, teleportClusterName string, ownershipTags AWSTags) (*ecsTypes.Service, error) {
+	ecsClusterName := fmt.Sprintf("%s-teleport", normalizeECSResourceName(teleportClusterName))
 
-	describeClustersOut, err := clt.DescribeClusters(ctx, &ecs.DescribeClustersInput{
-		Clusters: listClustersOut.ClusterArns,
-		Include: []ecsTypes.ClusterField{
-			ecsTypes.ClusterFieldTags,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for _, cluster := range describeClustersOut.Clusters {
-		if ownershipTags.MatchesECSTags(cluster.Tags) {
-			clusterARNs = append(clusterARNs, *cluster.ClusterArn)
-		}
-	}
-	return clusterARNs, nil
-}
-
-func getManagedService(ctx context.Context, clt DeployServiceClient, clusterARN string, ownershipTags AWSTags) (*ecsTypes.Service, error) {
-	listServicesOut, err := clt.ListServices(ctx, &ecs.ListServicesInput{
-		Cluster:    aws.String(clusterARN),
-		LaunchType: ecsTypes.LaunchTypeFargate,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var ecsServiceNames []string
+	for _, deploymentMode := range DeploymentModes {
+		ecsServiceNames = append(ecsServiceNames, fmt.Sprintf("%s-%s", ecsClusterName, deploymentMode))
 	}
 
 	describeServicesOut, err := clt.DescribeServices(ctx, &ecs.DescribeServicesInput{
-		Cluster:  aws.String(clusterARN),
-		Services: listServicesOut.ServiceArns,
+		Cluster:  aws.String(ecsClusterName),
+		Services: ecsServiceNames,
 		Include:  []ecsTypes.ServiceField{ecsTypes.ServiceFieldTags},
 	})
 	if err != nil {
@@ -178,76 +217,4 @@ func generateServiceWithTaskDefinition(service *ecsTypes.Service, taskDefinition
 	updateServiceIn.Cluster = service.ClusterArn
 	updateServiceIn.TaskDefinition = aws.String(taskDefinitionName)
 	return updateServiceIn
-}
-
-// UpdateDeployServiceAgents updates the deploy service agents with the specified teleportVersionTag.
-func UpdateDeployServiceAgents(ctx context.Context, clt DeployServiceClient, teleportVersionTag string, ownershipTags AWSTags) error {
-	teleportFlavor := teleportOSS
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		teleportFlavor = teleportEnt
-	}
-	teleportImage := fmt.Sprintf("public.ecr.aws/gravitational/%s-distroless:%s", teleportFlavor, teleportVersionTag)
-
-	clusterARNs, err := listManagedClusters(ctx, clt, ownershipTags)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var errs []error
-	for _, clusterARN := range clusterARNs {
-		if err := updateDeployServiceAgent(ctx, clt, clusterARN, teleportImage, ownershipTags); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return trace.NewAggregate(errs...)
-}
-
-func updateDeployServiceAgent(ctx context.Context, clt DeployServiceClient, clusterARN, teleportImage string, ownershipTags AWSTags) error {
-	service, err := getManagedService(ctx, clt, clusterARN, ownershipTags)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	taskDefinition, err := getManagedTaskDefinition(ctx, clt, aws.ToString(service.TaskDefinition), ownershipTags)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	currentTeleportImage, err := getTaskDefinitionTeleportImage(taskDefinition)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if currentTeleportImage == teleportImage {
-		return nil
-	}
-
-	registerTaskDefinitionIn, err := generateTaskDefinitionWithImage(taskDefinition, teleportImage, ownershipTags.ToECSTags())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	registerTaskDefinitionOut, err := clt.RegisterTaskDefinition(ctx, registerTaskDefinitionIn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Update service with new task definition
-	_, err = updateServiceOrRollback(ctx, clt, service, registerTaskDefinitionOut.TaskDefinition)
-	if err != nil {
-		// If update failed, then rollback task definition
-		_, rollbackErr := clt.DeregisterTaskDefinition(ctx, &ecs.DeregisterTaskDefinitionInput{
-			TaskDefinition: registerTaskDefinitionOut.TaskDefinition.TaskDefinitionArn,
-		})
-		if rollbackErr != nil {
-			return trace.Wrap(err, "failed to rollback task definition: %v", rollbackErr)
-		}
-		return trace.Wrap(err)
-	}
-
-	// Attempt to deregister previous task definition but ignore error on failure
-	clt.DeregisterTaskDefinition(ctx, &ecs.DeregisterTaskDefinitionInput{
-		TaskDefinition: taskDefinition.TaskDefinitionArn,
-	})
-	return nil
 }

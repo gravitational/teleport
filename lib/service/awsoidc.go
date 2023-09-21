@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -145,6 +144,11 @@ func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, a
 		}
 	}
 
+	awsRegions, err := process.listAWSDatabaseRegions()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	limit := rate.NewLimiter(rate.Every(updateDeployAgentsRateLimit), 1)
 	for _, ig := range resources {
 		spec := ig.GetAWSOIDCIntegrationSpec()
@@ -152,7 +156,7 @@ func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, a
 			continue
 		}
 
-		for _, region := range aws.GetKnownRegions() {
+		for _, region := range awsRegions {
 			if err := limit.Wait(ctx); err != nil {
 				return trace.Wrap(err)
 			}
@@ -176,7 +180,7 @@ func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, a
 				types.IntegrationLabel: ig.GetName(),
 			}
 
-			err = awsoidc.UpdateDeployServiceAgents(ctx, deployServiceClient, teleportVersion, ownershipTags)
+			err = awsoidc.UpdateDeployServiceAgents(ctx, deployServiceClient, clusterNameConfig.GetClusterName(), teleportVersion, ownershipTags)
 			invalidTokenError := new(ststypes.InvalidIdentityTokenException)
 			if errors.As(err, &invalidTokenError) {
 				process.log.Debugf("Invalid identity token for region %v: %v", region, err)
@@ -189,6 +193,28 @@ func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, a
 		}
 	}
 	return nil
+}
+
+// listAWSDatabaseRegions returns the list of AWS regions containing a connected database.
+func (process *TeleportProcess) listAWSDatabaseRegions() ([]string, error) {
+	databases, err := process.GetAuthServer().GetDatabases(process.GracefulExitContext())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	regions := make(map[string]interface{})
+	for _, database := range databases {
+		if database.IsAWSHosted() && database.IsRDS() {
+			regions[database.GetAWS().Region] = nil
+		}
+	}
+
+	var result []string
+	for region := range regions {
+		result = append(result, region)
+	}
+
+	return result, nil
 }
 
 // shouldUpdateDeployAgents returns true if deploy agents should be updated.
