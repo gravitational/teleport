@@ -1,4 +1,4 @@
-.version: &version "15.0.0-dev.gzdunek.1"
+.version: &version "15.0.0-dev.gzdunek.2"
 
 name: teleport-operator
 apiVersion: v2
