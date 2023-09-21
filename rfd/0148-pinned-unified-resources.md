@@ -115,7 +115,6 @@ has passed.
 
 ### Security Concerns
 Pinned resources go through the same RBAC as unified resources so no additional security concerns matter in the listing. 
-The only thing to consider is that leaf cluster resource IDs will exist in user preferences stored in the root cluster.
 
 ### Backward compatibility
 If the user tries to access a cluster that doesn't have access to pinned resources, we can hide the feature and show 
