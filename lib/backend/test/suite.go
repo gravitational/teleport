@@ -421,14 +421,14 @@ func testCompareAndSwap(t *testing.T, newBackend Constructor) {
 		errs := make(chan error, 2)
 		go func(value byte) {
 			defer wg.Done()
-			_, err := uut.CompareAndSwap(ctx, backend.Item{Key: key, Value: out.Value}, backend.Item{Key: key, Value: []byte{value}})
+			_, err := uut.CompareAndSwap(ctx, backend.Item{Key: key, Value: out.Value, Revision: out.Revision}, backend.Item{Key: key, Value: []byte{value}})
 			errs <- err
 		}(byte(i + 10))
 
 		wg.Add(1)
 		go func(value byte) {
 			defer wg.Done()
-			_, err := uut.CompareAndSwap(ctx, backend.Item{Key: key, Value: out.Value}, backend.Item{Key: key, Value: []byte{value}})
+			_, err := uut.CompareAndSwap(ctx, backend.Item{Key: key, Value: out.Value, Revision: out.Revision}, backend.Item{Key: key, Value: []byte{value}})
 			errs <- err
 		}(byte(i + 100))
 
@@ -437,6 +437,7 @@ func testCompareAndSwap(t *testing.T, newBackend Constructor) {
 		for i := 0; i < 2; i++ {
 			err := <-errs
 			if err != nil {
+				t.Log(err.Error())
 				failed++
 			}
 		}
@@ -1148,17 +1149,19 @@ func testConditionalUpdate(t *testing.T, newBackend Constructor) {
 
 	item := backend.Item{Key: prefix("/hello"), Value: []byte("world")}
 
-	// Updating a non-existent item should fail.
-	_, err = cbk.ConditionalUpdate(ctx, item)
-	require.True(t, trace.IsCompareFailed(err))
-
 	// Create the item.
 	lease, err := uut.Create(ctx, item)
 	require.NoError(t, err)
 	require.NotEmpty(t, lease.Revision)
 
+	// Updating a non-existent item should fail.
+	nonexistent := backend.Item{Key: prefix("hi"), Value: []byte("world"), Revision: lease.Revision}
+	_, err = cbk.ConditionalUpdate(ctx, nonexistent)
+	require.True(t, trace.IsCompareFailed(err))
+
 	previousRevision := lease.Revision
 
+	item.Value = []byte("globe")
 	lease, err = uut.Put(ctx, item)
 	require.NoError(t, err)
 	require.NotEmpty(t, lease.Revision)
