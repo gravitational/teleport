@@ -36,7 +36,11 @@ type TimeDuration = {
 // now: 2021-09-01T00:00:00.000Z
 //
 // returns: [1h, 1d, 2d, 3d]
-export function middleValues(created: Date, start: Date, end: Date): TimeDuration[] {
+export function middleValues(
+  created: Date,
+  start: Date,
+  end: Date
+): TimeDuration[] {
   const getInterval = (d: Date) =>
     intervalToDuration({
       start: created,
