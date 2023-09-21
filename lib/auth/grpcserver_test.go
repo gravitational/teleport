@@ -100,7 +100,7 @@ func TestMFADeviceManagement(t *testing.T) {
 	// Add one device of each kind
 	devs := addOneOfEachMFADevice(t, cl, clock, webOrigin)
 
-	// Run AddMFADevice tests, including adding additional devices and failures.
+	// Run scenarios beyond adding one of each device, both happy and failures.
 	webKey2, err := mocku2f.Create()
 	require.NoError(t, err)
 	webKey2.PreferRPID = true
@@ -515,6 +515,7 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 						Response: &proto.MFARegisterResponse_TOTP{
 							TOTP: &proto.TOTPRegisterResponse{
 								Code: code,
+								ID:   challenge.GetTOTP().ID,
 							},
 						},
 					}
@@ -557,11 +558,9 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 			},
 		},
 	}
-
 	for _, dev := range devs {
 		testAddMFADevice(ctx, t, cl, dev.opts)
 	}
-
 	return mfaDevs
 }
 
@@ -574,37 +573,38 @@ type mfaAddTestOpts struct {
 	assertRegisteredDev func(*testing.T, *types.MFADevice)
 }
 
-func testAddMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfaAddTestOpts) {
-	addStream, err := cl.AddMFADevice(ctx)
-	require.NoError(t, err)
-	err = addStream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_Init{Init: opts.initReq}})
-	require.NoError(t, err)
+func testAddMFADevice(ctx context.Context, t *testing.T, authClient *Client, opts mfaAddTestOpts) {
+	authChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
+		},
+	})
+	require.NoError(t, err, "CreateAuthenticateChallenge")
+	authnSolved := opts.authHandler(t, authChal)
 
-	authChallenge, err := addStream.Recv()
-	require.NoError(t, err)
-	authResp := opts.authHandler(t, authChallenge.GetExistingMFAChallenge())
-	err = addStream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_ExistingMFAResponse{ExistingMFAResponse: authResp}})
-	require.NoError(t, err)
-
-	registerChallenge, err := addStream.Recv()
+	registerChal, err := authClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		ExistingMFAResponse: authnSolved,
+		DeviceType:          opts.initReq.DeviceType,
+		DeviceUsage:         opts.initReq.DeviceUsage,
+	})
 	opts.checkAuthErr(t, err)
 	if err != nil {
 		return
 	}
-	registerResp := opts.registerHandler(t, registerChallenge.GetNewMFARegisterChallenge())
-	err = addStream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_NewMFARegisterResponse{NewMFARegisterResponse: registerResp}})
-	require.NoError(t, err)
+	registerSolved := opts.registerHandler(t, registerChal)
 
-	registerAck, err := addStream.Recv()
+	addResp, err := authClient.AddMFADeviceSync(ctx, &proto.AddMFADeviceSyncRequest{
+		NewDeviceName:  opts.initReq.DeviceName,
+		NewMFAResponse: registerSolved,
+		DeviceUsage:    opts.initReq.DeviceUsage,
+	})
 	opts.checkRegisterErr(t, err)
-	if err != nil {
+	switch {
+	case err != nil:
 		return
+	case opts.assertRegisteredDev != nil:
+		opts.assertRegisteredDev(t, addResp.Device)
 	}
-	if opts.assertRegisteredDev != nil {
-		opts.assertRegisteredDev(t, registerAck.GetAck().GetDevice())
-	}
-
-	require.NoError(t, addStream.CloseSend())
 }
 
 type mfaDeleteTestOpts struct {
