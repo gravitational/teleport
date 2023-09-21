@@ -90,6 +90,9 @@ After this, any existing filters in the request will be applied the same (includ
 If we assume an average resource ID is something like `db-name-1aaa8584-0e54-4c89-bec9-34f957512078`, then we can
 store well above 10,000 pinned resources per user. This is a very unlikely scenario as any amount of pinned resources over 20, lets just say for conversation sake, defeats the purpose of pinning a resource in the first place. We don't expect anyone to pin more than a "page" worth. We can still limit the resources in the backend to a total (for all clusters) of something like 500. This would give someone 100 pins over 5 clusters, or 25 pins over 20 clusters. These are knobs we can easily turn if necessary but it seems unlikely to "deliberately" go over this cap.
 
+### "What happens if a resource I have pinned becomes unavailable?"
+Similarly to the normal resource view, if a resource becomes unavailable (due to RBAC or being removed) it just won't be visible in the pinned view either. 
+
 ### Manual Cleanup
 As of now, there would be no way to manually clean up a pinned resource that isn't available because the UI would never show the tile. We could perhaps decide to show a list of tiles that aren't available but without knowing the "why" (is it gone? connectivity? rbac?) it may be more confusing to see a tile unavailable with no other info, other than the ID, than it would to just have it not shown. An example of that would be like so
 
@@ -109,10 +112,6 @@ pinning a specific resource after assuming a role, and only caring about that re
 has passed. 
 3. Resource changes it's name. Idk how frequent this happens.
 4. ...?
-
-### "What happens if a resource I have pinned becomes unavailable?"
-Similarly to the normal resource view, if a resource becomes unavailable (due to RBAC or being removed) it just won't be visible in the pinned view either. 
-
 
 ### Security Concerns
 Pinned resources go through the same RBAC as unified resources so no additional security concerns matter in the listing. 
