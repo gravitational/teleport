@@ -390,7 +390,7 @@ export default class MainProcess {
   private _setAppMenu() {
     const isMac = this.settings.platform === 'darwin';
     const commonHelpTemplate: MenuItemConstructorOptions[] = [
-      { label: 'Learn More', click: openDocsUrl },
+      { label: 'Open Documentation', click: openDocsUrl },
       {
         label: 'Open Logs Directory',
         click: () => openLogsDirectory(this.settings),
