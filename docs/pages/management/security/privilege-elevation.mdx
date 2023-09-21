@@ -33,14 +33,14 @@ To prevent changes to labels from granting elevated privileges, you should:
 
 You should be highly selective in allowing any user to have root privileges or access to other 
 accounts with administrative privileges. 
-Privileged users could manipulate the Teleport agents in ways that affect your authorization controls.
+Privileged users could manipulate Teleport agents in ways that affect your authorization controls.
 For example, a privileged user with access to the Teleport configuration file might modify settings 
 to bypass role-based access controls. Similarly, a user with elevated access to the Teleport Auth Service, 
 Teleport Proxy Service, or Teleport agent services might replace the Teleport executable to infiltrate or 
 exfiltrate cluster systems, manipulate the discovery of dynamic resources, compromise sensitive credentials 
 and sessions, or obscure auditing.
 
-To prevent elevated privilages from resulting in security incidents, you should adhere to the 
+To prevent elevated privileges from resulting in security incidents, you should adhere to the 
 following guidelines:
 
 - Create new, non-root, users and use test instances for experimenting with Teleport.
