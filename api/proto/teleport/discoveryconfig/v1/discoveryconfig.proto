@@ -23,9 +23,7 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 
 // DiscoveryConfig is a resource that has Discovery Resource Matchers and a Discovery Group.
 //
-// Each Discovery Config has a set of matchers and a DiscoveryGroup.
-// DiscoveryServices also have a DiscoveryGroup which will be used to load all the matchers from
-// all the DiscoveryConfigs that have the same Group.
+// Teleport Discovery Services will load the dynamic DiscoveryConfigs whose Discovery Group matches the discovery_group defined in their configuration.
 message DiscoveryConfig {
   // Header is the resource header.
   teleport.header.v1.ResourceHeader header = 1;
