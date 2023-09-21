@@ -1950,7 +1950,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Listener:            listener,
 		ID:                  teleport.Component(process.id),
 		CertAuthorityGetter: muxCAGetter,
-		LocalClusterName:    clusterName,
+		LocalClusterName:    connector.ServerIdentity.ClusterName,
 	})
 	if err != nil {
 		listener.Close()
