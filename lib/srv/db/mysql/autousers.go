@@ -118,10 +118,16 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	if err != nil {
 		e.Log.Debugf("Call teleport_activate_user failed: %v", err)
 
-		if strings.Contains(err.Error(), "Operation CREATE USER failed") {
+		switch {
+		case strings.Contains(err.Error(), "Operation CREATE USER failed"):
 			return trace.AlreadyExists("user %q already exists in this MySQL database and is not managed by Teleport", sessionCtx.DatabaseUser)
+
+		case strings.Contains(err.Error(), "Teleport username does not match user attributes"):
+			return trace.AlreadyExists("user %q already exists in this MySQL database and is used for a different Teleport user.", sessionCtx.DatabaseUser)
+
+		default:
+			return trace.Wrap(err)
 		}
-		return trace.Wrap(err)
 	}
 	return nil
 }

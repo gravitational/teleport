@@ -2,14 +2,21 @@ CREATE PROCEDURE teleport_activate_user(IN username VARCHAR(32), IN details JSON
 proc_label:BEGIN
     DECLARE is_auto_user INT DEFAULT 0;
     DECLARE is_active INT DEFAULT 0;
+    DECLARE is_same_user INT DEFAULT 0; 
     DECLARE role_index INT DEFAULT 0;
     DECLARE role VARCHAR(32) DEFAULT '';
     SET @roles = details->"$.roles";
+    SET @teleport_user = details->>"$.attributes.user";
 
     -- If the user already exists and was provisioned by Teleport, reactivate
     -- it, otherwise provision a new one.
     SELECT COUNT(TO_USER) INTO is_auto_user FROM mysql.role_edges WHERE FROM_USER = 'teleport-auto-user' AND TO_USER = username;
     IF is_auto_user = 1 THEN
+        SELECT COUNT(USER) INTO is_same_user FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE USER = username AND ATTRIBUTE->"$.user" = @teleport_user;
+        IF is_same_user = 0 THEN
+            SIGNAL SQLSTATE '50001' SET MESSAGE_TEXT = 'Teleport username does not match user attributes';
+        END IF;
+
         SELECT COUNT(USER) INTO is_active FROM information_schema.processlist WHERE USER = username;
 
         -- If the user has active connections, just use it to avoid messing up
