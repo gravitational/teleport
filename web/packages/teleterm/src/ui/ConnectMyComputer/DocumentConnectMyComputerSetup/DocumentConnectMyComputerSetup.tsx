@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import styled from 'styled-components';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
@@ -36,6 +37,7 @@ import { isAccessDeniedError } from 'teleterm/services/tshd/errors';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
+import { CompatibilityError } from '../CompatibilityPromise';
 
 const logger = new Logger('DocumentConnectMyComputerSetup');
 
@@ -62,9 +64,16 @@ export function DocumentConnectMyComputerSetup() {
 function Information(props: { onSetUpAgentClick(): void }) {
   const { systemUsername, hostname, roleName, clusterName } =
     useAgentProperties();
+  const { isAgentCompatible } = useConnectMyComputerContext();
 
   return (
     <>
+      {!isAgentCompatible && (
+        <>
+          <CompatibilityError />
+          <Separator mt={3} mb={2} />
+        </>
+      )}
       <Text>
         The setup process will download and launch the Teleport agent, making
         your computer available in the <strong>{clusterName}</strong> cluster as{' '}
@@ -86,6 +95,7 @@ function Information(props: { onSetUpAgentClick(): void }) {
         css={`
           display: block;
         `}
+        disabled={!isAgentCompatible}
         onClick={props.onSetUpAgentClick}
       >
         Connect
@@ -395,3 +405,8 @@ function StandardError(props: {
     </Alerts.Danger>
   );
 }
+
+const Separator = styled(Box)`
+  background: ${props => props.theme.colors.spotBackground[2]};
+  height: 1px;
+`;

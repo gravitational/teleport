@@ -43,6 +43,8 @@ import { assertUnreachable, retryWithRelogin } from '../utils';
 
 import { hasConnectMyComputerPermissions } from './permissions';
 
+import { isAgentCompatible as checkIfAgentIsComptabile } from './CompatibilityPromise';
+
 import type {
   AgentProcessState,
   MainProcessClient,
@@ -86,6 +88,7 @@ export interface ConnectMyComputerContext {
   isAgentConfiguredAttempt: Attempt<boolean>;
   markAgentAsConfigured(): void;
   markAgentAsNotConfigured(): void;
+  isAgentCompatible: boolean;
 }
 
 const ConnectMyComputerContext = createContext<ConnectMyComputerContext>(null);
@@ -132,6 +135,14 @@ export const ConnectMyComputerContextProvider: FC<{
     // https://github.com/gravitational/teleport/blob/master/rfd/0133-connect-my-computer.md#access-to-ui-and-autostart
     return isFeatureFlagEnabled && (hasPermissions || isAgentConfigured);
   }, [configService, isAgentConfigured, mainProcessClient, rootCluster]);
+  const isAgentCompatible = useMemo(
+    () =>
+      checkIfAgentIsComptabile(
+        rootCluster.proxyVersion,
+        mainProcessClient.getRuntimeSettings()
+      ),
+    [mainProcessClient, rootCluster]
+  );
 
   const [currentActionKind, setCurrentActionKind] =
     useState<CurrentAction['kind']>('observe-process');
@@ -346,6 +357,7 @@ export const ConnectMyComputerContextProvider: FC<{
     const shouldAutoStartAgent =
       isAgentConfigured &&
       canUse &&
+      isAgentCompatible &&
       workspacesService.getConnectMyComputerAutoStart(rootClusterUri) &&
       agentIsNotStarted;
     if (shouldAutoStartAgent) {
@@ -358,6 +370,7 @@ export const ConnectMyComputerContextProvider: FC<{
     isAgentConfigured,
     rootClusterUri,
     workspacesService,
+    isAgentCompatible,
   ]);
 
   return (
@@ -377,6 +390,7 @@ export const ConnectMyComputerContextProvider: FC<{
         markAgentAsNotConfigured,
         isAgentConfiguredAttempt,
         removeAgent,
+        isAgentCompatible,
       }}
       children={children}
     />
