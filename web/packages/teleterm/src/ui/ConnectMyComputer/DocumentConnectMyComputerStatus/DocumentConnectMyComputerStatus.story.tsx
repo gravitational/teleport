@@ -25,6 +25,7 @@ import AppContext from 'teleterm/ui/appContext';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
+import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 
 import { ConnectMyComputerContextProvider } from '../connectMyComputerContext';
 
@@ -94,13 +95,69 @@ export function FailedToReadAgentConfigFile() {
   );
 }
 
-const cluster = makeRootCluster();
+export function AgentVersionTooNew() {
+  const appContext = new MockAppContext({ appVersion: '17.0.0' });
+
+  return (
+    <ShowState
+      agentProcessState={{ status: 'not-started' }}
+      appContext={appContext}
+      proxyVersion={'16.3.0'}
+    />
+  );
+}
+
+// Shows only cluster upgrade instructions.
+// Downgrading the app would result in installing a version that doesn't support 'Connect My Computer'.
+// DELETE IN 17.0.0 (gzdunek): by the time 17.0 releases, 14.x will no longer be
+// supported, so downgrade will be always possible.
+export function AgentVersionTooNewButOnlyClusterCanBeUpgraded() {
+  const appContext = new MockAppContext({ appVersion: '14.1.0' });
+
+  return (
+    <ShowState
+      agentProcessState={{ status: 'not-started' }}
+      appContext={appContext}
+      proxyVersion={'13.3.0'}
+    />
+  );
+}
+
+export function AgentVersionTooOld() {
+  const appContext = new MockAppContext({ appVersion: '14.1.0' });
+
+  return (
+    <ShowState
+      agentProcessState={{ status: 'not-started' }}
+      appContext={appContext}
+      proxyVersion={'16.3.0'}
+    />
+  );
+}
+
+export function UpgradeAgentSuggestion() {
+  const appContext = new MockAppContext({ appVersion: '15.2.0' });
+
+  return (
+    <ShowState
+      agentProcessState={{ status: 'not-started' }}
+      appContext={appContext}
+      proxyVersion={'16.3.0'}
+    />
+  );
+}
 
 function ShowState(props: {
   agentProcessState: AgentProcessState;
   appContext?: AppContext;
+  proxyVersion?: string;
 }) {
-  const appContext = props.appContext || new MockAppContext();
+  const cluster = makeRootCluster({
+    proxyVersion: props.proxyVersion || makeRuntimeSettings().appVersion,
+  });
+  const appContext =
+    props.appContext ||
+    new MockAppContext({ appVersion: cluster.proxyVersion });
 
   appContext.mainProcessClient.getAgentState = () => props.agentProcessState;
   appContext.mainProcessClient.subscribeToAgentUpdate = (
