@@ -133,6 +133,13 @@ service TerminalService {
   rpc CreateConnectMyComputerNodeToken(CreateConnectMyComputerNodeTokenRequest) returns (CreateConnectMyComputerNodeTokenResponse);
   // DeleteConnectMyComputerToken deletes a join token
   rpc DeleteConnectMyComputerToken(DeleteConnectMyComputerTokenRequest) returns (DeleteConnectMyComputerTokenResponse);
+  // WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
+  // that the Connect My Computer node for the particular cluster has joined the cluster (the
+  // OpPut event).
+  //
+  // This RPC times out by itself after a minute to prevent the request from hanging forever, in
+  // case the client didn't set a deadline or doesn't abort the request.
+  rpc WaitForConnectMyComputerNodeJoin(WaitForConnectMyComputerNodeJoinRequest) returns (WaitForConnectMyComputerNodeJoinResponse);
 }
 
 message EmptyResponse {}
@@ -471,5 +478,11 @@ message DeleteConnectMyComputerTokenRequest {
   string root_cluster_uri = 1;
   string token = 2;
 }
-
 message DeleteConnectMyComputerTokenResponse {}
+
+message WaitForConnectMyComputerNodeJoinRequest {
+  string root_cluster_uri = 1;
+}
+message WaitForConnectMyComputerNodeJoinResponse {
+  Server server = 1;
+}

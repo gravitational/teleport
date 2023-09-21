@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ChannelCredentials, ClientDuplexStream } from '@grpc/grpc-js';
+import grpc from '@grpc/grpc-js';
 import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
 import { TerminalServiceClient } from 'gen-proto-js/teleport/lib/teleterm/v1/service_grpc_pb';
 import {
@@ -37,7 +37,7 @@ import {
 
 export default function createClient(
   addr: string,
-  credentials: ChannelCredentials
+  credentials: grpc.ChannelCredentials
 ) {
   const logger = new Logger('tshd');
   const tshd = middleware(new TerminalServiceClient(addr, credentials), [
@@ -437,7 +437,7 @@ export default function createClient(
 
         return new Promise<void>((resolve, reject) => {
           callRef.current = tshd.loginPasswordless();
-          const stream = callRef.current as ClientDuplexStream<
+          const stream = callRef.current as grpc.ClientDuplexStream<
             api.LoginPasswordlessRequest,
             api.LoginPasswordlessResponse
           >;
@@ -705,6 +705,37 @@ export default function createClient(
           }
         );
       });
+    },
+
+    waitForConnectMyComputerNodeJoin(
+      uri: uri.RootClusterUri,
+      abortSignal: types.TshAbortSignal
+    ) {
+      const req =
+        new api.WaitForConnectMyComputerNodeJoinRequest().setRootClusterUri(
+          uri
+        );
+
+      return withAbort(
+        abortSignal,
+        callRef =>
+          new Promise<types.WaitForConnectMyComputerNodeJoinResponse>(
+            (resolve, reject) => {
+              callRef.current = tshd.waitForConnectMyComputerNodeJoin(
+                req,
+                (err, response) => {
+                  if (err) {
+                    reject(err);
+                  } else {
+                    resolve(
+                      response.toObject() as types.WaitForConnectMyComputerNodeJoinResponse
+                    );
+                  }
+                }
+              );
+            }
+          )
+      );
     },
 
     async updateHeadlessAuthenticationState(
