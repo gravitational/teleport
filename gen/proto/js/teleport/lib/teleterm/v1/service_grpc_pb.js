@@ -622,6 +622,28 @@ function deserialize_teleport_lib_teleterm_v1_UpdateTshdEventsServerAddressRespo
   return teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 
 // TerminalService is used by the Electron app to communicate with the tsh daemon.
 //
@@ -1042,6 +1064,23 @@ deleteConnectMyComputerToken: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenResponse,
+  },
+  // WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
+// that the Connect My Computer node for the particular cluster has joined the cluster (the
+// OpPut event).
+//
+// This RPC times out by itself after a minute to prevent the request from hanging forever, in
+// case the client didn't set a deadline or doesn't abort the request.
+waitForConnectMyComputerNodeJoin: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/WaitForConnectMyComputerNodeJoin',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinResponse,
   },
 };
 

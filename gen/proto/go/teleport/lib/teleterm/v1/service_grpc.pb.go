@@ -65,6 +65,7 @@ const (
 	TerminalService_CreateConnectMyComputerRole_FullMethodName       = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerRole"
 	TerminalService_CreateConnectMyComputerNodeToken_FullMethodName  = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerNodeToken"
 	TerminalService_DeleteConnectMyComputerToken_FullMethodName      = "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerToken"
+	TerminalService_WaitForConnectMyComputerNodeJoin_FullMethodName  = "/teleport.lib.teleterm.v1.TerminalService/WaitForConnectMyComputerNodeJoin"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -164,6 +165,13 @@ type TerminalServiceClient interface {
 	CreateConnectMyComputerNodeToken(ctx context.Context, in *CreateConnectMyComputerNodeTokenRequest, opts ...grpc.CallOption) (*CreateConnectMyComputerNodeTokenResponse, error)
 	// DeleteConnectMyComputerToken deletes a join token
 	DeleteConnectMyComputerToken(ctx context.Context, in *DeleteConnectMyComputerTokenRequest, opts ...grpc.CallOption) (*DeleteConnectMyComputerTokenResponse, error)
+	// WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
+	// that the Connect My Computer node for the particular cluster has joined the cluster (the
+	// OpPut event).
+	//
+	// This RPC times out by itself after a minute to prevent the request from hanging forever, in
+	// case the client didn't set a deadline or doesn't abort the request.
+	WaitForConnectMyComputerNodeJoin(ctx context.Context, in *WaitForConnectMyComputerNodeJoinRequest, opts ...grpc.CallOption) (*WaitForConnectMyComputerNodeJoinResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -507,6 +515,15 @@ func (c *terminalServiceClient) DeleteConnectMyComputerToken(ctx context.Context
 	return out, nil
 }
 
+func (c *terminalServiceClient) WaitForConnectMyComputerNodeJoin(ctx context.Context, in *WaitForConnectMyComputerNodeJoinRequest, opts ...grpc.CallOption) (*WaitForConnectMyComputerNodeJoinResponse, error) {
+	out := new(WaitForConnectMyComputerNodeJoinResponse)
+	err := c.cc.Invoke(ctx, TerminalService_WaitForConnectMyComputerNodeJoin_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility
@@ -604,6 +621,13 @@ type TerminalServiceServer interface {
 	CreateConnectMyComputerNodeToken(context.Context, *CreateConnectMyComputerNodeTokenRequest) (*CreateConnectMyComputerNodeTokenResponse, error)
 	// DeleteConnectMyComputerToken deletes a join token
 	DeleteConnectMyComputerToken(context.Context, *DeleteConnectMyComputerTokenRequest) (*DeleteConnectMyComputerTokenResponse, error)
+	// WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
+	// that the Connect My Computer node for the particular cluster has joined the cluster (the
+	// OpPut event).
+	//
+	// This RPC times out by itself after a minute to prevent the request from hanging forever, in
+	// case the client didn't set a deadline or doesn't abort the request.
+	WaitForConnectMyComputerNodeJoin(context.Context, *WaitForConnectMyComputerNodeJoinRequest) (*WaitForConnectMyComputerNodeJoinResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -706,6 +730,9 @@ func (UnimplementedTerminalServiceServer) CreateConnectMyComputerNodeToken(conte
 }
 func (UnimplementedTerminalServiceServer) DeleteConnectMyComputerToken(context.Context, *DeleteConnectMyComputerTokenRequest) (*DeleteConnectMyComputerTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteConnectMyComputerToken not implemented")
+}
+func (UnimplementedTerminalServiceServer) WaitForConnectMyComputerNodeJoin(context.Context, *WaitForConnectMyComputerNodeJoinRequest) (*WaitForConnectMyComputerNodeJoinResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WaitForConnectMyComputerNodeJoin not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 
@@ -1307,6 +1334,24 @@ func _TerminalService_DeleteConnectMyComputerToken_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_WaitForConnectMyComputerNodeJoin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WaitForConnectMyComputerNodeJoinRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).WaitForConnectMyComputerNodeJoin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_WaitForConnectMyComputerNodeJoin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).WaitForConnectMyComputerNodeJoin(ctx, req.(*WaitForConnectMyComputerNodeJoinRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1433,6 +1478,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteConnectMyComputerToken",
 			Handler:    _TerminalService_DeleteConnectMyComputerToken_Handler,
+		},
+		{
+			MethodName: "WaitForConnectMyComputerNodeJoin",
+			Handler:    _TerminalService_WaitForConnectMyComputerNodeJoin_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
