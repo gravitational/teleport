@@ -76,9 +76,7 @@ function Information(props: { onSetUpAgentClick(): void }) {
         </>
       )}
       <Text>
-        The setup process will download and launch the Teleport agent, making
-        your computer available in the <strong>{clusterName}</strong> cluster as{' '}
-        <strong>{hostname}</strong>.
+        <ClusterAndHostnameCopy clusterName={clusterName} hostname={hostname} />
         <br />
         <br />
         Cluster users with the role <strong>{roleName}</strong> will be able to
@@ -331,9 +329,13 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
   ]);
 
   const hasSetupFailed = steps.some(s => s.attempt.status === 'error');
+  const { clusterName, hostname } = useAgentProperties();
 
   return (
     <>
+      <Text mb={3}>
+        <ClusterAndHostnameCopy clusterName={clusterName} hostname={hostname} />
+      </Text>
       <ProgressBar
         phases={steps.map(step => ({
           status: step.attempt.status,
@@ -374,6 +376,19 @@ function StandardError(props: {
     >
       {props.error}
     </Alerts.Danger>
+  );
+}
+
+function ClusterAndHostnameCopy(props: {
+  clusterName: string;
+  hostname: string;
+}): JSX.Element {
+  return (
+    <>
+      The setup process will download and launch the Teleport agent, making your
+      computer available in the <strong>{props.clusterName}</strong> cluster as{' '}
+      <strong>{props.hostname}</strong>.
+    </>
   );
 }
 
