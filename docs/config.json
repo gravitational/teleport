@@ -1233,16 +1233,6 @@
       ]
     },
     {
-      "icon": "wand",
-      "title": "Preview",
-      "entries": [
-        {
-          "title": "Upcoming Releases",
-          "slug": "/preview/upcoming-releases/"
-        }
-      ]
-    },
-    {
       "icon": "book",
       "title": "Reference",
       "entries": [
