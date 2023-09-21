@@ -5419,8 +5419,8 @@ func (a *ServerWithRoles) AddMFADeviceSync(ctx context.Context, req *proto.AddMF
 	switch {
 	case req.TokenID != "":
 	default: // ContextUser
-		if a.hasBuiltinRole(types.RoleProxy) {
-			return nil, trace.BadParameter("proxy role clients are not allowed to register devices using ContextUser")
+		if !authz.IsLocalOrRemoteUser(a.context) {
+			return nil, trace.BadParameter("only end users are allowed to register devices using ContextUser")
 		}
 	}
 
