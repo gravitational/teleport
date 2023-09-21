@@ -2528,7 +2528,6 @@ func TestAddMFADeviceSync(t *testing.T) {
 			},
 		},
 	}
-
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			res, err := clt.AddMFADeviceSync(ctx, tc.getReq(tc.deviceName))
@@ -2561,6 +2560,42 @@ func TestAddMFADeviceSync(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("add using context user", func(t *testing.T) {
+		authClient, err := srv.NewClient(TestUser(u.username))
+		require.NoError(t, err, "NewClient(%q)", u.username)
+
+		// Create and solve a registration challenge.
+		authChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+				ContextUser: &proto.ContextUser{},
+			},
+		})
+		require.NoError(t, err, "CreateAuthenticateChallenge")
+
+		authSolved, err := u.webDev.SolveAuthn(authChal)
+		require.NoError(t, err, "SolveAuthn")
+
+		registerChal, err := authClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			ExistingMFAResponse: authSolved,
+			DeviceType:          proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			DeviceUsage:         proto.DeviceUsage_DEVICE_USAGE_MFA,
+		})
+		require.NoError(t, err, "CreateRegisterChallenge")
+
+		_, registerSolved, err := NewTestDeviceFromChallenge(registerChal)
+		require.NoError(t, err, "NewTestDeviceFromChallenge")
+
+		// Register device using ContextUser.
+		addResp, err := authClient.AddMFADeviceSync(ctx, &proto.AddMFADeviceSyncRequest{
+			ContextUser:    &proto.ContextUser{},
+			NewDeviceName:  "context-user-dev",
+			NewMFAResponse: registerSolved,
+			DeviceUsage:    proto.DeviceUsage_DEVICE_USAGE_MFA,
+		})
+		require.NoError(t, err, "AddMFADeviceSync")
+		assert.NotNil(t, addResp.Device, "AddMFADeviceSync returned a nil device")
+	})
 }
 
 func TestGetMFADevices_WithToken(t *testing.T) {
