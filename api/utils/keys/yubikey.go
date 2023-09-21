@@ -51,10 +51,10 @@ const (
 
 var (
 	// We use slot 9a for Teleport Clients which require `private_key_policy: hardware_key`.
-	pivSlotNoTouch = piv.SlotAuthentication
+	PivSlotNoTouch = piv.SlotAuthentication
 	// We use slot 9c for Teleport Clients which require `private_key_policy: hardware_key_touch`.
 	// Private keys generated on this slot will use TouchPolicy=Cached.
-	pivSlotWithTouch = piv.SlotSignature
+	PivSlotWithTouch = piv.SlotSignature
 )
 
 // getOrGenerateYubiKeyPrivateKey connects to a connected yubiKey and gets a private key
@@ -65,16 +65,16 @@ func getOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
 	ctx := context.TODO()
 
 	// Use the first yubiKey we find.
-	y, err := findYubiKey(0)
+	y, err := FindYubiKey(0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Get the correct PIV slot and Touch policy for the given touch requirement.
-	pivSlot := pivSlotNoTouch
+	pivSlot := PivSlotNoTouch
 	touchPolicy := piv.TouchPolicyNever
 	if touchRequired {
-		pivSlot = pivSlotWithTouch
+		pivSlot = PivSlotWithTouch
 		touchPolicy = piv.TouchPolicyCached
 	}
 
@@ -98,6 +98,14 @@ func getOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
 		if priv, err = y.generatePrivateKey(pivSlot, touchPolicy); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// Store a self-signed certificate to mark this slot as in use by a Teleport Client.
+		if err := y.SetMetadataCertificate(pivSlot, pkix.Name{
+			Organization:       []string{certOrgName},
+			OrganizationalUnit: []string{api.Version},
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if err != nil {
@@ -116,7 +124,7 @@ func getOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
 // a new temporary connection to the PIV card to perform the operation.
 type YubiKeyPrivateKey struct {
 	// yubiKey is a specific yubiKey PIV module.
-	*yubiKey
+	*YubiKey
 	pivSlot piv.Slot
 	pub     crypto.PublicKey
 	signMux sync.Mutex
@@ -128,9 +136,9 @@ type yubiKeyPrivateKeyData struct {
 	SlotKey      uint32 `json:"slot_key"`
 }
 
-func newYubiKeyPrivateKey(y *yubiKey, slot piv.Slot, pub crypto.PublicKey) (*YubiKeyPrivateKey, error) {
+func newYubiKeyPrivateKey(y *YubiKey, slot piv.Slot, pub crypto.PublicKey) (*YubiKeyPrivateKey, error) {
 	return &YubiKeyPrivateKey{
-		yubiKey: y,
+		YubiKey: y,
 		pivSlot: slot,
 		pub:     pub,
 	}, nil
@@ -147,7 +155,7 @@ func parseYubiKeyPrivateKeyData(keyDataBytes []byte) (*YubiKeyPrivateKey, error)
 		return nil, trace.Wrap(err)
 	}
 
-	y, err := findYubiKey(keyData.SerialNumber)
+	y, err := FindYubiKey(keyData.SerialNumber)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -186,7 +194,7 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 		return nil, trace.Wrap(err)
 	}
 
-	if y.pivSlot == pivSlotWithTouch {
+	if y.pivSlot == PivSlotWithTouch {
 		touchPromptDelayTimer := time.NewTimer(signTouchPromptDelay)
 		defer touchPromptDelayTimer.Stop()
 
@@ -266,17 +274,17 @@ func (y *YubiKeyPrivateKey) GetAttestationStatement() (*AttestationStatement, er
 // GetPrivateKeyPolicy returns the PrivateKeyPolicy supported by this YubiKeyPrivateKey.
 func (y *YubiKeyPrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
 	switch y.pivSlot {
-	case pivSlotNoTouch:
+	case PivSlotNoTouch:
 		return PrivateKeyPolicyHardwareKey
-	case pivSlotWithTouch:
+	case PivSlotWithTouch:
 		return PrivateKeyPolicyHardwareKeyTouch
 	default:
 		return PrivateKeyPolicyNone
 	}
 }
 
-// yubiKey is a specific yubiKey PIV card.
-type yubiKey struct {
+// YubiKey is a specific YubiKey PIV card.
+type YubiKey struct {
 	// card is a reader name used to find and connect to this yubiKey.
 	// This value may change between OS's, or with other system changes.
 	card string
@@ -284,8 +292,8 @@ type yubiKey struct {
 	serialNumber uint32
 }
 
-func newYubiKey(card string) (*yubiKey, error) {
-	y := &yubiKey{card: card}
+func newYubiKey(card string) (*YubiKey, error) {
+	y := &YubiKey{card: card}
 
 	yk, err := y.open()
 	if err != nil {
@@ -301,8 +309,20 @@ func newYubiKey(card string) (*yubiKey, error) {
 	return y, nil
 }
 
+// Reset resets the YubiKey PIV module to default settings.
+func (y *YubiKey) Reset() error {
+	yk, err := y.open()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer yk.Close()
+
+	err = yk.Reset()
+	return trace.Wrap(err)
+}
+
 // generatePrivateKey generates a new private key from the given PIV slot with the given PIV policies.
-func (y *yubiKey) generatePrivateKey(slot piv.Slot, touchPolicy piv.TouchPolicy) (*YubiKeyPrivateKey, error) {
+func (y *YubiKey) generatePrivateKey(slot piv.Slot, touchPolicy piv.TouchPolicy) (*YubiKeyPrivateKey, error) {
 	yk, err := y.open()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -320,23 +340,31 @@ func (y *yubiKey) generatePrivateKey(slot piv.Slot, touchPolicy piv.TouchPolicy)
 		return nil, trace.Wrap(err)
 	}
 
-	// Generate a self signed cert to provide metadata about the private key in the slot.
-	// This is useful for users to discern where the key came from with tools like `ykman piv info`.
-	cert, err := selfSignedTeleportclientMetadataCertificate()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Store a self-signed certificate to mark this slot as used by tsh.
-	if err = yk.SetCertificate(piv.DefaultManagementKey, slot, cert); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return newYubiKeyPrivateKey(y, slot, pub)
 }
 
+// SetMetadataCertificate creates a self signed certificate and stores it in the YubiKey's
+// PIV certificate slot. This certificate is purely used as metadata to determine when a
+// slot is in used by a Teleport Client and is not fit to be used in cryptographic operations.
+// This cert is also useful for users to discern where the key came with tools like `ykman piv info`.
+func (y *YubiKey) SetMetadataCertificate(slot piv.Slot, subject pkix.Name) error {
+	yk, err := y.open()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer yk.Close()
+
+	cert, err := SelfSignedMetadataCertificate(subject)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = yk.SetCertificate(piv.DefaultManagementKey, slot, cert)
+	return trace.Wrap(err)
+}
+
 // getPrivateKey gets an existing private key from the given PIV slot.
-func (y *yubiKey) getPrivateKey(slot piv.Slot) (*YubiKeyPrivateKey, error) {
+func (y *YubiKey) getPrivateKey(slot piv.Slot) (*YubiKeyPrivateKey, error) {
 	yk, err := y.open()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -362,7 +390,7 @@ func (y *yubiKey) getPrivateKey(slot piv.Slot) (*YubiKeyPrivateKey, error) {
 // open a connection to YubiKey PIV module. The returned connection should be closed once
 // it's been used. The YubiKey PIV module itself takes some additional time to handle closed
 // connections, so we use a retry loop to give the PIV module time to close prior connections.
-func (y *yubiKey) open() (yk *piv.YubiKey, err error) {
+func (y *YubiKey) open() (yk *piv.YubiKey, err error) {
 	linearRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		// If a PIV connection has just been closed, it take ~5 ms to become
 		// available to new connections. For this reason, we initially wait a
@@ -410,9 +438,9 @@ func isRetryError(err error) bool {
 	return strings.Contains(err.Error(), retryError)
 }
 
-// findYubiKey finds a yubiKey PIV card by serial number. If no serial
+// FindYubiKey finds a yubiKey PIV card by serial number. If no serial
 // number is provided, the first yubiKey found will be returned.
-func findYubiKey(serialNumber uint32) (*yubiKey, error) {
+func FindYubiKey(serialNumber uint32) (*YubiKey, error) {
 	yubiKeyCards, err := findYubiKeyCards()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -478,17 +506,7 @@ func parsePIVSlot(slotKey uint32) (piv.Slot, error) {
 // certOrgName is used to identify Teleport Client self-signed certificates stored in yubiKey PIV slots.
 const certOrgName = "teleport"
 
-// selfSignedTeleportclientMetadataCertificate creates a self signed certificate to be stored in the
-// YubiKey's PIV slot. This certificate is purely used as metadata to determine when a
-// slot is in used by a Teleport Client and is not fit to be used in cryptographic operations.
-func selfSignedTeleportclientMetadataCertificate() (*x509.Certificate, error) {
-	return selfSignedMetadataCertificate(pkix.Name{
-		Organization:       []string{certOrgName},
-		OrganizationalUnit: []string{api.Version},
-	})
-}
-
-func selfSignedMetadataCertificate(subject pkix.Name) (*x509.Certificate, error) {
+func SelfSignedMetadataCertificate(subject pkix.Name) (*x509.Certificate, error) {
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, trace.Wrap(err)

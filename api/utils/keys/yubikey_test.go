@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package keys
+package keys_test
 
 import (
 	"context"
@@ -22,9 +22,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/go-piv/piv-go/piv"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
 )
 
@@ -40,7 +40,7 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 	resetYubikey(ctx, t)
 
 	// Generate a new YubiKeyPrivateKey.
-	priv, err := GetOrGenerateYubiKeyPrivateKey(false)
+	priv, err := keys.GetOrGenerateYubiKeyPrivateKey(false)
 	require.NoError(t, err)
 
 	// Test creating a self signed certificate with the key.
@@ -49,12 +49,12 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// Another call to GetOrGenerateYubiKeyPrivateKey should retrieve the previously generated key.
-	retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(false)
+	retrievePriv, err := keys.GetOrGenerateYubiKeyPrivateKey(false)
 	require.NoError(t, err)
 	require.Equal(t, priv, retrievePriv)
 
 	// parsing the key's private key PEM should produce the same key as well.
-	retrieveKey, err := ParsePrivateKey(priv.PrivateKeyPEM())
+	retrieveKey, err := keys.ParsePrivateKey(priv.PrivateKeyPEM())
 	require.NoError(t, err)
 	require.Equal(t, priv, retrieveKey)
 }
@@ -73,35 +73,26 @@ func TestOverwriteSlot(t *testing.T) {
 	t.Cleanup(func() { prompt.SetStdin(oldStdin) })
 
 	// Set a non-teleport certificate in the slot.
-	y, err := findYubiKey(0)
+	y, err := keys.FindYubiKey(0)
 	require.NoError(t, err)
-	yk, err := y.open()
+	err = y.SetMetadataCertificate(keys.PivSlotNoTouch, pkix.Name{Organization: []string{"not-teleport"}})
 	require.NoError(t, err)
-
-	cert, err := selfSignedMetadataCertificate(pkix.Name{Organization: []string{"not-teleport"}})
-	require.NoError(t, err)
-
-	require.NoError(t, yk.SetCertificate(piv.DefaultManagementKey, pivSlotNoTouch, cert))
-	require.NoError(t, yk.Close())
 
 	// Fail to overwrite slot when user denies
 	prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
-	_, err = GetOrGenerateYubiKeyPrivateKey(false)
+	_, err = keys.GetOrGenerateYubiKeyPrivateKey(false)
 	require.Error(t, err)
 
 	// Successfully overwrite slot when user accepts
 	prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
-	_, err = GetOrGenerateYubiKeyPrivateKey(false)
+	_, err = keys.GetOrGenerateYubiKeyPrivateKey(false)
 	require.NoError(t, err)
 }
 
 // resetYubikey connects to the first yubiKey and resets it to defaults.
 func resetYubikey(ctx context.Context, t *testing.T) {
 	t.Helper()
-	y, err := findYubiKey(0)
+	y, err := keys.FindYubiKey(0)
 	require.NoError(t, err)
-	yk, err := y.open()
-	require.NoError(t, err)
-	require.NoError(t, yk.Reset())
-	require.NoError(t, yk.Close())
+	require.NoError(t, y.Reset())
 }
