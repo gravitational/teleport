@@ -37,21 +37,34 @@ import Indicator from 'design/Indicator';
 import {
   AgentProcessError,
   CurrentAction,
+  NodeWaitJoinTimeout,
   useConnectMyComputerContext,
 } from 'teleterm/ui/ConnectMyComputer';
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
 import { connectToServer } from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
+import { CompatibilityError, useVersions } from '../CompatibilityPromise';
+import {
+  shouldShowAgentUpgradeSuggestion,
+  UpgradeAgentSuggestion,
+} from '../UpgradeAgentSuggestion';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 import type { IconProps } from 'design/Icon/Icon';
 
+interface DocumentConnectMyComputerStatusProps {
+  closeDocument?(): void;
+}
+
 // TODO(gzdunek): Rename to `Status`
-export function DocumentConnectMyComputerStatus() {
+export function DocumentConnectMyComputerStatus(
+  props: DocumentConnectMyComputerStatusProps
+) {
   const ctx = useAppContext();
   const {
     currentAction,
@@ -60,8 +73,12 @@ export function DocumentConnectMyComputerStatus() {
     killAgent,
     isAgentConfiguredAttempt,
     markAgentAsNotConfigured,
+    removeAgent,
+    isAgentCompatible,
   } = useConnectMyComputerContext();
+  const { rootClusterUri } = useWorkspaceContext();
   const { roleName, systemUsername, hostname } = useAgentProperties();
+  const { proxyVersion, appVersion, isLocalBuild } = useVersions();
 
   const prettyCurrentAction = prettifyCurrentAction(currentAction);
 
@@ -77,6 +94,25 @@ export function DocumentConnectMyComputerStatus() {
     );
   }
 
+  async function removeAgentAndClose(): Promise<void> {
+    const [, error] = await removeAgent();
+    if (error) {
+      return;
+    }
+    props.closeDocument();
+  }
+
+  async function openAgentLogs(): Promise<void> {
+    try {
+      await ctx.mainProcessClient.openAgentLogsDirectory({ rootClusterUri });
+    } catch (e) {
+      ctx.notificationsService.notifyError({
+        title: 'Failed to open agent logs directory',
+        description: `${e.message}\n\nNote: the logs directory is created only after the agent process successfully spawns.`,
+      });
+    }
+  }
+
   const isRunning =
     currentAction.kind === 'observe-process' &&
     currentAction.agentProcessState.status === 'running';
@@ -89,13 +125,29 @@ export function DocumentConnectMyComputerStatus() {
   const isStarting =
     currentAction.kind === 'start' &&
     currentAction.attempt.status === 'processing';
+  const isRemoving =
+    currentAction.kind === 'remove' &&
+    currentAction.attempt.status === 'processing';
+  const isRemoved =
+    currentAction.kind === 'remove' &&
+    currentAction.attempt.status === 'success';
 
   const showConnectAndStopAgentButtons = isRunning || isKilling;
   const disableConnectAndStopAgentButtons = isKilling;
-  const disableStartAgentButton = isDownloading || isStarting;
+  const disableStartAgentButton =
+    isDownloading || isStarting || isRemoving || isRemoved;
 
   return (
     <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
+      {shouldShowAgentUpgradeSuggestion(proxyVersion, {
+        appVersion,
+        isLocalBuild,
+      }) && (
+        <UpgradeAgentSuggestion
+          proxyVersion={proxyVersion}
+          appVersion={appVersion}
+        />
+      )}
       {isAgentConfiguredAttempt.status === 'error' && (
         <Alert
           css={`
@@ -145,9 +197,8 @@ export function DocumentConnectMyComputerStatus() {
             },
           }}
         >
-          <MenuItem onClick={() => alert('Not implemented')}>
-            Remove agent
-          </MenuItem>
+          <MenuItem onClick={openAgentLogs}>Open agent logs directory</MenuItem>
+          <MenuItem onClick={removeAgentAndClose}>Remove agent</MenuItem>
         </MenuIcon>
       </Flex>
 
@@ -188,29 +239,36 @@ export function DocumentConnectMyComputerStatus() {
         </Alert>
       )}
       {prettyCurrentAction.logs && <Logs logs={prettyCurrentAction.logs} />}
-      <Text mb={4} mt={1}>
-        Connecting your computer will allow any cluster user with the role{' '}
-        <strong>{roleName}</strong> to access it as an SSH resource with the
-        user <strong>{systemUsername}</strong>.
-      </Text>
-      {showConnectAndStopAgentButtons ? (
-        <ButtonPrimary
-          block
-          disabled={disableConnectAndStopAgentButtons}
-          onClick={startSshSession}
-          size="large"
-        >
-          Connect
-        </ButtonPrimary>
+
+      {!isAgentCompatible ? (
+        <CompatibilityError />
       ) : (
-        <ButtonPrimary
-          block
-          disabled={disableStartAgentButton}
-          onClick={downloadAndStartAgent}
-          size="large"
-        >
-          Start Agent
-        </ButtonPrimary>
+        <>
+          <Text mb={4} mt={1}>
+            Connecting your computer will allow any cluster user with the role{' '}
+            <strong>{roleName}</strong> to access it as an SSH resource with the
+            user <strong>{systemUsername}</strong>.
+          </Text>
+          {showConnectAndStopAgentButtons ? (
+            <ButtonPrimary
+              block
+              disabled={disableConnectAndStopAgentButtons}
+              onClick={startSshSession}
+              size="large"
+            >
+              Connect
+            </ButtonPrimary>
+          ) : (
+            <ButtonPrimary
+              block
+              disabled={disableStartAgentButton}
+              onClick={downloadAndStartAgent}
+              size="large"
+            >
+              Start Agent
+            </ButtonPrimary>
+          )}
+        </>
       )}
     </Box>
   );
@@ -272,6 +330,16 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
           };
         }
         case 'error': {
+          if (currentAction.attempt.error instanceof NodeWaitJoinTimeout) {
+            return {
+              Icon: StyledWarning,
+              title: 'Failed to start agent',
+              error:
+                'The agent did not join the cluster within the timeout window.',
+              logs: currentAction.attempt.error.logs,
+            };
+          }
+
           if (!(currentAction.attempt.error instanceof AgentProcessError)) {
             return {
               Icon: StyledWarning,
@@ -375,6 +443,34 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
         }
         case 'success': {
           return noop; // noop, not used, at this point it should be observe-process exited.
+        }
+        default: {
+          return assertUnreachable(currentAction.attempt);
+        }
+      }
+    }
+    case 'remove': {
+      switch (currentAction.attempt.status) {
+        case '':
+        case 'processing': {
+          return {
+            Icon: StyledIndicator,
+            title: 'Removing',
+          };
+        }
+        case 'error': {
+          return {
+            Icon: StyledWarning,
+            title: 'Failed to remove agent',
+            error: currentAction.attempt.statusText,
+          };
+        }
+        case 'success': {
+          return {
+            Icon: CircleCheck,
+            title: 'Agent removed',
+            error: currentAction.attempt.statusText,
+          };
         }
         default: {
           return assertUnreachable(currentAction.attempt);

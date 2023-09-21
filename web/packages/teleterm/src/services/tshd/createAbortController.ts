@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+// This file works both in the browser and Node.js.
+// In Node environment, it imports the built-in events module.
+// In browser environment, it imports the events package.
 import { EventEmitter } from 'events';
 
 import { TshAbortController } from './types';
@@ -25,8 +28,14 @@ export default function createAbortController(): TshAbortController {
   const emitter = new EventEmitter();
 
   const signal = {
+    aborted: false,
+    // TODO(ravicious): Consider aligning the interface of TshAbortSignal with the interface of
+    // browser's AbortSignal so that those two can be used interchangeably, for example in the wait
+    // function from the shared package.
+    //
+    // TshAbortSignal doesn't accept the event name as the first argument.
     addEventListener(cb: (...args: any[]) => void) {
-      emitter.addListener('abort', cb);
+      emitter.once('abort', cb);
     },
 
     removeEventListener(cb: (...args: any[]) => void) {
@@ -37,6 +46,13 @@ export default function createAbortController(): TshAbortController {
   return {
     signal,
     abort() {
+      // Once abort() has been called and the signal becomes aborted, it cannot be reused.
+      // https://dom.spec.whatwg.org/#abortsignal-signal-abort
+      if (signal.aborted) {
+        return;
+      }
+
+      signal.aborted = true;
       emitter.emit('abort');
     },
   };

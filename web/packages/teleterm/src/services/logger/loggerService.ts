@@ -73,7 +73,10 @@ export function createFileLoggerService(
         const contextAndLevel = opts.passThroughMode
           ? ''
           : ` [${context}] ${level}:`;
-        return `[${timestamp}]${contextAndLevel} ${text}`;
+        const contextLevelAndText = `${contextAndLevel} ${text}`;
+        return opts.omitTimestamp
+          ? contextLevelAndText
+          : `[${timestamp}]${contextLevelAndText}`;
       })
     ),
     transports: [
@@ -137,6 +140,7 @@ export enum LoggerColor {
   Magenta = '45',
   Cyan = '46',
   Yellow = '43',
+  Green = '42',
 }
 
 function createLoggerFromWinston(logger: winston.Logger): Logger {
@@ -181,4 +185,9 @@ type FileLoggerOptions = {
    * Mode for logger handling logs from other sources. Log level and context are not included in the log message.
    */
   passThroughMode?: boolean;
+  /**
+   * Does not add timestamp to log entries.
+   * This has no effect on dev (console) logs, where timestamps are never added.
+   * */
+  omitTimestamp?: boolean;
 };

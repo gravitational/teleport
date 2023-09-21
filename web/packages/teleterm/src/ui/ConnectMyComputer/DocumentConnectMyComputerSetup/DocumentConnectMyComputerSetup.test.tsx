@@ -83,7 +83,9 @@ describe('connectMyComputerSetup', () => {
         },
       }),
     });
-    const appContext = new MockAppContext({});
+    const appContext = new MockAppContext({
+      appVersion: cluster.proxyVersion,
+    });
     appContext.clustersService.state.clusters.set(cluster.uri, cluster);
     appContext.workspacesService.setState(draftState => {
       draftState.rootClusterUri = cluster.uri;

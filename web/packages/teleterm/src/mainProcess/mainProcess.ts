@@ -51,6 +51,8 @@ import { downloadAgent, FileDownloader } from './agentDownloader';
 import {
   createAgentConfigFile,
   isAgentConfigFileCreated,
+  removeAgentDirectory,
+  generateAgentConfigPaths,
 } from './createAgentConfigFile';
 import { AgentRunner } from './agentRunner';
 import { terminateWithTimeout } from './terminateWithTimeout';
@@ -338,6 +340,16 @@ export default class MainProcess {
     );
 
     ipcMain.handle(
+      'main-process-connect-my-computer-remove-agent-directory',
+      (
+        _,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => removeAgentDirectory(this.settings, args.rootClusterUri)
+    );
+
+    ipcMain.handle(
       'main-process-connect-my-computer-run-agent',
       async (
         _,
@@ -361,6 +373,37 @@ export default class MainProcess {
       }
     );
 
+    ipcMain.on(
+      'main-process-connect-my-computer-get-agent-logs',
+      (
+        event,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => {
+        event.returnValue = this.agentRunner.getLogs(args.rootClusterUri);
+      }
+    );
+
+    ipcMain.handle(
+      'main-process-open-agent-logs-directory',
+      async (
+        _,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => {
+        const { logsDirectory } = generateAgentConfigPaths(
+          this.settings,
+          args.rootClusterUri
+        );
+        const error = await shell.openPath(logsDirectory);
+        if (error) {
+          throw new Error(error);
+        }
+      }
+    );
+
     subscribeToTerminalContextMenuEvent();
     subscribeToTabContextMenuEvent();
     subscribeToConfigServiceEvents(this.configService);
@@ -369,6 +412,13 @@ export default class MainProcess {
 
   private _setAppMenu() {
     const isMac = this.settings.platform === 'darwin';
+    const commonHelpTemplate: MenuItemConstructorOptions[] = [
+      { label: 'Open Documentation', click: openDocsUrl },
+      {
+        label: 'Open Logs Directory',
+        click: () => openLogsDirectory(this.settings),
+      },
+    ];
 
     // Enable actions like reload or toggle dev tools only in dev mode.
     const viewMenuTemplate: MenuItemConstructorOptions = this.settings.dev
@@ -394,7 +444,7 @@ export default class MainProcess {
       },
       {
         role: 'help',
-        submenu: [{ label: 'Learn More', click: openDocsUrl }],
+        submenu: commonHelpTemplate,
       },
     ];
 
@@ -406,7 +456,8 @@ export default class MainProcess {
       {
         role: 'help',
         submenu: [
-          { label: 'Learn More', click: openDocsUrl },
+          ...commonHelpTemplate,
+          { type: 'separator' },
           { role: 'about' },
         ],
       },
@@ -484,6 +535,10 @@ const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
 
 function openDocsUrl() {
   shell.openExternal(DOCS_URL);
+}
+
+function openLogsDirectory(settings: RuntimeSettings) {
+  shell.openPath(settings.logsDir);
 }
 
 /** Shares promise returned from `promiseFn` across multiple concurrent callers. */
