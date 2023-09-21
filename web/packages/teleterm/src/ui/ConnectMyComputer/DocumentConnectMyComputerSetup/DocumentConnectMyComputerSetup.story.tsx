@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+
+import { wait } from 'shared/utils/wait';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -45,6 +47,30 @@ export function Default() {
     addr: '127.0.0.1:3022',
     labelsList: [],
   });
+  return <ShowState cluster={cluster} appContext={appContext} />;
+}
+
+export function Errored() {
+  const cluster = makeRootCluster();
+  const appContext = new MockAppContext({ appVersion: cluster.proxyVersion });
+  appContext.connectMyComputerService.createAgentConfigFile = () => {
+    throw new Error('Failed to write file, no permissions.');
+  };
+  return <ShowState cluster={cluster} appContext={appContext} />;
+}
+
+export function InProgress() {
+  const cluster = makeRootCluster();
+  const appContext = new MockAppContext({ appVersion: cluster.proxyVersion });
+  const ref = useRef(new AbortController());
+
+  useEffect(() => {
+    return () => ref.current.abort();
+  }, []);
+
+  appContext.connectMyComputerService.downloadAgent = () =>
+    wait(24 * 3600 * 100, ref.current.signal);
+
   return <ShowState cluster={cluster} appContext={appContext} />;
 }
 

@@ -16,11 +16,10 @@ limitations under the License.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Flex, Text } from 'design';
+import { Box, ButtonPrimary, Text } from 'design';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
 import * as Alerts from 'design/Alert';
-import { CircleCheck, CircleCross, CirclePlay, Spinner } from 'design/Icon';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
@@ -38,6 +37,8 @@ import { isAccessDeniedError } from 'teleterm/services/tshd/errors';
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
 import { CompatibilityError } from '../CompatibilityPromise';
+
+import { ProgressBar } from './ProgressBar';
 
 const logger = new Logger('DocumentConnectMyComputerSetup');
 
@@ -333,58 +334,28 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
 
   return (
     <>
-      <ol
-        css={`
-          padding-left: 0;
-          list-style: inside decimal;
-        `}
-      >
-        {steps.map(step => (
-          <Flex
-            key={step.name}
-            alignItems="baseline"
-            gap={2}
-            data-testid={step.name}
-            data-teststatus={step.attempt.status}
-          >
-            {step.attempt.status === '' && <CirclePlay />}
-            {step.attempt.status === 'processing' && (
-              <Spinner
-                css={`
-                  animation: spin 1s linear infinite;
-                  @keyframes spin {
-                    from {
-                      transform: rotate(0deg);
-                    }
-                    to {
-                      transform: rotate(360deg);
-                    }
-                  }
-                `}
-              />
-            )}
-            {step.attempt.status === 'success' && (
-              <CircleCheck color="success" />
-            )}
-            {step.attempt.status === 'error' && (
-              <CircleCross color="error.main" />
-            )}
-            <li>
-              {step.name}
-              {step.attempt.status === 'error' && (
-                <>
-                  {step.customError?.() || (
-                    <StandardError error={step.attempt.statusText} />
-                  )}
-                </>
-              )}
-            </li>
-          </Flex>
-        ))}
-      </ol>
-
+      <ProgressBar
+        phases={steps.map(step => ({
+          status: step.attempt.status,
+          name: step.name,
+          Error: () =>
+            step.attempt.status === 'error' &&
+            (step.customError?.() || (
+              <StandardError error={step.attempt.statusText} />
+            )),
+        }))}
+      />
       {hasSetupFailed && (
-        <ButtonPrimary onClick={runSteps}>Retry</ButtonPrimary>
+        <ButtonPrimary
+          mt={3}
+          mx="auto"
+          css={`
+            display: block;
+          `}
+          onClick={runSteps}
+        >
+          Retry
+        </ButtonPrimary>
       )}
     </>
   );
