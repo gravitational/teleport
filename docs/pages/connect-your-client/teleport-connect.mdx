@@ -263,27 +263,40 @@ The changes will take effect at the next launch.
 
 ## Troubleshooting
 
-Logging out of a cluster, closing the app and logging in again resets all app state related to that
-cluster. This can help if you encounter a bug which renders the user interface partially unusable.
-It might also help if you have issues with connecting to an active cluster that don't happen in the
-Web UI.
+If you encounter a bug which renders the UI partially unusable, resetting app state related to a
+particular cluster might help. To do this, log out of the cluster, close the app and log in again.
+
+To completely wipe all app state, close the app and remove the internal `tsh` folder and the
+`app_state.json` file. This will log you out of all clusters and clear all remembered tabs and
+connections.
 
 <Tabs>
 <TabItem label="macOS">
-To force the app to log you out of all clusters, close the app and remove the `~/Library/Application
-Support/Teleport Connect/tsh` folder. Removing the file `~/Library/Application
-Support/Teleport Connect/app_state.json` will clear all remembered tabs and connections.
+```code
+~/Library/Application Support/Teleport Connect/tsh
+```
+
+```code
+~/Library/Application Support/Teleport Connect/app_state.json
+```
 </TabItem>
 <TabItem label="Linux">
-To force the app to log you out of all clusters, close the app and remove the `~/.config/Teleport
-Connect/tsh` folder. Removing the file `/.config/Teleport Connect/app_state.json` will clear
-all remembered tabs and connections.
+```code
+~/.config/Teleport Connect/tsh
+```
+
+```code
+~/.config/Teleport Connect/app_state.json
+```
 </TabItem>
 <TabItem label="Windows">
-To force the app to log you out of all clusters, close the app and remove the
-`C:\Users\%UserName%\AppData\Roaming\Teleport Connect\tsh` folder. Removing the file
-`C:\Users\%UserName%\AppData\Roaming\Teleport Connect\app_state.json` will clear all remembered tabs
-and connections.
+```code
+C:\Users\%UserName%\AppData\Roaming\Teleport Connect\tsh
+```
+
+```code
+C:\Users\%UserName%\AppData\Roaming\Teleport Connect\app_state.json
+```
 </TabItem>
 </Tabs>
 
