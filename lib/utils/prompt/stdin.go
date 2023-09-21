@@ -17,55 +17,16 @@ limitations under the License.
 package prompt
 
 import (
-	"os"
-	"sync"
+	"github.com/gravitational/teleport/api/utils/prompt"
+)
+
+// TODO(Joerger): Deprecated in favor of `api/utils/prompt`, delete once references are replaced.
+type (
+	StdinReader = prompt.StdinReader
 )
 
 var (
-	stdinMU sync.Mutex
-	stdin   StdinReader
+	Stdin      = prompt.Stdin
+	SetStdin   = prompt.SetStdin
+	NotifyExit = prompt.NotifyExit
 )
-
-// StdinReader contains ContextReader methods applicable to stdin.
-type StdinReader interface {
-	IsTerminal() bool
-	Reader
-	SecureReader
-}
-
-// Stdin returns a singleton ContextReader wrapped around os.Stdin.
-//
-// os.Stdin should not be used directly after the first call to this function
-// to avoid losing data.
-func Stdin() StdinReader {
-	stdinMU.Lock()
-	defer stdinMU.Unlock()
-	if stdin == nil {
-		cr := NewContextReader(os.Stdin)
-		go cr.handleInterrupt()
-		stdin = cr
-	}
-	return stdin
-}
-
-// SetStdin allows callers to change the Stdin reader.
-// Useful to replace Stdin for tests, but should be avoided in production code.
-func SetStdin(rd StdinReader) {
-	stdinMU.Lock()
-	defer stdinMU.Unlock()
-	stdin = rd
-}
-
-// NotifyExit notifies prompt singletons, such as Stdin, that the program is
-// about to exit. This allows singletons to perform actions such as restoring
-// terminal state.
-// Once NotifyExit is called the singletons will be closed.
-func NotifyExit() {
-	// Note: don't call methods such as Stdin() here, we don't want to
-	// inadvertently hijack the prompts on exit.
-	stdinMU.Lock()
-	if cr, ok := stdin.(*ContextReader); ok {
-		_ = cr.Close()
-	}
-	stdinMU.Unlock()
-}
