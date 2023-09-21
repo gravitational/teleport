@@ -748,7 +748,7 @@ func TestCreateSuggestions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create the promotions.
-	err = authSrvClient.UpsertAccessRequestAllowedPromotions(context.Background(), adminRequest, &types.AccessRequestAllowedPromotions{
+	err = authSrvClient.CreateAccessRequestAllowedPromotions(context.Background(), adminRequest, &types.AccessRequestAllowedPromotions{
 		Promotions: []*types.AccessRequestAllowedPromotion{
 			{AccessListName: "a"},
 			{AccessListName: "b"},

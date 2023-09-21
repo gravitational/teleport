@@ -271,8 +271,8 @@ type DynamicAccessExt interface {
 	DeleteAllAccessRequests(ctx context.Context) error
 	// SetAccessRequestState updates the state of an existing access request.
 	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) (types.AccessRequest, error)
-	// UpsertAccessRequestAllowedPromotions creates a list of allowed access list promotions for the given access request.
-	UpsertAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestAllowedPromotions) error
+	// CreateAccessRequestAllowedPromotions creates a list of allowed access list promotions for the given access request.
+	CreateAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestAllowedPromotions) error
 	// GetAccessRequestAllowedPromotions returns a lists of allowed access list promotions for the given access request.
 	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 }

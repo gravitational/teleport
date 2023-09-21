@@ -4256,10 +4256,13 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	reqCopy := req.Copy()
 	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
 	if err != nil {
+		// Do not fail the request if the promotions failed to generate.
+		// The request promotion will be blocked, but the request can still be approved.
 		log.WithError(err).Warn("Failed to generate access list promotions.")
-	} else if promotions != nil && len(promotions.Promotions) > 0 {
-		// Spare the call if there is nothing to add.
-		if err := a.Services.UpsertAccessRequestAllowedPromotions(ctx, reqCopy, promotions); err != nil {
+	} else if promotions != nil {
+		// Create the promotion entry even if the allowed promotion is empty. Otherwise, we won't
+		// be able to distinguish between an allowed empty set and generation failure.
+		if err := a.Services.CreateAccessRequestAllowedPromotions(ctx, reqCopy, promotions); err != nil {
 			log.WithError(err).Warn("Failed to update access request with promotions.")
 		}
 	}

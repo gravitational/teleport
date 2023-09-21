@@ -285,14 +285,16 @@ func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req type
 	return nil
 }
 
-// UpsertAccessRequestAllowedPromotions upserts AccessRequestAllowedPromotions object.
-func (s *DynamicAccessService) UpsertAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestAllowedPromotions) error {
+// CreateAccessRequestAllowedPromotions creates AccessRequestAllowedPromotions object.
+func (s *DynamicAccessService) CreateAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestAllowedPromotions) error {
 	// create the new access request promotion object
 	item, err := itemFromAccessListPromotions(req, accessLists)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// store it in the backend
+	// Currently, this logic is used only internally (no API exposed), and
+	// there is only one place that calls it. If this ever changes, we will
+	// need to do a CompareAndSwap here.
 	if _, err := s.Put(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
