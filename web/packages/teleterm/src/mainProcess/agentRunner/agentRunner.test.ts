@@ -156,7 +156,7 @@ test('status updates are sent on a successful start', async () => {
       code: null,
       logs: undefined,
       exitedSuccessfully: true,
-      signal: 'SIGQUIT',
+      signal: 'SIGTERM',
     };
     expect(agentRunner.getState(rootClusterUri)).toStrictEqual(exitedState);
     expect(updateSender).toHaveBeenCalledWith(rootClusterUri, exitedState);

@@ -28,8 +28,6 @@ import { AgentProcessState, RuntimeSettings } from '../types';
 import { terminateWithTimeout } from '../terminateWithTimeout';
 
 const MAX_STDERR_LINES = 10;
-// https://github.com/gravitational/teleport/blob/1212306cff9be443286cdf0e8cbdf6471fc392d7/lib/service/signals.go#L59
-const AGENT_GRACEFUL_SHUTDOWN_SIGNAL = 'SIGQUIT';
 
 export class AgentRunner {
   private logger = new Logger('AgentRunner');
@@ -102,12 +100,12 @@ export class AgentRunner {
       return;
     }
     this.logger.info(`Killing agent for ${rootClusterUri}`);
-    await terminateAgent(agent.process);
+    await terminateWithTimeout(agent.process);
   }
 
   async killAll(): Promise<void> {
     const agents = Array.from(this.agentProcesses.values());
-    await Promise.all(agents.map(agent => terminateAgent(agent.process)));
+    await Promise.all(agents.map(agent => terminateWithTimeout(agent.process)));
   }
 
   private addAgentListeners(
@@ -158,8 +156,7 @@ export class AgentRunner {
       code: number | null,
       signal: NodeJS.Signals | null
     ) => {
-      const exitedSuccessfully =
-        code === 0 || signal === AGENT_GRACEFUL_SHUTDOWN_SIGNAL;
+      const exitedSuccessfully = code === 0 || signal === 'SIGTERM';
 
       this.updateProcessState(rootClusterUri, {
         status: 'exited',
@@ -201,7 +198,7 @@ export class AgentRunner {
         this.logger.error(
           `Cleanup daemon for ${rootClusterUri} has failed to start. Terminating agent.`
         );
-        terminateAgent(agent);
+        terminateWithTimeout(agent);
       };
       cleanupDaemon.once('error', errorHandler);
       cleanupDaemon.once('spawn', () => {
@@ -214,7 +211,7 @@ export class AgentRunner {
         this.logger.error(
           `Cleanup daemon for ${rootClusterUri} terminated before agent. Terminating agent.`
         );
-        terminateAgent(agent);
+        terminateWithTimeout(agent);
       };
       cleanupDaemon.once('exit', onUnexpectedDaemonExit);
 
@@ -256,10 +253,4 @@ function processAgentOutput(output: string): string {
   // We specifically don't use strip-ansi-stream here because it chunks the output too heavily,
   // resulting in cut off logs at the point of process termination or join timeout.
   return stripAnsi(output).split(os.EOL).slice(-MAX_STDERR_LINES).join(os.EOL);
-}
-
-function terminateAgent(process: ChildProcess): Promise<void> {
-  return terminateWithTimeout(process, undefined, process =>
-    process.kill(AGENT_GRACEFUL_SHUTDOWN_SIGNAL)
-  );
 }
