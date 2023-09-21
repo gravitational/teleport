@@ -83,7 +83,7 @@ func TestAutoUsersMySQL(t *testing.T) {
 
 	// Use a long name to test hashed name is used in database.
 	teleportUser := "a.very.long.name@teleport.example.com"
-	wantDatabaseUser := "teleport-50d0e2ce13083bc5"
+	wantDatabaseUser := "tp-ZLhdP1FgxXsUvcVpG8ucVm/PCHg"
 
 	// Create user with role that allows user provisioning.
 	_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), teleportUser, []string{"auto"}, nil)
@@ -111,7 +111,7 @@ func TestAutoUsersMySQL(t *testing.T) {
 		require.Equal(t, []string{"reader", "writer"}, e.Roles)
 		require.True(t, e.Active)
 	case <-time.After(5 * time.Second):
-		t.Fatal("user not deactivated after 5s")
+		t.Fatal("user not activated after 5s")
 	}
 
 	// Disconnect.

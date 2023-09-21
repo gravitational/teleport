@@ -18,11 +18,11 @@ package mysql
 
 import (
 	"context"
+	"crypto/sha1"
 	_ "embed"
-	"encoding/hex"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"strings"
 
 	"github.com/go-mysql-org/go-mysql/client"
@@ -64,6 +64,19 @@ type activateUserDetails struct {
 	} `json:"attributes"`
 }
 
+// clientConn is a wrapper of client.Conn.
+type clientConn struct {
+	*client.Conn
+}
+
+func (c *clientConn) executeAndCloseResult(command string, args ...any) error {
+	result, err := c.Execute(command, args...)
+	if result != nil {
+		result.Close()
+	}
+	return trace.Wrap(err)
+}
+
 // ActivateUser creates or enables the database user.
 func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) error {
 	if sessionCtx.Database.GetAdminUser() == "" {
@@ -76,6 +89,11 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	}
 	defer conn.Close()
 
+	// Ensure the roles meet spec.
+	if err := checkRoles(conn, sessionCtx.DatabaseRoles); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Setup "teleport-auto-user" and stored procedures.
 	if err := e.setupDatabaseForAutoUsers(conn, sessionCtx); err != nil {
 		return trace.Wrap(err)
@@ -83,18 +101,23 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 
 	// Use "teleport-<hash>" in case DatabaseUser is over max username length.
 	sessionCtx.DatabaseUser = maybeHashUsername(sessionCtx.DatabaseUser, maxUsernameLength(conn))
-
 	e.Log.Infof("Activating MySQL user %q with roles %v for %v.", sessionCtx.DatabaseUser, sessionCtx.DatabaseRoles, sessionCtx.Identity.Username)
 
+	// Prep JSON.
 	details, err := makeActivateUserDetails(sessionCtx, sessionCtx.Identity.Username)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	callCommand := fmt.Sprintf("CALL %s('%s', '%s')", activateUserProcedureName, sessionCtx.DatabaseUser, details)
-
-	_, err = conn.Execute(callCommand)
+	// Call activate.
+	err = conn.executeAndCloseResult(
+		fmt.Sprintf("CALL %s(?, ?)", activateUserProcedureName),
+		sessionCtx.DatabaseUser,
+		details,
+	)
 	if err != nil {
+		e.Log.Debugf("Call teleport_activate_user failed: %v", err)
+
 		if strings.Contains(err.Error(), "Operation CREATE USER failed") {
 			return trace.AlreadyExists("user %q already exists in this MySQL database and is not managed by Teleport", sessionCtx.DatabaseUser)
 		}
@@ -117,20 +140,27 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 
 	e.Log.Infof("Deactivating MySQL user %q for %v.", sessionCtx.DatabaseUser, sessionCtx.Identity.Username)
 
-	_, err = conn.Execute(fmt.Sprintf("CALL %s('%s')", deactivateUserProcedureName, sessionCtx.DatabaseUser))
-	return trace.Wrap(err)
+	return trace.Wrap(conn.executeAndCloseResult(
+		fmt.Sprintf("CALL %s(?)", deactivateUserProcedureName),
+		sessionCtx.DatabaseUser,
+	))
 }
 
-func (e *Engine) connectAsAdminUser(ctx context.Context, sessionCtx *common.Session) (*client.Conn, error) {
+func (e *Engine) connectAsAdminUser(ctx context.Context, sessionCtx *common.Session) (*clientConn, error) {
 	adminSessionCtx := sessionCtx.WithUserAndDatabase(
 		sessionCtx.Database.GetAdminUser(),
 		defaultSchema(sessionCtx),
 	)
 	conn, err := e.connect(ctx, adminSessionCtx)
-	return conn, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &clientConn{
+		Conn: conn,
+	}, nil
 }
 
-func (e *Engine) setupDatabaseForAutoUsers(conn *client.Conn, sessionCtx *common.Session) error {
+func (e *Engine) setupDatabaseForAutoUsers(conn *clientConn, sessionCtx *common.Session) error {
 	// TODO MariaDB requires separate stored procedures to handle auto user:
 	// - Max user length is different.
 	// - MariaDB uses mysql.roles_mapping instead of mysql.role_edges.
@@ -145,7 +175,7 @@ func (e *Engine) setupDatabaseForAutoUsers(conn *client.Conn, sessionCtx *common
 	}
 
 	// Create "teleport-auto-user".
-	_, err := conn.Execute(fmt.Sprintf("CREATE ROLE IF NOT EXISTS %q", teleportAutoUserRole))
+	err := conn.executeAndCloseResult(fmt.Sprintf("CREATE ROLE IF NOT EXISTS %q", teleportAutoUserRole))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -169,18 +199,16 @@ func (e *Engine) setupDatabaseForAutoUsers(conn *client.Conn, sessionCtx *common
 	e.Log.Debugf("Updating stored procedures for MySQL server %s.", sessionCtx.Database.GetName())
 	return trace.Wrap(doTransaction(conn, func() error {
 		for _, procedure := range allProcedures {
-			_, err := conn.Execute(fmt.Sprintf("DROP PROCEDURE IF EXISTS %s", procedure.name))
-			if err != nil {
+			dropCommand := fmt.Sprintf("DROP PROCEDURE IF EXISTS %s", procedure.name)
+			updateCommand := fmt.Sprintf("ALTER PROCEDURE %s COMMENT %q", procedure.name, procedureVersion)
+
+			if err := conn.executeAndCloseResult(dropCommand); err != nil {
 				return trace.Wrap(err)
 			}
-
-			_, err = conn.Execute(procedure.createCommand)
-			if err != nil {
+			if err := conn.executeAndCloseResult(procedure.createCommand); err != nil {
 				return trace.Wrap(err)
 			}
-
-			_, err = conn.Execute(fmt.Sprintf("ALTER PROCEDURE %s COMMENT %q", procedure.name, procedureVersion))
-			if err != nil {
+			if err := conn.executeAndCloseResult(updateCommand); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -203,16 +231,26 @@ func defaultSchema(_ *common.Session) string {
 	return "mysql"
 }
 
-func isMariaDB(conn *client.Conn) bool {
+func isMariaDB(conn *clientConn) bool {
 	return strings.Contains(strings.ToLower(conn.GetServerVersion()), "mariadb")
 }
 
-// maxUsernameLength returns the username character limit.
-func maxUsernameLength(conn *client.Conn) int {
+// maxUsernameLength returns the username/role character limit.
+func maxUsernameLength(conn *clientConn) int {
 	if isMariaDB(conn) {
 		return mariadbMaxUsernameLength
 	}
 	return mysqlMaxUsernameLength
+}
+
+func checkRoles(conn *clientConn, roles []string) error {
+	maxRoleLength := maxUsernameLength(conn)
+	for _, role := range roles {
+		if len(role) > maxRoleLength {
+			return trace.BadParameter("role %q exceeds maximum length limit of %d", role, maxRoleLength)
+		}
+	}
+	return nil
 }
 
 func maybeHashUsername(teleportUser string, maxUsernameLength int) string {
@@ -220,15 +258,12 @@ func maybeHashUsername(teleportUser string, maxUsernameLength int) string {
 		return teleportUser
 	}
 
-	// 64 bit hash collision rates:
-	// - 200 entries: 1 in 10^15
-	// -  2k entries: 1 in 10 trillion
-	// - 20k entries: 1 in 100 billion
-	hash := fnv.New64()
+	// Use sha1 to reduce chance of collision.
+	hash := sha1.New()
 	hash.Write([]byte(teleportUser))
 
 	// Use a prefix to identify the user is managed by Teleport.
-	return "teleport-" + hex.EncodeToString(hash.Sum(nil))
+	return "tp-" + base64.RawStdEncoding.EncodeToString(hash.Sum(nil))
 }
 
 func authOptions(sessionCtx *common.Session) string {
@@ -244,7 +279,7 @@ func authOptions(sessionCtx *common.Session) string {
 	}
 }
 
-func makeActivateUserDetails(sessionCtx *common.Session, teleportUser string) (string, error) {
+func makeActivateUserDetails(sessionCtx *common.Session, teleportUser string) (json.RawMessage, error) {
 	details := activateUserDetails{
 		Roles:       sessionCtx.DatabaseRoles,
 		AuthOptions: authOptions(sessionCtx),
@@ -253,16 +288,14 @@ func makeActivateUserDetails(sessionCtx *common.Session, teleportUser string) (s
 	// Save original username as user attributes in case the name is hashed.
 	details.Attributes.User = teleportUser
 
-	json, err := json.Marshal(details)
+	data, err := json.Marshal(details)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	// MySQL requires additional escape for "\".
-	return strings.ReplaceAll(string(json), "\\", "\\\\"), nil
+	return json.RawMessage(data), nil
 }
 
-func isProcedureUpdateRequired(conn *client.Conn, wantSchema, wantVersion string) (bool, error) {
+func isProcedureUpdateRequired(conn *clientConn, wantSchema, wantVersion string) (bool, error) {
 	// information_schema.routines is accessible for users/roles with EXECUTE
 	// permission.
 	result, err := conn.Execute(fmt.Sprintf(
@@ -301,7 +334,7 @@ func allProceduresFound(foundProcedures []string) bool {
 	return true
 }
 
-func doTransaction(conn *client.Conn, do func() error) error {
+func doTransaction(conn *clientConn, do func() error) error {
 	if err := conn.Begin(); err != nil {
 		return trace.Wrap(err)
 	}

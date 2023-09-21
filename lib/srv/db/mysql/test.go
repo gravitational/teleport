@@ -290,10 +290,9 @@ func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
 	h.log.Debugf("Received query %q.", query)
 	atomic.AddUint32(&h.queryCount, 1)
 
-	switch {
 	// When getting a "show tables" query, construct the response in a way
 	// which previously caused server packets parsing logic to fail.
-	case query == "show tables":
+	if query == "show tables" {
 		resultSet, err := mysql.BuildSimpleTextResultset(
 			[]string{"Tables_in_test"},
 			[][]interface{}{
@@ -308,14 +307,24 @@ func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
 		return &mysql.Result{
 			Resultset: resultSet,
 		}, nil
+	}
 
-	case strings.HasPrefix(query, "CALL "):
-		return h.handleCallProcedure(query)
+	return TestQueryResponse, nil
+}
+
+func (h *testHandler) HandleStmtPrepare(prepare string) (int, int, interface{}, error) {
+	params := strings.Count(prepare, "?")
+	return params, 0, nil, nil
+}
+func (h *testHandler) HandleStmtExecute(_ interface{}, query string, args []interface{}) (*mysql.Result, error) {
+	h.log.Debugf("Received execute %q with args %+v.", args)
+	if strings.HasPrefix(query, "CALL ") {
+		return h.handleCallProcedure(query, args)
 	}
 	return TestQueryResponse, nil
 }
 
-func (h *testHandler) handleCallProcedure(query string) (*mysql.Result, error) {
+func (h *testHandler) handleCallProcedure(query string, args []interface{}) (*mysql.Result, error) {
 	query = strings.TrimSpace(strings.TrimPrefix(query, "CALL"))
 	openBracketIndex := strings.IndexByte(query, '(')
 	endBracketIndex := strings.LastIndexByte(query, ')')
@@ -324,24 +333,27 @@ func (h *testHandler) handleCallProcedure(query string) (*mysql.Result, error) {
 	}
 
 	procedureName := query[:openBracketIndex]
-	parameters := query[openBracketIndex+1 : endBracketIndex]
 	switch procedureName {
 	case activateUserProcedureName:
-		databaseUser, detailsJSON, ok := strings.Cut(parameters, ",")
-		if !ok {
-			return nil, trace.BadParameter("invalid parameters: %v", parameters)
+		if len(args) != 2 {
+			return nil, trace.BadParameter("invalid number of parameters: %v", args)
 		}
-		databaseUser = strings.Trim(databaseUser, "'")
-
-		// Trim and de-escape.
-		detailsJSON = strings.ReplaceAll(strings.Trim(strings.TrimSpace(detailsJSON), "'"), "\\\\", "\\")
+		databaseUserBytes, ok := args[0].([]byte)
+		if !ok {
+			return nil, trace.BadParameter("invalid database user: %v", args[0])
+		}
+		detailsBytes, ok := args[1].([]byte)
+		if !ok {
+			return nil, trace.BadParameter("invalid details: %v", args[1])
+		}
 		details := activateUserDetails{}
-		err := json.Unmarshal([]byte(detailsJSON), &details)
+		err := json.Unmarshal(detailsBytes, &details)
 		if err != nil {
 			return nil, trace.BadParameter("invalid JSON: %v", err)
 		}
 
 		// Update mapping and send event.
+		databaseUser := string(databaseUserBytes)
 		h.usersMappingMu.Lock()
 		defer h.usersMappingMu.Unlock()
 		h.usersMapping[databaseUser] = details.Attributes.User
@@ -353,14 +365,20 @@ func (h *testHandler) handleCallProcedure(query string) (*mysql.Result, error) {
 		}
 
 	case deactivateUserProcedureName:
-		databaseUser := strings.Trim(parameters, "'")
+		if len(args) != 1 {
+			return nil, trace.BadParameter("invalid number of parameters: %v", args)
+		}
+		databaseUserBytes, ok := args[0].([]byte)
+		if !ok {
+			return nil, trace.BadParameter("invalid database user: %v", args[0])
+		}
 
 		// Send event.
 		h.usersMappingMu.Lock()
 		defer h.usersMappingMu.Unlock()
 		h.userEventsCh <- UserEvent{
-			DatabaseUser: databaseUser,
-			TeleportUser: h.usersMapping[databaseUser],
+			DatabaseUser: string(databaseUserBytes),
+			TeleportUser: h.usersMapping[string(databaseUserBytes)],
 			Active:       false,
 		}
 	}

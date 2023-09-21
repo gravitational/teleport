@@ -37,7 +37,7 @@ func Test_maybeHashUsername(t *testing.T) {
 		},
 		{
 			input:      "a-very-very-very-long-name-that-is-over-32",
-			wantOutput: "teleport-093344e2a9988fd4",
+			wantOutput: "tp-XnfKd0MysfJ/xaR/b3OgoQvoTuo",
 		},
 	}
 
