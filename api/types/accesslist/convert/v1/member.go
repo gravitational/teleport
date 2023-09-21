@@ -99,6 +99,7 @@ func ToMembersProto(members []*accesslist.AccessListMember) []*accesslistv1.Memb
 	return out
 }
 
+// WithMemberIneligibleStatusField sets the "ineligibleStatus" field to the provided proto value.
 func WithMemberIneligibleStatusField(protoMember *accesslistv1.Member) MemberOption {
 	return func(m *accesslist.AccessListMember) {
 		protoIneligibleStatus := protoMember.GetSpec().GetIneligibleStatus()
