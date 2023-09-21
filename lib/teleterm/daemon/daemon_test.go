@@ -635,6 +635,7 @@ func TestGetGatewayCLICommand(t *testing.T) {
 			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 		},
 		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
 	})
 	require.NoError(t, err)
 
