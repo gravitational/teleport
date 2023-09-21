@@ -242,6 +242,11 @@ func TestBotConfig_YAML(t *testing.T) {
 					&IdentityOutput{
 						Destination: &DestinationMemory{},
 					},
+					&IdentityOutput{
+						Destination: &DestinationKubernetesSecret{
+							Name: "my-secret",
+						},
+					},
 				},
 			},
 		},
@@ -294,4 +299,38 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 			require.Equal(t, unmarshalled, tt.in, "unmarshalling did not result in same object as input")
 		})
 	}
+}
+
+func TestBotConfig_InsecureWithCAPins(t *testing.T) {
+	cfg := &BotConfig{
+		Insecure: true,
+		Onboarding: OnboardingConfig{
+			CAPins: []string{"123"},
+		},
+	}
+
+	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "ca-pin")
+}
+
+func TestBotConfig_InsecureWithCAPath(t *testing.T) {
+	cfg := &BotConfig{
+		Insecure: true,
+		Onboarding: OnboardingConfig{
+			CAPath: "/tmp/invalid-path/some.crt",
+		},
+	}
+
+	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "ca-path")
+}
+
+func TestBotConfig_WithCAPathAndCAPins(t *testing.T) {
+	cfg := &BotConfig{
+		Insecure: false,
+		Onboarding: OnboardingConfig{
+			CAPath: "/tmp/invalid-path/some.crt",
+			CAPins: []string{"123"},
+		},
+	}
+
+	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "mutually exclusive")
 }

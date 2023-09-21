@@ -11,19 +11,19 @@ requesting a role via the Teleport CLI. Full Access Request functionality,
 including Resource Access Requests and an intuitive and searchable UI are
 available in Teleport Enterprise.
 
-## RBAC Setup
+## RBAC security setup
 
 Teleport's role-based access control (RBAC) allows you to configure what roles
 users can request access to. In this example, we will define two roles:
 
-1. `contractor`: users with this role can request elevated access to the `dba` role
-2. `dba`: this role grants access to databases
+- `contractor`: users with this role can request elevated access to the `dba` role
+- `dba`: this role grants access to databases
 
 There is no role for request approvers, because request approval rules can only
 be configured for Teleport Enterprise. In Open Source Teleport, approvals must
 be performed by running `tctl` on the Auth Server.
 
-**Contractor Role**
+**Contractor role**
 
 Users with this role can request access to the `dba` role.
 
@@ -51,7 +51,7 @@ $ tctl users update --set-roles \
     $(tctl get users/alice --format=json | jq -r '.[].spec.roles | join(",")'),contractor alice
 ```
 
-**DBA Role**
+**DBA role**
 
 This role grants access to databases.
 

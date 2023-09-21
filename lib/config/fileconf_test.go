@@ -914,7 +914,7 @@ func TestDiscoveryConfig(t *testing.T) {
 					{
 						Types:     []string{"gke"},
 						Locations: []string{"*"},
-						Tags: map[string]apiutils.Strings{
+						Labels: map[string]apiutils.Strings{
 							"*": []string{"*"},
 						},
 						ProjectIDs: []string{"p1", "p2"},
@@ -944,10 +944,49 @@ func TestDiscoveryConfig(t *testing.T) {
 					{
 						Types:     []string{"gke"},
 						Locations: []string{"eucentral1"},
-						Tags: map[string]apiutils.Strings{
+						Labels: map[string]apiutils.Strings{
 							"discover_teleport": []string{"yes"},
 						},
 						ProjectIDs: []string{"p1", "p2"},
+					},
+				},
+			},
+		},
+		{
+			desc:          "GCP section is filled with installer",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"gce"},
+						"locations": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"project_ids":      []string{"p1", "p2"},
+						"service_accounts": []string{"a@example.com", "b@example.com"},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				GCPMatchers: []GCPMatcher{
+					{
+						Types:     []string{"gke"},
+						Locations: []string{"eucentral1"},
+						Labels: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+						ProjectIDs:      []string{"p1", "p2"},
+						ServiceAccounts: []string{"a@example.com", "b@example.com"},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: defaults.GCPInviteTokenName,
+								Method:    types.JoinMethodGCP,
+							},
+							ScriptName: installers.InstallerScriptName,
+						},
 					},
 				},
 			},

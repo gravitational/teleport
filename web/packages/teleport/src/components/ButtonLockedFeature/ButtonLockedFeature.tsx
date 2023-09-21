@@ -20,8 +20,12 @@ import { ButtonPrimary } from 'design/Button';
 import { Unlock } from 'design/Icon';
 import Flex from 'design/Flex';
 
+import { getSalesURL } from 'teleport/services/sales';
+
 import { CtaEvent, userEventService } from 'teleport/services/userEvent';
 import useTeleport from 'teleport/useTeleport';
+
+import cfg from 'teleport/config';
 
 export type Props = {
   children: React.ReactNode;
@@ -29,8 +33,6 @@ export type Props = {
   event?: CtaEvent;
   [index: string]: any;
 };
-
-const SALES_URL = 'https://goteleport.com/r/upgrade-team';
 
 export function ButtonLockedFeature({
   children,
@@ -42,15 +44,19 @@ export function ButtonLockedFeature({
   const version = ctx.storeUser.state.cluster.authVersion;
   const isEnterprise = ctx.isEnterprise;
 
+  const isUsageBased = cfg.isUsageBasedBilling;
+
   function handleClick() {
-    userEventService.captureCtaEvent(event);
+    if (isEnterprise) {
+      userEventService.captureCtaEvent(event);
+    }
   }
 
   return (
     <ButtonPrimary
       as="a"
       target="blank"
-      href={`${SALES_URL}?${getParams(version, isEnterprise, event)}`}
+      href={getSalesURL(version, isEnterprise, isUsageBased, event)}
       onClick={handleClick}
       py="12px"
       width="100%"
@@ -59,21 +65,11 @@ export function ButtonLockedFeature({
       {...rest}
     >
       <Flex alignItems="center">
-        {!noIcon && <UnlockIcon data-testid="locked-icon" />}
+        {!noIcon && <UnlockIcon size="medium" data-testid="locked-icon" />}
         {children}
       </Flex>
     </ButtonPrimary>
   );
-}
-
-function getParams(
-  version: string,
-  isEnterprise: boolean,
-  event: CtaEvent
-): string {
-  return `${isEnterprise ? 'e_' : ''}${version}&utm_campaign=${
-    CtaEvent[event]
-  }`;
 }
 
 const UnlockIcon = styled(Unlock)`

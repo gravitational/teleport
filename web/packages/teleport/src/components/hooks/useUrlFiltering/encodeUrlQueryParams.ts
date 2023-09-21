@@ -16,34 +16,30 @@
 
 import { SortType } from 'design/DataTable/types';
 
-const ADVANCED_SEARCH_PARAM = 'query=';
-const SIMPLE_SEARCH_PARAM = 'search=';
-const SORT_SEARCH_PARAM = 'sort=';
-
 export function encodeUrlQueryParams(
   pathname: string,
   searchString: string,
-  sort: SortType,
+  sort: SortType | null,
+  kinds: string[] | null,
   isAdvancedSearch: boolean
 ) {
-  if (!searchString && !sort) {
-    return pathname;
-  }
-  const encodedQuery = encodeURIComponent(searchString);
+  const urlParams = new URLSearchParams();
 
-  const searchParam = isAdvancedSearch
-    ? ADVANCED_SEARCH_PARAM
-    : SIMPLE_SEARCH_PARAM;
-
-  if (encodedQuery && !sort) {
-    return `${pathname}?${searchParam}${encodedQuery}`;
+  if (searchString) {
+    urlParams.append(isAdvancedSearch ? 'query' : 'search', searchString);
   }
 
-  const sortParam = `${sort.fieldName}:${sort.dir.toLowerCase()}`;
-
-  if (!encodedQuery && sort) {
-    return `${pathname}?${SORT_SEARCH_PARAM}${sortParam}`;
+  if (sort) {
+    urlParams.append('sort', `${sort.fieldName}:${sort.dir.toLowerCase()}`);
   }
 
-  return `${pathname}?${searchParam}${encodedQuery}&${SORT_SEARCH_PARAM}${sortParam}`;
+  if (kinds) {
+    for (const kind of kinds) {
+      urlParams.append('kinds', kind);
+    }
+  }
+
+  const encodedParams = urlParams.toString();
+
+  return encodedParams ? `${pathname}?${encodedParams}` : pathname;
 }

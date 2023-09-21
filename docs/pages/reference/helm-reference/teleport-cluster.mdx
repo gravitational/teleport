@@ -38,6 +38,7 @@ Get started with a guide for each mode:
 | `standalone` | Runs by relying only on Kubernetes resources. | [Getting Started - Kubernetes with SSO](../../deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx) |
 | `aws` | Leverages AWS managed services to store data. | [Running an HA Teleport cluster using an AWS EKS Cluster](../../deploy-a-cluster/helm-deployments/aws.mdx) |
 | `gcp` | Leverages GCP managed services to store data. | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx) |
+| `azure` | Leverages Azure managed services to store data. | [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../deploy-a-cluster/helm-deployments/azure.mdx) |
 | `scratch` (v12 and above) | Generates empty Teleport configuration. User must pass their own config. This is discouraged, use `standalone` mode with [`auth.teleportConfig`](#authteleportconfig) and [`proxy.teleportConfig`](#proxyteleportconfig) instead. | [Running a Teleport cluster with a custom config](../../deploy-a-cluster/helm-deployments/custom.mdx) |
 
 <Admonition type="note" title="Custom mode removal">
@@ -115,6 +116,36 @@ auth:
   postStart: ["curl", "http://hook"]
   imagePullPolicy: Always
 ```
+
+### `proxyProtocol`
+
+| Component   | Type     | Default value  | Required? | `teleport.yaml` equivalent |
+|-------------|----------|----------------|-----------|----------------------------|
+| `proxy`     | `string` | `null`         | no        | `proxy_service.proxy_protocol`  |
+
+
+The `proxyProtocol` value controls whether the Proxy pods will
+accept PROXY lines with the client's IP address when they are
+behind a L4 load balancer (e.g. AWS ELB, GCP L4 LB, etc) with PROXY protocol
+enabled. Since L4 LBs do not preserve the client's IP address, PROXY protocol is
+required to ensure that Teleport can properly audit the client's IP address.
+
+When Teleport pods are not behind a L4 LB with PROXY protocol enabled, this
+value should be set to `off` to prevent Teleport from accepting PROXY headers
+from untrusted sources.
+
+Possible values are:
+- `on`: will enable the PROXY protocol for all connections and will require the
+  L4 LB to send a PROXY header.
+- `off` will disable the PROXY protocol for all connections and denies all
+  connections prefixed a PROXY header.
+
+If `proxyProtocol` is unspecified, Teleport does not require PROXY header for the
+connection, but will accept it if present. This mode is considered insecure
+and should only be used for testing purposes.
+
+See the [PROXY Protocol security section](../../management/security/proxy-protocol.mdx) for more details.
+
 
 ### `auth.teleportConfig`
 
@@ -238,7 +269,7 @@ Defaults to `local`.
 `authentication.localAuth` controls whether local authentication is enabled.
 When disabled, users can only log in through authentication connectors like `saml`, `oidc` or `github`.
 
-[Disabling local auth is required for FedRAMP / FIPS](../../access-controls/compliance-frameworks/fedramp.mdx#teleport-auth-server).
+[Disabling local auth is required for FedRAMP / FIPS](../../access-controls/compliance-frameworks/fedramp.mdx#teleport-auth-service).
 
 ### `authentication.lockingMode`
 
@@ -739,7 +770,7 @@ You can also use any other ACME-compatible server.
 |--------|-------------------------------------------------------|
 | `bool` | `true` for 1.22 and lower, `false` for 1.23 and higher|
 
-By default, Teleport charts used to install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-cluster/templates/psp.yaml).
+By default, Teleport charts used to install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/examples/chart/teleport-cluster/templates/psp.yaml).
 
 PodSecurityPolicy resource has been removed in Kubernetes 1.25
 and replaced since 1.23 by PodSecurityAdmission. If you are running on
@@ -792,6 +823,7 @@ Teleport's RBAC policies to define access rules for the cluster.
 | `standalone` | [Getting Started - Kubernetes with SSO](../../deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx)            |
 | `aws`        | [Running an HA Teleport cluster using an AWS EKS Cluster](../../deploy-a-cluster/helm-deployments/aws.mdx)         |
 | `gcp`        | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx) |
+| `azure`      | [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../deploy-a-cluster/helm-deployments/azure.mdx) |
 | `scratch`    | [Running a Teleport cluster with a custom config](../../deploy-a-cluster/helm-deployments/custom.mdx)              |
 
 <Admonition type="warning">
@@ -803,6 +835,45 @@ recommended to use one of the other modes and rely on
 [`auth.teleportConfig`](#authteleportconfig) and [`proxy.teleportConfig`](#proxyteleportconfig)
 to inject your custom configuration.
 </Admonition>
+
+## `podMonitor`
+
+`podMonitor` controls [the PodMonitor CR (from monitoring.coreos.com/v1)
+](https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#monitoring.coreos.com/v1.PodMonitor)
+that monitors the workload (Auth and Proxy Services) deployed by the chart.
+This custom resource configures Prometheus and makes it scrape Teleport metrics.
+
+The CRD is deployed by the prometheus-operator and allows workload to
+get monitored. You need to deploy the `prometheus-operator`
+in the cluster prior to configuring the `podMonitor` section of the chart. See
+[the prometheus-operator documentation](https://prometheus-operator.dev/docs/prologue/introduction/)
+for setup instructions.
+
+### `podMonitor.enabled`
+
+| Type   | Default value |
+|--------|---------------|
+| `bool` | `false`       |
+
+Whether the chart should deploy a `PodMonitor` resource. This is disabled by
+default as it requires the `PodMonitor` CRD to be installed in the cluster.
+
+### `podMonitor.additionalLabels`
+
+| Type                   | Default value              |
+|------------------------|----------------------------|
+| `object[string]string` | `{"prometheus":"default"}` |
+
+Additional labels to put on the created PodMonitor Resource.
+Those labels are used to be selected by a specific Prometheus instance.
+
+### `podMonitor.interval`
+
+| Type     | Default value |
+|----------|---------------|
+| `string` | `30s`         |
+
+`interval` is the interval between two metrics scrapes by Prometheus.
 
 ## `persistence`
 
@@ -848,6 +919,21 @@ The default is left blank, which will automatically create a `PersistentVolumeCl
     existingClaimName: my-existing-pvc-name
   ```
 
+### `persistence.storageClassName`
+
+| Type   | Default value |
+|--------|---------------|
+| `string` | `nil`        |
+
+`persistence.storageClassName` can be used to set the storage class for the `PersistentVolumeClaim`.
+
+`values.yaml` example:
+
+  ```yaml
+  persistence:
+    storageClassName: ebs-ssd
+  ```
+
 ### `persistence.volumeSize`
 
 | Type     | Default value |
@@ -874,6 +960,10 @@ You can set `volumeSize` to request a different size of persistent volume when i
 ## `gcp`
 
 `gcp` settings are described in the GCP guide: [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx)
+
+## `azure`
+
+`azure` settings are described in the Azure guide: [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../deploy-a-cluster/helm-deployments/azure.mdx)
 
 ## `highAvailability`
 
@@ -996,7 +1086,7 @@ cluster deployed in HA mode.
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-36-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 ### `highAvailability.certManager.addCommonName`
@@ -1011,7 +1101,7 @@ Setting `highAvailability.certManager.addCommonName` to `true` will instruct `ce
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-36-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 `values.yaml` example:
@@ -1021,6 +1111,26 @@ Setting `highAvailability.certManager.addCommonName` to `true` will instruct `ce
     certManager:
       enabled: true
       addCommonName: true
+      issuerName: letsencrypt-production
+  ```
+
+### `highAvailability.certManager.addPublicAddrs`
+
+| Type   | Default value | `teleport.yaml` equivalent                                        |
+|--------|---------------|-------------------------------------------------------------------|
+| `bool` | `false`       | `proxy_service.https_keypairs` (to provide your own certificates) |
+
+Setting `highAvailability.certManager.addPublicAddrs` to `true` will instruct `cert-manager` to also add any additional addresses configured under the `publicAddr` chart value
+in its certificate signing request to the issuing CA.
+
+`values.yaml` example:
+
+  ```yaml
+  publicAddr: ['teleport.example.com:443']
+  highAvailability:
+    certManager:
+      enabled: true
+      addPublicAddrs: true
       issuerName: letsencrypt-production
   ```
 
@@ -1036,7 +1146,7 @@ Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for issui
   You must install configure an appropriate `Issuer` supporting a DNS01 challenge yourself.
 
   Please see the [cert-manager DNS01 docs](https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers) and the relevant sections
-  of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-36-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
+  of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 `values.yaml` example:
@@ -1425,6 +1535,25 @@ Kubernetes annotations which should be applied to the `secret` generated by
       kubernetes.io/annotation: value
   ```
 
+## `annotations.ingress`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `Ingress` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  annotations:
+    ingress:
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/backend-protocol: HTTPS
+  ```
+
 ## `serviceAccount.create`
 
 | Type      | Default value | Required? |
@@ -1477,6 +1606,60 @@ Allows to specify the `loadBalancerIP`.
   service:
     spec:
       loadBalancerIP: 1.2.3.4
+  ```
+
+## `ingress.enabled`
+
+| Type      | Default value | Required? |
+|-----------|---------------|-----------|
+| `boolean` | `false`       | No        |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/services-networking/ingress/)
+
+Boolean value that specifies whether to generate a Kubernetes `Ingress` for the Teleport deployment.
+
+`values.yaml` example:
+
+  ```yaml
+  ingress:
+    enabled: true
+  ```
+
+## `ingress.suppressAutomaticWildcards`
+
+| Type      | Default value | Required? |
+|-----------|---------------|-----------|
+| `boolean` | `false`       | No        |
+
+Setting `suppressAutomaticWildcards` to true will not automatically add `*.<clusterName>` as a hostname served
+by the Ingress. This may be desirable if you don't use Teleport application access, or want to configure
+individual public addresses for applications instead.
+
+`values.yaml` example:
+
+  ```yaml
+  ingress:
+    enabled: true
+    suppressAutomaticWildcards: true
+  ```
+
+## `ingress.spec`
+
+| Type      | Default value | Required? |
+|-----------|---------------|-----------|
+| `object`  | `{}`          | No        |
+
+Object value which can be used to define additional properties for the configured Ingress.
+
+For example, you can use this to set an `ingressClassName`:
+
+`values.yaml` example:
+
+  ```yaml
+  ingress:
+    enabled: true
+    spec:
+      ingressClassName: alb
   ```
 
 ## `extraArgs`

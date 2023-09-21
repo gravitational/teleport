@@ -1,5 +1,9 @@
 {{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- $backendProtocol := ternary "ssl" "tcp" (hasKey $proxy.annotations.service "service.beta.kubernetes.io/aws-load-balancer-ssl-cert") -}}
+{{- /* Fail early if proxy service type is set to LoadBalancer when ingress.enabled=true */ -}}
+{{- if and $proxy.ingress.enabled (eq $proxy.service.type "LoadBalancer") -}}
+  {{- fail "proxy.service.type must not be LoadBalancer when using an ingress - any load balancer should be provisioned by your ingress controller. Set proxy.service.type=ClusterIP instead" -}}
+{{- end -}}
 apiVersion: v1
 kind: Service
 metadata:
@@ -8,7 +12,7 @@ metadata:
   labels: {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
   {{- if (or ($proxy.annotations.service) (eq $proxy.chartMode "aws")) }}
   annotations:
-    {{- if eq $proxy.chartMode "aws" }}
+    {{- if and (eq $proxy.chartMode "aws") (not $proxy.ingress.enabled) }}
       {{- if not (hasKey $proxy.annotations.service "service.beta.kubernetes.io/aws-load-balancer-backend-protocol")}}
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: {{ $backendProtocol }}
       {{- end }}

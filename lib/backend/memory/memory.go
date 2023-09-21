@@ -61,7 +61,7 @@ type Config struct {
 	// BufferSize sets up event buffer size
 	BufferSize int
 	// Mirror mode is used when the memory backend is used for caching. In mirror
-	// mode, record IDs for Put and PutRange requests are re-used (instead of
+	// mode, record IDs for Put requests are re-used (instead of
 	// generating fresh ones) and expiration is turned off.
 	Mirror bool
 }
@@ -134,6 +134,10 @@ type Memory struct {
 	buf *backend.CircularBuffer
 }
 
+func (m *Memory) GetName() string {
+	return GetName()
+}
+
 // Close closes memory backend
 func (m *Memory) Close() error {
 	m.cancel()
@@ -165,6 +169,7 @@ func (m *Memory) Create(ctx context.Context, i backend.Item) (*backend.Lease, er
 	if m.tree.Has(&btreeItem{Item: i}) {
 		return nil, trace.AlreadyExists("key %q already exists", string(i.Key))
 	}
+	i.Revision = backend.CreateRevision()
 	event := backend.Event{
 		Type: types.OpPut,
 		Item: i,
@@ -173,7 +178,7 @@ func (m *Memory) Create(ctx context.Context, i backend.Item) (*backend.Lease, er
 	if !m.EventsOff {
 		m.buf.Emit(event)
 	}
-	return m.newLease(i), nil
+	return backend.NewLease(i), nil
 }
 
 // Get returns a single item or not found error
@@ -204,6 +209,7 @@ func (m *Memory) Update(ctx context.Context, i backend.Item) (*backend.Lease, er
 	}
 	if !m.Mirror {
 		i.ID = m.generateID()
+		i.Revision = backend.CreateRevision()
 	}
 	event := backend.Event{
 		Type: types.OpPut,
@@ -213,7 +219,7 @@ func (m *Memory) Update(ctx context.Context, i backend.Item) (*backend.Lease, er
 	if !m.EventsOff {
 		m.buf.Emit(event)
 	}
-	return m.newLease(i), nil
+	return backend.NewLease(i), nil
 }
 
 // Put puts value into backend (creates if it does not
@@ -227,6 +233,7 @@ func (m *Memory) Put(ctx context.Context, i backend.Item) (*backend.Lease, error
 	m.removeExpired()
 	if !m.Mirror {
 		i.ID = m.generateID()
+		i.Revision = backend.CreateRevision()
 	}
 	event := backend.Event{
 		Type: types.OpPut,
@@ -236,34 +243,7 @@ func (m *Memory) Put(ctx context.Context, i backend.Item) (*backend.Lease, error
 	if !m.EventsOff {
 		m.buf.Emit(event)
 	}
-	return m.newLease(i), nil
-}
-
-// PutRange puts range of items into backend (creates if items do not
-// exist, updates it otherwise)
-func (m *Memory) PutRange(ctx context.Context, items []backend.Item) error {
-	for i := range items {
-		if items[i].Key == nil {
-			return trace.BadParameter("missing parameter key in item %v", i)
-		}
-	}
-	m.Lock()
-	defer m.Unlock()
-	m.removeExpired()
-	for _, item := range items {
-		event := backend.Event{
-			Type: types.OpPut,
-			Item: item,
-		}
-		if !m.Mirror {
-			event.Item.ID = m.generateID()
-		}
-		m.processEvent(event)
-		if !m.EventsOff {
-			m.buf.Emit(event)
-		}
-	}
-	return nil
+	return backend.NewLease(i), nil
 }
 
 // Delete deletes item by key, returns NotFound error
@@ -340,9 +320,10 @@ func (m *Memory) GetRange(ctx context.Context, startKey []byte, endKey []byte, l
 
 // KeepAlive updates TTL on the lease
 func (m *Memory) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
-	if lease.IsEmpty() {
-		return trace.BadParameter("lease is empty")
+	if len(lease.Key) == 0 {
+		return trace.BadParameter("missing parameter key")
 	}
+
 	m.Lock()
 	defer m.Unlock()
 	m.removeExpired()
@@ -355,6 +336,7 @@ func (m *Memory) KeepAlive(ctx context.Context, lease backend.Lease, expires tim
 	if !m.Mirror {
 		// ID is updated on keep alive for consistency with other backends
 		item.ID = m.generateID()
+		item.Revision = backend.CreateRevision()
 	}
 	event := backend.Event{
 		Type: types.OpPut,
@@ -389,6 +371,9 @@ func (m *Memory) CompareAndSwap(ctx context.Context, expected backend.Item, repl
 	if !bytes.Equal(existingItem.Value, expected.Value) {
 		return nil, trace.CompareFailed("current value does not match expected for %v", string(expected.Key))
 	}
+	if !m.Mirror {
+		replaceWith.Revision = backend.CreateRevision()
+	}
 	event := backend.Event{
 		Type: types.OpPut,
 		Item: replaceWith,
@@ -397,7 +382,61 @@ func (m *Memory) CompareAndSwap(ctx context.Context, expected backend.Item, repl
 	if !m.EventsOff {
 		m.buf.Emit(event)
 	}
-	return m.newLease(replaceWith), nil
+	return backend.NewLease(replaceWith), nil
+}
+
+func (m *Memory) ConditionalDelete(ctx context.Context, key []byte, rev string) error {
+	if len(key) == 0 {
+		return trace.BadParameter("missing parameter key")
+	}
+	m.Lock()
+	defer m.Unlock()
+	m.removeExpired()
+
+	item, found := m.tree.Get(&btreeItem{Item: backend.Item{Key: key}})
+	if !found || item.Item.Revision != rev {
+		return trace.Wrap(backend.ErrIncorrectRevision)
+	}
+
+	event := backend.Event{
+		Type: types.OpDelete,
+		Item: backend.Item{
+			Key: key,
+		},
+	}
+	m.processEvent(event)
+	if !m.EventsOff {
+		m.buf.Emit(event)
+	}
+	return nil
+}
+
+func (m *Memory) ConditionalUpdate(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+	if len(i.Key) == 0 {
+		return nil, trace.BadParameter("missing parameter key")
+	}
+	m.Lock()
+	defer m.Unlock()
+	m.removeExpired()
+
+	item, found := m.tree.Get(&btreeItem{Item: i})
+	if !found || item.Item.Revision != i.Revision {
+		return nil, trace.Wrap(backend.ErrIncorrectRevision)
+	}
+
+	if !m.Mirror {
+		i.ID = m.generateID()
+		i.Revision = backend.CreateRevision()
+	}
+	event := backend.Event{
+		Type: types.OpPut,
+		Item: i,
+	}
+	m.processEvent(event)
+	if !m.EventsOff {
+		m.buf.Emit(event)
+	}
+	return backend.NewLease(i), nil
 }
 
 // NewWatcher returns a new event watcher
@@ -422,15 +461,6 @@ func (m *Memory) getRange(ctx context.Context, startKey, endKey []byte, limit in
 		return true
 	})
 	return res
-}
-
-func (m *Memory) newLease(item backend.Item) *backend.Lease {
-	var lease backend.Lease
-	if item.Expires.IsZero() {
-		return &lease
-	}
-	lease.Key = item.Key
-	return &lease
 }
 
 // removeExpired makes a pass through map and removes expired elements

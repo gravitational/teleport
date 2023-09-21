@@ -1,28 +1,307 @@
 # Changelog
 
-## 14.0.0 (xx/xx/23)
+## 14.0.0 (09/20/23)
 
-### Breaking Changes
+Teleport 14 brings the following new major features and improvements:
 
-Please familiarize yourself with the following potentially disruptive changes
-in Teleport 14 before upgrading.
+- Access lists
+- Unified resource view
+- ClickHouse support for database access
+- Advanced audit log
+- Kubernetes apps auto-discovery
+- Extended Kubernetes per-resource RBAC
+- Oracle database access audit logging support
+- Enhanced PuTTY support
+- Support for TLS routing in Terraform deployment examples
+- Discord and ServiceNow hosted plugins
+- Limited passwordless access for local Windows users in OSS Teleport
+- Machine ID: Kubernetes Secret destination
 
-#### `tsh db` --db-user and --db-name defaults
+In addition, this release includes several changes that affect existing
+functionality listed in the “Breaking changes” section below. Users are advised
+to review them before upgrading.
 
-In Teleport 14 `tsh db` sub-commands will check if `--db-user` or `--db-name`
-flags are required and not provided by the user, and attempt to choose a default
-value.
-If the user's role(s) matching the database's labels have the `create_db_user`
-option enabled, then the Teleport user's username will be chosen as the default
-for `--db-user`.
-Otherwise, a default is chosen by examining the allowed `db_users` and
-`db_names` in the user's role(s) that apply for the given database.
+### New features
 
-If, after applying user traits, only one non-wildcard db name/user is allowed,
-`tsh` will use it as the default value for the corresponding flag.
-Prior versions of Teleport would return an error from `tsh db` commands if those
-flags were empty (the only exception is Redis, where it would choose the Redis
-username "default" for `--db-user`).
+#### Advanced audit log
+
+Teleport 14 includes support for a new audit log powered by Amazon S3 and Athena
+that supports efficient searching, sorting, and filtering operations. Teleport
+Cloud customers will have their audit log automatically migrated to this new
+backend.
+
+See the documentation [here](docs/pages/reference/backends.mdx#athena-preview).
+
+#### Access lists
+
+Teleport 14 introduces foundational support for access lists, an extension to
+the short-lived access requests system targeted towards longer-term access.
+Administrators can add users to access lists granting them long-term permissions
+within the cluster.
+
+As the feature is being developed, future Teleport releases will add support for
+periodic audit reviews and deeper integration of access lists with Okta.
+
+You can find existing access lists documentation [here](docs/pages/access-controls/access-lists/guide.mdx).
+
+#### Unified resources view
+
+The web UI in Teleport 14 has been updated to show all resources in a single
+unified view.
+
+This is the first step in a series of changes designed to support a
+customizable Teleport experience and make it easier to access the resources that
+are most important to you.
+
+#### Kubernetes apps auto-discovery
+
+Teleport 14 updates its auto-discovery capabilities with support for web
+applications in Kubernetes clusters. When connected to a Kubernetes cluster (or
+deployed as a Helm chart), Teleport discovery service will automatically find
+and enroll web applications for use with app access.
+
+See documentation [here](docs/pages/application-access/enroll-kubernetes-applications.mdx).
+
+#### Extended Kubernetes per-resource RBAC
+
+Teleport 14 extends resource-based access requests to support more Kubernetes
+resources than just pods, including custom resources, and verbs. Note that this
+feature requires role version `v7`.
+
+See Kubernetes resources documentation to see a full list of [supported
+resources](docs/pages/kubernetes-access/controls.mdx#kubernetes_resources).
+
+#### ClickHouse support for database access
+
+Teleport 14 adds database access support for ClickHouse HTTP and native (TCP)
+protocols. When using HTTP protocol, the user's query activity is captured in
+the Teleport audit log.
+
+See how to connect ClickHouse to Teleport [here](docs/pages/database-access/guides/clickhouse-self-hosted.mdx).
+
+#### Oracle database access audit logging support
+
+In Teleport 14, database access for Oracle integration is updated with query
+audit logging support.
+
+See documentation on how to configure it in the [Oracle guide](docs/pages/database-access/guides/oracle-self-hosted.mdx).
+
+#### Limited passwordless access for local Windows users in OSS Teleport
+
+In Teleport 14, access to Windows desktops with local Windows users has been
+extended to Community Edition. Teleport will permit users to register and
+connect to up to 5 desktops with local users without an enterprise license.
+
+For more information on using Teleport with local Windows users, see [docs](docs/pages/desktop-access/getting-started.mdx).
+
+#### Discord and ServiceNow hosted plugins
+
+Teleport 14 includes support for hosted Discord and ServiceNow plugins. Teleport
+Cloud users can configure Discord and ServiceNow integrations to receive access
+request notifications.
+
+Discord plugin is available now, ServiceNow is coming in 14.0.1.
+
+#### Enhanced PuTTY Support
+
+tsh on Windows now supports the `tsh puttyconfig` command, which can easily
+configure saved sessions inside the well-known PuTTY client to connect to
+Teleport SSH services.
+
+For more information, see [docs](docs/pages/connect-your-client/putty.mdx).
+
+#### Support for TLS routing in Terraform deployment examples
+
+The ha-autoscale-cluster and starter-cluster Terraform deployment examples now
+support a `USE_TLS_ROUTING` variable to enable TLS routing inside the deployed
+Teleport cluster.
+
+#### Machine ID: Kubernetes Secret destination
+
+In Teleport 14, `tbot` can now be configured to write artifacts such as
+credentials and configuration files directly to a Kubernetes secret rather than
+a directory on the local file system. This allows other services to more easily
+consume the credentials output by `tbot` .
+
+For more information, see [docs](docs/pages/machine-id/reference/configuration.mdx#kubernetes_secret).
+
+### Breaking changes and deprecations
+
+Please familiarize yourself with the following potentially disruptive changes in
+Teleport 14 before upgrading.
+
+#### SSH node open dial no longer supported
+
+Teleport 14 no longer allows connecting to OpenSSH servers not registered with
+the cluster. Follow the updated agentless OpenSSH integration [guide](docs/pages/server-access/guides/openssh.mdx)
+to register your OpenSSH nodes in the cluster’s inventory.
+
+You can set `TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING=yes` environment variable
+on Teleport proxy to temporarily re-enable the open dial functionality. The
+environment variable will be removed in Teleport 15.
+
+#### Proxy protocol default change
+
+Starting from version 14, Teleport will require users to explicitly enable or
+disable PROXY protocol in their `proxy_service`/`auth_service` configuration
+using `proxy_protocol: on|off` option.
+
+Users who run their proxies behind L4 load balancers with PROXY protocol
+enabled, should set `proxy_protocol: on`.  Users who don’t run Teleport behind
+PROXY protocol enabled load balancers, should disable `proxy_protocol: off`
+explicitly for security reasons.
+
+By default, Teleport will accept the PROXY line but will prevent connections
+with IP pinning enabled. IP pinning users will need to explicitly enable/disable
+proxy protocol like explained above.
+
+See more details in our [documentation](docs/pages/management/security/proxy-protocol.mdx).
+
+#### Legacy deb/rpm package repositories are deprecated
+
+Teleport 14 will be the last release published to the legacy package
+repositories at `deb.releases.teleport.dev` and `rpm.releases.teleport.dev`.
+Starting with Teleport 15, packages will only be published to the new
+repositories at `apt.releases.teleport.dev` and `yum.releases.teleport.dev`.
+
+All users are recommended to switch to `apt.releases.teleport.dev` and
+`yum.releases.teleport.dev` repositories as described in installation
+[instructions](docs/pages/installation.mdx).
+
+#### `Cf-Access-Token` header no longer included with app access requests
+
+Starting from Teleport 14, the `Cf-Access-Token` header containing the signed
+JWT token will no longer be included by default with all app access requests.
+All requests will still include `Teleport-JWT-Assertion` containing the JWT
+token.
+
+See documentation for details on how to inject the JWT token into any header
+using [header rewriting](docs/pages/application-access/jwt/introduction.mdx#inject-jwt).
+
+#### tsh db CLI commands changes
+
+In Teleport 14 tsh db sub-commands will attempt to select a default value for
+`--db-user` or `--db-name` flags if they are not provided by the user by
+examining their allowed `db_users` and `db_names`.
+
+The flags `--cert-file` and `--key-file` for tsh proxy db command were also
+removed, in favor of the `--tunnel` flag that opens an authenticated local
+database proxy.
+
+#### MongoDB versions prior to 3.6 are no longer supported
+
+Teleport 14 includes an update to the MongoDB driver.
+
+Due to the MongoDB team dropping support for servers prior to version 3.6 (which
+reached EOL on April 30, 2021), Teleport also will no longer be able to support
+these old server versions.
+
+#### Symlinks for `~/.tsh/environment` no longer supported
+
+In order to strengthen the security in Teleport 14, file loading from home
+directories where the path includes a symlink is no longer allowed.  The most
+common use case for this is loading environment variables from the
+`~/.tsh/environment` file.  This will still work normally as long as the path
+includes no symlinks.
+
+#### Deprecated audit event
+
+Teleport 14 deprecates the `trusted_cluster_token.create` audit event, replacing
+it with a new `join_token.create` event. The new event is emitted when any join
+token is created, whether it be for trusted clusters or other Teleport services.
+
+Teleport 14 will emit both events when a trusted cluster join token is created.
+Starting in Teleport 15, the `trusted_cluster_token.create` event will no longer
+be emitted.
+
+### Other changes
+
+#### DynamoDB billing mode defaults to on-demand
+
+In Teleport 14, when creating new DynamoDB tables, Teleport will now create them
+with the billing mode set to `pay_per_request` instead of being set to provisioned
+mode.
+
+The old behavior can be restored by setting the `billing_mode` option in the
+storage configuration.
+
+#### Default role version is v7
+
+The default role version in Teleport 14 is `v7` which enables support for extended
+Kubernetes per-resource RBAC, and changes the `kubernetes_resources` default to
+wildcard for better getting started user experience.
+
+You can review role versions in the [documentation](docs/pages/access-controls/reference.mdx#role-versions).
+
+#### Stricter name validation for auto-discovered databases
+
+In Teleport 14, database discovery via `db_service` config enforces the same name
+validation as for databases created via tctl, static config, and
+`discovery_service`.
+
+As such, database names in AWS, GCP and Azure must start with a letter, contain
+only letters, digits, and hyphens and end with a letter or digit (no trailing
+hyphens).
+
+#### Access Request API changes
+
+Teleport 14 introduces a new and more secure API for submitting access requests.
+As a result, tsh users may be prompted to upgrade their clients before
+submitting an access request.
+
+#### Desktop discovery name change
+
+Desktops discovered via LDAP will have a short suffix appended to their name to
+ensure uniqueness. Users will notice duplicate desktops (with and without the
+suffix) for up to an hour after upgrading. Connectivity to desktops will not be
+affected, and the old record will naturally expire after 1 hour.
+
+#### Machine ID : New configuration schema
+
+Teleport 14 introduces a new configuration schema (v2) for Machine ID’s agent
+`tbot`.  The new schema is designed to be simpler, more explicit and more
+extensible:
+
+```yaml
+version: v2
+onboarding:
+ token: gcp-bot
+ join_method: gcp
+storage:
+ type: memory
+auth_server: example.teleport.sh:443
+outputs:
+ - type: identity
+   destination:
+     type: kubernetes_secret
+     name: my-secret
+​
+ - type: kubernetes
+   kubernetes_cluster: my-cluster
+   destination:
+     type: directory
+     path: ./k8s
+​
+ - type: database
+   service: my-postgres-service
+   database: postgres
+   username: postgres
+   destination:
+     type: directory
+     path: ./db
+​
+ - type: application
+   app_name: my-app
+   destination:
+     type: directory
+     path: ./app
+```
+
+`tbot` will continue to support the v1 schema for several Teleport versions but it
+is recommended that you migrate to v2 as soon as possible to benefit from new
+Machine ID features.
+
+For more details and guidance on how to upgrade to v2, see [docs](docs/pages/machine-id/reference/v14-upgrade-guide.mdx).
 
 ## 13.0.1 (05/xx/23)
 
@@ -213,7 +492,7 @@ image: "public.ecr.aws/gravitational/teleport"
 
 For debugging purposes, a "debug" image is available and contains BusyBox,
 which includes a shell and most common POSIX executables:
-`public.ecr.aws/gravitational/teleport-distroless`.
+`public.ecr.aws/gravitational/teleport-distroless-debug`.
 
 ## 12.3.0 (05/01/23)
 
@@ -2720,7 +2999,8 @@ auth_service:
 
 #### Upgrade Notes
 
-Please follow our [standard upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport).
+Please follow our [standard upgrade
+procedure](docs/pages/management/operations/upgrading.mdx).
 
 ## 4.3.9
 
@@ -2838,15 +3118,10 @@ Teleport 4.3 introduces four new plugins that work out of the box with [Approval
 *   Fixed `tsh` and `gpg-agent` integration. [#3169](https://github.com/gravitational/teleport/issues/3169)
 *   Fixed Vulnerabilities in Teleport Docker Image [https://quay.io/repository/gravitational/teleport?tab=tags](https://quay.io/repository/gravitational/teleport?tab=tags)
 
-#### Documentation
-
-*   [Moved SSO under Enterprise Section](https://gravitational.com/teleport/docs/enterprise/sso/ssh_sso/)
-*   [Documented Teleport Plugins](./docs/pages/access-controls/access-request-plugins/index.mdx)
-*   [Documented Kubernetes Role Mapping](https://gravitational.com/teleport/docs/kubernetes_ssh/#kubernetes-groups-and-users)
-
 #### Upgrade Notes
 
-Always follow the [recommended upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport?utm_source=github&utm_medium=changelog&utm_campaign=4_3) to upgrade to this version.
+Always follow the [recommended upgrade
+procedure](./docs/pages/management/operations/upgrading.mdx) to upgrade to this version.
 
 ##### New Signing Algorithm
 
@@ -2857,7 +3132,8 @@ teleport:
     ca_signature_algo: "rsa-sha2-512"
 ```
 
-Rotate the cluster CA, following [these docs](https://gravitational.com/teleport/docs/admin-guide/#certificate-rotation?utm_source=github&utm_medium=changelog&utm_campaign=4_3).
+Rotate the cluster CA, following [these
+docs](docs/pages/management/operations/ca-rotation.mdx).
 
 ##### Web UI
 
@@ -2876,13 +3152,19 @@ can limit access by changing the options on the new `event` resource.
 
 ##### Kubernetes Permissions
 
-The minimum set of Kubernetes permissions that need to be granted to Teleport proxies has been updated. If you use the Kubernetes integration, please make sure that the ClusterRole used by the proxy has [sufficient permissions](https://gravitational.com/teleport/docs/kubernetes_ssh#impersonation).
+The minimum set of Kubernetes permissions that need to be granted to Teleport
+proxies has been updated. If you use the Kubernetes integration, please make
+sure that the ClusterRole used by the proxy has [sufficient
+permissions](./docs/pages/kubernetes-access/manage-access/rbac.mdx).
 
 ##### Path prefix for etcd
 
-The [etcd backend](https://gravitational.com/teleport/docs/admin-guide/#using-etcd) now correctly uses the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will migrate the data as needed at startup. Make sure you follow our Teleport [upgrade guidance](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport).
+The [etcd backend](docs/pages/reference/backends.mdx#etcd) now correctly uses
+the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will
+migrate the data as needed at startup. Make sure you follow our Teleport
+[upgrade guidance](docs/pages/management/operations/upgrading.mdx).
 
-**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](https://gravitational.com/teleport/docs/admin-guide/#backing-up-teleport) into the downgraded cluster.**
+**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/management/operations/backup-restore.mdx) into the downgraded cluster.**
 
 ## 4.2.12
 
@@ -3005,7 +3287,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 * Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
 * Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](./docs/pages/access-controls/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
 * Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](./docs/pages/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
-* Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli.mdx#tctl). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
+* Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli/tctl.mdx). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 
 ### Fixes
 
@@ -3259,7 +3541,7 @@ The lists of improvements and bug fixes above mention only the significant chang
 
 ### Upgrading
 
-Teleport 4.0 is backwards compatible with Teleport 3.2 and later. [Follow the recommended upgrade procedure to upgrade to this version.](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport)
+Teleport 4.0 is backwards compatible with Teleport 3.2 and later. [Follow the recommended upgrade procedure to upgrade to this version.](docs/pages/management/operations/upgrading.mdx)
 
 Note that due to substantial changes between Teleport 3.2 and 4.0, we recommend creating a backup of the backend datastore (DynamoDB, etcd, or dir) before upgrading a cluster to Teleport 4.0 to allow downgrades.
 
@@ -3501,9 +3783,6 @@ usability and performance improvements listed below.
   if `kubectl exec` command was interactive.
 * Unified (AKA "single pane of glass") RBAC for both SSH and Kubernetes permissions.
 
-For more information about Kubernetes support, take a look at
-the [Kubernetes and SSH Integration Guide](https://gravitational.com/teleport/docs/kubernetes_ssh/)
-
 #### Improvements
 
 * Teleport administrators can now fine-tune the enabled ciphersuites [#1999](https://github.com/gravitational/teleport/issues/1999)
@@ -3529,8 +3808,9 @@ on Github for more.
 
 #### Upgrading to 3.0
 
-Follow the [recommended upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport)
-to upgrade to this version.
+Follow the [recommended upgrade
+procedure](docs/pages/management/operations/upgrading.mdx) to upgrade to this
+version.
 
 **WARNING:** if you are using Teleport with the etcd back-end, make sure your
 `etcd` version is 3.3 or newer prior to upgrading to Teleport 3.0.
@@ -3634,7 +3914,9 @@ As always, this release contains several bug fixes. The full list can be seen [h
 
 #### Upgrading
 
-Follow the [recommended upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport) to upgrade to this version.
+Follow the [recommended upgrade
+procedure](docs/pages/management/operations/upgrading.mdx) to upgrade to this
+version.
 
 ## 2.6.9
 
@@ -3762,8 +4044,9 @@ You can see the full list of 2.6.0 changes [here](https://github.com/gravitation
 
 #### Upgrading
 
-Follow the [recommended upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport)
-to upgrade to this version.
+Follow the [recommended upgrade
+procedure](docs/pages/management/operations/upgrading.mdx) to upgrade to this
+version.
 
 ## 2.5.7
 
@@ -3848,8 +4131,8 @@ release, which includes:
   management, load balancers, etc.
 
 * The Teleport daemon now implements built-in connection draining which allows
-  zero-downtime upgrades.
-  [See documentation](https://gravitational.com/teleport/docs/admin-guide/#graceful-restarts).
+  zero-downtime upgrades.  [See
+  documentation](docs/pages/management/admin/upgrading-the-teleport-binary.mdx).
 
 * Dynamic join tokens for new nodes can now be explicitly set via `tctl node add --token`.
   This allows Teleport admins to use an external mechanism for generating

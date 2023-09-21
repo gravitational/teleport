@@ -43,6 +43,7 @@ func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
 		Theme: userpreferencesv1.Theme_THEME_LIGHT,
 		Onboard: &userpreferencesv1.OnboardUserPreferences{
 			PreferredResources: []userpreferencesv1.Resource{},
+			MarketingParams:    &userpreferencesv1.MarketingParams{},
 		},
 	}
 }
@@ -55,29 +56,29 @@ func NewUserPreferencesService(backend backend.Backend) *UserPreferencesService 
 }
 
 // GetUserPreferences returns the user preferences for the given user.
-func (u *UserPreferencesService) GetUserPreferences(ctx context.Context, req *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.GetUserPreferencesResponse, error) {
-	preferences, err := u.getUserPreferences(ctx, req.Username)
+func (u *UserPreferencesService) GetUserPreferences(ctx context.Context, username string) (*userpreferencesv1.UserPreferences, error) {
+	preferences, err := u.getUserPreferences(ctx, username)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return &userpreferencesv1.GetUserPreferencesResponse{Preferences: DefaultUserPreferences()}, nil
+			return DefaultUserPreferences(), nil
 		}
 
 		return nil, trace.Wrap(err)
 	}
 
-	return &userpreferencesv1.GetUserPreferencesResponse{Preferences: preferences}, nil
+	return preferences, nil
 }
 
 // UpsertUserPreferences creates or updates user preferences for a given username.
-func (u *UserPreferencesService) UpsertUserPreferences(ctx context.Context, req *userpreferencesv1.UpsertUserPreferencesRequest) error {
-	if req.Username == "" {
+func (u *UserPreferencesService) UpsertUserPreferences(ctx context.Context, username string, prefs *userpreferencesv1.UserPreferences) error {
+	if username == "" {
 		return trace.BadParameter("missing username")
 	}
-	if err := validatePreferences(req.Preferences); err != nil {
+	if err := validatePreferences(prefs); err != nil {
 		return trace.Wrap(err)
 	}
 
-	preferences, err := u.getUserPreferences(ctx, req.Username)
+	preferences, err := u.getUserPreferences(ctx, username)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -85,11 +86,11 @@ func (u *UserPreferencesService) UpsertUserPreferences(ctx context.Context, req 
 		preferences = DefaultUserPreferences()
 	}
 
-	if err := overwriteValues(preferences, req.Preferences); err != nil {
+	if err := overwriteValues(preferences, prefs); err != nil {
 		return trace.Wrap(err)
 	}
 
-	item, err := createBackendItem(req.Username, preferences)
+	item, err := createBackendItem(username, preferences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -111,7 +112,7 @@ func (u *UserPreferencesService) getUserPreferences(ctx context.Context, usernam
 		return nil, trace.Wrap(err)
 	}
 
-	// Appy the default values to the existing preferences.
+	// Apply the default values to the existing preferences.
 	// This allows updating the preferences schema without returning empty values
 	// for new fields in the existing preferences.
 	df := DefaultUserPreferences()

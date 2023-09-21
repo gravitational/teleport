@@ -13,12 +13,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { TransitionGroup, CSSTransition } from 'react-transition-group';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { CSSTransition, TransitionGroup } from 'react-transition-group';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
 
+/**
+ * StepSlider
+ *
+ * There are two transition style this StepSlider can
+ * take on depending on how it is used.
+ *
+ * 1) In place slider (look at FormLogin.tsx) where components
+ *    slides in the same container as parent.
+ * 2) Wheel like slider (look at Welcome.tsx) where the whole
+ *    component slides out of screen.
+ *
+ * Noted Caveats with Wheel like slider:
+ *
+ * Parent of slider must have a margin-top AND a margin-bottom
+ * (no auto, and number > 0) for the dynamic height transition
+ * to work without glitching. Transition may work fine without
+ * both top/bottom margins, but top/bottom box shadows will be
+ * cutt off and is noticeable with lighter themes.
+ *
+ * Parent of slider having a sibling where vertical margins are
+ * collapsed will also make it glitch by "uncollapsing" the
+ * margins and ending up with more space than the original.
+ *
+ */
 export function StepSlider<T>(props: Props<T>) {
   const {
     flows,
@@ -36,8 +60,9 @@ export function StepSlider<T>(props: Props<T>) {
   const [step, setStep] = useState(0);
   // animationDirectionPrefix defines the prefix of the class name that contains
   // the animations to apply when transitioning.
-  const [animationDirectionPrefix, setAnimationDirectionPrefix] =
-    useState<'next' | 'prev' | ''>('');
+  const [animationDirectionPrefix, setAnimationDirectionPrefix] = useState<
+    'next' | 'prev' | ''
+  >('');
 
   const startTransitionInDirection = useCallback(
     (direction: 'next' | 'prev') => {
@@ -62,12 +87,6 @@ export function StepSlider<T>(props: Props<T>) {
   // useState's could not be used b/c they became stale for
   // our func 'setHeightOnPreMount'.
   const preMountState = useRef<{ step: number; flow: keyof T }>({} as any);
-
-  // Sets the initial height.
-  useEffect(() => {
-    const { height } = rootRef.current.getBoundingClientRect();
-    setHeight(height);
-  }, []);
 
   // Triggered as the first step to changing the current flow.
   // It preps data required for pre mounting and sets the
@@ -96,7 +115,7 @@ export function StepSlider<T>(props: Props<T>) {
   // animations.
   const setHeightOnPreMount = (node: HTMLElement) => {
     if (node !== null) {
-      setHeight(node.getBoundingClientRect().height);
+      setHeight(node.getBoundingClientRect().height + getMarginY(node));
       setStep(preMountState.current.step);
       setPreMount(false);
 
@@ -106,11 +125,26 @@ export function StepSlider<T>(props: Props<T>) {
     }
   };
 
+  const setHeightOnInitialMount = (node: HTMLElement) => {
+    if (node !== null) {
+      setHeight(node.getBoundingClientRect().height + getMarginY(node));
+    }
+  };
+
   function generateCurrentStep(View: StepComponent, requirePreMount = false) {
+    // refCallbackFn is called with the DOM element ("View") that
+    // has been mounted. This way we can get the true height of
+    // the "View" container with the margins.
+    let refCallbackFn: (node: HTMLElement) => void;
+    if (requirePreMount) {
+      refCallbackFn = setHeightOnPreMount;
+    } else if (!rootRef?.current) {
+      refCallbackFn = setHeightOnInitialMount;
+    }
     return (
       <View
         key={step}
-        refCallback={requirePreMount ? setHeightOnPreMount : null}
+        refCallback={refCallbackFn}
         next={() => {
           preMountState.current.step = step + 1;
           setPreMount(true);
@@ -147,15 +181,20 @@ export function StepSlider<T>(props: Props<T>) {
     }
   }
 
+  // Sets the height of the outer container (root container).
+  // Initial render will always be 'auto' since rootRef current
+  // will be undefined.
+  let heightWithMargins = 'auto';
+  if (rootRef?.current) {
+    heightWithMargins = rootRef.current.style.height;
+  }
+
   const rootStyle = {
     // During the *-enter transition state, children are positioned absolutely
     // to keep views "stacked" on top of each other. Position relative is needed
     // so these children's position themselves relative to parent.
     position: 'relative',
-    // Height 'auto' is only ever used on the initial render to let it
-    // take up as much space it needs. Afterwards, it sets the starting
-    // height.
-    height: rootRef?.current?.style.height || 'auto',
+    height: heightWithMargins,
     transition: `height ${tDuration}ms ease`,
   };
 
@@ -185,7 +224,7 @@ export function StepSlider<T>(props: Props<T>) {
               setHasTransitionEnded(true);
             }}
           >
-            {$content}
+            <Box>{$content}</Box>
           </CSSTransition>
         </TransitionGroup>
       </Wrap>
@@ -296,3 +335,15 @@ export type NewFlow<T> = {
   flow: T;
   applyNextAnimation?: boolean;
 };
+
+function getMarginY(node: HTMLElement) {
+  const style = getComputedStyle(node);
+  const marginTopNum = parseInt(style.marginTop);
+  const marginBotNum = parseInt(style.marginBottom);
+
+  if (isNaN(marginTopNum) || isNaN(marginBotNum)) {
+    return 0;
+  }
+
+  return marginTopNum + marginBotNum;
+}

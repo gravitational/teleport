@@ -68,7 +68,8 @@ type DeviceCollectedData struct {
 	// Example: "13.2.1".
 	OsVersion string `protobuf:"bytes,6,opt,name=os_version,json=osVersion,proto3" json:"os_version,omitempty"`
 	// OS build identifier. Augments the os_version.
-	// Example: "22D68".
+	// May match either the DeviceProfile os_build or os_build_supplemental.
+	// Example: "22D68" or "22F770820d".
 	OsBuild string `protobuf:"bytes,7,opt,name=os_build,json=osBuild,proto3" json:"os_build,omitempty"`
 	// OS username (distinct from the Teleport user).
 	OsUsername string `protobuf:"bytes,8,opt,name=os_username,json=osUsername,proto3" json:"os_username,omitempty"`

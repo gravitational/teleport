@@ -30,13 +30,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
@@ -45,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
@@ -104,7 +103,7 @@ type FileConfig struct {
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
 // format is supported
 func ReadFromFile(filePath string) (*FileConfig, error) {
-	f, err := os.Open(filePath)
+	f, err := utils.OpenFileAllowingUnsafeLinks(filePath)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			return nil, trace.Wrap(err, "failed to open file for Teleport configuration: %v. Ensure that you are running as a user with appropriate permissions.", filePath)
@@ -185,6 +184,8 @@ type SampleFlags struct {
 	JoinMethod string
 	// NodeName is the name of the teleport node
 	NodeName string
+	// Silent suppresses user hint printed after config has been generated.
+	Silent bool
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -308,7 +309,7 @@ func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled boo
 		s.ListenAddress = conf.SSH.Addr.Addr
 		s.Commands = []CommandLabel{
 			{
-				Name:    "hostname",
+				Name:    defaults.HostnameLabel,
 				Command: []string{"hostname"},
 				Period:  time.Minute,
 			},
@@ -478,25 +479,23 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	if err := checkAndSetDefaultsForGCPMatchers(conf.Discovery.GCPMatchers); err != nil {
 		return trace.Wrap(err)
 	}
+	if len(conf.Discovery.KubernetesMatchers) > 0 {
+		if conf.Discovery.DiscoveryGroup == "" {
+			// TODO(anton): add link to documentation when it's available
+			return trace.BadParameter(`parameter 'discovery_group' should be defined for discovery service if
+kubernetes matchers are present`)
+		}
+		if err := checkAndSetDefaultsForKubeMatchers(conf.Discovery.KubernetesMatchers); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	return nil
-}
-
-// awsRegions returns the list of all regions available on every aws partition.
-// It is used to validate the AWSMatcher.Regions values.
-func awsRegions() []string {
-	var regions []string
-	partitions := endpoints.DefaultPartitions()
-	for _, partition := range partitions {
-		regions = append(regions, maps.Keys(partition.Regions())...)
-	}
-	return regions
 }
 
 // checkAndSetDefaultsForAWSMatchers sets the default values for discovery AWS matchers
 // and validates the provided types.
 func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
-	regions := awsRegions()
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
 		for _, matcherType := range matcher.Types {
@@ -508,13 +507,13 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 
 		if len(matcher.Regions) == 0 {
 			return trace.BadParameter("discovery service requires at least one region; supported regions are: %v",
-				regions)
+				awsutils.GetKnownRegions())
 		}
 
 		for _, region := range matcher.Regions {
-			if !slices.Contains(regions, region) {
+			if err := awsapiutils.IsValidRegion(region); err != nil {
 				return trace.BadParameter("discovery service does not support region %q; supported regions are: %v",
-					region, regions)
+					region, awsutils.GetKnownRegions())
 			}
 		}
 
@@ -686,6 +685,12 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 			}
 		}
 
+		if slices.Contains(matcher.Types, services.GCPMatcherCompute) {
+			if err := checkAndSetDefaultsForGCPInstaller(matcher); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		if slices.Contains(matcher.Locations, types.Wildcard) || len(matcher.Locations) == 0 {
 			matcher.Locations = []string{types.Wildcard}
 		}
@@ -697,13 +702,79 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 			return trace.BadParameter("GCP discovery service project_ids does cannot be empty; please specify at least one value in project_ids.")
 		}
 
-		if len(matcher.Tags) == 0 {
-			matcher.Tags = map[string]apiutils.Strings{
+		if len(matcher.Labels) > 0 && len(matcher.Tags) > 0 {
+			return trace.BadParameter("labels and tags should not both be set.")
+		}
+
+		if len(matcher.Tags) > 0 {
+			matcher.Labels = matcher.Tags
+		}
+
+		if len(matcher.Labels) == 0 {
+			matcher.Labels = map[string]apiutils.Strings{
 				types.Wildcard: {types.Wildcard},
 			}
 		}
 
 	}
+	return nil
+}
+
+func checkAndSetDefaultsForGCPInstaller(matcher *GCPMatcher) error {
+	if matcher.InstallParams == nil {
+		matcher.InstallParams = &InstallParams{
+			JoinParams: JoinParams{
+				TokenName: defaults.GCPInviteTokenName,
+				Method:    types.JoinMethodGCP,
+			},
+			ScriptName: installers.InstallerScriptName,
+		}
+		return nil
+	}
+
+	switch matcher.InstallParams.JoinParams.Method {
+	case types.JoinMethodGCP, "":
+		matcher.InstallParams.JoinParams.Method = types.JoinMethodGCP
+	default:
+		return trace.BadParameter("only GCP joining is supported for GCP auto-discovery")
+	}
+
+	if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
+		matcher.InstallParams.JoinParams.TokenName = defaults.GCPInviteTokenName
+	}
+
+	if installer := matcher.InstallParams.ScriptName; installer == "" {
+		matcher.InstallParams.ScriptName = installers.InstallerScriptName
+	}
+	return nil
+}
+
+// checkAndSetDefaultsForKubeMatchers sets the default values for Kubernetes matchers
+// and validates the provided types.
+func checkAndSetDefaultsForKubeMatchers(matchers []KubernetesMatcher) error {
+	for i := range matchers {
+		matcher := &matchers[i]
+
+		for _, t := range matcher.Types {
+			if !slices.Contains(services.SupportedKubernetesMatchers, t) {
+				return trace.BadParameter("Kubernetes discovery does not support %q resource type; supported resource types are: %v",
+					t, services.SupportedKubernetesMatchers)
+			}
+		}
+
+		if len(matcher.Types) == 0 {
+			matcher.Types = []string{services.KubernetesMatchersApp}
+		}
+
+		if len(matcher.Namespaces) == 0 {
+			matcher.Namespaces = []string{types.Wildcard}
+		}
+
+		if len(matcher.Labels) == 0 {
+			matcher.Labels = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
+		}
+	}
+
 	return nil
 }
 
@@ -913,9 +984,14 @@ func (s *Service) Disabled() bool {
 type Auth struct {
 	Service `yaml:",inline"`
 
-	// ProxyProtocol enables support for HAProxy proxy protocol version 1 when it is turned 'on'.
-	// Verify whether the service is in front of a trusted load balancer.
-	// The default value is 'on'.
+	// ProxyProtocol controls support for HAProxy PROXY protocol.
+	// Possible values:
+	// - 'on': one PROXY header is accepted and required per incoming connection.
+	// - 'off': no PROXY headers are allows, otherwise connection is rejected.
+	// If unspecified - one PROXY header is allowed, but not required. Connection is marked with source port set to 0
+	// and IP pinning will not be allowed. It is supposed to be used only as default mode for test setups.
+	// In production you should always explicitly set the mode based on your network setup - if you have L4 load balancer
+	// with enabled PROXY protocol in front of Teleport you should set it to 'on', if you don't have it, set it to 'off'
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
 
 	// ClusterName is the name of the CA who manages this cluster
@@ -1005,6 +1081,9 @@ type Auth struct {
 	// should be sent. This is applicable only when using ping-wrapped
 	// connections, regular TLS routing connections are not affected.
 	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
+
+	// CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
+	CaseInsensitiveRouting bool `yaml:"case_insensitive_routing,omitempty"`
 
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
@@ -1581,6 +1660,9 @@ type Discovery struct {
 	// GCPMatchers are used to match GCP resources.
 	GCPMatchers []GCPMatcher `yaml:"gcp,omitempty"`
 
+	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
+	KubernetesMatchers []KubernetesMatcher `yaml:"kubernetes,omitempty"`
+
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -1589,18 +1671,28 @@ type Discovery struct {
 	// for all discovery services. If different agents are used to discover different
 	// sets of cloud resources, this field must be different for each set of agents.
 	DiscoveryGroup string `yaml:"discovery_group,omitempty"`
+	// PollInterval is the cadence at which the discovery server will run each of its
+	// discovery cycles.
+	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
 // GCPMatcher matches GCP resources.
 type GCPMatcher struct {
-	// Types are GKE resource types to match: "gke".
+	// Types are GKE resource types to match: "gke", "gce".
 	Types []string `yaml:"types,omitempty"`
 	// Locations are GKE locations to search resources for.
 	Locations []string `yaml:"locations,omitempty"`
-	// Tags are GCP labels to match.
+	// Labels are GCP labels to match.
+	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+	// Tags are an alias for Labels, for backwards compatibility.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 	// ProjectIDs are the GCP project ID where the resources are deployed.
 	ProjectIDs []string `yaml:"project_ids,omitempty"`
+	// ServiceAccounts are the emails of service accounts attached to VMs.
+	ServiceAccounts []string `yaml:"service_accounts,omitempty"`
+	// InstallParams sets the join method when installing on
+	// discovered GCP VMs.
+	InstallParams *InstallParams `yaml:"install,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -1826,6 +1918,16 @@ type AzureMatcher struct {
 	InstallParams *InstallParams `yaml:"install,omitempty"`
 }
 
+// KubernetesMatcher matches Kubernetes resources.
+type KubernetesMatcher struct {
+	// Types are Kubernetes services types to match. Currently only 'app' is supported.
+	Types []string `yaml:"types,omitempty"`
+	// Namespaces are Kubernetes namespaces in which to discover services
+	Namespaces []string `yaml:"namespaces,omitempty"`
+	// Labels are Kubernetes services labels to match.
+	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+}
+
 // Database represents a single database proxied by the service.
 type Database struct {
 	// Name is the name for the database proxy service.
@@ -1857,6 +1959,8 @@ type Database struct {
 	Azure DatabaseAzure `yaml:"azure"`
 	// AdminUser describes database privileged user for auto-provisioning.
 	AdminUser DatabaseAdminUser `yaml:"admin_user"`
+	// Oracle is Database Oracle settings
+	Oracle DatabaseOracle `yaml:"oracle,omitempty"`
 }
 
 // DatabaseAdminUser describes database privileged user for auto-provisioning.
@@ -1897,6 +2001,12 @@ type DatabaseTLS struct {
 type DatabaseMySQL struct {
 	// ServerVersion is the MySQL version reported by DB proxy instead of default Teleport string.
 	ServerVersion string `yaml:"server_version,omitempty"`
+}
+
+// DatabaseOracle are an additional Oracle database options.
+type DatabaseOracle struct {
+	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+	AuditUser string `yaml:"audit_user,omitempty"`
 }
 
 // SecretStore contains settings for managing secrets.
@@ -2041,6 +2151,8 @@ type Rewrite struct {
 	Redirect []string `yaml:"redirect"`
 	// Headers is a list of extra headers to inject in the request.
 	Headers []string `yaml:"headers,omitempty"`
+	// JWTClaims configures whether roles/traits are included in the JWT token
+	JWTClaims string `yaml:"jwt_claims,omitempty"`
 }
 
 // AppAWS contains additional options for AWS applications.
@@ -2066,7 +2178,7 @@ type Proxy struct {
 	KeyFile string `yaml:"https_key_file,omitempty"`
 	// CertFile is a TLS Certificate file
 	CertFile string `yaml:"https_cert_file,omitempty"`
-	// ProxyProtocol turns on support for HAProxy proxy protocol
+	// ProxyProtocol turns on support for HAProxy PROXY protocol
 	// this is the option that has be turned on only by administrator,
 	// as only admin knows whether service is in front of trusted load balancer
 	// or not.
@@ -2309,10 +2421,10 @@ type Metrics struct {
 	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
 	CACerts []string `yaml:"ca_certs,omitempty"`
 
-	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	// GRPCServerLatency enables histogram metrics for each gRPC endpoint on the auth server
 	GRPCServerLatency bool `yaml:"grpc_server_latency,omitempty"`
 
-	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	// GRPCServerLatency enables histogram metrics for each gRPC endpoint on the auth server
 	GRPCClientLatency bool `yaml:"grpc_client_latency,omitempty"`
 }
 
@@ -2449,6 +2561,9 @@ type Okta struct {
 
 	// APITokenPath is the path to the Okta API token.
 	APITokenPath string `yaml:"api_token_path,omitempty"`
+
+	// SyncPeriod is the duration between synchronization calls.
+	SyncPeriod time.Duration `yaml:"sync_period,omitempty"`
 }
 
 // JamfService is the yaml representation of jamf_service.

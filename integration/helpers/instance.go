@@ -845,6 +845,7 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 	})
 	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
+	conf.Databases.Enabled = true
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 	conf.Apps.Enabled = false
@@ -1211,6 +1212,10 @@ func (i *TeleInstance) Start() error {
 	}
 	if i.Config.Kube.Enabled {
 		expectedEvents = append(expectedEvents, service.KubernetesReady)
+	}
+
+	if i.Config.Discovery.Enabled {
+		expectedEvents = append(expectedEvents, service.DiscoveryReady)
 	}
 
 	expectedEvents = append(expectedEvents, service.InstanceReady)

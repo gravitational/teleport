@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 var (
@@ -57,8 +58,11 @@ var (
 )
 
 const (
-	// teleportContainerImageFmt is the Teleport Container Image to be used
-	teleportContainerImageFmt = "public.ecr.aws/gravitational/teleport-distroless:%s"
+	// teleportOSS is the prefix for the image name when deploying the OSS version of Teleport
+	teleportOSS = "teleport"
+
+	// teleportEnt is the prefix for the image name when deploying the Enterprise version of Teleport
+	teleportEnt = "teleport-ent"
 
 	// clusterStatusActive is the string representing an ACTIVE ECS Cluster.
 	clusterStatusActive = "ACTIVE"
@@ -100,6 +104,10 @@ type DeployServiceRequest struct {
 	// SubnetIDs are the subnets associated with the service.
 	SubnetIDs []string
 
+	// SecurityGroups to apply to the service's network configuration.
+	// If empty, the default security group for the VPC is going to be used.
+	SecurityGroups []string
+
 	// ClusterName is the ECS Cluster to be used.
 	// It will be created if it doesn't exist.
 	// It will be updated if it doesn't include the FARGATE capacity provider using PutClusterCapacityProviders.
@@ -133,7 +141,7 @@ type DeployServiceRequest struct {
 	IntegrationName string
 
 	// ResourceCreationTags is used to add tags when creating resources in AWS.
-	ResourceCreationTags awsTags
+	ResourceCreationTags AWSTags
 
 	// DeploymentMode is the identifier of a deployment mode - which Teleport Services to enable and their configuration.
 	DeploymentMode string
@@ -232,7 +240,7 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ResourceCreationTags == nil {
-		r.ResourceCreationTags = DefaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
+		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
 	if len(r.DatabaseResourceMatcherLabels) == 0 {
@@ -425,7 +433,11 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 
 // upsertTask ensures a TaskDefinition with TaskName exists
 func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, configB64 string) (*ecsTypes.TaskDefinition, error) {
-	taskAgentContainerImage := fmt.Sprintf(teleportContainerImageFmt, req.TeleportVersionTag)
+	teleportFlavor := teleportOSS
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		teleportFlavor = teleportEnt
+	}
+	taskAgentContainerImage := fmt.Sprintf("public.ecr.aws/gravitational/%s-distroless:%s", teleportFlavor, req.TeleportVersionTag)
 
 	taskDefOut, err := clt.RegisterTaskDefinition(ctx, &ecs.RegisterTaskDefinitionInput{
 		Family: req.TaskName,
@@ -439,6 +451,10 @@ func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceR
 		TaskRoleArn:      &req.TaskRoleARN,
 		ExecutionRoleArn: &req.TaskRoleARN,
 		ContainerDefinitions: []ecsTypes.ContainerDefinition{{
+			Environment: []ecsTypes.KeyValuePair{{
+				Name:  aws.String(types.InstallMethodAWSOIDCDeployServiceEnvVar),
+				Value: aws.String("true"),
+			}},
 			Command: []string{
 				"start",
 				"--config-string",
@@ -586,6 +602,16 @@ func waitForActiveCluster(ctx context.Context, clt DeployServiceClient, req Depl
 	return trace.Wrap(err)
 }
 
+func deployServiceNetworkConfiguration(req DeployServiceRequest) *ecsTypes.NetworkConfiguration {
+	return &ecsTypes.NetworkConfiguration{
+		AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
+			AssignPublicIp: ecsTypes.AssignPublicIpEnabled, // no internet connection otherwise
+			Subnets:        req.SubnetIDs,
+			SecurityGroups: req.SecurityGroups,
+		},
+	}
+}
+
 // upsertService creates or updates the service.
 // If the service exists but its LaunchType is not Fargate, then it gets re-created.
 func upsertService(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, taskARN string) (*ecsTypes.Service, error) {
@@ -626,18 +652,13 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req DeployServi
 			}
 
 			updateServiceResp, err := clt.UpdateService(ctx, &ecs.UpdateServiceInput{
-				Service:        req.ServiceName,
-				DesiredCount:   &oneAgent,
-				TaskDefinition: &taskARN,
-				Cluster:        req.ClusterName,
-				NetworkConfiguration: &ecsTypes.NetworkConfiguration{
-					AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
-						AssignPublicIp: ecsTypes.AssignPublicIpEnabled, // no internet connection otherwise
-						Subnets:        req.SubnetIDs,
-					},
-				},
-				ForceNewDeployment: true,
-				PropagateTags:      ecsTypes.PropagateTagsService,
+				Service:              req.ServiceName,
+				DesiredCount:         &oneAgent,
+				TaskDefinition:       &taskARN,
+				Cluster:              req.ClusterName,
+				NetworkConfiguration: deployServiceNetworkConfiguration(req),
+				ForceNewDeployment:   true,
+				PropagateTags:        ecsTypes.PropagateTagsService,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -648,19 +669,14 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req DeployServi
 	}
 
 	createServiceOut, err := clt.CreateService(ctx, &ecs.CreateServiceInput{
-		ServiceName:    req.ServiceName,
-		DesiredCount:   &oneAgent,
-		LaunchType:     ecsTypes.LaunchTypeFargate,
-		TaskDefinition: &taskARN,
-		Cluster:        req.ClusterName,
-		NetworkConfiguration: &ecsTypes.NetworkConfiguration{
-			AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
-				AssignPublicIp: ecsTypes.AssignPublicIpEnabled, // no internet connection otherwise
-				Subnets:        req.SubnetIDs,
-			},
-		},
-		Tags:          req.ResourceCreationTags.ToECSTags(),
-		PropagateTags: ecsTypes.PropagateTagsService,
+		ServiceName:          req.ServiceName,
+		DesiredCount:         &oneAgent,
+		LaunchType:           ecsTypes.LaunchTypeFargate,
+		TaskDefinition:       &taskARN,
+		Cluster:              req.ClusterName,
+		NetworkConfiguration: deployServiceNetworkConfiguration(req),
+		Tags:                 req.ResourceCreationTags.ToECSTags(),
+		PropagateTags:        ecsTypes.PropagateTagsService,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

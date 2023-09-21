@@ -5,18 +5,17 @@ description: How to configure Teleport database access with Redis.
 
 If you want to configure Redis Cluster, please read [Database Access with Redis Cluster](redis-cluster.mdx).
 
-This guide will help you to:
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Redis" dbConfigure="Redis database with mutual TLS authentication" dbName="Redis" !)
 
-- Install and configure Teleport.
-- Configure mutual TLS authentication between Teleport and Redis.
-- Connect to Redis through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Redis Self-Hosted](../../../img/database-access/guides/redis_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud","team"]}>
+</TabItem>
+<TabItem scope={["cloud","team"]} label="Teleport Cloud">
 ![Teleport Database Access Redis Cloud](../../../img/database-access/guides/redis_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -94,8 +93,6 @@ The command will create three files:
 
 You will need these files to enable mutual TLS on your Redis server.
 
-(!docs/pages/includes/database-access/rotation-note.mdx!)
-
 Use the generated secrets to enable mutual TLS in your `redis.conf` configuration
 file and restart the database:
 
@@ -134,3 +131,4 @@ returns the <nobr>`ERR Teleport: not supported by Teleport`</nobr> error.
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

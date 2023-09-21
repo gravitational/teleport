@@ -68,7 +68,7 @@ const Content = styled.div`
   overflow: var(--content-overflow);
 
   &.streaming {
-    > div > :not(ol):not(ul):not(pre):last-child:after,
+    > div > :not(ol):not(ul):not(pre):last-child:not(button):after,
     > div > ol:last-child li:last-child:after,
     > div > pre:last-child code:after,
     > div > ul:last-child li:last-child:after {

@@ -22,10 +22,13 @@ import (
 
 	"github.com/gravitational/trace"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
+
+const kubeEventPrefix = "kube/"
 
 func (s *Server) startKubeWatchers() error {
 	if len(s.kubeFetchers) == 0 {
@@ -67,6 +70,8 @@ func (s *Server) startKubeWatchers() error {
 		Fetchers:       s.kubeFetchers,
 		Log:            s.Log.WithField("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
+		Interval:       s.PollInterval,
+		Origin:         types.OriginCloud,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -106,11 +111,24 @@ func (s *Server) onKubeCreate(ctx context.Context, rwl types.ResourceWithLabels)
 	// In this case, we need to update the resource with the
 	// discovery group label to ensure the user doesn't have to manually delete
 	// the resource.
-	// TODO(tigrato): DELETE on 14.0.0
+	// TODO(tigrato): DELETE on 15.0.0
 	if trace.IsAlreadyExists(err) {
 		return trace.Wrap(s.onKubeUpdate(ctx, rwl))
 	}
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
+		kubeEventPrefix + kubeCluster.GetName(): {
+			ResourceType:   types.DiscoveredResourceKubernetes,
+			ResourceOrigin: types.OriginCloud,
+			CloudProvider:  kubeCluster.GetCloud(),
+		},
+	})
+	if err != nil {
+		s.Log.WithError(err).Debug("Error emitting usage event.")
+	}
+	return nil
 }
 
 func (s *Server) onKubeUpdate(ctx context.Context, rwl types.ResourceWithLabels) error {

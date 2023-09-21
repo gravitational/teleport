@@ -18,7 +18,7 @@ package teleport.header.v1;
 
 import "teleport/header/v1/metadata.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/header/v1;header";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1;headerv1";
 
 // ResourceHeader is a shared resource header.
 message ResourceHeader {

@@ -43,7 +43,7 @@ func newUserPreferencesService(t *testing.T) *local.UserPreferencesService {
 	return local.NewUserPreferencesService(backend)
 }
 
-func TestUserPreferencesCRUD2(t *testing.T) {
+func TestUserPreferencesCRUD(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -63,7 +63,6 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 		{
 			name: "update the theme preference only",
 			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Username: username,
 				Preferences: &userpreferencesv1.UserPreferences{
 					Theme: userpreferencesv1.Theme_THEME_DARK,
 				},
@@ -77,13 +76,13 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 		{
 			name: "update the assist preferred logins only",
 			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Username: username,
 				Preferences: &userpreferencesv1.UserPreferences{
 					Assist: &userpreferencesv1.AssistUserPreferences{
 						PreferredLogins: []string{"foo", "bar"},
 					},
 					Onboard: &userpreferencesv1.OnboardUserPreferences{
 						PreferredResources: []userpreferencesv1.Resource{},
+						MarketingParams:    &userpreferencesv1.MarketingParams{},
 					},
 				},
 			},
@@ -99,7 +98,6 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 		{
 			name: "update the assist view mode only",
 			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Username: username,
 				Preferences: &userpreferencesv1.UserPreferences{
 					Assist: &userpreferencesv1.AssistUserPreferences{
 						ViewMode: userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE,
@@ -118,10 +116,15 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 		{
 			name: "update the onboard preference only",
 			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Username: username,
 				Preferences: &userpreferencesv1.UserPreferences{
 					Onboard: &userpreferencesv1.OnboardUserPreferences{
 						PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_DATABASES},
+						MarketingParams: &userpreferencesv1.MarketingParams{
+							Campaign: "c_1",
+							Source:   "s_1",
+							Medium:   "m_1",
+							Intent:   "i_1",
+						},
 					},
 				},
 			},
@@ -130,13 +133,18 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 				Theme:  defaultPref.Theme,
 				Onboard: &userpreferencesv1.OnboardUserPreferences{
 					PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_DATABASES},
+					MarketingParams: &userpreferencesv1.MarketingParams{
+						Campaign: "c_1",
+						Source:   "s_1",
+						Medium:   "m_1",
+						Intent:   "i_1",
+					},
 				},
 			},
 		},
 		{
 			name: "update all the settings at once",
 			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Username: username,
 				Preferences: &userpreferencesv1.UserPreferences{
 					Theme: userpreferencesv1.Theme_THEME_LIGHT,
 					Assist: &userpreferencesv1.AssistUserPreferences{
@@ -145,6 +153,12 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 					},
 					Onboard: &userpreferencesv1.OnboardUserPreferences{
 						PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_KUBERNETES},
+						MarketingParams: &userpreferencesv1.MarketingParams{
+							Campaign: "c_2",
+							Source:   "s_2",
+							Medium:   "m_2",
+							Intent:   "i_2",
+						},
 					},
 				},
 			},
@@ -156,6 +170,12 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 				},
 				Onboard: &userpreferencesv1.OnboardUserPreferences{
 					PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_KUBERNETES},
+					MarketingParams: &userpreferencesv1.MarketingParams{
+						Campaign: "c_2",
+						Source:   "s_2",
+						Medium:   "m_2",
+						Intent:   "i_2",
+					},
 				},
 			},
 		},
@@ -168,24 +188,20 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 
 			identity := newUserPreferencesService(t)
 
-			res, err := identity.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{
-				Username: username,
-			})
+			res, err := identity.GetUserPreferences(ctx, username)
 			require.NoError(t, err)
 			// Clone the proto as the accessing fields for some reason modifies the state.
-			require.Empty(t, cmp.Diff(defaultPref, proto.Clone(res.Preferences), protocmp.Transform()))
+			require.Empty(t, cmp.Diff(defaultPref, proto.Clone(res), protocmp.Transform()))
 
 			if test.req != nil {
-				err := identity.UpsertUserPreferences(ctx, test.req)
+				err := identity.UpsertUserPreferences(ctx, username, test.req.Preferences)
 				require.NoError(t, err)
 			}
 
-			res, err = identity.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{
-				Username: username,
-			})
+			res, err = identity.GetUserPreferences(ctx, username)
 
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(test.expected, res.Preferences, protocmp.Transform()))
+			require.Empty(t, cmp.Diff(test.expected, res, protocmp.Transform()))
 		})
 	}
 }
@@ -213,15 +229,13 @@ func TestLayoutUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get the preferences and ensure that the layout is updated.
-	prefs, err := identity.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{
-		Username: "test",
-	})
+	prefs, err := identity.GetUserPreferences(ctx, "test")
 	require.NoError(t, err)
 	// The layout should be updated to the latest version (values should not be nil).
-	require.NotNil(t, prefs.Preferences.Onboard)
+	require.NotNil(t, prefs.Onboard)
 	// Non-existing values should be set to the default value.
-	require.Equal(t, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED, prefs.Preferences.Assist.ViewMode)
-	require.Equal(t, userpreferencesv1.Theme_THEME_LIGHT, prefs.Preferences.Theme)
+	require.Equal(t, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED, prefs.Assist.ViewMode)
+	require.Equal(t, userpreferencesv1.Theme_THEME_LIGHT, prefs.Theme)
 	// Existing values should be preserved.
-	require.Equal(t, []string{"foo", "bar"}, prefs.Preferences.Assist.PreferredLogins)
+	require.Equal(t, []string{"foo", "bar"}, prefs.Assist.PreferredLogins)
 }

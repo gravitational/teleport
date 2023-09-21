@@ -80,6 +80,7 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
                   fontSize: '16px',
                   paddingTop: '5px',
                 }}
+                size="medium"
                 onClick={() => setShowTooltip(!showTooltip)}
               />
             </div>
@@ -171,7 +172,7 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
           ) : (
             <CreateLabelError data-testid="create-label-error">
               <WarningIconWrapper>
-                <Warning style={{ padding: '3px' }} />
+                <Warning style={{ padding: '1px' }} size="medium" />
               </WarningIconWrapper>
               <WarningText>
                 <Text color="error.main" style={{ fontWeight: 700 }}>

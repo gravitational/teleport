@@ -225,6 +225,9 @@ func TestAWSIAM(t *testing.T) {
 				database.SetStatusAWS(meta)
 			}
 			t.Run(testName, func(t *testing.T) {
+				// Initially unspecified since no tasks has ran yet.
+				require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_UNSPECIFIED, database.GetAWS().IAMPolicyStatus)
+
 				// Configure database and make sure IAM is enabled and policy was attached.
 				err = configurator.Setup(ctx, database)
 				require.NoError(t, err)
@@ -233,6 +236,10 @@ func TestAWSIAM(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, tt.getIAMAuthEnabled())
 				require.Contains(t, aws.StringValue(output.PolicyDocument), tt.wantPolicyContains)
+
+				err = configurator.UpdateIAMStatus(database)
+				require.NoError(t, err)
+				require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS, database.GetAWS().IAMPolicyStatus, "must be success because iam policy was set up")
 
 				// Deconfigure database, policy should get detached.
 				err = configurator.Teardown(ctx, database)
@@ -246,6 +253,10 @@ func TestAWSIAM(t *testing.T) {
 					require.Equal(t, []string{meta.ExternalID}, stsClient.GetAssumedRoleExternalIDs())
 					stsClient.ResetAssumeRoleHistory()
 				}
+
+				err = configurator.UpdateIAMStatus(database)
+				require.NoError(t, err)
+				require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_UNSPECIFIED, database.GetAWS().IAMPolicyStatus, "must be unspecified because task is tearing down")
 			})
 		}
 	}
@@ -365,11 +376,19 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			err = configurator.UpdateIAMStatus(database)
+			require.NoError(t, err)
+			require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED, database.GetAWS().IAMPolicyStatus, "must be invalid because of perm issues")
+
 			err = configurator.processTask(ctx, iamTask{
 				isSetup:  false,
 				database: database,
 			})
 			require.NoError(t, err)
+
+			err = configurator.UpdateIAMStatus(database)
+			require.NoError(t, err)
+			require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_UNSPECIFIED, database.GetAWS().IAMPolicyStatus, "must be unspecified, task is tearing down")
 		})
 	}
 }

@@ -15,8 +15,9 @@
  */
 
 import { Cluster } from 'teleterm/services/tshd/types';
-import { ConfigService } from 'teleterm/services/config';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
+
+import * as tsh from 'teleterm/services/tshd/types';
 
 /**
  * Checks if Connect My Computer can be used for the given root cluster.
@@ -27,9 +28,8 @@ import { RuntimeSettings } from 'teleterm/mainProcess/types';
  * This will make it easier to understand what the user can and cannot do without having to jump around the code base.
  * https://github.com/gravitational/teleport/pull/28346#discussion_r1246653846
  * */
-export function canUseConnectMyComputer(
+export function hasConnectMyComputerPermissions(
   rootCluster: Cluster,
-  configService: ConfigService,
   runtimeSettings: RuntimeSettings
 ): boolean {
   if (rootCluster.leaf) {
@@ -43,7 +43,6 @@ export function canUseConnectMyComputer(
   return (
     isUnix &&
     rootCluster.loggedInUser?.acl?.tokens.create &&
-    rootCluster.features?.isUsageBasedBilling &&
-    configService.get('feature.connectMyComputer').value
+    rootCluster.loggedInUser?.userType == tsh.UserType.USER_TYPE_LOCAL
   );
 }

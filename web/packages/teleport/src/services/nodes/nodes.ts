@@ -16,9 +16,9 @@ limitations under the License.
 
 import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
-import { AgentResponse } from 'teleport/services/agents';
+import { ResourcesResponse } from 'teleport/services/agents';
 
-import { Node } from './types';
+import { Node, CreateNodeRequest } from './types';
 import makeNode from './makeNode';
 
 class NodeService {
@@ -26,7 +26,7 @@ class NodeService {
     clusterId?: string,
     params?: UrlResourcesParams,
     signal?: AbortSignal
-  ): Promise<AgentResponse<Node>> {
+  ): Promise<ResourcesResponse<Node>> {
     return api
       .get(cfg.getClusterNodesUrl(clusterId, params), signal)
       .then(json => {
@@ -38,6 +38,13 @@ class NodeService {
           totalCount: json?.totalCount,
         };
       });
+  }
+
+  // Creates a Node.
+  createNode(clusterId: string, req: CreateNodeRequest): Promise<Node> {
+    return api
+      .post(cfg.getClusterNodesUrlNoParams(clusterId), req)
+      .then(makeNode);
   }
 }
 

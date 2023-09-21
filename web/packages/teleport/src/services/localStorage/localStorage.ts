@@ -20,17 +20,22 @@ import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
 
 import {
+  OnboardUserPreferences,
   ThemePreference,
   UserPreferences,
 } from 'teleport/services/userPreferences/types';
 
-import { KeysEnum } from './types';
+import { KeysEnum, LocalStorageSurvey } from './types';
+
+import type { RecommendFeature } from 'teleport/types';
 
 // This is an array of local storage `KeysEnum` that are kept when a user logs out
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.THEME,
   KeysEnum.SHOW_ASSIST_POPUP,
   KeysEnum.USER_PREFERENCES,
+  KeysEnum.RECOMMEND_FEATURE,
+  KeysEnum.UNIFIED_RESOURCES_DISABLED,
 ];
 
 const storage = {
@@ -119,6 +124,24 @@ const storage = {
     );
   },
 
+  getOnboardSurvey(): LocalStorageSurvey {
+    const survey = window.localStorage.getItem(KeysEnum.ONBOARD_SURVEY);
+    if (survey) {
+      return JSON.parse(survey);
+    }
+    return null;
+  },
+
+  setOnboardSurvey(survey: LocalStorageSurvey) {
+    const json = JSON.stringify(survey);
+
+    window.localStorage.setItem(KeysEnum.ONBOARD_SURVEY, json);
+  },
+
+  clearOnboardSurvey() {
+    window.localStorage.removeItem(KeysEnum.ONBOARD_SURVEY);
+  },
+
   getThemePreference(): ThemePreference {
     const userPreferences = storage.getUserPreferences();
     if (userPreferences) {
@@ -133,6 +156,23 @@ const storage = {
     return ThemePreference.Light;
   },
 
+  getOnboardUserPreference(): OnboardUserPreferences {
+    const userPreferences = storage.getUserPreferences();
+    if (userPreferences) {
+      return userPreferences.onboard;
+    }
+
+    return {
+      preferredResources: [],
+      marketingParams: {
+        campaign: '',
+        source: '',
+        medium: '',
+        intent: '',
+      },
+    };
+  },
+
   // DELETE IN 15 (ryan)
   getDeprecatedThemePreference(): DeprecatedThemeOption {
     return window.localStorage.getItem(KeysEnum.THEME) as DeprecatedThemeOption;
@@ -143,9 +183,40 @@ const storage = {
     window.localStorage.removeItem(KeysEnum.THEME);
   },
 
+  /**
+   * Returns `true` if the unified resources feature should be visible in the
+   * navigation.
+   *
+   * TODO(bl-nero): remove this setting once unified resources are released. Please also see TODO item in `SelectResource.tsx`.
+   */
+  areUnifiedResourcesEnabled(): boolean {
+    const disabled = window.localStorage.getItem(
+      KeysEnum.UNIFIED_RESOURCES_DISABLED
+    );
+    const notSupported = window.localStorage.getItem(
+      KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED
+    );
+    return disabled !== 'true' && notSupported !== 'true';
+  },
+
   broadcast(messageType, messageBody) {
     window.localStorage.setItem(messageType, messageBody);
     window.localStorage.removeItem(messageType);
+  },
+
+  // setRecommendFeature persists states used to determine if
+  // given feature needs to be recommended to the user.
+  // Currently, it only shows a red dot in the side navigation menu.
+  setRecommendFeature(d: RecommendFeature) {
+    window.localStorage.setItem(KeysEnum.RECOMMEND_FEATURE, JSON.stringify(d));
+  },
+
+  getFeatureRecommendationStatus(): RecommendFeature {
+    const item = window.localStorage.getItem(KeysEnum.RECOMMEND_FEATURE);
+    if (item) {
+      return JSON.parse(item);
+    }
+    return null;
   },
 };
 

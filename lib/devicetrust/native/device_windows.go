@@ -50,6 +50,12 @@ type deviceState struct {
 	credentialActivationPath string
 }
 
+// userDirFunc is used to determine where to save/lookup the device's
+// attestation key.
+// We use os.UserCacheDir instead of os.UserConfigDir because the latter is
+// roaming (which we don't want for device-specific keys).
+var userDirFunc = os.UserCacheDir
+
 // setupDeviceStateDir ensures that device state directory exists.
 // It returns a struct containing the path of each part of the device state,
 // or nil and an error if it was not possible to set up the directory.
@@ -149,7 +155,7 @@ func createAndSaveAK(
 }
 
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	stateDir, err := setupDeviceStateDir(os.UserConfigDir)
+	stateDir, err := setupDeviceStateDir(userDirFunc)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
@@ -360,9 +366,10 @@ func getOSBuildNumber() (string, error) {
 	return string(bytes.TrimSpace(out)), nil
 }
 
-func firstOf(strings ...string) string {
+func firstValidAssetTag(strings ...string) string {
 	for _, str := range strings {
-		if str != "" {
+		// Skip empty serials and known bad values.
+		if str != "" && str != "Default string" {
 			return str
 		}
 	}
@@ -400,7 +407,7 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 		return nil, trace.Wrap(err, "fetching user")
 	}
 
-	serial := firstOf(reportedAssetTag, systemSerial, baseBoardSerial)
+	serial := firstValidAssetTag(reportedAssetTag, systemSerial, baseBoardSerial)
 	if serial == "" {
 		return nil, trace.BadParameter("unable to determine serial number")
 	}
@@ -426,7 +433,7 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 // getDeviceCredential will only return the credential ID on windows. The
 // other information is determined server-side.
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
-	stateDir, err := setupDeviceStateDir(os.UserConfigDir)
+	stateDir, err := setupDeviceStateDir(userDirFunc)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
@@ -463,7 +470,7 @@ func solveTPMEnrollChallenge(
 	challenge *devicepb.TPMEnrollChallenge,
 	debug bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
-	stateDir, err := setupDeviceStateDir(os.UserConfigDir)
+	stateDir, err := setupDeviceStateDir(userDirFunc)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
@@ -622,7 +629,7 @@ func handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret 
 		return trace.Wrap(err, "decoding encrypted credential secret")
 	}
 
-	stateDir, err := setupDeviceStateDir(os.UserConfigDir)
+	stateDir, err := setupDeviceStateDir(userDirFunc)
 	if err != nil {
 		return trace.Wrap(err, "setting up device state directory")
 	}
@@ -666,7 +673,7 @@ func handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret 
 func solveTPMAuthnDeviceChallenge(
 	challenge *devicepb.TPMAuthenticateDeviceChallenge,
 ) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
-	stateDir, err := setupDeviceStateDir(os.UserConfigDir)
+	stateDir, err := setupDeviceStateDir(userDirFunc)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}

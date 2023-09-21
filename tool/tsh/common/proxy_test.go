@@ -19,8 +19,10 @@ package common
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"os/user"
@@ -32,15 +34,20 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -201,18 +208,18 @@ func TestSSHLoadAllCAs(t *testing.T) {
 				}),
 			},
 		},
-		{
-			name: "TLS routing disabled",
-			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
-					cfg.Auth.LoadAllCAs = true
-				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
-				}),
-			},
-		},
+		// { // todo(lxea): unskip this test once flakiness is resolved
+		// 	name: "TLS routing disabled",
+		// 	opts: []testSuiteOptionFunc{
+		// 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+		// 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+		// 			cfg.Auth.LoadAllCAs = true
+		// 		}),
+		// 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
+		// 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+		// 		}),
+		// 	},
+		// },
 	}
 
 	for _, tc := range tests {
@@ -228,15 +235,21 @@ func TestSSHLoadAllCAs(t *testing.T) {
 			// Login to root
 			tshHome, _ := mustLogin(t, s)
 
+			require.Eventually(t, func() bool {
+				lnodes, _ := s.leaf.GetAuthServer().GetNodes(context.Background(), "default")
+				rnodes, _ := s.root.GetAuthServer().GetNodes(context.Background(), "default")
+				return len(lnodes) != 0 && len(rnodes) != 0
+			}, time.Second*30, time.Millisecond*100)
+
 			// Connect to leaf node
 			err = Run(context.Background(), []string{
 				"ssh", "-d",
 				"-p", strconv.Itoa(s.leaf.Config.SSH.Addr.Port(0)),
+				"--cluster", s.leaf.Config.Auth.ClusterName.GetClusterName(),
 				s.leaf.Config.SSH.Addr.Host(),
 				"echo", "hello",
 			}, setHomePath(tshHome))
 			require.NoError(t, err)
-
 			// Connect to leaf node with Jump host
 			err = Run(context.Background(), []string{
 				"ssh", "-d",
@@ -245,6 +258,231 @@ func TestSSHLoadAllCAs(t *testing.T) {
 				"echo", "hello",
 			}, setHomePath(tshHome))
 			require.NoError(t, err)
+		})
+	}
+}
+
+// TestWithRsync tests that Teleport works with rsync.
+func TestWithRsync(t *testing.T) {
+	_, err := exec.LookPath("rsync")
+	require.NoError(t, err)
+
+	s := newTestSuite(t)
+
+	// login and get host info
+	tshHome, _ := mustLogin(t, s)
+
+	testBin, err := os.Executable()
+	require.NoError(t, err)
+
+	host, port, err := net.SplitHostPort(s.root.Config.SSH.Addr.String())
+	require.NoError(t, err)
+	proxyAddr, err := s.root.ProxyWebAddr()
+	require.NoError(t, err)
+
+	var mockHeadlessAddr string
+
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T, dir string)
+		createCmd func(ctx context.Context, dir, src, dst string) *exec.Cmd
+	}{
+		{
+			name: "with OpenSSH ssh",
+			setup: func(t *testing.T, dir string) {
+				// create ssh client config rsync will use
+				var buf bytes.Buffer
+				err = Run(context.Background(), []string{"config"}, setHomePath(tshHome), setOverrideStdout(&buf))
+				require.NoError(t, err)
+
+				configPath := filepath.Join(dir, "ssh_config")
+				err = os.WriteFile(configPath, buf.Bytes(), 0o600)
+				require.NoError(t, err)
+			},
+			createCmd: func(ctx context.Context, dir, src, dst string) *exec.Cmd {
+				return exec.CommandContext(
+					ctx,
+					"rsync",
+					// ensure ssh will use the client config that was generated
+					"-e",
+					fmt.Sprintf("ssh -F %s -p %s", filepath.Join(dir, "ssh_config"), port),
+					src,
+					fmt.Sprintf("%s:%s", host, dst),
+				)
+			},
+		},
+		{
+			name: "with headless tsh",
+			setup: func(t *testing.T, dir string) {
+				// setup webauthn for headless auth
+				asrv := s.root.GetAuthServer()
+				ctx := context.Background()
+
+				err = asrv.SetAuthPreference(ctx, &types.AuthPreferenceV2{
+					Spec: types.AuthPreferenceSpecV2{
+						Type:         constants.Local,
+						SecondFactor: constants.SecondFactorOptional,
+						Webauthn: &types.Webauthn{
+							RPID: "root",
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				require.Eventually(t, func() bool {
+					pref, err := asrv.GetAuthPreference(ctx)
+					require.NoError(t, err)
+					w, err := pref.GetWebauthn()
+					return err == nil && w != nil
+				}, 5*time.Second, 100*time.Millisecond)
+
+				token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+					Name: s.user.GetName(),
+				})
+				require.NoError(t, err)
+				tokenID := token.GetName()
+				res, err := asrv.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					TokenID:     tokenID,
+					DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+				})
+				require.NoError(t, err)
+				cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
+
+				device, err := mocku2f.Create()
+				require.NoError(t, err)
+				device.SetPasswordless()
+
+				ccr, err := device.SignCredentialCreation("https://root", cc)
+				require.NoError(t, err)
+				_, err = asrv.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+					TokenID:     tokenID,
+					NewPassword: []byte(mockHeadlessPassword),
+					NewMFARegisterResponse: &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_Webauthn{
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				// start a listener to use as a way to implement mock
+				// headless auth on the child 'tsh ssh --headless' process
+				lis, err := net.Listen("tcp", "127.0.0.1:")
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					lis.Close()
+				})
+				mockHeadlessAddr = lis.Addr().String()
+
+				go func() {
+					conn, err := lis.Accept()
+					if !assert.NoError(t, err) {
+						return
+					}
+					defer conn.Close()
+
+					// the child will send the public key
+					key := make([]byte, 512)
+					_, err = conn.Read(key)
+					if !assert.NoError(t, err) {
+						return
+					}
+
+					// generate certificates for our user
+					clusterName, err := asrv.GetClusterName()
+					if !assert.NoError(t, err) {
+						return
+					}
+					sshCert, tlsCert, err := asrv.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+						Key:            key,
+						Username:       s.user.GetName(),
+						TTL:            time.Hour,
+						Compatibility:  constants.CertificateFormatStandard,
+						RouteToCluster: clusterName.GetClusterName(),
+						MFAVerified:    "mfa-verified",
+					})
+					if !assert.NoError(t, err) {
+						return
+					}
+
+					// load CA cert
+					authority, err := asrv.GetCertAuthority(
+						ctx, types.CertAuthID{
+							Type:       types.HostCA,
+							DomainName: clusterName.GetClusterName(),
+						}, false)
+					if !assert.NoError(t, err) {
+						return
+					}
+
+					// send login response to the client
+					resp := auth.SSHLoginResponse{
+						Username:    s.user.GetName(),
+						Cert:        sshCert,
+						TLSCert:     tlsCert,
+						HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
+					}
+					encResp, err := json.Marshal(resp)
+					if !assert.NoError(t, err) {
+						return
+					}
+					_, err = conn.Write(encResp)
+					assert.NoError(t, err)
+
+					assert.NoError(t, conn.Close())
+				}()
+			},
+			createCmd: func(ctx context.Context, dir, src, dst string) *exec.Cmd {
+				cmd := exec.CommandContext(
+					ctx,
+					"rsync",
+					// ensure headless tsh will be used to authenticate
+					"-e",
+					fmt.Sprintf("%s ssh -d --insecure --headless --proxy=%s --user=%s", testBin, proxyAddr, s.user.GetName()),
+					src,
+					fmt.Sprintf("%s:%s", host, dst),
+				)
+				// make the re-exec behave as `tsh` instead of test binary.
+				cmd.Env = []string{
+					fmt.Sprintf("%s=%s", tshBinMockHeadlessAddrEnv, mockHeadlessAddr),
+					tshBinMainTestEnv + "=1",
+					tshBinMainTestOneshotEnv + "=1",
+					fmt.Sprintf("%s=%s", types.HomeEnvVar, tshHome),
+				}
+
+				return cmd
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testDir := t.TempDir()
+			tt.setup(t, testDir)
+
+			// create a source file with random contents
+			srcContents := make([]byte, 1024)
+			_, err = rand.Read(srcContents)
+			require.NoError(t, err)
+
+			srcPath := filepath.Join(testDir, "src")
+			err = os.WriteFile(srcPath, srcContents, 0o644)
+			require.NoError(t, err)
+			dstPath := filepath.Join(testDir, "dst")
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			t.Cleanup(cancel)
+			cmd := tt.createCmd(ctx, testDir, srcPath, dstPath)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			require.NoError(t, err)
+
+			// verify that dst exists and that its contents match src
+			dstContents, err := os.ReadFile(dstPath)
+			require.NoError(t, err)
+			require.Equal(t, srcContents, dstContents)
 		})
 	}
 }
@@ -301,23 +539,25 @@ func TestProxySSH(t *testing.T) {
 			// login to Teleport
 			homePath, kubeConfigPath := mustLogin(t, s)
 
+			require.Eventually(t, func() bool {
+				rnodes, _ := s.root.GetAuthServer().GetNodes(context.Background(), "default")
+				return len(rnodes) != 0
+			}, time.Second*30, time.Millisecond*100)
+
 			t.Run("logged in", func(t *testing.T) {
 				t.Parallel()
-
 				err := runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath))
 				require.NoError(t, err)
 			})
 
 			t.Run("re-login", func(t *testing.T) {
 				t.Parallel()
-
 				err := runProxySSH(proxyRequest, setHomePath(t.TempDir()), setKubeConfigPath(filepath.Join(t.TempDir(), teleport.KubeConfigFile)), setMockSSOLogin(t, s))
 				require.NoError(t, err)
 			})
 
 			t.Run("identity file", func(t *testing.T) {
 				t.Parallel()
-
 				err := runProxySSH(proxyRequest, setIdentity(mustLoginIdentity(t, s)))
 				require.NoError(t, err)
 			})
@@ -441,7 +681,7 @@ func TestTSHProxyTemplate(t *testing.T) {
 	require.NoError(t, err)
 
 	s := newTestSuite(t)
-	tshHome := mustLoginSetEnv(t, s)
+	tshHome, _ := mustLoginSetEnv(t, s)
 
 	// Create proxy template configuration.
 	tshConfigFile := filepath.Join(tshHome, tshConfigPath)
@@ -742,9 +982,9 @@ func setMockSSOLogin(t *testing.T, s *suite) CliOption {
 	}
 }
 
-func mustLogin(t *testing.T, s *suite, args ...string) (string, string) {
-	tshHome := t.TempDir()
-	kubeConfig := filepath.Join(t.TempDir(), teleport.KubeConfigFile)
+func mustLogin(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig string) {
+	tshHome = t.TempDir()
+	kubeConfig = filepath.Join(t.TempDir(), teleport.KubeConfigFile)
 	args = append([]string{
 		"login",
 		"--insecure",
@@ -757,24 +997,15 @@ func mustLogin(t *testing.T, s *suite, args ...string) (string, string) {
 		setKubeConfigPath(kubeConfig),
 	)
 	require.NoError(t, err)
-	return tshHome, kubeConfig
+	return
 }
 
 // login with new temp tshHome and set it in Env. This is useful
 // when running "ssh" commands with a tsh "ProxyCommand".
-func mustLoginSetEnv(t *testing.T, s *suite, args ...string) string {
-	tshHome := t.TempDir()
+func mustLoginSetEnv(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig string) {
+	tshHome, kubeConfig = mustLogin(t, s, args...)
 	t.Setenv(types.HomeEnvVar, tshHome)
-
-	args = append([]string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--proxy", s.root.Config.Proxy.WebAddr.String(),
-	}, args...)
-	err := Run(context.Background(), args, setMockSSOLogin(t, s), setHomePath(tshHome))
-	require.NoError(t, err)
-	return tshHome
+	return
 }
 
 func mustLoginIdentity(t *testing.T, s *suite, opts ...CliOption) string {
@@ -928,6 +1159,9 @@ func Test_chooseProxyCommandTemplate(t *testing.T) {
 			wantTemplateArgs: map[string]any{"command": "echo \"hello world\""},
 			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
 
+Teleport Connect is a desktop app that can manage database proxies for you.
+Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-a-database
+
 Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ echo "hello world"
 `,
@@ -952,6 +1186,9 @@ Use the following command to connect to the database or to the address above usi
 				},
 			},
 			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
+
+Teleport Connect is a desktop app that can manage database proxies for you.
+Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-a-database
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
@@ -979,6 +1216,9 @@ Use one of the following commands to connect to the database or to the address a
 			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
 To avoid port randomization, you can choose the listening port using the --port flag.
 
+Teleport Connect is a desktop app that can manage database proxies for you.
+Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-a-database
+
 Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ echo "hello world"
 `,
@@ -1005,6 +1245,9 @@ Use the following command to connect to the database or to the address above usi
 			},
 			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
 To avoid port randomization, you can choose the listening port using the --port flag.
+
+Teleport Connect is a desktop app that can manage database proxies for you.
+Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-a-database
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 

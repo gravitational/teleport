@@ -64,10 +64,12 @@ type HostUsersBackend interface {
 	Lookup(name string) (*user.User, error)
 	// LookupGroup retrieves a group by name.
 	LookupGroup(group string) (*user.Group, error)
+	// LookupGroupByID retrieves a group by its ID.
+	LookupGroupByID(gid string) (*user.Group, error)
 	// CreateGroup creates a group on a host.
-	CreateGroup(group string) error
+	CreateGroup(group string, gid string) error
 	// CreateUser creates a user on a host.
-	CreateUser(name string, groups []string) error
+	CreateUser(name string, groups []string, uid, gid string) error
 	// DeleteUser deletes a user from a host.
 	DeleteUser(name string) error
 	// CheckSudoers ensures that a sudoers file to be written is valid
@@ -76,6 +78,8 @@ type HostUsersBackend interface {
 	WriteSudoersFile(user string, entries []byte) error
 	// RemoveSudoersFile deletes a user's sudoers file.
 	RemoveSudoersFile(user string) error
+	// CreateHomeDirectory creates the users home directory and copies in /etc/skel
+	CreateHomeDirectory(user string, uid, gid string) error
 }
 
 type userCloser struct {
@@ -204,8 +208,15 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		}, trace.AlreadyExists("User %q already exists", name)
 	}
 
-	groups := make([]string, len(ui.Groups))
-	copy(groups, ui.Groups)
+	groups := make([]string, 0, len(ui.Groups))
+	for _, group := range ui.Groups {
+		if group == name {
+			// this causes an error as useradd expects the group with the same name as the user to be available
+			log.Debugf("Skipping group creation with name the same as login user (%q, %q).", name, group)
+			continue
+		}
+		groups = append(groups, group)
+	}
 	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_DROP {
 		groups = append(groups, types.TeleportServiceGroup)
 	}
@@ -224,18 +235,31 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		if err := u.storage.UpsertHostUserInteractionTime(u.ctx, name, time.Now()); err != nil {
 			return trace.Wrap(err)
 		}
+		if ui.GID != "" {
+			// if gid is specified a group must already exist
+			err := u.backend.CreateGroup(name, ui.GID)
+			if err != nil && !trace.IsAlreadyExists(err) {
+				return trace.Wrap(err)
+			}
+		}
 
-		err = u.backend.CreateUser(name, groups)
+		err = u.backend.CreateUser(name, groups, ui.UID, ui.GID)
 		if err != nil && !trace.IsAlreadyExists(err) {
 			return trace.WrapWithMessage(err, "error while creating user")
 		}
+
+		user, err := u.backend.Lookup(name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		err = u.backend.CreateHomeDirectory(name, user.Uid, user.Gid)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		return nil
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	_, err = u.backend.Lookup(name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -288,7 +312,7 @@ func (u *HostUserManagement) createGroupIfNotExist(group string) error {
 	if err != nil && !isUnknownGroupError(err, group) {
 		return trace.Wrap(err)
 	}
-	err = u.backend.CreateGroup(group)
+	err = u.backend.CreateGroup(group, "")
 	if trace.IsAlreadyExists(err) {
 		return nil
 	}
@@ -303,6 +327,7 @@ func (u *HostUserManagement) createGroupIfNotExist(group string) error {
 // See github issue - https://github.com/golang/go/issues/40334
 func isUnknownGroupError(err error, groupName string) bool {
 	return errors.Is(err, user.UnknownGroupError(groupName)) ||
+		errors.Is(err, user.UnknownGroupIdError(groupName)) ||
 		strings.HasSuffix(err.Error(), syscall.ENOENT.Error()) ||
 		strings.HasSuffix(err.Error(), syscall.ESRCH.Error())
 }

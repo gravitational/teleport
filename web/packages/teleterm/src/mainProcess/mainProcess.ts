@@ -29,13 +29,13 @@ import {
   nativeTheme,
   shell,
 } from 'electron';
-import { wait } from 'shared/utils/wait';
 
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
 import { ChildProcessAddresses } from 'teleterm/mainProcess/types';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
+import { RootClusterUri } from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
 
 import {
@@ -47,6 +47,17 @@ import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalCont
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
 import { resolveNetworkAddress } from './resolveNetworkAddress';
 import { WindowsManager } from './windowsManager';
+import { downloadAgent, FileDownloader } from './agentDownloader';
+import {
+  createAgentConfigFile,
+  isAgentConfigFileCreated,
+  removeAgentDirectory,
+  generateAgentConfigPaths,
+} from './createAgentConfigFile';
+import { AgentRunner } from './agentRunner';
+import { terminateWithTimeout } from './terminateWithTimeout';
+
+import type { AgentConfigFileClusterProperties } from './createAgentConfigFile';
 
 type Options = {
   settings: RuntimeSettings;
@@ -67,6 +78,15 @@ export default class MainProcess {
   private configFileStorage: FileStorage;
   private resolvedChildProcessAddresses: Promise<ChildProcessAddresses>;
   private windowsManager: WindowsManager;
+  // this function can be safely called concurrently
+  private downloadAgentShared = sharePromise(() =>
+    downloadAgent(
+      new FileDownloader(this.windowsManager.getWindow()),
+      this.settings,
+      process.env
+    )
+  );
+  private readonly agentRunner: AgentRunner;
 
   private constructor(opts: Options) {
     this.settings = opts.settings;
@@ -75,6 +95,21 @@ export default class MainProcess {
     this.appStateFileStorage = opts.appStateFileStorage;
     this.configFileStorage = opts.configFileStorage;
     this.windowsManager = opts.windowsManager;
+    this.agentRunner = new AgentRunner(
+      this.settings,
+      path.join(__dirname, 'agentCleanupDaemon.js'),
+      (rootClusterUri, state) => {
+        const window = this.windowsManager.getWindow();
+        if (window.isDestroyed()) {
+          return;
+        }
+        window.webContents.send(
+          'main-process-connect-my-computer-agent-update',
+          rootClusterUri,
+          state
+        );
+      }
+    );
   }
 
   static create(opts: Options) {
@@ -83,18 +118,15 @@ export default class MainProcess {
     return instance;
   }
 
-  dispose() {
-    this.killTshdProcess();
-    this.sharedProcess.kill('SIGTERM');
-    const processesExit = Promise.all([
-      promisifyProcessExit(this.tshdProcess),
-      promisifyProcessExit(this.sharedProcess),
+  async dispose(): Promise<void> {
+    await Promise.all([
+      // sending usage events on tshd shutdown has 10-seconds timeout
+      terminateWithTimeout(this.tshdProcess, 10_000, () => {
+        this.gracefullyKillTshdProcess();
+      }),
+      terminateWithTimeout(this.sharedProcess),
+      this.agentRunner.killAll(),
     ]);
-    // sending usage events on tshd shutdown has 10 seconds timeout
-    const timeout = wait(10_000).then(() =>
-      this.logger.error('Child process(es) did not exit within 10 seconds')
-    );
-    return Promise.race([processesExit, timeout]);
   }
 
   private _init() {
@@ -124,24 +156,15 @@ export default class MainProcess {
       },
     });
 
-    const tshdPassThroughLogger = createFileLoggerService({
+    this.logProcessExitAndError('tshd', this.tshdProcess);
+
+    createFileLoggerService({
       dev: this.settings.dev,
-      dir: this.settings.userDataDir,
+      dir: this.settings.logsDir,
       name: 'tshd',
       loggerNameColor: LoggerColor.Cyan,
       passThroughMode: true,
-    });
-
-    tshdPassThroughLogger.pipeProcessOutputIntoLogger(this.tshdProcess.stdout);
-    tshdPassThroughLogger.pipeProcessOutputIntoLogger(this.tshdProcess.stderr);
-
-    this.tshdProcess.on('error', error => {
-      this.logger.error('tshd failed to start', error);
-    });
-
-    this.tshdProcess.once('exit', code => {
-      this.logger.info('tshd exited with code:', code);
-    });
+    }).pipeProcessOutputIntoLogger(this.tshdProcess);
   }
 
   private _initSharedProcess() {
@@ -152,28 +175,16 @@ export default class MainProcess {
         stdio: 'pipe', // stdio must be set to `pipe` as the gRPC server address is read from stdout
       }
     );
-    const sharedProcessPassThroughLogger = createFileLoggerService({
+
+    this.logProcessExitAndError('shared process', this.sharedProcess);
+
+    createFileLoggerService({
       dev: this.settings.dev,
-      dir: this.settings.userDataDir,
+      dir: this.settings.logsDir,
       name: 'shared',
       loggerNameColor: LoggerColor.Yellow,
       passThroughMode: true,
-    });
-
-    sharedProcessPassThroughLogger.pipeProcessOutputIntoLogger(
-      this.sharedProcess.stdout
-    );
-    sharedProcessPassThroughLogger.pipeProcessOutputIntoLogger(
-      this.sharedProcess.stderr
-    );
-
-    this.sharedProcess.on('error', error => {
-      this.logger.error('shared process failed to start', error);
-    });
-
-    this.sharedProcess.once('exit', code => {
-      this.logger.info('shared process exited with code:', code);
-    });
+    }).pipeProcessOutputIntoLogger(this.sharedProcess);
   }
 
   private _initResolvingChildProcessAddresses(): void {
@@ -291,6 +302,108 @@ export default class MainProcess {
       return path;
     });
 
+    ipcMain.handle('main-process-connect-my-computer-download-agent', () =>
+      this.downloadAgentShared()
+    );
+
+    ipcMain.handle(
+      'main-process-connect-my-computer-create-agent-config-file',
+      (_, args: AgentConfigFileClusterProperties) =>
+        createAgentConfigFile(this.settings, {
+          proxy: args.proxy,
+          token: args.token,
+          rootClusterUri: args.rootClusterUri,
+          labels: args.labels,
+        })
+    );
+
+    ipcMain.handle(
+      'main-process-connect-my-computer-is-agent-config-file-created',
+      async (
+        _,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => isAgentConfigFileCreated(this.settings, args.rootClusterUri)
+    );
+
+    ipcMain.handle(
+      'main-process-connect-my-computer-kill-agent',
+      async (
+        _,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => {
+        await this.agentRunner.kill(args.rootClusterUri);
+      }
+    );
+
+    ipcMain.handle(
+      'main-process-connect-my-computer-remove-agent-directory',
+      (
+        _,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => removeAgentDirectory(this.settings, args.rootClusterUri)
+    );
+
+    ipcMain.handle(
+      'main-process-connect-my-computer-run-agent',
+      async (
+        _,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => {
+        await this.agentRunner.start(args.rootClusterUri);
+      }
+    );
+
+    ipcMain.on(
+      'main-process-connect-my-computer-get-agent-state',
+      (
+        event,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => {
+        event.returnValue = this.agentRunner.getState(args.rootClusterUri);
+      }
+    );
+
+    ipcMain.on(
+      'main-process-connect-my-computer-get-agent-logs',
+      (
+        event,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => {
+        event.returnValue = this.agentRunner.getLogs(args.rootClusterUri);
+      }
+    );
+
+    ipcMain.handle(
+      'main-process-open-agent-logs-directory',
+      async (
+        _,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => {
+        const { logsDirectory } = generateAgentConfigPaths(
+          this.settings,
+          args.rootClusterUri
+        );
+        const error = await shell.openPath(logsDirectory);
+        if (error) {
+          throw new Error(error);
+        }
+      }
+    );
+
     subscribeToTerminalContextMenuEvent();
     subscribeToTabContextMenuEvent();
     subscribeToConfigServiceEvents(this.configService);
@@ -299,6 +412,13 @@ export default class MainProcess {
 
   private _setAppMenu() {
     const isMac = this.settings.platform === 'darwin';
+    const commonHelpTemplate: MenuItemConstructorOptions[] = [
+      { label: 'Open Documentation', click: openDocsUrl },
+      {
+        label: 'Open Logs Directory',
+        click: () => openLogsDirectory(this.settings),
+      },
+    ];
 
     // Enable actions like reload or toggle dev tools only in dev mode.
     const viewMenuTemplate: MenuItemConstructorOptions = this.settings.dev
@@ -324,7 +444,7 @@ export default class MainProcess {
       },
       {
         role: 'help',
-        submenu: [{ label: 'Learn More', click: openDocsUrl }],
+        submenu: commonHelpTemplate,
       },
     ];
 
@@ -336,7 +456,8 @@ export default class MainProcess {
       {
         role: 'help',
         submenu: [
-          { label: 'Learn More', click: openDocsUrl },
+          ...commonHelpTemplate,
+          { type: 'separator' },
           { role: 'about' },
         ],
       },
@@ -366,7 +487,7 @@ export default class MainProcess {
    * kill a process is to send Ctrl-Break to its console. This task is done by
    * `tsh daemon stop` program. On Unix, the standard `SIGTERM` signal is sent.
    */
-  private killTshdProcess() {
+  private gracefullyKillTshdProcess() {
     if (this.settings.platform !== 'win32') {
       this.tshdProcess.kill('SIGTERM');
       return;
@@ -387,6 +508,27 @@ export default class MainProcess {
     daemonStop.stderr.setEncoding('utf-8');
     daemonStop.stderr.on('data', logger.error);
   }
+
+  private logProcessExitAndError(
+    processName: string,
+    childProcess: ChildProcess
+  ) {
+    childProcess.on('error', error => {
+      this.logger.error(`${processName} failed to start`, error);
+    });
+
+    childProcess.once('exit', (code, signal) => {
+      const codeOrSignal = [
+        // code can be 0, so we cannot just check it the same way as the signal.
+        code != null && `code ${code}`,
+        signal && `signal ${signal}`,
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+      this.logger.info(`${processName} exited with ${codeOrSignal}`);
+    });
+  }
 }
 
 const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
@@ -395,6 +537,21 @@ function openDocsUrl() {
   shell.openExternal(DOCS_URL);
 }
 
-function promisifyProcessExit(childProcess: ChildProcess) {
-  return new Promise(resolve => childProcess.once('exit', resolve));
+function openLogsDirectory(settings: RuntimeSettings) {
+  shell.openPath(settings.logsDir);
+}
+
+/** Shares promise returned from `promiseFn` across multiple concurrent callers. */
+function sharePromise<T>(promiseFn: () => Promise<T>): () => Promise<T> {
+  let pending: Promise<T> | undefined = undefined;
+
+  return () => {
+    if (!pending) {
+      pending = promiseFn();
+      pending.finally(() => {
+        pending = undefined;
+      });
+    }
+    return pending;
+  };
 }

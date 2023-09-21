@@ -37,7 +37,7 @@ export function AddNewClusterItem(props: AddNewClusterItemProps) {
 
   return (
     <StyledListItem isActive={isActive} onClick={props.onClick}>
-      <Add mr={1} color="inherit" />
+      <Add mr={1} size="small" />
       Add another cluster
     </StyledListItem>
   );

@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -44,20 +43,21 @@ const (
 )
 
 var SupportedJoinMethods = []string{
-	string(types.JoinMethodToken),
 	string(types.JoinMethodAzure),
 	string(types.JoinMethodCircleCI),
 	string(types.JoinMethodGCP),
 	string(types.JoinMethodGitHub),
 	string(types.JoinMethodGitLab),
 	string(types.JoinMethodIAM),
+	string(types.JoinMethodKubernetes),
+	string(types.JoinMethodToken),
 }
 
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTBot,
 })
 
-// RemainingArgs is a custom kingpin parser that consumes all remaining
+// RemainingArgsList is a custom kingpin parser that consumes all remaining
 // arguments.
 type RemainingArgsList []string
 
@@ -81,11 +81,20 @@ func RemainingArgs(s kingpin.Settings) (target *[]string) {
 	return
 }
 
+const (
+	LogFormatJSON = "json"
+	LogFormatText = "text"
+)
+
 // CLIConf is configuration from the CLI.
 type CLIConf struct {
 	ConfigPath string
 
 	Debug bool
+
+	// LogFormat controls the format of logging. Can be either `json` or `text`.
+	// By default, this is `text`.
+	LogFormat string
 
 	// AuthServer is a Teleport auth server address. It may either point
 	// directly to an auth server, or to a Teleport proxy server in which case
@@ -167,6 +176,9 @@ type CLIConf struct {
 	// DiagAddr is the address the diagnostics http service should listen on.
 	// If not set, no diagnostics listener is created.
 	DiagAddr string
+
+	// Insecure instructs `tbot` to trust the Auth Server without verifying the CA.
+	Insecure bool
 }
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.
@@ -266,9 +278,9 @@ type BotConfig struct {
 	// renewal.
 	ReloadCh <-chan struct{} `yaml:"-"`
 
-	// Insecure configures the bot to blindly trust the certificates offered by
-	// the auth server. Used for tests.
-	Insecure bool `yaml:"-"`
+	// Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification.
+	// Do not use in production.
+	Insecure bool `yaml:"insecure,omitempty"`
 }
 
 func (conf *BotConfig) CipherSuites() []uint16 {
@@ -292,27 +304,30 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	}
 
 	destinationPaths := map[string]int{}
+	addDestinationToKnownPaths := func(d bot.Destination) {
+		switch d := d.(type) {
+		case *DestinationDirectory:
+			destinationPaths[fmt.Sprintf("file://%s", d.Path)]++
+		case *DestinationKubernetesSecret:
+			destinationPaths[fmt.Sprintf("kubernetes-secret://%s", d.Name)]++
+		}
+	}
 	for _, output := range conf.Outputs {
 		if err := output.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-
-		// This check currently only handles directory destinations, but we'll
-		// need to create a more polymorphic way of doing this when we introduce
-		// more destination types.
-		directoryDestination, ok := output.GetDestination().(*DestinationDirectory)
-		if ok {
-			destinationPaths[directoryDestination.Path]++
-		}
+		addDestinationToKnownPaths(output.GetDestination())
 	}
-	// Check for outputs reusing the same destination. This is a deeply
+
+	// Check for identical destinations being used. This is a deeply
 	// uncharted/unknown behavior area. For now we'll emit a heavy warning,
 	// in 15+ this will be an explicit area as outputs writing over one another
 	// is too complex to support.
+	addDestinationToKnownPaths(conf.Storage.Destination)
 	for path, count := range destinationPaths {
 		if count > 1 {
 			log.WithField("path", path).Error(
-				"Multiple outputs reusing the same destination path. This can produce unusable results. In Teleport 15.0, this will be a fatal error.",
+				"Identical destinations used within config. This can produce unusable results. In Teleport 15.0, this will be a fatal error.",
 			)
 		}
 	}
@@ -331,6 +346,21 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	if conf.Onboarding.JoinMethod != types.JoinMethodUnspecified {
 		if !slices.Contains(SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
 			return trace.BadParameter("unrecognized join method: %q", conf.Onboarding.JoinMethod)
+		}
+	}
+
+	// Validate Insecure and CA Settings
+	if conf.Insecure {
+		if len(conf.Onboarding.CAPins) > 0 {
+			return trace.BadParameter("the option ca-pin is mutually exclusive with --insecure")
+		}
+
+		if conf.Onboarding.CAPath != "" {
+			return trace.BadParameter("the option ca-path is mutually exclusive with --insecure")
+		}
+	} else {
+		if len(conf.Onboarding.CAPins) > 0 && conf.Onboarding.CAPath != "" {
+			return trace.BadParameter("the options ca-pin and ca-path are mutually exclusive")
 		}
 	}
 
@@ -421,6 +451,12 @@ func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
 		return v, nil
 	case DestinationDirectoryType:
 		v := &DestinationDirectory{}
+		if err := node.Decode(v); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return v, nil
+	case DestinationKubernetesSecretType:
+		v := &DestinationKubernetesSecret{}
 		if err := node.Decode(v); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -617,12 +653,16 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		return nil, trace.Wrap(err, "validating merged bot config")
 	}
 
+	if cf.Insecure {
+		config.Insecure = true
+	}
+
 	return config, nil
 }
 
 // ReadConfigFromFile reads and parses a YAML config from a file.
 func ReadConfigFromFile(filePath string, manualMigration bool) (*BotConfig, error) {
-	f, err := os.Open(filePath)
+	f, err := utils.OpenFileAllowingUnsafeLinks(filePath)
 	if err != nil {
 		return nil, trace.Wrap(err, fmt.Sprintf("failed to open file: %v", filePath))
 	}

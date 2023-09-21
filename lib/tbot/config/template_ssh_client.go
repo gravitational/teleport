@@ -122,7 +122,7 @@ func (c *templateSSHClient) render(
 		return trace.Wrap(err)
 	}
 
-	if err := destination.Write(knownHostsName, []byte(knownHosts)); err != nil {
+	if err := destination.Write(ctx, knownHostsName, []byte(knownHosts)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -165,7 +165,7 @@ func (c *templateSSHClient) render(
 		return trace.Wrap(err)
 	}
 
-	if err := destination.Write(sshConfigName, []byte(sshConfigBuilder.String())); err != nil {
+	if err := destination.Write(ctx, sshConfigName, []byte(sshConfigBuilder.String())); err != nil {
 		return trace.Wrap(err)
 	}
 

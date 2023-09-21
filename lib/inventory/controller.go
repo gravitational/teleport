@@ -227,6 +227,12 @@ func (c *Controller) Iter(fn func(UpstreamHandle)) {
 	c.store.Iter(fn)
 }
 
+// ConnectedInstances gets the total number of connected instances. Note that this is the total number of
+// *handles*, not the number of unique instances by id.
+func (c *Controller) ConnectedInstances() int {
+	return c.store.Len()
+}
+
 // ConnectedServiceCounts returns the number of each connected service seen in the inventory.
 func (c *Controller) ConnectedServiceCounts() map[types.SystemRole]uint64 {
 	return c.serviceCounter.counts()
@@ -475,6 +481,8 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 }
 
 func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.UpstreamInventoryAgentMetadata) {
+	handle.SetAgentMetadata(m)
+
 	svcs := make([]string, 0, len(handle.Hello().Services))
 	for _, svc := range handle.Hello().Services {
 		svcs = append(svcs, strings.ToLower(svc.String()))
@@ -492,6 +500,7 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.Upstrea
 		ContainerRuntime:      m.ContainerRuntime,
 		ContainerOrchestrator: m.ContainerOrchestrator,
 		CloudEnvironment:      m.CloudEnvironment,
+		ExternalUpgrader:      handle.Hello().ExternalUpgrader,
 	})
 }
 

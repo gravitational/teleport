@@ -3,18 +3,17 @@ title: Database Access with AWS ElastiCache and AWS MemoryDB for Redis
 description: How to configure Teleport database access with AWS ElastiCache and AWS MemoryDB for Redis.
 ---
 
-This guide will help you to:
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS ElastiCache and MemoryDB for Redis cluster" dbConfigure="AWS ElastiCache and MemoryDB for Redis cluster database with IAM authentication" dbName="AWS ElastiCache and MemoryDB for Redis" !)
 
-- Install Teleport `(=teleport.version=)`.
-- Set up Teleport to access your ElastiCache and MemoryDB for Redis clusters.
-- Connect to your clusters through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/redis_elasticache_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud","team"]}>
+</TabItem>
+<TabItem scope={["cloud","team"]} label="Teleport Cloud">
 ![Teleport Database Access RDS Cloud](../../../img/database-access/guides/redis_elasticache_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -26,6 +25,7 @@ This guide will help you to:
 - `redis-cli` version `6.2` or newer installed and added to your system's `PATH` environment variable.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
+- (!docs/pages/includes/database-access/aws-auto-discovery-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/7. Create a Teleport user
@@ -38,70 +38,26 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
-Install Teleport on the host where you will run the Teleport Database Service:
-
-(!docs/pages/includes/install-linux.mdx!)
-
-Create the Database Service configuration:
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-
 <Tabs>
-  <TabItem label="ElastiCache">
-  ```code
-  $ teleport db configure create \
-     -o file \
-     --proxy=teleport.example.com:3080 \
-     --token=/tmp/token \
-     --elasticache-discovery=us-west-1
-  ```
-  </TabItem>
-  <TabItem label="MemoryDB">
-  ```code
-  $ teleport db configure create \
-     -o file \
-     --proxy=teleport.example.com:3080 \
-     --token=/tmp/token \
-     --memorydb-discovery=us-west-1
-  ```
-  </TabItem>
+
+<TabItem label="ElastiCache">
+
+(!docs/pages/includes/database-access/aws-create-db-configuration.mdx type="ElastiCache" matcher="elasticache" protocol="redis" example="clustercfg.my-redis-cluster.xxxxxx.usw1.cache.amazonaws.com:6379" !)
+
+</TabItem>
+
+<TabItem label="MemoryDB">
+
+(!docs/pages/includes/database-access/aws-create-db-configuration.mdx type="MemoryDB" matcher="memorydb" protocol="redis" example="clustercfg.my-memorydb.xxxxxx.memorydb.us-west-1.amazonaws.com:6379" !)
+
+</TabItem>
+
 </Tabs>
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-<Tabs>
-  <TabItem label="ElastiCache">
-  ```code
-  $ teleport db configure create \
-     -o file \
-     --proxy=mytenant.teleport.sh:443 \
-     --token=/tmp/token \
-     --elasticache-discovery=us-west-1
-  ```
-  </TabItem>
-  <TabItem label="MemoryDB">
-  ```
-  $ teleport db configure create \
-     -o file \
-     --proxy=mytenant.teleport.sh:443 \
-     --token=/tmp/token \
-     --memorydb-discovery=us-west-1
-  ```
-  </TabItem>
-</Tabs>
-
-</ScopedBlock>
-
-The command will generate a Database Service configuration with ElastiCache or
-MemoryDB database auto-discovery enabled on the `us-west-1` region and place it
-at the `/etc/teleport.yaml` location.
 
 ## Step 3/7. Create an IAM policy for Teleport
 
 Teleport needs AWS IAM permissions to be able to:
 
-- Discover and register ElastiCache and MemoryDB for Redis clusters.
 - Modify ElastiCache and MemoryDB user passwords for Teleport-managed users.
 - Save user passwords in AWS Secrets Manager for Teleport-managed users.
 - Connect to an ElastiCache Redis cluster using IAM auth for ElastiCache IAM users.
@@ -111,14 +67,18 @@ Service access to AWS credentials.
 
 (!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
 
-(!docs/pages/includes/database-access/aws-bootstrap.mdx!)
+<Tabs>
+<TabItem label="ElastiCache">
+(!docs/pages/includes/database-access/aws-bootstrap.mdx type="elasticache" !)
+</TabItem>
+<TabItem label="MemoryDB">
+(!docs/pages/includes/database-access/aws-bootstrap.mdx type="memorydb" !)
+</TabItem>
+</Tabs>
 
 ## Step 4/7. Start the Database Service
 
 (!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
-
-The Database Service will discover and register all ElastiCache and MemoryDB
-for Redis clusters according to the configuration.
 
 ## Step 5/7. Create an ElastiCache IAM user (optional)
 
@@ -206,7 +166,8 @@ some time (up to 20 minutes) to discover this user once the tag is added.
 Once the Database Service has started and joined the cluster, log in to see the
 registered databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
@@ -218,8 +179,8 @@ $ tsh db ls
 # my-memorydb                 MemoryDB cluster in us-west-1                             ...
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -232,10 +193,12 @@ $ tsh db ls
 # my-memorydb                 MemoryDB cluster in us-west-1                             ...
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 <Admonition type="note" title="Note">
-  You can override the database name by applying the `teleport.dev/database_name` AWS tag to the resource. The value of the tag will be used as the database name.
+  You can override the database name by applying the `TeleportDatabaseName` AWS tag to the resource. The value of the tag will be used as the database name.
 </Admonition>
 
 To retrieve credentials for a database and connect to it:
@@ -295,3 +258,4 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

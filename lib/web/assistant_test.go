@@ -37,9 +37,11 @@ import (
 	"golang.org/x/time/rate"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	aitest "github.com/gravitational/teleport/lib/ai/testutils"
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func Test_runAssistant(t *testing.T) {
@@ -149,14 +151,15 @@ func Test_runAssistant(t *testing.T) {
 			if tc.setup != nil {
 				tc.setup(t, s)
 			}
+			assistRole := allowAssistAccess(t, s)
 
 			ctx := context.Background()
-			authPack := s.authPack(t, "foo")
+			authPack := s.authPack(t, "foo", assistRole.GetName())
 			// Create the conversation
 			conversationID := s.makeAssistConversation(t, ctx, authPack)
 
 			// Make WS client and start the conversation
-			ws, err := s.makeAssistant(t, authPack, conversationID)
+			ws, err := s.makeAssistant(t, authPack, conversationID, "")
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -199,7 +202,7 @@ func Test_runAssistError(t *testing.T) {
 		require.NoError(t, err)
 
 		_, payload, err := ws.ReadMessage()
-		require.NoError(t, err)
+		require.NoError(t, err, "expected error message, payload: %s", payload)
 
 		var msg assistantMessage
 		err = json.Unmarshal(payload, &msg)
@@ -238,17 +241,21 @@ func Test_runAssistError(t *testing.T) {
 	openaiCfg.BaseURL = server.URL
 	s := newWebSuiteWithConfig(t, webSuiteConfig{OpenAIConfig: &openaiCfg})
 
+	assistRole := allowAssistAccess(t, s)
+	authPack := s.authPack(t, "foo", assistRole.GetName())
+
 	ctx := context.Background()
-	authPack := s.authPack(t, "foo")
 	// Create the conversation
 	conversationID := s.makeAssistConversation(t, ctx, authPack)
 
 	// Make WS client and start the conversation
-	ws, err := s.makeAssistant(t, authPack, conversationID)
+	ws, err := s.makeAssistant(t, authPack, conversationID, "")
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		// Close should yield an error as the server closes the connection
-		require.Error(t, ws.Close())
+		// The TLS connection might or might not be closed, this is an implementation detail.
+		// We want to check whether the websocket gets appropriately closed, not the underlying TLS connection.
+		// The connection will eventually be closed and reclaimed by the server. We can skip checking the error.
+		_ = ws.Close()
 	})
 
 	// verify responses
@@ -262,59 +269,88 @@ func Test_runAssistError(t *testing.T) {
 	require.Equal(t, websocket.CloseInternalServerErr, closeErr.Code, "Expected abnormal closure")
 }
 
-// makeAssistConversation creates a new assist conversation and returns its ID
-func (s *WebSuite) makeAssistConversation(t *testing.T, ctx context.Context, authPack *authPack) string {
-	clt := authPack.clt
+func Test_SSHCommandGeneration(t *testing.T) {
+	t.Parallel()
 
-	resp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "assistant", "conversations"), nil)
+	assertGenCommand := func(ws *websocket.Conn) {
+		_, payload, err := ws.ReadMessage()
+		require.NoError(t, err)
+
+		var msg assistantMessage
+		err = json.Unmarshal(payload, &msg)
+		require.NoError(t, err)
+
+		// Expect "hello" message
+		require.Equal(t, assist.MessageKindProgressUpdate, msg.Type)
+		require.Contains(t, msg.Payload, "openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -subj")
+	}
+
+	responses := []string{generateCommandResponse()}
+	server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
+	t.Cleanup(server.Close)
+
+	openaiCfg := openai.DefaultConfig("test-token")
+	openaiCfg.BaseURL = server.URL
+	s := newWebSuiteWithConfig(t, webSuiteConfig{OpenAIConfig: &openaiCfg})
+
+	assistRole := allowAssistAccess(t, s)
+	authPack := s.authPack(t, "foo", assistRole.GetName())
+
+	// Make WS client and start the conversation
+	ws, err := s.makeAssistant(t, authPack, "", "ssh-cmdgen")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := ws.Close()
+		require.NoError(t, err)
+	})
+
+	err = ws.WriteMessage(websocket.TextMessage, []byte(`{"input:" "My cert expired!!! What is x509?"}`))
 	require.NoError(t, err)
 
-	convResp := struct {
-		ConversationID string `json:"id"`
-	}{}
-	err = json.Unmarshal(resp.Bytes(), &convResp)
-	require.NoError(t, err)
-
-	return convResp.ConversationID
+	// verify responses
+	assertGenCommand(ws)
 }
 
-// makeAssistant creates a new assistant websocket connection.
-func (s *WebSuite) makeAssistant(t *testing.T, pack *authPack, conversationID string) (*websocket.Conn, error) {
-	u := url.URL{
-		Host:   s.url().Host,
-		Scheme: client.WSS,
-		Path:   fmt.Sprintf("/v1/webapi/sites/%s/assistant", currentSiteShortcut),
+func Test_SSHCommandExplain(t *testing.T) {
+	t.Parallel()
+
+	assertResponse := func(ws *websocket.Conn) {
+		_, payload, err := ws.ReadMessage()
+		require.NoError(t, err)
+
+		var msg assistantMessage
+		err = json.Unmarshal(payload, &msg)
+		require.NoError(t, err)
+
+		// Expect "hello" message
+		require.Equal(t, assist.MessageKindAssistantMessage, msg.Type)
+		require.Contains(t, msg.Payload, "The application has failed to connect to the database. The database is not running.")
 	}
 
-	q := u.Query()
-	q.Set("conversation_id", conversationID)
-	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
-	u.RawQuery = q.Encode()
+	responses := []string{commandSummaryResponse()}
+	server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
+	t.Cleanup(server.Close)
 
-	dialer := websocket.Dialer{}
-	dialer.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: true,
-	}
+	openaiCfg := openai.DefaultConfig("test-token")
+	openaiCfg.BaseURL = server.URL
+	s := newWebSuiteWithConfig(t, webSuiteConfig{OpenAIConfig: &openaiCfg})
 
-	header := http.Header{}
-	header.Add("Origin", "http://localhost")
-	for _, cookie := range pack.cookies {
-		header.Add("Cookie", cookie.String())
-	}
+	assistRole := allowAssistAccess(t, s)
+	authPack := s.authPack(t, "foo", assistRole.GetName())
 
-	ws, resp, err := dialer.Dial(u.String(), header)
-	if err != nil {
-		res, err2 := io.ReadAll(resp.Body)
-		t.Log("response body:", string(res), err2)
-		return nil, trace.Wrap(err)
-	}
+	// Make WS client and start the conversation
+	ws, err := s.makeAssistant(t, authPack, "", "ssh-explain")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := ws.Close()
+		require.NoError(t, err)
+	})
 
-	err = resp.Body.Close()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	err = ws.WriteMessage(websocket.TextMessage, []byte(`{"input:" "listen tcp 0.0.0.0:5432: bind: address already in use"}`))
+	require.NoError(t, err)
 
-	return ws, nil
+	// verify responses
+	assertResponse(ws)
 }
 
 func Test_generateAssistantTitle(t *testing.T) {
@@ -335,7 +371,10 @@ func Test_generateAssistantTitle(t *testing.T) {
 		OpenAIConfig: &openaiCfg,
 	})
 
-	pack := s.authPack(t, "foo")
+	assistRole := allowAssistAccess(t, s)
+	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+
+	pack := s.authPack(t, "foo", assistRole.GetName())
 
 	// Real test: we craft a request asking for a summary
 	endpoint := pack.clt.Endpoint("webapi", "assistant", "title", "summary")
@@ -353,7 +392,98 @@ func Test_generateAssistantTitle(t *testing.T) {
 	require.NotEmpty(t, info.Title)
 }
 
+func allowAssistAccess(t *testing.T, s *WebSuite) types.Role {
+	assistRole, err := types.NewRole("assist-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindAssistant, services.RW()),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+
+	return assistRole
+}
+
+// makeAssistConversation creates a new assist conversation and returns its ID
+func (s *WebSuite) makeAssistConversation(t *testing.T, ctx context.Context, authPack *authPack) string {
+	clt := authPack.clt
+
+	resp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "assistant", "conversations"), nil)
+	require.NoError(t, err)
+
+	convResp := struct {
+		ConversationID string `json:"id"`
+	}{}
+	err = json.Unmarshal(resp.Bytes(), &convResp)
+	require.NoError(t, err)
+
+	return convResp.ConversationID
+}
+
+// makeAssistant creates a new assistant websocket connection.
+func (s *WebSuite) makeAssistant(_ *testing.T, pack *authPack, conversationID, action string) (*websocket.Conn, error) {
+	if action == "" && conversationID == "" {
+		return nil, trace.BadParameter("must specify either conversation_id or action")
+	}
+
+	u := url.URL{
+		Host:   s.url().Host,
+		Scheme: client.WSS,
+		Path:   fmt.Sprintf("/v1/webapi/sites/%s/assistant", currentSiteShortcut),
+	}
+
+	q := u.Query()
+	if conversationID != "" {
+		q.Set("conversation_id", conversationID)
+	}
+
+	if action != "" {
+		q.Set("action", action)
+	}
+
+	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
+	u.RawQuery = q.Encode()
+
+	dialer := websocket.Dialer{}
+	dialer.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range pack.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+
+	ws, resp, err := dialer.Dial(u.String(), header)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ws, nil
+}
+
 // generateTextResponse generates a response for a text completion
 func generateTextResponse() string {
 	return "<FINAL RESPONSE>\nWhich node do you want to use?"
+}
+
+func generateCommandResponse() string {
+	return "```" + `json
+	{
+	    "action": "Command Generation",
+	    "action_input": "{\"command\":\"openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -subj\"}"
+	}
+	` + "```"
+}
+
+func commandSummaryResponse() string {
+	return "The application has failed to connect to the database. The database is not running."
 }

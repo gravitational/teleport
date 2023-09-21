@@ -14,85 +14,50 @@
  * limitations under the License.
  */
 
-import { createMockConfigService } from 'teleterm/services/config/fixtures/mocks';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 import { Platform } from 'teleterm/mainProcess/types';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeRootCluster,
+  makeLoggedInUser,
+} from 'teleterm/services/tshd/testHelpers';
 
-import { canUseConnectMyComputer } from './permissions';
+import { hasConnectMyComputerPermissions } from './permissions';
 
 const testCases: {
   name: string;
   platform: Platform;
   canCreateToken: boolean;
-  isUsageBasedBilling: boolean;
-  isFeatureFlagEnabled: boolean;
   expect: boolean;
 }[] = [
   {
-    name: 'darwin, can create token, usage based plan, feature flag enabled',
+    name: 'should be true when OS is darwin and can create token',
     platform: 'darwin',
     canCreateToken: true,
-    isUsageBasedBilling: true,
-    isFeatureFlagEnabled: true,
     expect: true,
   },
   {
-    name: 'linux, can create token, usage based plan, feature flag enabled',
+    name: 'should be true when OS is  linux and can create token',
     platform: 'linux',
     canCreateToken: true,
-    isUsageBasedBilling: true,
-    isFeatureFlagEnabled: true,
     expect: true,
   },
   {
-    name: 'windows, can create token, usage based plan, feature flag enabled',
+    name: 'should be false when OS is windows and can create token',
     platform: 'win32',
     canCreateToken: true,
-    isUsageBasedBilling: true,
-    isFeatureFlagEnabled: true,
     expect: false,
   },
   {
-    name: 'darwin, cannot create token, usage based plan, feature flag enabled',
+    name: 'should be false when OS is darwin and cannot create token',
     platform: 'darwin',
     canCreateToken: false,
-    isUsageBasedBilling: true,
-    isFeatureFlagEnabled: true,
-    expect: false,
-  },
-  {
-    name: 'darwin, can create token, non-usage based plan, feature flag enabled',
-    platform: 'darwin',
-    canCreateToken: true,
-    isUsageBasedBilling: false,
-    isFeatureFlagEnabled: true,
-    expect: false,
-  },
-  {
-    name: 'darwin, can create token, usage based plan, feature flag not enabled',
-    platform: 'darwin',
-    canCreateToken: true,
-    isUsageBasedBilling: true,
-    isFeatureFlagEnabled: false,
     expect: false,
   },
 ];
 
 test.each(testCases)('$name', testCase => {
   const cluster = makeRootCluster({
-    features: {
-      advancedAccessWorkflows: false,
-      isUsageBasedBilling: testCase.isUsageBasedBilling,
-    },
-    loggedInUser: {
-      name: 'test',
-      activeRequestsList: [],
-      assumedRequests: {},
-      rolesList: [],
-      sshLoginsList: [],
-      requestableRolesList: [],
-      suggestedReviewersList: [],
+    loggedInUser: makeLoggedInUser({
       acl: {
         tokens: {
           create: testCase.canCreateToken,
@@ -103,17 +68,10 @@ test.each(testCases)('$name', testCase => {
           pb_delete: false,
         },
       },
-    },
-  });
-  const configService = createMockConfigService({
-    'feature.connectMyComputer': testCase.isFeatureFlagEnabled,
+    }),
   });
   const runtimeSettings = makeRuntimeSettings({ platform: testCase.platform });
 
-  const isPermitted = canUseConnectMyComputer(
-    cluster,
-    configService,
-    runtimeSettings
-  );
+  const isPermitted = hasConnectMyComputerPermissions(cluster, runtimeSettings);
   expect(isPermitted).toEqual(testCase.expect);
 });

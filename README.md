@@ -67,7 +67,7 @@ practices like:
 - No need to manage shared secrets such as SSH keys: Teleport uses certificate-based access with automatic certificate expiration time for all protocols.
 - Two-factor authentication (2FA) for everything.
 - Collaboratively troubleshoot issues through session sharing.
-- Single sign-on (SSO) for everything via Github Auth, OpenID Connect, or SAML with endpoints like Okta or Active Directory.
+- Single sign-on (SSO) for everything via GitHub Auth, OpenID Connect, or SAML with endpoints like Okta or Active Directory.
 - Infrastructure introspection: Use Teleport via the CLI or Web UI to view the status of every SSH node, database instance, Kubernetes cluster, or internal web app.
 
 Teleport is built upon the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh)
@@ -105,12 +105,8 @@ Teleport Team
 
 ### Deploy Teleport
 
-If you wish to deploy Teleport inside a Docker container:
-```
-# This command will pull the Teleport container image for version 13
-docker pull public.ecr.aws/gravitational/teleport:13
-```
-View latest tags on [Amazon ECR Public | gravitational/teleport](https://gallery.ecr.aws/gravitational/teleport)
+If you wish to deploy Teleport inside a Docker container see the 
+[installation guide](https://goteleport.com/docs/installation/#running-teleport-on-docker).
 
 ### For Local Testing and Development
 
@@ -326,15 +322,15 @@ We had a choice, either start a security consulting business or build a solution
 
 * [Teleport Getting Started](https://goteleport.com/docs/getting-started/)
 * [Teleport Architecture](https://goteleport.com/teleport/docs/architecture)
-* [Reference](https://goteleport.com/docs/setup/reference/)
+* [Reference](https://goteleport.com/docs/reference)
 * [FAQ](https://goteleport.com/docs/faq)
 
 ## Support and Contributing
 
-We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. The docs are also in Github, so feel free to create a PR or file an issue if you have ideas for improvements. If you still have questions after reviewing our docs, you can also:
+We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. The docs are also in GitHub, so feel free to create a PR or file an issue if you have ideas for improvements. If you still have questions after reviewing our docs, you can also:
 
 * Join [Teleport Discussions](https://github.com/gravitational/teleport/discussions) to ask questions. Our engineers are available there to help you.
-* If you want to contribute to Teleport or file a bug report/issue, you can create an issue here in Github.
+* If you want to contribute to Teleport or file a bug report/issue, you can create an issue here in GitHub.
 * If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://goteleport.com/pricing/) to arrange for a POC.
 
 ## Is Teleport Secure and Production-Ready?

@@ -25,19 +25,20 @@ export enum CaptureEvent {
   CreateNewRoleCancelClickEvent = 'tp.ui.createNewRoleCancel.click',
   CreateNewRoleViewDocumentationClickEvent = 'tp.ui.createNewRoleViewDocumentation.click',
   UiCallToActionClickEvent = 'tp.ui.callToAction.click',
+  FeatureRecommendationEvent = 'tp.ui.feature.recommendation',
 
   // PreUserEvent types
   //   these events are unauthenticated,
   //   and require username in the request
-
   PreUserOnboardSetCredentialSubmitEvent = 'tp.ui.onboard.setCredential.submit',
   PreUserOnboardRegisterChallengeSubmitEvent = 'tp.ui.onboard.registerChallenge.submit',
-  PreUserOnboardQuestionnaireSubmitEvent = 'tp.ui.onboard.questionnaire.submit',
   PreUserCompleteGoToDashboardClickEvent = 'tp.ui.onboard.completeGoToDashboard.click',
-
   PreUserRecoveryCodesContinueClickEvent = 'tp.ui.recoveryCodesContinue.click',
   PreUserRecoveryCodesCopyClickEvent = 'tp.ui.recoveryCodesCopy.click',
   PreUserRecoveryCodesPrintClickEvent = 'tp.ui.recoveryCodesPrint.click',
+
+  // Shared types; used in both pre-user and authenticated user settings
+  OnboardQuestionnaireSubmitEvent = 'tp.ui.onboard.questionnaire.submit',
 }
 
 export enum IntegrationEnrollEvent {
@@ -59,6 +60,7 @@ export enum IntegrationEnrollKind {
   OpsGenie = 'INTEGRATION_ENROLL_KIND_OPSGENIE',
   Okta = 'INTEGRATION_ENROLL_KIND_OKTA',
   Jamf = 'INTEGRATION_ENROLL_KIND_JAMF',
+  ServiceNow = 'INTEGRATION_ENROLL_KIND_SERVICENOW',
   MachineID = 'INTEGRATION_ENROLL_KIND_MACHINE_ID',
   MachineIDGitHubActions = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS',
   MachineIDCircleCI = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_CIRCLECI',
@@ -220,3 +222,19 @@ export enum CtaEvent {
   CTA_UPGRADE_BANNER = 6,
   CTA_BILLING_SUMMARY = 7,
 }
+
+export enum Feature {
+  FEATURES_UNSPECIFIED = 0,
+  FEATURES_TRUSTED_DEVICES = 1,
+}
+
+export enum FeatureRecommendationStatus {
+  FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0,
+  FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1,
+  FEATURE_RECOMMENDATION_STATUS_DONE = 2,
+}
+
+export type FeatureRecommendationEvent = {
+  Feature: Feature;
+  FeatureRecommendationStatus: FeatureRecommendationStatus;
+};

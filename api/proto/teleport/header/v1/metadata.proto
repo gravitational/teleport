@@ -18,7 +18,7 @@ package teleport.header.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/header/v1;header";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1;headerv1";
 
 // Metadata is resource metadata.
 message Metadata {
@@ -35,5 +35,10 @@ message Metadata {
   // system.
   google.protobuf.Timestamp expires = 6;
   // ID is a record ID
-  int64 id = 7;
+  // Deprecated: Use revision instead.
+  int64 id = 7 [deprecated = true];
+  // revision is an opaque identifier which tracks the versions of a resource
+  // over time. Clients should ignore and not alter its value but must return
+  // the revision in any updates of a resource.
+  string revision = 8;
 }

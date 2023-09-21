@@ -70,4 +70,10 @@ proxy_service:
     uri: {{ .Values.acmeURI }}
   {{- end }}
 {{- end }}
+{{- if .Values.proxyProtocol }}
+  proxy_protocol: {{ .Values.proxyProtocol | quote }}
+{{- end }}
+{{- if and .Values.ingress.enabled (semverCompare ">= 14.0.0-0" (include "teleport-cluster.version" .)) }}
+  trust_x_forwarded_for: true
+{{- end }}
 {{- end -}}

@@ -66,11 +66,15 @@ func TestBot(t *testing.T) {
 		fakeHostname        = "test-host"
 		fakeHostID          = "uuid"
 		appName             = "test-app"
-		databaseServiceName = "test-database-service"
+		databaseServiceName = "test-database-service-rds-us-west-1-123456789012"
 		databaseUsername    = "test-database-username"
 		databaseName        = "test-database"
-		kubeClusterName     = "test-kube-cluster"
+		kubeClusterName     = "test-kube-cluster-eks-us-west-1-12345679012"
+		// fake some "auto-discovered" and renamed resources.
+		databaseServiceDiscoveredName = "test-database-service"
+		kubeClusterDiscoveredName     = "test-kube-cluster"
 	)
+
 	clusterName := string(fc.Auth.ClusterName)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
 	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
@@ -88,13 +92,7 @@ func TestBot(t *testing.T) {
 	_, err = rootClient.UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
 	// Register a database server so the bot can request certs for it.
-	db, err := types.NewDatabaseV3(types.Metadata{
-		Name: databaseServiceName,
-	}, types.DatabaseSpecV3{
-		Protocol: "mysql",
-		URI:      "example.com:1234",
-	})
-	require.NoError(t, err)
+	db := newMockDiscoveredDB(t, databaseServiceName, databaseServiceDiscoveredName)
 	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: databaseServiceName,
 	}, types.DatabaseServerSpecV3{
@@ -106,13 +104,7 @@ func TestBot(t *testing.T) {
 	_, err = rootClient.UpsertDatabaseServer(ctx, dbServer)
 	require.NoError(t, err)
 	// Register a kubernetes server so the bot can request certs for it.
-	kubeCluster, err := types.NewKubernetesClusterV3(
-		types.Metadata{
-			Name: kubeClusterName,
-		},
-		types.KubernetesClusterSpecV3{},
-	)
-	require.NoError(t, err)
+	kubeCluster := newMockDiscoveredKubeCluster(t, kubeClusterName, kubeClusterDiscoveredName)
 	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, fakeHostname, fakeHostID)
 	require.NoError(t, err)
 	_, err = rootClient.UpsertKubernetesServer(ctx, kubeServer)
@@ -198,12 +190,25 @@ func TestBot(t *testing.T) {
 		Database:    databaseName,
 		Username:    databaseUsername,
 	}
+	dbDiscoveredNameOutput := &config.DatabaseOutput{
+		Destination: &config.DestinationMemory{},
+		Service:     databaseServiceDiscoveredName,
+		Database:    databaseName,
+		Username:    databaseUsername,
+	}
 	kubeOutput := &config.KubernetesOutput{
 		// DestinationDirectory required or output will fail.
 		Destination: &config.DestinationDirectory{
 			Path: t.TempDir(),
 		},
 		KubernetesCluster: kubeClusterName,
+	}
+	kubeDiscoveredNameOutput := &config.KubernetesOutput{
+		// DestinationDirectory required or output will fail.
+		Destination: &config.DestinationDirectory{
+			Path: t.TempDir(),
+		},
+		KubernetesCluster: kubeClusterDiscoveredName,
 	}
 	sshHostOutput := &config.SSHHostOutput{
 		Destination: &config.DestinationMemory{},
@@ -215,8 +220,14 @@ func TestBot(t *testing.T) {
 			identityOutputWithRoles,
 			appOutput,
 			dbOutput,
+			dbDiscoveredNameOutput,
 			sshHostOutput,
 			kubeOutput,
+			kubeDiscoveredNameOutput,
+		},
+		testhelpers.DefaultBotConfigOpts{
+			UseAuthServer: true,
+			Insecure:      true,
 		},
 	)
 	b := New(botConfig, log)
@@ -235,17 +246,25 @@ func TestBot(t *testing.T) {
 	})
 
 	t.Run("output: identity", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, identityOutput.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, identityOutput.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
 	})
 
 	t.Run("output: identity with role specified", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, identityOutputWithRoles.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithRoles.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, []string{mainRole}, botParams.UserName)
 	})
 
 	t.Run("output: kubernetes", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, kubeOutput.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, kubeOutput.GetDestination())
+		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
+		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
+		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
+		require.Equal(t, kubeUsers, tlsIdent.KubernetesUsers)
+	})
+
+	t.Run("output: kubernetes discovered name", func(t *testing.T) {
+		tlsIdent := tlsIdentFromDest(ctx, t, kubeDiscoveredNameOutput.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
 		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
 		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
@@ -253,7 +272,7 @@ func TestBot(t *testing.T) {
 	})
 
 	t.Run("output: application", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, appOutput.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, appOutput.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
 		route := tlsIdent.RouteToApp
 		require.Equal(t, appName, route.Name)
@@ -262,7 +281,17 @@ func TestBot(t *testing.T) {
 	})
 
 	t.Run("output: database", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, dbOutput.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, dbOutput.GetDestination())
+		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
+		route := tlsIdent.RouteToDatabase
+		require.Equal(t, databaseServiceName, route.ServiceName)
+		require.Equal(t, databaseName, route.Database)
+		require.Equal(t, databaseUsername, route.Username)
+		require.Equal(t, "mysql", route.Protocol)
+	})
+
+	t.Run("output: database discovered name", func(t *testing.T) {
+		tlsIdent := tlsIdentFromDest(ctx, t, dbDiscoveredNameOutput.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
 		route := tlsIdent.RouteToDatabase
 		require.Equal(t, databaseServiceName, route.ServiceName)
@@ -275,7 +304,7 @@ func TestBot(t *testing.T) {
 		dest := sshHostOutput.GetDestination()
 
 		// Validate ssh_host
-		hostKeyBytes, err := dest.Read("ssh_host")
+		hostKeyBytes, err := dest.Read(ctx, "ssh_host")
 		require.NoError(t, err)
 		hostKey, err := ssh.ParsePrivateKey(hostKeyBytes)
 		require.NoError(t, err)
@@ -284,7 +313,7 @@ func TestBot(t *testing.T) {
 		require.NoError(t, err)
 
 		// Validate ssh_host-cert.pub
-		hostCertBytes, err := dest.Read("ssh_host-cert.pub")
+		hostCertBytes, err := dest.Read(ctx, "ssh_host-cert.pub")
 		require.NoError(t, err)
 		hostCert, err := sshutils.ParseCertificate(hostCertBytes)
 		require.NoError(t, err)
@@ -305,7 +334,7 @@ func TestBot(t *testing.T) {
 		require.NoError(t, hostCert.Key.Verify(testData, signedTestData), "signature by host key does not verify with public key in host certificate")
 
 		// Validate ssh_host-user-ca.pub
-		userCABytes, err := dest.Read("ssh_host-user-ca.pub")
+		userCABytes, err := dest.Read(ctx, "ssh_host-user-ca.pub")
 		require.NoError(t, err)
 		userCAKey, _, _, _, err := ssh.ParseAuthorizedKey(userCABytes)
 		require.NoError(t, err)
@@ -333,13 +362,13 @@ func requireValidOutputTLSIdent(t *testing.T, ident *tlsca.Identity, wantRoles [
 	require.Equal(t, wantRoles, ident.Groups)
 }
 
-func tlsIdentFromDest(t *testing.T, dest bot.Destination) *tlsca.Identity {
+func tlsIdentFromDest(ctx context.Context, t *testing.T, dest bot.Destination) *tlsca.Identity {
 	t.Helper()
-	keyBytes, err := dest.Read(identity.PrivateKeyKey)
+	keyBytes, err := dest.Read(ctx, identity.PrivateKeyKey)
 	require.NoError(t, err)
-	certBytes, err := dest.Read(identity.TLSCertKey)
+	certBytes, err := dest.Read(ctx, identity.TLSCertKey)
 	require.NoError(t, err)
-	hostCABytes, err := dest.Read(config.HostCAPath)
+	hostCABytes, err := dest.Read(ctx, config.HostCAPath)
 	require.NoError(t, err)
 	ident := &identity.Identity{}
 	err = identity.ReadTLSIdentityFromKeyPair(ident, keyBytes, certBytes, [][]byte{hostCABytes})
@@ -369,7 +398,13 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	// Create bot user and join token
 	botParams := testhelpers.MakeBot(t, rootClient, "test", "access")
 
-	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{})
+	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
+		testhelpers.DefaultBotConfigOpts{
+			UseAuthServer: true,
+			Insecure:      true,
+		},
+	)
+
 	// Use a destination directory to ensure locking behaves correctly and
 	// the bot isn't left in a locked state.
 	directoryDest := &config.DestinationDirectory{
@@ -393,4 +428,174 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	botConfig.Onboarding.TokenValue = ""
 	thirdBot := New(botConfig, log)
 	require.NoError(t, thirdBot.Run(ctx))
+}
+
+func TestBot_InsecureViaProxy(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	log := utils.NewLoggerForTests()
+
+	// Make a new auth server.
+	fc, fds := testhelpers.DefaultConfig(t)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+
+	// Create bot user and join token
+	botParams := testhelpers.MakeBot(t, rootClient, "test", "access")
+
+	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
+		testhelpers.DefaultBotConfigOpts{
+			UseAuthServer: false,
+			Insecure:      true,
+		},
+	)
+	// Use a destination directory to ensure locking behaves correctly and
+	// the bot isn't left in a locked state.
+	directoryDest := &config.DestinationDirectory{
+		Path:     t.TempDir(),
+		Symlinks: botfs.SymlinksInsecure,
+		ACLs:     botfs.ACLOff,
+	}
+	botConfig.Storage.Destination = directoryDest
+
+	// Run the bot a first time
+	firstBot := New(botConfig, log)
+	require.NoError(t, firstBot.Run(ctx))
+}
+
+func TestChooseOneResource(t *testing.T) {
+	t.Parallel()
+	t.Run("database", testChooseOneDatabase)
+	t.Run("kube cluster", testChooseOneKubeCluster)
+}
+
+func testChooseOneDatabase(t *testing.T) {
+	t.Parallel()
+	fooDB1 := newMockDiscoveredDB(t, "foo-rds-us-west-1-123456789012", "foo")
+	fooDB2 := newMockDiscoveredDB(t, "foo-rds-us-west-2-123456789012", "foo")
+	barDB := newMockDiscoveredDB(t, "bar-rds-us-west-1-123456789012", "bar")
+	tests := []struct {
+		desc      string
+		databases []types.Database
+		dbSvc     string
+		wantDB    types.Database
+		wantErr   string
+	}{
+		{
+			desc:      "by exact name match",
+			databases: []types.Database{fooDB1, fooDB2, barDB},
+			dbSvc:     "bar-rds-us-west-1-123456789012",
+			wantDB:    barDB,
+		},
+		{
+			desc:      "by unambiguous discovered name match",
+			databases: []types.Database{fooDB1, fooDB2, barDB},
+			dbSvc:     "bar",
+			wantDB:    barDB,
+		},
+		{
+			desc:      "ambiguous discovered name matches is an error",
+			databases: []types.Database{fooDB1, fooDB2, barDB},
+			dbSvc:     "foo",
+			wantErr:   `"foo" matches multiple auto-discovered databases`,
+		},
+		{
+			desc:      "no match is an error",
+			databases: []types.Database{fooDB1, fooDB2, barDB},
+			dbSvc:     "xxx",
+			wantErr:   `database "xxx" not found`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			gotDB, err := chooseOneDatabase(test.databases, test.dbSvc)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.wantDB, gotDB)
+		})
+	}
+}
+
+func testChooseOneKubeCluster(t *testing.T) {
+	fooKube1 := newMockDiscoveredKubeCluster(t, "foo-eks-us-west-1-123456789012", "foo")
+	fooKube2 := newMockDiscoveredKubeCluster(t, "foo-eks-us-west-2-123456789012", "foo")
+	barKube := newMockDiscoveredKubeCluster(t, "bar-eks-us-west-1-123456789012", "bar")
+	tests := []struct {
+		desc            string
+		clusters        []types.KubeCluster
+		kubeSvc         string
+		wantKubeCluster types.KubeCluster
+		wantErr         string
+	}{
+		{
+			desc:            "by exact name match",
+			clusters:        []types.KubeCluster{fooKube1, fooKube2, barKube},
+			kubeSvc:         "bar-eks-us-west-1-123456789012",
+			wantKubeCluster: barKube,
+		},
+		{
+			desc:            "by unambiguous discovered name match",
+			clusters:        []types.KubeCluster{fooKube1, fooKube2, barKube},
+			kubeSvc:         "bar",
+			wantKubeCluster: barKube,
+		},
+		{
+			desc:     "ambiguous discovered name matches is an error",
+			clusters: []types.KubeCluster{fooKube1, fooKube2, barKube},
+			kubeSvc:  "foo",
+			wantErr:  `"foo" matches multiple auto-discovered kubernetes clusters`,
+		},
+		{
+			desc:     "no match is an error",
+			clusters: []types.KubeCluster{fooKube1, fooKube2, barKube},
+			kubeSvc:  "xxx",
+			wantErr:  `kubernetes cluster "xxx" not found`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			gotKube, err := chooseOneKubeCluster(test.clusters, test.kubeSvc)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.wantKubeCluster, gotKube)
+		})
+	}
+}
+
+func newMockDiscoveredDB(t *testing.T, name, discoveredName string) *types.DatabaseV3 {
+	t.Helper()
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: name,
+		Labels: map[string]string{
+			types.OriginLabel:         types.OriginCloud,
+			types.DiscoveredNameLabel: discoveredName,
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: "mysql",
+		URI:      "example.com:1234",
+	})
+	require.NoError(t, err)
+	return db
+}
+
+func newMockDiscoveredKubeCluster(t *testing.T, name, discoveredName string) *types.KubernetesClusterV3 {
+	t.Helper()
+	kubeCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: name,
+			Labels: map[string]string{
+				types.OriginLabel:         types.OriginCloud,
+				types.DiscoveredNameLabel: discoveredName,
+			},
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+	return kubeCluster
 }

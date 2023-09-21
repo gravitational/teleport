@@ -1,0 +1,278 @@
+<Tabs>
+<TabItem label="Manually create identity">
+  ### Create a custom role
+
+  Enter the name of your Azure resource group in the Azure Portal search box and
+  visit the page for that resource group. On the left navigation sidebar, click
+  the **Access control (IAM)** tab. In the row of buttons at the top of the
+  **Access control (IAM)** panel, click **Add > Add custom role**.
+
+  In the **Custom role name** field, enter `teleport-read-vm`.
+
+  ![Create custom
+  role](../../../img/azure/create-custom-role.png)
+
+  Click the **Permissions** tab, then within the **Permissions** view, click
+  **+Add permissions**.
+
+  Enter `Microsoft.Compute/virtualMachines/read` in the search box. Click the
+  **Microsoft Compute** box, then enable **Read: Get Virtual Machine**. Click
+  **Add**.
+
+  ![Add virtual machine read
+  permission](../../../img/azure/read-permission.png)
+
+  Click **Review + create**, then **Create**.
+
+  ### Create an Azure managed identity
+
+  Visit the [Managed
+  Identities](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.ManagedIdentity%2FuserAssignedIdentities)
+  view in Azure Portal.
+
+  Click **Create**.
+
+  Under **Subscription**, **Resource group**, and **Region**, choose the ones that
+  your VM belongs to.
+
+  In the **Name** field, enter `teleport-azure`.
+
+  ![Creating an Azure managed
+  identity](../../../img/application-access/azure/create-identity.png)
+
+  Click **Review + create**, then **Create**.
+
+  Once creation finishes, click **Go to resource**. On the page for the new
+  identity, copy the value for the **Client ID** so you can use it later in this
+  guide.
+
+  ### Assign the `teleport-read-vm` role to the `teleport-azure` identity
+
+  Enter the name of your Azure resource group in the Azure Portal search box and
+  visit the page for that resource group. On the left navigation sidebar, click
+  the **Access control (IAM)** tab. In the row of buttons at the top of the
+  **Access control (IAM)** panel, click **Add > Add role assignment**.
+
+  Within the **Add role assignment** screen, click **teleport-read-vm**.
+
+  ![Add a role
+  assignment](../../../img/azure/add-role-assignment.png)
+
+  Scroll to the bottom of the screen and click **Next**.
+
+  Within the **Members** tab, in the **Assign access to** field, choose **Managed
+  identity**. Click **Select members**.
+
+  On the right sidebar, find the **Managed identity** dropdown menu and select
+  **User-assigned managed identity**. Choose the `teleport-azure` identity you
+  created earlier.
+
+  ![Select managed
+  identities](../../../img/application-access/azure/select-managed-identities.png)
+
+  Click **Select**, then **Review + assign**.
+
+  Verify that your **Role** is `teleport-read-vm`, the **Scope** matches your
+  chosen resource group, and the **Members** field includes the `teleport-azure`
+  managed identity you created earlier.
+
+  Click **Review + assign** again.
+
+  ### Attach an identity to your Azure VM
+
+  In the [Virtual machines
+  view](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FVirtualMachines)
+  of Azure Portal, click on the name of the VM you are using to host the Teleport
+  Application Service. 
+
+  On the right side panel, click the **Identity** tab, then within the
+  **Identity** view, click the **User assigned** tab. Click **+Add**, then select
+  the `teleport-azure` identity. Click **Add**.
+
+  ![Add an identity to a
+  VM](../../../img/application-access/azure/vm-identity.png)
+
+  Navigate back to **Identity** tab in the page for your Azure VM. You should see
+  the new identity listed in the **User assigned** sub-tab:
+
+  ![Verifying that you added the
+  identity](../../../img/application-access/azure/verify-id.png)
+
+  <Admonition
+    type="warning"
+    title="IMPORTANT"
+  >
+  As part of authentication, Teleport will be able to do anything allowed by the
+  identity. If you use a managed identity other than the one created in this
+  guide, we strongly recommend limiting its permissions and scope. 
+  </Admonition>
+</TabItem>
+<TabItem label="ARM Template">
+  Create a file named `teleport-create-identity.json` and copy the following into
+it:
+
+```json
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.5.6.12127",
+      "templateHash": "2227781763411200690"
+    }
+  },
+  "parameters": {
+    "roleName": {
+      "type": "string",
+      "defaultValue": "teleport-read-vm",
+      "metadata": {
+        "description": "Friendly name of the role definition"
+      }
+    },
+    "identityName": {
+      "type": "string",
+      "defaultValue": "teleport-azure",
+      "metadata": {
+        "description": "Name of the managed identity"
+      }
+    }
+  },
+  "variables": {
+    "roleDefName": "[guid(resourceGroup().id, string('Microsoft.Compute/virtualMachines/read'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Authorization/roleDefinitions",
+      "apiVersion": "2022-04-01",
+      "name": "[variables('roleDefName')]",
+      "properties": {
+        "roleName": "[parameters('roleName')]",
+        "description": "A role to allow reading information about Virtual Machines, to be used for Teleport.",
+        "type": "customRole",
+        "permissions": [
+          {
+            "actions": [
+              "Microsoft.Compute/virtualMachines/read"
+            ],
+            "notActions": []
+          }
+        ],
+        "assignableScopes": [
+          "[resourceGroup().id]"
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "name": "[parameters('identityName')]",
+      "apiVersion": "2018-11-30",
+      "location": "[resourceGroup().location]"
+    }
+  ],
+  "outputs": {
+    "principalID": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName'))).principalId]"
+    },
+    "clientID": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName'))).clientId]"
+    },
+    "roleName": {
+      "type": "string",
+      "value": "[variables('roleDefName')]"
+    }
+  }
+}
+```
+
+Then run the following commands to create the custom role and managed identity:
+
+```code
+$ DEPLOY_OUTPUT=$(az deployment group create \
+--resource-group <your-resource-group> \
+--template-file teleport-create-identity.json)
+$ PRINCIPAL_ID=$(echo $DEPLOY_OUTPUT | jq -r '.properties.outputs.principalID.value')
+$ CLIENT_ID=$(echo $DEPLOY_OUTPUT | jq -r '.properties.outputs.principalID.value')
+$ ROLE_NAME=$(echo $DEPLOY_OUTPUT | jq -r '.properties.outputs.roleName.value')
+```
+
+<Details title='Getting a "command not found" error?'>
+This command requires `jq` to be installed on your workstation, which you can do
+via the [`jq` download page](https://stedolan.github.io/jq/download/).
+</Details>
+
+Next, create another file named `teleport-assign-identity.json` and copy the
+following into it:
+
+```json
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.5.6.12127",
+      "templateHash": "2227781763411200690"
+    }
+  },
+  "parameters": {
+    "identityName": {
+      "type": "string",
+      "defaultValue": "teleport-azure"
+    },
+    "principalId": {
+      "type": "string"
+    },
+    "roleName": {
+      "type": "string"
+    },
+    "vmNames": {
+      "type": "array"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceGroup().id)]",
+      "properties": {
+        "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', parameters('roleName'))]",
+        "principalId": "[parameters('principalId')]"
+      }
+    },
+    {
+      "apiVersion": "2018-06-01",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[parameters('vmNames')[copyIndex('vmcopy')]]",
+      "location": "[resourceGroup().location]",
+      "identity": {
+        "type": "userAssigned",
+        "userAssignedIdentities": {
+          "[resourceID('Microsoft.ManagedIdentity/userAssignedIdentities/',parameters('identityName'))]": {}
+        }
+      },
+      "copy": {
+        "name": "vmcopy",
+        "count": "[length(parameters('vmNames'))]"
+      }
+    }
+  ]
+}
+```
+
+Run the following command to assign your custom role to your managed identity
+and assign the identity to your virtual machines:
+
+```code
+$ az deployment group create \
+--resource-group <your-resource-group> \
+--template-file teleport-assign-identity.json \
+-- parameters principalId="$PRINCIPAL_ID" roleName="$ROLE_NAME" \
+vmNames='<list-of-vm-names>'
+```
+
+Use the value of `CLIENT_ID` in Step 3.
+</TabItem>
+</Tabs>

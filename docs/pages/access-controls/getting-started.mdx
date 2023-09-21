@@ -33,25 +33,29 @@ Teleport Enterprise contains two additional preset roles: `reviewer` and `reques
 - The `requester` role authorizes users to request resources.
 </Details>
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 Invite the local user Alice as cluster `editor`:
 
 ```code
 $ tctl users add alice --roles=editor
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 Invite the local user Alice as cluster `editor` and `reviewer`:
 
 ```code
 $ tctl users add alice --roles=editor,reviewer
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Once Alice signs up, she will be able to edit cluster configuration. You can list
 users and their roles using `tctl users ls`.
 
-<ScopedBlock scope={"oss"}>
+<Tabs>
+<TabItem scope={"oss"} label="Teleport Community Edition">
 ```code
 $ tctl users ls
 
@@ -59,8 +63,8 @@ $ tctl users ls
 # -------------------- --------------
 # alice                editor
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```code
 $ tctl users ls
 
@@ -68,22 +72,27 @@ $ tctl users ls
 # -------------------- --------------
 # alice                editor, reviewer
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 You can update the user's roles using the `tctl users update` command:
 
-<ScopedBlock scope={"oss"}>
+<Tabs>
+<TabItem scope={"oss"} label="Teleport Community Edition">
 ```code
 # Once Alice logs back in, she will be able to view audit logs
 $ tctl users update alice --set-roles=editor,auditor
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```code
 # Once Alice logs back in, she will be able to view audit logs
 $ tctl users update alice --set-roles=editor,reviewer,auditor
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Because Alice has two or more roles, permissions from those roles create a union. She
 will be able to act as a system administrator and auditor at the same time.
@@ -93,7 +102,8 @@ will be able to act as a system administrator and auditor at the same time.
 Next, follow the instructions to set up an authentication connector that maps
 users within your SSO solution to Teleport roles.
 
-  <ScopedBlock scope={["oss"]}>
+<Tabs>
+  <TabItem label="Teleport Community Edition" scope={["oss"]}>
 
     Save the file below as `github.yaml` and update the fields. You will need to
     set up a
@@ -130,9 +140,9 @@ users within your SSO solution to Teleport roles.
     $ tctl create github.yaml
     ```
 
-  </ScopedBlock>
+  </TabItem>
 
-  <ScopedBlock scope={["enterprise", "cloud"]}>
+  <TabItem label="Commercial Editions"  scope={["enterprise", "cloud"]}>
 
   Create a SAML or OIDC application that Teleport can integrate with, then
   create an authentication connector that maps users within your application to
@@ -189,7 +199,8 @@ users within your SSO solution to Teleport roles.
   </TabItem>
   </Tabs>
 
-  </ScopedBlock>
+  </TabItem>
+</Tabs>
 
 ## Step 3/3. Create a custom role
 
@@ -201,7 +212,7 @@ Save this role as `interns.yaml`:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: interns
 spec:
@@ -217,9 +228,10 @@ spec:
     kubernetes_labels:
       'env': 'dev'
     kubernetes_resources:
-      - kind: pod
+      - kind: *
         namespace: "*"
         name: "*"
+        verbs: ["*"]
     app_labels:
       'type': ['monitoring']
   # The deny rules always override allow rules.
@@ -231,9 +243,8 @@ spec:
     kubernetes_labels:
       'env': 'prod'
     kubernetes_resources:
-      - kind: pod
-        namespace: "prod"
-        name: "*"
+      - kind: "namespace"
+        name: "prod"
     db_labels:
       'env': 'prod'
     app_labels:
@@ -252,3 +263,4 @@ $ tctl get roles --format text
 
 - [Mapping SSO and local users traits with role templates](./guides/role-templates.mdx)
 - [Create certs for CI/CD using impersonation](./guides/impersonation.mdx)
+

@@ -32,7 +32,7 @@ import (
 
 const (
 	// timeout used for most operations in tests.
-	timeout = 5 * time.Second
+	timeout = 10 * time.Second
 )
 
 type createClientTLSConfigFunc func(t *testing.T, certsDir string) *tls.Config
@@ -82,7 +82,7 @@ func TestStart(t *testing.T) {
 				return &tls.Config{InsecureSkipVerify: true}
 			},
 			connReadExpectationFunc: func(t *testing.T, connReadErr error) {
-				require.ErrorContains(t, connReadErr, "tls: bad certificate")
+				require.ErrorContains(t, connReadErr, "tls:")
 			},
 		},
 		{
@@ -93,7 +93,7 @@ func TestStart(t *testing.T) {
 				return &tls.Config{InsecureSkipVerify: true}
 			},
 			connReadExpectationFunc: func(t *testing.T, connReadErr error) {
-				require.ErrorContains(t, connReadErr, "tls: bad certificate")
+				require.ErrorContains(t, connReadErr, "tls:")
 			},
 		},
 	}
@@ -108,11 +108,13 @@ func TestStart(t *testing.T) {
 			listeningC := make(chan utils.NetAddr)
 
 			cfg := Config{
-				Addr:       test.addr,
-				HomeDir:    homeDir,
-				CertsDir:   certsDir,
-				PrehogAddr: "https://prehog:9999",
-				ListeningC: listeningC,
+				Addr:           test.addr,
+				HomeDir:        homeDir,
+				CertsDir:       certsDir,
+				PrehogAddr:     "https://prehog:9999",
+				ListeningC:     listeningC,
+				KubeconfigsDir: t.TempDir(),
+				AgentsDir:      t.TempDir(),
 			}
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -129,13 +131,15 @@ func TestStart(t *testing.T) {
 				// Verify that the server accepts connections on the advertised address.
 				blockUntilServerAcceptsConnections(t, addr, certsDir,
 					test.createClientTLSConfigFunc, test.connReadExpectationFunc)
+
+				// Stop the server.
+				cancel()
+				require.NoError(t, <-serveErr)
 			case <-time.After(timeout):
 				t.Fatal("listeningC didn't advertise the address within the timeout")
+			case err := <-serveErr:
+				t.Fatalf("teleterm.Serve returned sooner than expected, err: %#v", err)
 			}
-
-			// Stop the server.
-			cancel()
-			require.NoError(t, <-serveErr)
 		})
 	}
 

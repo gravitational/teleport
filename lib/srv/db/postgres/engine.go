@@ -58,10 +58,16 @@ type Engine struct {
 	// cancelReq is a cancel request saved when a cancel request is received
 	// instead of a startup message.
 	cancelReq *pgproto3.CancelRequest
+
+	// rawClientConn is raw, unwrapped network connection to the client
+	rawClientConn net.Conn
+	// rawServerConn is raw, unwrapped network connection to the server
+	rawServerConn net.Conn
 }
 
 // InitializeConnection initializes the client connection.
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
+	e.rawClientConn = clientConn
 	e.client = pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
 
 	// The proxy is supposed to pass a startup message it received from
@@ -107,6 +113,7 @@ func toErrorResponse(err error) *pgproto3.ErrorResponse {
 // middleman between the proxy and the database intercepting and interpreting
 // all messages i.e. doing protocol parsing.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	observe := common.GetConnectionSetupTimeObserver(sessionCtx.Database)
 	// Now we know which database/username the user is connecting to, so
 	// perform an authorization check.
 	err := e.checkAccess(ctx, sessionCtx)
@@ -137,6 +144,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		cancelAutoUserLease()
 		return trace.Wrap(err)
 	}
+	e.rawServerConn = hijackedConn.Conn
 	// Release the auto-users semaphore now that we've successfully connected.
 	cancelAutoUserLease()
 	// Upon successful connect, indicate to the Postgres client that startup
@@ -161,12 +169,15 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			e.Log.WithError(err).Error("Failed to close connection.")
 		}
 	}()
+
+	observe()
+
 	// Now launch the message exchange relaying all intercepted messages b/w
 	// the client (psql or other Postgres client) and the server (database).
 	clientErrCh := make(chan error, 1)
 	serverErrCh := make(chan error, 1)
 	go e.receiveFromClient(e.client, server, clientErrCh, sessionCtx)
-	go e.receiveFromServer(server, e.client, serverConn, serverErrCh, sessionCtx)
+	go e.receiveFromServer(serverConn, serverErrCh, sessionCtx)
 	select {
 	case err := <-clientErrCh:
 		e.Log.WithError(err).Debug("Client done.")
@@ -306,6 +317,9 @@ func (e *Engine) makeClientReady(client *pgproto3.Backend, hijackedConn *pgconn.
 func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Frontend, clientErrCh chan<- error, sessionCtx *common.Session) {
 	log := e.Log.WithField("from", "client")
 	defer log.Debug("Stop receiving from client.")
+
+	ctr := common.GetMessagesFromClientMetric(sessionCtx.Database)
+
 	for {
 		message, err := client.Receive()
 		if err != nil {
@@ -313,7 +327,9 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 			clientErrCh <- err
 			return
 		}
-		log.Debugf("Received client message: %#v.", message)
+		log.Tracef("Received client message: %#v.", message)
+		ctr.Inc()
+
 		switch msg := message.(type) {
 		case *pgproto3.Query:
 			e.auditQueryMessage(sessionCtx, msg)
@@ -393,33 +409,54 @@ func (e *Engine) auditFuncCallMessage(session *common.Session, msg *pgproto3.Fun
 // receiveFromServer receives messages from the provided frontend (which
 // is connected to the database instance) and relays them back to the psql
 // or other client via the provided backend.
-func (e *Engine) receiveFromServer(server *pgproto3.Frontend, client *pgproto3.Backend, serverConn *pgconn.PgConn, serverErrCh chan<- error, sessionCtx *common.Session) {
+func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<- error, sessionCtx *common.Session) {
 	log := e.Log.WithField("from", "server")
-	defer log.Debug("Stop receiving from server.")
-	for {
-		message, err := server.Receive()
-		if err != nil {
-			if serverConn.IsClosed() {
-				log.Debug("Server connection closed.")
-				serverErrCh <- nil
+	ctr := common.GetMessagesFromServerMetric(sessionCtx.Database)
+
+	// parse and count the messages from the server in a separate goroutine,
+	// operating on a copy of the server message stream. the copy is arranged below.
+	copyReader, copyWriter := io.Pipe()
+	defer copyWriter.Close()
+
+	go func() {
+		defer copyReader.Close()
+
+		// server will never be used to write to server,
+		// which is why we pass io.Discard instead of e.rawServerConn
+		server := pgproto3.NewFrontend(pgproto3.NewChunkReader(copyReader), io.Discard)
+
+		var count int64
+		defer func() {
+			log.WithField("parsed_total", count).Debug("Stopped parsing messages from server.")
+		}()
+
+		for {
+			message, err := server.Receive()
+			if err != nil {
+				if serverConn.IsClosed() {
+					log.Debug("Server connection closed.")
+					return
+				}
+				log.WithError(err).Error("Failed to receive message from server.")
 				return
 			}
-			log.WithError(err).Errorf("Failed to receive message from server.")
-			serverErrCh <- err
-			return
+
+			count += 1
+			ctr.Inc()
+			log.Tracef("Received server message: %#v.", message)
 		}
-		log.Debugf("Received server message: %#v.", message)
-		// This is where we would plug in custom logic for particular
-		// messages received from the Postgres server (i.e. emitting
-		// an audit event), but for now just pass them along back to
-		// the client.
-		err = client.Send(message)
-		if err != nil {
-			log.WithError(err).Error("Failed to send message to client.")
-			serverErrCh <- err
-			return
-		}
+	}()
+
+	// the messages are ultimately copied from e.rawServerConn to e.rawClientConn,
+	// but a copy of that message stream is written to a synchronous pipe,
+	// which is read by the analysis goroutine above.
+	total, err := io.Copy(e.rawClientConn, io.TeeReader(e.rawServerConn, copyWriter))
+	if err != nil && !trace.IsConnectionProblem(trace.ConvertSystemError(err)) {
+		log.WithError(err).Warn("Server -> Client copy finished with unexpected error.")
 	}
+
+	serverErrCh <- trace.Wrap(err)
+	log.Debugf("Stopped receiving from server. Transferred %v bytes.", total)
 }
 
 // getConnectConfig returns config that can be used to connect to the

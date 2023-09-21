@@ -22,21 +22,9 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/header/v1"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/utils"
 )
-
-// FromResourceHeaderV1 converts the resource header protobuf message into an internal resource header object.
-// This function does not use the builder due to the generics for the builder object.
-func FromResourceHeaderV1(msg *headerv1.ResourceHeader) *ResourceHeader {
-	return &ResourceHeader{
-		Kind:     msg.Kind,
-		SubKind:  msg.SubKind,
-		Version:  msg.Version,
-		Metadata: FromMetadataV1(msg.Metadata),
-	}
-}
 
 func ResourceHeaderFromMetadata(metadata Metadata) ResourceHeader {
 	return ResourceHeader{
@@ -74,6 +62,16 @@ func (h *ResourceHeader) GetResourceID() int64 {
 // SetResourceID sets the resource ID.
 func (h *ResourceHeader) SetResourceID(id int64) {
 	h.Metadata.SetID(id)
+}
+
+// GetRevision returns the revision.
+func (h *ResourceHeader) GetRevision() string {
+	return h.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision.
+func (h *ResourceHeader) SetRevision(rev string) {
+	h.Metadata.SetRevision(rev)
 }
 
 // GetName returns the name of the resource.
@@ -164,16 +162,6 @@ func (h *ResourceHeader) CheckAndSetDefaults() error {
 	return trace.Wrap(h.Metadata.CheckAndSetDefaults())
 }
 
-// FromMetadataV1 converts v1 metadata into an internal metadata object.
-func FromMetadataV1(msg *headerv1.Metadata) Metadata {
-	return Metadata{
-		Name:        msg.Name,
-		Description: msg.Description,
-		Labels:      msg.Labels,
-		Expires:     msg.Expires.AsTime(),
-	}
-}
-
 // Metadata is resource metadata
 type Metadata struct {
 	// Name is an object name
@@ -185,17 +173,34 @@ type Metadata struct {
 	// Expires is a global expiry time header can be set on any resource in the system.
 	Expires time.Time `json:"expires" yaml:"expires"`
 	// ID is a record ID
+	// Deprecated: Use revision instead.
 	ID int64 `json:"id,omitempty" yaml:"id,omitempty"`
+	// Revision is an opaque identifier which tracks the versions of a resource
+	// over time. Clients should ignore and not alter its value but must return
+	// the revision in any updates of a resource.
+	Revision string `json:"revision,omitempty" yaml:"revision,omitempty"`
 }
 
 // GetID returns the resource ID.
+// Deprecated: Use GetRevision instead
 func (m *Metadata) GetID() int64 {
 	return m.ID
 }
 
 // SetID sets the resource ID.
+// Deprecated: Use SetRevision instead
 func (m *Metadata) SetID(id int64) {
 	m.ID = id
+}
+
+// GetRevision returns the revision
+func (m *Metadata) GetRevision() string {
+	return m.Revision
+}
+
+// SetRevision sets the revision
+func (m *Metadata) SetRevision(rev string) {
+	m.Revision = rev
 }
 
 // GetName returns the name of the resource.

@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -43,11 +42,6 @@ func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigA
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Do the ALPN handshake test to decide if connection upgrades are required
-	// for TLS Routing. Only do the test once Ping verifies the cluster is
-	// reachable.
-	c.clusterClient.TLSRoutingConnUpgradeRequired = apiclient.IsALPNConnUpgradeRequired(ctx, c.clusterClient.WebProxyAddr, c.clusterClient.InsecureSkipVerify)
 
 	if err := c.clusterClient.SaveProfile(false); err != nil {
 		return nil, trace.Wrap(err)
@@ -230,8 +224,9 @@ func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
 				RouteToCluster:    c.clusterClient.SiteName,
 				KubernetesCluster: c.clusterClient.KubernetesCluster,
 			},
-			User:     user,
-			Password: password,
+			User:      user,
+			Password:  password,
+			PromptMFA: c.clusterClient.PromptMFA,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -299,6 +294,7 @@ func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordless
 			},
 			AuthenticatorAttachment: c.clusterClient.AuthenticatorAttachment,
 			CustomPrompt:            newPwdlessLoginPrompt(ctx, c.Log, stream),
+			WebauthnLogin:           c.clusterClient.WebauthnLogin,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

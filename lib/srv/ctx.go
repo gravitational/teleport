@@ -166,8 +166,8 @@ type Server interface {
 	// Context returns server shutdown context
 	Context() context.Context
 
-	// GetUtmpPath returns the path of the user accounting database and log. Returns empty for system defaults.
-	GetUtmpPath() (utmp, wtmp string)
+	// GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
+	GetUserAccountingPaths() (utmp, wtmp, btmp string)
 
 	// GetLockWatcher gets the server's lock watcher.
 	GetLockWatcher() *services.LockWatcher
@@ -389,6 +389,11 @@ type ServerContext struct {
 	contr *os.File
 	contw *os.File
 
+	// ready{r,w} is used to send the ready signal from the child process
+	// to the parent process.
+	readyr *os.File
+	readyw *os.File
+
 	// killShell{r,w} are used to send kill signal to the child process
 	// to terminate the shell.
 	killShellr *os.File
@@ -560,6 +565,15 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 	child.AddCloser(child.contr)
 	child.AddCloser(child.contw)
+
+	// Create pipe used to signal continue to parent process.
+	child.readyr, child.readyw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.readyr)
+	child.AddCloser(child.readyw)
 
 	child.killShellr, child.killShellw, err = os.Pipe()
 	if err != nil {
@@ -1265,13 +1279,14 @@ func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	utmpPath, wtmpPath := c.srv.GetUtmpPath()
+	utmpPath, wtmpPath, btmpPath := c.srv.GetUserAccountingPaths()
 
 	return &UaccMetadata{
 		Hostname:   hostname,
 		RemoteAddr: preparedAddr,
 		UtmpPath:   utmpPath,
 		WtmpPath:   wtmpPath,
+		BtmpPath:   btmpPath,
 	}, nil
 }
 

@@ -25,6 +25,7 @@ import { getOSSFeatures } from 'teleport/features';
 
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 import { UserContextProvider } from 'teleport/User';
+import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
 import TeleportContextProvider from './TeleportContextProvider';
 import TeleportContext from './teleportContext';
@@ -120,13 +121,13 @@ export function getSharedPublicRoutes() {
       key="invite"
       title="Invite"
       path={cfg.routes.userInvite}
-      component={Welcome}
+      render={() => <Welcome NewCredentials={NewCredentials} />}
     />,
     <Route
       key="password-reset"
       title="Password Reset"
       path={cfg.routes.userReset}
-      component={Welcome}
+      render={() => <Welcome NewCredentials={NewCredentials} />}
     />,
   ];
 }

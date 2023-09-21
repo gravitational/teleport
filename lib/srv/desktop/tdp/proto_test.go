@@ -31,8 +31,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -125,12 +125,12 @@ func TestMFA(t *testing.T) {
 	mfaWant := &MFA{
 		Type: defaults.WebsocketWebauthnChallenge[0],
 		MFAAuthenticateChallenge: &client.MFAAuthenticateChallenge{
-			WebauthnChallenge: &wanlib.CredentialAssertion{
-				Response: protocol.PublicKeyCredentialRequestOptions{
+			WebauthnChallenge: &wantypes.CredentialAssertion{
+				Response: wantypes.PublicKeyCredentialRequestOptions{
 					Challenge:      []byte("challenge"),
 					Timeout:        10,
 					RelyingPartyID: "teleport",
-					AllowedCredentials: []protocol.CredentialDescriptor{
+					AllowedCredentials: []wantypes.CredentialDescriptor{
 						{
 							Type:         "public-key",
 							CredentialID: []byte("credential id"),
@@ -138,7 +138,7 @@ func TestMFA(t *testing.T) {
 						},
 					},
 					UserVerification: "discouraged",
-					Extensions: protocol.AuthenticationExtensions{
+					Extensions: wantypes.AuthenticationExtensions{
 						"ext1": "value1",
 					},
 				},
@@ -160,16 +160,16 @@ func TestMFA(t *testing.T) {
 		Type: defaults.WebsocketWebauthnChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: &wantypes.CredentialAssertionResponse{
+				Webauthn: &wanpb.CredentialAssertionResponse{
 					Type:  "public-key",
 					RawId: []byte("credential id"),
-					Response: &wantypes.AuthenticatorAssertionResponse{
+					Response: &wanpb.AuthenticatorAssertionResponse{
 						ClientDataJson:    []byte("client data json"),
 						AuthenticatorData: []byte("authenticator data"),
 						Signature:         []byte("signature"),
 						UserHandle:        []byte("user handle"),
 					},
-					Extensions: &wantypes.AuthenticationExtensionsClientOutputs{
+					Extensions: &wanpb.AuthenticationExtensionsClientOutputs{
 						AppId: true,
 					},
 				},

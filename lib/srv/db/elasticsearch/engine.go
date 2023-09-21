@@ -30,6 +30,7 @@ import (
 
 	elastic "github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -106,13 +107,12 @@ func (e *Engine) SendError(err error) {
 // HandleConnection authorizes the incoming client connection, connects to the
 // target Elasticsearch server and starts proxying requests between client/server.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	observe := common.GetConnectionSetupTimeObserver(sessionCtx.Database)
+
 	if err := e.authorizeConnection(ctx); err != nil {
+		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
 	}
-
-	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
-	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
-
 	clientConnReader := bufio.NewReader(e.clientConn)
 
 	if sessionCtx.Identity.RouteToDatabase.Username == "" {
@@ -130,13 +130,21 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		},
 	}
 
+	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
+	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+
+	observe()
+
+	msgFromClient := common.GetMessagesFromClientMetric(e.sessionCtx.Database)
+	msgFromServer := common.GetMessagesFromServerMetric(e.sessionCtx.Database)
+
 	for {
 		req, err := http.ReadRequest(clientConnReader)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		err = e.process(ctx, sessionCtx, req, client)
+		err = e.process(ctx, sessionCtx, req, client, msgFromClient, msgFromServer)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -145,7 +153,9 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 // process reads request from connected elasticsearch client, processes the requests/responses and send data back
 // to the client.
-func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request, client *http.Client) error {
+func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request, client *http.Client, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) error {
+	msgFromClient.Inc()
+
 	payload, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -173,6 +183,8 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 	}
 	defer resp.Body.Close()
 	responseStatusCode = uint32(resp.StatusCode)
+
+	msgFromServer.Inc()
 
 	return trace.Wrap(e.sendResponse(resp))
 }
@@ -258,9 +270,6 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 		state,
 		dbRoleMatchers...,
 	)
-	if err != nil {
-		e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
-		return trace.Wrap(err)
-	}
-	return nil
+
+	return trace.Wrap(err)
 }

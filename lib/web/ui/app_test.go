@@ -27,25 +27,23 @@ import (
 
 func TestMakeAppsLabelFilter(t *testing.T) {
 	type testCase struct {
-		types.Apps
-		expected []App
-		name     string
+		AppsOrSPs types.AppServersOrSAMLIdPServiceProviders
+		expected  []App
+		name      string
 	}
 
 	testCases := []testCase{
 		{
 			name: "Single App with teleport.internal/ label",
-			Apps: types.Apps{
-				&types.AppV3{
-					Metadata: types.Metadata{
-						Name: "App1",
-						Labels: map[string]string{
-							"first":                "value1",
-							"teleport.internal/dd": "hidden1",
-						},
+			AppsOrSPs: types.AppServersOrSAMLIdPServiceProviders{createAppServerOrSPFromApp(&types.AppV3{
+				Metadata: types.Metadata{
+					Name: "App1",
+					Labels: map[string]string{
+						"first":                "value1",
+						"teleport.internal/dd": "hidden1",
 					},
 				},
-			},
+			})},
 			expected: []App{
 				{
 					Name: "App1",
@@ -63,7 +61,7 @@ func TestMakeAppsLabelFilter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			config := MakeAppsConfig{
-				Apps: tc.Apps,
+				AppServersAndSAMLIdPServiceProviders: tc.AppsOrSPs,
 			}
 			apps := MakeApps(config)
 
@@ -79,7 +77,7 @@ func TestMakeAppsLabelFilter(t *testing.T) {
 func TestMakeApps(t *testing.T) {
 	tests := []struct {
 		name             string
-		apps             types.Apps
+		appsOrSPs        types.AppServersOrSAMLIdPServiceProviders
 		appsToUserGroups map[string]types.UserGroups
 		expected         []App
 	}{
@@ -89,12 +87,14 @@ func TestMakeApps(t *testing.T) {
 		},
 		{
 			name: "app without user groups",
-			apps: types.Apps{
-				newApp(t, "1", "1.com", "", map[string]string{"label1": "value1"}),
-				newApp(t, "2", "2.com", "group 2 friendly name", map[string]string{"label2": "value2", types.OriginLabel: types.OriginOkta}),
-			},
+			appsOrSPs: types.AppServersOrSAMLIdPServiceProviders{
+				createAppServerOrSPFromApp(newApp(t, "1", "1.com", "", map[string]string{"label1": "value1"})),
+				createAppServerOrSPFromApp(newApp(t, "2", "2.com", "group 2 friendly name", map[string]string{
+					"label2": "value2", types.OriginLabel: types.OriginOkta,
+				}))},
 			expected: []App{
 				{
+					Kind:       types.KindApp,
 					Name:       "1",
 					URI:        "1.com",
 					PublicAddr: "1.com",
@@ -103,6 +103,7 @@ func TestMakeApps(t *testing.T) {
 					UserGroups: []UserGroupAndDescription{},
 				},
 				{
+					Kind:        types.KindApp,
 					Name:        "2",
 					Description: "group 2 friendly name",
 					URI:         "2.com",
@@ -119,10 +120,11 @@ func TestMakeApps(t *testing.T) {
 		},
 		{
 			name: "app with user groups",
-			apps: types.Apps{
-				newApp(t, "1", "1.com", "", map[string]string{"label1": "value1"}),
-				newApp(t, "2", "2.com", "group 2 friendly name", map[string]string{"label2": "value2", types.OriginLabel: types.OriginOkta}),
-			},
+			appsOrSPs: types.AppServersOrSAMLIdPServiceProviders{
+				createAppServerOrSPFromApp(newApp(t, "1", "1.com", "", map[string]string{"label1": "value1"})),
+				createAppServerOrSPFromApp(newApp(t, "2", "2.com", "group 2 friendly name", map[string]string{
+					"label2": "value2", types.OriginLabel: types.OriginOkta,
+				}))},
 			appsToUserGroups: map[string]types.UserGroups{
 				"1": {
 					newGroup(t, "group1", "group1 desc", nil),
@@ -139,6 +141,7 @@ func TestMakeApps(t *testing.T) {
 			},
 			expected: []App{
 				{
+					Kind:       types.KindApp,
 					Name:       "1",
 					URI:        "1.com",
 					PublicAddr: "1.com",
@@ -150,6 +153,7 @@ func TestMakeApps(t *testing.T) {
 					},
 				},
 				{
+					Kind:        types.KindApp,
 					Name:        "2",
 					Description: "group 2 friendly name",
 					URI:         "2.com",
@@ -167,6 +171,26 @@ func TestMakeApps(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "saml idp service provider",
+			appsOrSPs: types.AppServersOrSAMLIdPServiceProviders{createAppServerOrSPFromSAMLIdPServiceProvider(&types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "grafana_saml",
+					},
+				},
+			})},
+			expected: []App{
+				{
+					Kind:        types.KindApp,
+					Name:        "grafana_saml",
+					Description: "SAML Application",
+					PublicAddr:  "",
+					Labels:      []Label{},
+					SAMLApp:     true,
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -175,8 +199,8 @@ func TestMakeApps(t *testing.T) {
 			t.Parallel()
 
 			apps := MakeApps(MakeAppsConfig{
-				Apps:             test.apps,
-				AppsToUserGroups: test.appsToUserGroups,
+				AppServersAndSAMLIdPServiceProviders: test.appsOrSPs,
+				AppsToUserGroups:                     test.appsToUserGroups,
 			})
 
 			require.Empty(t, cmp.Diff(test.expected, apps))
@@ -195,4 +219,30 @@ func newApp(t *testing.T, name, publicAddr, description string, labels map[strin
 	})
 	require.NoError(t, err)
 	return app
+}
+
+// createAppServerOrSPFromApp returns a AppServerOrSAMLIdPServiceProvider given an App.
+func createAppServerOrSPFromApp(app types.Application) types.AppServerOrSAMLIdPServiceProvider {
+	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+			AppServer: &types.AppServerV3{
+				Spec: types.AppServerSpecV3{
+					App: app.(*types.AppV3),
+				},
+			},
+		},
+	}
+
+	return appServerOrSP
+}
+
+// createAppServerOrSPFromApp returns a AppServerOrSAMLIdPServiceProvider given a SAMLIdPServiceProvider.
+func createAppServerOrSPFromSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) types.AppServerOrSAMLIdPServiceProvider {
+	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+			SAMLIdPServiceProvider: sp.(*types.SAMLIdPServiceProviderV1),
+		},
+	}
+
+	return appServerOrSP
 }

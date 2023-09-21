@@ -24,17 +24,29 @@ import {
 } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
 
+import { UserContext } from 'teleport/User/UserContext';
+
+import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+
+import {
+  ClusterResource,
+  UserPreferences,
+} from 'teleport/services/userPreferences/types';
+import { Acl } from 'teleport/services/user';
+
 import { SelectResource } from './SelectResource';
 
 export default {
   title: 'Teleport/Discover/SelectResource',
 };
 
-export const AllAccess = () => (
-  <Provider>
-    <SelectResource onSelect={() => null} />
-  </Provider>
-);
+export const AllAccess = () => {
+  return (
+    <Provider>
+      <SelectResource onSelect={() => null} />
+    </Provider>
+  );
+};
 
 export const NoAccess = () => {
   const customAcl = getAcl({ noAccess: true });
@@ -55,20 +67,45 @@ export const PartialAccess = () => {
   );
 };
 
+export const PreferredDBAccess = () => {
+  return (
+    <Provider resources={[3]}>
+      <SelectResource onSelect={() => null} />
+    </Provider>
+  );
+};
+
 export const InitRouteEntryServer = () => (
   <Provider entity="server">
     <SelectResource onSelect={() => null} />
   </Provider>
 );
 
-const Provider = props => {
-  const ctx = createTeleportContext({ customAcl: props.customAcl });
+type ProviderProps = {
+  customAcl?: Acl;
+  entity?: string;
+  resources?: ClusterResource[];
+  children?: React.ReactNode;
+};
+
+const Provider = ({
+  customAcl,
+  entity,
+  resources,
+  children,
+}: ProviderProps) => {
+  const ctx = createTeleportContext({ customAcl: customAcl });
+  const updatePreferences = () => Promise.resolve();
+  const preferences: UserPreferences = makeDefaultUserPreferences();
+  preferences.onboard.preferredResources = resources;
 
   return (
     <MemoryRouter
-      initialEntries={[{ pathname: '/test', state: { entity: props.entity } }]}
+      initialEntries={[{ pathname: '/test', state: { entity: entity } }]}
     >
-      <ContextProvider ctx={ctx}>{props.children}</ContextProvider>
+      <UserContext.Provider value={{ preferences, updatePreferences }}>
+        <ContextProvider ctx={ctx}>{children}</ContextProvider>
+      </UserContext.Provider>
     </MemoryRouter>
   );
 };

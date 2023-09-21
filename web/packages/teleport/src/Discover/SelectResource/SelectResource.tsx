@@ -14,32 +14,44 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
-import { useLocation, useHistory } from 'react-router';
+import React, { useEffect, useState } from 'react';
+import { useHistory, useLocation } from 'react-router';
 
 import * as Icons from 'design/Icon';
 import styled from 'styled-components';
-import { Box, Flex, Text, Link } from 'design';
+import { Box, Flex, Link, Text } from 'design';
+
+import { getPlatform, Platform } from 'design/theme/utils';
 
 import useTeleport from 'teleport/useTeleport';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import { Acl } from 'teleport/services/user';
 import {
-  ResourceKind,
   Header,
   HeaderSubtitle,
   PermissionsErrorMessage,
+  ResourceKind,
 } from 'teleport/Discover/Shared';
 import {
   getResourcePretitle,
   RESOURCES,
 } from 'teleport/Discover/SelectResource/resources';
 import AddApp from 'teleport/Apps/AddApp';
+import { useUser } from 'teleport/User/UserContext';
 
-import { icons } from './icons';
+import {
+  ClusterResource,
+  UserPreferences,
+} from 'teleport/services/userPreferences/types';
+
+import { resourceKindToPreferredResource } from 'teleport/Discover/Shared/ResourceKind';
+
+import { getMarketingTermMatches } from './getMarketingTermMatches';
+import { DiscoverIcon } from './icons';
+
+import { PrioritizedResources, SearchResource } from './types';
 
 import type { ResourceSpec } from './types';
-import type { AddButtonResourceKind } from 'teleport/components/AgentButtonAdd/AgentButtonAdd';
 
 interface SelectResourceProps {
   onSelect: (resource: ResourceSpec) => void;
@@ -47,8 +59,9 @@ interface SelectResourceProps {
 
 export function SelectResource({ onSelect }: SelectResourceProps) {
   const ctx = useTeleport();
-  const location = useLocation<{ entity: AddButtonResourceKind }>();
+  const location = useLocation<{ entity: SearchResource }>();
   const history = useHistory();
+  const { preferences } = useUser();
 
   const [search, setSearch] = useState('');
   const [resources, setResources] = useState<ResourceSpec[]>([]);
@@ -57,9 +70,9 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
 
   function onSearch(s: string, customList?: ResourceSpec[]) {
     const list = customList || defaultResources;
-    const splitted = s.split(' ').map(s => s.toLowerCase());
+    const split = s.split(' ').map(s => s.toLowerCase());
     const foundResources = list.filter(r => {
-      const match = splitted.every(s => r.keywords.includes(s));
+      const match = split.every(s => r.keywords.includes(s));
       if (match) {
         return r;
       }
@@ -73,20 +86,15 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
     onSearch('');
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     // Apply access check to each resource.
     const userContext = ctx.storeUser.state;
     const { acl } = userContext;
-    const updatedResources = makeResourcesWithHasAccessField(acl);
 
-    // Sort resources that user has access to the
-    // the top of the list, so it is more visible to
-    // the user.
-    const filteredResourcesByPerm = [
-      ...updatedResources.filter(r => r.hasAccess),
-      ...updatedResources.filter(r => !r.hasAccess),
-    ];
-    const sortedResources = sortResources(filteredResourcesByPerm);
+    const sortedResources = sortResources(
+      makeResourcesWithHasAccessField(acl),
+      preferences
+    );
     setDefaultResources(sortedResources);
 
     // A user can come to this screen by clicking on
@@ -94,17 +102,23 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
     // We sort the list by the specified resource type,
     // and then apply a search filter to it to reduce
     // the amount of results.
+    // We don't do this if the resource type is `unified_resource`,
+    // since we want to show all resources.
+    // TODO(bl-nero): remove this once the localstorage setting to disable unified resources is removed.
     const resourceKindSpecifiedByUrlLoc = location.state?.entity;
-    if (resourceKindSpecifiedByUrlLoc) {
+    if (
+      resourceKindSpecifiedByUrlLoc &&
+      resourceKindSpecifiedByUrlLoc !== SearchResource.UNIFIED_RESOURCE
+    ) {
       const sortedResourcesByKind = sortResourcesByKind(
         resourceKindSpecifiedByUrlLoc,
         sortedResources
       );
       onSearch(resourceKindSpecifiedByUrlLoc, sortedResourcesByKind);
-    } else {
-      setResources(sortedResources);
+      return;
     }
 
+    setResources(sortedResources);
     // Processing of the lists should only happen once on init.
     // User perms remain static and URL loc state does not change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,7 +143,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
         </InputWrapper>
         {search && <ClearSearch onClick={onClearSearch} />}
       </Box>
-      {resources.length > 0 && (
+      {resources && resources.length > 0 && (
         <>
           <Grid>
             {resources.map((r, index) => {
@@ -184,7 +198,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
                   )}
                   <Flex px={2} alignItems="center">
                     <Flex mr={3} justifyContent="center" width="24px">
-                      {icons[r.icon]}
+                      <DiscoverIcon name={r.icon} />
                     </Flex>
                     <Box>
                       {pretitle && (
@@ -232,6 +246,7 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
       css={`
         font-size: 12px;
         opacity: 0.7;
+
         :hover {
           cursor: pointer;
           opacity: 1;
@@ -249,7 +264,7 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
           background: ${props => props.theme.colors.error.main};
         `}
       >
-        <Icons.Close fontSize="18px" />
+        <Icons.Cross size="small" />
       </Box>
       <Text>Clear search</Text>
     </Flex>
@@ -281,36 +296,36 @@ function checkHasAccess(acl: Acl, resourceKind: ResourceKind) {
 }
 
 function sortResourcesByKind(
-  resourceKind: AddButtonResourceKind,
+  resourceKind: SearchResource,
   resources: ResourceSpec[]
 ) {
   let sorted: ResourceSpec[] = [];
   switch (resourceKind) {
-    case 'server':
+    case SearchResource.SERVER:
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Server),
         ...resources.filter(r => r.kind !== ResourceKind.Server),
       ];
       break;
-    case 'application':
+    case SearchResource.APPLICATION:
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Application),
         ...resources.filter(r => r.kind !== ResourceKind.Application),
       ];
       break;
-    case 'database':
+    case SearchResource.DATABASE:
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Database),
         ...resources.filter(r => r.kind !== ResourceKind.Database),
       ];
       break;
-    case 'desktop':
+    case SearchResource.DESKTOP:
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Desktop),
         ...resources.filter(r => r.kind !== ResourceKind.Desktop),
       ];
       break;
-    case 'kubernetes':
+    case SearchResource.KUBERNETES:
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Kubernetes),
         ...resources.filter(r => r.kind !== ResourceKind.Kubernetes),
@@ -320,23 +335,122 @@ function sortResourcesByKind(
   return sorted;
 }
 
-// Sort the resources alphabetically and with the Guided resources listed first.
-export function sortResources(resources: ResourceSpec[]) {
+export function sortResources(
+  resources: ResourceSpec[],
+  preferences: UserPreferences
+) {
+  const { preferredResources, hasPreferredResources } =
+    getPrioritizedResources(preferences);
+
   const sortedResources = [...resources];
-  sortedResources.sort((a, b) => {
-    if (!a.unguidedLink && a.hasAccess && !b.unguidedLink && b.hasAccess) {
-      return a.name.localeCompare(b.name);
+  const accessible = sortedResources.filter(r => r.hasAccess);
+  const restricted = sortedResources.filter(r => !r.hasAccess);
+
+  // Sort accessible resources by 1. os 2. preferred 3. guided and 4. alphabetically
+  accessible.sort((a, b) => {
+    let aPreferred,
+      bPreferred = false;
+    if (hasPreferredResources) {
+      aPreferred = preferredResources.includes(
+        resourceKindToPreferredResource(a.kind)
+      );
+      bPreferred = preferredResources.includes(
+        resourceKindToPreferredResource(b.kind)
+      );
     }
-    if (!b.unguidedLink && b.hasAccess) {
-      return 1;
+
+    let platform: string;
+    const platformType = getPlatform();
+    if (platformType.isMac) {
+      platform = Platform.PLATFORM_MACINTOSH;
     }
-    if (!a.unguidedLink && a.hasAccess) {
+    if (platformType.isLinux) {
+      platform = Platform.PLATFORM_LINUX;
+    }
+    if (platformType.isWin) {
+      platform = Platform.PLATFORM_WINDOWS;
+    }
+
+    // Display platform resources first
+    if (a.platform === platform && b.platform !== platform) {
       return -1;
     }
+    if (a.platform !== platform && b.platform === platform) {
+      return 1;
+    }
+
+    // Display preferred resources second
+    if (aPreferred && !bPreferred) {
+      return -1;
+    }
+    if (!aPreferred && bPreferred) {
+      return 1;
+    }
+
+    // Display guided resources third
+    if (!a.unguidedLink && !b.unguidedLink) {
+      return a.name.localeCompare(b.name);
+    }
+    if (!b.unguidedLink) {
+      return 1;
+    }
+    if (!a.unguidedLink) {
+      return -1;
+    }
+
+    // Alpha
     return a.name.localeCompare(b.name);
   });
 
-  return sortedResources;
+  // Sort restricted resources alphabetically
+  restricted.sort((a, b) => {
+    return a.name.localeCompare(b.name);
+  });
+
+  // Sort resources that user has access to the
+  // top of the list, so it is more visible to
+  // the user.
+  return [...accessible, ...restricted];
+}
+
+/**
+ * Returns prioritized resources based on user preferences cluster state
+ *
+ * @remarks
+ * A user can have preferredResources set via onboarding either from the survey (preferredResources)
+ * or various query parameters (marketingParams). We sort the list by the marketingParams if available.
+ * If not, we sort by preferred resource type if available.
+ * We do not search.
+ *
+ * @param preferences - Cluster state user preferences
+ * @returns PrioritizedResources which is both the resource to prioritize and a boolean value of the value
+ *
+ */
+function getPrioritizedResources(
+  preferences: UserPreferences
+): PrioritizedResources {
+  const marketingParams = preferences.onboard.marketingParams;
+
+  if (marketingParams) {
+    const marketingPriorities = getMarketingTermMatches(marketingParams);
+    if (marketingPriorities.length > 0) {
+      return {
+        hasPreferredResources: true,
+        preferredResources: marketingPriorities,
+      };
+    }
+  }
+
+  const preferredResources = preferences.onboard.preferredResources || [];
+
+  // hasPreferredResources will be false if all resources are selected
+  const maxResources = Object.keys(ClusterResource).length / 2 - 1;
+  const selectedAll = preferredResources.length === maxResources;
+
+  return {
+    preferredResources: preferredResources,
+    hasPreferredResources: preferredResources.length > 0 && !selectedAll,
+  };
 }
 
 function makeResourcesWithHasAccessField(acl: Acl): ResourceSpec[] {
@@ -394,6 +508,7 @@ const InputWrapper = styled.div`
   border-radius: 200px;
   height: 40px;
   border: 1px solid ${props => props.theme.colors.spotBackground[2]};
+
   &:hover,
   &:focus,
   &:active {

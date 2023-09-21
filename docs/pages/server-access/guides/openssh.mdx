@@ -16,13 +16,14 @@ and running, but in the long run, we would recommend replacing `sshd` with `tele
 
 - RBAC and resource filtering based on [dynamically updated labels](../../management/admin/labels.mdx)
 - [Session recording without SSH connection termination](recording-proxy-mode.mdx)
+- [Session sharing](../../connect-your-client/tsh.mdx)
 - [Advanced session recording](bpf-session-recording.mdx)
 - [Restricting outbound network connections in SSH sessions](restricted-session.mdx)
 
-Teleport supports OpenSSH by proxying SSH connections through the Proxy Service. When a Teleport user requests to connect to an OpenSSH node, the Proxy Service checks the user's Teleport roles. 
+Teleport supports OpenSSH by proxying SSH connections through the Proxy Service. When a Teleport user requests to connect to an OpenSSH node, the Proxy Service checks the user's Teleport roles.
 
 If the RBAC checks succeed, the Proxy Service authenticates to the OpenSSH node with a dynamically generated certificate signed by a Teleport CA. This allows the
-Proxy Service to record and audit connections to OpenSSH nodes. 
+Proxy Service to record and audit connections to OpenSSH nodes.
 
 The Proxy Service prevents Teleport users from bypassing auditing by requiring
 a certificate signed by a Teleport CA that only the Auth Service possesses.
@@ -88,7 +89,8 @@ authenticate the `sshd` host using the host certificate you generated earlier.
 
 First, make sure you have logged in to your Teleport cluster:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 ```code
 $ tsh status
@@ -102,8 +104,8 @@ $ tsh status
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["enterprise"]}>
+</TabItem>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
 ```code
 $ tsh status
@@ -117,8 +119,8 @@ $ tsh status
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh status
@@ -132,7 +134,9 @@ $ tsh status
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 On your local machine, run the following `tsh` command. This will print a
 configuration block that tells your SSH client to use credentials managed by
@@ -145,6 +149,7 @@ $ tsh config > ssh_config_teleport
 This command creates an SSH configuration file at a nonstandard location in
 order to make it easier to clean up, but you can append the output of
 `tsh config` to the default SSH config file (`~/.ssh/config`) if you wish.
+
 
 <Details title="How does the config work?">
 
@@ -208,6 +213,13 @@ authenticate the host via the certificate we generated earlier.
 
 </Details>
 
+<Details title="Dialing uppercase hostnames with OpenSSH">
+Routing in Teleport clusters is case-sensitive by default, but OpenSSH always lowercases hostnames. If you
+are using an OpenSSH client and have hosts with uppercase letters in their hostnames, you may need to set
+`case_insensitive_routing: true` in either the `auth_service` block of your Teleport config, or in the
+`cluster_networking_config` resource.
+</Details>
+
 <Admonition
   type="tip"
   title="Multiple Clusters"
@@ -230,7 +242,8 @@ First, define environment variables for the address of your Teleport cluster,
 the username you will use to log in to your `sshd` host, and the port on your
 `sshd` host you are using for SSH traffic:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # See the available logins you can use to access your sshd host
@@ -241,8 +254,8 @@ $ CLUSTER=teleport.example.com
 $ PORT=22
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # See the available logins you can use to access your sshd host
@@ -253,7 +266,9 @@ $ CLUSTER=mytenant.teleport.sh
 $ PORT=22
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Next, SSH in to your remote host:
 
@@ -305,30 +320,3 @@ $ ssh -F ssh_config_teleport ${USER?}@node2.leafcluster.${CLUSTER}
   qualified domain name, rather than an IP address.
 
 </Admonition>
-
-## Revoke an SSH certificate
-
-Teleport's approach to using short-lived certificates for all infrastructure
-access means that it can generate large numbers of certificates every day. For
-this reason, Teleport does not support traditional certificate revocation.
-
-There are two options available for revoking access: CA rotations, and Teleport locks.
-
-### CA Rotations
-
-To generate a new certificate authority and invalidate user certificates issued
-by the current CA, run `tctl auth rotate --type-user`. This process will require
-that the newly generated CA certificate is uploaded to your entire fleet of
-OpenSSH servers. This can be a disruptive change, especially in environments
-that lack automation, so proceed with caution.
-
-### Locks
-
-Teleport locks allow you to permanently or temporarily revoke access to a number
-of different "targets". Supported lock targets include: specific users, roles,
-servers, desktops, or MFA devices. When a lock is created any existing sessions
-where the lock applies will be terminated, and new sessions will be rejected while
-the lock remains in force.
-
-For more information, read our
-[Session and Identity Locking Guide](../../access-controls/guides/locking.mdx).

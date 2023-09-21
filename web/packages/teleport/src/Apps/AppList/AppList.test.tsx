@@ -31,6 +31,7 @@ test('correct launch url is generated for a selected role', () => {
       {...props}
       apps={[
         {
+          kind: 'app',
           name: 'aws-console-1',
           uri: 'https://console.aws.amazon.com/ec2/v2/home',
           publicAddr: 'awsconsole-1.teleport-proxy.com',
@@ -65,6 +66,8 @@ test('correct launch url is generated for a selected role', () => {
           id: 'one-aws-console-1-awsconsole-1.teleport-proxy.com',
           launchUrl: '',
           userGroups: [],
+          samlApp: false,
+          samlAppSsoUrl: '',
         },
       ]}
     />

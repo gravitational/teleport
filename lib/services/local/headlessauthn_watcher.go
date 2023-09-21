@@ -232,7 +232,7 @@ func (h *HeadlessAuthenticationWatcher) notify(headlessAuthns ...*types.Headless
 	for _, ha := range headlessAuthns {
 		for _, s := range h.subscribers {
 			if s != nil && s.name == ha.Metadata.Name && s.username == ha.User {
-				s.update(ha)
+				s.update(ha, true)
 			}
 		}
 	}
@@ -274,7 +274,10 @@ func (h *HeadlessAuthenticationWatcher) Subscribe(ctx context.Context, username,
 
 	// Check for an existing backend entry and send it as the first update.
 	if ha, err := h.identityService.GetHeadlessAuthentication(ctx, username, name); err == nil {
-		subscriber.update(ha)
+		// If the subscriber receives an event before we finish checking the
+		// current backend, we can just skip this update rather than overwriting
+		// the more up to date event.
+		subscriber.update(ha, false /* overwrite */)
 	} else if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -374,19 +377,24 @@ func (s *headlessAuthenticationSubscriber) Close() {
 	}
 }
 
-func (s *headlessAuthenticationSubscriber) update(ha *types.HeadlessAuthentication) {
+func (s *headlessAuthenticationSubscriber) update(ha *types.HeadlessAuthentication, overwrite bool) {
 	s.updatesMu.Lock()
 	defer s.updatesMu.Unlock()
 
 	// Drain stale update if there is one.
-	select {
-	case _, ok := <-s.updates:
-		if !ok {
-			// updates channel is closed, subscriber is closing.
-			return
+	if overwrite {
+		select {
+		case _, ok := <-s.updates:
+			if !ok {
+				// updates channel is closed, subscriber is closing.
+				return
+			}
+		default:
 		}
-	default:
 	}
 
-	s.updates <- apiutils.CloneProtoMsg(ha)
+	select {
+	case s.updates <- apiutils.CloneProtoMsg(ha):
+	default:
+	}
 }

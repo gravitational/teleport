@@ -1426,6 +1426,7 @@ func TestCheckAccessToServer(t *testing.T) {
 				{server: serverDB, login: "root", hasAccess: true},
 			},
 		},
+		// MFA with private key policy.
 		{
 			name: "cluster requires session+hardware key, MFA not verified",
 			roles: []*types.RoleV6{
@@ -1469,9 +1470,27 @@ func TestCheckAccessToServer(t *testing.T) {
 				}),
 			},
 			authSpec: types.AuthPreferenceSpecV2{
-				// Functionally equivalent to "off".
+				// Functionally equivalent to "session".
 				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
 			},
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+			},
+		},
+		{
+			name: "cluster requires hardware key touch, MFA verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+				}),
+			},
+			authSpec: types.AuthPreferenceSpecV2{
+				// Functionally equivalent to "session".
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+			},
+			mfaVerified: true,
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: true},
 				{server: serverWorker, login: "root", hasAccess: true},
@@ -7456,7 +7475,7 @@ func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 		currentUser: user,
 	}
 
-	accessInfo := AccessInfoFromUser(user)
+	accessInfo := AccessInfoFromUserState(user)
 	accessChecker, err := NewAccessCheckerForRemoteCluster(context.Background(), accessInfo, "clustername", currentUserRoleGetter)
 	require.NoError(t, err)
 
@@ -7549,25 +7568,43 @@ func TestRoleSet_GetAccessState(t *testing.T) {
 			},
 		},
 		{
+			name: "auth pref requires hardware key",
+			roleMFARequireTypes: []types.RequireMFAType{
+				types.RequireMFAType_OFF,
+			},
+			authPrefMFARequireType: types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
+			expectState: AccessState{
+				MFARequired: MFARequiredAlways,
+			},
+		},
+		{
 			name: "auth pref requires hardware key touch",
 			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireMFAType_SESSION,
-				types.RequireMFAType_SESSION,
+				types.RequireMFAType_OFF,
 			},
 			authPrefMFARequireType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
 			expectState: AccessState{
-				MFARequired: MFARequiredNever,
+				MFARequired: MFARequiredAlways,
+			},
+		},
+		{
+			name: "role requires hardware key",
+			roleMFARequireTypes: []types.RequireMFAType{
+				types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
+			},
+			authPrefMFARequireType: types.RequireMFAType_OFF,
+			expectState: AccessState{
+				MFARequired: MFARequiredAlways,
 			},
 		},
 		{
 			name: "role requires hardware key touch",
 			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireMFAType_SESSION,
 				types.RequireMFAType_HARDWARE_KEY_TOUCH,
 			},
-			authPrefMFARequireType: types.RequireMFAType_SESSION,
+			authPrefMFARequireType: types.RequireMFAType_OFF,
 			expectState: AccessState{
-				MFARequired: MFARequiredNever,
+				MFARequired: MFARequiredAlways,
 			},
 		},
 	}
@@ -8097,7 +8134,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			// because unmatchedResources is not empty.
 			wantMatch:          boolsToSlice(true),
 			assertErr:          require.NoError,
-			unmatchedResources: []string{"default/nginx*"},
+			unmatchedResources: []string{"pod/default/nginx*"},
 		},
 		{
 			name: "user requests a valid subset of pods but distributed across two roles",
@@ -8136,7 +8173,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			},
 			wantMatch:          boolsToSlice(false, false),
 			assertErr:          require.NoError,
-			unmatchedResources: []string{"default/pod"},
+			unmatchedResources: []string{"pod/default/pod"},
 		},
 		{
 			name: "user requests a denied pod",
@@ -8170,7 +8207,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			},
 			wantMatch:          boolsToSlice(false),
 			assertErr:          require.Error,
-			unmatchedResources: []string{"default/restricted"},
+			unmatchedResources: []string{"pod/default/restricted"},
 		},
 	}
 	for _, tt := range tests {

@@ -542,27 +542,34 @@ func TestCheckIPPinning(t *testing.T) {
 			clientAddr: "127.0.0.1:444",
 			pinnedIP:   "",
 			pinIP:      true,
-			wantErr:    "pinned IP is required for the user, but is not present on identity",
+			wantErr:    ErrIPPinningMissing.Error(),
 		},
 		{
 			desc:       "Pinned IP doesn't match",
 			clientAddr: "127.0.0.1:444",
 			pinnedIP:   "127.0.0.2",
 			pinIP:      true,
-			wantErr:    "pinned IP doesn't match observed client IP",
+			wantErr:    ErrIPPinningMismatch.Error(),
 		},
 		{
 			desc:       "Role doesn't require IP pinning now, but old certificate still pinned",
 			clientAddr: "127.0.0.1:444",
 			pinnedIP:   "127.0.0.2",
 			pinIP:      false,
-			wantErr:    "pinned IP doesn't match observed client IP",
+			wantErr:    ErrIPPinningMismatch.Error(),
 		},
 		{
 			desc:     "IP pinning enabled, missing client IP",
 			pinnedIP: "127.0.0.1",
 			pinIP:    true,
 			wantErr:  "expected type net.Addr, got <nil>",
+		},
+		{
+			desc:       "IP pinning enabled, port=0 (marked by proxyProtocolMode unspecified)",
+			clientAddr: "127.0.0.1:0",
+			pinnedIP:   "127.0.0.1",
+			pinIP:      true,
+			wantErr:    ErrIPPinningMismatch.Error(),
 		},
 		{
 			desc:       "correct IP pinning",
@@ -714,6 +721,89 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 			require.NoError(t, err, "RoleSetForBuiltinRoles failed")
 			assert.NotEmpty(t, rs, "RoleSetForBuiltinRoles returned a nil RoleSet")
 			test.assertRoleSet(t, rs)
+		})
+	}
+}
+
+func TestIsUserFunctions(t *testing.T) {
+	localIdentity := Context{Identity: LocalUser{}}
+	remoteIdentity := Context{Identity: RemoteUser{}}
+	systemIdentity := Context{
+		Identity: BuiltinRole{
+			Role: types.RoleProxy,
+		},
+	}
+
+	tests := []struct {
+		funcName, scenario string
+		isUserFunc         func(Context) bool
+		authCtx            Context
+		want               bool
+	}{
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "local user",
+			isUserFunc: IsLocalUser,
+			authCtx:    localIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "remote user",
+			isUserFunc: IsLocalUser,
+			authCtx:    remoteIdentity,
+		},
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "system user",
+			isUserFunc: IsLocalUser,
+			authCtx:    systemIdentity,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "local user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    localIdentity,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "remote user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    remoteIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "system user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    systemIdentity,
+		},
+
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "local user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    localIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "remote user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    remoteIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "system user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    systemIdentity,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.funcName+"/"+test.scenario, func(t *testing.T) {
+			got := test.isUserFunc(test.authCtx)
+			assert.Equal(t, test.want, got, "%s mismatch", test.funcName)
 		})
 	}
 }

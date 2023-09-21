@@ -16,4 +16,5 @@ limitations under the License.
 
 import getPlatform from './getPlatform';
 
+export { Platform } from './getPlatform';
 export { getPlatform };

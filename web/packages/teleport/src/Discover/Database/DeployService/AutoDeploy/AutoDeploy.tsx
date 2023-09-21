@@ -194,9 +194,20 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               {hasError && (
                 <Box>
                   <TextIcon mt={3}>
-                    <Icons.Warning ml={1} color="error.main" />
+                    <Icons.Warning
+                      size="medium"
+                      ml={1}
+                      mr={2}
+                      color="error.main"
+                    />
                     Encountered Error: {attempt.statusText}
                   </TextIcon>
+                  <Text mt={2}>
+                    <b>Note:</b> If this is your first attempt, it might be that
+                    AWS has not finished propagating changes from{' '}
+                    <Mark>Step 1</Mark>. Try waiting a minute before attempting
+                    again.
+                  </Text>
                 </Box>
               )}
             </StyledBox>
@@ -397,7 +408,7 @@ const DeployHints = ({
           padding-right: 4px;
         `}
       >
-        <Icons.Restore fontSize={4} />
+        <Icons.Restore size="medium" mr={1} />
       </TextIcon>
       <Text>
         Teleport is currently deploying a Database Service. It will take at

@@ -19,11 +19,11 @@ import React from 'react';
 import {
   makeEmptyAttempt,
   makeProcessingAttempt,
-  makeErrorAttempt,
+  makeErrorAttemptWithStatusText,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
 
-import { makeGateway } from 'teleterm/services/tshd/testHelpers';
+import { makeDatabaseGateway } from 'teleterm/services/tshd/testHelpers';
 
 import { DocumentGateway, DocumentGatewayProps } from './DocumentGateway';
 
@@ -31,7 +31,7 @@ export default {
   title: 'Teleterm/DocumentGateway',
 };
 
-const gateway = makeGateway({
+const gateway = makeDatabaseGateway({
   uri: '/gateways/bar',
   targetName: 'sales-production',
   targetUri: '/clusters/bar/dbs/foo',
@@ -63,7 +63,7 @@ export function Online() {
 }
 
 export function OnlineWithLongValues() {
-  const gateway = makeGateway({
+  const gateway = makeDatabaseGateway({
     uri: '/gateways/bar',
     targetName: 'sales-production',
     targetUri: '/clusters/bar/dbs/foo',
@@ -91,7 +91,7 @@ export function OnlineWithFailedDbNameAttempt() {
   return (
     <DocumentGateway
       {...onlineDocumentGatewayProps}
-      changeDbNameAttempt={makeErrorAttempt<void>(
+      changeDbNameAttempt={makeErrorAttemptWithStatusText<void>(
         'Something went wrong with setting database name.'
       )}
     />
@@ -102,7 +102,7 @@ export function OnlineWithFailedPortAttempt() {
   return (
     <DocumentGateway
       {...onlineDocumentGatewayProps}
-      changePortAttempt={makeErrorAttempt<void>(
+      changePortAttempt={makeErrorAttemptWithStatusText<void>(
         'Something went wrong with setting port.'
       )}
     />
@@ -113,10 +113,10 @@ export function OnlineWithFailedDbNameAndPortAttempts() {
   return (
     <DocumentGateway
       {...onlineDocumentGatewayProps}
-      changeDbNameAttempt={makeErrorAttempt<void>(
+      changeDbNameAttempt={makeErrorAttemptWithStatusText<void>(
         'Something went wrong with setting database name.'
       )}
-      changePortAttempt={makeErrorAttempt<void>(
+      changePortAttempt={makeErrorAttemptWithStatusText<void>(
         'Something went wrong with setting port.'
       )}
     />
@@ -142,7 +142,7 @@ export function OfflineWithFailedConnectAttempt() {
       gateway={undefined}
       defaultPort="62414"
       connected={false}
-      connectAttempt={makeErrorAttempt<void>(
+      connectAttempt={makeErrorAttemptWithStatusText<void>(
         'listen tcp 127.0.0.1:62414: bind: address already in use'
       )}
     />

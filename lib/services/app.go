@@ -18,8 +18,14 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/gravitational/trace"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
@@ -157,4 +163,112 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 		return &s, nil
 	}
 	return nil, trace.BadParameter("unsupported app server resource version %q", h.Version)
+}
+
+// NewApplicationFromKubeService creates application resources from kubernetes service.
+// It transforms service fields and annotations into appropriate Teleport app fields.
+// Service labels are copied to app labels.
+func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol string, port corev1.ServicePort) (types.Application, error) {
+	appURI := buildAppURI(protocol, getServiceFQDN(service), port.Port)
+
+	rewriteConfig, err := getAppRewriteConfig(service.GetAnnotations())
+	if err != nil {
+		return nil, trace.Wrap(err, "could not get app rewrite config for the service")
+	}
+
+	appNameAnnotation := service.GetAnnotations()[types.DiscoveryAppNameLabel]
+	appName, err := getAppName(service.GetName(), service.GetNamespace(), clusterName, port.Name, appNameAnnotation)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not create app name for the service")
+	}
+
+	labels, err := getAppLabels(service.GetLabels(), clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not get labels for the service")
+	}
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name:        appName,
+		Description: fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
+		Labels:      labels,
+	}, types.AppSpecV3{
+		URI:     appURI,
+		Rewrite: rewriteConfig,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "could not create an app from Kubernetes service")
+	}
+
+	return app, nil
+}
+
+func getServiceFQDN(s corev1.Service) string {
+	// If service type is ExternalName it points to external DNS name, to keep correct
+	// HOST for HTTP requests we return already final external DNS name.
+	// https://kubernetes.io/docs/concepts/services-networking/service/#externalname
+	if s.Spec.Type == corev1.ServiceTypeExternalName {
+		return s.Spec.ExternalName
+	}
+	return fmt.Sprintf("%s.%s.svc.cluster.local", s.GetName(), s.GetNamespace())
+}
+
+func buildAppURI(protocol, serviceFQDN string, port int32) string {
+	return (&url.URL{
+		Scheme: protocol,
+		Host:   fmt.Sprintf("%s:%d", serviceFQDN, port),
+	}).String()
+}
+
+func getAppRewriteConfig(annotations map[string]string) (*types.Rewrite, error) {
+	rewritePayload := annotations[types.DiscoveryAppRewriteLabel]
+	if rewritePayload == "" {
+		return nil, nil
+	}
+
+	rw := types.Rewrite{}
+	reader := strings.NewReader(rewritePayload)
+	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
+	err := decoder.Decode(&rw)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed decoding rewrite config")
+	}
+
+	return &rw, nil
+}
+
+func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation string) (string, error) {
+	if nameAnnotation != "" {
+		name := nameAnnotation
+		if portName != "" {
+			name = fmt.Sprintf("%s-%s", name, portName)
+		}
+
+		if len(validation.IsDNS1035Label(name)) > 0 {
+			return "", trace.BadParameter(
+				"application name %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", name)
+		}
+
+		return name, nil
+	}
+
+	clusterName = strings.ReplaceAll(clusterName, ".", "-")
+	if portName != "" {
+		return fmt.Sprintf("%s-%s-%s-%s", serviceName, portName, namespace, clusterName), nil
+	}
+	return fmt.Sprintf("%s-%s-%s", serviceName, namespace, clusterName), nil
+}
+
+func getAppLabels(serviceLabels map[string]string, clusterName string) (map[string]string, error) {
+	result := make(map[string]string, len(serviceLabels)+1)
+
+	for k, v := range serviceLabels {
+		if !types.IsValidLabelKey(k) {
+			return nil, trace.BadParameter("invalid label key: %q", k)
+		}
+
+		result[k] = v
+	}
+	result[types.KubernetesClusterLabel] = clusterName
+
+	return result, nil
 }

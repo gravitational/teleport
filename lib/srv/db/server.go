@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
+	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -70,6 +71,8 @@ func init() {
 	common.RegisterEngine(snowflake.NewEngine, defaults.ProtocolSnowflake)
 	common.RegisterEngine(sqlserver.NewEngine, defaults.ProtocolSQLServer)
 	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
+	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouse)
+	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouseHTTP)
 }
 
 // Config is the configuration for a database proxy server.
@@ -137,7 +140,7 @@ type Config struct {
 
 	// discoveryResourceChecker performs some pre-checks when creating databases
 	// discovered by the discovery service.
-	discoveryResourceChecker discoveryResourceChecker
+	discoveryResourceChecker cloud.DiscoveryResourceChecker
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -241,7 +244,11 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 
 	if c.discoveryResourceChecker == nil {
-		c.discoveryResourceChecker, err = newCloudCrednentialsChecker(ctx, c.CloudClients, c.ResourceMatchers)
+		c.discoveryResourceChecker, err = cloud.NewDiscoveryResourceChecker(cloud.DiscoveryResourceCheckerConfig{
+			ResourceMatchers: c.ResourceMatchers,
+			Clients:          c.CloudClients,
+			Context:          ctx,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -598,6 +605,42 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 	return databases
 }
 
+// getProxiedDatabase returns a proxied database by name with updated dynamic
+// and cloud labels.
+func (s *Server) getProxiedDatabase(name string) (types.Database, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	// don't call s.getProxiedDatabases() as this will call RLock and
+	// potentially deadlock.
+	for _, db := range s.proxiedDatabases {
+		if db.GetName() == name {
+			return s.copyDatabaseWithUpdatedLabelsLocked(db), nil
+		}
+	}
+	return nil, trace.NotFound("%q not found among registered databases: %v",
+		name, s.proxiedDatabases)
+}
+
+// copyDatabaseWithUpdatedLabelsLocked will inject updated dynamic and cloud labels into
+// a database object.
+// The caller must invoke an RLock on `s.mu` before calling this function.
+func (s *Server) copyDatabaseWithUpdatedLabelsLocked(database types.Database) *types.DatabaseV3 {
+	// create a copy of the database to modify.
+	copy := database.Copy()
+
+	// Update dynamic labels if the database has them.
+	labels, ok := s.dynamicLabels[copy.GetName()]
+	if ok && labels != nil {
+		copy.SetDynamicLabels(labels.Get())
+	}
+
+	// Add in the cloud labels if the db has them.
+	if s.cfg.CloudLabels != nil {
+		s.cfg.CloudLabels.Apply(copy)
+	}
+	return copy
+}
+
 // startHeartbeat starts the registration heartbeat to the auth server.
 func (s *Server) startHeartbeat(ctx context.Context, database types.Database) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
@@ -653,15 +696,10 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
-	copy := database.Copy()
+	copy := s.copyDatabaseWithUpdatedLabelsLocked(database)
 	s.mu.RUnlock()
-	// Update dynamic labels if the database has them.
-	labels := s.getDynamicLabels(copy.GetName())
-	if labels != nil {
-		copy.SetDynamicLabels(labels.Get())
-	}
-	if s.cfg.CloudLabels != nil {
-		s.cfg.CloudLabels.Apply(copy)
+	if s.cfg.CloudIAM != nil {
+		s.cfg.CloudIAM.UpdateIAMStatus(copy)
 	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewDatabaseServerV3(types.Metadata{
@@ -790,17 +828,17 @@ func (s *Server) Close() error {
 }
 
 // Shutdown performs a graceful shutdown.
-func (s *Server) Shutdown(ctx context.Context) (err error) {
-	err = s.close(ctx)
+func (s *Server) Shutdown(ctx context.Context) error {
+	err := s.close(ctx)
 	defer s.closeConnFunc()
 
 	activeConnections := s.activeConnections.Load()
 	if activeConnections == 0 {
-		return
+		return trace.Wrap(err)
 	}
 
 	s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
-	lastReport := time.Time{}
+	lastReport := time.Now()
 	ticker := time.NewTicker(s.cfg.ShutdownPollPeriod)
 	defer ticker.Stop()
 
@@ -809,7 +847,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 		case <-ticker.C:
 			activeConnections = s.activeConnections.Load()
 			if activeConnections == 0 {
-				return
+				return trace.Wrap(err)
 			}
 
 			if time.Since(lastReport) > 10*s.cfg.ShutdownPollPeriod {
@@ -818,7 +856,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 			}
 		case <-ctx.Done():
 			s.log.Infof("Context canceled wait, returning.")
-			return
+			return trace.Wrap(err)
 		}
 	}
 }
@@ -922,8 +960,6 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Create a session tracker so that other services, such as
-	// the session upload completer, can track the session's lifetime.
 	if err := s.trackSession(cancelCtx, sessionCtx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -961,7 +997,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	// Wrap a client connection into monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, sessionCtx.AuthContext, clientConn)
+	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(cancelCtx, sessionCtx.AuthContext, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1010,6 +1046,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparer
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
 		Emitter:  s.cfg.Emitter,
 		Recorder: rec,
+		Database: sessionCtx.Database,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1029,7 +1066,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparer
 // createEngine creates a new database engine based on the database protocol.
 // An error is returned when a protocol is not supported.
 func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
-	return common.GetEngine(sessionCtx.Database.GetProtocol(), common.EngineConfig{
+	return common.GetEngine(sessionCtx.Database, common.EngineConfig{
 		Auth:         s.cfg.Auth,
 		Audit:        audit,
 		AuthClient:   s.cfg.AuthClient,
@@ -1071,17 +1108,9 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	s.log.Debugf("Client identity: %#v.", identity)
 
 	// Fetch the requested database server.
-	var database types.Database
-	registeredDatabases := s.getProxiedDatabases()
-	for _, db := range registeredDatabases {
-		if db.GetName() == identity.RouteToDatabase.ServiceName {
-			database = db
-			break
-		}
-	}
-	if database == nil {
-		return nil, trace.NotFound("%q not found among registered databases: %v",
-			identity.RouteToDatabase.ServiceName, registeredDatabases)
+	database, err := s.getProxiedDatabase(identity.RouteToDatabase.ServiceName)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	autoCreate, databaseRoles, err := authContext.Checker.CheckDatabaseRoles(database)

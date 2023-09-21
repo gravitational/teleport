@@ -118,6 +118,15 @@ func TestAzureWatcher(t *testing.T) {
 			},
 			wantVMs: []string{"vm2", "vm4"},
 		},
+		{
+			name: "location wildcard",
+			matcher: types.AzureMatcher{
+				ResourceGroups: []string{"rg1", "rg2"},
+				Regions:        []string{types.Wildcard},
+				ResourceTags:   types.Labels{"*": []string{"*"}},
+			},
+			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6"},
+		},
 	}
 
 	for _, tc := range tests {
@@ -138,7 +147,7 @@ func TestAzureWatcher(t *testing.T) {
 			for len(vmIDs) < len(tc.wantVMs) {
 				select {
 				case results := <-watcher.InstancesC:
-					for _, vm := range results.AzureInstances.Instances {
+					for _, vm := range results.Azure.Instances {
 						vmIDs = append(vmIDs, *vm.ID)
 					}
 				case <-ctx.Done():

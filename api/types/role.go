@@ -19,6 +19,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"path"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -247,6 +248,9 @@ type Role interface {
 // NewRole constructs new standard V7 role.
 // This creates a V7 role with V4+ RBAC semantics.
 func NewRole(name string, spec RoleSpecV6) (Role, error) {
+	// When incrementing the role version, make sure to update the
+	// role version in the asset file used by the UI.
+	// See: web/packages/teleport/src/Roles/templates/role.yaml
 	role, err := NewRoleWithVersion(name, V7, spec)
 	return role, trace.Wrap(err)
 }
@@ -304,6 +308,16 @@ func (r *RoleV6) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (r *RoleV6) SetResourceID(id int64) {
 	r.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (r *RoleV6) GetRevision() string {
+	return r.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (r *RoleV6) SetRevision(rev string) {
+	r.Metadata.SetRevision(rev)
 }
 
 // SetExpiry sets expiry time for the object.
@@ -431,7 +445,9 @@ func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []Kuber
 			for _, resource := range KubernetesResourcesKinds {
 				// Ignore Pod resources for older roles because Pods were already supported
 				// so we don't need to keep backwards compatibility for them.
-				if resource == KindKubePod {
+				// Also ignore Namespace resources because it grants access to all resources
+				// in the namespace.
+				if resource == KindKubePod || resource == KindNamespace {
 					continue
 				}
 				resources = append(resources, KubernetesResource{Kind: resource, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}})
@@ -882,6 +898,9 @@ func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 func (r *RoleV6) setStaticFields() {
 	r.Kind = KindRole
 	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 {
+		// When incrementing the role version, make sure to update the
+		// role version in the asset file used by the UI.
+		// See: web/packages/teleport/src/Roles/templates/role.yaml
 		r.Version = V7
 	}
 }
@@ -1648,7 +1667,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 // ClusterResource returns the resource name in the following format
 // <namespace>/<name>.
 func (k *KubernetesResource) ClusterResource() string {
-	return k.Namespace + "/" + k.Name
+	return path.Join(k.Namespace, k.Name)
 }
 
 // IsEmpty will return true if the condition is empty.

@@ -151,11 +151,27 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 // withJWTTokenForwarder is a sessionOpt that creates a forwarder that attaches
 // a generated JWT token to all requests.
 func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
+	rewrite := app.GetRewrite()
+	traits := identity.Traits
+	roles := identity.Groups
+	if rewrite != nil {
+		switch rewrite.JWTClaims {
+		case types.JWTClaimsRewriteNone:
+			traits = nil
+			roles = nil
+		case types.JWTClaimsRewriteRoles:
+			traits = nil
+		case types.JWTClaimsRewriteTraits:
+			roles = nil
+		case "", types.JWTClaimsRewriteRolesAndTraits:
+		}
+	}
+
 	// Request a JWT token that will be attached to all requests.
 	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: identity.Username,
-		Roles:    identity.Groups,
-		Traits:   identity.Traits,
+		Roles:    roles,
+		Traits:   traits,
 		URI:      app.GetURI(),
 		Expires:  identity.Expires,
 	})
@@ -164,7 +180,6 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 	}
 
 	// Add JWT token to the traits so it can be used in headers templating.
-	traits := identity.Traits
 	if traits == nil {
 		traits = make(wrappers.Traits)
 	}

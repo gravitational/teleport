@@ -1,0 +1,2 @@
+type: kubernetes_secret
+name: my-secret

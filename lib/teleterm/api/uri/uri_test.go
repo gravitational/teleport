@@ -324,3 +324,83 @@ func TestIsKube(t *testing.T) {
 		tt.check(t, tt.in.IsKube())
 	}
 }
+
+func TestIsRoot(t *testing.T) {
+	tests := []struct {
+		name   string
+		in     uri.ResourceURI
+		expect require.BoolAssertionFunc
+	}{
+		{
+			name:   "root cluster URI",
+			in:     uri.NewClusterURI("foo"),
+			expect: require.True,
+		},
+		{
+			name:   "leaf cluster URI",
+			in:     uri.NewClusterURI("foo").AppendLeafCluster("leaf"),
+			expect: require.False,
+		},
+		{
+			name:   "root cluster resource URI",
+			in:     uri.NewClusterURI("foo").AppendServer("bar"),
+			expect: require.True,
+		},
+		{
+			name:   "leaf cluster resource URI",
+			in:     uri.NewClusterURI("foo").AppendLeafCluster("leaf").AppendServer("bar"),
+			expect: require.False,
+		},
+		{
+			name:   "gateway URI",
+			in:     uri.NewGatewayURI("gateway"),
+			expect: require.False,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.expect(t, tt.in.IsRoot())
+		})
+	}
+}
+
+func TestIsLeaf(t *testing.T) {
+	tests := []struct {
+		name   string
+		in     uri.ResourceURI
+		expect require.BoolAssertionFunc
+	}{
+		{
+			name:   "root cluster URI",
+			in:     uri.NewClusterURI("foo"),
+			expect: require.False,
+		},
+		{
+			name:   "leaf cluster URI",
+			in:     uri.NewClusterURI("foo").AppendLeafCluster("leaf"),
+			expect: require.True,
+		},
+		{
+			name:   "root cluster resource URI",
+			in:     uri.NewClusterURI("foo").AppendServer("bar"),
+			expect: require.False,
+		},
+		{
+			name:   "leaf cluster resource URI",
+			in:     uri.NewClusterURI("foo").AppendLeafCluster("leaf").AppendServer("bar"),
+			expect: require.True,
+		},
+		{
+			name:   "gateway URI",
+			in:     uri.NewGatewayURI("gateway"),
+			expect: require.False,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.expect(t, tt.in.IsLeaf())
+		})
+	}
+}

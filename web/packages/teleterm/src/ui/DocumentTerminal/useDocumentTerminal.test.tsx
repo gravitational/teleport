@@ -34,6 +34,10 @@ import {
   AmbiguousHostnameError,
 } from 'teleterm/ui/services/resources';
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+import {
+  makeRootCluster,
+  makeLeafCluster,
+} from 'teleterm/services/tshd/testHelpers';
 
 import { WorkspaceContextProvider } from '../Documents';
 
@@ -575,42 +579,15 @@ const testSetup = (
   doc: DocumentTerminal,
   localClusterUri: uri.ClusterUri = rootClusterUri
 ) => {
-  const cluster: tsh.Cluster = {
+  const cluster = makeRootCluster({
     uri: rootClusterUri,
     name: 'Test',
-    connected: true,
-    leaf: false,
     proxyHost: 'localhost:3080',
-    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-    loggedInUser: {
-      activeRequestsList: [],
-      assumedRequests: {},
-      name: 'admin',
-      acl: {},
-      sshLoginsList: [],
-      rolesList: [],
-      requestableRolesList: [],
-      suggestedReviewersList: [],
-    },
-  };
-  const leafCluster: tsh.Cluster = {
+  });
+  const leafCluster = makeLeafCluster({
     uri: leafClusterUri,
     name: 'leaf',
-    connected: true,
-    leaf: true,
-    proxyHost: '',
-    authClusterId: '5408fc2f-a452-4bde-bda2-b3b918c635ad',
-    loggedInUser: {
-      activeRequestsList: [],
-      assumedRequests: {},
-      name: 'admin',
-      acl: {},
-      sshLoginsList: [],
-      rolesList: [],
-      requestableRolesList: [],
-      suggestedReviewersList: [],
-    },
-  };
+  });
   const appContext = new MockAppContext();
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(rootClusterUri, cluster);

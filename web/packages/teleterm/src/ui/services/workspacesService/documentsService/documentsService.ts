@@ -21,6 +21,7 @@ import {
   paths,
   routing,
   RootClusterUri,
+  KubeUri,
 } from 'teleterm/ui/uri';
 
 import {
@@ -31,8 +32,9 @@ import {
   Document,
   DocumentAccessRequests,
   DocumentCluster,
-  DocumentConnectMyComputerSetup,
+  DocumentConnectMyComputer,
   DocumentGateway,
+  DocumentGatewayKube,
   DocumentGatewayCliClient,
   DocumentOrigin,
   DocumentTshKube,
@@ -85,6 +87,10 @@ export class DocumentsService {
     };
   }
 
+  /**
+   * @deprecated Use createGatewayKubeDocument instead.
+   * DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+   */
   createTshKubeDocument(
     options: CreateTshKubeDocumentOptions
   ): DocumentTshKube {
@@ -188,19 +194,47 @@ export class DocumentsService {
     };
   }
 
-  createConnectMyComputerSetupDocument(opts: {
+  createGatewayKubeDocument({
+    targetUri,
+    origin,
+  }: {
+    targetUri: KubeUri;
+    origin: DocumentOrigin;
+  }): DocumentGatewayKube {
+    const uri = routing.getDocUri({ docId: unique() });
+    const { params } = routing.parseKubeUri(targetUri);
+
+    return {
+      uri,
+      kind: 'doc.gateway_kube',
+      rootClusterId: params.rootClusterId,
+      leafClusterId: params.leafClusterId,
+      targetUri,
+      title: `${params.kubeId}`,
+      origin,
+    };
+  }
+
+  openConnectMyComputerDocument(opts: {
     // URI of the root cluster could be passed to the `DocumentsService`
     // constructor and then to the document, instead of being taken from the parameter.
     // However, we decided not to do so because other documents are based only on the provided parameters.
     rootClusterUri: RootClusterUri;
-  }): DocumentConnectMyComputerSetup {
-    const uri = routing.getDocUri({ docId: unique() });
-    return {
-      uri,
-      kind: 'doc.connect_my_computer_setup',
+  }): void {
+    const existingDoc = this.findFirstOfKind('doc.connect_my_computer');
+    if (existingDoc) {
+      this.open(existingDoc.uri);
+      return;
+    }
+
+    const doc: DocumentConnectMyComputer = {
+      uri: routing.getDocUri({ docId: unique() }),
+      kind: 'doc.connect_my_computer' as const,
       title: 'Connect My Computer',
       rootClusterUri: opts.rootClusterUri,
     };
+    this.add(doc);
+    this.open(doc.uri);
   }
 
   openNewTerminal(opts: { rootClusterId: string; leafClusterId?: string }) {
@@ -234,6 +268,10 @@ export class DocumentsService {
 
   getDocument(uri: string) {
     return this.getState().documents.find(i => i.uri === uri);
+  }
+
+  findFirstOfKind(documentKind: Document['kind']): Document | undefined {
+    return this.getState().documents.find(d => d.kind === documentKind);
   }
 
   getActive() {
@@ -306,6 +344,18 @@ export class DocumentsService {
       const toUpdate = draft.documents.find(doc => doc.uri === uri);
       Object.assign(toUpdate, partialDoc);
     });
+  }
+
+  replace(uri: DocumentUri, document: Document): void {
+    const documentToCloseIndex = this.getDocuments().findIndex(
+      doc => doc.uri === uri
+    );
+    const documentToClose = this.getDocuments().at(documentToCloseIndex);
+    if (documentToClose) {
+      this.close(documentToClose.uri);
+    }
+    this.add(document, documentToClose ? documentToCloseIndex : undefined);
+    this.open(document.uri);
   }
 
   filter(uri: string) {

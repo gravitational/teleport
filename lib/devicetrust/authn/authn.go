@@ -18,10 +18,8 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
@@ -65,25 +63,9 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	case certs == nil:
 		return nil, trace.BadParameter("certs required")
 	}
-	// Start by checking the OSType, this lets us exit early with a nicer message
-	// for unsupported OSes.
-	osType := c.GetDeviceOSType()
-	if !slices.Contains([]devicepb.OSType{
-		devicepb.OSType_OS_TYPE_MACOS,
-		devicepb.OSType_OS_TYPE_WINDOWS,
-	}, osType) {
-		return nil, trace.BadParameter(
-			"device authentication not supported for current OS (%s)",
-			types.ResourceOSTypeToString(osType),
-		)
-	}
 
-	stream, err := devicesClient.AuthenticateDevice(ctx)
-	if err != nil {
-		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
-	}
-
-	// 1. Init.
+	// Fetch device data early, this automatically excludes unsupported platforms
+	// and unenrolled devices.
 	cred, err := c.GetDeviceCredential()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -92,6 +74,13 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	stream, err := devicesClient.AuthenticateDevice(ctx)
+	if err != nil {
+		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
+	}
+
+	// 1. Init.
 	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
 		Payload: &devicepb.AuthenticateDeviceRequest_Init{
 			Init: &devicepb.AuthenticateDeviceInit{
@@ -114,7 +103,7 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	// Unimplemented errors are not expected to happen after this point.
 
 	// 2. Challenge.
-	switch osType {
+	switch c.GetDeviceOSType() {
 	case devicepb.OSType_OS_TYPE_MACOS:
 		err = c.authenticateDeviceMacOS(stream, resp)
 		// err handled below
@@ -122,8 +111,9 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 		err = c.authenticateDeviceWindows(stream, resp)
 		// err handled below
 	default:
-		// This should be caught by the OSType guard at start of function.
-		panic("no authentication function provided for os")
+		// This should be caught by the c.GetDeviceCredential() and
+		// c.CollectDeviceData() calls above.
+		return nil, devicetrust.ErrPlatformNotSupported
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)

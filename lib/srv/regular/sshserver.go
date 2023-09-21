@@ -40,6 +40,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -183,6 +184,9 @@ type Server struct {
 	// wtmpPath is the path to the user accounting s.Logger.
 	wtmpPath string
 
+	// btmpPath is the path to the user accounting failed login log.
+	btmpPath string
+
 	// allowTCPForwarding indicates whether the ssh server is allowed to offer
 	// TCP port forwarding.
 	allowTCPForwarding bool
@@ -264,9 +268,9 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }
 
-// GetUtmpPath returns the optional override of the utmp and wtmp path.
-func (s *Server) GetUtmpPath() (string, string) {
-	return s.utmpPath, s.wtmpPath
+// GetUserAccountingPaths returns the optional override of the utmp, wtmp, and btmp paths.
+func (s *Server) GetUserAccountingPaths() (string, string, string) {
+	return s.utmpPath, s.wtmpPath, s.btmpPath
 }
 
 // GetPAM returns the PAM configuration for this server.
@@ -403,11 +407,12 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	s.srv.HandleConnection(conn)
 }
 
-// SetUtmpPath is a functional server option to override the user accounting database and log path.
-func SetUtmpPath(utmpPath, wtmpPath string) ServerOption {
+// SetUserAccountingPaths is a functional server option to override the user accounting database and log path.
+func SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath string) ServerOption {
 	return func(s *Server) error {
 		s.utmpPath = utmpPath
 		s.wtmpPath = wtmpPath
+		s.btmpPath = btmpPath
 		return nil
 	}
 }
@@ -854,7 +859,6 @@ func New(
 		sshutils.SetFIPS(s.fips),
 		sshutils.SetClock(s.clock),
 		sshutils.SetIngressReporter(s.ingressService, s.ingressReporter),
-		sshutils.SetCAGetter(s.caGetter),
 		sshutils.SetClusterName(clusterName.GetClusterName()),
 	)
 	if err != nil {
@@ -933,6 +937,12 @@ func (s *Server) Addr() string {
 	return s.srv.Addr()
 }
 
+// ActiveConnections returns the number of connections that are
+// being served.
+func (s *Server) ActiveConnections() int32 {
+	return s.srv.ActiveConnections()
+}
+
 // ID returns server ID
 func (s *Server) ID() string {
 	return s.uuid
@@ -993,11 +1003,20 @@ func (s *Server) getRole() types.SystemRole {
 // getStaticLabels gets the labels that the server should present as static,
 // which includes EC2 labels if available.
 func (s *Server) getStaticLabels() map[string]string {
-	if s.cloudLabels == nil {
-		return s.labels
+	labels := make(map[string]string, len(s.labels))
+	if s.cloudLabels != nil {
+		for k, v := range s.cloudLabels.Get() {
+			labels[k] = v
+		}
 	}
-	labels := s.cloudLabels.Get()
-	// Let static labels override ec2 labels if they conflict.
+	// Let labels sent over ics override labels from instance metadata.
+	if s.inventoryHandle != nil {
+		for k, v := range s.inventoryHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServerCloudLabels) {
+			labels[k] = v
+		}
+	}
+
+	// Let static labels override any other labels.
 	for k, v := range s.labels {
 		labels[k] = v
 	}

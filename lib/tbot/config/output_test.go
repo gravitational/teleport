@@ -24,14 +24,18 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
-type testCheckAndSetDefaultsCase[T Output] struct {
+type checkAndSetDefaulter interface {
+	CheckAndSetDefaults() error
+}
+
+type testCheckAndSetDefaultsCase[T checkAndSetDefaulter] struct {
 	name string
 	in   func() T
 
-	// want specifies the desired state of the Output after check and set
-	// defaults has been run. If want is nil, the Output is compared to its
-	// initial state.
-	want    Output
+	// want specifies the desired state of the checkAndSetDefaulter after
+	// check and set defaults has been run. If want is nil, the Output is
+	// compared to its initial state.
+	want    checkAndSetDefaulter
 	wantErr string
 }
 
@@ -39,7 +43,7 @@ func memoryDestForTest() bot.Destination {
 	return &DestinationMemory{store: map[string][]byte{}}
 }
 
-func testCheckAndSetDefaults[T Output](t *testing.T, tests []testCheckAndSetDefaultsCase[T]) {
+func testCheckAndSetDefaults[T checkAndSetDefaulter](t *testing.T, tests []testCheckAndSetDefaultsCase[T]) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.in()

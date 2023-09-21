@@ -72,7 +72,7 @@ windows_desktop_service:
   - win1.dev.example.com
   - win2.dev.example.com
   # (optional) non_ad_hosts is a list of hostnames that are not part of an
-  # Active Diretory domain to register as WindowsDesktop objects in Teleport.
+  # Active Directory domain that you want to register as WindowsDesktop objects in Teleport.
   # These hosts require the Teleport CA certificate and service, as described in
   # https://goteleport.com/docs/desktop-access/getting-started/
   non_ad_hosts:

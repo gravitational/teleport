@@ -44,6 +44,8 @@ const cfg = {
   recoveryCodesEnabled: false,
   // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
   isUsageBasedBilling: false,
+  hideInaccessibleFeatures: false,
+  customTheme: '',
 
   configDir: '$HOME/.config',
 
@@ -80,6 +82,7 @@ const cfg = {
   routes: {
     root: '/web',
     discover: '/web/discover',
+    accessRequest: '/web/accessrequest',
     assistBase: '/web/assist/',
     assist: '/web/assist/:conversationId?',
     apps: '/web/cluster/:clusterId/apps',
@@ -90,11 +93,13 @@ const cfg = {
     accountPassword: '/web/account/password',
     accountMfaDevices: '/web/account/twofactor',
     roles: '/web/roles',
+    deviceTrust: `/web/devices`,
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
+    unifiedResources: '/web/cluster/:clusterId/resources',
     nodes: '/web/cluster/:clusterId/nodes',
     sessions: '/web/cluster/:clusterId/sessions',
     recordings: '/web/cluster/:clusterId/recordings',
@@ -123,6 +128,7 @@ const cfg = {
     integrationEnroll: '/web/integrations/new/:type?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
+    requests: '/web/requests/:requestId?',
 
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
@@ -151,8 +157,11 @@ const cfg = {
     userStatusPath: '/v1/webapi/user/status',
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
+    unifiedResourcesPath:
+      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+    nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
 
     databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
     databaseIamPolicyPath: `/v1/webapi/sites/:clusterId/databases/:database/iam/policy`,
@@ -232,6 +241,18 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployservice',
+    awsSecurityGroupsListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/securitygroups',
+
+    ec2InstancesListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2',
+    ec2InstanceConnectEndpointsListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2ice',
+    // Returns a script that configures the required IAM permissions to enable the usage of EC2 Instance Connect Endpoint to access EC2 instances.
+    ec2InstanceConnectIAMConfigureScriptPath:
+      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:awsOidcRoleArn',
+    ec2InstanceConnectDeployPath:
+      '/v1/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice',
 
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -247,6 +268,9 @@ const cfg = {
     assistExecuteCommandWebSocketPath:
       'wss://:hostname/v1/webapi/command/:clusterId/execute',
     userPreferencesPath: '/v1/webapi/user/preferences',
+
+    // Assist needs some access request info to exist in OSS
+    accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -332,6 +356,10 @@ const cfg = {
 
   getNodesRoute(clusterId: string) {
     return generatePath(cfg.routes.nodes, { clusterId });
+  },
+
+  getUnifiedResourcesRoute(clusterId: string) {
+    return generatePath(cfg.routes.unifiedResources, { clusterId });
   },
 
   getDatabasesRoute(clusterId: string) {
@@ -522,11 +550,22 @@ const cfg = {
     return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
   },
 
-  getClusterNodesUrl(clusterId: string, params: UrlResourcesParams) {
+  getUnifiedResourcesUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.unifiedResourcesPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getClusterNodesUrl(clusterId: string, params?: UrlResourcesParams) {
     return generateResourcePath(cfg.api.nodesPath, {
       clusterId,
       ...params,
     });
+  },
+
+  getClusterNodesUrlNoParams(clusterId: string) {
+    return generatePath(cfg.api.nodesPathNoParams, { clusterId });
   },
 
   getDatabaseServicesUrl(clusterId: string) {
@@ -731,6 +770,25 @@ const cfg = {
     );
   },
 
+  getAssistActionWebSocketUrl(
+    hostname: string,
+    clusterId: string,
+    accessToken: string,
+    action: string
+  ) {
+    const searchParams = new URLSearchParams();
+
+    searchParams.set('access_token', accessToken);
+    searchParams.set('action', action);
+
+    return (
+      generatePath(cfg.api.assistConversationWebSocketPath, {
+        hostname,
+        clusterId,
+      }) + `?${searchParams.toString()}`
+    );
+  },
+
   getAssistConversationHistoryUrl(conversationId: string) {
     return generatePath(cfg.api.assistConversationHistoryPath, {
       conversationId,
@@ -758,6 +816,61 @@ const cfg = {
 
   getAssistConversationUrl(conversationId: string) {
     return generatePath(cfg.routes.assist, { conversationId });
+  },
+
+  getAccessRequestUrl(requestId?: string) {
+    return generatePath(cfg.api.accessRequestPath, { requestId });
+  },
+
+  getAccessRequestRoute(requestId?: string) {
+    return generatePath(cfg.routes.requests, { requestId });
+  },
+
+  getListEc2InstancesUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.ec2InstancesListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getListEc2InstanceConnectEndpointsUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.ec2InstanceConnectEndpointsListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getDeployEc2InstanceConnectEndpointUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.ec2InstanceConnectDeployPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getListSecurityGroupsUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsSecurityGroupsListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getEc2InstanceConnectIAMConfigureScriptUrl(
+    params: UrlEc2InstanceIamConfigureScriptParams
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.ec2InstanceConnectIAMConfigureScriptPath, {
+        ...params,
+      })
+    );
   },
 
   init(backendConfig = {}) {
@@ -844,6 +957,8 @@ export interface UrlResourcesParams {
   limit?: number;
   startKey?: string;
   searchAsRoles?: 'yes' | '';
+  // TODO(bl-nero): Remove this once filters are expressed as advanced search.
+  kinds?: string[];
 }
 
 export interface UrlIntegrationExecuteRequestParams {
@@ -859,6 +974,11 @@ export interface UrlDeployServiceIamConfigureScriptParams {
   region: Regions;
   awsOidcRoleArn: string;
   taskRoleArn: string;
+}
+
+export interface UrlEc2InstanceIamConfigureScriptParams {
+  region: Regions;
+  awsOidcRoleArn: string;
 }
 
 export default cfg;

@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -169,6 +170,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindKubernetesCluster, RW()),
 				types.NewRule(types.KindSessionTracker, RO()),
 				types.NewRule(types.KindUserGroup, RW()),
+				types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{
@@ -1191,17 +1193,6 @@ func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
 }
 
 func (set RoleSet) getMFARequired(clusterRequireMFAType types.RequireMFAType) MFARequired {
-	// per-session MFA is overridden by hardware key PIV touch requirement.
-	// check if the auth pref or any roles have this option.
-	if clusterRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-		return MFARequiredNever
-	}
-	for _, role := range set {
-		if role.GetOptions().RequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-			return MFARequiredNever
-		}
-	}
-
 	// MFA is always required according to the cluster auth pref.
 	if clusterRequireMFAType.IsSessionMFARequired() {
 		return MFARequiredAlways
@@ -1974,6 +1965,13 @@ func matchDenyRoleImpersonateCondition(cond types.ImpersonateConditions, imperso
 	return false, nil
 }
 
+// RoleMatcherFunc is a convenience type for creating a role matcher from a function.
+type RoleMatcherFunc func(types.Role, types.RoleConditionType) (bool, error)
+
+func (f RoleMatcherFunc) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	return f(role, condition)
+}
+
 // RoleMatcher defines an interface for a generic role matcher.
 type RoleMatcher interface {
 	Match(types.Role, types.RoleConditionType) (bool, error)
@@ -2183,10 +2181,17 @@ func NewKubeResourcesMatcher(resources []types.KubernetesResource) *KubeResource
 		resources:     resources,
 		unmatchedReqs: map[string]struct{}{},
 	}
-	for _, name := range resources {
-		matcher.unmatchedReqs[name.ClusterResource()] = struct{}{}
+	for _, r := range resources {
+		matcher.unmatchedReqs[unmatchedKey(r)] = struct{}{}
 	}
 	return matcher
+}
+
+// unmatchedKey returns a unique key for a Kubernetes resource.
+// It is used to keep track of the resources that did not match any of user's roles.
+// Format: <kind>/<namespace>/<name>
+func unmatchedKey(r types.KubernetesResource) string {
+	return path.Join(r.Kind, r.ClusterResource())
 }
 
 // KubeResourcesMatcher matches a role against any Kubernetes Resource specified.
@@ -2214,7 +2219,7 @@ func (m *KubeResourcesMatcher) Match(role types.Role, condition types.RoleCondit
 		}
 
 		if result {
-			delete(m.unmatchedReqs, resource.ClusterResource())
+			delete(m.unmatchedReqs, unmatchedKey(resource))
 			finalResult = true
 		}
 	}

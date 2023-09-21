@@ -17,6 +17,7 @@ package proxy
 import (
 	"context"
 	"encoding/base64"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -45,12 +47,35 @@ type kubeDetails struct {
 	dynamicLabels *labels.Dynamic
 	// kubeCluster is the dynamic kube_cluster or a static generated from kubeconfig and that only has the name populated.
 	kubeCluster types.KubeCluster
+
+	// rwMu is the mutex to protect the kubeCodecs and rbacSupportedTypes.
+	rwMu sync.RWMutex
+	// kubeCodecs is the codec factory for the cluster resources.
+	// The codec factory includes the default resources and the namespaced resources
+	// that are supported by the cluster.
+	// The codec factory is updated periodically to include the latest custom resources
+	// that are added to the cluster.
+	kubeCodecs serializer.CodecFactory
+	// rbacSupportedTypes is the list of supported types for RBAC for the cluster.
+	// The list is updated periodically to include the latest custom resources
+	// that are added to the cluster.
+	rbacSupportedTypes rbacSupportedResources
+	// isClusterOffline is true if the cluster is offline.
+	// An offline cluster will not be able to serve any requests until it comes back online.
+	// The cluster is marked as offline if the cluster schema cannot be created
+	// and the list of supported types for RBAC cannot be generated.
+	isClusterOffline bool
+
+	cancelFunc context.CancelFunc
+	wg         sync.WaitGroup
 }
 
 // clusterDetailsConfig contains the configuration for creating a proxied cluster.
 type clusterDetailsConfig struct {
 	// cloudClients is the cloud clients to use for dynamic clusters.
 	cloudClients cloud.Clients
+	// kubeCreds is the credentials to use for the cluster.
+	kubeCreds kubeCreds
 	// cluster is the cluster to create a proxied cluster for.
 	cluster types.KubeCluster
 	// log is the logger to use.
@@ -60,17 +85,23 @@ type clusterDetailsConfig struct {
 	// resourceMatchers is the list of resource matchers to match the cluster against
 	// to determine if we should assume the role or not for AWS.
 	resourceMatchers []services.ResourceMatcher
+	// clock is the clock to use.
+	clock clockwork.Clock
+	// component is the Kubernetes component that serves this cluster.
+	component KubeServiceType
 }
 
 // newClusterDetails creates a proxied kubeDetails structure given a dynamic cluster.
-func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (*kubeDetails, error) {
-	var dynLabels *labels.Dynamic
-
-	creds, err := getKubeClusterCredentials(ctx, cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDetails, err error) {
+	creds := cfg.kubeCreds
+	if creds == nil {
+		creds, err = getKubeClusterCredentials(ctx, cfg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
+	var dynLabels *labels.Dynamic
 	if len(cfg.cluster.GetDynamicLabels()) > 0 {
 		dynLabels, err = labels.NewDynamic(
 			ctx,
@@ -84,15 +115,61 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (*kubeDeta
 		dynLabels.Sync()
 		go dynLabels.Start()
 	}
+	var isClusterOffline bool
+	// Create the codec factory and the list of supported types for RBAC.
+	codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(creds.getKubeClient())
+	if err != nil {
+		cfg.log.WithError(err).Warn("Failed to create cluster schema. Possibly the cluster is offline.")
+		// If the cluster is offline, we will not be able to create the codec factory
+		// and the list of supported types for RBAC.
+		// We mark the cluster as offline and continue to create the kubeDetails but
+		// the offline cluster will not be able to serve any requests until it comes back online.
+		isClusterOffline = true
+	}
 
-	return &kubeDetails{
-		kubeCreds:     creds,
-		dynamicLabels: dynLabels,
-		kubeCluster:   cfg.cluster,
-	}, nil
+	ctx, cancel := context.WithCancel(ctx)
+	k := &kubeDetails{
+		kubeCreds:          creds,
+		dynamicLabels:      dynLabels,
+		kubeCluster:        cfg.cluster,
+		kubeCodecs:         codecFactory,
+		rbacSupportedTypes: rbacSupportedTypes,
+		cancelFunc:         cancel,
+		isClusterOffline:   isClusterOffline,
+	}
+
+	k.wg.Add(1)
+	// Start the periodic update of the codec factory and the list of supported types for RBAC.
+	go func() {
+		defer k.wg.Done()
+		ticker := cfg.clock.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.Chan():
+				codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(creds.getKubeClient())
+				if err != nil {
+					cfg.log.WithError(err).Error("Failed to update cluster schema")
+					continue
+				}
+
+				k.rwMu.Lock()
+				k.kubeCodecs = codecFactory
+				k.rbacSupportedTypes = rbacSupportedTypes
+				k.isClusterOffline = false
+				k.rwMu.Unlock()
+			}
+		}
+	}()
+	return k, nil
 }
 
 func (k *kubeDetails) Close() {
+	// send a close signal and wait for the close to finish.
+	k.cancelFunc()
+	k.wg.Wait()
 	if k.dynamicLabels != nil {
 		k.dynamicLabels.Close()
 	}
@@ -100,12 +177,24 @@ func (k *kubeDetails) Close() {
 	k.kubeCreds.close()
 }
 
+// getClusterSupportedResources returns the codec factory and the list of supported types for RBAC.
+func (k *kubeDetails) getClusterSupportedResources() (*serializer.CodecFactory, rbacSupportedResources, error) {
+	k.rwMu.RLock()
+	defer k.rwMu.RUnlock()
+	// If the cluster is offline, return an error because we don't have the schema
+	// for the cluster.
+	if k.isClusterOffline {
+		return nil, nil, trace.ConnectionProblem(nil, "kubernetes cluster %q is offline", k.kubeCluster.GetName())
+	}
+	return &(k.kubeCodecs), k.rbacSupportedTypes, nil
+}
+
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.
 func getKubeClusterCredentials(ctx context.Context, cfg clusterDetailsConfig) (kubeCreds, error) {
-	dynCredsCfg := dynamicCredsConfig{kubeCluster: cfg.cluster, log: cfg.log, checker: cfg.checker, resourceMatchers: cfg.resourceMatchers}
+	dynCredsCfg := dynamicCredsConfig{kubeCluster: cfg.cluster, log: cfg.log, checker: cfg.checker, resourceMatchers: cfg.resourceMatchers, clock: cfg.clock, component: cfg.component}
 	switch {
 	case cfg.cluster.IsKubeconfig():
-		return getStaticCredentialsFromKubeconfig(ctx, cfg.cluster, cfg.log, cfg.checker)
+		return getStaticCredentialsFromKubeconfig(ctx, cfg.component, cfg.cluster, cfg.log, cfg.checker)
 	case cfg.cluster.IsAzure():
 		return getAzureCredentials(ctx, cfg.cloudClients, dynCredsCfg)
 	case cfg.cluster.IsAWS():
@@ -258,7 +347,7 @@ func genAWSToken(stsClient stsiface.STSAPI, clusterID string, clock clockwork.Cl
 
 // getStaticCredentialsFromKubeconfig loads a kubeconfig from the cluster and returns the access credentials for the cluster.
 // If the config defines multiple contexts, it will pick one (the order is not guaranteed).
-func getStaticCredentialsFromKubeconfig(ctx context.Context, cluster types.KubeCluster, log *logrus.Entry, checker servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
+func getStaticCredentialsFromKubeconfig(ctx context.Context, component KubeServiceType, cluster types.KubeCluster, log *logrus.Entry, checker servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
 	config, err := clientcmd.Load(cluster.GetKubeconfig())
 	if err != nil {
 		return nil, trace.WrapWithMessage(err, "unable to parse kubeconfig for cluster %q", cluster.GetName())
@@ -275,7 +364,7 @@ func getStaticCredentialsFromKubeconfig(ctx context.Context, cluster types.KubeC
 		return nil, trace.WrapWithMessage(err, "unable to create client from kubeconfig for cluster %q", cluster.GetName())
 	}
 
-	creds, err := extractKubeCreds(ctx, cluster.GetName(), restConfig, log, checker)
+	creds, err := extractKubeCreds(ctx, component, cluster.GetName(), restConfig, log, checker)
 	return creds, trace.Wrap(err)
 }
 

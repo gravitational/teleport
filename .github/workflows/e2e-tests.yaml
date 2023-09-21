@@ -1,0 +1,62 @@
+name: E2E Tests
+run-name: E2E Tests
+on:
+  # Only allow manual triggers
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build binaries
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport14
+      env:
+        GOCACHE: /tmp/gocache
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Run make
+        run: |
+          make binaries
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v3
+        with:
+          name: build
+          path: ${{ github.workspace }}/build/
+          retention-days: 1
+
+  test:
+    name: E2E Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@master
+        with:
+          name: build
+          path: ${{ github.workspace }}/build/
+
+      - name: Chmod binaries
+        run: |
+          chmod +x build/teleport
+          chmod +x build/tctl
+          chmod +x build/tsh
+
+      - name: Build Images
+        run: |
+          make -C e2e build
+      - name: Run Tests
+        run: |
+          make test-e2e

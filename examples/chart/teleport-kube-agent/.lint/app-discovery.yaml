@@ -1,0 +1,4 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: kube,app,discovery
+kubeClusterName: test-kube-cluster

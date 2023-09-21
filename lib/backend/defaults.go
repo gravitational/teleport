@@ -22,10 +22,12 @@ const (
 	// DefaultBufferCapacity is a default circular buffer size
 	// used by backends to fan out events
 	DefaultBufferCapacity = 1024
-	// DefaultBacklogGracePeriod is the default amount of time
-	// that the circular buffer will tolerate an event backlog
-	// in one of its watchers.
-	DefaultBacklogGracePeriod = time.Second * 30
+	// DefaultBacklogGracePeriod is the default amount of time that the circular buffer
+	// will tolerate an event backlog in one of its watchers. Value was selected to be
+	// just under 1m since 1m is typically the highest rate that high volume events
+	// (e.g. heartbeats) are be created. If a watcher can't catch up in under a minute,
+	// it probably won't catch up.
+	DefaultBacklogGracePeriod = time.Second * 59
 	// DefaultPollStreamPeriod is a default event poll stream period
 	DefaultPollStreamPeriod = time.Second
 	// DefaultEventsTTL is a default events TTL period

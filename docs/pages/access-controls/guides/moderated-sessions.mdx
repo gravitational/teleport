@@ -33,7 +33,7 @@ Moderated Sessions are useful in the following scenarios:
 Moderated Sessions makes use of RBAC policies to allow for fine grained control
 over who can join a session and who is required to be present to start one.
 
-The system is based around **require policies** and **allow policies**. 
+The system is based around **require policies** and **allow policies**.
 
 Require policies define a set of conditions that must be a met for a session to
 start or run. A minimum of one policy from each relevant role the user has must
@@ -79,7 +79,7 @@ until the policy is fulfilled.
 kind: role
 metadata:
   name: prod-access
-version: v6
+version: v7
 spec:
   allow:
     require_session_join:
@@ -100,9 +100,10 @@ spec:
     kubernetes_users:
     - USER
     kubernetes_resources:
-    - kind: pod
+    - kind: '*'
       name: '*'
       namespace: '*'
+      verbs: ['*']
 ```
 
 #### Combining Policies
@@ -137,7 +138,7 @@ as a moderator or observer.
 kind: role
 metadata:
   name: auditor
-version: v6
+version: v7
 spec:
   allow:
     join_sessions:
@@ -165,7 +166,7 @@ Teleport > Waiting for required participants...
 Jeff's session is paused, waiting for the required observers.
 
 Now Alice with the `auditor` role joins as a moderator and
-the session can begin. 
+the session can begin.
 
 ```code
 $ tsh join --mode=moderator 46e2af03-62d6-4e07-a886-43fe741ca044
@@ -178,7 +179,7 @@ Teleport > Waiting for required participants...
 Teleport > User alice joined the session.
 Teleport > Connecting to prod.teleport.example.com over SSH
 
-ubuntu@prod.teleport.example.com % 
+ubuntu@prod.teleport.example.com %
 ```
 
 Here is an example of joining from the UI that is available for server sessions.
@@ -249,8 +250,8 @@ this policy requires.
 The `on_leave` string option in require policies is used to define what happens when a moderator leaves a session, causing a policy to no longer be satisfied.
 
 There are two possible actions to take in this scenario:
-1. Terminate the session and disconnect all participants, corresponding to the `"terminate"` value.
-2. Pause the session and stop any input/output streaming until the policy is satisfied again, corresponding to the `"pause"` value.
+- Terminate the session and disconnect all participants, corresponding to the `"terminate"` value.
+- Pause the session and stop any input/output streaming until the policy is satisfied again, corresponding to the `"pause"` value.
 
 By default, Teleport treats an empty string in this field as the same as `terminate`.
 That is, the session is terminated instantly and all participants are disconnected.

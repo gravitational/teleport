@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"net"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -29,11 +28,15 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
@@ -49,9 +52,7 @@ type suite struct {
 }
 
 func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
-	sshListenAddr := localListenerAddr()
-	_, sshListenPort, err := net.SplitHostPort(sshListenAddr)
-	require.NoError(t, err)
+	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Version: "v2",
 		Global: config.Global{
@@ -61,42 +62,45 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		SSH: config.SSH{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: localListenerAddr(),
+				ListenAddress: dynAddr.NodeSSHAddr,
 			},
 		},
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: sshListenAddr,
+				ListenAddress: dynAddr.ProxySSHAddr,
 			},
-			SSHPublicAddr: []string{net.JoinHostPort("localhost", sshListenPort)},
-			WebAddr:       localListenerAddr(),
-			TunAddr:       localListenerAddr(),
+			SSHPublicAddr: []string{dynAddr.ProxySSHAddr},
+			WebAddr:       dynAddr.WebAddr,
+			TunAddr:       dynAddr.TunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: localListenerAddr(),
+				ListenAddress: dynAddr.AuthAddr,
 			},
-			ClusterName: "root",
+			ClusterName:      "root",
+			SessionRecording: "node-sync",
 		},
 	}
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Log = utils.NewLoggerForTests()
-	err = config.ApplyFileConfig(fileConfig, cfg)
+	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
+	cfg.FileDescriptors = dynAddr.Descriptors
 
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
-			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleNode, types.RoleTrustedCluster},
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},
 	})
 	require.NoError(t, err)
+	cfg.SetToken(staticToken)
 
 	user, err := user.Current()
 	require.NoError(t, err)
@@ -134,13 +138,10 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	s.root = runTeleport(t, cfg)
-	t.Cleanup(func() { require.NoError(t, s.root.Close()) })
 }
 
 func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
-	sshListenAddr := localListenerAddr()
-	_, sshListenPort, err := net.SplitHostPort(sshListenAddr)
-	require.NoError(t, err)
+	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Version: "v2",
 		Global: config.Global{
@@ -150,17 +151,17 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		SSH: config.SSH{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: localListenerAddr(),
+				ListenAddress: dynAddr.NodeSSHAddr,
 			},
 		},
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: sshListenAddr,
+				ListenAddress: dynAddr.ProxySSHAddr,
 			},
-			SSHPublicAddr: []string{net.JoinHostPort("localhost", sshListenPort)},
-			WebAddr:       localListenerAddr(),
-			TunAddr:       localListenerAddr(),
+			SSHPublicAddr: []string{dynAddr.ProxySSHAddr},
+			WebAddr:       dynAddr.WebAddr,
+			TunAddr:       dynAddr.TunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
@@ -169,19 +170,30 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 			},
 			ClusterName:       "leaf1",
 			ProxyListenerMode: types.ProxyListenerMode_Multiplex,
+			SessionRecording:  "node-sync",
 		},
 	}
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Log = utils.NewLoggerForTests()
-	err = config.ApplyFileConfig(fileConfig, cfg)
+	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
+	cfg.FileDescriptors = dynAddr.Descriptors
 
 	user, err := user.Current()
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
+	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
+			Expires: time.Now().Add(time.Minute),
+			Token:   staticToken,
+		}},
+	})
+	require.NoError(t, err)
+	cfg.SetToken(staticToken)
 	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
@@ -192,11 +204,16 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	})
 	require.NoError(t, err)
 
+	tunnelAddr := s.root.Config.Proxy.WebAddr.String()
+	if s.root.Config.Auth.NetworkingConfig.GetProxyListenerMode() != types.ProxyListenerMode_Multiplex {
+		tunnelAddr = s.root.Config.Proxy.ReverseTunnelListenAddr.String()
+	}
+
 	tc, err := types.NewTrustedCluster("root-cluster", types.TrustedClusterSpecV2{
 		Enabled:              true,
 		Token:                staticToken,
 		ProxyAddress:         s.root.Config.Proxy.WebAddr.String(),
-		ReverseTunnelAddress: s.root.Config.Proxy.WebAddr.String(),
+		ReverseTunnelAddress: tunnelAddr,
 		RoleMap: []types.RoleMapping{
 			{
 				Remote: "access",
@@ -259,19 +276,11 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 
 	if options.leafCluster || options.leafConfigFunc != nil {
 		s.setupLeafCluster(t, options)
-		// Wait for root/leaf to find each other.
-		if s.root.Config.Auth.NetworkingConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
-			require.Eventually(t, func() bool {
-				rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
-				require.NoError(t, err)
-				return len(rt) == 1
-			}, time.Second*10, time.Second)
-		} else {
-			require.Eventually(t, func() bool {
-				_, err := s.leaf.GetAuthServer().GetReverseTunnel(s.root.Config.Auth.ClusterName.GetClusterName())
-				return err == nil
-			}, time.Second*10, time.Second)
-		}
+		require.Eventually(t, func() bool {
+			rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
+			require.NoError(t, err)
+			return len(rt) == 1
+		}, time.Second*10, time.Second)
 	}
 
 	if options.validationFunc != nil {
@@ -406,4 +415,60 @@ func mustCloneTempDir(t *testing.T, srcDir string) string {
 	})
 	require.NoError(t, err)
 	return dstDir
+}
+
+func mustMakeDynamicKubeCluster(t *testing.T, name, discoveredName string, labels map[string]string) types.KubeCluster {
+	t.Helper()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[types.OriginLabel] = types.OriginDynamic
+	if discoveredName != "" {
+		// setup a fake "discovered" kube cluster by adding a discovered name label
+		labels[types.DiscoveredNameLabel] = discoveredName
+		labels[types.OriginLabel] = types.OriginCloud
+	}
+	kc, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.KubernetesClusterSpecV3{
+			Kubeconfig: newKubeConfig(t, name),
+		},
+	)
+	require.NoError(t, err)
+	return kc
+}
+
+func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.Server, clusters ...types.KubeCluster) {
+	t.Helper()
+	if len(clusters) == 0 {
+		return
+	}
+
+	wg, _ := errgroup.WithContext(ctx)
+	wantNames := make([]string, 0, len(clusters))
+	for _, kc := range clusters {
+		kc := kc
+		wg.Go(func() error {
+			err := authSrv.CreateKubernetesCluster(ctx, kc)
+			return trace.Wrap(err)
+		})
+		wantNames = append(wantNames, kc.GetName())
+	}
+	require.NoError(t, wg.Wait())
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		servers, err := authSrv.GetKubernetesServers(ctx)
+		assert.NoError(c, err)
+		gotNames := map[string]struct{}{}
+		for _, ks := range servers {
+			gotNames[ks.GetName()] = struct{}{}
+		}
+		for _, name := range wantNames {
+			assert.Contains(c, gotNames, name, "missing kube cluster")
+		}
+	}, time.Second*10, time.Millisecond*500, "dynamically created kube clusters failed to register")
+
 }

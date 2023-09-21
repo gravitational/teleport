@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 )
@@ -76,7 +76,7 @@ func (h *Handler) putHeadlessState(_ http.ResponseWriter, r *http.Request, param
 		action = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 		resp = &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wanlib.CredentialAssertionResponseToProto(req.WebauthnAssertionResponse),
+				Webauthn: wantypes.CredentialAssertionResponseToProto(req.WebauthnAssertionResponse),
 			},
 		}
 	case "denied":

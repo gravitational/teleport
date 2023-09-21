@@ -36,6 +36,16 @@ type NodesGetter interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 }
 
+// DatabaseServersGetter is a service that gets database servers.
+type DatabaseServersGetter interface {
+	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]types.DatabaseServer, error)
+}
+
+// AppServersGetter is a service that gets application servers.
+type AppServersGetter interface {
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+}
+
 // NodesStreamGetter is a service that gets nodes.
 type NodesStreamGetter interface {
 	// GetNodeStream returns a list of registered servers.
@@ -57,9 +67,6 @@ type Presence interface {
 
 	// NodesGetter gets nodes
 	NodesGetter
-
-	// NodesStreamGetter gets nodes as a stream
-	NodesStreamGetter
 
 	// DeleteAllNodes deletes all nodes in a namespace.
 	DeleteAllNodes(ctx context.Context, namespace string) error

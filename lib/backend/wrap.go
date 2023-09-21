@@ -42,6 +42,10 @@ func NewWrapper(backend Backend) *Wrapper {
 	}
 }
 
+func (s *Wrapper) GetName() string {
+	return s.backend.GetName()
+}
+
 // GetReadError returns error to be returned by
 // read backend operations
 func (s *Wrapper) GetReadError() error {

@@ -95,6 +95,8 @@ type GCPClients interface {
 	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
 	// GetGCPGKEClient returns GKE client.
 	GetGCPGKEClient(context.Context) (gcp.GKEClient, error)
+	// GetGCPInstancesClient returns instances client.
+	GetGCPInstancesClient(context.Context) (gcp.InstancesClient, error)
 }
 
 // AWSClients is an interface for providing AWS API clients.
@@ -161,6 +163,73 @@ type AzureClients interface {
 	GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error)
 }
 
+type clientConstructor[T any] func(context.Context) (T, error)
+
+// clientCache is a struct that holds a cloud client that will only be
+// initialized once.
+type clientCache[T any] struct {
+	makeClient clientConstructor[T]
+	client     T
+	err        error
+	once       sync.Once
+}
+
+// newClientCache creates a new client cache.
+func newClientCache[T any](makeClient clientConstructor[T]) *clientCache[T] {
+	return &clientCache[T]{makeClient: makeClient}
+}
+
+// GetClient gets the client, initializing it if necessary.
+func (c *clientCache[T]) GetClient(ctx context.Context) (T, error) {
+	c.once.Do(func() {
+		c.client, c.err = c.makeClient(ctx)
+	})
+	return c.client, trace.Wrap(c.err)
+}
+
+func newAzureClients() (*azureClients, error) {
+	azClients := &azureClients{
+		azureMySQLClients:     make(map[string]azure.DBServersClient),
+		azurePostgresClients:  make(map[string]azure.DBServersClient),
+		azureKubernetesClient: make(map[string]azure.AKSClient),
+	}
+	var err error
+	azClients.azureRedisClients, err = azure.NewClientMap(azure.NewRedisClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients.azureRedisEnterpriseClients, err = azure.NewClientMap(azure.NewRedisEnterpriseClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients.azureVirtualMachinesClients, err = azure.NewClientMap(azure.NewVirtualMachinesClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients.azureSQLServerClients, err = azure.NewClientMap(azure.NewSQLClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients.azureManagedSQLServerClients, err = azure.NewClientMap(azure.NewManagedSQLClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients.azureMySQLFlexServersClients, err = azure.NewClientMap(azure.NewMySQLFlexServersClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients.azurePostgresFlexServersClients, err = azure.NewClientMap(azure.NewPostgresFlexServersClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients.azureRunCommandClients, err = azure.NewClientMap(azure.NewRunCommandClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return azClients, nil
+}
+
 // NewClients returns a new instance of cloud clients retriever.
 func NewClients() (Clients, error) {
 	awsSessionsCache, err := utils.NewFnCache(utils.FnCacheConfig{
@@ -169,21 +238,18 @@ func NewClients() (Clients, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	azClients, err := newAzureClients()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &cloudClients{
 		awsSessionsCache: awsSessionsCache,
-		azureClients: azureClients{
-			azureMySQLClients:               make(map[string]azure.DBServersClient),
-			azurePostgresClients:            make(map[string]azure.DBServersClient),
-			azureRedisClients:               azure.NewClientMap(azure.NewRedisClient),
-			azureRedisEnterpriseClients:     azure.NewClientMap(azure.NewRedisEnterpriseClient),
-			azureKubernetesClient:           make(map[string]azure.AKSClient),
-			azureVirtualMachinesClients:     azure.NewClientMap(azure.NewVirtualMachinesClient),
-			azureSQLServerClients:           azure.NewClientMap(azure.NewSQLClient),
-			azureManagedSQLServerClients:    azure.NewClientMap(azure.NewManagedSQLClient),
-			azureMySQLFlexServersClients:    azure.NewClientMap(azure.NewMySQLFlexServersClient),
-			azurePostgresFlexServersClients: azure.NewClientMap(azure.NewPostgresFlexServersClient),
-			azureRunCommandClients:          azure.NewClientMap(azure.NewRunCommandClient),
+		gcpClients: gcpClients{
+			gcpSQLAdmin:  newClientCache[gcp.SQLAdminClient](gcp.NewSQLAdminClient),
+			gcpGKE:       newClientCache[gcp.GKEClient](gcp.NewGKEClient),
+			gcpInstances: newClientCache[gcp.InstancesClient](gcp.NewInstancesClient),
 		},
+		azureClients: azClients,
 	}, nil
 }
 
@@ -194,18 +260,26 @@ type cloudClients struct {
 	// awsSessionsCache is a cache of AWS sessions, where the cache key is
 	// either "<region>" or "Region[<region>]:RoleARN[<arn>]:ExternalID[<id>]".
 	awsSessionsCache *utils.FnCache
+	// instanceMetadata is the cached instance metadata client.
+	instanceMetadata InstanceMetadata
+	// gcpClients contains GCP-specific clients.
+	gcpClients
+	// azureClients contains Azure-specific clients.
+	*azureClients
+	// mtx is used for locking.
+	mtx sync.RWMutex
+}
+
+// gcpClients contains GCP-specific clients.
+type gcpClients struct {
 	// gcpIAM is the cached GCP IAM client.
 	gcpIAM *gcpcredentials.IamCredentialsClient
 	// gcpSQLAdmin is the cached GCP Cloud SQL Admin client.
-	gcpSQLAdmin gcp.SQLAdminClient
-	// instanceMetadata is the cached instance metadata client.
-	instanceMetadata InstanceMetadata
+	gcpSQLAdmin *clientCache[gcp.SQLAdminClient]
 	// gcpGKE is the cached GCP Cloud GKE client.
-	gcpGKE gcp.GKEClient
-	// azureClients contains Azure-specific clients.
-	azureClients
-	// mtx is used for locking.
-	mtx sync.RWMutex
+	gcpGKE *clientCache[gcp.GKEClient]
+	// gcpInstances is the cached GCP instances client.
+	gcpInstances *clientCache[gcp.InstancesClient]
 }
 
 // azureClients contains Azure-specific clients.
@@ -422,13 +496,7 @@ func (c *cloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.Iam
 
 // GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
 func (c *cloudClients) GetGCPSQLAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
-	c.mtx.RLock()
-	if c.gcpSQLAdmin != nil {
-		defer c.mtx.RUnlock()
-		return c.gcpSQLAdmin, nil
-	}
-	c.mtx.RUnlock()
-	return c.initGCPSQLAdminClient(ctx)
+	return c.gcpSQLAdmin.GetClient(ctx)
 }
 
 // GetInstanceMetadata returns the instance metadata.
@@ -444,13 +512,12 @@ func (c *cloudClients) GetInstanceMetadataClient(ctx context.Context) (InstanceM
 
 // GetGCPGKEClient returns GKE client.
 func (c *cloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
-	c.mtx.RLock()
-	if c.gcpGKE != nil {
-		defer c.mtx.RUnlock()
-		return c.gcpGKE, nil
-	}
-	c.mtx.RUnlock()
-	return c.initGCPGKEClient(ctx)
+	return c.gcpGKE.GetClient(ctx)
+}
+
+// GetGCPInstancesClient returns instances client.
+func (c *cloudClients) GetGCPInstancesClient(ctx context.Context) (gcp.InstancesClient, error) {
+	return c.gcpInstances.GetClient(ctx)
 }
 
 // GetAzureCredential returns default Azure token credential chain.
@@ -578,10 +645,10 @@ func (c *cloudClients) getAWSSessionForRegion(region string) (*awssession.Sessio
 
 // getAWSSessionForRole returns AWS session for the specified region and role.
 func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, options awsAssumeRoleOpts) (*awssession.Session, error) {
-	assumeRoler := sts.New(options.baseSession)
 	cacheKey := fmt.Sprintf("Region[%s]:RoleARN[%s]:ExternalID[%s]", region, options.assumeRoleARN, options.assumeRoleExternalID)
 	return utils.FnCacheGet(ctx, c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
-		return newSessionWithRole(ctx, assumeRoler, region, options.assumeRoleARN, options.assumeRoleExternalID)
+		stsClient := sts.New(options.baseSession)
+		return newSessionWithRole(ctx, stsClient, region, options.assumeRoleARN, options.assumeRoleExternalID)
 	})
 }
 
@@ -598,36 +665,6 @@ func (c *cloudClients) initGCPIAMClient(ctx context.Context) (*gcpcredentials.Ia
 	}
 	c.gcpIAM = gcpIAM
 	return gcpIAM, nil
-}
-
-func (c *cloudClients) initGCPSQLAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	if c.gcpSQLAdmin != nil { // If some other thread already got here first.
-		return c.gcpSQLAdmin, nil
-	}
-	logrus.Debug("Initializing GCP Cloud SQL Admin client.")
-	gcpSQLAdmin, err := gcp.NewSQLAdminClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	c.gcpSQLAdmin = gcpSQLAdmin
-	return gcpSQLAdmin, nil
-}
-
-func (c *cloudClients) initGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	if c.gcpGKE != nil { // If some other thread already got here first.
-		return c.gcpGKE, nil
-	}
-	logrus.Debug("Initializing GCP Cloud GKE client.")
-	gcpGKE, err := gcp.NewGKEClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	c.gcpGKE = gcpGKE
-	return gcpGKE, nil
 }
 
 func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
@@ -779,6 +816,7 @@ type TestCloudClients struct {
 	STS                     stsiface.STSAPI
 	GCPSQL                  gcp.SQLAdminClient
 	GCPGKE                  gcp.GKEClient
+	GCPInstances            gcp.InstancesClient
 	EC2                     ec2iface.EC2API
 	SSM                     ssmiface.SSMAPI
 	InstanceMetadata        InstanceMetadata
@@ -962,6 +1000,11 @@ func (c *TestCloudClients) GetInstanceMetadataClient(ctx context.Context) (Insta
 // GetGCPGKEClient returns GKE client.
 func (c *TestCloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
 	return c.GCPGKE, nil
+}
+
+// GetGCPInstancesClient returns instances client.
+func (c *TestCloudClients) GetGCPInstancesClient(ctx context.Context) (gcp.InstancesClient, error) {
+	return c.GCPInstances, nil
 }
 
 // GetAzureCredential returns default Azure token credential chain.

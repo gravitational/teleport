@@ -159,7 +159,7 @@ export function WindowsComputer(props: WindowsComputerProps) {
       <DesktopTitleBar>
         <div>Teleport</div>
 
-        <Cross color="black" />
+        <Cross color="black" size="small" />
       </DesktopTitleBar>
       <DesktopAppContent>
         <SuccessMessage>

@@ -18,6 +18,7 @@ import { Acl } from './types';
 
 export function makeAcl(json): Acl {
   json = json || {};
+  const accessList = json.accessList || defaultAccess;
   const authConnectors = json.authConnectors || defaultAccess;
   const trustedClusters = json.trustedClusters || defaultAccess;
   const roles = json.roles || defaultAccess;
@@ -62,6 +63,7 @@ export function makeAcl(json): Acl {
   const samlIdpServiceProvider = json.samlIdpServiceProvider || defaultAccess;
 
   return {
+    accessList,
     authConnectors,
     trustedClusters,
     roles,

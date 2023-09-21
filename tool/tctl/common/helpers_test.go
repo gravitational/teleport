@@ -36,7 +36,6 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -152,14 +151,18 @@ func runAuthCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...
 	return runCommand(t, fc, command, args, opts...)
 }
 
-func mustDecodeJSON(t *testing.T, r io.Reader, i interface{}) {
-	err := json.NewDecoder(r).Decode(i)
+func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
+	var out T
+	err := json.NewDecoder(r).Decode(&out)
 	require.NoError(t, err)
+	return out
 }
 
-func mustDecodeYAML(t *testing.T, r io.Reader, i interface{}) {
-	err := yaml.NewDecoder(r).Decode(i)
+func mustDecodeYAML[T any](t *testing.T, r io.Reader) T {
+	var out T
+	err := yaml.NewDecoder(r).Decode(&out)
 	require.NoError(t, err)
+	return out
 }
 func mustGetBase64EncFileConfig(t *testing.T, fc *config.FileConfig) string {
 	configYamlContent, err := yaml.Marshal(fc)
@@ -264,6 +267,9 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 }
 
 func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
+	if len(dbs) == 0 {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
@@ -290,28 +296,4 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service
 			t.Fatal("databases not registered after 10s")
 		}
 	}
-}
-
-func newDynamicServiceAddr(t *testing.T) *dynamicServiceAddr {
-	var fds []servicecfg.FileDescriptor
-	webAddr := helpers.NewListener(t, service.ListenerProxyWeb, &fds)
-	tunnelAddr := helpers.NewListener(t, service.ListenerProxyTunnel, &fds)
-	authAddr := helpers.NewListener(t, service.ListenerAuth, &fds)
-
-	return &dynamicServiceAddr{
-		descriptors: fds,
-		webAddr:     webAddr,
-		tunnelAddr:  tunnelAddr,
-		authAddr:    authAddr,
-	}
-}
-
-// dynamicServiceAddr collects listeners addresses and sockets descriptors allowing to create and network listeners
-// and pass the file descriptors to teleport service.
-// This is usefully when Teleport service is created from config file where a port is allocated by OS.
-type dynamicServiceAddr struct {
-	webAddr     string
-	tunnelAddr  string
-	authAddr    string
-	descriptors []servicecfg.FileDescriptor
 }

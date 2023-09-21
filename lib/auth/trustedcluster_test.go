@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 )
@@ -391,6 +393,21 @@ func TestValidateTrustedCluster(t *testing.T) {
 			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
 		)
 	})
+
+	t.Run("trusted clusters prevented on cloud", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestFeatures: modules.Features{Cloud: true},
+		})
+
+		req := &ValidateTrustedClusterRequest{
+			Token: "invalidtoken",
+			CAs:   []types.CertAuthority{},
+		}
+
+		server := ServerWithRoles{authServer: a}
+		_, err := server.ValidateTrustedCluster(ctx, req)
+		require.True(t, trace.IsNotImplemented(err), "ValidateTrustedCluster returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
+	})
 }
 
 func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Server {
@@ -426,50 +443,6 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	require.NoError(t, a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
 	require.NoError(t, a.SetAuthPreference(ctx, types.DefaultAuthPreference()))
 	return a
-}
-
-func TestRemoteDBCAMigration(t *testing.T) {
-	const (
-		localClusterName  = "localcluster"
-		remoteClusterName = "trustedcluster"
-	)
-	ctx := context.Background()
-
-	testAuth, err := NewTestAuthServer(TestAuthServerConfig{
-		ClusterName: localClusterName,
-		Dir:         t.TempDir(),
-	})
-	require.NoError(t, err)
-	a := testAuth.AuthServer
-
-	trustedCluster, err := types.NewTrustedCluster(remoteClusterName,
-		types.TrustedClusterSpecV2{Roles: []string{"nonempty"}})
-	require.NoError(t, err)
-	// use the UpsertTrustedCluster in Uncached as we just want the resource in
-	// the backend, we don't want to actually connect
-	_, err = a.Services.UpsertTrustedCluster(ctx, trustedCluster)
-	require.NoError(t, err)
-
-	// Generate remote HostCA and remove private key as remote CA should have only public cert.
-	remoteHostCA := suite.NewTestCA(types.HostCA, remoteClusterName)
-	types.RemoveCASecrets(remoteHostCA)
-
-	err = a.UpsertCertAuthority(ctx, remoteHostCA)
-	require.NoError(t, err)
-
-	// Run the migration
-	err = migrateDBAuthority(ctx, a)
-	require.NoError(t, err)
-
-	dbCAs, err := a.GetCertAuthority(context.Background(), types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: remoteClusterName,
-	}, true)
-	require.NoError(t, err)
-	// Certificate should be copied.
-	require.Equal(t, remoteHostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs.GetActiveKeys().TLS[0].Cert)
-	// Private key should be empty.
-	require.Nil(t, dbCAs.GetActiveKeys().TLS[0].Key)
 }
 
 func TestUpsertTrustedCluster(t *testing.T) {

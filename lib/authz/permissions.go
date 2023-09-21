@@ -208,23 +208,32 @@ Loop:
 	return lockTargets
 }
 
-// UseExtraRoles extends the roles of the Checker on the current Context with
-// the given extra roles.
-func (c *Context) UseExtraRoles(access services.RoleGetter, clusterName string, roles []string) error {
+// WithExtraRoles returns a shallow copy of [c], where the users roles have been
+// extended with [roles]. It may return [c] unmodified.
+func (c *Context) WithExtraRoles(access services.RoleGetter, clusterName string, roles []string) (*Context, error) {
 	var newRoleNames []string
 	newRoleNames = append(newRoleNames, c.Checker.RoleNames()...)
 	newRoleNames = append(newRoleNames, roles...)
 	newRoleNames = utils.Deduplicate(newRoleNames)
 
-	// set new roles on the context user and create a new access checker
-	c.User.SetRoles(newRoleNames)
-	accessInfo := services.AccessInfoFromUser(c.User)
+	// Return early if there are no extra roles.
+	if len(newRoleNames) == len(c.Checker.RoleNames()) {
+		return c, nil
+	}
+
+	accessInfo := &services.AccessInfo{
+		Roles:              newRoleNames,
+		Traits:             c.User.GetTraits(),
+		AllowedResourceIDs: c.Checker.GetAllowedResourceIDs(),
+	}
 	checker, err := services.NewAccessChecker(accessInfo, clusterName, access)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	c.Checker = checker
-	return nil
+
+	newContext := *c
+	newContext.Checker = checker
+	return &newContext, nil
 }
 
 // GetAccessState returns the AccessState based on the underlying
@@ -236,7 +245,7 @@ func (c *Context) GetAccessState(authPref types.AuthPreference) services.AccessS
 	// Builtin services (like proxy_service and kube_service) are not gated
 	// on MFA and only need to pass normal RBAC action checks.
 	_, isService := c.Identity.(BuiltinRole)
-	state.MFAVerified = isService || identity.MFAVerified != ""
+	state.MFAVerified = isService || identity.IsMFAVerified()
 
 	state.EnableDeviceVerification = !c.disableDeviceAuthorization
 	state.DeviceVerified = isService || dtauthz.IsTLSDeviceVerified(&identity.DeviceExtensions)
@@ -327,6 +336,10 @@ var ErrIPPinningMissing = trace.AccessDenied("pinned IP is required for the user
 // ErrIPPinningMismatch is returned when user's pinned IP doesn't match observed IP.
 var ErrIPPinningMismatch = trace.AccessDenied("pinned IP doesn't match observed client IP")
 
+// ErrIPPinningNotAllowed is returned when user's pinned IP doesn't match observed IP.
+var ErrIPPinningNotAllowed = trace.AccessDenied("IP pinning is not allowed for connections behind L4 load balancers with " +
+	"PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the proxy_service and/or auth_service config.")
+
 // CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
 // Check is considered successful if no error is returned.
 func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool, log logrus.FieldLogger) error {
@@ -342,7 +355,7 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 		return trace.Wrap(err)
 	}
 
-	clientIP, _, err := net.SplitHostPort(clientSrcAddr.String())
+	clientIP, clientPort, err := net.SplitHostPort(clientSrcAddr.String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -353,6 +366,17 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 				"client_ip": clientIP,
 				"pinned_ip": identity.PinnedIP,
 			}).Debug("Pinned IP and client IP mismatch")
+		}
+		return ErrIPPinningMismatch
+	}
+	// If connection has port 0 it means it was marked by multiplexer's 'detect()' function as affected by unexpected PROXY header.
+	// For security reason we don't allow such connection for IP pinning because we can't rely on client IP being correct.
+	if clientPort == "0" {
+		if log != nil {
+			log.WithFields(logrus.Fields{
+				"client_ip": clientIP,
+				"pinned_ip": identity.PinnedIP,
+			}).Debug(ErrIPPinningNotAllowed.Error())
 		}
 		return ErrIPPinningMismatch
 	}
@@ -592,7 +616,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindDatabaseService, services.RO()),
 				types.NewRule(types.KindSAMLIdPServiceProvider, services.RO()),
 				types.NewRule(types.KindUserGroup, services.RO()),
-				types.NewRule(types.KindIntegration, services.RO()),
+				types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -863,10 +887,13 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindNode, services.RO()),
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
 						types.NewRule(types.KindDatabase, services.RW()),
+						types.NewRule(types.KindServerInfo, services.RW()),
+						types.NewRule(types.KindApp, services.RW()),
 					},
-					// wildcard any cluster available.
-					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+					// Discovery service should only access kubes/apps/dbs that originated from discovery.
+					KubernetesLabels: types.Labels{types.OriginLabel: []string{types.OriginCloud}},
+					DatabaseLabels:   types.Labels{types.OriginLabel: []string{types.OriginCloud}},
+					AppLabels:        types.Labels{types.OriginLabel: []string{types.OriginDiscoveryKubernetes}},
 				},
 			})
 	case types.RoleOkta:
@@ -1107,7 +1134,7 @@ func ConvertAuthorizerError(ctx context.Context, log logrus.FieldLogger, err err
 	case trace.IsNotFound(err):
 		// user not found, wrap error with access denied
 		return trace.Wrap(err, "access denied")
-	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch):
+	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
 		log.Warn(err)
 		return trace.Wrap(err)
 	case trace.IsAccessDenied(err):
@@ -1135,7 +1162,7 @@ func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, aut
 		Resource: resource,
 	}
 
-	return authorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, resource.GetKind(), verbs...)
+	return AuthorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, resource.GetKind(), verbs...)
 }
 
 // AuthorizeWithVerbs will ensure that the user has access to the given verbs for the given kind.
@@ -1149,11 +1176,11 @@ func AuthorizeWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer 
 		User: authCtx.User,
 	}
 
-	return authorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, kind, verbs...)
+	return AuthorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, kind, verbs...)
 }
 
-// authorizeContextWithVerbs will ensure that the user has access to the given verbs for the given services.context.
-func authorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, authCtx *Context, quiet bool, ruleCtx *services.Context, kind string, verbs ...string) (*Context, error) {
+// AuthorizeContextWithVerbs will ensure that the user has access to the given verbs for the given services.context.
+func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, authCtx *Context, quiet bool, ruleCtx *services.Context, kind string, verbs ...string) (*Context, error) {
 	errs := make([]error, len(verbs))
 	for i, verb := range verbs {
 		errs[i] = authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet)
@@ -1344,4 +1371,44 @@ func UserFromContext(ctx context.Context) (IdentityGetter, error) {
 		return nil, trace.BadParameter("expected type IdentityGetter, got %T", user)
 	}
 	return user, nil
+}
+
+// HasBuiltinRole checks if the identity is a builtin role with the matching
+// name.
+func HasBuiltinRole(authContext Context, name string) bool {
+	if _, ok := authContext.Identity.(BuiltinRole); !ok {
+		return false
+	}
+	if !authContext.Checker.HasRole(name) {
+		return false
+	}
+
+	return true
+}
+
+// IsLocalUser checks if the identity is a local user.
+func IsLocalUser(authContext Context) bool {
+	_, ok := authContext.Identity.(LocalUser)
+	return ok
+}
+
+// IsLocalOrRemoteUser checks if the identity is either a local or remote user.
+func IsLocalOrRemoteUser(authContext Context) bool {
+	switch authContext.Identity.(type) {
+	case LocalUser, RemoteUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsCurrentUser checks if the identity is a local user matching the given username
+func IsCurrentUser(authContext Context, username string) bool {
+	return IsLocalUser(authContext) && authContext.User.GetName() == username
+}
+
+// IsRemoteUser checks if the identity is a remote user.
+func IsRemoteUser(authContext Context) bool {
+	_, ok := authContext.Identity.(RemoteUser)
+	return ok
 }

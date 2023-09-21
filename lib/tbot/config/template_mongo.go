@@ -68,6 +68,7 @@ func (t *templateMongo) render(
 	cfg := identityfile.WriteConfig{
 		OutputPath: defaultMongoPrefix,
 		Writer: &BotConfigWriter{
+			ctx:  ctx,
 			dest: destination,
 		},
 		Key:    key,
