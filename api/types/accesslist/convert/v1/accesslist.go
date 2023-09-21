@@ -132,6 +132,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 	}
 }
 
+// WithOwnersIneligibleStatusField sets the "ineligibleStatus" field to the provided proto value.
 func WithOwnersIneligibleStatusField(protoOwners []*accesslistv1.AccessListOwner) AccessListOption {
 	return func(a *accesslist.AccessList) {
 		updatedOwners := make([]accesslist.Owner, len(a.GetOwners()))
