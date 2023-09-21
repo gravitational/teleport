@@ -248,7 +248,7 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 
 	err := agent.Start(ctx)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "Failed to claim proxy", "Expected failed to claim proxy error.")
+	require.Contains(t, err.Error(), proxyAlreadyClaimedError, "Expected failed to claim proxy error.")
 
 	callback.waitForCount(t, 2)
 	require.Contains(t, callback.states, AgentConnecting)
