@@ -92,6 +92,8 @@ type UserACL struct {
 	SAMLIdpServiceProvider ResourceAccess `json:"samlIdpServiceProvider"`
 	// AccessList defines access to access list management.
 	AccessList ResourceAccess `json:"accessList"`
+	// DiscoveryConfig defines whether the user has access to manage DiscoveryConfigs.
+	DiscoveryConfig ResourceAccess `json:"discoverConfigs"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -159,6 +161,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	license := newAccess(userRoles, ctx, types.KindLicense)
 	deviceTrust := newAccess(userRoles, ctx, types.KindDevice)
 	integrationsAccess := newAccess(userRoles, ctx, types.KindIntegration)
+	discoveryConfigsAccess := newAccess(userRoles, ctx, types.KindDiscoveryConfig)
 	lockAccess := newAccess(userRoles, ctx, types.KindLock)
 	accessListAccess := newAccess(userRoles, ctx, types.KindAccessList)
 
@@ -187,6 +190,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		License:                 license,
 		Plugins:                 pluginsAccess,
 		Integrations:            integrationsAccess,
+		DiscoveryConfig:         discoveryConfigsAccess,
 		DeviceTrust:             deviceTrust,
 		Locks:                   lockAccess,
 		Assist:                  assistAccess,

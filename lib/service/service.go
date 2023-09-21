@@ -2209,6 +2209,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		AccessLists:             cfg.services.AccessListClient(),
 		UserLoginStates:         cfg.services.UserLoginStateClient(),
 		Integrations:            cfg.services,
+		DiscoveryConfigs:        cfg.services.DiscoveryConfigClient(),
 		WebSession:              cfg.services.WebSessions(),
 		WebToken:                cfg.services.WebTokens(),
 		Component:               teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),

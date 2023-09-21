@@ -162,6 +162,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newOktaAssignmentParser()
 		case types.KindIntegration:
 			parser = newIntegrationParser()
+		case types.KindDiscoveryConfig:
+			parser = newDiscoveryConfigParser()
 		case types.KindHeadlessAuthentication:
 			p, err := newHeadlessAuthenticationParser(kind.Filter)
 			if err != nil {
@@ -1558,6 +1560,30 @@ func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindIntegration, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalIntegration(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newDiscoveryConfigParser() *discoveryConfigParser {
+	return &discoveryConfigParser{
+		baseParser: newBaseParser(backend.Key(discoveryConfigPrefix)),
+	}
+}
+
+type discoveryConfigParser struct {
+	baseParser
+}
+
+func (p *discoveryConfigParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindDiscoveryConfig, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalDiscoveryConfig(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)

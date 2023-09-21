@@ -16,10 +16,20 @@ limitations under the License.
 
 package types
 
-// Matcher is an interface for cloud resource matchers.
-type Matcher interface {
-	// GetTypes gets the types that the matcher can match.
-	GetTypes() []string
-	// CopyWithTypes copies the matcher with new types.
-	CopyWithTypes(t []string) Matcher
+// GetTypes gets the types that the matcher can match.
+func (m AWSMatcher) GetTypes() []string {
+	return m.Types
+}
+
+// CopyWithTypes copies the matcher with new types.
+func (m AWSMatcher) CopyWithTypes(t []string) Matcher {
+	newMatcher := m
+	newMatcher.Types = t
+	return newMatcher
+}
+
+// CheckAndSetDefaults that the matcher is correct and adds default values.
+func (m AWSMatcher) CheckAndSetDefaults() error {
+	// TODO(marco): implement
+	return nil
 }

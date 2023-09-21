@@ -206,6 +206,9 @@ type InitConfig struct {
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
 
+	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
+	DiscoveryConfigs services.DiscoveryConfigs
+
 	// Embeddings is a service that manages Embeddings
 	Embeddings services.Embeddings
 

@@ -41,6 +41,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -130,6 +131,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindIntegration:              rc.createIntegration,
 		types.KindWindowsDesktop:           rc.createWindowsDesktop,
 		types.KindAccessList:               rc.createAccessList,
+		types.KindDiscoveryConfig:          rc.createDiscoveryConfig,
 	}
 	rc.config = config
 
@@ -960,6 +962,40 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client auth.Cl
 	return nil
 }
 
+func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	discoveryConfig, err := services.UnmarshalDiscoveryConfig(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	remote := client.DiscoveryConfigClient()
+
+	_, err = remote.GetDiscoveryConfig(ctx, discoveryConfig.GetName())
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+
+	if exists {
+		if !rc.force {
+			return trace.AlreadyExists("DiscoveryConfig %q already exists", discoveryConfig.GetName())
+		}
+
+		if _, err := remote.UpdateDiscoveryConfig(ctx, discoveryConfig); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("DiscoveryConfig %q has been updated\n", discoveryConfig.GetName())
+		return nil
+	}
+
+	if _, err := remote.CreateDiscoveryConfig(ctx, discoveryConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("DiscoveryConfig %q has been created\n", discoveryConfig.GetName())
+
+	return nil
+}
+
 func (rc *ResourceCommand) createAccessList(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	accessList, err := services.UnmarshalAccessList(raw.Raw)
 	if err != nil {
@@ -1269,6 +1305,13 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Integration %q removed\n", rc.ref.Name)
+
+	case types.KindDiscoveryConfig:
+		remote := client.DiscoveryConfigClient()
+		if err := remote.DeleteDiscoveryConfig(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("DiscoveryConfig %q removed\n", rc.ref.Name)
 
 	case types.KindAppServer:
 		appServers, err := client.GetApplicationServers(ctx, rc.namespace)
@@ -2050,6 +2093,33 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		}
 
 		return &integrationCollection{integrations: resources}, nil
+
+	case types.KindDiscoveryConfig:
+		remote := client.DiscoveryConfigClient()
+		if rc.ref.Name != "" {
+			dc, err := remote.GetDiscoveryConfig(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &discoveryConfigCollection{discoveryConfigs: []*discoveryconfig.DiscoveryConfig{dc}}, nil
+		}
+
+		var resources []*discoveryconfig.DiscoveryConfig
+		var dcs []*discoveryconfig.DiscoveryConfig
+		var err error
+		var nextKey string
+		for {
+			dcs, nextKey, err = remote.ListDiscoveryConfigs(ctx, 0, nextKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			resources = append(resources, dcs...)
+			if nextKey == "" {
+				break
+			}
+		}
+
+		return &discoveryConfigCollection{discoveryConfigs: resources}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

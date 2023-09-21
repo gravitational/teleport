@@ -39,6 +39,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -92,6 +93,7 @@ type testPack struct {
 	userGroups              services.UserGroups
 	okta                    services.Okta
 	integrations            services.Integrations
+	discoveryConfigs        services.DiscoveryConfigs
 	accessLists             services.AccessLists
 	userLoginStates         services.UserLoginStates
 	accessListMembers       services.AccessListMembers
@@ -246,6 +248,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.integrations = igSvc
 
+	dcSvc, err := local.NewDiscoveryConfigService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.discoveryConfigs = dcSvc
+
 	alSvc, err := local.NewAccessListService(p.backend, p.backend.Clock())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -296,6 +304,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
+		DiscoveryConfigs:        p.discoveryConfigs,
 		AccessLists:             p.accessLists,
 		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
@@ -693,6 +702,7 @@ func TestCompletenessInit(t *testing.T) {
 			UserGroups:              p.userGroups,
 			Okta:                    p.okta,
 			Integrations:            p.integrations,
+			DiscoveryConfigs:        p.discoveryConfigs,
 			AccessLists:             p.accessLists,
 			UserLoginStates:         p.userLoginStates,
 			MaxRetryPeriod:          200 * time.Millisecond,
@@ -763,6 +773,7 @@ func TestCompletenessReset(t *testing.T) {
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
+		DiscoveryConfigs:        p.discoveryConfigs,
 		AccessLists:             p.accessLists,
 		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
@@ -945,6 +956,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
+		DiscoveryConfigs:        p.discoveryConfigs,
 		AccessLists:             p.accessLists,
 		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
@@ -1026,6 +1038,7 @@ func initStrategy(t *testing.T) {
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
+		DiscoveryConfigs:        p.discoveryConfigs,
 		AccessLists:             p.accessLists,
 		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
@@ -2096,6 +2109,45 @@ func TestIntegrations(t *testing.T) {
 	})
 }
 
+// TestDiscoveryConfig tests that CRUD operations on DiscoveryConfig resources are
+// replicated from the backend to the cache.
+func TestDiscoveryConfig(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*discoveryconfig.DiscoveryConfig]{
+		newResource: func(name string) (*discoveryconfig.DiscoveryConfig, error) {
+			dc, err := discoveryconfig.NewDiscoveryConfig(
+				header.Metadata{Name: "mydc"},
+				discoveryconfig.Spec{
+					DiscoveryGroup: "group001",
+				})
+			require.NoError(t, err)
+			return dc, nil
+		},
+		create: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
+			_, err := p.discoveryConfigs.CreateDiscoveryConfig(ctx, discoveryConfig)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
+			results, _, err := p.discoveryConfigs.ListDiscoveryConfigs(ctx, 0, "")
+			return results, err
+		},
+		cacheGet: p.cache.GetDiscoveryConfig,
+		cacheList: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
+			results, _, err := p.cache.ListDiscoveryConfigs(ctx, 0, "")
+			return results, err
+		},
+		update: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
+			_, err := p.discoveryConfigs.UpdateDiscoveryConfig(ctx, discoveryConfig)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.discoveryConfigs.DeleteAllDiscoveryConfigs,
+	})
+}
+
 // TestAccessLists tests that CRUD operations on access list resources are
 // replicated from the backend to the cache.
 func TestAccessLists(t *testing.T) {
@@ -2641,6 +2693,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindOktaImportRule:          &types.OktaImportRuleV1{},
 		types.KindOktaAssignment:          &types.OktaAssignmentV1{},
 		types.KindIntegration:             &types.IntegrationV1{},
+		types.KindDiscoveryConfig:         newDiscoveryConfig(t, "discovery-config"),
 		types.KindHeadlessAuthentication:  &types.HeadlessAuthentication{},
 		types.KindAccessList:              newAccessList(t, "access-list"),
 		types.KindUserLoginState:          newUserLoginState(t, "user-login-state"),
@@ -2893,6 +2946,25 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 	)
 	require.NoError(t, err)
 	return accessList
+}
+
+func newDiscoveryConfig(t *testing.T, name string) *discoveryconfig.DiscoveryConfig {
+	t.Helper()
+
+	discoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{
+			Name: name,
+		},
+		discoveryconfig.Spec{
+			DiscoveryGroup: "mygroup",
+			AWS:            []types.AWSMatcher{},
+			Azure:          []types.AzureMatcher{},
+			GCP:            []types.GCPMatcher{},
+			Kube:           []types.KubernetesMatcher{},
+		},
+	)
+	require.NoError(t, err)
+	return discoveryConfig
 }
 
 func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState {

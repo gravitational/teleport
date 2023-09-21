@@ -445,6 +445,11 @@ func (c *Client) UserLoginStateClient() services.UserLoginStates {
 	return c.APIClient.UserLoginStateClient()
 }
 
+// DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
+func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigs {
+	return c.APIClient.DiscoveryConfigClient()
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
@@ -844,6 +849,12 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	UserLoginStateClient() services.UserLoginStates
+
+	// DiscoveryConfigClient returns a DiscoveryConfig client.
+	// Clients connecting to older Teleport versions, still get an DiscoveryConfig client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	DiscoveryConfigClient() services.DiscoveryConfigs
 
 	// ResourceUsageClient returns a resource usage service client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,

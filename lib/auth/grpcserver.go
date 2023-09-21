@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
@@ -59,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
+	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -5348,6 +5350,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	integrationpb.RegisterIntegrationServiceServer(server, integrationServiceServer)
+
+	discoveryConfig, err := discoveryconfigv1.NewService(discoveryconfigv1.ServiceConfig{
+		Authorizer:             cfg.Authorizer,
+		BackendDiscoveryConfig: cfg.AuthServer.Services,
+		Clock:                  cfg.AuthServer.clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	discoveryconfigpb.RegisterDiscoveryConfigServiceServer(server, discoveryConfig)
 
 	// Initialize and register the user preferences service.
 	userPreferencesSrv, err := userpreferencesv1.NewService(&userpreferencesv1.ServiceConfig{

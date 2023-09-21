@@ -147,6 +147,7 @@ func TestNewUserACLCloud(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.Tokens, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.Nodes, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.AccessRequests, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.DiscoveryConfig, allowedRW))
 
 	require.Equal(t, userContext.Clipboard, true)
 	require.Equal(t, userContext.DesktopSessionRecording, true)

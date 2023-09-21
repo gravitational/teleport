@@ -28,6 +28,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -187,6 +188,7 @@ type cacheCollections struct {
 	clusterNetworkingConfigs collectionReader[clusterNetworkingConfigGetter]
 	databases                collectionReader[services.DatabaseGetter]
 	databaseServers          collectionReader[databaseServerGetter]
+	discoveryConfigs         collectionReader[services.DiscoveryConfigsGetter]
 	installers               collectionReader[installerGetter]
 	integrations             collectionReader[services.IntegrationsGetter]
 	kubeClusters             collectionReader[kubernetesClusterGetter]
@@ -595,6 +597,12 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.integrations
+		case types.KindDiscoveryConfig:
+			if c.DiscoveryConfigs == nil {
+				return nil, trace.BadParameter("missing parameter DiscoveryConfigs")
+			}
+			collections.discoveryConfigs = &genericCollection[*discoveryconfig.DiscoveryConfig, services.DiscoveryConfigsGetter, discoveryConfigExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.discoveryConfigs
 		case types.KindHeadlessAuthentication:
 			// For headless authentications, we need only process events. We don't need to keep the cache up to date.
 			collections.byKind[resourceKind] = &genericCollection[*types.HeadlessAuthentication, noReader, noopExecutor]{cache: c, watch: watch}
@@ -2372,6 +2380,56 @@ func (accessListsExecutor) getReader(cache *Cache, cacheOK bool) services.Access
 }
 
 var _ executor[*accesslist.AccessList, services.AccessListsGetter] = accessListsExecutor{}
+
+type discoveryConfigExecutor struct{}
+
+func (discoveryConfigExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*discoveryconfig.DiscoveryConfig, error) {
+	var discoveryConfigs []*discoveryconfig.DiscoveryConfig
+	var nextToken string
+	for {
+		var page []*discoveryconfig.DiscoveryConfig
+		var err error
+
+		page, nextToken, err = cache.DiscoveryConfigs.ListDiscoveryConfigs(ctx, 0 /* default page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		discoveryConfigs = append(discoveryConfigs, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return discoveryConfigs, nil
+}
+
+func (discoveryConfigExecutor) upsert(ctx context.Context, cache *Cache, resource *discoveryconfig.DiscoveryConfig) error {
+	_, err := cache.discoveryConfigsCache.CreateDiscoveryConfig(ctx, resource)
+	if trace.IsAlreadyExists(err) {
+		_, err = cache.discoveryConfigsCache.UpdateDiscoveryConfig(ctx, resource)
+	}
+	return trace.Wrap(err)
+}
+
+func (discoveryConfigExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.discoveryConfigsCache.DeleteAllDiscoveryConfigs(ctx)
+}
+
+func (discoveryConfigExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.discoveryConfigsCache.DeleteDiscoveryConfig(ctx, resource.GetName())
+}
+
+func (discoveryConfigExecutor) isSingleton() bool { return false }
+
+func (discoveryConfigExecutor) getReader(cache *Cache, cacheOK bool) services.DiscoveryConfigsGetter {
+	if cacheOK {
+		return cache.discoveryConfigsCache
+	}
+	return cache.Config.DiscoveryConfigs
+}
+
+var _ executor[*discoveryconfig.DiscoveryConfig, services.DiscoveryConfigsGetter] = discoveryConfigExecutor{}
 
 // noopExecutor can be used when a resource's events do not need to processed by
 // the cache itself, only passed on to other watchers.
