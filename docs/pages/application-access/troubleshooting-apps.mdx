@@ -52,8 +52,8 @@ To fix CSRF or CORS issues:
        public_addr: <Var name="grafana.teleport.example.com"/>
        rewrite:
          headers:
-           Origin: <Var name="https://grafana.teleport.example.com" /> # Teleport application subdomain prepended with "https://"
-           Host: <Var name="grafana.teleport.example.com" /> # Teleport application subdomain itself
+         - Origin: <Var name="https://grafana.teleport.example.com" /> # Teleport application subdomain prepended with "https://"
+         - Host: <Var name="grafana.teleport.example.com" /> # Teleport application subdomain itself
    ```
 
 1. Save your changes and restart the Teleport service.
@@ -84,8 +84,8 @@ To fix CSRF or CORS issues if you deploy applications using Kubernetes and `tele
        public_addr: <Var name="grafana.teleport.example.com"/>
        rewrite:
          headers:
-           Origin: <Var name="https://grafana.teleport.example.com" /> # Teleport application subdomain prepended with "https://"
-           Host: <Var name="grafana.teleport.example.com" /> # Teleport application subdomain itself
+         - Origin: <Var name="https://grafana.teleport.example.com" /> # Teleport application subdomain prepended with "https://"
+         - Host: <Var name="grafana.teleport.example.com" /> # Teleport application subdomain itself
    ```
 
 ## Untrusted certificate errors
