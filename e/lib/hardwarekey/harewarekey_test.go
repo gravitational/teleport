@@ -20,6 +20,7 @@ package hardwarekey
 
 import (
 	"crypto/x509"
+	"fmt"
 	"os"
 	"testing"
 
@@ -29,24 +30,36 @@ import (
 )
 
 // TestAttestHardwareKey tests AttestHardwareKey.
-func TestAttestHardwareKey(t *testing.T) {
+func TestAttestHardwareKey_Interactive(t *testing.T) {
 	// This test expects a yubiKey to be connected with default PIV
 	// settings and will overwrite any PIV data on the yubiKey.
 	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
-		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
+		t.Skipf("Skipping TestAttestHardwareKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
 	}
 
-	priv, err := keys.GetOrGenerateYubiKeyPrivateKey(false)
-	require.NoError(t, err)
+	if !testing.Verbose() {
+		t.Fatal("This test is interactive and must be called with the -v verbose flag to see touch prompts.")
+	}
+	fmt.Println("This test is interactive, tap your YubiKey when prompted.")
 
-	att, err := keys.GetAttestationStatement(priv)
-	require.NoError(t, err)
+	for _, policy := range []keys.PrivateKeyPolicy{
+		keys.PrivateKeyPolicyHardwareKey,
+		keys.PrivateKeyPolicyHardwareKeyTouch,
+	} {
+		t.Run(fmt.Sprintf("policy:%v", policy), func(t *testing.T) {
+			priv, err := keys.GetOrGenerateYubiKeyPrivateKey(policy == keys.PrivateKeyPolicyHardwareKeyTouch)
+			require.NoError(t, err)
 
-	attData, err := attestHardwareKey(att)
-	require.NoError(t, err)
-	require.Equal(t, keys.PrivateKeyPolicyHardwareKey, attData.PrivateKeyPolicy)
+			att, err := keys.GetAttestationStatement(priv)
+			require.NoError(t, err)
 
-	pub, err := x509.ParsePKIXPublicKey(attData.PublicKeyDER)
-	require.NoError(t, err)
-	require.Equal(t, priv.Public(), pub)
+			attData, err := attestHardwareKey(att)
+			require.NoError(t, err)
+			require.Equal(t, policy, attData.PrivateKeyPolicy)
+
+			pub, err := x509.ParsePKIXPublicKey(attData.PublicKeyDER)
+			require.NoError(t, err)
+			require.Equal(t, priv.Public(), pub)
+		})
+	}
 }
