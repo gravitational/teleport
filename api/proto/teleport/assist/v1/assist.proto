@@ -18,6 +18,7 @@ package teleport.assist.v1;
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/legacy/client/proto/authservice.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/assist/v1;assist";
 
@@ -150,6 +151,22 @@ message GetAssistantEmbeddingsResponse {
   repeated EmbeddedDocument embeddings = 1;
 }
 
+// SearchUnifiedResourcesRequest is a request to search for one or more resource kinds using similiarity search.
+message SearchUnifiedResourcesRequest {
+  // query is the query used for similarity search.
+  string query = 2;
+  // limit is the number of embeddings to return (also known as k).
+  int32 limit = 3;
+  // kinds is the kind of embeddings to return (ex, node). Returns all supported kinds if empty.
+  repeated string kinds = 4;
+}
+
+// SearchUnifiedResourcesResponse is a response from the assistant service with a similarity-ordered list of resources.
+message SearchUnifiedResourcesResponse {
+  // resources is the list of resources.
+  repeated proto.PaginatedResource resources = 1;
+}
+
 // AssistService is a service that provides an ability to communicate with the Teleport Assist.
 service AssistService {
   // CreateNewConversation creates a new conversation and returns the UUID of it.
@@ -172,6 +189,9 @@ service AssistService {
 
   // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
   rpc IsAssistEnabled(IsAssistEnabledRequest) returns (IsAssistEnabledResponse);
+
+  // SearchUnifiedResources returns a similarity-ordered list of resources from the unified resource cache.
+  rpc SearchUnifiedResources(SearchUnifiedResourcesRequest) returns (SearchUnifiedResourcesResponse);
 }
 
 // AssistEmbeddingService is a service that provides an ability to communicate with the Assist Embedding service.

@@ -4395,7 +4395,7 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 		return nil, trace.Wrap(err)
 	}
 
-	paginatedResources, err := auth.MakePaginatedResources(req.ResourceType, resp.Resources)
+	paginatedResources, err := services.MakePaginatedResources(req.ResourceType, resp.Resources)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated resources")
 	}

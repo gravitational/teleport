@@ -19,18 +19,25 @@ package assistv1_test
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -268,6 +275,44 @@ func TestService_InsertAssistantMessage(t *testing.T) {
 	}
 }
 
+func TestService_SearchUnifiedResources(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		username    string
+		req         *assistpb.SearchUnifiedResourcesRequest
+		wantErr     assert.ErrorAssertionFunc
+		returnedLen int
+	}{
+		{
+			username: defaultUser,
+			req: &assistpb.SearchUnifiedResourcesRequest{
+				Kinds: []string{types.KindNode},
+			},
+			wantErr:     assert.NoError,
+			returnedLen: 2,
+		},
+		{
+			username: noAccessUser,
+			req: &assistpb.SearchUnifiedResourcesRequest{
+				Kinds: []string{types.KindNode},
+			},
+			wantErr:     assert.NoError,
+			returnedLen: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.username, func(t *testing.T) {
+			ctxs, svc := initSvc(t)
+			time.Sleep(time.Second * 5)
+			resp, err := svc.SearchUnifiedResources(ctxs[tt.username], tt.req)
+			tt.wantErr(t, err)
+			assert.Equal(t, tt.returnedLen, len(resp.GetResources()))
+		})
+	}
+}
+
 func initSvc(t *testing.T) (map[string]context.Context, *assistv1.Service) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
@@ -278,6 +323,7 @@ func initSvc(t *testing.T) (map[string]context.Context, *assistv1.Service) {
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
 	userSvc := local.NewIdentityService(backend)
+	presenceSvc := local.NewPresenceService(backend)
 
 	require.NoError(t, clusterConfigSvc.SetAuthPreference(ctx, types.DefaultAuthPreference()))
 	require.NoError(t, clusterConfigSvc.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
@@ -289,12 +335,26 @@ func initSvc(t *testing.T) (map[string]context.Context, *assistv1.Service) {
 		services.Trust
 		services.RoleGetter
 		services.UserGetter
+		services.Presence
 	}{
 		ClusterConfiguration: clusterConfigSvc,
 		Trust:                trustSvc,
 		RoleGetter:           roleSvc,
 		UserGetter:           userSvc,
+		Presence:             presenceSvc,
 	}
+
+	n1, err := types.NewServer("node-1", types.KindNode, types.ServerSpecV2{})
+	require.NoError(t, err)
+	n2, err := types.NewServer("node-2", types.KindNode, types.ServerSpecV2{})
+	require.NoError(t, err)
+	_, err = presenceSvc.UpsertNode(ctx, n1)
+	require.NoError(t, err)
+	_, err = presenceSvc.UpsertNode(ctx, n2)
+	require.NoError(t, err)
+
+	accesslistSvc, err := local.NewAccessListService(backend, clockwork.NewFakeClock())
+	require.NoError(t, err)
 
 	accessService := local.NewAccessService(backend)
 	eventService := local.NewEventsService(backend)
@@ -318,10 +378,16 @@ func initSvc(t *testing.T) (map[string]context.Context, *assistv1.Service) {
 
 	role, err := types.NewRole("allow-rules", types.RoleSpecV6{
 		Allow: types.RoleConditions{
+			Namespaces: []string{},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Rules: []types.Rule{
 				{
 					Resources: []string{types.KindAssistant},
 					Verbs:     []string{types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbCreate, types.VerbDelete},
+				},
+				{
+					Resources: []string{types.KindNode},
+					Verbs:     []string{types.VerbList, types.VerbRead},
 				},
 			},
 		},
@@ -358,36 +424,96 @@ func initSvc(t *testing.T) (map[string]context.Context, *assistv1.Service) {
 		ctxs[user.GetName()] = ctx
 	}
 
+	embedder := ai.MockEmbedder{
+		TimesCalled: make(map[string]int),
+	}
+
+	embeddings := &ai.SimpleRetriever{}
+	embeddingSrv := local.NewEmbeddingsService(backend)
 	svc, err := assistv1.NewService(&assistv1.ServiceConfig{
-		Backend:        local.NewAssistService(backend),
-		Authorizer:     authorizer,
-		Embeddings:     &ai.SimpleRetriever{},
-		ResourceGetter: &resourceGetterFake{},
+		Backend:    local.NewAssistService(backend),
+		Authorizer: authorizer,
+		Embeddings: embeddings,
+		ResourceGetter: &resourceGetterAllImpl{
+			PresenceService: presenceSvc,
+			AccessLists:     accesslistSvc,
+		},
+		Embedder: &embedder,
 	})
 	require.NoError(t, err)
 
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(context.Background(), services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			QueueSize:    defaults.UnifiedResourcesQueueSize,
+			Component:    teleport.ComponentUnifiedResource,
+			Client:       eventService,
+			MaxStaleness: time.Second,
+		},
+		ResourceGetter: &resourceGetterAllImpl{
+			PresenceService: presenceSvc,
+			AccessLists:     accesslistSvc,
+		},
+	})
+	require.NoError(t, err)
+
+	log.Debugf("Starting embedding watcher")
+	embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
+		AIClient:            &embedder,
+		EmbeddingsRetriever: embeddings,
+		EmbeddingSrv:        embeddingSrv,
+		NodeSrv:             unifiedResourcesCache,
+		Jitter:              retryutils.NewFullJitter(),
+		Log:                 log.NewEntry(log.StandardLogger()),
+	})
+	log.Debugf("Starting embedding processor")
+	go embeddingProcessor.Run(context.Background(), time.Second, time.Second*10)
 	return ctxs, svc
 }
 
-type resourceGetterFake struct {
+type resourceGetterAllImpl struct {
+	*local.PresenceService
+	services.AccessLists
 }
 
-func (g *resourceGetterFake) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+func (g *resourceGetterAllImpl) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
+	kubeServers, err := g.PresenceService.GetKubernetesServers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, kubeServer := range kubeServers {
+		if kubeServer.GetName() == name {
+			return kubeServer.GetCluster(), nil
+		}
+	}
+
+	return nil, trace.NotFound("cluster not found")
+}
+
+func (g *resourceGetterAllImpl) GetApp(ctx context.Context, name string) (types.Application, error) {
 	return nil, nil
 }
 
-func (g *resourceGetterFake) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
+func (g *resourceGetterAllImpl) GetDatabase(ctx context.Context, name string) (types.Database, error) {
 	return nil, nil
 }
 
-func (g *resourceGetterFake) GetApp(ctx context.Context, name string) (types.Application, error) {
+func (g *resourceGetterAllImpl) GetWindowsDesktops(ctx context.Context, _ types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	return nil, nil
 }
 
-func (g *resourceGetterFake) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+func (m *resourceGetterAllImpl) GetDatabaseServers(_ context.Context, _ string, _ ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return nil, nil
 }
 
-func (g *resourceGetterFake) GetWindowsDesktops(ctx context.Context, _ types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+func (m *resourceGetterAllImpl) GetKubernetesServers(_ context.Context) ([]types.KubeServer, error) {
 	return nil, nil
+}
+
+func (m *resourceGetterAllImpl) GetApplicationServers(_ context.Context, _ string) ([]types.AppServer, error) {
+	return nil, nil
+}
+
+func (m *resourceGetterAllImpl) ListSAMLIdPServiceProviders(_ context.Context, _ int, _ string) ([]types.SAMLIdPServiceProvider, string, error) {
+	return nil, "", nil
 }

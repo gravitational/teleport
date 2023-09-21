@@ -26,12 +26,16 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
+var UnifiedResourceKinds []string = []string{types.KindNode, types.KindKubeServer, types.KindDatabaseServer, types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindWindowsDesktop, types.KindAccessList}
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
 type UnifiedResourceCacheConfig struct {
@@ -485,15 +489,12 @@ func (c *UnifiedResourceCache) processEventAndUpdateCurrent(ctx context.Context,
 
 // resourceKinds returns a list of resources to be watched.
 func (c *UnifiedResourceCache) resourceKinds() []types.WatchKind {
-	return []types.WatchKind{
-		{Kind: types.KindNode},
-		{Kind: types.KindDatabaseServer},
-		{Kind: types.KindAppServer},
-		{Kind: types.KindSAMLIdPServiceProvider},
-		{Kind: types.KindWindowsDesktop},
-		{Kind: types.KindKubeServer},
-		{Kind: types.KindAccessList},
+	watchKinds := make([]types.WatchKind, 0, len(UnifiedResourceKinds))
+	for _, kind := range UnifiedResourceKinds {
+		watchKinds = append(watchKinds, types.WatchKind{Kind: kind})
 	}
+
+	return watchKinds
 }
 
 func (c *UnifiedResourceCache) defineCollectorAsInitialized() {
@@ -543,3 +544,108 @@ type item struct {
 const (
 	prefix = "unified_resource"
 )
+
+// MakePaginatedResources converts a list of resources into a list of paginated proto representations.
+func MakePaginatedResources(requestType string, resources []types.ResourceWithLabels) ([]*proto.PaginatedResource, error) {
+	paginatedResources := make([]*proto.PaginatedResource, 0, len(resources))
+	for _, resource := range resources {
+		var protoResource *proto.PaginatedResource
+		resourceKind := requestType
+		if requestType == types.KindUnifiedResource {
+			resourceKind = resource.GetKind()
+		}
+		switch resourceKind {
+		case types.KindDatabaseServer:
+			database, ok := resource.(*types.DatabaseServerV3)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}}
+		case types.KindDatabaseService:
+			databaseService, ok := resource.(*types.DatabaseServiceV1)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: databaseService}}
+		case types.KindAppServer:
+			app, ok := resource.(*types.AppServerV3)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}}
+		case types.KindNode:
+			srv, ok := resource.(*types.ServerV2)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}}
+		case types.KindKubeServer:
+			srv, ok := resource.(*types.KubernetesServerV3)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}}
+		case types.KindWindowsDesktop:
+			desktop, ok := resource.(*types.WindowsDesktopV3)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
+		case types.KindWindowsDesktopService:
+			desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktopService{WindowsDesktopService: desktopService}}
+		case types.KindKubernetesCluster:
+			cluster, ok := resource.(*types.KubernetesClusterV3)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}}
+		case types.KindUserGroup:
+			userGroup, ok := resource.(*types.UserGroupV1)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}}
+		case types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
+			switch appOrSP := resource.(type) {
+			case *types.AppServerV3:
+				protoResource = &proto.PaginatedResource{
+					Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+						AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+							Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+								AppServer: appOrSP,
+							},
+						},
+					}}
+			case *types.SAMLIdPServiceProviderV1:
+				protoResource = &proto.PaginatedResource{
+					Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+						AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+							Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+								SAMLIdPServiceProvider: appOrSP,
+							},
+						},
+					}}
+			default:
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+		default:
+			return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
+		}
+
+		paginatedResources = append(paginatedResources, protoResource)
+	}
+	return paginatedResources, nil
+}
