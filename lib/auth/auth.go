@@ -2875,6 +2875,18 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 			return nil, trace.Wrap(err)
 		}
 
+		// Create a special token for OTP registrations. The token doubles as
+		// temporary storage for the OTP secret, like in the branch above.
+		// This is OK because the user just did an MFA check.
+		if req.GetDeviceType() != proto.DeviceType_DEVICE_TYPE_TOTP {
+			break // break from switch
+		}
+
+		token, err = a.createTOTPPrivilegeToken(ctx, username)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 	default:
 		return nil, trace.BadParameter("either a token or an MFA response are required")
 	}
@@ -2886,6 +2898,24 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		deviceUsage: req.GetDeviceUsage(),
 	})
 	return regChal, trace.Wrap(err)
+}
+
+func (a *Server) createTOTPPrivilegeToken(ctx context.Context, username string) (types.UserToken, error) {
+	tokenReq := CreateUserTokenRequest{
+		Name: username,
+		Type: userTokenTypePrivilegeOTP,
+	}
+	if err := tokenReq.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := a.newUserToken(tokenReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err = a.CreateUserToken(ctx, token)
+	return token, trace.Wrap(err)
 }
 
 type newRegisterChallengeRequest struct {
@@ -2919,25 +2949,34 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 			return nil, trace.Wrap(err)
 		}
 
-		challenge := &proto.TOTPRegisterChallenge{
-			Secret:        otpKey.Secret(),
-			Issuer:        otpKey.Issuer(),
-			PeriodSeconds: uint32(otpOpts.Period),
-			Algorithm:     otpOpts.Algorithm.String(),
-			Digits:        uint32(otpOpts.Digits.Length()),
-			Account:       otpKey.AccountName(),
-		}
-
-		if req.token != nil {
-			secrets, err := a.createTOTPUserTokenSecrets(ctx, req.token, otpKey)
+		// TODO(codingllama): Once AddMFADeviceSync is no more all requests should
+		//  have a token. If they don't, then the secret is "lost" to the server.
+		var qrCode []byte
+		var challengeID string
+		if token := req.token; token != nil {
+			secrets, err := a.createTOTPUserTokenSecrets(ctx, token, otpKey)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			challenge.QRCode = secrets.GetQRCode()
+			qrCode = secrets.GetQRCode()
+			challengeID = token.GetName()
 		}
 
-		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_TOTP{TOTP: challenge}}, nil
+		return &proto.MFARegisterChallenge{
+			Request: &proto.MFARegisterChallenge_TOTP{
+				TOTP: &proto.TOTPRegisterChallenge{
+					Secret:        otpKey.Secret(),
+					Issuer:        otpKey.Issuer(),
+					PeriodSeconds: uint32(otpOpts.Period),
+					Algorithm:     otpOpts.Algorithm.String(),
+					Digits:        uint32(otpOpts.Digits.Length()),
+					Account:       otpKey.AccountName(),
+					QRCode:        qrCode,
+					ID:            challengeID,
+				},
+			},
+		}, nil
 
 	case proto.DeviceType_DEVICE_TYPE_WEBAUTHN:
 		cap, err := a.GetAuthPreference(ctx)
@@ -3115,19 +3154,30 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 // AddMFADeviceSync implements AuthService.AddMFADeviceSync.
 func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
-	var token, username string
+	// Use either the explicitly provided token or the TOTP token created by
+	// CreateRegisterChallenge.
+	token := req.GetTokenID()
+	if token == "" {
+		token = req.GetNewMFAResponse().GetTOTP().GetID()
+	}
+
+	var username string
 	switch {
-	case req.GetTokenID() != "":
-		privilegeToken, err := a.GetUserToken(ctx, req.GetTokenID())
+	case token != "":
+		privilegeToken, err := a.GetUserToken(ctx, token)
 		if err != nil {
 			log.Error(trace.DebugReport(err))
 			return nil, trace.AccessDenied("invalid token")
 		}
 
-		if err := a.verifyUserToken(privilegeToken, UserTokenTypePrivilege, UserTokenTypePrivilegeException); err != nil {
+		if err := a.verifyUserToken(
+			privilegeToken,
+			UserTokenTypePrivilege,
+			UserTokenTypePrivilegeException,
+			userTokenTypePrivilegeOTP,
+		); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		token = privilegeToken.GetName()
 		username = privilegeToken.GetUser()
 
 	default: // ContextUser
@@ -3154,16 +3204,12 @@ func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSy
 type newMFADeviceFields struct {
 	username      string
 	newDeviceName string
-	// tokenID is the ID of a reset/invite/recovery token.
-	// It is used as following:
-	//  - TOTP:
-	//    - look up TOTP secret stored by token ID
-	//  - MFA:
-	//    - look up challenge stored by token ID
-	// This field can be empty to use storage overrides.
+	// tokenID is the ID of a reset/invite/recovery/privilege token.
+	// It is generally used to recover the TOTP secret stored in the token.
 	tokenID string
 	// totpSecret is a secret shared by client and server to generate totp codes.
 	// Field can be empty to get secret by "tokenID".
+	// DELETE IN 16. Only used by the streaming AddMFADevice RPC. (codingllama)
 	totpSecret string
 
 	// webIdentityOverride is an optional RegistrationIdentity override to be used
