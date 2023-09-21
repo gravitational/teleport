@@ -1,79 +1,51 @@
 ---
 title: Moderated Sessions
-description: Moderated Sessions
+description: Describes the purpose of moderated sessions and how to configure roles to support moderated sessions in a Teleport cluster.
 h1: Moderated Sessions
 ---
 
-## Introduction
+Moderated sessions allow you to define requirements for other users to be present 
+in an active server or Kubernetes session started by another user. Depending on the 
+requirements you specify, users who are allowed to join other users' sessions can be 
+granted permission to do the following:
 
-Moderated Sessions allows Teleport administrators to define requirements for
-other users to be present in a server or Kubernetes session. Depending on the
-requirements, these users can observe the session in real time, participate in
-the session, and terminate the session at will.
+- Observe another user's session in real time.
+- Participate interactively in another user's session.
+- Terminate another user's session at will.
 
-In addition, Teleport administrators can [define rules](#join_sessions) that allow users to join each other's
-sessions from `tsh` and the Web UI.
+You can also [define rules](#join_sessions) that allow users to join each other's
+sessions from `tsh` and the Teleport Web UI.
 
-<Notice type="warning">
+The most common use cases for moderated sessions involve the following scenarios:
 
-  Moderated Sessions requires Teleport Enterprise or Teleport Enterprise Cloud.
-
-</Notice>
-
-### Use cases
-
-Moderated Sessions are useful in the following scenarios:
-- When you have stringent security requirements and need to have people watching
+- If you have stringent security or compliance requirements and need to have people watching
   over user-initiated sessions on a set of servers.
-- When you want to share a terminal with someone else to be able to instruct or
-  collaborate.
+- If you want to share a terminal with someone else to be able to instruct or collaborate.
+
+You must have Teleport Enterprise or Teleport Enterprise Cloud to enable moderated Sessions
+in a Teleport cluster.
 
 ## Policies
 
-Moderated Sessions makes use of RBAC policies to allow for fine grained control
-over who can join a session and who is required to be present to start one.
+Moderated sessions make use of role-based access control policies to allow for 
+fine grained control over who can join a session and who is required to be present 
+to start one.
 
-The system is based around **require policies** and **allow policies**.
+There are two types of policies you can use to control moderated sessions:
 
-Require policies define a set of conditions that must be a met for a session to
-start or run. A minimum of one policy from each relevant role the user has must
-match for the session to start.
+- **Require** policies define a set of conditions that must be a met for a session to
+  start or run. A minimum of one policy from each relevant role the user has must 
+  match for the session to start.
 
-Allow policies are used to define what sessions a user can join and under what
-conditions they may join a session.
+- **Allow** policies define what sessions users can join and under what conditions 
+  they can join a session.
 
-## Configuring Moderated Sessions
+## Configure a require policy for moderated sessions
 
-### `require_session_join`
-
-#### Options
-
-The following are required options for `require_session_join`:
-
-|Option|Type|Description|
-|---|---|---|
-|`name`|String|The name of the require policy|
-|`filter`|[Filter](#filters)|An expression that, if it evaluates to true for a given user, enables the user to be present in a Moderated Session|
-|`kinds`|`[]`[Session kind](#session-kinds)|The kind of session that the policy applies to|
-|`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
-|`count`|Integer|The number of users that need to match the filter expression to satisfy the policy|
-
-The following fields are optional for `require_session_join`:
-
-|Option|Type|Description|
-|---|---|---|
-|`on_leave`|[On leave](#on-leave)|The action to take when the policy is no longer satisfied|
-
-#### Example
-
-The policy below specifies that the `prod-access` role must have a minimum of
-two users with the role `auditor` and the mode `moderator` present in the
-session to start it. The policy applies to SSH and Kubernetes sessions only.
-
-This policy requires that at least one user with the `auditor` role is present
-as a moderator for SSH or Kubernetes sessions to start. That is applied for
-servers and Kubernetes resources labeled `env: prod`. The session will not start
-until the policy is fulfilled.
+You can use `require_session_join` in a role to set of conditions that must be a met for 
+a session to start or run. For example, the following policy specifies that users assigned
+the `prod-access` role must have a minimum of two users with the role `auditor` and the 
+mode `moderator` present in to start SSH or Kubernetes sessions:
 
 ```yaml
 kind: role
@@ -106,33 +78,65 @@ spec:
       verbs: ['*']
 ```
 
-#### Combining Policies
+This sample policy requires that at least one user with the `auditor` role is present
+as a moderator for SSH or Kubernetes sessions to start on servers and Kubernetes resources 
+with the `env: prod` label. A user assigned this `prod-access` role won't be able to start 
+any sessions on matching resources until the policy requirements are fulfilled.
 
-The authorizer applies require policies within a role together with an OR operator and the policies from each role with an AND operator. In practice, this means that for every role with at least one require policy, one of its policies must be met before a session can be started.
+### Required fields
 
-### `join_sessions`
-
-#### Options
-
-The following are required options for `join_sessions`:
+The following are required fields for `require_session_join`:
 
 |Option|Type|Description|
 |---|---|---|
-|`name`|String|The name of the allow policy|
-|`roles`|[]String|A list of names of Teleport roles whose sessions this policy applies to. Active sessions created by users with these roles can be joined under this policy.|
+|`name`|String|The name of the require policy|
+|`filter`|[Filter](#filters)|An expression that, if it evaluates to true for a given user, enables the user to be present in a Moderated Session|
 |`kinds`|`[]`[Session kind](#session-kinds)|The kind of session that the policy applies to|
-|`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the session under this policy|
+|`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
+|`count`|Integer|The number of users that need to match the filter expression to satisfy the policy|
 
-<Admonition type="note">
-Joining from the UI is available for SSH sessions.  Kubernetes sessions can only be joined from the CLI.
-</Admonition>
+### Require policy count
 
+Require policies can have a variable amount of users that need to match the
+filter expression in order to satisfy the policy. The `count` field of a require
+policy is a positive integer value that specifies the minimum amount of users
+this policy requires.
 
-#### Example Moderator Role
+### Optional fields
 
-The following allow policy attaches to the role `auditor` and allows one to
-join SSH and Kubernetes sessions started by a user with the role `prod-access`
-as a moderator or observer.
+The following fields are optional for `require_session_join`:
+
+|Option|Type|Description|
+|---|---|---|
+|`on_leave`|[On leave](#on-leave)|The action to take when the policy is no longer satisfied|
+
+The `on_leave` string option in require policies is used to define what happens 
+when a moderator leaves a session, causing a policy to no longer be satisfied.
+
+There are two possible actions to take in this scenario:
+- Terminate the session and disconnect all participants, corresponding to the `"terminate"` value.
+- Pause the session and stop any input/output streaming until the policy is satisfied again, 
+  corresponding to the `"pause"` value.
+
+By default, Teleport treats an empty string in this field as the same as `terminate`.
+That is, the session is terminated instantly and all participants are disconnected.
+
+If all require policies attached to the session owner are set to `"pause"`, the session 
+discards all input from session participants and buffers the most recent output but remains open
+until the session can resume.
+
+### Combining require policies and roles
+
+The authorizer applies require policies within a role together with an OR operator and the policies 
+from each role with an AND operator. In practice, this means that for every role with at least one 
+require policy, one of its policies must be met before a session can be started.
+
+## Configure an allow policy for moderated sessions
+
+You can use `join_sessions` in a role to specify the sessions users can join and under what conditions 
+they can join a session. For example, the following policy is attached to the role `auditor` and allows 
+a user assigned to the auditor role to join SSH and Kubernetes sessions started by a user with the 
+role `prod-access` as a moderator or observer:
 
 ```yaml
 kind: role
@@ -142,16 +146,32 @@ version: v7
 spec:
   allow:
     join_sessions:
-      - name: Auditor oversight
+      - name: Join prod sessions
         roles : ['prod-access']
         kinds: ['k8s', 'ssh']
         modes: ['moderator', 'observer']
 ```
 
-#### Joining sessions example
+You should note that users who are assigned a role with a `join_sessions` allow policy are
+implicitly allowed to list sessions. In most cases, `deny` statements take precedent.
+However, if the `join_sessions` policy is set in a role, the `join_sessions` policy 
+overrides any explicit deny setting for listing sessions.
 
-Here is an example of Jeff with role `prod-access` connecting to
-a SSH server in the production environment.
+### Required fields
+
+The following are required fields for `join_sessions`:
+
+|Option|Type|Description|
+|---|---|---|
+|`name`|String|The name of the allow policy|
+|`roles`|[]String|A list of names of Teleport roles whose sessions this policy applies to. Active sessions created by users with these roles can be joined under this policy.|
+|`kinds`|`[]`[Session kind](#session-kinds)|The kind of session that the policy applies to|
+|`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the session under this policy|
+
+### Joining a session from the command line
+
+In the following example, Jeff is assigned the `prod-access` role and attempts to connect to
+a server in the production environment using `tsh ssh`:
 
 ```code
 $ tsh ssh ubuntu@prod.teleport.example.com
@@ -164,9 +184,9 @@ Teleport > Waiting for required participants...
 ```
 
 Jeff's session is paused, waiting for the required observers.
-
-Now Alice with the `auditor` role joins as a moderator and
-the session can begin.
+When Alice—a user assigned the `auditor` role—joins the waiting session 
+as a moderator, the session can begin.
+For example:
 
 ```code
 $ tsh join --mode=moderator 46e2af03-62d6-4e07-a886-43fe741ca044
@@ -182,20 +202,39 @@ Teleport > Connecting to prod.teleport.example.com over SSH
 ubuntu@prod.teleport.example.com %
 ```
 
-Here is an example of joining from the UI that is available for server sessions.
+Because this session is an SSH session, Alice could also join from the 
+Teleport Web UI. For example:
 
 ![Join Server Session from UI](../../../img/webui-active-session.png)
 
-### Filters
+### Participant modes
 
-Filter expressions allow for more detailed control over the scope of an allow
-policy or require policy.
+A participant joining a session will always have one of three modes:
+
+- `observer`: Allows read-only access to the session. You can view output but 
+  cannot control the session in any way nor send any input.
+- `moderator`: Allows you to watch the session. You can view output and forcefully 
+  terminate or pause the session at any time, but can't send input.
+- `peer`: Allows you to collaborate in the session. You can view output and send input.
+
+If you join a session with `tsh join` or `tsh kube join`, you can specify a
+participant mode with the `--mode <mode>` flag , where the mode is one of `peer`,
+`moderator` or `observer`. By default, the mode is `observer`.
+
+You can leave a session with the shortcut `^c` (Control + c) while in observer or
+moderator mode. In moderator mode, you can also forcefully terminate the session 
+at any point in time with the shortcut `t`.
+
+## Filters
+
+Filter expressions allow for more detailed control over the scope of an allow 
+or require policy.
 
 Require policies can specify which users they consider as valid with a filter
 expression. The filter context has a `user` object defined with the set fields
 `roles` and `name`.
 
-Here is an example of a filter expression that evaluates to true if the user is
+In the following example, the filter expression evaluates to true if the user is
 Adam or if the user has the trait `cs-observe`:
 
 ```
@@ -203,8 +242,8 @@ equals(user.name, "adam") || contains(user.spec.roles, "cs-observe")
 ```
 
 A filter expression is a string statement used to define logic based on a set of
-input variables. The filter expressions follow a restricted subset of Go syntax
-and supports the following functions and operators:
+input variables. Filter expressions follow a restricted subset of Go syntax
+and support the following functions and operators:
 
 - `contains(set, item)`: Returns true if the item is in the set, otherwise
   false. The set can be a string or an array.
@@ -214,7 +253,7 @@ and supports the following functions and operators:
 - `[expr] && [expr]`: Performs a logical AND on two boolean expressions.
 - `[expr] || [expr]`: Performs a logical OR on two boolean expressions.
 
-### Session kinds
+## Session kinds
 
 Require and allow policies have to specify which sessions they apply to. Valid
 options are `ssh` and `k8s`.
@@ -222,54 +261,9 @@ options are `ssh` and `k8s`.
 - `ssh` policies apply to all SSH sessions on a node running the Teleport SSH server.
 - `k8s` policies apply to all Kubernetes sessions on clusters connected to Teleport.
 
-### Participant modes
-
-A participant joining a session will always have one of three modes:
-
-- `observer`: Allows read-only access to the session. You can view output but cannot control the session in any way nor send any input.
-- `moderator`: Allows you to watch the session. You can view output and forcefully terminate or pause the session at any time, but can't send input.
-- `peer`: Allows you to collaborate in the session. You can view output and send input.
-
-When joining a session with `tsh join` or `tsh kube join`, a user can specify a
-participant mode with the `--mode <mode>` flag , where the mode is one of `peer`,
-`moderator` or `observer`. By default, the mode is `observer`.
-
-A participant may leave a session with the shortcut `^c` (Control + c) while in observer or
-moderator mode. When in moderator mode, a participant may also forcefully
-terminate the session at any point in time with the shortcut `t`.
-
-### Require policy count
-
-Require policies can have a variable amount of users that need to match the
-filter expression in order to satisfy the policy. The `count` field of a require
-policy is a positive integer value that specifies the minimum amount of users
-this policy requires.
-
-### On leave
-
-The `on_leave` string option in require policies is used to define what happens when a moderator leaves a session, causing a policy to no longer be satisfied.
-
-There are two possible actions to take in this scenario:
-- Terminate the session and disconnect all participants, corresponding to the `"terminate"` value.
-- Pause the session and stop any input/output streaming until the policy is satisfied again, corresponding to the `"pause"` value.
-
-By default, Teleport treats an empty string in this field as the same as `terminate`.
-That is, the session is terminated instantly and all participants are disconnected.
-
-If all require policies attached to the session owner are set to `"pause"`, the session will instead pause
-but the session will remain open. This discards all input from session participants and buffers the most recent output until the session can resume.
-
-## Backwards compatibility with Server Access
-
-Moderated Session RBAC controls were added to the role specification in version 5
-(`version: v5` in the YAML definition).
-Previously, the Teleport SSH Service did not include controls over which users can join a
-session.
-To avoid breaking functionality for users with only roles on v4 or older, RBAC
-access checks will only be enforced if the user has at least one v5 role.
-
-New roles will be created as v5 by default, and older roles can by updated with
-`tctl` or from the Web UI by modifying the `version` field.
+Users with the `join_sessions` permission for SSH sessions can join sessions from the 
+command line or from the Teleport Web UI. Users with the `join_sessions` permission for 
+Kubernetes sessions can only join session from the command line.
 
 ## MFA-based presence
 
@@ -288,33 +282,34 @@ session which may pause it, if RBAC policies are no longer met.
 
 ## Session invites
 
-When starting an interactive SSH or Kubernetes session using `tsh ssh` or `tsh
-kube exec` respectively, one may supply a `--reason <reason>` and/or an
-`--invited <users>` flag where `<reason>` is a string and `<users>` is a
-comma-separated list of usernames.
+When starting an interactive SSH or Kubernetes session using `tsh ssh` or `tsh kube exec` 
+respectively, you can supply the `--reason <reason>` or `--invited <users>` command-line
+option to specify `<reason>` as a string or `<users>` as a comma-separated list of 
+user names.
 
-This information can be picked up by a third party integration and may for
-example be used to enable notifications over some external communication system.
+You can use this information to integrate with a third party, for example, to enable 
+notifications over some external communication system.
 
 ## File transfers
 
-File transfers within moderated sessions are available via the Web UI only. When initiating a file transfer, if the
-current active session requires moderation, a file transfer request will automatically be sent to all current party members.
+File transfers within moderated sessions are only supported when using the Teleport Web UI. 
+If the current active session requires moderation, file transfer requests are automatically 
+sent to all current session participants.
 
-Both the session originator and the moderator(s) must be present in the Web UI during the file transfer initiation to receive
-the file transfer request notification. Once the file transfer has been requested, all members of the party will be notified
-and prompted with an Approve/Deny dialog.
+Both the session originator and the moderator(s) must be present in the Teleport  Web UI 
+during the file transfer initiation to receive the file transfer request notification. 
+After the file transfer has been requested, all session participants and notified
+and prompted to approve or deny the file transfer request.
 
 ![Approve/Deny Prompt](../../../img/moderated-file-transfer-dialog.png)
 
 
-If a moderator denies the file transfer request, the request is immediately removed and all party members are notified.
+If a moderator denies the file transfer request, the request is immediately removed and 
+all session participants are notified.
 
-After enough approvals have been given to satisfy the policy (the same policy to start the session), the file transfer
-will automatically begin.
+After enough approvals have been given to satisfy the policy used to start the session, 
+the file transfer automatically begins.
 
-
-## RFD
+## Related documentation
 
 - [Moderated Sessions](https://github.com/gravitational/teleport/blob/master/rfd/0043-kubeaccess-multiparty.md)
-
