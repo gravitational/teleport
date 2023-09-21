@@ -30,12 +30,16 @@ import {
   makeEmptyAttempt,
 } from 'shared/hooks/useAsync';
 
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { Server, TshAbortSignal } from 'teleterm/services/tshd/types';
 import createAbortController from 'teleterm/services/tshd/createAbortController';
+import {
+  isAccessDeniedError,
+  isNotFoundError,
+} from 'teleterm/services/tshd/errors';
 
-import { assertUnreachable } from '../utils';
+import { assertUnreachable, retryWithRelogin } from '../utils';
 
 import { hasConnectMyComputerPermissions } from './permissions';
 
@@ -61,6 +65,10 @@ export type CurrentAction =
   | {
       kind: 'kill';
       attempt: Attempt<void>;
+    }
+  | {
+      kind: 'remove';
+      attempt: Attempt<void>;
     };
 
 export interface ConnectMyComputerContext {
@@ -74,6 +82,7 @@ export interface ConnectMyComputerContext {
   setDownloadAgentAttempt(attempt: Attempt<void>): void;
   downloadAndStartAgent(): Promise<void>;
   killAgent(): Promise<[void, Error]>;
+  removeAgent(): Promise<[void, Error]>;
   isAgentConfiguredAttempt: Attempt<boolean>;
   markAgentAsConfigured(): void;
   markAgentAsNotConfigured(): void;
@@ -84,6 +93,7 @@ const ConnectMyComputerContext = createContext<ConnectMyComputerContext>(null);
 export const ConnectMyComputerContextProvider: FC<{
   rootClusterUri: RootClusterUri;
 }> = ({ rootClusterUri, children }) => {
+  const ctx = useAppContext();
   const {
     mainProcessClient,
     connectMyComputerService,
@@ -91,7 +101,7 @@ export const ConnectMyComputerContextProvider: FC<{
     configService,
     workspacesService,
     usageService,
-  } = useAppContext();
+  } = ctx;
   clustersService.useState();
 
   const [
@@ -211,6 +221,73 @@ export const ConnectMyComputerContextProvider: FC<{
     setAgentConfiguredAttempt(makeSuccessAttempt(false));
   }, [setAgentConfiguredAttempt, setDownloadAgentAttempt]);
 
+  const removeConnections = useCallback(async () => {
+    const { rootClusterId } = routing.parseClusterUri(rootClusterUri).params;
+    let nodeName: string;
+    try {
+      nodeName = await connectMyComputerService.getConnectMyComputerNodeName(
+        rootClusterUri
+      );
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return;
+      }
+      throw error;
+    }
+    const nodeUri = routing.getServerUri({ rootClusterId, serverId: nodeName });
+    await ctx.connectionTracker.disconnectAndRemoveItemsBelongingToResource(
+      nodeUri
+    );
+  }, [connectMyComputerService, ctx.connectionTracker, rootClusterUri]);
+
+  const [removeAgentAttempt, removeAgent] = useAsync(
+    useCallback(async () => {
+      const [, error] = await killAgent();
+      if (error) {
+        throw error;
+      }
+      setCurrentActionKind('remove');
+
+      let hasAccessDeniedError = false;
+      try {
+        await retryWithRelogin(ctx, rootClusterUri, () =>
+          ctx.connectMyComputerService.removeConnectMyComputerNode(
+            rootClusterUri
+          )
+        );
+      } catch (e) {
+        if (isAccessDeniedError(e)) {
+          hasAccessDeniedError = true;
+        } else {
+          throw e;
+        }
+      }
+      ctx.notificationsService.notifyInfo(
+        hasAccessDeniedError
+          ? {
+              title: 'The agent has been removed.',
+              description:
+                'The corresponding server may still be visible in the cluster for a few more minutes until it gets purged from the cache.',
+            }
+          : 'The agent has been removed.'
+      );
+
+      // We have to remove connections before removing the agent directory, because
+      // we get the node UUID from the that directory.
+      await removeConnections();
+      ctx.workspacesService.removeConnectMyComputerState(rootClusterUri);
+      await ctx.connectMyComputerService.removeAgentDirectory(rootClusterUri);
+
+      markAgentAsNotConfigured();
+    }, [
+      ctx,
+      killAgent,
+      markAgentAsNotConfigured,
+      removeConnections,
+      rootClusterUri,
+    ])
+  );
+
   useEffect(() => {
     const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
       rootClusterUri,
@@ -237,6 +314,10 @@ export const ConnectMyComputerContextProvider: FC<{
     }
     case 'kill': {
       currentAction = { kind, attempt: killAgentAttempt };
+      break;
+    }
+    case 'remove': {
+      currentAction = { kind, attempt: removeAgentAttempt };
       break;
     }
     default: {
@@ -295,6 +376,7 @@ export const ConnectMyComputerContextProvider: FC<{
         markAgentAsConfigured,
         markAgentAsNotConfigured,
         isAgentConfiguredAttempt,
+        removeAgent,
       }}
       children={children}
     />

@@ -376,3 +376,17 @@ func mustMakeHostUUIDFile(t *testing.T, agentsDir string, profileName string) st
 
 	return hostUUID
 }
+
+func TestNodeNameGet(t *testing.T) {
+	t.Parallel()
+
+	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
+	nodeName, err := NewNodeName(&NodeNameConfig{AgentsDir: t.TempDir()})
+	require.NoError(t, err)
+	hostUUID := mustMakeHostUUIDFile(t, nodeName.cfg.AgentsDir, cluster.ProfileName)
+
+	readUUID, err := nodeName.Get(cluster)
+
+	require.NoError(t, err)
+	require.Equal(t, readUUID, hostUUID)
+}

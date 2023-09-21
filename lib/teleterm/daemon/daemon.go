@@ -787,6 +787,43 @@ func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClus
 	return nodeToken, trace.Wrap(err)
 }
 
+// DeleteConnectMyComputerNode deletes the Connect My Computer node.
+func (s *Service) DeleteConnectMyComputerNode(ctx context.Context, req *api.DeleteConnectMyComputerNodeRequest) (*api.DeleteConnectMyComputerNodeResponse, error) {
+	cluster, clusterClient, err := s.ResolveCluster(req.GetRootClusterUri())
+	if err != nil {
+		return &api.DeleteConnectMyComputerNodeResponse{}, trace.Wrap(err)
+	}
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		err = s.cfg.ConnectMyComputerNodeDelete.Run(ctx, authClient, cluster)
+		return trace.Wrap(err)
+	})
+
+	return &api.DeleteConnectMyComputerNodeResponse{}, trace.Wrap(err)
+}
+
+// GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
+func (s *Service) GetConnectMyComputerNodeName(req *api.GetConnectMyComputerNodeNameRequest) (*api.GetConnectMyComputerNodeNameResponse, error) {
+	cluster, _, err := s.ResolveCluster(req.GetRootClusterUri())
+	if err != nil {
+		return &api.GetConnectMyComputerNodeNameResponse{}, trace.Wrap(err)
+	}
+
+	uuid, err := s.cfg.ConnectMyComputerNodeName.Get(cluster)
+	return &api.GetConnectMyComputerNodeNameResponse{Name: uuid}, trace.Wrap(err)
+}
+
 // DeleteConnectMyComputerToken deletes a join token.
 func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.DeleteConnectMyComputerTokenResponse, error) {
 	_, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
