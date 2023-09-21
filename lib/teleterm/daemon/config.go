@@ -39,6 +39,8 @@ type Config struct {
 	// KubeconfigsDir is the directory containing kubeconfigs for Kubernetes
 	// Acesss.
 	KubeconfigsDir string
+	// AgentsDir contains agent config files and data directories for Connect My Computer.
+	AgentsDir string
 
 	GatewayCreator         GatewayCreator
 	DBCLICommandProvider   gateway.CLICommandProvider
@@ -50,6 +52,7 @@ type Config struct {
 
 	ConnectMyComputerRoleSetup        *connectmycomputer.RoleSetup
 	ConnectMyComputerTokenProvisioner *connectmycomputer.TokenProvisioner
+	ConnectMyComputerNodeJoinWait     *connectmycomputer.NodeJoinWait
 }
 
 type CreateTshdEventsClientCredsFunc func() (grpc.DialOption, error)
@@ -62,6 +65,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.KubeconfigsDir == "" {
 		return trace.BadParameter("missing kubeconfigs directory")
+	}
+
+	if c.AgentsDir == "" {
+		return trace.BadParameter("missing agents directory")
 	}
 
 	if c.GatewayCreator == nil {
@@ -91,5 +98,17 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.ConnectMyComputerTokenProvisioner == nil {
 		c.ConnectMyComputerTokenProvisioner = connectmycomputer.NewTokenProvisioner(&connectmycomputer.TokenProvisionerConfig{Clock: c.Storage.Clock})
 	}
+
+	if c.ConnectMyComputerNodeJoinWait == nil {
+		nodeJoinWait, err := connectmycomputer.NewNodeJoinWait(&connectmycomputer.NodeJoinWaitConfig{
+			AgentsDir: c.AgentsDir,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		c.ConnectMyComputerNodeJoinWait = nodeJoinWait
+	}
+
 	return nil
 }

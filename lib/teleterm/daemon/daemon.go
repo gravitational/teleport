@@ -201,11 +201,17 @@ func (s *Service) ResolveCluster(path string) (*clusters.Cluster, *client.Telepo
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	cluster, clusterClient, err := s.resolveCluster(resourceURI)
+	cluster, clusterClient, err := s.ResolveClusterURI(resourceURI)
 	return cluster, clusterClient, trace.Wrap(err)
 }
 
-func (s *Service) resolveCluster(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
+// ResolveClusterURI is like ResolveCluster, but it accepts an already parsed URI instead of a
+// string.
+//
+// In the future, we should migrate towards ResolveClusterURI. Transforming strings into URIs should
+// be done on the outermost layer, that is the gRPC handlers, so that the inner core doesn't have to
+// worry about parsing URIs and can assume they are correct.
+func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
 	cluster, clusterClient, err := s.cfg.Storage.GetByResourceURI(uri)
 	return cluster, clusterClient, trace.Wrap(err)
 }
@@ -327,7 +333,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 	}
 
 	reissueDBCerts := func() error {
-		cluster, _, err := s.resolveCluster(g.TargetURI())
+		cluster, _, err := s.ResolveClusterURI(g.TargetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -774,7 +780,7 @@ func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClus
 	return nodeToken, trace.Wrap(err)
 }
 
-// DeleteConnectMyComputerToken deletes a join token
+// DeleteConnectMyComputerToken deletes a join token.
 func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.DeleteConnectMyComputerTokenResponse, error) {
 	_, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
@@ -799,6 +805,39 @@ func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.Del
 	})
 
 	return response, trace.Wrap(err)
+}
+
+// WaitForConnectMyComputerNodeJoin returns a response only after detecting that a Connect My
+// Computer node for the given cluster has joined the cluster.
+func (s *Service) WaitForConnectMyComputerNodeJoin(ctx context.Context, rootClusterURI uri.ResourceURI) (clusters.Server, error) {
+	cluster, clusterClient, err := s.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return clusters.Server{}, trace.Wrap(err)
+	}
+
+	var server clusters.Server
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		server, err = s.cfg.ConnectMyComputerNodeJoinWait.Run(ctx, authClient, cluster)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	})
+
+	return server, trace.Wrap(err)
 }
 
 func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {
