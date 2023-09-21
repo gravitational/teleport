@@ -148,6 +148,11 @@ spec:
         modes: ['moderator', 'observer']
 ```
 
+You should note that users who are assigned a role with a `join_sessions` allow policy are
+implicitly allowed to list sessions. In most cases, `deny` statements take precedent.
+However, if the `join_sessions` policy is set in a role, the `join_sessions` policy 
+overrides any explicit deny setting for listing sessions.
+
 #### Joining sessions example
 
 Here is an example of Jeff with role `prod-access` connecting to
