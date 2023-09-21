@@ -15,7 +15,6 @@
  */
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-import { ServerUri } from 'teleterm/ui/uri';
 
 import * as types from '../types';
 
@@ -96,6 +95,6 @@ export class MockTshClient implements types.TshClient {
   updateHeadlessAuthenticationState: (
     params: types.UpdateHeadlessAuthenticationStateParams
   ) => Promise<void>;
-  deleteConnectMyComputerNode: () => Promise<void>;
+  deleteConnectMyComputerNode = () => Promise.resolve();
   getConnectMyComputerNodeName = () => Promise.resolve('');
 }
