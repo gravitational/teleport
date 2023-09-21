@@ -98,7 +98,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	require.Empty(t, reconciler.getAccessRequests())
-	require.Equal(t, types.ResourcesWithLabelsMap{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests())
+	require.Empty(t, cmp.Diff(types.ResourcesWithLabelsMap{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
@@ -115,7 +115,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	require.Empty(t, reconciler.getAccessRequests())
-	require.Equal(t, types.ResourcesWithLabelsMap{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests())
+	require.Empty(t, cmp.Diff(types.ResourcesWithLabelsMap{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
@@ -145,8 +145,8 @@ func TestAccessRequestReconciler(t *testing.T) {
 	ap.setServiceCounts(map[types.SystemRole]uint64{types.RoleOkta: 1})
 	clock.Advance(10 * time.Minute) // This will restart the reconciler.
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
-	require.Equal(t, types.ResourcesWithLabelsMap{accessRequest.GetName(): accessRequest}, reconciler.getAccessRequests())
-	require.Equal(t, types.ResourcesWithLabelsMap{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests())
+	require.Empty(t, cmp.Diff(types.ResourcesWithLabelsMap{accessRequest.GetName(): accessRequest}, reconciler.getAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(types.ResourcesWithLabelsMap{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	foundAssignment := getOktaAssignment(t, ap, accessRequest.GetName())
 	expires := accessRequest.GetAccessExpiry()

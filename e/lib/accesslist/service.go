@@ -50,7 +50,7 @@ const (
 // during upsert.
 var ignoreFieldsDuringUpsert = []cmp.Option{
 	// ID is handled by the backend, so it'll be ignored here.
-	cmpopts.IgnoreFields(header.Metadata{}, "ID"),
+	cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 	cmpopts.IgnoreFields(accesslist.Spec{}, "MembershipRequires"),
 	cmpopts.IgnoreFields(accesslist.Spec{}, "Audit"),
 }

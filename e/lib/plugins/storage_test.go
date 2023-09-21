@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -49,7 +51,8 @@ func TestPluginStorage(t *testing.T) {
 	// Other fields of the plugin resource should remain untouched
 	gotPlugin, err := backendService.GetPlugin(ctx, pluginName, true)
 	require.NoError(t, err)
-	require.Equal(t, initialPlugin.Metadata, gotPlugin.GetMetadata())
-	require.Equal(t, initialPlugin.Spec, gotPlugin.(*types.PluginV1).Spec)
-	require.Equal(t, initialPlugin.Status, gotPlugin.GetStatus())
+	require.Empty(t, cmp.Diff(initialPlugin, gotPlugin,
+		cmpopts.IgnoreFields(types.PluginV1{}, "Credentials"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+	))
 }

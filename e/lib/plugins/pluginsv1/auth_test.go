@@ -321,8 +321,7 @@ func TestSearchPluginStaticCredentials(t *testing.T) {
 				require.Nil(t, resp)
 			} else if tc.expected != nil {
 				require.NotNil(t, resp)
-				require.Empty(t, cmp.Diff(tc.expected, resp.Credentials),
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"))
+				require.Empty(t, cmp.Diff(tc.expected, resp.Credentials, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 			}
 		})
 	}
