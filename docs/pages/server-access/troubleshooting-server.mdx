@@ -8,7 +8,7 @@ with Teleport and how to work around or resolve them.
 
 ## Starting SSH sessions fails
 
-By default, if you use SSH to connect to a server, Teleport runs as the user login that starts 
+By default, when Teleport connects to a server, the service runs as the user login that starts 
 the SSH session. If starting the session fails, it might be because the file system permissions
 for the Teleport binary don't allow other user logins to connect to the remote server.
 This issue might be caused by systems that prevent newly installed software from being executable 
@@ -25,22 +25,16 @@ Process exited with status 255
 
 ### Solution
 
-You should check the permission settings for the `teleport` service. 
+You should check the permission settings for the `teleport` binary. 
 
-To check the file system permissions on the `teleport` service:
+To check the file system permissions on the `teleport` binary:
 
 1. Open a terminal shell on the computer where you have installed the `teleport` service.
 
-1. Determine the location of the Teleport binary by running the following command:
+1. Determine the location and file system permission of the Teleport binary by running the following command:
    
    ```code
-   which teleport
-   ```
-
-1. Check the permission settings for the binary by running the following command:
-   
-   ```code
-   ls -al <Var name="/usr/local/bin/teleport" />
+   ls -al $(which teleport)
    ```
 
    The command should return output similar to the following:
@@ -88,7 +82,7 @@ For example, you might run either of these commands and see output similar to th
 servers that have previously sent a heartbeat signal to the Teleport Proxy Service even if
 one of these servers subsequently went offline:
 
-```code
+```
 Node Name      Address        Labels                  
 -------------- -------------- ----------------------- 
 ip-172-3-1-242 127.0.0.1:3022 hostname=ip-172-3-1-242 
@@ -136,7 +130,7 @@ version: v6
 spec:
   allow:
     join_sessions:
-      - name: Auditor oversight
+      - name: Join prod sessions
         roles : ['prod-access']
         kinds: ['k8s', 'ssh']
         modes: ['moderator', 'observer']
