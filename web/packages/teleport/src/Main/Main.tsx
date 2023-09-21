@@ -69,6 +69,7 @@ export interface MainProps {
   billingBanners?: ReactNode[];
   Questionnaire?: (props: QuestionnaireProps) => React.ReactElement;
   navigationProps?: NavigationProps;
+  inviteCollaboratorsFeedback?: ReactNode;
 }
 
 export function Main(props: MainProps) {
@@ -193,6 +194,7 @@ export function Main(props: MainProps) {
           />
         </Dialog>
       )}
+      {props.inviteCollaboratorsFeedback}
     </FeaturesContextProvider>
   );
 }

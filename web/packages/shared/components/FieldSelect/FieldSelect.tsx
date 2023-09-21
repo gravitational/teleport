@@ -23,7 +23,7 @@ import { useRule } from 'shared/components/Validation';
 import Select, {
   SelectCreatable,
   Props as SelectProps,
-  CreatableProps as SelectCreatableProps
+  CreatableProps as SelectCreatableProps,
 } from './../Select';
 
 export default function FieldSelect({
@@ -88,7 +88,6 @@ export function FieldSelectCreatable({
   label,
   labelTip,
   value,
-  options,
   name,
   onChange,
   placeholder,
@@ -171,4 +170,4 @@ type CreatableProps = SelectCreatableProps & {
   rule?: (options: unknown) => () => unknown;
   // styles
   [key: string]: any;
-}
+};

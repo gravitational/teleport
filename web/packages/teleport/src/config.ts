@@ -187,6 +187,7 @@ const cfg = {
     createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
 
     rolesPath: '/v1/webapi/roles/:name?',
+    presetRolesPath: '/v1/webapi/preset-roles',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
 
@@ -259,6 +260,8 @@ const cfg = {
     // Assist needs some access request info to exist in OSS
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
   },
+
+  welcomeInitialUserFlag: 'initial',
 
   getAppFqdnUrl(params: UrlAppParams) {
     return generatePath(cfg.api.appFqdnPath, { ...params });
@@ -661,6 +664,10 @@ const cfg = {
 
   getRolesUrl(name?: string) {
     return generatePath(cfg.api.rolesPath, { name });
+  },
+
+  getPresetRolesUrl() {
+    return cfg.api.presetRolesPath;
   },
 
   getKubernetesUrl(clusterId: string, params: UrlResourcesParams) {

@@ -48,6 +48,6 @@ export type LocalStorageSurvey = SurveyRequest & {
 // CloudUserInvites is a set of users and roles which should be submitted after
 // initial login.
 export type CloudUserInvites = {
-  recipient: Array<string>;
+  recipients: Array<string>;
   roles: Array<string>;
 };

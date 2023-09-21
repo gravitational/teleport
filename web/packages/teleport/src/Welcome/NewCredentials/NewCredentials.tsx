@@ -97,7 +97,6 @@ export function NewCredentials(props: NewCredentialsProps) {
     );
   }
 
-  // TODO: need to make sure this is only shown for admins... somehow.
   if (
     success &&
     !resetMode &&
@@ -107,7 +106,9 @@ export function NewCredentials(props: NewCredentialsProps) {
   ) {
     return (
       <OnboardCard>
-        <InviteCollaborators />
+        <InviteCollaborators
+          onSubmit={() => setDisplayInviteCollaborators(false)}
+        />
       </OnboardCard>
     );
   }

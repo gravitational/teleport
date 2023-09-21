@@ -50,7 +50,9 @@ export type QuestionnaireProps = {
 
 // Note: InviteCollaboratorsCardProps is duplicated in Enterprise
 // (e-teleport/Welcome/InviteCollaborators/InviteCollaborators)
-export type InviteCollaboratorsCardProps = {};
+export type InviteCollaboratorsCardProps = {
+  onSubmit: () => void;
+};
 
 export type NewCredentialsProps = UseTokenState & {
   resetMode?: boolean;
@@ -68,8 +70,9 @@ export type NewCredentialsProps = UseTokenState & {
   // support for E's invite collaborators at onboarding
   displayInviteCollaborators?: boolean;
   setDisplayInviteCollaborators?: (bool: boolean) => void;
-  InviteCollaborators?: ({}: // TODO
-  InviteCollaboratorsCardProps) => ReactElement;
+  InviteCollaborators?: ({
+    onSubmit,
+  }: InviteCollaboratorsCardProps) => ReactElement;
 };
 
 export type RegisterSuccessProps = {

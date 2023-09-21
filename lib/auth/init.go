@@ -738,9 +738,10 @@ type PresetRoleManager interface {
 	UpsertRole(ctx context.Context, role types.Role) error
 }
 
-// createPresetRoles creates preset role resources
-func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
-	roles := []types.Role{
+// GetPresetRoles returns a list of all preset roles expected to be available on
+// this cluster.
+func GetPresetRoles() []types.Role {
+	return []types.Role{
 		services.NewPresetGroupAccessRole(),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
@@ -752,6 +753,11 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 		services.NewPresetDeviceEnrollRole(),
 		services.NewPresetRequireTrustedDeviceRole(),
 	}
+}
+
+// createPresetRoles creates preset role resources
+func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
+	roles := GetPresetRoles()
 
 	g, gctx := errgroup.WithContext(ctx)
 	for _, role := range roles {

@@ -14,18 +14,11 @@
  * limitations under the License.
  */
 
-import {
-  ReactElement,
-  Dispatch,
-  SetStateAction,
-  useState,
-  useEffect,
-} from 'react';
+import { ReactElement, useState, useEffect } from 'react';
 import { useAttempt } from 'shared/hooks';
 
 import { User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
-import resultsStory from 'teleterm/ui/Search/pickers/results.story';
 
 export default function useUsers({ inviteCollaborators }: UsersContainerProps) {
   const ctx = useTeleport();
@@ -59,7 +52,7 @@ export default function useUsers({ inviteCollaborators }: UsersContainerProps) {
   }
 
   function onStartInviteCollaborators(user: User) {
-    setOperation({ type: 'invite-collaborators' });
+    setOperation({ type: 'invite-collaborators', user });
     setInviteCollaboratorsOpen(true);
   }
 

@@ -24,7 +24,12 @@ import { width, space } from 'design/system';
 import { Props, AsyncProps, CreatableProps } from './types';
 
 export default function Select(props: Props) {
-  const { hasError = false, elevated = false, stylesConfig, ...restOfProps } = props;
+  const {
+    hasError = false,
+    elevated = false,
+    stylesConfig,
+    ...restOfProps
+  } = props;
   return (
     <StyledSelect hasError={hasError} elevated={elevated}>
       <ReactSelect

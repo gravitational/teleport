@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { ReactNode } from 'react';
+import React from 'react';
 import { Indicator, Box, ButtonPrimary, Alert } from 'design';
 
 import {
