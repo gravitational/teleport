@@ -288,7 +288,7 @@ func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req type
 // UpsertAccessRequestAllowedPromotions upserts AccessRequestAllowedPromotions object.
 func (s *DynamicAccessService) UpsertAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestAllowedPromotions) error {
 	// create the new access request suggestion object
-	item, err := itemFromAccessListSuggestion(req, accessLists)
+	item, err := itemFromAccessListPromotions(req, accessLists)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -487,7 +487,7 @@ func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 	}, nil
 }
 
-func itemFromAccessListSuggestion(req types.AccessRequest, suggestedItems *types.AccessRequestAllowedPromotions) (backend.Item, error) {
+func itemFromAccessListPromotions(req types.AccessRequest, suggestedItems *types.AccessRequestAllowedPromotions) (backend.Item, error) {
 	value, err := services.MarshalAccessRequestAllowedPromotion(suggestedItems)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)

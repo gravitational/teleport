@@ -1056,6 +1056,7 @@ func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
 	return trace.Wrap(err)
 }
 
+// GetAccessRequestAllowedPromotions returns the list of promotions allowed for the given access request.
 func (c *Client) GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	resp, err := c.grpc.GetAccessRequestAllowedPromotions(ctx, &proto.AccessRequestAllowedPromotionRequest{
 		AccessRequestID: req.GetName(),

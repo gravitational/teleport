@@ -187,7 +187,7 @@ func handleReexec() {
 
 type cliModules struct{}
 
-func (p *cliModules) GenerateAccessListSuggestions(_ context.Context, _ modules.AccessListGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
 

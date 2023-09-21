@@ -132,7 +132,9 @@ func (f Features) ToProto() *proto.Features {
 	}
 }
 
-type AccessListGetter interface {
+// AccessResourcesGetter is a minimal interface that is used to get access lists
+// and related resources from the backend.
+type AccessResourcesGetter interface {
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 
@@ -155,8 +157,8 @@ type Modules interface {
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
-	// GenerateAccessListSuggestions generates access list suggestions for the given access request.
-	GenerateAccessListSuggestions(context.Context, AccessListGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
+	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	// EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
 	EnableRecoveryCodes()
 	// EnablePlugins enables the hosted plugins runtime
@@ -255,8 +257,9 @@ func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ k
 	return keys.PrivateKeyPolicyNone, nil
 }
 
-func (p *defaultModules) GenerateAccessListSuggestions(_ context.Context, _ AccessListGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
-	// The default module does not support generating access list suggestions.
+// GenerateAccessRequestPromotions is a noop since OSS teleport does not support generating access list promotions.
+func (p *defaultModules) GenerateAccessRequestPromotions(_ context.Context, _ AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	// The default module does not support generating access list promotions.
 	return types.NewAccessRequestAllowedPromotions(nil), nil
 }
 

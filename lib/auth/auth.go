@@ -4254,7 +4254,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 	// calculate the promotions
 	reqCopy := req.Copy()
-	promotions, err := modules.GetModules().GenerateAccessListSuggestions(ctx, a.Services, reqCopy)
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
 	if err != nil {
 		log.WithError(err).Warn("Failed to generate access list promotions.")
 	} else if promotions != nil && len(promotions.Promotions) > 0 {
