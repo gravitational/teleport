@@ -208,7 +208,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	err := os.MkdirAll(cfg.Path, os.ModeDir|defaultDirMode)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
-			return nil, trace.Wrap(err, "Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", path)
+			return nil, trace.AccessDenied("Teleport does not have permission to write to %v", path)
 		}
 		return nil, trace.ConvertSystemError(err)
 	}
