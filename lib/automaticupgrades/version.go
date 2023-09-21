@@ -48,7 +48,40 @@ func Version(ctx context.Context, versionURL string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, versionURL, nil)
+	resp, err := sendRequest(ctx, versionURL)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return resp, nil
+}
+
+// Critical returns true if a critical upgrade is available.
+func Critical(ctx context.Context, criticalURL string) (bool, error) {
+	criticalURL, err := getCriticalURL(criticalURL)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	critical, err := sendRequest(ctx, criticalURL)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// Expectes critical endpoint to return either the string "yes" or "no"
+	switch critical {
+	case "yes":
+		return true, nil
+	case "no":
+		return false, nil
+	default:
+		return false, trace.BadParameter("critical endpoint returned an unexpected value: %v", critical)
+	}
+}
+
+// sendRequest sends a GET request to the reqURL and returns the response value
+func sendRequest(ctx context.Context, reqURL string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -68,9 +101,7 @@ func Version(ctx context.Context, versionURL string) (string, error) {
 		return "", trace.BadParameter("invalid status code %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	versionString := strings.TrimSpace(string(body))
-
-	return versionString, trace.Wrap(err)
+	return strings.TrimSpace(string(body)), trace.Wrap(err)
 }
 
 // getVersionURL returns the versionURL or the default stable/cloud version url.
@@ -83,39 +114,6 @@ func getVersionURL(versionURL string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return cloudStableVersionURL, nil
-}
-
-// Critical returns true if a critical upgrade is available.
-func Critical(ctx context.Context, criticalURL string) (bool, error) {
-	criticalURL, err := getCriticalURL(criticalURL)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, criticalURL, nil)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	defer resp.Body.Close()
-
-	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return false, trace.BadParameter("invalid status code %d, body: %s", resp.StatusCode, string(body))
-	}
-
-	critical := strings.TrimSpace(string(body))
-
-	// The critical endpoint returns either the string "yes" or "no"
-	return critical == "yes", nil
 }
 
 // getCriticalURL returns the criticalURL or the default stable/cloud critical url.

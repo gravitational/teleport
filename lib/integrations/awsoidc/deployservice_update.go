@@ -25,44 +25,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/aws/aws-sdk-go/aws/awsutil"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // waitDuration specifies the amount of time to wait for a service to become healthy after an update.
 const waitDuration = time.Minute * 5
-
-// AWSRegionsList is the list of available AWS regions
-// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html
-var AWSRegionsList = []string{
-	"us-east-2",
-	"us-east-1",
-	"us-west-1",
-	"us-west-2",
-	"af-south-1",
-	"ap-east-1",
-	"ap-south-2",
-	"ap-southeast-3",
-	"ap-southeast-4",
-	"ap-south-1",
-	"ap-northeast-3",
-	"ap-northeast-2",
-	"ap-southeast-1",
-	"ap-southeast-2",
-	"ap-northeast-1",
-	"ca-central-1",
-	"eu-central-1",
-	"eu-west-1",
-	"eu-west-2",
-	"eu-south-1",
-	"eu-west-3",
-	"eu-south-2",
-	"eu-north-1",
-	"eu-central-2",
-	"me-south-1",
-	"me-central-1",
-	"sa-east-1",
-}
 
 func listManagedClusters(ctx context.Context, clt DeployServiceClient, ownershipTags AWSTags) (clusterARNs []string, err error) {
 	listClustersOut, err := clt.ListClusters(ctx, &ecs.ListClustersInput{})

@@ -1,3 +1,19 @@
+/*
+Copyright 2023 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package service
 
 import (
@@ -7,6 +23,11 @@ import (
 	"strings"
 	"time"
 
+	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/time/rate"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -14,12 +35,8 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/interval"
-
-	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"golang.org/x/time/rate"
 )
 
 const (
@@ -60,7 +77,11 @@ func (process *TeleportProcess) periodUpdateDeployServiceAgents() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer process.GetAuthServer().CancelSemaphoreLease(process.GracefulExitContext(), *lock)
+	defer func() {
+		if err := process.GetAuthServer().CancelSemaphoreLease(process.GracefulExitContext(), *lock); err != nil {
+			process.log.WithError(err).Errorf("Failed to cancel lease: %v.", lock)
+		}
+	}()
 
 	periodic := interval.New(interval.Config{
 		Duration: updateDeployAgentsInterval,
@@ -131,7 +152,7 @@ func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, a
 			continue
 		}
 
-		for _, region := range awsoidc.AWSRegionsList {
+		for _, region := range aws.GetKnownRegions() {
 			if err := limit.Wait(ctx); err != nil {
 				return trace.Wrap(err)
 			}

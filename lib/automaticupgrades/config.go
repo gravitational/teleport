@@ -51,6 +51,8 @@ func IsEnabled() bool {
 }
 
 // GetChannel returns the TELEPORT_AUTOMATIC_UPGRADES_CHANNEL value.
+// Example of an acceptable value for TELEPORT_AUTOMATIC_UPGRADES_CHANNEL is:
+// https://updates.releases.teleport.dev/v1/stable/cloud
 func GetChannel() string {
 	return os.Getenv(automaticUpgradesChannelEnvar)
 }

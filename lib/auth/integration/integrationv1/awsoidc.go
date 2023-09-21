@@ -88,7 +88,7 @@ func (c *AWSOIDCTokenConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-// GenerateToken generates a token to be used when executing an AWS OIDC Integration action.
+// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
 func GenerateAWSOIDCToken(ctx context.Context, config AWSOIDCTokenConfig) (string, error) {
 	if err := config.checkAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
