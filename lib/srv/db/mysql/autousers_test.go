@@ -70,6 +70,6 @@ func Test_makeActivateUserDetails(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	wantOutput := `{"roles":["role","role2"],"auth_options":"IDENTIFIED WITH AWSAuthenticationPlugin AS \\"RDS\\"","attributes":{"user":"a-very-very-very-long-name-that-is-over-32"}}`
-	require.Equal(t, wantOutput, details)
+	wantOutput := `{"roles":["role","role2"],"auth_options":"IDENTIFIED WITH AWSAuthenticationPlugin AS \"RDS\"","attributes":{"user":"a-very-very-very-long-name-that-is-over-32"}}`
+	require.Equal(t, wantOutput, string(details))
 }
