@@ -25,9 +25,9 @@ To prevent changes to labels from granting elevated privileges, you should:
 - Restrict access to any command that may be run as part of dynamic labels.
 - Follow the **principle of least privilege** in creating and assigning roles. 
   Don't give users permissive roles when more a restrictive role will do. For example, don't 
-  assign users the preset `access,editor` roles, which give them permission to access and edit 
+  assign users the preset `access` or `editor` role, which give them permission to access and edit 
   all cluster resources. Instead, define roles with the minimum required permissions for each 
-  user and configure **access requests** to provide temporary elevated permissions.
+  user and configure **access requests** or **access lists** to provide temporary elevated permissions.
 
 ## Restrict root access
 
