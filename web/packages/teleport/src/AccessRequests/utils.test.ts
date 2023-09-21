@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { middleValues } from "teleport/AccessRequests/utils";
+import { middleValues } from 'teleport/AccessRequests/utils';
 
 // Generate testing response
 function generateResponse(
@@ -54,13 +54,23 @@ function generateResponse(
 }
 
 describe('generate middle times', () => {
-  const cases = [
+  const cases: {
+    name: string;
+    created: string;
+    sessionTTL: string;
+    maxDuration: string;
+    expected: Array<{
+      days: number;
+      hours: number;
+      minutes: number;
+    }>;
+  }[] = [
     {
       name: '3 days max',
       created: '2021-09-01T00:00:00.000Z',
       sessionTTL: '2021-09-01T01:00:00.000Z',
       maxDuration: '2021-09-04T00:00:00.000Z',
-      expected: Array(
+      expected: [
         {
           days: 0,
           hours: 1,
@@ -80,15 +90,15 @@ describe('generate middle times', () => {
           days: 3,
           hours: 0,
           minutes: 0,
-        }
-      ),
+        },
+      ],
     },
     {
       name: '1 day max',
       created: '2021-09-01T00:00:00.000Z',
       sessionTTL: '2021-09-01T01:00:00.000Z',
       maxDuration: '2021-09-02T00:00:00.000Z',
-      expected: Array(
+      expected: [
         {
           days: 0,
           hours: 1,
@@ -98,15 +108,15 @@ describe('generate middle times', () => {
           days: 1,
           hours: 0,
           minutes: 0,
-        }
-      ),
+        },
+      ],
     },
     {
       name: 'session ttl is 10 min',
       created: '2021-09-01T00:00:00.000Z',
       sessionTTL: '2021-09-01T00:10:00.000Z',
       maxDuration: '2021-09-03T00:00:00.000Z',
-      expected: Array(
+      expected: [
         {
           days: 0,
           hours: 0,
@@ -121,15 +131,15 @@ describe('generate middle times', () => {
           days: 2,
           hours: 0,
           minutes: 0,
-        }
-      ),
+        },
+      ],
     },
     {
       name: '10 minutes min - real values',
       created: '2023-09-21T20:50:52.669012121Z',
       sessionTTL: '2023-09-21T21:00:52.669081473Z',
       maxDuration: '2023-09-27T20:50:52.669081473Z',
-      expected: Array(
+      expected: [
         {
           days: 0,
           hours: 0,
@@ -164,8 +174,8 @@ describe('generate middle times', () => {
           days: 6,
           hours: 0,
           minutes: 0,
-        }
-      ),
+        },
+      ],
     },
   ];
 
