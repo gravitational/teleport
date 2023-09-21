@@ -1138,67 +1138,31 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 }
 
 func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
-	_, root, leaf := createTrustedClusterPair(t, suite, nil, func(cfg *servicecfg.Config, isRoot bool) {
-		auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-			AuditSessionsURI: t.TempDir(),
-		})
-		require.NoError(t, err)
-
-		cfg.Auth.Enabled = true
-		cfg.Auth.AuditConfig = auditConfig
-		cfg.Proxy.Enabled = true
-		cfg.SSH.Enabled = true
-	})
-
-	leafTC, err := root.NewClient(helpers.ClientConfig{
-		Login:   suite.Me.Username,
-		Cluster: "leaf-test",
-		Host:    "leaf-zero:0",
-	})
-	require.NoError(t, err)
-
-	rootAuth := root.Process.GetAuthServer()
-	leafAuth := leaf.Process.GetAuthServer()
-
 	tests := []struct {
 		rootRecordingMode string
 		leafRecordingMode string
-		authSrv           *auth.Server
+		rootHasSess       bool
 	}{
 		{
 			rootRecordingMode: types.RecordAtNode,
 			leafRecordingMode: types.RecordAtProxy,
-			authSrv:           rootAuth,
+			rootHasSess:       true,
 		},
 		{
 			rootRecordingMode: types.RecordAtProxy,
 			leafRecordingMode: types.RecordAtNode,
-			authSrv:           rootAuth,
+			rootHasSess:       true,
 		},
 		{
 			rootRecordingMode: types.RecordAtNode,
 			leafRecordingMode: types.RecordAtNode,
-			authSrv:           leafAuth,
+			rootHasSess:       false,
 		},
-		// {
-		// 	rootRecordingMode: types.RecordAtProxy,
-		// 	leafRecordingMode: types.RecordAtProxy,
-		// 	authSrv:           rootAuth,
-		// },
-	}
-
-	ctx := context.Background()
-	clt, err := leafTC.ConnectToCluster(ctx)
-	require.NoError(t, err)
-
-	waitForRecCfg := func(t *testing.T, authSrv *auth.Server, expectedCfg types.SessionRecordingConfig) {
-		t.Helper()
-
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			recCfg, err := authSrv.GetSessionRecordingConfig(ctx)
-			assert.NoError(t, err)
-			assert.Equal(t, expectedCfg.GetMode(), recCfg.GetMode())
-		}, 3*time.Second, 100*time.Millisecond)
+		{
+			rootRecordingMode: types.RecordAtProxy,
+			leafRecordingMode: types.RecordAtProxy,
+			rootHasSess:       true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1206,39 +1170,63 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 			tt.rootRecordingMode,
 			tt.leafRecordingMode,
 		), func(t *testing.T) {
-			// Set the session recording configs
-			rootRecCfg, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-				Mode: tt.rootRecordingMode,
+			// Create and start clusters
+			_, root, leaf := createTrustedClusterPair(t, suite, nil, func(cfg *servicecfg.Config, isRoot bool) {
+				auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+					AuditSessionsURI: t.TempDir(),
+				})
+				require.NoError(t, err)
+
+				recMode := tt.leafRecordingMode
+				if isRoot {
+					recMode = tt.rootRecordingMode
+				}
+				recCfg, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+					Mode: recMode,
+				})
+				require.NoError(t, err)
+
+				cfg.Auth.Enabled = true
+				cfg.Auth.AuditConfig = auditConfig
+				cfg.Auth.SessionRecordingConfig = recCfg
+				cfg.Proxy.Enabled = true
+				cfg.SSH.Enabled = true
+			})
+
+			authSrv := root.Process.GetAuthServer()
+			uploadChan := root.UploadEventsC
+			if !tt.rootHasSess {
+				authSrv = leaf.Process.GetAuthServer()
+				uploadChan = leaf.UploadEventsC
+			}
+
+			tc, err := root.NewClient(helpers.ClientConfig{
+				Login:   suite.Me.Username,
+				Cluster: "leaf-test",
+				Host:    "leaf-zero:0",
 			})
 			require.NoError(t, err)
 
-			leafRecCfg, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-				Mode: tt.leafRecordingMode,
+			ctx := context.Background()
+			clt, err := tc.ConnectToCluster(ctx)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, clt.Close())
 			})
-			require.NoError(t, err)
-
-			err = rootAuth.SetSessionRecordingConfig(ctx, rootRecCfg)
-			require.NoError(t, err)
-
-			err = leafAuth.SetSessionRecordingConfig(ctx, leafRecCfg)
-			require.NoError(t, err)
-
-			waitForRecCfg(t, rootAuth, rootRecCfg)
-			waitForRecCfg(t, leafAuth, leafRecCfg)
 
 			// Create an interactive SSH session to start session recording
 			term := NewTerminal(250)
 			errCh := make(chan error)
 
-			leafTC.Stdout = term
-			leafTC.Stdin = term
+			tc.Stdout = term
+			tc.Stdin = term
 
 			go func() {
-				nodeClient, err := leafTC.ConnectToNode(
+				nodeClient, err := tc.ConnectToNode(
 					ctx,
 					clt,
-					client.NodeDetails{Addr: "leaf-zero:0", Namespace: leafTC.Namespace, Cluster: clt.ClusterName()},
-					leafTC.Config.HostLogin,
+					client.NodeDetails{Addr: "leaf-zero:0", Namespace: tc.Namespace, Cluster: clt.ClusterName()},
+					tc.Config.HostLogin,
 				)
 				assert.NoError(t, err)
 
@@ -1248,7 +1236,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 
 			var sessionID string
 			require.Eventually(t, func() bool {
-				trackers, err := tt.authSrv.GetActiveSessionTrackers(ctx)
+				trackers, err := authSrv.GetActiveSessionTrackers(ctx)
 				require.NoError(t, err)
 				if len(trackers) == 1 {
 					sessionID = trackers[0].GetSessionID()
@@ -1276,7 +1264,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 			timeoutC := time.After(10 * time.Second)
 			for !uploaded {
 				select {
-				case event := <-root.UploadEventsC:
+				case event := <-uploadChan:
 					if event.SessionID == sessionID {
 						uploaded = true
 					}
@@ -1286,7 +1274,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 			}
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				events, err := rootAuth.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0)
+				events, err := authSrv.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0)
 				assert.NoError(t, err)
 				assert.NotEmpty(t, events)
 			}, 5*time.Second, 200*time.Millisecond)
