@@ -240,11 +240,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Headless WebAuthn (Preview)",
+              "title": "Headless WebAuthn",
               "slug": "/access-controls/guides/headless/"
             },
             {
-              "title": "IP Pinning (Preview)",
+              "title": "IP Pinning ",
               "slug": "/access-controls/guides/ip-pinning/",
               "forScopes": ["enterprise", "cloud"]
             }
@@ -456,6 +456,11 @@
               "forScopes": ["cloud"]
             },
             {
+              "title": "ServiceNow",
+              "slug": "/access-controls/access-request-plugins/servicenow/",
+              "forScopes": ["cloud"]
+            },
+            {
               "title": "Jira",
               "slug": "/access-controls/access-request-plugins/ssh-approval-jira/",
               "forScopes": ["enterprise", "cloud"]
@@ -612,6 +617,14 @@
             {
               "title": "Reducing the Blast Radius of Attacks",
               "slug": "/management/security/reduce-blast-radius/"
+            },
+            {
+              "title": "PROXY Protocol",
+              "slug": "/management/security/proxy-protocol/",
+              "forScopes": [
+                "enterprise",
+                "oss"
+              ]
             }
           ]
         },
@@ -766,6 +779,24 @@
           "title": "Getting Started",
           "slug": "/application-access/getting-started/"
         },
+	{
+	    "title": "Enroll Kubernetes Applications",
+	    "slug": "/application-access/enroll-kubernetes-applications/",
+	    "entries":[
+		{
+		    "title": "Get Started",
+		    "slug": "/application-access/enroll-kubernetes-applications/get-started/"
+		},
+		{
+		    "title": "Architecture",
+		    "slug": "/application-access/enroll-kubernetes-applications/architecture/"
+		},
+		{
+		    "title": "Reference",
+		    "slug": "/application-access/enroll-kubernetes-applications/reference/"
+		}
+	    ]
+	},
         {
           "title": "Securing Cloud Provider APIs",
           "slug": "/application-access/cloud-apis/",
@@ -833,7 +864,7 @@
           ]
         },
         {
-          "title": "Protect Okta Applications and Groups (Preview)",
+          "title": "Protect Okta Applications and Groups ",
           "slug": "/application-access/okta/",
           "forScopes": ["enterprise", "cloud"],
           "entries": [
@@ -1173,7 +1204,7 @@
               "slug": "/database-access/rbac/configuring-access/"
             },
             {
-              "title": "Automatic User Provisioning (Preview)",
+              "title": "Automatic User Provisioning ",
               "slug": "/database-access/rbac/configuring-auto-user-provisioning/"
             }
           ]
@@ -1227,7 +1258,7 @@
           "slug": "/desktop-access/introduction/"
         },
         {
-          "title": "Getting Started",
+          "title": "Configure local Windows users",
           "slug": "/desktop-access/getting-started/",
           "forScopes": ["enterprise", "cloud"]
         },

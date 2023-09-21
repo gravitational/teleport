@@ -53,6 +53,8 @@ type Config struct {
 	// KubeconfigsDir is the directory containing kubeconfigs for Kubernetes
 	// Acesss.
 	KubeconfigsDir string
+	// AgentsDir contains agent config files and data directories for Connect My Computer.
+	AgentsDir string
 
 	GatewayCreator GatewayCreator
 	// CreateTshdEventsClientCredsFunc lazily creates creds for the tshd events server ran by the
@@ -62,6 +64,9 @@ type Config struct {
 
 	ConnectMyComputerRoleSetup        *connectmycomputer.RoleSetup
 	ConnectMyComputerTokenProvisioner *connectmycomputer.TokenProvisioner
+	ConnectMyComputerNodeJoinWait     *connectmycomputer.NodeJoinWait
+	ConnectMyComputerNodeDelete       *connectmycomputer.NodeDelete
+	ConnectMyComputerNodeName         *connectmycomputer.NodeName
 }
 
 type CreateTshdEventsClientCredsFunc func() (grpc.DialOption, error)
@@ -78,6 +83,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.KubeconfigsDir == "" {
 		return trace.BadParameter("missing kubeconfigs directory")
+	}
+
+	if c.AgentsDir == "" {
+		return trace.BadParameter("missing agents directory")
 	}
 
 	if c.GatewayCreator == nil {
@@ -99,5 +108,35 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.ConnectMyComputerTokenProvisioner == nil {
 		c.ConnectMyComputerTokenProvisioner = connectmycomputer.NewTokenProvisioner(&connectmycomputer.TokenProvisionerConfig{Clock: c.Clock})
 	}
+
+	if c.ConnectMyComputerNodeJoinWait == nil {
+		nodeJoinWait, err := connectmycomputer.NewNodeJoinWait(&connectmycomputer.NodeJoinWaitConfig{
+			AgentsDir: c.AgentsDir,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		c.ConnectMyComputerNodeJoinWait = nodeJoinWait
+	}
+
+	if c.ConnectMyComputerNodeDelete == nil {
+		nodeDelete, err := connectmycomputer.NewNodeDelete(&connectmycomputer.NodeDeleteConfig{AgentsDir: c.AgentsDir})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		c.ConnectMyComputerNodeDelete = nodeDelete
+	}
+
+	if c.ConnectMyComputerNodeName == nil {
+		nodeName, err := connectmycomputer.NewNodeName(&connectmycomputer.NodeNameConfig{AgentsDir: c.AgentsDir})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		c.ConnectMyComputerNodeName = nodeName
+	}
+
 	return nil
 }

@@ -84,7 +84,7 @@ func (m *MessageOpCompressed) GetOriginal() Message {
 }
 
 // readOpCompressed converts OP_COMPRESSED wire message bytes to a structured form.
-func readOpCompressed(header MessageHeader, payload []byte) (message *MessageOpCompressed, err error) {
+func readOpCompressed(header MessageHeader, payload []byte, maxMessageSize uint32) (message *MessageOpCompressed, err error) {
 	originalOpcode, rem, ok := wiremessage.ReadCompressedOriginalOpCode(payload)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_COMPRESSED: missing original opcode %v", payload)
@@ -115,11 +115,11 @@ func readOpCompressed(header MessageHeader, payload []byte) (message *MessageOpC
 	}
 	if uncompressedSize <= 0 || len(compressedMessage) == 0 {
 		return nil, trace.BadParameter("malformed OP_COMPRESSED: invalid message size %v", payload)
-	} else if uncompressedSize > int32(defaultMaxMessageSizeBytes) {
+	} else if uncompressedSize > int32(maxMessageSize) {
 		return nil, trace.BadParameter("malformed OP_COMPRESSED: uncompressed size exceeded max %v", payload)
 	}
 
-	message.originalMessage, err = decompress(message)
+	message.originalMessage, err = decompress(message, maxMessageSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -138,7 +138,7 @@ func (m *MessageOpCompressed) ToWire(responseTo int32) (dst []byte) {
 }
 
 // decompress returns the original message from the compressed message.
-func decompress(message *MessageOpCompressed) (Message, error) {
+func decompress(message *MessageOpCompressed, maxMessageSize uint32) (Message, error) {
 	// Make the uncompressed message's header.
 	header := make([]byte, 0, headerSizeBytes)
 	header = wiremessage.AppendHeader(header,
@@ -160,5 +160,5 @@ func decompress(message *MessageOpCompressed) (Message, error) {
 
 	// Parse the uncompressed message.
 	return ReadMessage(bytes.NewReader(append(
-		header, decompressedPayload...)))
+		header, decompressedPayload...)), maxMessageSize)
 }

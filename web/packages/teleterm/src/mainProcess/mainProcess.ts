@@ -51,6 +51,7 @@ import { downloadAgent, FileDownloader } from './agentDownloader';
 import {
   createAgentConfigFile,
   isAgentConfigFileCreated,
+  removeAgentDirectory,
   generateAgentConfigPaths,
 } from './createAgentConfigFile';
 import { AgentRunner } from './agentRunner';
@@ -339,6 +340,16 @@ export default class MainProcess {
     );
 
     ipcMain.handle(
+      'main-process-connect-my-computer-remove-agent-directory',
+      (
+        _,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => removeAgentDirectory(this.settings, args.rootClusterUri)
+    );
+
+    ipcMain.handle(
       'main-process-connect-my-computer-run-agent',
       async (
         _,
@@ -359,6 +370,18 @@ export default class MainProcess {
         }
       ) => {
         event.returnValue = this.agentRunner.getState(args.rootClusterUri);
+      }
+    );
+
+    ipcMain.on(
+      'main-process-connect-my-computer-get-agent-logs',
+      (
+        event,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => {
+        event.returnValue = this.agentRunner.getLogs(args.rootClusterUri);
       }
     );
 

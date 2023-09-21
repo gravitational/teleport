@@ -449,9 +449,8 @@ const (
 	// and login sessions must use a private key backed by a hardware key.
 	RequireMFAType_SESSION_AND_HARDWARE_KEY RequireMFAType = 2
 	// HARDWARE_KEY_TOUCH means login sessions must use a hardware private key that
-	// requires touch to be used. This touch requirement applies to all API requests
-	// rather than only session requests. This touch is different from MFA, so to prevent
-	// requiring double touch on session requests, normal Session MFA is disabled.
+	// requires touch to be used. This touch is required for all private key operations,
+	// so the key is always treated as MFA verified for sessions.
 	RequireMFAType_HARDWARE_KEY_TOUCH RequireMFAType = 3
 )
 

@@ -67,6 +67,18 @@ export async function createAgentConfigFile(
   );
 }
 
+export async function removeAgentDirectory(
+  runtimeSettings: RuntimeSettings,
+  rootClusterUri: RootClusterUri
+): Promise<void> {
+  const { agentDirectory } = generateAgentConfigPaths(
+    runtimeSettings,
+    rootClusterUri
+  );
+  // `force` ignores exceptions if path does not exist
+  await rm(agentDirectory, { recursive: true, force: true });
+}
+
 export async function isAgentConfigFileCreated(
   runtimeSettings: RuntimeSettings,
   rootClusterUri: RootClusterUri
@@ -96,6 +108,7 @@ export function generateAgentConfigPaths(
   runtimeSettings: RuntimeSettings,
   rootClusterUri: RootClusterUri
 ): {
+  agentDirectory: string;
   configFile: string;
   logsDirectory: string;
   dataDirectory: string;
@@ -114,22 +127,34 @@ export function generateAgentConfigPaths(
   const logsDirectory = path.resolve(agentDirectory, 'logs');
 
   return {
+    agentDirectory,
     configFile,
     dataDirectory,
     logsDirectory,
   };
 }
 
+export function getAgentsDir(userDataDir: string): string {
+  // Why not put agentsDir into runtimeSettings? That's because we don't want the renderer to have
+  // access to this value as it could lead to bad security practices.
+  //
+  // If agentsDir was sent from the renderer to tshd and the main process, those recipients could
+  // not trust that agentsDir has not been tampered with. Instead, the renderer should merely send
+  // the root cluster URI and the recipients should build the path to the specific agent dir from
+  // that, with agentsDir being supplied out of band.
+  return path.resolve(userDataDir, 'agents');
+}
+
 function getAgentDirectoryOrThrow(
   userDataDir: string,
   profileName: string
 ): string {
-  const agentsDirectory = path.resolve(userDataDir, 'agents');
-  const resolved = path.resolve(agentsDirectory, profileName);
+  const agentsDir = getAgentsDir(userDataDir);
+  const resolved = path.resolve(agentsDir, profileName);
 
   // check if the path doesn't contain any unexpected segments
   const isValidPath =
-    path.dirname(resolved) === agentsDirectory &&
+    path.dirname(resolved) === agentsDir &&
     path.basename(resolved) === profileName;
   if (!isValidPath) {
     throw new Error(`The agent config path is incorrect: ${resolved}`);

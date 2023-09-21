@@ -181,6 +181,7 @@ type CLIConf struct {
 	SiteName string
 	// KubernetesCluster specifies the kubernetes cluster to login to.
 	KubernetesCluster string
+
 	// DaemonAddr is the daemon listening address.
 	DaemonAddr string
 	// DaemonCertsDir is the directory containing certs used to create secure gRPC connection with daemon service
@@ -190,8 +191,11 @@ type CLIConf struct {
 	// DaemonKubeconfigsDir is the directory "Directory containing kubeconfig
 	// for Kubernetes Access.
 	DaemonKubeconfigsDir string
-	// DaemonPid is the PID to be stopped
+	// DaemonAgentsDir contains agent config files and data directories for Connect My Computer.
+	DaemonAgentsDir string
+	// DaemonPid is the PID to be stopped by tsh daemon stop.
 	DaemonPid int
+
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
 	// DatabaseUser specifies database user to embed in the certificate.
@@ -397,8 +401,8 @@ type CLIConf struct {
 	// displayParticipantRequirements is set if verbose participant requirement information should be printed for moderated sessions.
 	displayParticipantRequirements bool
 
-	// TshConfig is the loaded tsh configuration file ~/.tsh/config/config.yaml.
-	TshConfig TshConfig
+	// TSHConfig is the loaded tsh configuration file ~/.tsh/config/config.yaml.
+	TSHConfig TSHConfig
 
 	// ListAll specifies if an ls command should return results from all clusters and proxies.
 	ListAll bool
@@ -722,6 +726,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
 	daemonStart.Flag("prehog-addr", "URL where prehog events should be submitted").StringVar(&cf.DaemonPrehogAddr)
 	daemonStart.Flag("kubeconfigs-dir", "Directory containing kubeconfig for Kubernetes Access").StringVar(&cf.DaemonKubeconfigsDir)
+	daemonStart.Flag("agents-dir", "Directory containing agent config files and data directories for Connect My Computer").StringVar(&cf.DaemonAgentsDir)
 	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it.").Hidden()
 	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 
@@ -1091,10 +1096,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cf.TshConfig = *confOptions
+	cf.TSHConfig = *confOptions
 
 	// aliases
-	ar := newAliasRunner(cf.TshConfig.Aliases)
+	ar := newAliasRunner(cf.TSHConfig.Aliases)
 	aliasCommand, runtimeArgs := findAliasCommand(args)
 	if aliasDefinition, ok := ar.getAliasDefinition(aliasCommand); ok {
 		return ar.runAlias(ctx, aliasCommand, aliasDefinition, cf.executablePath, runtimeArgs)
@@ -1104,7 +1109,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if errors.Is(err, kingpin.ErrExpectedCommand) {
-		if _, ok := cf.TshConfig.Aliases[aliasCommand]; ok {
+		if _, ok := cf.TSHConfig.Aliases[aliasCommand]; ok {
 			log.Debugf("Failing due to recursive alias %q. Aliases seen: %v", aliasCommand, ar.getSeenAliases())
 			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)
 		}
@@ -3499,7 +3504,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	// Check if this host has a matching proxy template.
-	tProxy, tHost, tCluster, tMatched := cf.TshConfig.ProxyTemplates.Apply(fullHostName)
+	tProxy, tHost, tCluster, tMatched := cf.TSHConfig.ProxyTemplates.Apply(fullHostName)
 	if !tMatched && useProxyTemplate {
 		return nil, trace.BadParameter("proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config")
 	} else if tMatched {
@@ -3596,7 +3601,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	if c.ExtraProxyHeaders == nil {
 		c.ExtraProxyHeaders = map[string]string{}
 	}
-	for _, proxyHeaders := range cf.TshConfig.ExtraHeaders {
+	for _, proxyHeaders := range cf.TSHConfig.ExtraHeaders {
 		proxyGlob := utils.GlobToRegexp(proxyHeaders.Proxy)
 		proxyRegexp, err := regexp.Compile(proxyGlob)
 		if err != nil {
