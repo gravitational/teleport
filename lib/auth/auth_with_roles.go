@@ -6229,8 +6229,8 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 	case *proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:
 	case *proto.CreateAuthenticateChallengeRequest_Passwordless:
 	default: // nil or *proto.CreateAuthenticateChallengeRequest_ContextUser:
-		if a.hasBuiltinRole(types.RoleProxy) {
-			return nil, trace.BadParameter("proxy role clients are not allowed to issue authentication challenges using ContextUser")
+		if !authz.IsLocalOrRemoteUser(a.context) {
+			return nil, trace.BadParameter("only end users are allowed to issue authentication challenges using ContextUser")
 		}
 	}
 
@@ -6251,8 +6251,8 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 	switch {
 	case req.TokenID != "":
 	case req.ExistingMFAResponse != nil:
-		if a.hasBuiltinRole(types.RoleProxy) {
-			return nil, trace.BadParameter("proxy role clients are not allowed to issue registration challenges without a privilege token")
+		if !authz.IsLocalOrRemoteUser(a.context) {
+			return nil, trace.BadParameter("only end users are allowed issue registration challenges without a privilege token")
 		}
 	}
 
