@@ -116,13 +116,6 @@ func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, a
 		return trace.Wrap(err)
 	}
 
-	token, err := authClient.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
-		Issuer: issuer,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	clusterNameConfig, err := authClient.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -164,6 +157,13 @@ func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, a
 
 		for region := range awsRegions {
 			if err := limit.Wait(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+
+			token, err := authClient.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
+				Issuer: issuer,
+			})
+			if err != nil {
 				return trace.Wrap(err)
 			}
 

@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -29,9 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 )
-
-// defaultTokenTTL is the default TTL for AWS OIDC tokens
-const defaultTokenTTL = time.Minute
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
 func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
@@ -45,11 +41,36 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.G
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := GenerateAWSOIDCToken(ctx, AWSOIDCTokenConfig{
-		CAGetter: s.caGetter,
-		Clock:    s.clock,
-		Issuer:   req.Issuer,
+	clusterName, err := s.caGetter.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ca, err := s.caGetter.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.OIDCIdPCA,
+		DomainName: clusterName,
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Extract the JWT signing key and sign the claims.
+	signer, err := s.caGetter.GetKeyStore().GetJWTSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privateKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), s.clock)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := privateKey.SignAWSOIDC(jwt.SignParams{
 		Username: username,
+		Audience: types.IntegrationAWSOIDCAudience,
+		Subject:  types.IntegrationAWSOIDCSubject,
+		Issuer:   req.Issuer,
+		Expires:  s.clock.Now().Add(time.Minute),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -58,76 +79,4 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.G
 	return &integrationpb.GenerateAWSOIDCTokenResponse{
 		Token: token,
 	}, nil
-}
-
-// AWSOIDCTokenConfig contains configuration to be used when generating an AWS OIDC token.
-type AWSOIDCTokenConfig struct {
-	CAGetter CAGetter
-	Clock    clockwork.Clock
-	// TTL is the time to live for the token
-	TTL time.Duration
-	// Issuer is the issuer of the token.
-	Issuer string
-	// Username is the Teleport identity.
-	Username string
-}
-
-func (c *AWSOIDCTokenConfig) checkAndSetDefaults() error {
-	if c.CAGetter == nil {
-		return trace.BadParameter("ca getter is required")
-	}
-	if c.Clock == nil {
-		c.Clock = clockwork.NewRealClock()
-	}
-	if c.TTL == 0 {
-		c.TTL = defaultTokenTTL
-	}
-	if c.Issuer == "" {
-		return trace.BadParameter("issuer is required")
-	}
-	return nil
-}
-
-// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func GenerateAWSOIDCToken(ctx context.Context, config AWSOIDCTokenConfig) (string, error) {
-	if err := config.checkAndSetDefaults(); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	clusterName, err := config.CAGetter.GetDomainName()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	ca, err := config.CAGetter.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.OIDCIdPCA,
-		DomainName: clusterName,
-	}, true)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// Extract the JWT signing key and sign the claims.
-	signer, err := config.CAGetter.GetKeyStore().GetJWTSigner(ctx, ca)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	privateKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), config.Clock)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	token, err := privateKey.SignAWSOIDC(jwt.SignParams{
-		Username: config.Username,
-		Audience: types.IntegrationAWSOIDCAudience,
-		Subject:  types.IntegrationAWSOIDCSubject,
-		Issuer:   config.Issuer,
-		Expires:  config.Clock.Now().Add(config.TTL),
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return token, nil
 }
