@@ -41,8 +41,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-const tableName = "teleport.dynamo.test"
-
 func ensureTestsEnabled(t *testing.T) {
 	const varName = "TELEPORT_DYNAMODB_TEST"
 	if os.Getenv(varName) == "" {
@@ -50,11 +48,19 @@ func ensureTestsEnabled(t *testing.T) {
 	}
 }
 
+func dynamoDBTestTable() string {
+	if t := os.Getenv("TELEPORT_DYNAMODB_TEST_TABLE"); t != "" {
+		return t
+	}
+
+	return "teleport.dynamo.test"
+}
+
 func TestDynamoDB(t *testing.T) {
 	ensureTestsEnabled(t)
 
 	dynamoCfg := map[string]interface{}{
-		"table_name":         tableName,
+		"table_name":         dynamoDBTestTable(),
 		"poll_stream_period": 300 * time.Millisecond,
 	}
 
