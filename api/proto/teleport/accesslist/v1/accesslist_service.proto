@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.accesslist.v1;
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 import "teleport/accesslist/v1/accesslist.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1;accesslistv1";
@@ -51,6 +52,14 @@ service AccessListService {
 
   // UpsertAccessListWithMembers creates or updates an access list with members.
   rpc UpsertAccessListWithMembers(UpsertAccessListWithMembersRequest) returns (UpsertAccessListWithMembersResponse);
+
+  // ListAccessListReviews will list access list reviews for a particular access list.
+  rpc ListAccessListReviews(ListAccessListReviewsRequest) returns (ListAccessListReviewsResponse);
+  // CreateAccessListReview will create a new review for an access list. It will also modify the original access list
+  // and its members depending on the details of the review.
+  rpc CreateAccessListReview(CreateAccessListReviewRequest) returns (CreateAccessListReviewResponse);
+  // DeleteAccessListReview will delete an access list review from the backend.
+  rpc DeleteAccessListReview(DeleteAccessListReviewRequest) returns (google.protobuf.Empty);
 }
 
 // GetAccessListsRequest is the request for getting all access lists.
@@ -175,4 +184,46 @@ message DeleteAllAccessListMembersForAccessListRequest {
 message DeleteAllAccessListMembersRequest {
   reserved 1;
   reserved "access_list";
+}
+
+// ListAccessListReviewsRequest is the request for getting paginated access list reviews for a particular access list.
+message ListAccessListReviewsRequest {
+  // access_list is the name of the access list that we're listing reviews for.
+  string access_list = 1;
+
+  // page_size is the size of the page to request.
+  int32 page_size = 2;
+
+  // next_token is the page token.
+  string next_token = 3;
+}
+
+// ListAccessListReviewsResponse is the response for getting paginated access list rviews for a particular access list.
+message ListAccessListReviewsResponse {
+  // reviews is the list of access list reviews.
+  repeated Review reviews = 1;
+
+  // next_token is the next page token.
+  string next_token = 2;
+}
+
+// CreateAccessListReviewRequest is the request for creating an access list review.
+message CreateAccessListReviewRequest {
+  // review is the actual review to create.
+  Review review = 1;
+}
+
+// CreateAccessListReviewResponse is the response for creating an access list review.
+message CreateAccessListReviewResponse {
+  // review_name is the name of the review that was just created.
+  string review_name = 1;
+
+  // next_audit_date is when the next audit date should be done by.
+  google.protobuf.Timestamp next_audit_date = 2;
+}
+
+// DeleteAccessListReviewRequest is the request for deleting an access list review.
+message DeleteAccessListReviewRequest {
+  // review_name is the name of the access list to delete.
+  string review_name = 1;
 }
