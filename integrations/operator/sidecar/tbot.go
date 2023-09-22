@@ -229,49 +229,6 @@ func CreateAndBootstrapBot(ctx context.Context, opts Options) (*Bot, *proto.Feat
 	return bot, ping.ServerFeatures, nil
 }
 
-// sidecarTokenOnboardingConfig uses the sidecar local auth client to create an
-// onboarding config doing a "token" join. As it is not currently possible to
-// join back the cluster as an existing bot. (See https://github.com/gravitational/teleport/issues/13091)
-// we must delete the previous bot and create a new one.
-// This operation can cause race-conditions with the auth, eventually
-// ending to the bot being locked and the operator broken.
-func sidecarTokenOnboardingConfig(ctx context.Context, opts Options, authClient auth.ClientI) (*config.OnboardingConfig, error) {
-	onboardingConfig := config.OnboardingConfig{
-		JoinMethod: types.JoinMethodToken,
-	}
-	// We need to check if the bot exists first and cannot just attempt to delete
-	// it because DeleteBot() returns an aggregate, which breaks the
-	// ToGRPC/FromGRPC status code translation. We end up with the wrong error
-	// type and cannot check if `trace.IsNotFound()`
-	botRoleName := fmt.Sprintf("bot-%s", opts.Name)
-	exists, err := botExists(ctx, opts, authClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if exists {
-		err := authClient.DeleteBot(ctx, opts.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if err := authClient.DeleteRole(ctx, botRoleName); err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-	response, err := authClient.CreateBot(ctx, &proto.CreateBotRequest{
-		Name:  opts.Name,
-		Roles: []string{opts.Role},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	onboardingConfig.TokenValue = response.TokenID
-
-	caPins, err := getCAPins(ctx, authClient)
-	onboardingConfig.CAPins = caPins
-
-	return &onboardingConfig, nil
-}
-
 // sidecarKubeOnboardingConfig creates the bot's onboarding config to perform a Kubernetes join.
 // It fetches the operator kube SA, validates it (this requires TokenReview permissions,
 // but we currently have them as we're deployed with the auth SA), creates a Teleport
