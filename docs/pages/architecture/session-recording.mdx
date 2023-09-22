@@ -61,10 +61,10 @@ This results in 4 possible session recording configurations:
 
 This is a cluster-wide configuration option and applies to the entire
 Teleport cluster. It can be configured by setting `session_recording`
-in the `auth_service` section of your `teleport.yaml`, or dynamically via
-the the `session_recording_config` resource. If you need to apply different
-recording configuration to different sets of resources, we recommend setting up
-[Trusted Clusters](../management/admin/trustedclusters.mdx) with their own
+in the `auth_service` section of your `teleport.yaml`, or dynamically using
+the `session_recording_config` resource. If you need to apply different
+recording configuration to different sets of resources, you can setup
+[trusted clusters](../management/admin/trustedclusters.mdx) with their own
 recording configurations.
 
 <Admonition type="note">
