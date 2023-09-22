@@ -18,23 +18,21 @@ package service
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"time"
 
-	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/time/rate"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -47,7 +45,7 @@ const (
 )
 
 func (process *TeleportProcess) periodUpdateDeployServiceAgents() error {
-	if !process.Config.Auth.Enabled {
+	if !process.Config.Proxy.Enabled {
 		return nil
 	}
 
@@ -57,30 +55,14 @@ func (process *TeleportProcess) periodUpdateDeployServiceAgents() error {
 	}
 	process.log.Infof("The new service has started successfully. Checking for deploy service updates every %v.", updateDeployAgentsInterval)
 
-	// Acquire the semaphore before attempting to update the deploy service agents.
-	// This task should only run on a single instance at a time.
-	lock, err := services.AcquireSemaphoreWithRetry(process.GracefulExitContext(),
-		services.AcquireSemaphoreWithRetryConfig{
-			Service: process.GetAuthServer(),
-			Request: types.AcquireSemaphoreRequest{
-				SemaphoreKind: types.SemaphoreKindConnection,
-				SemaphoreName: "update_deploy_service_agents",
-				MaxLeases:     1,
-				Expires:       process.Clock.Now().Add(updateDeployAgentsInterval),
-			},
-			Retry: retryutils.LinearConfig{
-				Step: time.Minute,
-				Max:  updateDeployAgentsInterval,
-			},
-		})
+	resp, err := process.getInstanceClient().Ping(process.GracefulExitContext())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer func() {
-		if err := process.GetAuthServer().CancelSemaphoreLease(process.GracefulExitContext(), *lock); err != nil {
-			process.log.WithError(err).Errorf("Failed to cancel lease: %v.", lock)
-		}
-	}()
+
+	if !resp.ServerFeatures.AutomaticUpgrades {
+		return nil
+	}
 
 	periodic := interval.New(interval.Config{
 		Duration: updateDeployAgentsInterval,
@@ -89,7 +71,7 @@ func (process *TeleportProcess) periodUpdateDeployServiceAgents() error {
 	defer periodic.Stop()
 
 	for {
-		if err := process.updateDeployServiceAgents(process.GracefulExitContext(), process.GetAuthServer()); err != nil {
+		if err := process.updateDeployServiceAgents(process.GracefulExitContext(), process.getInstanceClient()); err != nil {
 			process.log.Warningf("Update failed: %v. Retrying in ~%v", err, updateDeployAgentsInterval)
 		}
 
@@ -101,40 +83,68 @@ func (process *TeleportProcess) periodUpdateDeployServiceAgents() error {
 	}
 }
 
-func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, authServer *auth.Server) error {
-	if !process.shouldUpdateDeployAgents() {
+func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, authClient *auth.Client) error {
+	cmc, err := authClient.GetClusterMaintenanceConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var criticalEndpoint string
+	if automaticupgrades.GetChannel() != "" {
+		criticalEndpoint, err = url.JoinPath(automaticupgrades.GetChannel(), "critical")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	critical, err := automaticupgrades.Critical(process.GracefulExitContext(), criticalEndpoint)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !withinUpgradeWindow(cmc, process.Clock) && !critical {
 		return nil
 	}
 
-	teleportVersion, err := process.getStableTeleportVersion()
+	teleportVersion, err := getStableTeleportVersion(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	issuer, err := awsoidc.IssuerForCluster(ctx, authServer)
+	issuer, err := awsoidc.IssuerFromPublicAddress(process.proxyPublicAddr().Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	token, err := integrationv1.GenerateAWSOIDCToken(ctx, integrationv1.AWSOIDCTokenConfig{
-		CAGetter: authServer,
-		Clock:    process.Clock,
-		TTL:      updateDeployAgentsInterval,
-		Issuer:   issuer,
+	token, err := authClient.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
+		Issuer: issuer,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	clusterNameConfig, err := authServer.GetClusterName()
+	clusterNameConfig, err := authClient.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	clusterName := clusterNameConfig.GetClusterName()
+
+	databases, err := authClient.GetDatabases(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	awsRegions := make(map[string]interface{})
+	for _, database := range databases {
+		if database.IsAWSHosted() && database.IsRDS() {
+			awsRegions[database.GetAWS().Region] = nil
+		}
 	}
 
 	var resources []types.Integration
 	var nextKey string
 	for {
-		igs, nextKey, err := authServer.ListIntegrations(ctx, 0, nextKey)
+		igs, nextKey, err := authClient.ListIntegrations(ctx, 0, nextKey)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -144,19 +154,15 @@ func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, a
 		}
 	}
 
-	awsRegions, err := process.listAWSDatabaseRegions()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	limit := rate.NewLimiter(rate.Every(updateDeployAgentsRateLimit), 1)
 	for _, ig := range resources {
 		spec := ig.GetAWSOIDCIntegrationSpec()
 		if spec == nil {
 			continue
 		}
+		integrationName := ig.GetName()
 
-		for _, region := range awsRegions {
+		for region := range awsRegions {
 			if err := limit.Wait(ctx); err != nil {
 				return trace.Wrap(err)
 			}
@@ -168,86 +174,51 @@ func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, a
 				Region:          region,
 			}
 
-			deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, req, authServer)
+			deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, req, authClient)
 			if err != nil {
 				process.log.Warningf("Failed to update deploy service agents: %v", err)
 				continue
 			}
 
 			ownershipTags := map[string]string{
-				types.ClusterLabel:     clusterNameConfig.GetClusterName(),
+				types.ClusterLabel:     clusterName,
 				types.OriginLabel:      types.OriginIntegrationAWSOIDC,
-				types.IntegrationLabel: ig.GetName(),
+				types.IntegrationLabel: integrationName,
 			}
 
-			err = awsoidc.UpdateDeployServiceAgents(ctx, deployServiceClient, clusterNameConfig.GetClusterName(), teleportVersion, ownershipTags)
-			invalidTokenError := new(ststypes.InvalidIdentityTokenException)
-			if errors.As(err, &invalidTokenError) {
-				process.log.Debugf("Invalid identity token for region %v: %v", region, err)
-				continue
-			}
+			// Acquire a lease for the region + integration before attempting to update the deploy service agent.
+			// If the lease cannot be acquired, the update is already being handled by another instance.
+			semLock, err := authClient.AcquireSemaphore(ctx, types.AcquireSemaphoreRequest{
+				SemaphoreKind: types.SemaphoreKindConnection,
+				SemaphoreName: fmt.Sprintf("update_deploy_service_agents_%s_%s", region, integrationName),
+				MaxLeases:     1,
+				Expires:       process.Clock.Now().Add(updateDeployAgentsInterval),
+				Holder:        "update_deploy_service_agents",
+			})
+
 			if err != nil {
+				if strings.Contains(err.Error(), teleport.MaxLeases) {
+					process.log.Debug("Deploy service agent update is already being processed")
+					continue
+				}
+				return trace.Wrap(err)
+			}
+
+			if err := awsoidc.UpdateDeployServiceAgents(ctx, deployServiceClient, clusterNameConfig.GetClusterName(), teleportVersion, ownershipTags); err != nil {
 				process.log.Warningf("Failed to update deploy service agents: %v", err)
-				continue
+
+				// Release the semaphore lease on failure so that another instance may attempt the update
+				if err := authClient.CancelSemaphoreLease(ctx, *semLock); err != nil {
+					process.log.WithError(err).Error("Failed to cancel semaphore lease")
+				}
 			}
 		}
 	}
 	return nil
 }
 
-// listAWSDatabaseRegions returns the list of AWS regions containing a connected database.
-func (process *TeleportProcess) listAWSDatabaseRegions() ([]string, error) {
-	databases, err := process.GetAuthServer().GetDatabases(process.GracefulExitContext())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	regions := make(map[string]interface{})
-	for _, database := range databases {
-		if database.IsAWSHosted() && database.IsRDS() {
-			regions[database.GetAWS().Region] = nil
-		}
-	}
-
-	var result []string
-	for region := range regions {
-		result = append(result, region)
-	}
-
-	return result, nil
-}
-
-// shouldUpdateDeployAgents returns true if deploy agents should be updated.
-func (process *TeleportProcess) shouldUpdateDeployAgents() bool {
-	cmc, err := process.GetAuthServer().GetClusterMaintenanceConfig(process.GracefulExitContext())
-	if err != nil {
-		process.log.Debugf("Failed to get cluster maintenance config: %v", err)
-		return false
-	}
-
-	var criticalEndpoint string
-	if automaticupgrades.GetChannel() != "" {
-		criticalEndpoint, err = url.JoinPath(automaticupgrades.GetChannel(), "critical")
-		if err != nil {
-			process.log.Debugf("Failed to get critical upgrade endpoint: %v", err)
-			return false
-		}
-	}
-
-	critical, err := automaticupgrades.Critical(process.GracefulExitContext(), criticalEndpoint)
-	if err != nil {
-		process.log.Debugf("Failed to get critical upgrade value: %v", err)
-		return false
-	}
-
-	if withinUpgradeWindow(cmc, process.Clock) || critical {
-		return true
-	}
-
-	return false
-}
-
-func (process *TeleportProcess) getStableTeleportVersion() (string, error) {
+// getStableTeleportVersion returns the current stable version of teleport
+func getStableTeleportVersion(ctx context.Context) (string, error) {
 	var versionEndpoint string
 	var err error
 	if automaticupgrades.GetChannel() != "" {
@@ -257,7 +228,7 @@ func (process *TeleportProcess) getStableTeleportVersion() (string, error) {
 		}
 	}
 
-	stableVersion, err := automaticupgrades.Version(process.GracefulExitContext(), versionEndpoint)
+	stableVersion, err := automaticupgrades.Version(ctx, versionEndpoint)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

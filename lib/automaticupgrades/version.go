@@ -68,7 +68,7 @@ func Critical(ctx context.Context, criticalURL string) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 
-	// Expectes critical endpoint to return either the string "yes" or "no"
+	// Expects critical endpoint to return either the string "yes" or "no"
 	switch critical {
 	case "yes":
 		return true, nil
