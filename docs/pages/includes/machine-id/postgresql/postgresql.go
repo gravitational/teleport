@@ -19,7 +19,7 @@ func main() {
 		"dbname=example ",
 		"user=alice ",
 		"sslmode=verify-full ",
-		"sslrootcert=/opt/machine-id/teleport-database-ca.crt ",
+		"sslrootcert=/opt/machine-id/teleport-host-ca.crt ",
 		"sslkey=/opt/machine-id/key ",
 		"sslcert=/opt/machine-id/tlscert ",
 	))
