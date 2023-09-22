@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"gen-resource-ref/resource"
 	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"os"
-
-	"golang.org/x/tools/go/packages"
+	"path/filepath"
 )
 
 const referenceTemplate string = `{{ range . }}
@@ -31,48 +33,51 @@ func main() {
 	flag.Parse()
 
 	allDecls := make(map[resource.PackageInfo]resource.DeclarationInfo)
-	result := make(map[resource.PackageInfo]resource.ReferenceEntry)
+	// result := make(map[resource.PackageInfo]resource.ReferenceEntry)
 
-	pkgs, err := packages.Load(&packages.Config{
-		Dir: *src,
-	}, "./...")
+	// Load each file in the source directory individually. Not using
+	// packages.Load here since the resulting []*Package does not expose
+	// individual file names, which we need so contributors who want to edit
+	// the resulting docs page know which files to modify.
+	err := filepath.Walk(*src, func(path string, info fs.FileInfo, err error) error {
+		// There is an error with the path, so we can't load Go source
+		if err != nil {
+			return err
+		}
 
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, info.Name(), nil, parser.ParseComments)
+		if err != nil {
+			return err
+		}
+		for _, decl := range file.Decls {
+			l, ok := decl.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+			if len(l.Specs) != 1 {
+				continue
+			}
+			spec, ok := l.Specs[0].(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+
+			allDecls[resource.PackageInfo{
+				TypeName:    spec.Name.Name,
+				PackageName: file.Name.Name,
+			}] = resource.DeclarationInfo{
+				Decl:        l,
+				FilePath:    info.Name(),
+				PackageName: file.Name.Name,
+			}
+
+		}
+		return nil
+	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "can't load Go source files: %v", err)
 		os.Exit(1)
-	}
-
-	// Populate the map of all GenDecls in the source.
-	for _, p := range pkgs {
-		for _, file := range p.Syntax {
-			for _, decl := range file.Decls {
-				l, ok := decl.(*ast.GenDecl)
-				if !ok {
-					continue
-				}
-				if len(l.Specs) != 1 {
-					continue
-				}
-				spec, ok := l.Specs[0].(*ast.TypeSpec)
-				if !ok {
-					continue
-				}
-
-				allDecls[resource.PackageInfo{
-					TypeName:    spec.Name.Name,
-					PackageName: file.Name.Name,
-				}] = resource.DeclarationInfo{
-					Decl: l,
-					// TODO: Get the file path by walking
-					// the directory and loading each file
-					// individually. Otherwise, no way to
-					// get a file path from an ast.File.
-					//					FilePath:    fmt.Sprintf("myfile%v.go", n),
-					PackageName: file.Name.Name,
-				}
-
-			}
-		}
 	}
 
 	// TODO: If a struct type has a types.Metadata field, construct a
