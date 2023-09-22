@@ -313,7 +313,5 @@ func DiscardChannelData(ch channelReadWriter) {
 		return
 	}
 	go io.Copy(io.Discard, ch)
-	if stderr := ch.Stderr(); stderr != nil {
-		go io.Copy(io.Discard, stderr)
-	}
+	go io.Copy(io.Discard, ch.Stderr())
 }
