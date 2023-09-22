@@ -51,6 +51,7 @@ import { downloadAgent, FileDownloader } from './agentDownloader';
 import {
   createAgentConfigFile,
   isAgentConfigFileCreated,
+  removeAgentDirectory,
 } from './createAgentConfigFile';
 import { AgentRunner } from './agentRunner';
 import { terminateWithTimeout } from './terminateWithTimeout';
@@ -335,6 +336,16 @@ export default class MainProcess {
       ) => {
         await this.agentRunner.kill(args.rootClusterUri);
       }
+    );
+
+    ipcMain.handle(
+      'main-process-connect-my-computer-remove-agent-directory',
+      (
+        _,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => removeAgentDirectory(this.settings, args.rootClusterUri)
     );
 
     ipcMain.handle(

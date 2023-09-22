@@ -53,6 +53,8 @@ type Config struct {
 	ConnectMyComputerRoleSetup        *connectmycomputer.RoleSetup
 	ConnectMyComputerTokenProvisioner *connectmycomputer.TokenProvisioner
 	ConnectMyComputerNodeJoinWait     *connectmycomputer.NodeJoinWait
+	ConnectMyComputerNodeDelete       *connectmycomputer.NodeDelete
+	ConnectMyComputerNodeName         *connectmycomputer.NodeName
 }
 
 type CreateTshdEventsClientCredsFunc func() (grpc.DialOption, error)
@@ -108,6 +110,24 @@ func (c *Config) CheckAndSetDefaults() error {
 		}
 
 		c.ConnectMyComputerNodeJoinWait = nodeJoinWait
+	}
+
+	if c.ConnectMyComputerNodeDelete == nil {
+		nodeDelete, err := connectmycomputer.NewNodeDelete(&connectmycomputer.NodeDeleteConfig{AgentsDir: c.AgentsDir})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		c.ConnectMyComputerNodeDelete = nodeDelete
+	}
+
+	if c.ConnectMyComputerNodeName == nil {
+		nodeName, err := connectmycomputer.NewNodeName(&connectmycomputer.NodeNameConfig{AgentsDir: c.AgentsDir})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		c.ConnectMyComputerNodeName = nodeName
 	}
 
 	return nil

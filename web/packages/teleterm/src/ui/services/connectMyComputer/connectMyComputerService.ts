@@ -80,6 +80,29 @@ export class ConnectMyComputerService {
     return this.tshClient.deleteConnectMyComputerToken(rootClusterUri, token);
   }
 
+  removeConnectMyComputerNode(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<void> {
+    return this.tshClient.deleteConnectMyComputerNode(rootClusterUri);
+  }
+
+  removeAgentDirectory(rootClusterUri: uri.RootClusterUri): Promise<void> {
+    return this.mainProcessClient.removeAgentDirectory({ rootClusterUri });
+  }
+
+  getConnectMyComputerNodeName(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<string> {
+    return this.tshClient.getConnectMyComputerNodeName(rootClusterUri);
+  }
+
+  async killAgentAndRemoveData(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<void> {
+    await this.killAgent(rootClusterUri);
+    await this.mainProcessClient.removeAgentDirectory({ rootClusterUri });
+  }
+
   async waitForNodeToJoin(
     rootClusterUri: uri.RootClusterUri,
     abortSignal: TshAbortSignal

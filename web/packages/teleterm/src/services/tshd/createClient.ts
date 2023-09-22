@@ -738,7 +738,37 @@ export default function createClient(
       );
     },
 
-    async updateHeadlessAuthenticationState(
+    deleteConnectMyComputerNode(uri: uri.RootClusterUri) {
+      return new Promise<void>((resolve, reject) => {
+        tshd.deleteConnectMyComputerNode(
+          new api.DeleteConnectMyComputerNodeRequest().setRootClusterUri(uri),
+          err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          }
+        );
+      });
+    },
+
+    getConnectMyComputerNodeName(uri: uri.RootClusterUri) {
+      return new Promise<string>((resolve, reject) => {
+        tshd.getConnectMyComputerNodeName(
+          new api.GetConnectMyComputerNodeNameRequest().setRootClusterUri(uri),
+          (err, response) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(response.getName() as uri.ServerUri);
+            }
+          }
+        );
+      });
+    },
+
+    updateHeadlessAuthenticationState(
       params: UpdateHeadlessAuthenticationStateParams,
       abortSignal?: types.TshAbortSignal
     ) {

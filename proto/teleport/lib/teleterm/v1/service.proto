@@ -140,6 +140,10 @@ service TerminalService {
   // This RPC times out by itself after a minute to prevent the request from hanging forever, in
   // case the client didn't set a deadline or doesn't abort the request.
   rpc WaitForConnectMyComputerNodeJoin(WaitForConnectMyComputerNodeJoinRequest) returns (WaitForConnectMyComputerNodeJoinResponse);
+  // DeleteConnectMyComputerNode deletes the Connect My Computer node.
+  rpc DeleteConnectMyComputerNode(DeleteConnectMyComputerNodeRequest) returns (DeleteConnectMyComputerNodeResponse);
+  // GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
+  rpc GetConnectMyComputerNodeName(GetConnectMyComputerNodeNameRequest) returns (GetConnectMyComputerNodeNameResponse);
 }
 
 message EmptyResponse {}
@@ -485,4 +489,18 @@ message WaitForConnectMyComputerNodeJoinRequest {
 }
 message WaitForConnectMyComputerNodeJoinResponse {
   Server server = 1;
+}
+
+message DeleteConnectMyComputerNodeRequest {
+  string root_cluster_uri = 1;
+}
+
+message DeleteConnectMyComputerNodeResponse {}
+
+message GetConnectMyComputerNodeNameRequest {
+  string root_cluster_uri = 1;
+}
+
+message GetConnectMyComputerNodeNameResponse {
+  string name = 1;
 }
