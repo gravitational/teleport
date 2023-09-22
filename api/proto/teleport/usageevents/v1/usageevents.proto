@@ -403,52 +403,6 @@ message AssistAction {
   int64 completion_tokens = 4;
 }
 
-// AccessListMetadata contains common metadata for Access List related events.
-message AccessListMetadata {
-  // Uniquely identifies an Access List. Will allow correlation of events within an access list.
-  string id = 1;
-}
-
-// AccessListCreate is an event that is emitted when an access list is created.
-message AccessListCreate {
-  AccessListMetadata metadata = 1;
-}
-
-// AccessListUpdate is an event that is emitted when an access list is updated.
-message AccessListUpdate {
-  AccessListMetadata metadata = 1;
-}
-
-// AccessListDelete is an event that is emitted when an access list is deleted.
-message AccessListDelete {
-  AccessListMetadata metadata = 1;
-}
-
-// AccessListMemberCreate is an event that is emitted when a member is added to an access list.
-message AccessListMemberCreate {
-  AccessListMetadata metadata = 1;
-}
-
-// AccessListMemberCreate is an event that is emitted when a member is updated in an access list.
-message AccessListMemberUpdate {
-  AccessListMetadata metadata = 1;
-}
-
-// AccessListMemberDelete is an event that is emitted when a member is removed from an access list.
-message AccessListMemberDelete {
-  AccessListMetadata metadata = 1;
-}
-
-// AccessListGrantsToUser is an event that is emitted when access list permissions are granted to a user
-// on login.
-message AccessListGrantsToUser {
-  // count_roles_granted is the number of roles granted to a user.
-  int32 count_roles_granted = 1;
-
-  // count_traits_granted is the number of traits granted to a user.
-  int32 count_traits_granted = 2;
-}
-
 // IntegrationEnrollKind represents the types of integration that
 // can be enrolled.
 enum IntegrationEnrollKind {
@@ -593,13 +547,6 @@ message UsageEventOneOf {
     FeatureRecommendationEvent feature_recommendation_event = 37;
     AssistAccessRequest assist_access_request = 38;
     AssistAction assist_action = 39;
-    AccessListCreate access_list_create = 40;
-    AccessListUpdate access_list_update = 41;
-    AccessListDelete access_list_delete = 42;
-    AccessListMemberCreate access_list_member_create = 43;
-    AccessListMemberUpdate access_list_member_update = 44;
-    AccessListMemberDelete access_list_member_delete = 45;
-    AccessListGrantsToUser access_list_grants_to_user = 46;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
