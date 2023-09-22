@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net"
 	"os/user"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -38,12 +39,14 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
+	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
 func TestTeleterm(t *testing.T) {
@@ -97,6 +100,11 @@ func TestTeleterm(t *testing.T) {
 		t.Parallel()
 		testCreatingAndDeletingConnectMyComputerToken(t, pack)
 	})
+
+	t.Run("WaitForConnectMyComputerNodeJoin", func(t *testing.T) {
+		t.Parallel()
+		testWaitForConnectMyComputerNodeJoin(t, pack, creds)
+	})
 }
 
 func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
@@ -111,6 +119,7 @@ func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 	daemonService, err := daemon.New(daemon.Config{
 		Storage:        storage,
 		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -142,6 +151,7 @@ func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.Datab
 	daemonService, err := daemon.New(daemon.Config{
 		Storage:        storage,
 		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -223,6 +233,7 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	daemonService, err := daemon.New(daemon.Config{
 		Storage:        storage,
 		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -270,6 +281,7 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 		},
 		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -498,6 +510,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			daemonService, err := daemon.New(daemon.Config{
 				Storage:        storage,
 				KubeconfigsDir: t.TempDir(),
+				AgentsDir:      t.TempDir(),
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() {
@@ -612,6 +625,7 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 	daemonService, err := daemon.New(daemon.Config{
 		Storage:        storage,
 		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -681,6 +695,64 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 
 	// The token should no longer exist.
 	require.True(t, trace.IsNotFound(err))
+}
+
+func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	t.Cleanup(cancel)
+
+	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                tc.KeysDir,
+		InsecureSkipVerify: tc.InsecureSkipVerify,
+	})
+	require.NoError(t, err)
+
+	agentsDir := t.TempDir()
+	daemonService, err := daemon.New(daemon.Config{
+		Storage:        storage,
+		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      agentsDir,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		daemonService.Stop()
+	})
+
+	handler, err := handler.New(
+		handler.Config{
+			DaemonService: daemonService,
+		},
+	)
+	require.NoError(t, err)
+
+	profileName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
+	require.NoError(t, err)
+
+	waitForNodeJoinErr := make(chan error)
+
+	go func() {
+		_, err := handler.WaitForConnectMyComputerNodeJoin(ctx, &api.WaitForConnectMyComputerNodeJoinRequest{
+			RootClusterUri: uri.NewClusterURI(profileName).String(),
+		})
+		waitForNodeJoinErr <- err
+	}()
+
+	// Start the new node.
+	nodeConfig := newNodeConfig(t, pack.Root.Cluster.Config.Auth.ListenAddr, "token", types.JoinMethodToken)
+	nodeConfig.DataDir = filepath.Join(agentsDir, profileName, "data")
+	nodeConfig.Log = libutils.NewLoggerForTests()
+	nodeSvc, err := service.NewTeleport(nodeConfig)
+	require.NoError(t, err)
+	require.NoError(t, nodeSvc.Start())
+	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
+
+	_, err = nodeSvc.WaitForEventTimeout(10*time.Second, service.TeleportReadyEvent)
+	require.NoError(t, err, "timeout waiting for node readiness")
+
+	// Verify that WaitForConnectMyComputerNodeJoin returned with no errors.
+	require.NoError(t, <-waitForNodeJoinErr)
 }
 
 // mustLogin logs in as the given user by completely skipping the actual login flow and saving valid

@@ -309,7 +309,7 @@ func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled boo
 		s.ListenAddress = conf.SSH.Addr.Addr
 		s.Commands = []CommandLabel{
 			{
-				Name:    "hostname",
+				Name:    defaults.HostnameLabel,
 				Command: []string{"hostname"},
 				Period:  time.Minute,
 			},

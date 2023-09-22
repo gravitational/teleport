@@ -22,28 +22,50 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// Incident represents a servicenow incident.
-type Incident struct {
-	// ShortDescription contains a brief summary of the incident.
-	ShortDescription string `json:"short_description"`
-	// Description contains the description of the incident.
-	Description string `json:"description"`
-	// CloseCode contains the close code of the incident once it is resolved.
-	CloseCode string `json:"close_code"`
-	// CloseNotes contains the closing comments on the incident once it is resolved.
-	CloseNotes string `json:"close_notes"`
-	// IncidentState contains the current state the incident is in.
-	IncidentState string `json:"incident_state"`
-	// WorkNotes contains comments on the progress of the incident.
-	WorkNotes string `json:"work_notes"`
+// PluginData is a data associated with access request that we store in Teleport using UpdatePluginData API.
+type PluginData struct {
+	RequestData
+	ServiceNowData
 }
+
+// ServiceNowData is the data associated with access request that we store in Teleport using UpdatePluginData API.
+type ServiceNowData struct {
+	// IncidentID is the serviceNow sys_id of the incident
+	IncidentID string
+}
+
+// Incident represents a serviceNow incident.
+type Incident struct {
+	// IncidentID is the sys_id of the incident
+	IncidentID string `json:"sys_id,omitempty"`
+	// ShortDescription contains a brief summary of the incident.
+	ShortDescription string `json:"short_description,omitempty"`
+	// Description contains the description of the incident.
+	Description string `json:"description,omitempty"`
+	// CloseCode contains the close code of the incident once it is resolved.
+	CloseCode string `json:"close_code,omitempty"`
+	// CloseNotes contains the closing comments on the incident once it is resolved.
+	CloseNotes string `json:"close_notes,omitempty"`
+	// IncidentState contains the current state the incident is in.
+	IncidentState string `json:"incident_state,omitempty"`
+	// WorkNotes contains comments on the progress of the incident.
+	WorkNotes string `json:"work_notes,omitempty"`
+}
+
+const (
+	// ServiceNow uses a value of 1-8 to indicate incident state
+	// https://support.servicenow.com/kb?id=kb_article_view&sysparm_article=KB0564465
+
+	// ResolutionStateResolved is the incident state for a resolved incident
+	ResolutionStateResolved = "6"
+	// ResolutionStateClosed is the incident state for a closed incident
+	ResolutionStateClosed = "7"
+)
 
 // Resolution stores the resolution state and the servicenow close code.
 type Resolution struct {
 	// State is the state of the servicenow incident
 	State string
-	// CloseCode is the close code of the servicenow incident.
-	CloseCode string
 	// Reason is the reason the incident is being closed.
 	Reason string
 }
@@ -78,4 +100,8 @@ type userResult struct {
 		// Email is the email address in servicenow of the requested user.
 		Email string `json:"email"`
 	} `json:"result"`
+}
+
+type incidentResult struct {
+	Result Incident `json:"result"`
 }

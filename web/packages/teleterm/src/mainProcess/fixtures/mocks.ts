@@ -108,6 +108,10 @@ export class MockMainProcessClient implements MainProcessClient {
     return { status: 'not-started' };
   }
 
+  getAgentLogs(): string {
+    return '';
+  }
+
   subscribeToAgentUpdate() {
     return { cleanup: () => undefined };
   }

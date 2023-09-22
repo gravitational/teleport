@@ -390,6 +390,11 @@ func (a *BaseApp) getMessageRecipients(ctx context.Context, req types.AccessRequ
 	recipientSet := NewRecipientSet()
 
 	switch a.Conf.GetPluginType() {
+	case types.PluginTypeServiceNow:
+		// The ServiceNow plugin does not use recipients currently and create incidents in the incident table directly.
+		// Recipients just needs to be non empty.
+		recipientSet.Add(Recipient{})
+		return recipientSet.ToSlice()
 	case types.PluginTypeOpsgenie:
 		if recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
 			for _, recipient := range recipients {

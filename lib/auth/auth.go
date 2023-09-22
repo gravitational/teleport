@@ -419,6 +419,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Log:         log,
 		AccessLists: services,
 		Access:      services,
+		UsageEvents: &as,
 		Clock:       cfg.Clock,
 	})
 	if err != nil {
@@ -1331,9 +1332,6 @@ func (a *Server) updateVersionMetrics() {
 	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
 		versionCount[handle.Hello().Version]++
 	})
-
-	// record version for **THIS** auth server
-	versionCount[teleport.Version]++
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgents.Reset()
