@@ -20,8 +20,8 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"database/sql/driver"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/url"
 	"os"
@@ -33,7 +33,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	sqlite3 "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
@@ -100,10 +100,6 @@ type Config struct {
 	BusyTimeout int `json:"busy_timeout,omitempty"`
 	// Journal sets the journal_mode pragma
 	Journal string `json:"journal,omitempty"`
-	// Mirror turns on mirror mode for the backend,
-	// which will use record IDs for Put passed from
-	// the resources, not generate a new one
-	Mirror bool `json:"mirror"`
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
@@ -309,12 +305,13 @@ func (l *Backend) showPragmas() error {
 
 func (l *Backend) createSchema() error {
 	schemas := []string{
-
 		`CREATE TABLE IF NOT EXISTS kv (
            key TEXT NOT NULL PRIMARY KEY,
            modified INTEGER NOT NULL,
            expires DATETIME,
-           value BLOB);
+           value BLOB,
+           revision TEXT NOT NULL DEFAULT ""
+		);
         CREATE INDEX IF NOT EXISTS kv_expires ON kv (expires);`,
 
 		`CREATE TABLE IF NOT EXISTS events (
@@ -324,14 +321,12 @@ func (l *Backend) createSchema() error {
            kv_key TEXT NOT NULL,
            kv_modified INTEGER NOT NULL,
            kv_expires DATETIME,
-           kv_value BLOB
+           kv_value BLOB,
+           kv_revision TEXT NOT NULL DEFAULT ""
          );
         CREATE INDEX IF NOT EXISTS events_created ON events (created);`,
 
-		`CREATE TABLE IF NOT EXISTS meta (
-           version INTEGER NOT NULL,
-           imported BOOLEAN NOT NULL
-         );`,
+		`DROP TABLE IF EXISTS meta;`,
 	}
 
 	for _, schema := range schemas {
@@ -341,16 +336,31 @@ func (l *Backend) createSchema() error {
 		}
 	}
 
+	for table, column := range map[string]string{"kv": "revision", "events": "kv_revision"} {
+		if err := l.migrateRevision(table, column); err != nil {
+			l.Errorf("Failing schema step: %s.%s, %v.", table, column, err)
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
-func (l *Backend) newLease(item backend.Item) *backend.Lease {
-	var lease backend.Lease
-	if item.Expires.IsZero() {
-		return &lease
-	}
-	lease.Key = item.Key
-	return &lease
+func (l *Backend) migrateRevision(table, column string) (err error) {
+	return trace.Wrap(l.inTransaction(l.ctx, func(tx *sql.Tx) error {
+		var exists bool
+		if err := tx.QueryRowContext(l.ctx, "SELECT EXISTS( SELECT 1 FROM pragma_table_info(?) WHERE name = ? )", table, column).Scan(&exists); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if exists {
+			return nil
+		}
+
+		query := fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s TEXT NOT NULL DEFAULT "";`, table, column)
+		_, err = tx.ExecContext(l.ctx, query)
+		return trace.Wrap(err)
+	}))
 }
 
 // SetClock sets internal backend clock
@@ -368,16 +378,18 @@ func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 	if len(i.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
 	}
+
+	i.Revision = backend.CreateRevision()
 	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
 		created := l.clock.Now().UTC()
 		if !l.EventsOff {
-			stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value) values(?, ?, ?, ?, ?, ?)")
+			stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value, kv_revision) values(?, ?, ?, ?, ?, ?, ?)")
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			defer stmt.Close()
 
-			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), id(created), expires(i.Expires), i.Value, i.Revision); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -395,7 +407,7 @@ func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 			}
 		}
 
-		if _, err := tx.ExecContext(ctx, "INSERT INTO kv(key, modified, expires, value) values(?, ?, ?, ?)", string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO kv(key, modified, expires, value, revision) values(?, ?, ?, ?, ?)", string(i.Key), id(created), expires(i.Expires), i.Value, i.Revision); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -403,7 +415,8 @@ func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return l.newLease(i), nil
+
+	return backend.NewLease(i), nil
 }
 
 // CompareAndSwap compares item with existing item
@@ -418,18 +431,20 @@ func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	if !bytes.Equal(expected.Key, replaceWith.Key) {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
+
 	now := l.clock.Now().UTC()
+	replaceWith.Revision = backend.CreateRevision()
 	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
-		q, err := tx.PrepareContext(ctx,
-			"SELECT value FROM kv WHERE key = ? AND (expires IS NULL OR expires > ?) LIMIT 1")
+		q, err := tx.PrepareContext(ctx, "SELECT value FROM kv WHERE key = ? AND (expires IS NULL OR expires > ?) LIMIT 1")
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer q.Close()
+
 		row := q.QueryRowContext(ctx, string(expected.Key), now)
 		var value []byte
 		if err := row.Scan(&value); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				return trace.CompareFailed("key %v is not found", string(expected.Key))
 			}
 			return trace.Wrap(err)
@@ -440,24 +455,24 @@ func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		}
 
 		created := l.clock.Now().UTC()
-		stmt, err := tx.PrepareContext(ctx, "UPDATE kv SET value = ?, expires = ?, modified = ? WHERE key = ?")
+		stmt, err := tx.PrepareContext(ctx, "UPDATE kv SET value = ?, expires = ?, modified = ?, revision = ? WHERE key = ?")
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer stmt.Close()
 
-		_, err = stmt.ExecContext(ctx, replaceWith.Value, expires(replaceWith.Expires), id(created), string(replaceWith.Key))
+		_, err = stmt.ExecContext(ctx, replaceWith.Value, expires(replaceWith.Expires), id(created), replaceWith.Revision, string(replaceWith.Key))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if !l.EventsOff {
-			stmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value) values(?, ?, ?, ?, ?, ?)")
+			stmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value, kv_revision) values(?, ?, ?, ?, ?, ?, ?)")
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			defer stmt.Close()
 
-			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(replaceWith.Key), id(created), expires(replaceWith.Expires), replaceWith.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(replaceWith.Key), id(created), expires(replaceWith.Expires), replaceWith.Value, replaceWith.Revision); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -466,7 +481,8 @@ func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return l.newLease(replaceWith), nil
+
+	return backend.NewLease(replaceWith), nil
 }
 
 // id converts time to ID
@@ -480,30 +496,29 @@ func (l *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 	if i.Key == nil {
 		return nil, trace.BadParameter("missing parameter key")
 	}
+
+	i.Revision = backend.CreateRevision()
 	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
 		created := l.clock.Now().UTC()
-		recordID := i.ID
-		if !l.Mirror {
-			recordID = id(created)
-		}
+		recordID := id(created)
 		if !l.EventsOff {
-			stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value) values(?, ?, ?, ?, ?, ?)")
+			stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value, kv_revision) values(?, ?, ?, ?, ?, ?, ?)")
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			defer stmt.Close()
 
-			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), recordID, expires(i.Expires), i.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), recordID, expires(i.Expires), i.Value, i.Revision); err != nil {
 				return trace.Wrap(err)
 			}
 		}
-		stmt, err := tx.PrepareContext(ctx, "INSERT OR REPLACE INTO kv(key, modified, expires, value) values(?, ?, ?, ?)")
+		stmt, err := tx.PrepareContext(ctx, "INSERT OR REPLACE INTO kv(key, modified, expires, value, revision) values(?, ?, ?, ?, ?)")
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer stmt.Close()
 
-		if _, err := stmt.ExecContext(ctx, string(i.Key), recordID, expires(i.Expires), i.Value); err != nil {
+		if _, err := stmt.ExecContext(ctx, string(i.Key), recordID, expires(i.Expires), i.Value, i.Revision); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -511,114 +526,8 @@ func (l *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return l.newLease(i), nil
-}
 
-const (
-	schemaVersion = 1
-)
-
-// Imported returns true if backend already imported data from another backend
-func (l *Backend) Imported(ctx context.Context) (imported bool, err error) {
-	err = l.inTransaction(ctx, func(tx *sql.Tx) error {
-		q, err := tx.PrepareContext(ctx,
-			"SELECT imported from meta LIMIT 1")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer q.Close()
-
-		row := q.QueryRowContext(ctx)
-		if err := row.Scan(&imported); err != nil {
-			if err != sql.ErrNoRows {
-				return trace.Wrap(err)
-			}
-		}
-		return nil
-	})
-	return imported, err
-}
-
-// Import imports elements, makes sure elements are imported only once
-// returns trace.AlreadyExists if elements have been imported
-func (l *Backend) Import(ctx context.Context, items []backend.Item) error {
-	for i := range items {
-		if items[i].Key == nil {
-			return trace.BadParameter("missing parameter key in item %v", i)
-		}
-	}
-	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
-		q, err := tx.PrepareContext(ctx,
-			"SELECT imported from meta LIMIT 1")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer q.Close()
-
-		var imported bool
-		row := q.QueryRowContext(ctx)
-		if err := row.Scan(&imported); err != nil {
-			if err != sql.ErrNoRows {
-				return trace.Wrap(err)
-			}
-		}
-		if imported {
-			return trace.AlreadyExists("database has been already imported")
-		}
-
-		if err := l.putRangeInTransaction(ctx, tx, items, true); err != nil {
-			return trace.Wrap(err)
-		}
-
-		stmt, err := tx.PrepareContext(ctx, "INSERT INTO meta(version, imported) values(?, ?)")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer stmt.Close()
-
-		if _, err := stmt.ExecContext(ctx, schemaVersion, true); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (l *Backend) putRangeInTransaction(ctx context.Context, tx *sql.Tx, items []backend.Item, forceEventsOff bool) error {
-	var eventsStmt *sql.Stmt
-	var err error
-	if !l.EventsOff {
-		eventsStmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value) values(?, ?, ?, ?, ?, ?)")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer eventsStmt.Close()
-	}
-	stmt, err := tx.PrepareContext(ctx, "INSERT OR REPLACE INTO kv(key, modified, expires, value) values(?, ?, ?, ?)")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer stmt.Close()
-
-	for i := range items {
-		created := l.clock.Now().UTC()
-		recordID := id(created)
-		if !l.Mirror {
-			recordID = items[i].ID
-		}
-		if !l.EventsOff && !forceEventsOff {
-			if _, err := eventsStmt.ExecContext(ctx, types.OpPut, created, string(items[i].Key), recordID, expires(items[i].Expires), items[i].Value); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		if _, err := stmt.ExecContext(ctx, string(items[i].Key), recordID, expires(items[i].Expires), items[i].Value); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
+	return backend.NewLease(i), nil
 }
 
 // Update updates value in the backend
@@ -626,15 +535,17 @@ func (l *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 	if i.Key == nil {
 		return nil, trace.BadParameter("missing parameter key")
 	}
+
+	i.Revision = backend.CreateRevision()
 	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
 		created := l.clock.Now().UTC()
-		stmt, err := tx.PrepareContext(ctx, "UPDATE kv SET value = ?, expires = ?, modified = ? WHERE key = ?")
+		stmt, err := tx.PrepareContext(ctx, "UPDATE kv SET value = ?, expires = ?, modified = ?, revision = ? WHERE kv.key = ? AND (expires IS NULL OR expires > ?)")
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer stmt.Close()
 
-		result, err := stmt.ExecContext(ctx, i.Value, expires(i.Expires), id(created), string(i.Key))
+		result, err := stmt.ExecContext(ctx, i.Value, expires(i.Expires), id(created), i.Revision, string(i.Key), created)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -646,13 +557,13 @@ func (l *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 			return trace.NotFound("key %v is not found", string(i.Key))
 		}
 		if !l.EventsOff {
-			stmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value) values(?, ?, ?, ?, ?, ?)")
+			stmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value, kv_revision) values(?, ?, ?, ?, ?, ?, ?)")
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			defer stmt.Close()
 
-			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(i.Key), id(created), expires(i.Expires), i.Value, i.Revision); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -661,7 +572,8 @@ func (l *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return l.newLease(i), nil
+
+	return backend.NewLease(i), nil
 }
 
 // Get returns a single item or not found error
@@ -681,24 +593,17 @@ func (l *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 
 // getInTransaction returns an item, works in transaction
 func (l *Backend) getInTransaction(ctx context.Context, key []byte, tx *sql.Tx, item *backend.Item) error {
-	// When in mirror mode, don't set the current time so the SELECT query
-	// returns expired items.
-	var now time.Time
-	if !l.Mirror {
-		now = l.clock.Now().UTC()
-	}
-
 	q, err := tx.PrepareContext(ctx,
-		"SELECT key, value, expires, modified FROM kv WHERE key = ? AND (expires IS NULL OR expires > ?) LIMIT 1")
+		"SELECT key, value, expires, modified, revision FROM kv WHERE key = ? AND (expires IS NULL OR expires > ?) LIMIT 1")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer q.Close()
 
-	row := q.QueryRowContext(ctx, string(key), now)
-	var expires NullTime
-	if err := row.Scan(&item.Key, &item.Value, &expires, &item.ID); err != nil {
-		if err == sql.ErrNoRows {
+	row := q.QueryRowContext(ctx, string(key), l.clock.Now().UTC())
+	var expires sql.NullTime
+	if err := row.Scan(&item.Key, &item.Value, &expires, &item.ID, &item.Revision); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			return trace.NotFound("key %v is not found", string(key))
 		}
 		return trace.Wrap(err)
@@ -719,23 +624,16 @@ func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		limit = backend.DefaultRangeLimit
 	}
 
-	// When in mirror mode, don't set the current time so the SELECT query
-	// returns expired items.
-	var now time.Time
-	if !l.Mirror {
-		now = l.clock.Now().UTC()
-	}
-
 	var result backend.GetResult
 	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
 		q, err := tx.PrepareContext(ctx,
-			"SELECT key, value, expires, modified FROM kv WHERE (key >= ? and key <= ?) AND (expires is NULL or expires > ?) ORDER BY key LIMIT ?")
+			"SELECT key, value, expires, modified, revision FROM kv WHERE (key >= ? and key <= ?) AND (expires is NULL or expires > ?) ORDER BY key LIMIT ?")
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer q.Close()
 
-		rows, err := q.QueryContext(ctx, string(startKey), string(endKey), now, limit)
+		rows, err := q.QueryContext(ctx, string(startKey), string(endKey), l.clock.Now().UTC(), limit)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -743,8 +641,8 @@ func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 
 		for rows.Next() {
 			var i backend.Item
-			var expires NullTime
-			if err := rows.Scan(&i.Key, &i.Value, &expires, &i.ID); err != nil {
+			var expires sql.NullTime
+			if err := rows.Scan(&i.Key, &i.Value, &expires, &i.ID, &i.Revision); err != nil {
 				return trace.Wrap(err)
 			}
 			i.Expires = expires.Time
@@ -774,24 +672,25 @@ func (l *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 			return trace.Wrap(err)
 		}
 		created := l.clock.Now().UTC()
+		item.Revision = backend.CreateRevision()
 		if !l.EventsOff {
-			stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value) values(?, ?, ?, ?, ?, ?)")
+			stmt, err := tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value, kv_revision) values(?, ?, ?, ?, ?, ?, ?)")
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			defer stmt.Close()
 
-			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(item.Key), id(created), expires.UTC(), item.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, created, string(item.Key), id(created), expires.UTC(), item.Value, item.Revision); err != nil {
 				return trace.Wrap(err)
 			}
 		}
-		stmt, err := tx.PrepareContext(ctx, "UPDATE kv SET expires = ?, modified = ? WHERE key = ?")
+		stmt, err := tx.PrepareContext(ctx, "UPDATE kv SET expires = ?, modified = ?, revision = ? WHERE key = ?")
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer stmt.Close()
 
-		result, err := stmt.ExecContext(ctx, expires.UTC(), id(now), string(lease.Key))
+		result, err := stmt.ExecContext(ctx, expires.UTC(), id(now), backend.CreateRevision(), string(lease.Key))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -887,6 +786,92 @@ func (l *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 			}
 		}
 
+		return nil
+	})
+}
+
+func (l *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+	if i.Key == nil {
+		return nil, trace.BadParameter("missing parameter key")
+	}
+
+	rev := backend.CreateRevision()
+	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
+		now := l.clock.Now().UTC()
+		stmt, err := tx.PrepareContext(ctx, "UPDATE kv SET value = ?, expires = ?, modified = ?, revision = ? WHERE key = ? AND revision = ? AND (expires IS NULL OR expires > ?)")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer stmt.Close()
+
+		result, err := stmt.ExecContext(ctx, i.Value, expires(i.Expires), id(now), rev, string(i.Key), i.Revision, now)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if rows == 0 {
+			return trace.Wrap(backend.ErrIncorrectRevision)
+		}
+		if !l.EventsOff {
+			stmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value, kv_revision) values(?, ?, ?, ?, ?, ?, ?)")
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer stmt.Close()
+
+			if _, err := stmt.ExecContext(ctx, types.OpPut, now, string(i.Key), id(now), expires(i.Expires), i.Value, i.Revision); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	i.Revision = rev
+	return backend.NewLease(i), nil
+}
+
+func (l *Backend) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
+	if len(key) == 0 {
+		return trace.BadParameter("missing parameter key")
+	}
+
+	return l.inTransaction(ctx, func(tx *sql.Tx) error {
+		now := l.clock.Now().UTC()
+		stmt, err := tx.PrepareContext(ctx, "DELETE FROM kv WHERE key = ? AND revision = ? AND (expires IS NULL OR expires > ?)")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer stmt.Close()
+
+		result, err := stmt.ExecContext(ctx, string(key), revision, now)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if rows == 0 {
+			return trace.Wrap(backend.ErrIncorrectRevision)
+		}
+		if !l.EventsOff {
+			created := l.clock.Now().UTC()
+			stmt, err = tx.PrepareContext(ctx, "INSERT INTO events(type, created, kv_key, kv_modified, kv_revision) values(?, ?, ?, ?, ?)")
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer stmt.Close()
+
+			if _, err := stmt.ExecContext(ctx, types.OpDelete, created, string(key), created.UnixNano(), revision); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 		return nil
 	})
 }
@@ -1004,55 +989,33 @@ func isClosedError(err error) bool {
 }
 
 func isConstraintError(err error) bool {
-	e, ok := trace.Unwrap(err).(sqlite3.Error)
-	if !ok {
+	var e sqlite3.Error
+	if ok := errors.As(err, &e); !ok {
 		return false
 	}
 	return e.Code == sqlite3.ErrConstraint
 }
 
 func isLockedError(err error) bool {
-	e, ok := trace.Unwrap(err).(sqlite3.Error)
-	if !ok {
+	var e sqlite3.Error
+	if ok := errors.As(err, &e); !ok {
 		return false
 	}
 	return e.Code == sqlite3.ErrBusy
 }
 
 func isInterrupt(err error) bool {
-	e, ok := trace.Unwrap(err).(sqlite3.Error)
-	if !ok {
+	var e sqlite3.Error
+	if ok := errors.As(err, &e); !ok {
 		return false
 	}
 	return e.Code == sqlite3.ErrInterrupt
 }
 
 func isReadonlyError(err error) bool {
-	e, ok := trace.Unwrap(err).(sqlite3.Error)
-	if !ok {
+	var e sqlite3.Error
+	if ok := errors.As(err, &e); !ok {
 		return false
 	}
 	return e.Code == sqlite3.ErrReadonly
-}
-
-// NullTime represents a time.Time that may be null. NullTime implements the
-// sql.Scanner interface, so it can be used as a scan destination, similar to
-// sql.NullString.
-type NullTime struct {
-	Time  time.Time
-	Valid bool // Valid is true if Time is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (nt *NullTime) Scan(value interface{}) error {
-	nt.Time, nt.Valid = value.(time.Time)
-	return nil
-}
-
-// Value implements the driver Valuer interface.
-func (nt NullTime) Value() (driver.Value, error) {
-	if !nt.Valid {
-		return nil, nil
-	}
-	return nt.Time, nil
 }
