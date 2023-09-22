@@ -46,6 +46,7 @@ export default function FieldSelect({
   autoFocus = false,
   isDisabled = false,
   elevated = false,
+  inputId = 'select',
   ...styles
 }: Props) {
   const { valid, message } = useRule(rule(value));
@@ -54,7 +55,7 @@ export default function FieldSelect({
   return (
     <Box mb="4" {...styles}>
       {label && (
-        <LabelInput htmlFor={'select'} hasError={hasError}>
+        <LabelInput htmlFor={inputId} hasError={hasError}>
           {labelText}
           {labelTip && <LabelTip text={labelTip} />}
         </LabelInput>
@@ -62,7 +63,7 @@ export default function FieldSelect({
       <Select
         components={components}
         stylesConfig={stylesConfig}
-        inputId="select"
+        inputId={inputId}
         name={name}
         menuPosition={menuPosition}
         hasError={hasError}
@@ -107,6 +108,7 @@ export function FieldSelectCreatable({
   autoFocus = false,
   isDisabled = false,
   elevated = false,
+  inputId = 'select',
   ...styles
 }: CreatableProps) {
   const { valid, message } = useRule(rule(value));
@@ -115,14 +117,14 @@ export function FieldSelectCreatable({
   return (
     <Box mb="4" {...styles}>
       {label && (
-        <LabelInput htmlFor={'select'} hasError={hasError}>
+        <LabelInput htmlFor={inputId} hasError={hasError}>
           {labelText}
           {labelTip && <LabelTip text={labelTip} />}
         </LabelInput>
       )}
       <SelectCreatable
         components={components}
-        inputId="select"
+        inputId={inputId}
         name={name}
         menuPosition={menuPosition}
         hasError={hasError}
