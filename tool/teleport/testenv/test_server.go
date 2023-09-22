@@ -322,6 +322,10 @@ func WithSSHLabel(key, value string) TestServerOptFunc {
 
 type cliModules struct{}
 
+func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	return &types.AccessRequestAllowedPromotions{}, nil
+}
+
 // BuildType returns build type.
 func (p *cliModules) BuildType() string {
 	return "CLI"
