@@ -83,7 +83,7 @@ export async function getDurationOptions(
     return [];
   }
 
-  return middleValues(accessRequest.sessionTTL, accessRequest.maxDuration).map(
+  return middleValues(accessRequest.created, accessRequest.sessionTTL, accessRequest.maxDuration).map(
     duration => ({
       value: duration.timestamp,
       label: formatDuration(duration.duration),
