@@ -13,19 +13,16 @@ granted permission to do the following:
 - Participate interactively in another user's session.
 - Terminate another user's session at will.
 
-You can also [define rules](#join_sessions) that allow users to join each other's
-sessions from `tsh` and the Teleport Web UI.
-
 The most common use cases for moderated sessions involve the following scenarios:
 
-- If you have stringent security or compliance requirements and need to have people watching
+- You have strict security or compliance requirements and need to have people watching
   over user-initiated sessions on a set of servers.
-- If you want to share a terminal with someone else to be able to instruct or collaborate.
+- You want to share a terminal with someone else to be able to instruct or collaborate.
 
-You must have Teleport Enterprise or Teleport Enterprise Cloud to enable moderated Sessions
+You must have Teleport Enterprise or Teleport Enterprise Cloud to enable moderated sessions
 in a Teleport cluster.
 
-## Policies
+## Require and allow policies
 
 Moderated sessions make use of role-based access control policies to allow for 
 fine grained control over who can join a session and who is required to be present 
@@ -34,18 +31,18 @@ to start one.
 There are two types of policies you can use to control moderated sessions:
 
 - **Require** policies define a set of conditions that must be a met for a session to
-  start or run. A minimum of one policy from each relevant role the user has must 
-  match for the session to start.
+  start or run. A user assigned a role with a require policy must meet the minimum 
+  requirements of the policy to start the session that the policy applies to.
 
 - **Allow** policies define what sessions users can join and under what conditions 
   they can join a session.
 
 ## Configure a require policy
 
-You can use `require_session_join` in a role to set of conditions that must be a met for 
-a session to start or run. For example, the following policy specifies that users assigned
-the `prod-access` role must have a minimum of two users with the role `auditor` and the 
-mode `moderator` present in to start SSH or Kubernetes sessions:
+You can use `require_session_join` in a role to specify the conditions that must be a met 
+for a session to start or run. For example, the following policy specifies that users 
+assigned the `prod-access` role must have a minimum of two users with the role `auditor` 
+and the mode `moderator` present in to start SSH or Kubernetes sessions:
 
 ```yaml
 kind: role
@@ -90,20 +87,20 @@ The following are required fields for `require_session_join`:
 |Option|Type|Description|
 |---|---|---|
 |`name`|String|The name of the require policy|
-|`filter`|[Filter](#filters)|An expression that, if it evaluates to true for a given user, enables the user to be present in a Moderated Session|
-|`kinds`|`[]`[Session kind](#session-kinds)|The kind of session that the policy applies to|
-|`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
-|`count`|Integer|The number of users that need to match the filter expression to satisfy the policy|
+|`filter`|Filter|An expression that, if it evaluates to true for a given user, enables the user to be present in a moderated session.|
+|`kinds`|List|The kind of session—SSH, Kubernetes, or both—that the policy applies to.|
+|`modes`|List|The participant mode—observer, moderator, or peer—that the user joining the moderated session must match to satisfy the policy.|
+|`count`|Integer|The minimum number of users that must match the filter expression to satisfy the policy.|
 
-#### Require filter expressions
+#### Filter expressions
 
 Filter expressions allow for more detailed control over the scope of a policy.
-For example, rcequire policies can specify which users they consider as valid with a filter
-expression. The filter context has a `user` object defined with the set fields
-`roles` and `name`.
+For example, you can use a filter expression to specify which users are required 
+to be present in a session. The filter has a `user` object as its context that you 
+can refine to match the `roles` and `name` fields you specify.
 
-In the following example, the filter expression evaluates to true if the user is
-Adam or if the user has the trait `cs-observe`:
+In the following example, the filter expression evaluates to true if the user's name is
+Adam or if the user has the role `cs-observe`:
 
 ```
 equals(user.name, "adam") || contains(user.spec.roles, "cs-observe")
@@ -119,48 +116,46 @@ Filter expressions support the following functions and operators:
 - `[expr] && [expr]`: Performs a logical AND on two boolean expressions.
 - `[expr] || [expr]`: Performs a logical OR on two boolean expressions.
 
-#### Require policy count
+#### Matching user count
 
-Require policies can have a variable amount of users that need to match the
-filter expression in order to satisfy the policy. The `count` field of a require
-policy is a positive integer value that specifies the minimum amount of users
-this policy requires.
+You can use the `count` field in a require policy to specify the minimum number 
+of users matching the filter expression who must be present in a session to satisfy 
+the policy.
 
 ### Optional fields
 
-The following fields are optional for `require_session_join`:
+The following field is optional for `require_session_join`:
 
 |Option|Type|Description|
 |---|---|---|
-|`on_leave`|[On leave](#on-leave)|The action to take when the policy is no longer satisfied|
+|`on_leave`|String|The action to take when the policy is no longer satisfied.|
 
-The `on_leave` string option in require policies is used to define what happens 
-when a moderator leaves a session, causing a policy to no longer be satisfied.
+You can use the `on_leave` field in require policies to define what happens 
+when a moderator leaves a session and causes the policy to no longer be satisfied.
+There are two possible values for this field:
 
-There are two possible actions to take in this scenario:
-- Terminate the session and disconnect all participants, corresponding to the `"terminate"` value.
-- Pause the session and stop any input/output streaming until the policy is satisfied again, 
-  corresponding to the `"pause"` value.
+- `terminate` to terminate the session immediately and disconnect all participants.
+- `pause` to pause the session and stop any input/output streaming until the policy is satisfied again.
 
-By default, Teleport treats an empty string in this field as the same as `terminate`.
-That is, the session is terminated instantly and all participants are disconnected.
+By default, Teleport treats an empty string in this field the same as `terminate`.
 
-If all require policies attached to the session owner are set to `"pause"`, the session 
-discards all input from session participants and buffers the most recent output but remains open
-until the session can resume.
+If all require policies attached to the session owner are set to `pause`, the session 
+discards all input from session participants and buffers the most recent output but 
+the session remains open so it can resume.
 
 ### Combining require policies and roles
 
-The authorizer applies require policies within a role together with an OR operator and the policies 
-from each role with an AND operator. In practice, this means that for every role with at least one 
-require policy, one of its policies must be met before a session can be started.
+In evaluating policies and roles, all of the require policies within a role are evaluated using an 
+OR operator and the policies from each role are evluated using an AND operator. In practice, this 
+means that for every role with at least one require policy, one of its policies must be met before 
+a user assigned the role can start a session.
 
 ## Configure an allow policy
 
 You can use `join_sessions` in a role to specify the sessions users can join and under what conditions 
-they can join a session. For example, the following policy is attached to the role `auditor` and allows 
+they can join a session. For example, the following policy is attached to the `auditor` role and allows 
 a user assigned to the auditor role to join SSH and Kubernetes sessions started by a user with the 
-role `prod-access` as a moderator or observer:
+role `prod-access` and to join the session as a moderator or an observer:
 
 ```yaml
 kind: role
@@ -187,10 +182,10 @@ The following are required fields for `join_sessions`:
 
 |Option|Type|Description|
 |---|---|---|
-|`name`|String|The name of the allow policy|
-|`roles`|[]String|A list of names of Teleport roles whose sessions this policy applies to. Active sessions created by users with these roles can be joined under this policy.|
-|`kinds`|`[]`[Session kind](#session-kinds)|The kind of session that the policy applies to|
-|`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the session under this policy|
+|`name`|String|The name of the allow policy.|
+|`roles`|List|A list of Teleport role names that the allow policy applies to. Active sessions created by users with these roles can be joined under this policy.|
+|`kinds`|List|The kind of sessions—SSH, Kubernetes, or both—that the allow policy applies to.|
+|`modes`|List|The participant mode—observer, moderator, or peer—that the user joining the session can use to join the session. The default mode is `observer`.|
 
 ### Joining a session from the command line
 
@@ -249,33 +244,20 @@ You can leave a session with the shortcut `^c` (Control + c) while in observer o
 moderator mode. In moderator mode, you can also forcefully terminate the session 
 at any point in time with the shortcut `t`.
 
-## Filter expressions
+### Multifactor authentication
 
-Filter expressions allow for more detailed control over the scope of an allow 
-or require policy.
+If `per_session_mfa` is set to `true` in role or cluster settings, Teleport requires 
+multifactor authentication checks when starting new sessions. This requirement is
+also enforced for session moderators. Therefore, moderators who want to join a session
+must have configured a Universal 2nd Factor (U2F) or WebAuthn MFA token.
 
-Require policies can specify which users they consider as valid with a filter
-expression. The filter context has a `user` object defined with the set fields
-`roles` and `name`.
+Every 30 seconds, Teleport will prompt users in the terminal session to authenticate in 
+the next 15 seconds. This behavior continues throughout the session to ensure that 
+moderators are always present and watching a given session.
 
-In the following example, the filter expression evaluates to true if the user is
-Adam or if the user has the trait `cs-observe`:
-
-```
-equals(user.name, "adam") || contains(user.spec.roles, "cs-observe")
-```
-
-A filter expression is a string statement used to define logic based on a set of
-input variables. Filter expressions follow a restricted subset of Go syntax
-and support the following functions and operators:
-
-- `contains(set, item)`: Returns true if the item is in the set, otherwise
-  false. The set can be a string or an array.
-- `equals(a, b)`: Returns true if the two values are equal, otherwise returns
-  false.
-- `![expr]`: Negates a boolean expression.
-- `[expr] && [expr]`: Performs a logical AND on two boolean expressions.
-- `[expr] || [expr]`: Performs a logical OR on two boolean expressions.
+If no MFA input is received within 60 seconds, the user is disconnected from the
+session, which might cause the session to terminate or pause because a require policy
+is no longer satisfied.
 
 ## Session kinds
 
@@ -288,21 +270,6 @@ options are `ssh` and `k8s`.
 Users with the `join_sessions` permission for SSH sessions can join sessions from the 
 command line or from the Teleport Web UI. Users with the `join_sessions` permission for 
 Kubernetes sessions can only join session from the command line.
-
-## MFA-based presence
-
-When `per_session_mfa` is set to `true` via [role or cluster
-settings](../../access-controls/guides/per-session-mfa.mdx), Teleport enforces
-MFA-based presence checks for moderators. This requires that all moderators
-wishing to join have a configured U2F or WebAuthn MFA token.
-
-Every 30 seconds, Teleport will issue a prompt to the user in the terminal,
-asking them to press their MFA token in the next 15 seconds. This will happen
-continuously during the session and exists so that moderators are always present
-and watching a given session.
-
-If no MFA input is received within 60 seconds, the user is kicked from the
-session which may pause it, if RBAC policies are no longer met.
 
 ## Session invites
 
@@ -326,7 +293,6 @@ After the file transfer has been requested, all session participants and notifie
 and prompted to approve or deny the file transfer request.
 
 ![Approve/Deny Prompt](../../../img/moderated-file-transfer-dialog.png)
-
 
 If a moderator denies the file transfer request, the request is immediately removed and 
 all session participants are notified.
