@@ -16,10 +16,8 @@ limitations under the License.
 
 package types
 
-// Matcher is an interface for cloud resource matchers.
-type Matcher interface {
-	// GetTypes gets the types that the matcher can match.
-	GetTypes() []string
-	// CopyWithTypes copies the matcher with new types.
-	CopyWithTypes(t []string) Matcher
+// CheckAndSetDefaults that the matcher is correct and adds default values.
+func (m KubernetesMatcher) CheckAndSetDefaults() error {
+	// TODO(marco): implement
+	return nil
 }
