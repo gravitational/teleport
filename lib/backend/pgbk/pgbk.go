@@ -210,10 +210,16 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		}()
 	}
 
+	var isCRDB bool
+	pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+		isCRDB = c.Conn().PgConn().ParameterStatus("crdb_version") != ""
+		return nil
+	})
+
 	b.wg.Add(1)
 	go func() {
 		defer b.wg.Done()
-		b.backgroundChangeFeed(ctx)
+		b.backgroundChangeFeed(ctx, isCRDB)
 	}()
 
 	return b, nil
@@ -249,8 +255,8 @@ var schemas = []string{
 		CONSTRAINT kv_pkey PRIMARY KEY (key)
 	);
 	CREATE INDEX kv_expires_idx ON kv (expires) WHERE expires IS NOT NULL;`,
-	`ALTER TABLE kv REPLICA IDENTITY FULL;
-	CREATE PUBLICATION kv_pub FOR TABLE kv;`,
+	// `ALTER TABLE kv REPLICA IDENTITY FULL;
+	// CREATE PUBLICATION kv_pub FOR TABLE kv;`,
 }
 
 var _ backend.Backend = (*Backend)(nil)

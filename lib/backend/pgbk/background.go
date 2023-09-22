@@ -91,13 +91,18 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 	}
 }
 
-func (b *Backend) backgroundChangeFeed(ctx context.Context) {
+func (b *Backend) backgroundChangeFeed(ctx context.Context, isCRDB bool) {
 	defer b.log.Info("Exited change feed loop.")
 	defer b.buf.Close()
 
+	runChangeFeed := b.runChangeFeed
+	if isCRDB {
+		runChangeFeed = b.runChangeFeedCRDB
+	}
+
 	for ctx.Err() == nil {
 		b.log.Info("Starting change feed stream.")
-		err := b.runChangeFeed(ctx)
+		err := runChangeFeed(ctx)
 		if ctx.Err() != nil {
 			break
 		}
