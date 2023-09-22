@@ -31,6 +31,7 @@ func TestConvertUsageEvent(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedAnonymizedUserString := anonymizer.AnonymizeString("myuser")
+	expectedAnonymizedAccessListIDString := anonymizer.AnonymizeString("someid")
 
 	for _, tt := range []struct {
 		name             string
@@ -256,6 +257,144 @@ func TestConvertUsageEvent(t *testing.T) {
 					Status:       &prehogv1a.DiscoverStepStatus{Status: prehogv1a.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 					DeployMethod: prehogv1a.UIDiscoverDeployServiceEvent_DEPLOY_METHOD_AUTO,
 					DeployType:   prehogv1a.UIDiscoverDeployServiceEvent_DEPLOY_TYPE_AMAZON_ECS,
+				},
+			}},
+		},
+		{
+			name: "access list create event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_AccessListCreate{
+				AccessListCreate: &usageeventsv1.AccessListCreate{
+					Metadata: &usageeventsv1.AccessListMetadata{
+						Id: "someid",
+					},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_AccessListCreate{
+				AccessListCreate: &prehogv1a.AccessListCreateEvent{
+					UserName: expectedAnonymizedUserString,
+					Metadata: &prehogv1a.AccessListMetadata{
+						Id: expectedAnonymizedAccessListIDString,
+					},
+				},
+			}},
+		},
+		{
+			name: "access list update event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_AccessListUpdate{
+				AccessListUpdate: &usageeventsv1.AccessListUpdate{
+					Metadata: &usageeventsv1.AccessListMetadata{
+						Id: "someid",
+					},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_AccessListUpdate{
+				AccessListUpdate: &prehogv1a.AccessListUpdateEvent{
+					UserName: expectedAnonymizedUserString,
+					Metadata: &prehogv1a.AccessListMetadata{
+						Id: expectedAnonymizedAccessListIDString,
+					},
+				},
+			}},
+		},
+		{
+			name: "access list delete event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_AccessListDelete{
+				AccessListDelete: &usageeventsv1.AccessListDelete{
+					Metadata: &usageeventsv1.AccessListMetadata{
+						Id: "someid",
+					},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_AccessListDelete{
+				AccessListDelete: &prehogv1a.AccessListDeleteEvent{
+					UserName: expectedAnonymizedUserString,
+					Metadata: &prehogv1a.AccessListMetadata{
+						Id: expectedAnonymizedAccessListIDString,
+					},
+				},
+			}},
+		},
+		{
+			name: "access list member create event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_AccessListMemberCreate{
+				AccessListMemberCreate: &usageeventsv1.AccessListMemberCreate{
+					Metadata: &usageeventsv1.AccessListMetadata{
+						Id: "someid",
+					},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_AccessListMemberCreate{
+				AccessListMemberCreate: &prehogv1a.AccessListMemberCreateEvent{
+					UserName: expectedAnonymizedUserString,
+					Metadata: &prehogv1a.AccessListMetadata{
+						Id: expectedAnonymizedAccessListIDString,
+					},
+				},
+			}},
+		},
+		{
+			name: "access list member upate event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_AccessListMemberUpdate{
+				AccessListMemberUpdate: &usageeventsv1.AccessListMemberUpdate{
+					Metadata: &usageeventsv1.AccessListMetadata{
+						Id: "someid",
+					},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_AccessListMemberUpdate{
+				AccessListMemberUpdate: &prehogv1a.AccessListMemberUpdateEvent{
+					UserName: expectedAnonymizedUserString,
+					Metadata: &prehogv1a.AccessListMetadata{
+						Id: expectedAnonymizedAccessListIDString,
+					},
+				},
+			}},
+		},
+		{
+			name: "access list member delete event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_AccessListMemberDelete{
+				AccessListMemberDelete: &usageeventsv1.AccessListMemberDelete{
+					Metadata: &usageeventsv1.AccessListMetadata{
+						Id: "someid",
+					},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_AccessListMemberDelete{
+				AccessListMemberDelete: &prehogv1a.AccessListMemberDeleteEvent{
+					UserName: expectedAnonymizedUserString,
+					Metadata: &prehogv1a.AccessListMetadata{
+						Id: expectedAnonymizedAccessListIDString,
+					},
+				},
+			}},
+		},
+		{
+			name: "access list grants to user event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_AccessListGrantsToUser{
+				AccessListGrantsToUser: &usageeventsv1.AccessListGrantsToUser{
+					CountRolesGranted:  5,
+					CountTraitsGranted: 6,
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_AccessListGrantsToUser{
+				AccessListGrantsToUser: &prehogv1a.AccessListGrantsToUserEvent{
+					UserName:           expectedAnonymizedUserString,
+					CountRolesGranted:  5,
+					CountTraitsGranted: 6,
 				},
 			}},
 		},
